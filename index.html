@@ -509,6 +509,13 @@ const shipMeshes=[0,1].map(t=>{
   const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),600);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
 });
+/* small craft (fighters and W.A.S.) launched from carriers */
+const craftGeo=new THREE.ConeGeometry(.55,1.7,3); craftGeo.rotateX(Math.PI/2);
+const craftMeshes=[0,1].map(t=>{
+  const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+  const m=new THREE.InstancedMesh(craftGeo,new THREE.MeshBasicMaterial({color:c}),1500);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
+});
 
 /* selection rings */
 const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
@@ -558,7 +565,7 @@ const PLAYER_SPEC=[
   {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8,vis:8,stl:7},
   {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6,vis:6,stl:4},
   {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24,vis:6,stl:4},
-  {name:'第7機動部隊',sub:'艦載機隊',n:30,hp:6,dmg:1.05,range:12,speed:12,scale:.6,pos:[-108,46],alt:-26,vis:7,stl:5},
+  {name:'第7機動部隊',sub:'戦闘母艦',n:3,hp:70,dmg:1.6,range:14,speed:5,scale:1.6,pos:[-108,46],alt:-26,vis:7,stl:3,hangar:{ftr:120}},
 ];
 const ENEMY_SPEC=[
   {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42,vis:5,stl:5},
@@ -575,11 +582,31 @@ function makeFleet(team,o){
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6});}
+  f.hangars=makeHangars(o.hangar);
+  f.launchR=f.hangars.reduce((m,h)=>Math.max(m,WING[h.type].launchR),0);
   f.el=mkUnitLabel(team,o.name,'');
   return f;
 }
+/* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
+const WING={
+  ftr:{name:'艦載機',squad:30,maxOut:3,launchR:52,range:9,speed:17,hp:5,eva:.45,dmg:.3,fuel:24,rearm:8,cd:3,vis:5,stl:7},
+  was:{name:'W.A.S.',squad:20,maxOut:3,launchR:30,range:5,speed:10,hp:10,eva:.25,dmg:.65,fuel:16,rearm:10,cd:4,vis:4,stl:6},
+};
+function makeHangars(hg){
+  if(!hg) return [];
+  return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
+    const W=WING[type], squads=[]; let left=Math.round(cap);
+    while(squads.length<W.maxOut&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
+    return {type,reserve:left,squads,next:0,announced:false};
+  });
+}
+function hangarText(f){
+  return f.hangars.map(h=>{ const W=WING[h.type], out=h.squads.filter(q=>q.state==='out');
+    const total=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?q.wing.n:q.n),0);
+    return `${W.name}${total}　出撃${out.length}/${h.squads.length}隊　予備${h.reserve}`; }).join('　');
+}
 function altStr(y){ y=Math.round(y); return y===0?'±0':(y>0?'+':'−')+Math.abs(y); }
-function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>`; }
+function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>${f.hangars.length?`<br>${hangarText(f)}`:''}`; }
 
 const rosterEl=document.getElementById('roster');
 /* keep the briefing panel above the roster on narrow screens */
@@ -647,7 +674,7 @@ function reset(cfg=lastCfg){
   lastCfg=cfg;
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
   if(fortress) fortress.el.remove();
-  [...arrows].forEach(dropArrow);
+  [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); reinforced=false; fortressMarks=new Set(); events=[];
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:PLAYER_SPEC;
@@ -851,7 +878,8 @@ vUi.addEventListener('click',toggleUi); vLb.addEventListener('click',toggleLabel
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT') return; if(e.key==='h'||e.key==='H') toggleUi(); if(e.key==='l'||e.key==='L') toggleLabels(); });
 
 /* ---------- simulation ---------- */
-function units(){ return fortress.alive?[...fleets,fortress]:fleets; }
+let wings=[];
+function units(){ return fortress.alive?[...fleets,...wings,fortress]:[...fleets,...wings]; }
 function gap(a,b){ return a.pos.distanceTo(b.pos)-(b.radius||0); }
 /* detection: a team sees an enemy unit while any of its own units has it within sight.
    sight grows with the observer's 視界, shrinks with the target's 隠蔽性; vision is shared across the team,
@@ -878,18 +906,23 @@ function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; 
 function damage(t,amt,src){
   if(!t.alive) return;
   if(t.eva) amt*=1-t.eva;
+  if(t.kind==='wing'&&src.kind!=='wing') amt*=.5; // ship guns track small craft poorly
   t.hpPool-=amt;
-  const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key);
+  const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
     if(last===undefined){
       const a=src.team===0?src:t, b=src.team===0?t:src;
       if(t.kind==='fortress'||src.kind==='fortress'){
         if(phaseName!=='要塞攻略'){ setPhase('要塞攻略'); logEvent('要塞攻略開始',`${a.name}が要塞の防空砲火圏に突入。要塞の主砲は射程46、近づくほど危険。`); }
-      } else { if(phaseName==='布陣') setPhase('交戦'); logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
+      } else { if(phaseName==='布陣') setPhase('交戦'); if(!wingy) logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
     }
     engaged.set(key,gameSec);
   } else engaged.set(key,gameSec);
-  if(t.kind==='fleet'){
+  if(t.kind==='wing'){
+    const want=Math.max(0,Math.ceil(t.hpPool/t.hp));
+    while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],5,5,.6); }
+    t.n=want; if(want===0){ t.alive=false; t.squad.n=0; t.squad.state='lost'; }
+  } else if(t.kind==='fleet'){
     const want=Math.max(0,Math.ceil(t.hpPool/t.hp));
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(want===0) destroyFleet(t,src);
@@ -917,6 +950,56 @@ function end(win){
   setTimeout(()=>{document.getElementById('result').hidden=false;},1600);
 }
 
+/* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut at once */
+function launchCheck(f){
+  for(const h of f.hangars){ const W=WING[h.type];
+    if(gameSec<h.next) continue;
+    const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
+    const tgt=nearestFoe(f,W.launchR); if(!tgt) continue;
+    h.next=gameSec+W.cd; sq.state='out';
+    const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp,hpPool:sq.n*W.hp,eva:W.eva,dmg:W.dmg,range:W.range,
+      vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
+    const R=Math.sqrt(sq.n)*.55;
+    for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
+      const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r); w.ships.push({off,pos:f.pos.clone(),wob:Math.random()*6}); }
+    sq.wing=w; wings.push(w);
+    if(f.team===0&&!h.announced){ h.announced=true;
+      logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${W.maxOut}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
+  }
+}
+/* back aboard: half of this sortie's losses are made up from the reserve, then the squadron rearms */
+function dock(w){
+  const h=w.hangar, q=w.squad, rec=Math.min(Math.ceil((w.launched-w.n)/2),h.reserve);
+  h.reserve-=rec; q.n=w.n+rec; q.state='docked'; q.ready=gameSec+w.W.rearm; q.wing=null; w.alive=false;
+}
+function stepWings(dt){
+  for(const w of wings){ if(!w.alive) continue;
+    const c=w.carrier;
+    if(w.state==='attack'){
+      w.fuel-=dt;
+      if(!w.target||!w.target.alive||!w.target.seen) w.target=nearestFoe(w,w.W.launchR*.6)||(c.alive?nearestFoe(c,w.W.launchR):null);
+      if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
+    }
+    if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
+    const goal=w.state==='attack'?w.target.pos:(c.alive?c.pos:null);
+    if(goal){
+      const stop=w.state==='attack'?w.range*.6+(w.target.radius||0):1;
+      _v.subVectors(goal,w.pos); const d=_v.length();
+      if(w.state==='return'&&d<=stop+.5){ dock(w); continue; }
+      if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.W.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
+    }
+    if(w.state!=='attack') continue;
+    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; w.fireTarget=nearestFoe(w,w.range); }
+    const ft=w.fireTarget;
+    if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08){
+      damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL;
+      if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randShip(w),randShip(ft),TEAM_COL[w.team],.18);
+    }
+  }
+  wings=wings.filter(w=>w.alive);
+}
+
 let aiTimer=0;
 /* with no allied fleet in sight, the reinforcement takes up a watch north of the fortress */
 const HUNT_POST=new THREE.Vector3(0,22,-38);
@@ -942,8 +1025,10 @@ function step(dt){
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
+  stepWings(dt);
   for(const f of fleets){
     if(!f.alive) continue;
+    if(f.hangars.length) launchCheck(f);
     f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=nearestFoe(f,f.range); }
     let goal=null, stop=.6;
     if(f.order){
@@ -997,6 +1082,17 @@ function frame(now){
     }
   }
   shipMeshes.forEach((m,t)=>{m.count=cnt[t];m.instanceMatrix.needsUpdate=true;});
+  const cc=[0,0];
+  for(const w of wings){ if(!w.alive||!shown(w)) continue;
+    const k=1-Math.exp(-(dt>0?dt:0)*5);
+    for(const s of w.ships){
+      _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4;
+      s.pos.lerp(_w,dt>0?k:0);
+      const m=craftMeshes[w.team], i=cc[w.team]++; if(i>=1500) continue;
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(w.heading)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
+    }
+  }
+  craftMeshes.forEach((m,t)=>{m.count=cc[t];m.instanceMatrix.needsUpdate=true;});
   stepParticles(rdt*(speed||1)*(over?1:1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
@@ -1008,7 +1104,7 @@ function frame(now){
   // selection visuals
   if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));
-    rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(selected.range);
+    rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(Math.max(selected.range,selected.launchR||0));
     sightRing.visible=true; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));
     layer.visible=true; layer.position.set(selected.pos.x,selAlt,selected.pos.z); layerMat.uniforms.uTime.value=time; }
   else selRing.visible=rangeRing.visible=sightRing.visible=layer.visible=false;
@@ -1019,7 +1115,7 @@ function frame(now){
   if(composer) composer.render(); else renderer.render(scene,camera);
 
   // labels
-  for(const u of units()){ if(!u.alive) continue;
+  for(const u of units()){ if(!u.alive||!u.el) continue;
     const lost=!shown(u), at=lost?u.lastPos:u.pos;
     if(lost&&(!at||gameSec-u.lostAt>LOST_MEMORY)){ u.el.style.visibility='hidden'; continue; }
     if(u.el.classList.contains('lost')!==lost){ u.el.classList.toggle('lost',lost); u._sub=null; }

@@ -14,19 +14,21 @@ const SHIPS = [
   {id:'dd',   name:'駆逐艦',            atk:5, def:3, eva:6, rng:5, vis:6, stl:6, spd:7,  max:8,  scale:.85, note:'雷撃で大型艦を狙う'},
   {id:'cl',   name:'巡洋艦',            atk:6, def:6, eva:4, rng:6, vis:6, stl:4, spd:5,  max:6,  scale:1.2, note:'攻守の均衡した主力艦'},
   {id:'bb',   name:'戦艦',              atk:9, def:9, eva:2, rng:8, vis:5, stl:2, spd:3,  max:4,  scale:1.7, note:'長射程の主砲を持つ決戦艦'},
-  {id:'cvb',  name:'戦闘母艦',          atk:7, def:5, eva:3, rng:9, vis:7, stl:3, spd:4,  max:3,  scale:1.6, note:'艦載機（M.A.S.ではない）で遠くから攻撃'},
-  {id:'mas',  name:'M.A.S.輸送戦闘艦',  atk:6, def:4, eva:5, rng:2, vis:5, stl:7, spd:6,  max:6,  scale:.9,  note:'M.A.S.（Mobile Armored Shell）を運び、近接戦を挑む'},
-  {id:'masc', name:'M.A.S.母艦',        atk:5, def:5, eva:2, rng:7, vis:6, stl:3, spd:4,  max:3,  scale:1.6, note:'多数のM.A.S.を発進させる母艦'},
+  {id:'cvb',  name:'戦闘母艦',          atk:4, def:5, eva:3, rng:4, vis:7, stl:3, spd:4,  max:3,  scale:1.6, hangar:{ftr:40}, note:'艦載機（W.A.S.ではない）を発進させ、遠くの敵を叩く'},
+  {id:'mas',  name:'突撃揚陸艦',        atk:5, def:4, eva:5, rng:2, vis:5, stl:7, spd:6,  max:6,  scale:.9,  hangar:{was:10}, note:'W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる'},
+  {id:'masc', name:'強襲母艦',          atk:4, def:5, eva:2, rng:3, vis:6, stl:3, spd:4,  max:3,  scale:1.6, hangar:{was:30,ftr:10}, note:'W.A.S.が主力。艦載機も少し出せる'},
 ];
 const SHIP = Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const CARRIERS = ['cvb','masc'];
+const CRAFT = {ftr:'艦載機', was:'W.A.S.'};
+const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${CRAFT[k]}${Math.round(v)}`).join('・'):'';
 const BONUSES = [
   {id:'strike', name:'打撃艦隊', cond:'戦艦・巡洋艦・駆逐艦を含む', eff:'攻撃 +15%', test:t=>t.has('bb')&&t.has('cl')&&t.has('dd'), mod:{atk:1.15}},
   {id:'escort', name:'護衛艦隊', cond:'母艦と、フリゲートかコルベットを含む', eff:'防御 +15%', test:t=>CARRIERS.some(c=>t.has(c))&&(t.has('ff')||t.has('cv')), mod:{def:1.15}},
   {id:'air',    name:'機動部隊', cond:'母艦の戦闘団が2つ以上', eff:'射程 +10%', test:(t,bgs)=>bgs.filter(b=>CARRIERS.includes(b.type)).length>=2, mod:{rng:1.1}},
   {id:'scout',  name:'前衛偵察', cond:'コルベットを含む', eff:'視界 +25%', test:t=>t.has('cv'), mod:{vis:1.25}},
   {id:'stealth',name:'隠密艦隊', cond:'全戦闘団の隠蔽性が6以上', eff:'隠蔽性 +20%', test:(t,bgs)=>bgs.length>0&&bgs.every(b=>SHIP[b.type].stl>=6), mod:{stl:1.2}},
-  {id:'assault',name:'強襲揚陸', cond:'M.A.S.輸送戦闘艦とM.A.S.母艦を含む', eff:'攻撃 +10%・回避 +10%', test:t=>t.has('mas')&&t.has('masc'), mod:{atk:1.1,eva:1.1}},
+  {id:'assault',name:'強襲揚陸', cond:'突撃揚陸艦と強襲母艦を含む', eff:'攻撃 +10%・回避 +10%', test:t=>t.has('mas')&&t.has('masc'), mod:{atk:1.1,eva:1.1}},
   {id:'uniform',name:'単一艦種', cond:'3つ以上の戦闘団がすべて同じ艦種', eff:'全能力 +5%', test:(t,bgs)=>bgs.length>=3&&t.size===1, mod:{atk:1.05,def:1.05,eva:1.05,rng:1.05,vis:1.05,stl:1.05}},
 ];
 const MAX_BG=5, MAX_ARMY=5, CUBE=5;
@@ -44,8 +46,8 @@ function defaults(){
       {id:'bg4', name:'第31護衛戦闘団', type:'ff', count:10},
       {id:'bg5', name:'第1航空戦闘団', type:'cvb', count:2},
       {id:'bg6', name:'第41偵察戦闘団', type:'cv', count:12},
-      {id:'bg7', name:'第1M.A.S.戦闘団', type:'mas', count:6},
-      {id:'bg8', name:'第2M.A.S.母艦戦闘団', type:'masc', count:2},
+      {id:'bg7', name:'第1突撃揚陸戦闘団', type:'mas', count:6},
+      {id:'bg8', name:'第2強襲母艦戦闘団', type:'masc', count:2},
       {id:'bg9', name:'第22駆逐戦闘団', type:'dd', count:8},
     ],
     armies: [
@@ -60,7 +62,9 @@ function defaults(){
   };
 }
 let save;
-function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups) return s; }catch(e){} return defaults(); }
+function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
+/* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
+function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); }); }
 function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(save)); }catch(e){} }
 save=load();
 const newId=p=>p+(++save.seq);
@@ -79,18 +83,19 @@ function armyStats(a){
     st.atk+=s.atk*w; st.def+=s.def*w; st.eva+=s.eva*w; st.rng+=s.rng*w;
     st.vis=Math.max(st.vis,s.vis); st.stl=Math.min(st.stl,s.stl); st.spd=Math.min(st.spd,s.spd); });
   if(!bgs.length) st.stl=0;
+  const hangar={}; bgs.forEach(b=>Object.entries(SHIP[b.type].hangar||{}).forEach(([k,v])=>hangar[k]=(hangar[k]||0)+v*b.count));
   const active=BONUSES.filter(b=>b.test(types,bgs));
   active.forEach(b=>Object.entries(b.mod).forEach(([k,m])=>st[k]*=m));
-  return {st,ships,bgs,active};
+  return {st,ships,bgs,active,hangar};
 }
 /* convert an army into the battle fleet spec used by index.html */
 function armyToFleet(a){
-  const {st,ships,bgs}=armyStats(a);
+  const {st,ships,bgs,hangar}=armyStats(a);
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
-  const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name.replace('M.A.S.','MAS')+c).join('・');
+  const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name+c).join('・');
   return {name:a.name, sub, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
-    range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, scale:Math.min(1.5,.4+big*.6), stats:st};
+    range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, hangar, scale:Math.min(1.5,.4+big*.6), stats:st};
 }
 
 /* ---------- screens ---------- */
@@ -148,7 +153,7 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="data" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦艇データ</h2></header>
-  <p class="tabnote">数値はすべて仮の値です（1〜10）。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。</p>
+  <p class="tabnote">数値はすべて仮の値です（1〜10）。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
   <h3 class="sub">編成ボーナス（軍単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
@@ -216,7 +221,7 @@ function renderBgTab(){
     <label class="fld">名前<input id="bgName" maxlength="20" value="${esc(b.name)}"></label>
     <div class="fld">艦種<div class="types">${SHIPS.map(t=>`<button data-type="${t.id}" aria-pressed="${t.id===b.type}">${t.name}</button>`).join('')}</div></div>
     <label class="fld"><span>隻数 <b id="bgCountV">${b.count}</b> / 最大${s.max}</span><input id="bgCount" type="range" min="1" max="${s.max}" value="${Math.min(b.count,s.max)}"></label>
-    <p class="note">${esc(s.note)}。所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
+    <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
     <h4>1隻あたりの能力（仮）</h4>${bars(s)}
     <div class="row">${delBtn('bg:'+b.id,'この戦闘団を解散する')}</div>`;
   det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
@@ -234,7 +239,7 @@ function renderArmyTab(){
   list.querySelectorAll('[data-army]').forEach(x=>x.onclick=()=>{ selArmy=x.dataset.army; confirmDel=null; renderOrg(); });
   const a=armyById(selArmy);
   if(!a){ det.innerHTML='<p class="empty">軍がありません。左の「軍を作る」から追加してください。</p>'; return; }
-  const {st,ships,active}=armyStats(a);
+  const {st,ships,active,hangar}=armyStats(a);
   const free=save.bgs.filter(b=>!armyOfBg(b.id));
   const slots=[...Array(MAX_BG)].map((_,i)=>{ const b=bgById(a.bgs[i]);
     if(b) return `<div class="slot full"><span class="no">${i+1}</span><b>${esc(b.name)}</b><span>${SHIP[b.type].name}×${b.count}</span><button class="x" data-rm="${b.id}" aria-label="${esc(b.name)}を外す">外す</button></div>`;
@@ -243,7 +248,7 @@ function renderArmyTab(){
   det.innerHTML=`
     <label class="fld">名前<input id="armyName" maxlength="20" value="${esc(a.name)}"></label>
     <h4>戦闘団（${a.bgs.length}/${MAX_BG}）</h4><div class="slots">${slots}</div>
-    <h4>軍の能力　<span class="dim">総数${ships}隻・速度は最も遅い艦に合わせます</span></h4>${bars(st)}
+    <h4>軍の能力　<span class="dim">総数${ships}隻${Object.keys(hangar).length?`・搭載 ${hangarStr(hangar)}`:''}・速度は最も遅い艦に合わせます</span></h4>${bars(st)}
     <h4>編成ボーナス</h4>
     <ul class="bonus">${BONUSES.map(bn=>`<li class="${active.includes(bn)?'on':''}"><b>${bn.name}</b><span>${bn.cond}</span><em>${bn.eff}</em></li>`).join('')}</ul>
     <div class="row">${delBtn('army:'+a.id,'この軍を解散する')}</div>`;
@@ -333,8 +338,8 @@ const preview=(()=>{
 
 /* ---------- ship data ---------- */
 function renderData(){
-  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th>${s.n}</th>`).join('')}<th>速度</th><th>戦闘団の最大隻数</th><th>役割</th></tr></thead><tbody>${
-    SHIPS.map(s=>`<tr><th>${s.name}</th>${STATS.map(k=>`<td><span class="pip" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td class="note">${s.note}</td></tr>`).join('')}</tbody>`;
+  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th>${s.n}</th>`).join('')}<th>速度</th><th>戦闘団の最大隻数</th><th>搭載</th><th>役割</th></tr></thead><tbody>${
+    SHIPS.map(s=>`<tr><th>${s.name}</th>${STATS.map(k=>`<td><span class="pip" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td>${hangarStr(s.hangar)||'—'}</td><td class="note">${s.note}</td></tr>`).join('')}</tbody>`;
   document.getElementById('bonusTbl').innerHTML=`<thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead><tbody>${BONUSES.map(b=>`<tr><th>${b.name}</th><td class="note">${b.cond}</td><td>${b.eff}</td></tr>`).join('')}</tbody>`;
 }
 
