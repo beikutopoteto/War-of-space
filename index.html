@@ -36,6 +36,10 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #speed{display:flex;gap:4px;margin-top:2px}
 #speed button{flex:1;white-space:nowrap;font-family:var(--f-num);font-size:12px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:4px 6px;cursor:pointer}
 #speed button[aria-pressed="true"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
+#camView{display:flex;gap:4px}
+#camView button{flex:1;white-space:nowrap;font-family:var(--f-ui);font-size:11px;padding:2px 6px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);cursor:pointer}
+#camView button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
+#camView button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #speed button:focus-visible,#roster button:focus-visible,.again:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
 /* bottom-left: briefing / event panel */
@@ -197,7 +201,11 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   <div id="view" role="group" aria-label="表示">
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
-    <button id="vCam" title="視点を 斜め・真上・真横 で切り替え（Vキー）">斜め V</button>
+  </div>
+  <div id="camView" role="group" aria-label="視点（Vキーで順に切り替え）">
+    <button id="cv0" data-v="0" aria-pressed="true">斜め</button>
+    <button id="cv1" data-v="1" aria-pressed="false">真上</button>
+    <button id="cv2" data-v="2" aria-pressed="false">真横</button>
   </div>
   <div id="speed" role="group" aria-label="進行速度">
     <button id="sp0" data-s="0" aria-pressed="false">停止</button>
@@ -682,7 +690,9 @@ function flyTo(target,dir,dist){
   dist=dist??camera.position.distanceTo(controls.target);
   camAnim={t:0,fT:controls.target.clone(),tT:target.clone(),fP:camera.position.clone(),tP:target.clone().add(dir.clone().normalize().multiplyScalar(dist))};
 }
-function cycleView(){ viewIdx=(viewIdx+1)%VIEWS.length; const v=VIEWS[viewIdx]; flyTo(controls.target,v.dir()); document.getElementById('vCam').textContent=v.name+' V'; }
+function setView(i){ viewIdx=i; flyTo(controls.target,VIEWS[i].dir());
+  document.querySelectorAll('#camView button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===i))); }
+function cycleView(){ setView((viewIdx+1)%VIEWS.length); }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
 /* view angle: horizontal bar turns the camera around the target, vertical bar tilts it from above to below; arrow keys do the same */
 const EL_MIN=-80, EL_MAX=88, _sph=new THREE.Spherical(), _off=new THREE.Vector3();
@@ -718,7 +728,7 @@ function stepCam(dt){
   controls.target.lerpVectors(camAnim.fT,camAnim.tT,k); camera.position.lerpVectors(camAnim.fP,camAnim.tP,k);
   if(camAnim.t>=1) camAnim=null;
 }
-document.getElementById('vCam').addEventListener('click',cycleView);
+document.querySelectorAll('#camView button').forEach(b=>b.addEventListener('click',()=>setView(+b.dataset.v)));
 addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='KeyF') focusSelected(); });
 
 function tap(x,y){
