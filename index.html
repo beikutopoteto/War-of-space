@@ -165,10 +165,12 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   #brief{width:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   #roster{width:auto}
 }
+#cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
 </style>
 
 <div id="stage"></div>
 <div id="labels"></div>
+<div id="cursorAlt" hidden></div>
 
 <div id="clock" class="hud"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
 
@@ -178,6 +180,7 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   <div id="view" role="group" aria-label="表示">
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
+    <button id="vCam" title="視点を 斜め・真上・真横 で切り替え（Vキー）">斜め V</button>
   </div>
   <div id="speed" role="group" aria-label="進行速度">
     <button id="sp0" data-s="0" aria-pressed="false">停止</button>
@@ -187,7 +190,7 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   </div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動。</div>
+<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、Vで視点切り替え。</div>
 
 <div id="alt" class="hud" hidden aria-label="高度">
   <span class="cap">高度</span>
@@ -582,7 +585,7 @@ function logEvent(title,desc){
 }
 
 /* ---------- selection & orders ---------- */
-function select(f){ selected=f; fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
+function select(f){ selected=f; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
   if(f){ setAlt(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y,false); }
   document.getElementById('alt').hidden=!f; updateRoster(); }
 /* altitude control: sets the height of the selected fleet's destination */
@@ -630,6 +633,46 @@ function order(f,o){
 
 const ray=new THREE.Raycaster(), plane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 function proj(v){ const p=v.clone().project(camera); return {x:(p.x+1)/2*W, y:(1-p.y)/2*H, z:p.z}; }
+/* hover preview (mouse only): shows where a click would send the selected fleet, at the chosen altitude */
+const ghost=new THREE.Group(); ghost.visible=false; scene.add(ghost);
+const ghostRing=new THREE.Mesh(new THREE.RingGeometry(2.2,2.7,40),new THREE.MeshBasicMaterial({color:0xbfe4ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
+ghostRing.rotation.x=-Math.PI/2; ghost.add(ghostRing);
+const ghostFoot=new THREE.Mesh(new THREE.RingGeometry(1.2,1.5,32),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.6,depthWrite:false,side:THREE.DoubleSide}));
+ghostFoot.rotation.x=-Math.PI/2; scene.add(ghostFoot); ghostFoot.visible=false;
+const ghostStalkGeo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);
+const ghostStalk=new THREE.Line(ghostStalkGeo,new THREE.LineDashedMaterial({color:0xbfe4ff,dashSize:1.2,gapSize:.8,transparent:true,opacity:.8})); ghostStalk.frustumCulled=false; scene.add(ghostStalk); ghostStalk.visible=false;
+const cursorAlt=document.getElementById('cursorAlt');
+function hideGhost(){ ghost.visible=ghostFoot.visible=ghostStalk.visible=false; cursorAlt.hidden=true; }
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(e.pointerType!=='mouse'||!selected||!selected.alive||over||e.buttons){ hideGhost(); return; }
+  ray.setFromCamera({x:e.clientX/W*2-1,y:-(e.clientY/H)*2+1},camera); plane.constant=-selAlt;
+  const hit=new THREE.Vector3();
+  if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x,hit.z)>200){ hideGhost(); return; }
+  ghost.position.copy(hit); ghostFoot.position.set(hit.x,.05,hit.z);
+  ghostStalkGeo.setFromPoints([hit,new THREE.Vector3(hit.x,0,hit.z)]); ghostStalk.computeLineDistances();
+  ghost.visible=true; ghostFoot.visible=ghostStalk.visible=Math.abs(selAlt)>.5;
+  cursorAlt.hidden=false; cursorAlt.textContent='高度'+altStr(selAlt); cursorAlt.style.transform=`translate(${e.clientX+14}px,${e.clientY+10}px)`;
+});
+renderer.domElement.addEventListener('pointerleave',hideGhost);
+
+/* camera views: oblique / top-down / side-on, plus F to center on the selected fleet */
+const VIEWS=[{name:'斜め',dir:()=>new THREE.Vector3(.3,.4,.87)},{name:'真上',dir:()=>new THREE.Vector3(0,1,.002)},
+  {name:'真横',dir:()=>{const d=camera.position.clone().sub(controls.target);d.y=0;if(d.lengthSq()<1e-4)d.set(0,0,1);d.normalize();d.y=.06;return d;}}];
+let viewIdx=0, camAnim=null;
+function flyTo(target,dir,dist){
+  dist=dist??camera.position.distanceTo(controls.target);
+  camAnim={t:0,fT:controls.target.clone(),tT:target.clone(),fP:camera.position.clone(),tP:target.clone().add(dir.clone().normalize().multiplyScalar(dist))};
+}
+function cycleView(){ viewIdx=(viewIdx+1)%VIEWS.length; const v=VIEWS[viewIdx]; flyTo(controls.target,v.dir()); document.getElementById('vCam').textContent=v.name+' V'; }
+function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
+function stepCam(dt){
+  if(!camAnim) return; camAnim.t=Math.min(1,camAnim.t+dt/.6); const k=camAnim.t*camAnim.t*(3-2*camAnim.t);
+  controls.target.lerpVectors(camAnim.fT,camAnim.tT,k); camera.position.lerpVectors(camAnim.fP,camAnim.tP,k);
+  if(camAnim.t>=1) camAnim=null;
+}
+document.getElementById('vCam').addEventListener('click',cycleView);
+addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='KeyF') focusSelected(); });
+
 function tap(x,y){
   if(over) return;
   let best=null,bd=34;
@@ -808,7 +851,7 @@ function frame(now){
   else selRing.visible=rangeRing.visible=layer.visible=false;
   updateStalks();
 
-  panCamera(rdt);
+  stepCam(rdt); panCamera(rdt);
   controls.update();
   if(composer) composer.render(); else renderer.render(scene,camera);
 
