@@ -70,6 +70,10 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .emb svg{width:18px;height:18px}
 .t0{color:var(--blue)} .t1{color:var(--red)}
 .unit.sel .emb{box-shadow:0 0 0 4px rgba(255,255,255,.18),0 0 18px currentColor;border-color:#fff}
+/* an enemy that slipped out of sight: a faint marker at its last known position */
+.unit.lost{opacity:.42}
+.unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
+.unit.lost .flag span{display:block}
 .flag{position:absolute;left:22px;top:-44px;border-left:3px solid currentColor;padding:3px 10px 4px 8px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 38%,transparent),color-mix(in srgb,currentColor 6%,transparent));white-space:nowrap;color:var(--ink)}
 .flag b{display:block;font-size:13px;font-weight:700;letter-spacing:.03em}
 .flag span{display:block;font-size:10px;color:#cfd8e3;opacity:.85}
@@ -218,7 +222,7 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   </div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、十字キーで視点回転、Vで視点切り替え。</div>
+<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。敵は味方の視界に入るまで見えません。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、十字キーで視点回転、Vで視点切り替え。</div>
 
 <div id="azBar" class="hud camBar"><span>横回転</span><div id="azTrack" class="tr" tabindex="0" role="slider" aria-label="視点の横回転（←→キー）" aria-valuemin="-180" aria-valuemax="180"><span id="azKnob" class="kn"></span></div></div>
 <div id="elBar" class="hud camBar"><span>上</span><div id="elTrack" class="tr" tabindex="0" role="slider" aria-label="視点の上下角度（↑↓キー）" aria-valuemin="-80" aria-valuemax="88"><span class="lv"></span><span id="elKnob" class="kn"></span></div><span>下</span></div>
@@ -511,6 +515,9 @@ const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBas
 selRing.rotation.x=-Math.PI/2; selRing.visible=false; scene.add(selRing);
 const rangeRing=new THREE.Mesh(new THREE.RingGeometry(.97,1,96),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.35,depthWrite:false,side:THREE.DoubleSide}));
 rangeRing.rotation.x=-Math.PI/2; rangeRing.visible=false; scene.add(rangeRing);
+/* sight ring: how far the selected fleet spots an enemy of ordinary concealment */
+const sightRing=new THREE.Mesh(new THREE.RingGeometry(.994,1,160),new THREE.MeshBasicMaterial({color:0x9fe8c8,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}));
+sightRing.rotation.x=-Math.PI/2; sightRing.visible=false; scene.add(sightRing);
 
 /* order layer: the horizontal plane taps land on, drawn at the chosen altitude */
 const layerMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,extensions:{derivatives:true},
@@ -532,7 +539,7 @@ const feet=new THREE.Points(fGeo,new THREE.PointsMaterial({size:2.2,map:dot,vert
 function updateStalks(){
   sCol.fill(0); fCol.fill(0); let i=0;
   const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
-  for(const f of fleets){ if(!f.alive) continue; put(f.pos,TEAM_COL[f.team],1);
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[f.team],1);
     if(f.team===0&&f.order&&f.order.type==='move') put(f.order.dest,TEAM_COL[0],.6); }
   sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
   fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
@@ -548,22 +555,22 @@ function updateStalks(){
 /* ---------- game state ---------- */
 let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, reinforced, fortressMarks, fid;
 const PLAYER_SPEC=[
-  {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8},
-  {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6},
-  {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24},
-  {name:'第7機動部隊',sub:'艦載機隊',n:30,hp:6,dmg:1.05,range:12,speed:12,scale:.6,pos:[-108,46],alt:-26},
+  {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8,vis:8,stl:7},
+  {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6,vis:6,stl:4},
+  {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24,vis:6,stl:4},
+  {name:'第7機動部隊',sub:'艦載機隊',n:30,hp:6,dmg:1.05,range:12,speed:12,scale:.6,pos:[-108,46],alt:-26,vis:7,stl:5},
 ];
 const ENEMY_SPEC=[
-  {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42},
-  {name:'防空第2隊',sub:'南宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,52],alt:-14,ai:'guard',leash:42},
-  {name:'防空第3隊',sub:'東宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[54,0],alt:4,ai:'guard',leash:42},
-  {name:'防空第4隊',sub:'西宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[-54,0],alt:22,ai:'guard',leash:42},
-  {name:'近衛艦隊',sub:'要塞直掩',n:12,hp:36,dmg:3.4,range:20,speed:5,scale:1.4,pos:[-8,-22],alt:-6,ai:'guard',leash:30},
+  {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第2隊',sub:'南宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,52],alt:-14,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第3隊',sub:'東宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[54,0],alt:4,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第4隊',sub:'西宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[-54,0],alt:22,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'近衛艦隊',sub:'要塞直掩',n:12,hp:36,dmg:3.4,range:20,speed:5,scale:1.4,pos:[-8,-22],alt:-6,ai:'guard',leash:30,vis:6,stl:3},
 ];
 
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0};
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9};
   const R=Math.sqrt(o.n)*1.35*o.scale;
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
@@ -647,12 +654,13 @@ function reset(cfg=lastCfg){
   fleets=[...spec.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
   selGroupMode=false;
   armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
-  fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null};
+  fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null,vis:8,seen:true,everSeen:true,revealT:0};
   fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px';
   setPhase('布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
-  showBrief('作戦概要','要塞カリュブディス攻略戦','二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。'); flashBrief(8000);
+  showBrief('作戦概要','要塞カリュブディス攻略戦','二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。敵艦隊は味方の視界に入るまで見えない。'); flashBrief(8000);
+  fogTimer=0; updateFog();
   buildRoster(); updateRoster();
 }
 
@@ -713,6 +721,7 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o;
+  if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team]);
   else { const ar=makeArrow(f.pos,o.target.pos,TEAM_COL[f.team],{life:3.5}); if(f.team===0) f.arrow=ar; }
 }
@@ -793,7 +802,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 function tap(x,y){
   if(over) return;
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7)); const fd=Math.hypot(fs.x-x,fs.y-y);
   if(best&&best.team===0){ select(best===selected?null:best); return; }
   if(selected&&selected.alive){
@@ -844,7 +853,26 @@ addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT') return; if(e.key=
 /* ---------- simulation ---------- */
 function units(){ return fortress.alive?[...fleets,fortress]:fleets; }
 function gap(a,b){ return a.pos.distanceTo(b.pos)-(b.radius||0); }
-function nearestFoe(f,maxD){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
+/* detection: a team sees an enemy unit while any of its own units has it within sight.
+   sight grows with the observer's 視界, shrinks with the target's 隠蔽性; vision is shared across the team,
+   and a unit that opens fire gives itself away for a few seconds. */
+const sightOf=u=>60+(u.vis??6)*8, concealOf=u=>1-Math.min(10,u.stl??4)*.04, FIRE_REVEAL=3, LOST_MEMORY=30;
+function shown(u){ return u.team===0||u.seen; }
+let fogTimer=0;
+function updateFog(){
+  const all=units();
+  for(const t of all){ if(!t.alive) continue;
+    let by=null;
+    if(t.kind==='fortress'||t.revealT>0) by=t;
+    else for(const o of all){ if(!o.alive||o.team===t.team) continue;
+      if(o.pos.distanceTo(t.pos)<=sightOf(o)*concealOf(t)){ by=o; break; } }
+    const was=t.seen; t.seen=!!by;
+    if(was&&!t.seen){ t.lastPos=t.pos.clone(); t.lostAt=gameSec; }
+    if(t.seen&&!t.everSeen){ t.everSeen=true;
+      if(t.team===1&&gameSec>0&&by!==t) logEvent(`${t.name} 発見`,`${by.name}が${t.name}（${t.ships.length}隻）を捕捉。`); }
+  }
+}
+function nearestFoe(f,maxD){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
@@ -890,13 +918,16 @@ function end(win){
 }
 
 let aiTimer=0;
+/* with no allied fleet in sight, the reinforcement takes up a watch north of the fortress */
+const HUNT_POST=new THREE.Vector3(0,22,-38);
 function enemyAI(){
-  const foes=fleets.filter(f=>f.team===0&&f.alive);
+  const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen);
   for(const f of fleets){
     if(f.team!==1||!f.alive) continue;
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    else if(f.ai==='hunt'){ if(f.pos.distanceTo(HUNT_POST)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:HUNT_POST.clone()}; }
     else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2){ f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
   }
 }
@@ -906,8 +937,10 @@ function step(dt){
   if(!reinforced&&gameSec>=60){ reinforced=true;
     const r=makeFleet(1,{name:'第5戦隊',sub:'本国からの増援',n:14,hp:30,dmg:3,range:20,speed:6.5,scale:1.3,pos:[10,-150],alt:34,ai:'hunt',leash:0});
     fleets.push(r); makeArrow(r.pos,new THREE.Vector3(0,20,-60),TEAM_COL[1],{life:6});
-    logEvent('増援 第5戦隊 到着','北宙域の上方、本国航路から緋星帝国の増援が出現。最も近い同盟艦隊へ向かっている。');
+    logEvent('北宙域に艦影の反応','本国航路の出口で大きな反応。緋星帝国の増援とみられる。位置をつかむには視界に捉える必要がある。');
   }
+  for(const u of units()) if(u.revealT>0) u.revealT-=dt;
+  fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
   for(const f of fleets){
     if(!f.alive) continue;
@@ -915,7 +948,9 @@ function step(dt){
     let goal=null, stop=.6;
     if(f.order){
       if(f.order.type==='move') goal=f.order.dest;
-      else { const t=f.order.target; if(!t.alive){ f.order=null; } else { goal=t.pos; stop=f.range*.75+(t.radius||0); } }
+      else { const t=f.order.target; if(!t.alive){ f.order=null; }
+        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; } if(f.order) goal=f.order.dest; }
+        else { goal=t.pos; stop=f.range*.75+(t.radius||0); } }
     }
     if(goal){
       _v.subVectors(goal,f.pos); const d=_v.length();
@@ -923,9 +958,9 @@ function step(dt){
       else if(f.order.type==='move'){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } }
     }
     const ft=f.fireTarget;
-    if(ft&&ft.alive&&gap(f,ft)<=f.range*1.08){
+    if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
       if(!goal){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
-      damage(ft,f.ships.length*f.dmg*dt,f);
+      damage(ft,f.ships.length*f.dmg*dt,f); f.revealT=FIRE_REVEAL;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
@@ -934,7 +969,7 @@ function step(dt){
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
     const ft=fortress.fireTarget;
-    if(ft&&ft.alive){ damage(ft,fortress.dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),new THREE.Color(1,.55,.3),.35); }
+    if(ft&&ft.alive&&ft.seen){ damage(ft,fortress.dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),new THREE.Color(1,.55,.3),.35); }
   }
 }
 
@@ -951,11 +986,12 @@ function frame(now){
   if(dt>0) step(dt);
   // ships
   const cnt=[0,0];
-  for(const f of fleets){ if(!f.alive) continue;
+  for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5);
     for(const s of f.ships){
       _w.copy(f.pos).add(s.off); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
+      if(hide) continue;
       const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=600) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(f.scale); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
     }
@@ -973,8 +1009,9 @@ function frame(now){
   if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));
     rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(selected.range);
+    sightRing.visible=true; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));
     layer.visible=true; layer.position.set(selected.pos.x,selAlt,selected.pos.z); layerMat.uniforms.uTime.value=time; }
-  else selRing.visible=rangeRing.visible=layer.visible=false;
+  else selRing.visible=rangeRing.visible=sightRing.visible=layer.visible=false;
   updateStalks();
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
@@ -983,10 +1020,13 @@ function frame(now){
 
   // labels
   for(const u of units()){ if(!u.alive) continue;
-    const s=proj(_v.copy(u.pos).add(_w.set(0,u.kind==='fortress'?7:4,0)));
+    const lost=!shown(u), at=lost?u.lastPos:u.pos;
+    if(lost&&(!at||gameSec-u.lostAt>LOST_MEMORY)){ u.el.style.visibility='hidden'; continue; }
+    if(u.el.classList.contains('lost')!==lost){ u.el.classList.toggle('lost',lost); u._sub=null; }
+    const s=proj(_v.copy(at).add(_w.set(0,u.kind==='fortress'?7:4,0)));
     if(s.z>1||s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){u.el.style.visibility='hidden';continue;}
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
-    const sub=u.kind==='fortress'?`装甲 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
+    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`装甲 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
