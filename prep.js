@@ -90,7 +90,7 @@ function armyToFleet(a){
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
   const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name.replace('M.A.S.','MAS')+c).join('・');
   return {name:a.name, sub, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
-    range:10+st.rng*1.6, speed:2+st.spd, scale:Math.min(1.5,.4+big*.6), stats:st};
+    range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, scale:Math.min(1.5,.4+big*.6), stats:st};
 }
 
 /* ---------- screens ---------- */
@@ -148,7 +148,7 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="data" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦艇データ</h2></header>
-  <p class="tabnote">数値はすべて仮の値です（1〜10）。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。</p>
+  <p class="tabnote">数値はすべて仮の値です（1〜10）。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。</p>
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
   <h3 class="sub">編成ボーナス（軍単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
