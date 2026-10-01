@@ -98,6 +98,23 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
   #alt .val{font-size:12px}
 }
 @media (max-width:520px){ #alt{top:38%} }
+/* camera bars: horizontal = turn around, vertical (right edge) = look from above / below */
+.camBar{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:4px 8px;opacity:.85;font-size:10.5px;color:var(--ink-dim)}
+.camBar .tr{position:relative;touch-action:none;cursor:pointer}
+.camBar .tr:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.camBar .tr::before{content:"";position:absolute;background:rgba(226,197,138,.8)}
+.camBar .kn{position:absolute;background:var(--brass);box-shadow:0 0 8px var(--brass);transform:translate(-50%,-50%)}
+#azBar{left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+#azTrack{width:200px;height:22px}
+#azTrack::before{left:0;right:0;top:50%;height:2px;transform:translateY(-50%)}
+#azKnob{top:50%;width:10px;height:18px}
+#elBar{right:16px;top:50%;transform:translateY(-50%);flex-direction:column;padding:6px 4px}
+#elTrack{width:22px;height:140px}
+#elTrack::before{top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%)}
+#elTrack .lv{position:absolute;left:3px;right:3px;height:1px;background:var(--ink-dim)}
+#elKnob{left:50%;width:18px;height:10px}
+@media (max-width:760px),(max-height:500px){ #azBar{bottom:auto;top:calc(14px + env(safe-area-inset-top,0px))} #azTrack{width:150px} #elTrack{height:72px} #elBar{top:48%} .camBar>span{display:none} }
+@media (max-width:520px){ #azBar{top:calc(134px + env(safe-area-inset-top,0px))} #azTrack{width:160px} #elBar{top:40%} }
 @media (max-width:760px),(max-height:500px){
   #brief{width:min(380px,48vw);padding:8px 12px}
   #brief h2{font-size:15px}
@@ -190,8 +207,10 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   </div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、Vで視点切り替え。</div>
+<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、十字キーで視点回転、Vで視点切り替え。</div>
 
+<div id="azBar" class="hud camBar"><span>横回転</span><div id="azTrack" class="tr" tabindex="0" role="slider" aria-label="視点の横回転（←→キー）" aria-valuemin="-180" aria-valuemax="180"><span id="azKnob" class="kn"></span></div></div>
+<div id="elBar" class="hud camBar"><span>上</span><div id="elTrack" class="tr" tabindex="0" role="slider" aria-label="視点の上下角度（↑↓キー）" aria-valuemin="-80" aria-valuemax="88"><span class="lv"></span><span id="elKnob" class="kn"></span></div><span>下</span></div>
 <div id="alt" class="hud" hidden aria-label="高度">
   <span class="cap">高度</span>
   <button id="altUp" aria-label="高度を上げる">▲</button>
@@ -665,6 +684,35 @@ function flyTo(target,dir,dist){
 }
 function cycleView(){ viewIdx=(viewIdx+1)%VIEWS.length; const v=VIEWS[viewIdx]; flyTo(controls.target,v.dir()); document.getElementById('vCam').textContent=v.name+' V'; }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
+/* view angle: horizontal bar turns the camera around the target, vertical bar tilts it from above to below; arrow keys do the same */
+const EL_MIN=-80, EL_MAX=88, _sph=new THREE.Spherical(), _off=new THREE.Vector3();
+const azTrack=document.getElementById('azTrack'), azKnob=document.getElementById('azKnob'), elTrack=document.getElementById('elTrack'), elKnob=document.getElementById('elKnob');
+elTrack.querySelector('.lv').style.top=(100*EL_MAX/(EL_MAX-EL_MIN))+'%';
+function getAngles(){ _off.subVectors(camera.position,controls.target); _sph.setFromVector3(_off); return {az:THREE.MathUtils.radToDeg(_sph.theta), el:90-THREE.MathUtils.radToDeg(_sph.phi)}; }
+function setAngles(az,el){
+  camAnim=null; _off.subVectors(camera.position,controls.target); _sph.setFromVector3(_off);
+  if(az!=null) _sph.theta=THREE.MathUtils.degToRad(((az+540)%360)-180);
+  if(el!=null) _sph.phi=THREE.MathUtils.degToRad(90-Math.max(EL_MIN,Math.min(EL_MAX,el)));
+  _off.setFromSpherical(_sph); camera.position.copy(controls.target).add(_off);
+}
+function syncCamBars(){ const a=getAngles();
+  azKnob.style.left=(50+50*a.az/180)+'%'; elKnob.style.top=(100*(EL_MAX-a.el)/(EL_MAX-EL_MIN))+'%';
+  azTrack.setAttribute('aria-valuenow',Math.round(a.az)); elTrack.setAttribute('aria-valuenow',Math.round(a.el)); }
+function bindBar(tr,fromEvent){
+  tr.addEventListener('pointerdown',e=>{ tr.setPointerCapture(e.pointerId); fromEvent(e); });
+  tr.addEventListener('pointermove',e=>{ if(tr.hasPointerCapture(e.pointerId)) fromEvent(e); });
+}
+bindBar(azTrack,e=>{ const r=azTrack.getBoundingClientRect(); setAngles(360*((e.clientX-r.left)/r.width)-180,null); });
+bindBar(elTrack,e=>{ const r=elTrack.getBoundingClientRect(); setAngles(null,EL_MAX-(EL_MAX-EL_MIN)*(e.clientY-r.top)/r.height); });
+const rotKeys=new Set();
+addEventListener('keydown',e=>{ if(e.target===altTrack) return; if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){ rotKeys.add(e.key); e.preventDefault(); } });
+addEventListener('keyup',e=>rotKeys.delete(e.key));
+addEventListener('blur',()=>rotKeys.clear());
+function rotateByKeys(dt){
+  if(!rotKeys.size) return; const a=getAngles();
+  const daz=(rotKeys.has('ArrowLeft')?-1:0)+(rotKeys.has('ArrowRight')?1:0), del=(rotKeys.has('ArrowUp')?1:0)+(rotKeys.has('ArrowDown')?-1:0);
+  if(daz||del) setAngles(a.az+daz*90*dt, a.el+del*60*dt);
+}
 function stepCam(dt){
   if(!camAnim) return; camAnim.t=Math.min(1,camAnim.t+dt/.6); const k=camAnim.t*camAnim.t*(3-2*camAnim.t);
   controls.target.lerpVectors(camAnim.fT,camAnim.tT,k); camera.position.lerpVectors(camAnim.fP,camAnim.tP,k);
@@ -851,8 +899,8 @@ function frame(now){
   else selRing.visible=rangeRing.visible=layer.visible=false;
   updateStalks();
 
-  stepCam(rdt); panCamera(rdt);
-  controls.update();
+  stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
+  controls.update(); syncCamBars();
   if(composer) composer.render(); else renderer.render(scene,camera);
 
   // labels
