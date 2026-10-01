@@ -117,6 +117,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #elTrack::before{top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%)}
 #elTrack .lv{position:absolute;left:3px;right:3px;height:1px;background:var(--ink-dim)}
 #elKnob{left:50%;width:18px;height:10px}
+@media (max-height:500px){ #elBar{right:196px} }
 @media (max-width:760px),(max-height:500px){ #azBar{bottom:auto;top:calc(14px + env(safe-area-inset-top,0px))} #azTrack{width:150px} #elTrack{height:72px} #elBar{top:48%} .camBar>span{display:none} }
 @media (max-width:520px){ #azBar{top:calc(134px + env(safe-area-inset-top,0px))} #azTrack{width:160px} #elBar{top:40%} }
 @media (max-width:760px),(max-height:500px){
@@ -183,7 +184,9 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 body.nolabels .flag,body.nolabels .sector{display:none}
 body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important}
 @media (max-width:520px){
-  #brief{width:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  #brief{width:auto;bottom:calc(var(--rh,64px) + 24px + env(safe-area-inset-bottom,0px))}
+  #roster:has(.rzone){grid-template-columns:1fr}
+  .rzone .rhead{font-size:10px}
   #roster{width:auto}
 }
 #cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
@@ -236,7 +239,8 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 
 <div id="roster" class="hud" aria-label="自軍艦隊"></div>
 
-<div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><button class="again" id="again">もう一度</button></div></div>
+<div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="again" id="again">もう一度</button><button class="again" id="toMenu" style="background:transparent;color:var(--ink);border:1px solid var(--line)">メニューへ</button></div></div></div>
+<div id="menu"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -246,8 +250,12 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<link rel="stylesheet" href="prep.css">
 <script>
 (() => {
+/* while the menu is open the battle is paused and its keyboard shortcuts are off */
+let menuOpen=true; document.body.classList.add('inmenu');
+addEventListener('keydown',e=>{ if(menuOpen) e.stopImmediatePropagation(); },true);
 const EMB = [
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 18.5 17h-13Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><ellipse cx="12" cy="13.5" rx="10" ry="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.4 6.6 7 .5-5.4 4.4 1.8 6.9L12 17l-5.8 3.9L8 14 2.6 9.6l7-.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12.4" r="2.1" fill="currentColor"/></svg>'
@@ -494,7 +502,7 @@ const sectors=[
 const shipGeo=new THREE.ConeGeometry(.45,2,5); shipGeo.rotateX(Math.PI/2);
 const shipMeshes=[0,1].map(t=>{
   const c=TEAM_COL[t];
-  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),260);
+  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),600);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
 });
 
@@ -567,30 +575,78 @@ function altStr(y){ y=Math.round(y); return y===0?'±0':(y>0?'+':'−')+Math.abs
 function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>`; }
 
 const rosterEl=document.getElementById('roster');
+/* keep the briefing panel above the roster on narrow screens */
+try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',rosterEl.offsetHeight+'px')).observe(rosterEl); }catch(e){}
+/* roster: with an army group, its armies sit in a group section; drag a button between sections to take an army out or put it back */
 function buildRoster(){
   rosterEl.innerHTML='';
-  fleets.filter(f=>f.team===0).forEach((f,i)=>{
+  const mine=fleets.filter(f=>f.team===0);
+  const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false');
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
-    b.addEventListener('click',()=>select(f.alive&&selected!==f?f:null));
-    rosterEl.appendChild(b); f.btn=b;
-  });
+    b.addEventListener('click',()=>{ if(b._dragged){ b._dragged=false; return; } select(f.alive&&(selected!==f||selGroupMode)?f:null); });
+    if(armyGroup) dragSource(b,f);
+    f.btn=b; return b; };
+  if(!armyGroup){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
+  const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group';
+  const gb=document.createElement('button'); gb.className='grpBtn'; gb.id='grpBtn';
+  gb.textContent=`${armyGroup.name} 全軍`; gb.title=armyGroup.sync?'最も遅い艦に速度を合わせて移動':'各軍の速度で移動';
+  gb.addEventListener('click',()=>selectGroup());
+  gz.appendChild(gb);
+  const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
+  fz.innerHTML='<div class="rhead">独立行動（ここへドラッグで外す）</div>';
+  mine.forEach(f=>(armyGroup.members.has(f)?gz:fz).appendChild(mk(f)));
+  rosterEl.append(gz,fz);
+}
+function dragSource(b,f){
+  let st=null,ghost=null;
+  b.addEventListener('pointerdown',e=>{ st={x:e.clientX,y:e.clientY,id:e.pointerId}; });
+  b.addEventListener('pointermove',e=>{ if(!st||e.pointerId!==st.id) return;
+    if(!ghost&&Math.hypot(e.clientX-st.x,e.clientY-st.y)>8){ b.setPointerCapture(e.pointerId); ghost=document.createElement('div'); ghost.className='dragGhost'; ghost.textContent=f.name; document.body.appendChild(ghost); b.classList.add('dragging'); }
+    if(ghost){ ghost.style.transform=`translate(${e.clientX+10}px,${e.clientY+6}px)`; const z=zoneAt(e); rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.toggle('drop',x===z)); } });
+  const end=e=>{ if(ghost){ const z=zoneAt(e); ghost.remove(); ghost=null; b._dragged=true; b.classList.remove('dragging');
+      if(z&&f.alive){ const into=z.dataset.zone==='group'; if(into!==armyGroup.members.has(f)){ into?armyGroup.members.add(f):armyGroup.members.delete(f);
+        if(into&&armyGroup.members.size>5){ armyGroup.members.delete(f); logEvent('軍集団は満員です','軍集団に入れられる軍は5個までです。'); }
+        else logEvent(into?`${f.name} 軍集団に復帰`:`${f.name} 独立行動へ`, into?`${f.name}が${armyGroup.name}の指揮下に戻った。`:`${f.name}が${armyGroup.name}を離れ、単独で行動する。`);
+        f.syncSpeed=null; if(selGroupMode) select(null); buildRoster(); updateRoster(); } } }
+    st=null; rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.remove('drop')); };
+  b.addEventListener('pointerup',end); b.addEventListener('pointercancel',end);
+}
+function zoneAt(e){ const el=document.elementFromPoint(e.clientX,e.clientY); return el&&el.closest?el.closest('.rzone'):null; }
+function groupAlive(){ return armyGroup?[...armyGroup.members].filter(f=>f.alive):[]; }
+function selectGroup(){ const m=groupAlive(); if(!m.length) return; if(selGroupMode){ select(null); return; } select(m[0]); selGroupMode=true;
+  fleets.forEach(x=>x.el.classList.toggle('sel',m.includes(x))); updateRoster(); }
+/* the fleets an order goes to: the whole army group, or just the selected army */
+function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.alive?[selected]:[]); }
+function groupOrder(o){
+  const t=orderTargets(); if(!t.length) return;
+  const sync=selGroupMode&&armyGroup.sync?Math.min(...t.map(f=>f.speed)):null;
+  if(o.type==='move'&&t.length>1){
+    const c=new THREE.Vector3(); t.forEach(f=>c.add(f.pos)); c.divideScalar(t.length);
+    t.forEach(f=>{ f.syncSpeed=sync; order(f,{type:'move',dest:o.dest.clone().add(f.pos.clone().sub(c))}); });
+  } else t.forEach(f=>{ f.syncSpeed=sync; order(f,o); });
 }
 function updateRoster(){
   fleets.forEach(f=>{ if(!f.btn) return;
     f.btn.querySelector('.n').textContent='×'+f.ships.length;
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
-    f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selected===f));
+    f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
   });
+  const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
 }
 
-function reset(){
+let lastCfg=null, armyGroup=null, selGroupMode=false;
+function reset(cfg=lastCfg){
+  lastCfg=cfg;
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
   if(fortress) fortress.el.remove();
   [...arrows].forEach(dropArrow);
   document.getElementById('alt').hidden=true;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); reinforced=false; fortressMarks=new Set(); events=[];
-  fleets=[...PLAYER_SPEC.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
+  const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:PLAYER_SPEC;
+  fleets=[...spec.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
+  selGroupMode=false;
+  armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
   fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null};
   fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px';
   setPhase('布陣');
@@ -612,7 +668,7 @@ function logEvent(title,desc){
 }
 
 /* ---------- selection & orders ---------- */
-function select(f){ selected=f; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
+function select(f){ selected=f; selGroupMode=false; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
   if(f){ setAlt(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y,false); }
   document.getElementById('alt').hidden=!f; updateRoster(); }
 /* altitude control: sets the height of the selected fleet's destination */
@@ -622,9 +678,12 @@ function setAlt(v,apply=true){
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)));
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
-  const f=selected;
-  if(f.order&&f.order.type==='move'){ const d=f.order.dest.clone(); d.y=selAlt; order(f,{type:'move',dest:d}); }
-  else if(!f.order){ order(f,{type:'move',dest:new THREE.Vector3(f.pos.x,selAlt,f.pos.z)}); }
+  const t=orderTargets(); if(!t.length) return;
+  const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
+  t.forEach(f=>{
+    if(f.order&&f.order.type==='move'){ const d=f.order.dest.clone(); d.y+=selAlt-cy; order(f,{type:'move',dest:d}); }
+    else if(!f.order){ order(f,{type:'move',dest:new THREE.Vector3(f.pos.x,f.pos.y+selAlt-cy,f.pos.z)}); }
+  });
 }
 function altFromPointer(e){ const r=altTrack.getBoundingClientRect(); setAlt(ALT_MAX*(1-2*(e.clientY-r.top)/r.height)); }
 altTrack.addEventListener('pointerdown',e=>{ altTrack.setPointerCapture(e.pointerId); altFromPointer(e); });
@@ -738,11 +797,11 @@ function tap(x,y){
   const fs=proj(fortress.pos.clone().setY(7)); const fd=Math.hypot(fs.x-x,fs.y-y);
   if(best&&best.team===0){ select(best===selected?null:best); return; }
   if(selected&&selected.alive){
-    if(best&&best.team===1){ order(selected,{type:'attack',target:best}); return; }
-    if(fd<46&&fortress.alive){ order(selected,{type:'attack',target:fortress}); return; }
+    if(best&&best.team===1){ groupOrder({type:'attack',target:best}); return; }
+    if(fd<46&&fortress.alive){ groupOrder({type:'attack',target:fortress}); return; }
     ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3();
     plane.constant=-selAlt;
-    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ order(selected,{type:'move',dest:hit}); hideHint(); }
+    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ groupOrder({type:'move',dest:hit}); hideHint(); }
   }
 }
 let down=null;
@@ -751,14 +810,22 @@ renderer.domElement.addEventListener('pointerup',e=>{ if(down&&Math.hypot(e.clie
 const hintEl=document.getElementById('hint'); let hintGone=false;
 function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); setTimeout(()=>hintEl.hidden=true,800); }
 /* the hint closes on its own after a few seconds, or as soon as the player touches anything */
-setTimeout(hideHint,6000);
 hintEl.addEventListener('click',hideHint);
 addEventListener('pointerdown',hideHint,{capture:true});
 
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>{
   speed=+b.dataset.s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
-document.getElementById('again').addEventListener('click',reset);
+document.getElementById('again').addEventListener('click',()=>reset());
+document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
+function openMenu(){ menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
+/* entry point used by the preparation screens (prep.js) */
+window.WOS={ start(cfg){
+  menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
+  reset(cfg||null); speed=1; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s==='1')));
+  setView(0); flyTo(new THREE.Vector3(0,0,24),new THREE.Vector3(.3,.4,.87),190);
+  hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
+}, openMenu };
 
 /* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open */
 const briefEl=document.getElementById('brief'); let briefTimer=0;
@@ -782,6 +849,7 @@ function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; 
 
 function damage(t,amt,src){
   if(!t.alive) return;
+  if(t.eva) amt*=1-t.eva;
   t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key);
   if(last===undefined||gameSec-last>40){
@@ -851,7 +919,7 @@ function step(dt){
     }
     if(goal){
       _v.subVectors(goal,f.pos); const d=_v.length();
-      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(f.speed*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
+      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min((f.syncSpeed||f.speed)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
       else if(f.order.type==='move'){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } }
     }
     const ft=f.fireTarget;
@@ -879,7 +947,7 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 let last=performance.now(), time=0, rosterTick=0;
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
-  const dt=over?0:rdt*speed;
+  const dt=(over||menuOpen)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
   const cnt=[0,0];
@@ -888,7 +956,7 @@ function frame(now){
     for(const s of f.ships){
       _w.copy(f.pos).add(s.off); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
-      const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=260) continue;
+      const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=600) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(f.scale); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
     }
   }
@@ -930,3 +998,4 @@ reset();
 requestAnimationFrame(frame);
 })();
 </script>
+<script src="prep.js"></script>
