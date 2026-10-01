@@ -70,6 +70,10 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .emb svg{width:18px;height:18px}
 .t0{color:var(--blue)} .t1{color:var(--red)}
 .unit.sel .emb{box-shadow:0 0 0 4px rgba(255,255,255,.18),0 0 18px currentColor;border-color:#fff}
+/* an enemy that slipped out of sight: a faint marker at its last known position */
+.unit.lost{opacity:.42}
+.unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
+.unit.lost .flag span{display:block}
 .flag{position:absolute;left:22px;top:-44px;border-left:3px solid currentColor;padding:3px 10px 4px 8px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 38%,transparent),color-mix(in srgb,currentColor 6%,transparent));white-space:nowrap;color:var(--ink)}
 .flag b{display:block;font-size:13px;font-weight:700;letter-spacing:.03em}
 .flag span{display:block;font-size:10px;color:#cfd8e3;opacity:.85}
@@ -117,6 +121,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #elTrack::before{top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%)}
 #elTrack .lv{position:absolute;left:3px;right:3px;height:1px;background:var(--ink-dim)}
 #elKnob{left:50%;width:18px;height:10px}
+@media (max-height:500px){ #elBar{right:196px} }
 @media (max-width:760px),(max-height:500px){ #azBar{bottom:auto;top:calc(14px + env(safe-area-inset-top,0px))} #azTrack{width:150px} #elTrack{height:72px} #elBar{top:48%} .camBar>span{display:none} }
 @media (max-width:520px){ #azBar{top:calc(134px + env(safe-area-inset-top,0px))} #azTrack{width:160px} #elBar{top:40%} }
 @media (max-width:760px),(max-height:500px){
@@ -183,7 +188,9 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 body.nolabels .flag,body.nolabels .sector{display:none}
 body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important}
 @media (max-width:520px){
-  #brief{width:auto;bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  #brief{width:auto;bottom:calc(var(--rh,64px) + 24px + env(safe-area-inset-bottom,0px))}
+  #roster:has(.rzone){grid-template-columns:1fr}
+  .rzone .rhead{font-size:10px}
   #roster{width:auto}
 }
 #cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
@@ -215,7 +222,7 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   </div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、十字キーで視点回転、Vで視点切り替え。</div>
+<div id="hint" class="hud">青い艦隊をタップして選び、宙域をタップすると移動。左の高度バーで上下に動かせます。敵や要塞をタップすると攻撃。敵は味方の視界に入るまで見えません。ドラッグで視点回転、ピンチで拡大。PCはWASDで平行移動、十字キーで視点回転、Vで視点切り替え。</div>
 
 <div id="azBar" class="hud camBar"><span>横回転</span><div id="azTrack" class="tr" tabindex="0" role="slider" aria-label="視点の横回転（←→キー）" aria-valuemin="-180" aria-valuemax="180"><span id="azKnob" class="kn"></span></div></div>
 <div id="elBar" class="hud camBar"><span>上</span><div id="elTrack" class="tr" tabindex="0" role="slider" aria-label="視点の上下角度（↑↓キー）" aria-valuemin="-80" aria-valuemax="88"><span class="lv"></span><span id="elKnob" class="kn"></span></div><span>下</span></div>
@@ -236,7 +243,8 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 
 <div id="roster" class="hud" aria-label="自軍艦隊"></div>
 
-<div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><button class="again" id="again">もう一度</button></div></div>
+<div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="again" id="again">もう一度</button><button class="again" id="toMenu" style="background:transparent;color:var(--ink);border:1px solid var(--line)">メニューへ</button></div></div></div>
+<div id="menu"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -246,8 +254,12 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<link rel="stylesheet" href="prep.css">
 <script>
 (() => {
+/* while the menu is open the battle is paused and its keyboard shortcuts are off */
+let menuOpen=true; document.body.classList.add('inmenu');
+addEventListener('keydown',e=>{ if(menuOpen) e.stopImmediatePropagation(); },true);
 const EMB = [
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 18.5 17h-13Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><ellipse cx="12" cy="13.5" rx="10" ry="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.4 6.6 7 .5-5.4 4.4 1.8 6.9L12 17l-5.8 3.9L8 14 2.6 9.6l7-.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12.4" r="2.1" fill="currentColor"/></svg>'
@@ -494,7 +506,14 @@ const sectors=[
 const shipGeo=new THREE.ConeGeometry(.45,2,5); shipGeo.rotateX(Math.PI/2);
 const shipMeshes=[0,1].map(t=>{
   const c=TEAM_COL[t];
-  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),260);
+  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),600);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
+});
+/* small craft (fighters and W.A.S.) launched from carriers */
+const craftGeo=new THREE.ConeGeometry(.55,1.7,3); craftGeo.rotateX(Math.PI/2);
+const craftMeshes=[0,1].map(t=>{
+  const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+  const m=new THREE.InstancedMesh(craftGeo,new THREE.MeshBasicMaterial({color:c}),1500);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
 });
 
@@ -503,6 +522,9 @@ const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBas
 selRing.rotation.x=-Math.PI/2; selRing.visible=false; scene.add(selRing);
 const rangeRing=new THREE.Mesh(new THREE.RingGeometry(.97,1,96),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.35,depthWrite:false,side:THREE.DoubleSide}));
 rangeRing.rotation.x=-Math.PI/2; rangeRing.visible=false; scene.add(rangeRing);
+/* sight ring: how far the selected fleet spots an enemy of ordinary concealment */
+const sightRing=new THREE.Mesh(new THREE.RingGeometry(.994,1,160),new THREE.MeshBasicMaterial({color:0x9fe8c8,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}));
+sightRing.rotation.x=-Math.PI/2; sightRing.visible=false; scene.add(sightRing);
 
 /* order layer: the horizontal plane taps land on, drawn at the chosen altitude */
 const layerMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,extensions:{derivatives:true},
@@ -524,7 +546,7 @@ const feet=new THREE.Points(fGeo,new THREE.PointsMaterial({size:2.2,map:dot,vert
 function updateStalks(){
   sCol.fill(0); fCol.fill(0); let i=0;
   const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
-  for(const f of fleets){ if(!f.alive) continue; put(f.pos,TEAM_COL[f.team],1);
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[f.team],1);
     if(f.team===0&&f.order&&f.order.type==='move') put(f.order.dest,TEAM_COL[0],.6); }
   sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
   fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
@@ -540,63 +562,132 @@ function updateStalks(){
 /* ---------- game state ---------- */
 let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, reinforced, fortressMarks, fid;
 const PLAYER_SPEC=[
-  {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8},
-  {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6},
-  {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24},
-  {name:'第7機動部隊',sub:'艦載機隊',n:30,hp:6,dmg:1.05,range:12,speed:12,scale:.6,pos:[-108,46],alt:-26},
+  {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8,vis:8,stl:7},
+  {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6,vis:6,stl:4},
+  {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24,vis:6,stl:4},
+  {name:'第7機動部隊',sub:'戦闘母艦',n:3,hp:70,dmg:1.6,range:14,speed:5,scale:1.6,pos:[-108,46],alt:-26,vis:7,stl:3,hangar:{ftr:120}},
 ];
 const ENEMY_SPEC=[
-  {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42},
-  {name:'防空第2隊',sub:'南宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,52],alt:-14,ai:'guard',leash:42},
-  {name:'防空第3隊',sub:'東宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[54,0],alt:4,ai:'guard',leash:42},
-  {name:'防空第4隊',sub:'西宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[-54,0],alt:22,ai:'guard',leash:42},
-  {name:'近衛艦隊',sub:'要塞直掩',n:12,hp:36,dmg:3.4,range:20,speed:5,scale:1.4,pos:[-8,-22],alt:-6,ai:'guard',leash:30},
+  {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第2隊',sub:'南宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,52],alt:-14,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第3隊',sub:'東宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[54,0],alt:4,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'防空第4隊',sub:'西宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[-54,0],alt:22,ai:'guard',leash:42,vis:5,stl:5},
+  {name:'近衛艦隊',sub:'要塞直掩',n:12,hp:36,dmg:3.4,range:20,speed:5,scale:1.4,pos:[-8,-22],alt:-6,ai:'guard',leash:30,vis:6,stl:3},
 ];
 
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0};
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9};
   const R=Math.sqrt(o.n)*1.35*o.scale;
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6});}
+  f.hangars=makeHangars(o.hangar);
+  f.launchR=f.hangars.reduce((m,h)=>Math.max(m,WING[h.type].launchR),0);
   f.el=mkUnitLabel(team,o.name,'');
   return f;
 }
+/* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
+const WING={
+  ftr:{name:'艦載機',squad:30,maxOut:3,launchR:52,range:9,speed:17,hp:5,eva:.45,dmg:.3,fuel:24,rearm:8,cd:3,vis:5,stl:7},
+  was:{name:'W.A.S.',squad:20,maxOut:3,launchR:30,range:5,speed:10,hp:10,eva:.25,dmg:.65,fuel:16,rearm:10,cd:4,vis:4,stl:6},
+};
+function makeHangars(hg){
+  if(!hg) return [];
+  return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
+    const W=WING[type], squads=[]; let left=Math.round(cap);
+    while(squads.length<W.maxOut&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
+    return {type,reserve:left,squads,next:0,announced:false};
+  });
+}
+function hangarText(f){
+  return f.hangars.map(h=>{ const W=WING[h.type], out=h.squads.filter(q=>q.state==='out');
+    const total=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?q.wing.n:q.n),0);
+    return `${W.name}${total}　出撃${out.length}/${h.squads.length}隊　予備${h.reserve}`; }).join('　');
+}
 function altStr(y){ y=Math.round(y); return y===0?'±0':(y>0?'+':'−')+Math.abs(y); }
-function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>`; }
+function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>${f.hangars.length?`<br>${hangarText(f)}`:''}`; }
 
 const rosterEl=document.getElementById('roster');
+/* keep the briefing panel above the roster on narrow screens */
+try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',rosterEl.offsetHeight+'px')).observe(rosterEl); }catch(e){}
+/* roster: with an army group, its armies sit in a group section; drag a button between sections to take an army out or put it back */
 function buildRoster(){
   rosterEl.innerHTML='';
-  fleets.filter(f=>f.team===0).forEach((f,i)=>{
+  const mine=fleets.filter(f=>f.team===0);
+  const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false');
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
-    b.addEventListener('click',()=>select(f.alive&&selected!==f?f:null));
-    rosterEl.appendChild(b); f.btn=b;
-  });
+    b.addEventListener('click',()=>{ if(b._dragged){ b._dragged=false; return; } select(f.alive&&(selected!==f||selGroupMode)?f:null); });
+    if(armyGroup) dragSource(b,f);
+    f.btn=b; return b; };
+  if(!armyGroup){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
+  const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group';
+  const gb=document.createElement('button'); gb.className='grpBtn'; gb.id='grpBtn';
+  gb.textContent=`${armyGroup.name} 全軍`; gb.title=armyGroup.sync?'最も遅い艦に速度を合わせて移動':'各軍の速度で移動';
+  gb.addEventListener('click',()=>selectGroup());
+  gz.appendChild(gb);
+  const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
+  fz.innerHTML='<div class="rhead">独立行動（ここへドラッグで外す）</div>';
+  mine.forEach(f=>(armyGroup.members.has(f)?gz:fz).appendChild(mk(f)));
+  rosterEl.append(gz,fz);
+}
+function dragSource(b,f){
+  let st=null,ghost=null;
+  b.addEventListener('pointerdown',e=>{ st={x:e.clientX,y:e.clientY,id:e.pointerId}; });
+  b.addEventListener('pointermove',e=>{ if(!st||e.pointerId!==st.id) return;
+    if(!ghost&&Math.hypot(e.clientX-st.x,e.clientY-st.y)>8){ b.setPointerCapture(e.pointerId); ghost=document.createElement('div'); ghost.className='dragGhost'; ghost.textContent=f.name; document.body.appendChild(ghost); b.classList.add('dragging'); }
+    if(ghost){ ghost.style.transform=`translate(${e.clientX+10}px,${e.clientY+6}px)`; const z=zoneAt(e); rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.toggle('drop',x===z)); } });
+  const end=e=>{ if(ghost){ const z=zoneAt(e); ghost.remove(); ghost=null; b._dragged=true; b.classList.remove('dragging');
+      if(z&&f.alive){ const into=z.dataset.zone==='group'; if(into!==armyGroup.members.has(f)){ into?armyGroup.members.add(f):armyGroup.members.delete(f);
+        if(into&&armyGroup.members.size>5){ armyGroup.members.delete(f); logEvent('軍集団は満員です','軍集団に入れられる軍は5個までです。'); }
+        else logEvent(into?`${f.name} 軍集団に復帰`:`${f.name} 独立行動へ`, into?`${f.name}が${armyGroup.name}の指揮下に戻った。`:`${f.name}が${armyGroup.name}を離れ、単独で行動する。`);
+        f.syncSpeed=null; if(selGroupMode) select(null); buildRoster(); updateRoster(); } } }
+    st=null; rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.remove('drop')); };
+  b.addEventListener('pointerup',end); b.addEventListener('pointercancel',end);
+}
+function zoneAt(e){ const el=document.elementFromPoint(e.clientX,e.clientY); return el&&el.closest?el.closest('.rzone'):null; }
+function groupAlive(){ return armyGroup?[...armyGroup.members].filter(f=>f.alive):[]; }
+function selectGroup(){ const m=groupAlive(); if(!m.length) return; if(selGroupMode){ select(null); return; } select(m[0]); selGroupMode=true;
+  fleets.forEach(x=>x.el.classList.toggle('sel',m.includes(x))); updateRoster(); }
+/* the fleets an order goes to: the whole army group, or just the selected army */
+function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.alive?[selected]:[]); }
+function groupOrder(o){
+  const t=orderTargets(); if(!t.length) return;
+  const sync=selGroupMode&&armyGroup.sync?Math.min(...t.map(f=>f.speed)):null;
+  if(o.type==='move'&&t.length>1){
+    const c=new THREE.Vector3(); t.forEach(f=>c.add(f.pos)); c.divideScalar(t.length);
+    t.forEach(f=>{ f.syncSpeed=sync; order(f,{type:'move',dest:o.dest.clone().add(f.pos.clone().sub(c))}); });
+  } else t.forEach(f=>{ f.syncSpeed=sync; order(f,o); });
 }
 function updateRoster(){
   fleets.forEach(f=>{ if(!f.btn) return;
     f.btn.querySelector('.n').textContent='×'+f.ships.length;
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
-    f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selected===f));
+    f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
   });
+  const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
 }
 
-function reset(){
+let lastCfg=null, armyGroup=null, selGroupMode=false;
+function reset(cfg=lastCfg){
+  lastCfg=cfg;
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
   if(fortress) fortress.el.remove();
-  [...arrows].forEach(dropArrow);
+  [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); reinforced=false; fortressMarks=new Set(); events=[];
-  fleets=[...PLAYER_SPEC.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
-  fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null};
+  const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:PLAYER_SPEC;
+  fleets=[...spec.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
+  selGroupMode=false;
+  armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
+  fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null,vis:8,seen:true,everSeen:true,revealT:0};
   fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px';
   setPhase('布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
-  showBrief('作戦概要','要塞カリュブディス攻略戦','二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。'); flashBrief(8000);
+  showBrief('作戦概要','要塞カリュブディス攻略戦','二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。敵艦隊は味方の視界に入るまで見えない。'); flashBrief(8000);
+  fogTimer=0; updateFog();
   buildRoster(); updateRoster();
 }
 
@@ -612,7 +703,7 @@ function logEvent(title,desc){
 }
 
 /* ---------- selection & orders ---------- */
-function select(f){ selected=f; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
+function select(f){ selected=f; selGroupMode=false; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
   if(f){ setAlt(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y,false); }
   document.getElementById('alt').hidden=!f; updateRoster(); }
 /* altitude control: sets the height of the selected fleet's destination */
@@ -622,9 +713,12 @@ function setAlt(v,apply=true){
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)));
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
-  const f=selected;
-  if(f.order&&f.order.type==='move'){ const d=f.order.dest.clone(); d.y=selAlt; order(f,{type:'move',dest:d}); }
-  else if(!f.order){ order(f,{type:'move',dest:new THREE.Vector3(f.pos.x,selAlt,f.pos.z)}); }
+  const t=orderTargets(); if(!t.length) return;
+  const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
+  t.forEach(f=>{
+    if(f.order&&f.order.type==='move'){ const d=f.order.dest.clone(); d.y+=selAlt-cy; order(f,{type:'move',dest:d}); }
+    else if(!f.order){ order(f,{type:'move',dest:new THREE.Vector3(f.pos.x,f.pos.y+selAlt-cy,f.pos.z)}); }
+  });
 }
 function altFromPointer(e){ const r=altTrack.getBoundingClientRect(); setAlt(ALT_MAX*(1-2*(e.clientY-r.top)/r.height)); }
 altTrack.addEventListener('pointerdown',e=>{ altTrack.setPointerCapture(e.pointerId); altFromPointer(e); });
@@ -654,6 +748,7 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o;
+  if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team]);
   else { const ar=makeArrow(f.pos,o.target.pos,TEAM_COL[f.team],{life:3.5}); if(f.team===0) f.arrow=ar; }
 }
@@ -734,15 +829,15 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 function tap(x,y){
   if(over) return;
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7)); const fd=Math.hypot(fs.x-x,fs.y-y);
   if(best&&best.team===0){ select(best===selected?null:best); return; }
   if(selected&&selected.alive){
-    if(best&&best.team===1){ order(selected,{type:'attack',target:best}); return; }
-    if(fd<46&&fortress.alive){ order(selected,{type:'attack',target:fortress}); return; }
+    if(best&&best.team===1){ groupOrder({type:'attack',target:best}); return; }
+    if(fd<46&&fortress.alive){ groupOrder({type:'attack',target:fortress}); return; }
     ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3();
     plane.constant=-selAlt;
-    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ order(selected,{type:'move',dest:hit}); hideHint(); }
+    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ groupOrder({type:'move',dest:hit}); hideHint(); }
   }
 }
 let down=null;
@@ -751,14 +846,22 @@ renderer.domElement.addEventListener('pointerup',e=>{ if(down&&Math.hypot(e.clie
 const hintEl=document.getElementById('hint'); let hintGone=false;
 function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); setTimeout(()=>hintEl.hidden=true,800); }
 /* the hint closes on its own after a few seconds, or as soon as the player touches anything */
-setTimeout(hideHint,6000);
 hintEl.addEventListener('click',hideHint);
 addEventListener('pointerdown',hideHint,{capture:true});
 
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>{
   speed=+b.dataset.s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
 }));
-document.getElementById('again').addEventListener('click',reset);
+document.getElementById('again').addEventListener('click',()=>reset());
+document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
+function openMenu(){ menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
+/* entry point used by the preparation screens (prep.js) */
+window.WOS={ start(cfg){
+  menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
+  reset(cfg||null); speed=1; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.s==='1')));
+  setView(0); flyTo(new THREE.Vector3(0,0,24),new THREE.Vector3(.3,.4,.87),190);
+  hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
+}, openMenu };
 
 /* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open */
 const briefEl=document.getElementById('brief'); let briefTimer=0;
@@ -775,25 +878,51 @@ vUi.addEventListener('click',toggleUi); vLb.addEventListener('click',toggleLabel
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT') return; if(e.key==='h'||e.key==='H') toggleUi(); if(e.key==='l'||e.key==='L') toggleLabels(); });
 
 /* ---------- simulation ---------- */
-function units(){ return fortress.alive?[...fleets,fortress]:fleets; }
+let wings=[];
+function units(){ return fortress.alive?[...fleets,...wings,fortress]:[...fleets,...wings]; }
 function gap(a,b){ return a.pos.distanceTo(b.pos)-(b.radius||0); }
-function nearestFoe(f,maxD){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
+/* detection: a team sees an enemy unit while any of its own units has it within sight.
+   sight grows with the observer's 視界, shrinks with the target's 隠蔽性; vision is shared across the team,
+   and a unit that opens fire gives itself away for a few seconds. */
+const sightOf=u=>60+(u.vis??6)*8, concealOf=u=>1-Math.min(10,u.stl??4)*.04, FIRE_REVEAL=3, LOST_MEMORY=30;
+function shown(u){ return u.team===0||u.seen; }
+let fogTimer=0;
+function updateFog(){
+  const all=units();
+  for(const t of all){ if(!t.alive) continue;
+    let by=null;
+    if(t.kind==='fortress'||t.revealT>0) by=t;
+    else for(const o of all){ if(!o.alive||o.team===t.team) continue;
+      if(o.pos.distanceTo(t.pos)<=sightOf(o)*concealOf(t)){ by=o; break; } }
+    const was=t.seen; t.seen=!!by;
+    if(was&&!t.seen){ t.lastPos=t.pos.clone(); t.lostAt=gameSec; }
+    if(t.seen&&!t.everSeen){ t.everSeen=true;
+      if(t.team===1&&gameSec>0&&by!==t) logEvent(`${t.name} 発見`,`${by.name}が${t.name}（${t.ships.length}隻）を捕捉。`); }
+  }
+}
+function nearestFoe(f,maxD){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
   if(!t.alive) return;
+  if(t.eva) amt*=1-t.eva;
+  if(t.kind==='wing'&&src.kind!=='wing') amt*=.5; // ship guns track small craft poorly
   t.hpPool-=amt;
-  const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key);
+  const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
     if(last===undefined){
       const a=src.team===0?src:t, b=src.team===0?t:src;
       if(t.kind==='fortress'||src.kind==='fortress'){
         if(phaseName!=='要塞攻略'){ setPhase('要塞攻略'); logEvent('要塞攻略開始',`${a.name}が要塞の防空砲火圏に突入。要塞の主砲は射程46、近づくほど危険。`); }
-      } else { if(phaseName==='布陣') setPhase('交戦'); logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
+      } else { if(phaseName==='布陣') setPhase('交戦'); if(!wingy) logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
     }
     engaged.set(key,gameSec);
   } else engaged.set(key,gameSec);
-  if(t.kind==='fleet'){
+  if(t.kind==='wing'){
+    const want=Math.max(0,Math.ceil(t.hpPool/t.hp));
+    while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],5,5,.6); }
+    t.n=want; if(want===0){ t.alive=false; t.squad.n=0; t.squad.state='lost'; }
+  } else if(t.kind==='fleet'){
     const want=Math.max(0,Math.ceil(t.hpPool/t.hp));
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(want===0) destroyFleet(t,src);
@@ -821,14 +950,67 @@ function end(win){
   setTimeout(()=>{document.getElementById('result').hidden=false;},1600);
 }
 
+/* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut at once */
+function launchCheck(f){
+  for(const h of f.hangars){ const W=WING[h.type];
+    if(gameSec<h.next) continue;
+    const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
+    const tgt=nearestFoe(f,W.launchR); if(!tgt) continue;
+    h.next=gameSec+W.cd; sq.state='out';
+    const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp,hpPool:sq.n*W.hp,eva:W.eva,dmg:W.dmg,range:W.range,
+      vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
+    const R=Math.sqrt(sq.n)*.55;
+    for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
+      const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r); w.ships.push({off,pos:f.pos.clone(),wob:Math.random()*6}); }
+    sq.wing=w; wings.push(w);
+    if(f.team===0&&!h.announced){ h.announced=true;
+      logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${W.maxOut}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
+  }
+}
+/* back aboard: half of this sortie's losses are made up from the reserve, then the squadron rearms */
+function dock(w){
+  const h=w.hangar, q=w.squad, rec=Math.min(Math.ceil((w.launched-w.n)/2),h.reserve);
+  h.reserve-=rec; q.n=w.n+rec; q.state='docked'; q.ready=gameSec+w.W.rearm; q.wing=null; w.alive=false;
+}
+function stepWings(dt){
+  for(const w of wings){ if(!w.alive) continue;
+    const c=w.carrier;
+    if(w.state==='attack'){
+      w.fuel-=dt;
+      if(!w.target||!w.target.alive||!w.target.seen) w.target=nearestFoe(w,w.W.launchR*.6)||(c.alive?nearestFoe(c,w.W.launchR):null);
+      if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
+    }
+    if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
+    const goal=w.state==='attack'?w.target.pos:(c.alive?c.pos:null);
+    if(goal){
+      const stop=w.state==='attack'?w.range*.6+(w.target.radius||0):1;
+      _v.subVectors(goal,w.pos); const d=_v.length();
+      if(w.state==='return'&&d<=stop+.5){ dock(w); continue; }
+      if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.W.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
+    }
+    if(w.state!=='attack') continue;
+    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; w.fireTarget=nearestFoe(w,w.range); }
+    const ft=w.fireTarget;
+    if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08){
+      damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL;
+      if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randShip(w),randShip(ft),TEAM_COL[w.team],.18);
+    }
+  }
+  wings=wings.filter(w=>w.alive);
+}
+
 let aiTimer=0;
+/* with no allied fleet in sight, the reinforcement takes up a watch north of the fortress */
+const HUNT_POST=new THREE.Vector3(0,22,-38);
 function enemyAI(){
-  const foes=fleets.filter(f=>f.team===0&&f.alive);
+  const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen);
   for(const f of fleets){
     if(f.team!==1||!f.alive) continue;
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    else if(f.ai==='hunt'){ if(f.pos.distanceTo(HUNT_POST)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:HUNT_POST.clone()}; }
     else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2){ f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
   }
 }
@@ -838,26 +1020,32 @@ function step(dt){
   if(!reinforced&&gameSec>=60){ reinforced=true;
     const r=makeFleet(1,{name:'第5戦隊',sub:'本国からの増援',n:14,hp:30,dmg:3,range:20,speed:6.5,scale:1.3,pos:[10,-150],alt:34,ai:'hunt',leash:0});
     fleets.push(r); makeArrow(r.pos,new THREE.Vector3(0,20,-60),TEAM_COL[1],{life:6});
-    logEvent('増援 第5戦隊 到着','北宙域の上方、本国航路から緋星帝国の増援が出現。最も近い同盟艦隊へ向かっている。');
+    logEvent('北宙域に艦影の反応','本国航路の出口で大きな反応。緋星帝国の増援とみられる。位置をつかむには視界に捉える必要がある。');
   }
+  for(const u of units()) if(u.revealT>0) u.revealT-=dt;
+  fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
+  stepWings(dt);
   for(const f of fleets){
     if(!f.alive) continue;
+    if(f.hangars.length) launchCheck(f);
     f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=nearestFoe(f,f.range); }
     let goal=null, stop=.6;
     if(f.order){
       if(f.order.type==='move') goal=f.order.dest;
-      else { const t=f.order.target; if(!t.alive){ f.order=null; } else { goal=t.pos; stop=f.range*.75+(t.radius||0); } }
+      else { const t=f.order.target; if(!t.alive){ f.order=null; }
+        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; } if(f.order) goal=f.order.dest; }
+        else { goal=t.pos; stop=f.range*.75+(t.radius||0); } }
     }
     if(goal){
       _v.subVectors(goal,f.pos); const d=_v.length();
-      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(f.speed*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
+      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min((f.syncSpeed||f.speed)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
       else if(f.order.type==='move'){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } }
     }
     const ft=f.fireTarget;
-    if(ft&&ft.alive&&gap(f,ft)<=f.range*1.08){
+    if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
       if(!goal){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
-      damage(ft,f.ships.length*f.dmg*dt,f);
+      damage(ft,f.ships.length*f.dmg*dt,f); f.revealT=FIRE_REVEAL;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
@@ -866,7 +1054,7 @@ function step(dt){
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
     const ft=fortress.fireTarget;
-    if(ft&&ft.alive){ damage(ft,fortress.dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),new THREE.Color(1,.55,.3),.35); }
+    if(ft&&ft.alive&&ft.seen){ damage(ft,fortress.dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),new THREE.Color(1,.55,.3),.35); }
   }
 }
 
@@ -879,20 +1067,32 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 let last=performance.now(), time=0, rosterTick=0;
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
-  const dt=over?0:rdt*speed;
+  const dt=(over||menuOpen)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
   const cnt=[0,0];
-  for(const f of fleets){ if(!f.alive) continue;
+  for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5);
     for(const s of f.ships){
       _w.copy(f.pos).add(s.off); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
-      const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=260) continue;
+      if(hide) continue;
+      const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=600) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(f.scale); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
     }
   }
   shipMeshes.forEach((m,t)=>{m.count=cnt[t];m.instanceMatrix.needsUpdate=true;});
+  const cc=[0,0];
+  for(const w of wings){ if(!w.alive||!shown(w)) continue;
+    const k=1-Math.exp(-(dt>0?dt:0)*5);
+    for(const s of w.ships){
+      _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4;
+      s.pos.lerp(_w,dt>0?k:0);
+      const m=craftMeshes[w.team], i=cc[w.team]++; if(i>=1500) continue;
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(w.heading)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
+    }
+  }
+  craftMeshes.forEach((m,t)=>{m.count=cc[t];m.instanceMatrix.needsUpdate=true;});
   stepParticles(rdt*(speed||1)*(over?1:1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
@@ -904,9 +1104,10 @@ function frame(now){
   // selection visuals
   if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));
-    rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(selected.range);
+    rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(Math.max(selected.range,selected.launchR||0));
+    sightRing.visible=true; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));
     layer.visible=true; layer.position.set(selected.pos.x,selAlt,selected.pos.z); layerMat.uniforms.uTime.value=time; }
-  else selRing.visible=rangeRing.visible=layer.visible=false;
+  else selRing.visible=rangeRing.visible=sightRing.visible=layer.visible=false;
   updateStalks();
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
@@ -914,11 +1115,14 @@ function frame(now){
   if(composer) composer.render(); else renderer.render(scene,camera);
 
   // labels
-  for(const u of units()){ if(!u.alive) continue;
-    const s=proj(_v.copy(u.pos).add(_w.set(0,u.kind==='fortress'?7:4,0)));
+  for(const u of units()){ if(!u.alive||!u.el) continue;
+    const lost=!shown(u), at=lost?u.lastPos:u.pos;
+    if(lost&&(!at||gameSec-u.lostAt>LOST_MEMORY)){ u.el.style.visibility='hidden'; continue; }
+    if(u.el.classList.contains('lost')!==lost){ u.el.classList.toggle('lost',lost); u._sub=null; }
+    const s=proj(_v.copy(at).add(_w.set(0,u.kind==='fortress'?7:4,0)));
     if(s.z>1||s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){u.el.style.visibility='hidden';continue;}
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
-    const sub=u.kind==='fortress'?`装甲 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
+    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`装甲 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
@@ -930,3 +1134,4 @@ reset();
 requestAnimationFrame(frame);
 })();
 </script>
+<script src="prep.js"></script>
