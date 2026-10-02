@@ -82,8 +82,11 @@ const SHAPES={
   gen:()=>[at(new THREE.ConeGeometry(.45,2,5),0,0,0,Math.PI/2)],
 };
 const CRAFT_SHAPES={
-  /* 艦載機: a small delta wing */
-  ftr:()=>[at(nose(.17,1.2,4),0,0,.15), at(box(1.0,.04,.42),0,0,-.25), at(box(.04,.26,.3),0,.13,-.4)],
+  /* 艦載機: a stealth fighter blended into a flying wing. A swept wing with a sawtooth trailing edge, a chined fuselage with a canopy,
+     intakes on each side, two outward-canted tails and flat nozzles */
+  ftr:()=>[at(plate([[0,0.85],[0.72,-0.1],[0.7,-0.2],[0.47,-0.05],[0.31,-0.3],[0.15,-0.15],[0,-0.3],[-0.15,-0.15],[-0.31,-0.3],[-0.47,-0.05],[-0.7,-0.2],[-0.72,-0.1]],.035),0,0,0), loft([[-.42,.12,.05],[-.1,.17,.08],[.3,.12,.07],[.7,.04,.03],[.92,0,0]]),
+    at(loft([[.12,.035,.02],[.32,.045,.045,.01],[.55,0,0]]),0,.06,0), ...pair(at(box(.06,.06,.2),.15,-.01,.12,0,.12,0)),
+    ...pair(at(plate([[0,-.06],[0,-.3],[.2,-.36],[.2,-.22]],.02),.12,.04,0,0,0,Math.PI/2-.45)), ...pair(at(box(.09,.035,.08),.07,0,-.44))],
   /* W.A.S.: a small, rounded powered exoskeleton a size larger than a person, leaning into its flight with the elbows and knees bent.
      Large arms: a rifle in the right hand and a cannon above the left shoulder. Flight thrusters on the backpack and at the waist */
   was:()=>{ const lean=.7, c=Math.cos(lean), s=Math.sin(lean), L=(x,y,z)=>[x,y*c-z*s,y*s+z*c], add=(p,q)=>p.map((v,i)=>v+q[i]);
