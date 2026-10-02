@@ -203,6 +203,20 @@ function check(ok, label, detail = '') {
       '空母: 発進距離の0.8倍で止まり、攻撃の相手を替えると小型機も替える。混ざった軍では空母が最後尾', JSON.stringify(cv));
     await page.evaluate(() => { reset(); select(null); });
 
+    /* a fleet of fighter carriers beats a cruiser fleet that chases it without taking a hit: it backs away and the fighters slow the cruisers */
+    const duel = await page.evaluate(() => {
+      reset(); fortress.alive = false; fleets.forEach(f => { f.alive = false; });
+      const c = makeFleet(0, { name: '母艦', sub: '', type: 'cvb', n: 3, hp: 70, dmg: 1.6, range: 14, speed: 5, scale: 1.6, pos: [0, 150], alt: 0, vis: 7, stl: 3, hangar: { ftr: 120 } });
+      const e = makeFleet(1, { name: '巡洋艦隊', sub: '', type: 'cl', n: 10, hp: 42, dmg: 4.2, range: 22, speed: 5.5, scale: 1.5, pos: [0, 75], alt: 0, vis: 6, stl: 4, ai: 'hunt', leash: 200 });
+      fleets.push(c, e); for (let i = 0; i < 20; i++) step(.05);
+      order(c, { type: 'attack', target: e }); const hp0 = c.hpPool; let slowed = false;
+      for (let i = 0; i < 1600 && c.alive && e.alive; i++) { step(.05); if (e.slowT > 0) slowed = true; }
+      const r = { foeKilled: !e.alive, carrierLoss: hp0 - c.hpPool, slowed };
+      c.el.remove(); e.el.remove(); return r;
+    });
+    check(duel.foeKilled && duel.carrierLoss === 0 && duel.slowed, '空母: 戦闘母艦だけの軍は、追ってくる巡洋艦隊を被弾なしで倒せる（下がりながら戦い、艦載機が足止め）', JSON.stringify(duel));
+    await page.evaluate(() => { reset(); select(null); });
+
     /* ship guns: the foe ordered to attack comes first while in range, then the nearest */
     const fire = await page.evaluate(() => {
       reset(); const f = fleets.find(x => x.team === 0 && !x.hangars.length), [a, b] = fleets.filter(x => x.team === 1);
