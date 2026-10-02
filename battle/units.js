@@ -1,0 +1,73 @@
+/* War of Space battle: name labels, ship meshes, selection rings, altitude stalks.
+   Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
+/* ---------- labels ---------- */
+const labelsEl=document.getElementById('labels');
+function mkUnitLabel(team,name,sub){
+  const el=document.createElement('div'); el.className='unit t'+team;
+  el.innerHTML=`<div class="emb">${EMB[team]}</div><div class="flag"><b></b><span></span></div>`;
+  el.querySelector('b').textContent=name; el.querySelector('span').innerHTML=sub;
+  labelsEl.appendChild(el); return el;
+}
+const sectors=[
+  {name:'北宙域',sub:'本国航路・増援の出口',p:[22,-82]},
+  {name:'東宙域',sub:'暗礁帯',p:[86,10]},
+  {name:'南宙域',sub:'連合艦隊の進入方向',p:[-20,92]},
+  {name:'西宙域',sub:'哨戒線のみ',p:[-92,-12]}
+].map(s=>{const el=document.createElement('div');el.className='sector';el.innerHTML=`<b>${s.name}</b><span>${s.sub}</span>`;labelsEl.appendChild(el);return {el,pos:new THREE.Vector3(s.p[0],0,s.p[1])};});
+
+/* ---------- ships ---------- */
+const shipGeo=new THREE.ConeGeometry(.45,2,5); shipGeo.rotateX(Math.PI/2);
+const shipMeshes=[0,1].map(t=>{
+  const c=TEAM_COL[t];
+  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),600);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
+});
+/* small craft (fighters and W.A.S.) launched from carriers */
+const craftGeo=new THREE.ConeGeometry(.55,1.7,3); craftGeo.rotateX(Math.PI/2);
+const craftMeshes=[0,1].map(t=>{
+  const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+  const m=new THREE.InstancedMesh(craftGeo,new THREE.MeshBasicMaterial({color:c}),1500);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
+});
+
+/* selection rings */
+const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
+selRing.rotation.x=-Math.PI/2; selRing.visible=false; scene.add(selRing);
+const rangeRing=new THREE.Mesh(new THREE.RingGeometry(.97,1,96),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.35,depthWrite:false,side:THREE.DoubleSide}));
+rangeRing.rotation.x=-Math.PI/2; rangeRing.visible=false; scene.add(rangeRing);
+/* sight ring: how far the selected fleet spots an enemy of ordinary concealment */
+const sightRing=new THREE.Mesh(new THREE.RingGeometry(.994,1,160),new THREE.MeshBasicMaterial({color:0x9fe8c8,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide}));
+sightRing.rotation.x=-Math.PI/2; sightRing.visible=false; scene.add(sightRing);
+
+/* order layer: the horizontal plane taps land on, drawn at the chosen altitude */
+const layerMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,extensions:{derivatives:true},
+  uniforms:{uTime:{value:0}},
+  vertexShader:'varying vec2 vP;varying vec2 vW;void main(){vP=position.xz;vec4 w=modelMatrix*vec4(position,1.);vW=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
+  fragmentShader:`varying vec2 vP;varying vec2 vW;uniform float uTime;
+    float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
+    void main(){float r=length(vP);float g=max(ln(vW.x/10.,1.),ln(vW.y/10.,1.));
+      float f=1.-smoothstep(20.,70.,r);float pulse=ln((r-uTime*6.)/24.,1.5)*.5;
+      gl_FragColor=vec4(vec3(.62,.86,1.),(g*.55+pulse*.4)*f);}`});
+const layer=new THREE.Mesh(new THREE.PlaneGeometry(150,150),layerMat); layer.geometry.rotateX(-Math.PI/2); layer.visible=false; scene.add(layer);
+
+/* altitude stalks: a vertical line from each unit (and each move destination) down to the grid, plus a foot mark */
+const SMAX=64, sPos=new Float32Array(SMAX*6), sCol=new Float32Array(SMAX*6), fPos=new Float32Array(SMAX*3), fCol=new Float32Array(SMAX*3);
+const sGeo=new THREE.BufferGeometry(); sGeo.setAttribute('position',new THREE.BufferAttribute(sPos,3)); sGeo.setAttribute('color',new THREE.BufferAttribute(sCol,3));
+const stalks=new THREE.LineSegments(sGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.75,depthWrite:false})); stalks.frustumCulled=false; scene.add(stalks);
+const fGeo=new THREE.BufferGeometry(); fGeo.setAttribute('position',new THREE.BufferAttribute(fPos,3)); fGeo.setAttribute('color',new THREE.BufferAttribute(fCol,3));
+const feet=new THREE.Points(fGeo,new THREE.PointsMaterial({size:2.2,map:dot,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); feet.frustumCulled=false; scene.add(feet);
+function updateStalks(){
+  sCol.fill(0); fCol.fill(0); let i=0;
+  const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[f.team],1);
+    if(f.team===0&&f.order&&f.order.type==='move') put(f.order.dest,TEAM_COL[0],.6); }
+  sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
+  fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
+}
+
+/* defense zone as a sphere: three faint great circles around the fortress */
+{
+  const pts=[]; for(let i=0;i<=96;i++){const a=i/96*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*40,Math.sin(a)*40,0));}
+  const g=new THREE.BufferGeometry().setFromPoints(pts), m=new THREE.LineBasicMaterial({color:0xff6a45,transparent:true,opacity:.28,depthWrite:false});
+  [0,Math.PI/3,2*Math.PI/3].forEach(r=>{const l=new THREE.Line(g,m); l.rotation.y=r; l.position.y=3; scene.add(l);});
+}
