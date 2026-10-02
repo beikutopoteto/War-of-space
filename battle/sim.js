@@ -65,12 +65,14 @@ function destroyFleet(f,src){
   if(!fleets.some(x=>x.team===0&&x.alive&&!x.convoy)) end(false);
   updateRoster();
 }
+let outcome=null;
 function end(win){
-  if(over) return; over=true; setPhase('戦闘終結');
+  if(over) return; over=true; outcome=win; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
   const R=op.result, tail=convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:`${clockStr()}、${R.lose}`;
+  if(!win&&R.loseBlast) blast(R.loseBlast);
   logEvent(...(win?R.winLog:R.loseLog));
   /* the operation's closing conversation, then the result */
   const talk=op.talk&&(win?op.talk.win:op.talk.lose);
@@ -163,6 +165,8 @@ function fireTargetOf(f){
   return t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
 }
 
+/* a large explosion at [x, z, alt] (operation data) */
+function blast(at){ const p=new THREE.Vector3(at[0],at[2]||0,at[1]); for(let i=0;i<6;i++) burst(p.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,30,10,1.4); }
 /* escort operations: the convoy boards until `depart` (operation minutes), then follows its route to the departure point.
    It wins when the convoy gets through with fewer than `lose` transports lost, and loses when that many are gone */
 function stepConvoy(){
@@ -198,7 +202,7 @@ function step(dt){
   while(nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     if(E.fleet){ const r=makeFleet(1,{leash:0,...E.fleet}); fleets.push(r);
       if(E.arrow) makeArrow(r.pos,new THREE.Vector3(E.arrow.pos[0],E.arrow.alt||0,E.arrow.pos[1]),TEAM_COL[1],{life:6}); }
-    if(E.blast){ const p=new THREE.Vector3(E.blast[0],E.blast[2]||0,E.blast[1]); for(let i=0;i<6;i++) burst(p.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,30,10,1.4); }
+    if(E.blast) blast(E.blast);
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
   }

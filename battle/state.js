@@ -134,7 +134,9 @@ function reset(cfg=lastCfg){
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
   selGroupMode=false;
-  armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
+  /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
+  const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
+  armyGroup=G?{name:G.name,sync:G.sync,members:new Set(G.members.map(i=>fleets[i]))}:null;
   /* the transports of an escort operation: own side, but they follow their own route and take no orders */
   convoy=null;
   if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy); }
