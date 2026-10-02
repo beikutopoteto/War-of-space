@@ -194,4 +194,9 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   .rzone .rhead{font-size:10px}
   #roster{width:auto}
 }
+#pick{position:fixed;left:0;top:0;display:grid;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px);z-index:5}
+#pick button{font-family:var(--f-ui);font-size:12px;text-align:left;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);padding:4px 10px;cursor:pointer}
+#pick button[data-pk="attack"]{border-color:rgba(255,106,69,.6)}
+#pick button:hover:not(:disabled),#pick button:focus-visible{background:rgba(127,200,255,.15);outline:none}
+#pick button:disabled{opacity:.4;cursor:default}
 #cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}

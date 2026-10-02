@@ -97,6 +97,20 @@ function check(ok, label, detail = '') {
     });
     check(route.pts === 2 && route.minA < 1 && route.endB < .1, '予約指示: 経由地を通って終点に着く', `経由地まで${route.minA.toFixed(2)}`);
 
+    /* clicking an enemy offers attack or move-here; a chase arrow follows the target */
+    await page.click('#sp0');
+    const es = await page.evaluate(() => { reset(); select(fleets.find(x => x.team === 0)); const e = fleets.find(x => x.team === 1 && x.seen); setAlt(e.pos.y, false); return { s: proj(e.pos), x: e.pos.x, z: e.pos.z }; });
+    await page.mouse.click(es.s.x, es.s.y);
+    const picked = await page.isVisible('#pick');
+    await page.click('[data-pk="move"]');
+    const mv = await page.evaluate(() => { const o = selected.order; return o && o.type === 'move' ? Math.hypot(o.dest.x, o.dest.z) && [o.dest.x, o.dest.z] : null; });
+    check(picked && mv && Math.hypot(mv[0] - es.x, mv[1] - es.z) < 3, '敵をクリック: 「ここへ移動」で敵の位置へ移動できる');
+    await page.mouse.click(es.s.x, es.s.y); await page.click('[data-pk="attack"]');
+    const chase = await page.evaluate(() => { const f = selected, t = f.order.target; t.pos.x += 20; step(.05); return f.order.type; });
+    await page.click('#sp1'); await page.waitForTimeout(600);
+    const follows = await page.evaluate(() => { const f = selected; return !!f.arrow && f.arrow.to.distanceTo(f.order.target.pos) < 1.5; });
+    check(chase === 'attack' && follows, '敵をクリック: 「攻撃」で追撃し、矢印が敵を追う');
+
     /* engagement stance: 回避 holds fire, 交戦 fires */
     const stance = await page.evaluate(() => ['evade', 'engage'].map(st => {
       reset(); const f = fleets.find(x => x.team === 0), e = fleets.find(x => x.team === 1);
