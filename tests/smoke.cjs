@@ -149,6 +149,8 @@ function check(ok, label, detail = '') {
     check(talk.talking && talk.sec === 0 && talk.who.length > 0, '信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
     await page.click('#talkSkip');
     const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
+      /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
+      fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
       const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, '信濃奇襲: 中継ステーションと輸送船団が出る');
