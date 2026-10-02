@@ -58,22 +58,20 @@ function stepTracers(dt){
 }
 
 /* ---------- movement arrows ---------- */
+/* an arrow shows the route a fleet really takes: a straight line, or opt.curve (the path through queued waypoints) */
 const arrows=new Set();
 function makeArrow(from,to,col,opt={}){
-  const a=new THREE.Vector3(from.x,from.y+.5,from.z), b=new THREE.Vector3(to.x,to.y+.5,to.z);
-  const len=a.distanceTo(b); if(len<3) return null;
-  const dir=b.clone().sub(a).normalize(), perp=new THREE.Vector3(-dir.z,0,dir.x); if(perp.lengthSq()<1e-4) perp.set(1,0,0); perp.normalize();
-  const ctrl=a.clone().add(b).multiplyScalar(.5).add(perp.multiplyScalar(len*.16*(opt.bend??1)));
-  const curve=new THREE.QuadraticBezierCurve3(a,ctrl,b);
+  const curve=opt.curve||new THREE.LineCurve3(from.clone(),to.clone());
+  const len=curve.getLength(); if(len<3) return null;
   const w=opt.width||2.4, tH=1-Math.min(.35,7.5/len);
   const ent=[]; const M=40,K=6;
   for(let i=0;i<=M;i++) ent.push([tH*i/M,w]);
   for(let j=0;j<=K;j++) ent.push([tH+(1-tH)*j/K, w*2.2*(1-j/K)]);
   const P=[],U=[],I=[];
   ent.forEach(([t,wd],k)=>{
-    const p=curve.getPoint(Math.min(t,1)), tg=curve.getTangent(Math.min(t,.999)), s=new THREE.Vector3(-tg.z,0,tg.x);
+    const p=curve.getPointAt(Math.min(t,1)), tg=curve.getTangentAt(Math.min(t,.999)), s=new THREE.Vector3(-tg.z,0,tg.x);
     if(s.lengthSq()<1e-4) s.set(1,0,0); s.normalize().multiplyScalar(wd/2);
-    P.push(p.x+s.x,p.y+s.y,p.z+s.z,p.x-s.x,p.y-s.y,p.z-s.z); U.push(t,0,t,1);
+    P.push(p.x+s.x,p.y+.5,p.z+s.z,p.x-s.x,p.y+.5,p.z-s.z); U.push(t,0,t,1);
     if(k>0){const o=(k-1)*2;I.push(o,o+1,o+2,o+1,o+3,o+2);}
   });
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2)); g.setIndex(I);
@@ -91,7 +89,7 @@ function makeArrow(from,to,col,opt={}){
         gl_FragColor=vec4(c,uOp*stripe*tail*(.5+.35*edge));}`
   });
   const mesh=new THREE.Mesh(g,mat); scene.add(mesh);
-  const ar={mesh,mat,len,life:opt.life??Infinity,age:0,from:a,to:b};
+  const ar={mesh,mat,len,life:opt.life??Infinity,age:0};
   arrows.add(ar); return ar;
 }
 function dropArrow(ar){ if(!ar) return; scene.remove(ar.mesh); ar.mesh.geometry.dispose(); ar.mat.dispose(); arrows.delete(ar); }

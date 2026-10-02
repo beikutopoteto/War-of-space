@@ -9,7 +9,7 @@ let op=OPS[0], nextReinf=0;
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
-    watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null};
+    watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage'};
   const R=Math.sqrt(o.n)*1.35*o.scale;
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
@@ -84,18 +84,23 @@ function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.al
 function groupOrder(o){
   const t=orderTargets(); if(!t.length) return;
   const sync=selGroupMode&&armyGroup.sync?Math.min(...t.map(f=>f.speed)):null;
-  if(o.type==='move'&&t.length>1){
-    const c=new THREE.Vector3(); t.forEach(f=>c.add(f.pos)); c.divideScalar(t.length);
-    t.forEach(f=>{ f.syncSpeed=sync; order(f,{type:'move',dest:o.dest.clone().add(f.pos.clone().sub(c))}); });
+  if(o.type==='move'){
+    /* o.queue (Shift): the point is added after the waypoints still ahead. Several fleets keep their formation around the point */
+    const queued=f=>o.queue&&f.order&&f.order.type==='move'?pathLeft(f.order):[];
+    const base=f=>{ const q=queued(f); return q.length?q[q.length-1]:f.pos; };
+    const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
+    t.forEach(f=>{ const via=queued(f).slice(-(MAX_WAYPOINTS-1)), dest=o.dest.clone().add(base(f).clone().sub(c));
+      f.syncSpeed=sync; order(f,{type:'move',via,dest}); });
   } else t.forEach(f=>{ f.syncSpeed=sync; order(f,o); });
 }
 function updateRoster(){
   fleets.forEach(f=>{ if(!f.btn) return;
-    f.btn.querySelector('.n').textContent='×'+f.ships.length;
+    f.btn.querySelector('.n').textContent=(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
   });
   const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
+  syncStance();
 }
 
 let lastCfg=null, armyGroup=null, selGroupMode=false;

@@ -79,6 +79,33 @@ function check(ok, label, detail = '') {
     check(await page.locator('#roster button').count() === await page.evaluate(() => op.quick.length), 'クイック戦闘: 自軍の一覧');
     await shot('06-quick');
 
+    /* views change only the vertical angle */
+    await page.evaluate(() => setAngles(60, 40));
+    await page.click('#cv1'); await page.waitForTimeout(1200);
+    const view = await page.evaluate(() => getAngles());
+    check(Math.round(view.az) === 60 && view.el > 80, '視点: 真上にしても横の角度が変わらない', `横${Math.round(view.az)}° 縦${Math.round(view.el)}°`);
+    await page.click('#cv0'); await page.waitForTimeout(1200);
+
+    /* queued waypoints: the fleet passes the first point and stops at the last */
+    const route = await page.evaluate(() => {
+      const f = fleets.find(x => x.team === 0); select(f);
+      const A = f.pos.clone().add(new THREE.Vector3(30, 0, -40)), B = f.pos.clone().add(new THREE.Vector3(-10, 0, -80));
+      groupOrder({ type: 'move', dest: A }); groupOrder({ type: 'move', dest: B, queue: true });
+      const pts = f.order.path.pts.length; let minA = 1e9, n = 0;
+      while (f.order && f.order.type === 'move' && n++ < 4000) { step(.05); minA = Math.min(minA, f.pos.distanceTo(A)); }
+      return { pts, minA, endB: f.pos.distanceTo(B) };
+    });
+    check(route.pts === 2 && route.minA < 1 && route.endB < .1, '予約指示: 経由地を通って終点に着く', `経由地まで${route.minA.toFixed(2)}`);
+
+    /* engagement stance: 回避 holds fire, 交戦 fires */
+    const stance = await page.evaluate(() => ['evade', 'engage'].map(st => {
+      reset(); const f = fleets.find(x => x.team === 0), e = fleets.find(x => x.team === 1);
+      select(f); setStance(st); f.pos.set(e.pos.x, e.pos.y, e.pos.z + Math.min(12, f.range * .8));
+      let fired = 0; for (let i = 0; i < 40; i++) { step(.05); if (f.revealT > 0) fired++; } return fired;
+    }));
+    check(stance[0] === 0 && stance[1] > 0, '交戦/回避: 回避中は撃たず、交戦では撃つ');
+    await page.evaluate(() => { reset(); select(null); });
+
     /* a player order, then tens of seconds of combat */
     await page.evaluate(() => { const f = fleets.find(x => x.team === 0); select(f); groupOrder({ type: 'attack', target: fortress }); });
     await advance(60);
