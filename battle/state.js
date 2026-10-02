@@ -123,8 +123,30 @@ function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.al
 /* o.queue (Shift) adds the order after the ones already given: a point joins the route of the last move (current or queued),
    anything after an attack waits in f.queue until that attack is over. Without Shift the queue is cleared.
    Several fleets keep their formation around a point */
+/* undo: every order given from the HUD first saves what the fleets it touches were doing; 戻す (Ctrl+Z / Backspace) restores the last one */
+const UNDO_MAX=30; let undoStack=[];
+function copyOrder(o){
+  if(!o) return null;
+  if(o.type!=='move') return {type:o.type,target:o.target};
+  const left=o.path?pathLeft(o):[...(o.via||[]),o.dest], pts=left.length?left:[o.dest];   // the points still ahead
+  return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
+}
+function saveUndo(t){
+  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed})));
+  if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
+}
+function undo(){
+  const u=undoStack.pop(); updateUndo(); if(!u||over) return;
+  for(const s of u){ const f=s.f; if(!f.alive) continue;
+    const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
+    if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
+    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync; }
+  updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
+}
+function updateUndo(){ const b=document.getElementById('undoBtn'); if(b) b.disabled=!undoStack.length; }
 function groupOrder(o){
   const t=orderTargets(); if(!t.length) return;
+  saveUndo(t);
   const sync=selGroupMode&&armyGroup.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
   const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;
@@ -157,7 +179,7 @@ function updateRoster(){
 
 let lastCfg=null, armyGroup=null, selGroupMode=false;
 function reset(cfg=lastCfg){
-  lastCfg=cfg;
+  lastCfg=cfg; undoStack=[]; updateUndo();
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
   if(fortress&&fortress.el) fortress.el.remove();
   [...arrows].forEach(dropArrow); wings=[];
