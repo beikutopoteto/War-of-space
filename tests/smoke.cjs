@@ -152,6 +152,26 @@ function check(ok, label, detail = '') {
     check(stance[0] === 0 && stance[1] > 0, '交戦/回避: 回避中は撃たず、交戦では撃つ');
     await page.evaluate(() => { reset(); select(null); });
 
+    /* small craft keep out of a hostile fortress's guns unless their carrier was ordered to attack there (both sides) */
+    const fort = await page.evaluate(() => {
+      reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length), foes = fleets.filter(x => x.team === 1), e = foes[0];
+      foes.forEach(x => { x.alive = false; }); c.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range + 2);
+      const run = () => { for (let i = 0; i < 40; i++) step(.05); return wings.filter(w => w.team === 0 && w.alive); };
+      const fortOnly = run().length;
+      e.alive = true; e.ai = null; e.pos.set(c.pos.x + 8, c.pos.y, fortress.pos.z + fortress.range - 6); e.post = e.pos.clone();
+      const nearFort = run().length;
+      e.pos.set(c.pos.x, c.pos.y, c.pos.z + 40); e.post = e.pos.clone(); const away = run(); const awayHit = away.length > 0 && away.every(w => w.target === e);
+      e.alive = false; for (let i = 0; i < 40; i++) step(.05);
+      const retarget = wings.filter(w => w.team === 0 && w.alive).every(w => w.target !== fortress);
+      c.order = { type: 'attack', target: fortress }; c.speed = 0; for (let i = 0; i < 80; i++) { c.order = { type: 'attack', target: fortress }; step(.05); }
+      const ordered = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
+      fortress.team = 0; const mirrored = underGuns(c, 1) && !underGuns(c, 0); fortress.team = 1;
+      return { fortOnly, nearFort, awayHit, retarget, ordered, mirrored };
+    });
+    check(!fort.fortOnly && !fort.nearFort && fort.awayHit && fort.retarget && fort.ordered && fort.mirrored,
+      '小型機: 命令がなければ要塞と要塞の射程内の敵を狙わない（敵も同じ）', JSON.stringify(fort));
+    await page.evaluate(() => { reset(); select(null); });
+
     /* a player order, then tens of seconds of combat */
     await page.evaluate(() => { const f = fleets.find(x => x.team === 0); select(f); groupOrder({ type: 'attack', target: fortress }); });
     await advance(60);
