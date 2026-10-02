@@ -84,10 +84,10 @@ WOS_DATA.operations=[
       {name:'離脱点', sub:'ナイル方面', pos:[14,178]},
     ],
     quick:[
-      {name:'千曲隊', sub:'コルベット・哨戒', type:'cv', n:12, hp:11, dmg:1.3, eva:.36, range:14.8, speed:12, scale:.73, pos:[-30,-25], alt:6, vis:8, stl:9},
-      {name:'犀川隊', sub:'フリゲート・護衛', type:'ff', n:10, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[28,-22], alt:-4, vis:7, stl:7},
-      {name:'魚野隊', sub:'駆逐艦・雷撃', type:'dd', n:8, hp:21, dmg:2.65, eva:.24, range:18, speed:9, scale:.91, pos:[-6,22], alt:0, vis:6, stl:6},
-      {name:'奈良井隊', sub:'フリゲート・予備', type:'ff', n:8, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[0,-40], alt:10, vis:7, stl:7},
+      {name:'第11哨戒戦隊', sub:'コルベット・哨戒', type:'cv', n:12, hp:11, dmg:1.3, eva:.36, range:14.8, speed:12, scale:.73, pos:[-30,-25], alt:6, vis:8, stl:9},
+      {name:'第21護衛戦隊', sub:'フリゲート・護衛', type:'ff', n:10, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[28,-22], alt:-4, vis:7, stl:7},
+      {name:'第31駆逐戦隊', sub:'駆逐艦・雷撃', type:'dd', n:8, hp:21, dmg:2.65, eva:.24, range:18, speed:9, scale:.91, pos:[-6,22], alt:0, vis:6, stl:6},
+      {name:'第22護衛戦隊', sub:'フリゲート・予備', type:'ff', n:8, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[0,-40], alt:10, vis:7, stl:7},
     ],
     /* the four squadrons are named after rivers that flow into the Shinano */
     group:{name:'ネオ信濃駐屯隊', sync:false},
