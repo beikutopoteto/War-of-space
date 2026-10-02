@@ -5,6 +5,27 @@ let W=1,H=1;
 function resize(){ W=innerWidth; H=innerHeight; renderer.setSize(W,H); camera.aspect=W/H; camera.fov=W<H?Math.min(78,50*Math.min(1.6,H/W)):50; camera.updateProjectionMatrix(); if(composer) composer.setSize(W,H); }
 addEventListener('resize',resize); resize();
 
+/* small craft in combat circle their target like electrons around a nucleus (drawing only; the battle still uses the wing's position).
+   W.A.S. fly round orbits in tilted planes that slowly turn, so they swarm in three dimensions.
+   Fighters only thrust forward: straight passes across the target, from one side of it to the other, turning sharply at each end. */
+const _oq=new THREE.Quaternion(), _ou=new THREE.Vector3(), _ov=new THREE.Vector3(), _on=new THREE.Vector3(), _oa=new THREE.Vector3(), _ob=new THREE.Vector3();
+const hash=(a,b,c)=>{ const x=Math.sin(a*12.9898+b*78.233+c*37.719)*43758.5453; return (x-Math.floor(x))*2-1; };
+function craftOrbit(w,s,t,out){
+  if(!s.orb){ const r=()=>Math.random(); s.orb={seed:r()*1000, ax:new THREE.Vector3(r()-.5,r()-.5,r()-.5).normalize(), tilt:new THREE.Vector3(r()-.5,r()-.5,r()-.5).normalize(),
+    rad:(t.radius||3)+w.range*(w.type==='was'?.7+r()*.6:.9+r()*.5), ph:r()*Math.PI*2, dir:r()<.5?-1:1}; }
+  const o=s.orb, R=o.rad, T=gameSec;
+  _on.copy(o.ax).applyQuaternion(_oq.setFromAxisAngle(o.tilt,T*.25+o.ph));   // the orbit's axis turns slowly
+  if(w.type==='was'){
+    _ou.set(0,1,0).cross(_on); if(_ou.lengthSq()<1e-4) _ou.set(1,0,0); _ou.normalize(); _ov.crossVectors(_on,_ou);
+    const th=o.ph+o.dir*T*w.W.speed*.6/R;
+    out.copy(t.pos).addScaledVector(_ou,Math.cos(th)*R).addScaledVector(_ov,Math.sin(th)*R).addScaledVector(_on,Math.sin(th*2+o.ph)*R*.3);
+  } else {
+    const D=2*R/(w.W.speed*.8), x=T/D+o.ph, i=Math.floor(x), f=x-i;
+    const end=(j,v)=>v.set(hash(o.seed,j,1),hash(o.seed,j,2),hash(o.seed,j,3)).multiplyScalar(.7).addScaledVector(_on,j%2?-1:1).normalize().multiplyScalar(R);
+    end(i,_oa); end(i+1,_ob); out.copy(t.pos).add(_oa.lerp(_ob,f));
+  }
+  return out;
+}
 const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 let last=performance.now(), time=0, rosterTick=0;
 function frame(now){
@@ -23,13 +44,17 @@ function frame(now){
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
-  for(const w of wings){ if(!w.alive||!shown(w)) continue;
-    const k=1-Math.exp(-(dt>0?dt:0)*5);
+  for(const w of wings){ if(!w.alive) continue;
+    const t=w.state==='attack'?w.target:null, orbit=t&&t.alive&&w.pos.distanceTo(t.pos)<=w.range*.6+(t.radius||0)+3;
+    const k=1-Math.exp(-(dt>0?dt:0)*(orbit?4:5)), hide=!shown(w);
     for(const s of w.ships){
-      _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4;
-      s.pos.lerp(_w,dt>0?k:0);
+      if(orbit) craftOrbit(w,s,t,_w); else { _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4; }
+      if(!s.hd) s.hd=w.heading.clone();
+      if(dt>0){ _v.copy(s.pos); s.pos.lerp(_w,k); _v.subVectors(s.pos,_v); const d=_v.length();
+        if(orbit&&d>1e-4) s.hd.lerp(_v.multiplyScalar(1/d),Math.min(1,dt*10)).normalize(); else if(!orbit) s.hd.lerp(w.heading,Math.min(1,dt*4)).normalize(); }
+      if(hide) continue;
       const m=craftMeshes[w.team][w.type]||craftMeshes[w.team].ftr; if(m.count>=CRAFT_MAX) continue;
-      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(w.heading)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(s.hd)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
   for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
