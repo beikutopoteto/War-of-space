@@ -206,6 +206,8 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 }
 #talk{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brass);padding:8px 12px;backdrop-filter:blur(6px);cursor:pointer;z-index:6}
 #talk b{font-size:12px;color:var(--brass);letter-spacing:.05em}
+#talk.narr{border-left-color:#ff6a45}
+#talk.narr p{color:var(--ink-dim);font-style:italic}
 #talk p{margin:3px 0 4px;font-size:14px;line-height:1.6;color:var(--ink)}
 #talk .ctl{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-dim)}
 #talk button{font-family:var(--f-ui);font-size:11px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:2px 8px;cursor:pointer}

@@ -83,7 +83,7 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(3000);
     const legend = await page.textContent('#legend');
     check(legend.includes('地球連合') && legend.includes('惑星共和国'), 'クイック戦闘: 凡例の陣営名');
-    check(await page.locator('#roster button').count() === await page.evaluate(() => op.quick.length), 'クイック戦闘: 自軍の一覧');
+    check(await page.locator('#roster button[id^="fl"]').count() === await page.evaluate(() => op.quick.length), 'クイック戦闘: 自軍の一覧');
     await shot('06-quick');
 
     /* views change only the vertical angle */
@@ -165,7 +165,9 @@ function check(ok, label, detail = '') {
       const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
-    const rosterNames = await page.$$eval('#roster button', e => e.map(x => x.textContent));
+    const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
+    const grp = await page.textContent('#grpBtn').catch(() => '');
+    check(grp.includes('ネオ信濃駐屯隊'), 'ネオ信濃奇襲: 4隊が軍集団「ネオ信濃駐屯隊」にまとまる', grp);
     check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
     check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);

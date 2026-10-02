@@ -22,7 +22,9 @@ window.WOS_DATA=window.WOS_DATA||{};
      boardText / escortText は右上の任務欄に出す指示（乗船中 / 出港後）
    win: {type:'escort', lose} なら、船団が離脱点を越えれば勝ち、輸送船を lose 隻失えば負け（書かなければ要塞の撃破で勝ち）
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
-   talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …] */
+   talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
+   group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの軍集団にまとめる
+   result.loseBlast: 負けたときに爆発させる位置 [x, z, alt] */
 WOS_DATA.operations=[
   {
     id:'charybdis',
@@ -82,11 +84,13 @@ WOS_DATA.operations=[
       {name:'離脱点', sub:'ナイル方面', pos:[14,178]},
     ],
     quick:[
-      {name:'第1警備隊', sub:'コルベット', type:'cv', n:12, hp:11, dmg:1.3, eva:.36, range:14.8, speed:12, scale:.73, pos:[-30,-25], alt:6, vis:8, stl:9},
-      {name:'第2警備隊', sub:'フリゲート', type:'ff', n:10, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[28,-22], alt:-4, vis:7, stl:7},
-      {name:'第3警備隊', sub:'駆逐艦', type:'dd', n:8, hp:21, dmg:2.65, eva:.24, range:18, speed:9, scale:.91, pos:[-6,22], alt:0, vis:6, stl:6},
-      {name:'第4警備隊', sub:'フリゲート', type:'ff', n:8, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[0,-40], alt:10, vis:7, stl:7},
+      {name:'千曲隊', sub:'コルベット・哨戒', type:'cv', n:12, hp:11, dmg:1.3, eva:.36, range:14.8, speed:12, scale:.73, pos:[-30,-25], alt:6, vis:8, stl:9},
+      {name:'犀川隊', sub:'フリゲート・護衛', type:'ff', n:10, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[28,-22], alt:-4, vis:7, stl:7},
+      {name:'魚野隊', sub:'駆逐艦・雷撃', type:'dd', n:8, hp:21, dmg:2.65, eva:.24, range:18, speed:9, scale:.91, pos:[-6,22], alt:0, vis:6, stl:6},
+      {name:'奈良井隊', sub:'フリゲート・予備', type:'ff', n:8, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[0,-40], alt:10, vis:7, stl:7},
     ],
+    /* the four squadrons are named after rivers that flow into the Shinano */
+    group:{name:'ネオ信濃駐屯隊', sync:false},
     convoy:{
       fleet:{name:'輸送船団', sub:'白鷺ほか', type:'tr', n:5, hp:30, speed:4, scale:1.4, pos:[16,10], alt:-4, vis:4, stl:2},
       depart:20,
@@ -101,7 +105,7 @@ WOS_DATA.operations=[
     events:[
       {after:.2, phase:'奇襲', blast:[0,0,3], log:['司令室に直撃', '遠距離からの砲撃がネオ信濃の司令室を貫いた。ヴァーグナー大佐との通信が途絶。']},
       {after:1, log:['全周波数で放送', '「我々は惑星共和国（アストラルリパブリック）である。火星は本日をもって地球連合を離れ、独立する」']},
-      {after:2, phase:'乗船', log:['ハッダード曹長', '「司令室、応答ありません……。少尉、指揮をお願いします。青い艦隊をクリックで選び、宙域をクリックで動かせます。乗船が終わる 06:20 まで、敵を船団に近づけないでください」']},
+      {after:2, phase:'乗船', log:['ハッダード曹長', '「司令室、応答ありません……。少尉、駐屯隊の指揮を。全隊をまとめて動かすなら右下の『全軍』か G キー、1隊ずつなら隊をクリックです。06:20 の乗船完了まで、敵を船団に近づけないでください」']},
       {after:5, log:['ハッダード曹長', '「敵は上下からも来ます。左の高度バーか Q/E で高さを合わせてください。敵をクリックすると、攻撃するか、その場所へ移動するかを選べます」']},
       {after:8, fleet:{name:'強襲揚陸隊', sub:'共和国 突撃揚陸艦', type:'mas', n:4, hp:22, dmg:1.8, eva:.2, range:13, speed:8, scale:1, pos:[-110,-120], alt:-24, ai:'hunt', watch:{pos:[16,14], alt:-10}, vis:5, stl:7, hangar:{was:40}},
         arrow:{pos:[-40,-40], alt:-18}, log:['ハッダード曹長', '「下方に大型艦。揚陸艦のようです。船団のほうへ向かっています」']},
@@ -116,7 +120,7 @@ WOS_DATA.operations=[
       before:[
         ['ヴァーグナー大佐', 'ミナセ少尉、夜勤ご苦労。火星側の航路に大きな反応があるそうだな。'],
         ['ハッダード曹長', '定期便の予定はありません。問い合わせにも応答なし。D-RAMS の反応、三十を超えます。'],
-        ['ヴァーグナー大佐', '警備艦隊は待機。輸送船の乗船も急がせてくれ。念のためだ。'],
+        ['ヴァーグナー大佐', '駐屯隊は待機。輸送船の乗船も急がせてくれ。念のためだ。'],
         ['ミナセ少尉', '了解しました。……大佐、反応がさらに近づいています。'],
       ],
       win:[
@@ -125,14 +129,16 @@ WOS_DATA.operations=[
         ['ミナセ少尉', 'ナイルへ向かう。全艦、船団に続け。'],
       ],
       lose:[
-        ['ハッダード曹長', '船団が……。少尉、これ以上は持ちません。撤退を。'],
+        ['ハッダード曹長', '船団が……。少尉、ここにも敵弾が――'],
+        ['', '予備指揮所に直撃。ハッダード曹長の通信は、爆音とともに途絶えた。'],
       ],
     },
     result:{
       win:'輸送船団はネオ信濃を脱出した。',
       lose:'輸送船団を守りきれなかった。',
-      winLog:['ネオ信濃 脱出', '船団と警備艦隊はナイルへ向かう。背後のネオ信濃には共和国の旗が上がった。'],
-      loseLog:['船団 壊滅', 'ネオ信濃からの脱出は失敗に終わった。'],
+      winLog:['ネオ信濃 脱出', '船団と駐屯隊はナイルへ向かう。背後のネオ信濃には共和国の旗が上がった。'],
+      loseLog:['船団 壊滅', '予備指揮所に直撃。ネオ信濃からの脱出は失敗に終わった。'],
+      loseBlast:[0,0,3],
     },
   },
 ];

@@ -244,6 +244,7 @@ function updateGoal(){
     else { const pa=convoy.order&&convoy.order.path; p=pa?pa.s/pa.L:1; text=C.escortText||'輸送船団を離脱点まで守れ'; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
     subT=`輸送船 ${left}/${convoy.n}隻　${lose}隻失うと失敗`; }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
+  if(over) text=outcome?'任務達成':'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
 }
 
@@ -252,7 +253,8 @@ function updateGoal(){
 const talkEl=document.getElementById('talk'), talkWho=document.getElementById('talkWho'), talkText=document.getElementById('talkText');
 let talkQ=[], talkDone=null, talking=false;
 function startTalk(lines,done){ talkQ=(lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
-function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkText.textContent=l[1]; }
+/* a line with no speaker is narration */
+function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=l[1]; }
 function endTalk(){ talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); }
 talkEl.addEventListener('click',e=>{ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); });
 
