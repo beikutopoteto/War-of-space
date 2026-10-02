@@ -33,8 +33,9 @@
   ```
 
   `prep.js` の `armyToFleet()` が軍をこの形に変換する。
-- 確認方法: ヘッドレスの Chromium（Playwright）で開き、スクリーンショットを撮る。CDN に届かない環境では、`npm pack three@0.128.0` の中身を `page.route` で返す。
-- サブエージェント: `.claude/agents/wos-dev.md`（ゲーム作成の手伝い。実装と動作確認まで行う。確認用のスクリプトもここにある）。
+- 確認方法: `npm install` のあと `npm test`。`tests/smoke.cjs` がヘッドレスの Chromium（Playwright）で主な画面と戦闘を一通り動かし、エラーがないことを確かめ、`test-results/` にスクリーンショットを撮る。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても動く。GitHub Actions（`.github/workflows/check.yml`）が PR と `main` への push のたびに同じテストを走らせる。
+- `package.json` は確認用の道具（Playwright と three）だけ。ゲーム自体はビルドも npm も要らない。
+- サブエージェント: `.claude/agents/wos-dev.md`（ゲーム作成の手伝い。実装と動作確認まで行う）。
 
 ## 作業の進め方
 - 正本はこのリポジトリ。変更はブランチを切って PR にし、`main` へ直接 push しない。
