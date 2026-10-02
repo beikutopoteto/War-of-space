@@ -3,7 +3,7 @@
 window.WOS_DATA=window.WOS_DATA||{};
 
 /* 作戦。座標は [x, z]（-z が北＝敵側）、alt は高度（上が +）。要塞は戦場の中央に置く。
-   艦隊の書き方は CLAUDE.md の「艦隊の仕様の形式」と同じ。
+   艦隊の書き方は CLAUDE.md の「艦隊の仕様の形式」と同じ。艦の形は type（全艦同じ艦種）か comp（{艦種: 隻数}）で決まる。
    name / summary / threat: 出撃画面に出す名前と説明　brief: 戦闘開始時の作戦概要
    date / start: 画面左上の日付と開始時刻。時計は1秒で30秒進む
    deploy: 出撃した軍集団の立方体の中心 [x, z]（立方体の前方は北）
@@ -30,21 +30,21 @@ WOS_DATA.operations=[
     ],
     fortress:{name:'要塞カリュブディス', hp:3200, dps:18, range:46, radius:11, vis:8},
     quick:[
-      {name:'第1突撃艇隊', sub:'高速・軽装', n:24, hp:10, dmg:1.25, range:15, speed:10, scale:.75, pos:[-24,112], alt:-8, vis:8, stl:7},
-      {name:'第2戦隊', sub:'主力巡洋艦', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[12,118], alt:6, vis:6, stl:4},
-      {name:'第3戦隊', sub:'主力巡洋艦', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[100,64], alt:24, vis:6, stl:4},
-      {name:'第7機動部隊', sub:'戦闘母艦', n:3, hp:70, dmg:1.6, range:14, speed:5, scale:1.6, pos:[-108,46], alt:-26, vis:7, stl:3, hangar:{ftr:120}},
+      {name:'第1突撃艇隊', sub:'高速・軽装', type:'cv', n:24, hp:10, dmg:1.25, range:15, speed:10, scale:.75, pos:[-24,112], alt:-8, vis:8, stl:7},
+      {name:'第2戦隊', sub:'主力巡洋艦', type:'cl', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[12,118], alt:6, vis:6, stl:4},
+      {name:'第3戦隊', sub:'主力巡洋艦', type:'cl', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[100,64], alt:24, vis:6, stl:4},
+      {name:'第7機動部隊', sub:'戦闘母艦', type:'cvb', n:3, hp:70, dmg:1.6, range:14, speed:5, scale:1.6, pos:[-108,46], alt:-26, vis:7, stl:3, hangar:{ftr:120}},
     ],
     enemies:[
-      {name:'防空第1隊', sub:'北宙域守備', n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[0,-52], alt:18, ai:'guard', leash:42, vis:5, stl:5},
-      {name:'防空第2隊', sub:'南宙域守備', n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[0,52], alt:-14, ai:'guard', leash:42, vis:5, stl:5},
-      {name:'防空第3隊', sub:'東宙域守備', n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[54,0], alt:4, ai:'guard', leash:42, vis:5, stl:5},
-      {name:'防空第4隊', sub:'西宙域守備', n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[-54,0], alt:22, ai:'guard', leash:42, vis:5, stl:5},
-      {name:'近衛艦隊', sub:'要塞直掩', n:12, hp:36, dmg:3.4, range:20, speed:5, scale:1.4, pos:[-8,-22], alt:-6, ai:'guard', leash:30, vis:6, stl:3},
+      {name:'防空第1隊', sub:'北宙域守備', comp:{ff:10, dd:6}, n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[0,-52], alt:18, ai:'guard', leash:42, vis:5, stl:5},
+      {name:'防空第2隊', sub:'南宙域守備', comp:{ff:10, dd:6}, n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[0,52], alt:-14, ai:'guard', leash:42, vis:5, stl:5},
+      {name:'防空第3隊', sub:'東宙域守備', comp:{ff:10, dd:6}, n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[54,0], alt:4, ai:'guard', leash:42, vis:5, stl:5},
+      {name:'防空第4隊', sub:'西宙域守備', comp:{ff:10, dd:6}, n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[-54,0], alt:22, ai:'guard', leash:42, vis:5, stl:5},
+      {name:'近衛艦隊', sub:'要塞直掩', comp:{bb:4, cl:8}, n:12, hp:36, dmg:3.4, range:20, speed:5, scale:1.4, pos:[-8,-22], alt:-6, ai:'guard', leash:30, vis:6, stl:3},
     ],
     reinforcements:[
       {after:30,
-       fleet:{name:'第5戦隊', sub:'本国からの増援', n:14, hp:30, dmg:3, range:20, speed:6.5, scale:1.3, pos:[10,-150], alt:34, ai:'hunt', watch:{pos:[0,-38], alt:22}},
+       fleet:{name:'第5戦隊', sub:'本国からの増援', comp:{bb:4, cl:6, dd:4}, n:14, hp:30, dmg:3, range:20, speed:6.5, scale:1.3, pos:[10,-150], alt:34, ai:'hunt', watch:{pos:[0,-38], alt:22}},
        arrow:{pos:[0,-60], alt:20},
        log:['北宙域に艦影の反応', '本国航路の出口で大きな反応。惑星共和国の増援とみられる。位置をつかむには視界に捉える必要がある。']},
     ],

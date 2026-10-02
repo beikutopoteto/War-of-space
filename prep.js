@@ -83,7 +83,7 @@ function armyToFleet(a){
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
   const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name+c).join('・');
-  return {name:a.name, sub, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
+  return {name:a.name, sub, comp:by, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
     range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, hangar, scale:Math.min(1.5,.4+big*.6), stats:st};
 }
 
