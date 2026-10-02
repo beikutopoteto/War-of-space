@@ -46,8 +46,9 @@ function damage(t,amt,src){
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],5,5,.6); }
     t.n=want; if(want===0){ t.alive=false; t.squad.n=0; t.squad.state='lost'; }
   } else if(t.kind==='fleet'){
-    const want=Math.max(0,Math.ceil(t.hpPool/t.hp));
+    const want=Math.max(0,Math.ceil(t.hpPool/t.hp)), had=t.ships.length;
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
+    if(t.convoy&&want<had&&want>0) logEvent('輸送船 撃沈',`${src.name}の攻撃で輸送船を失った。残り${want}隻。`);
     if(want===0) destroyFleet(t,src);
   } else {
     const pct=t.hpPool/t.max;
@@ -60,26 +61,34 @@ function destroyFleet(f,src){
   f.alive=false; f.el.remove(); dropArrow(f.arrow); f.arrow=null;
   burst(f.pos,TEAM_COL[f.team],40,10,1.3);
   if(selected===f) select(null);
-  logEvent(`${f.name} 全滅`, f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
-  if(!fleets.some(x=>x.team===0&&x.alive)) end(false);
+  logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
+  if(!fleets.some(x=>x.team===0&&x.alive&&!x.convoy)) end(false);
   updateRoster();
 }
 function end(win){
   if(over) return; over=true; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
-  const R=op.result;
-  document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}残存艦 ${left}隻。`:`${clockStr()}、${R.lose}`;
+  const R=op.result, tail=convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
+  document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:`${clockStr()}、${R.lose}`;
   logEvent(...(win?R.winLog:R.loseLog));
-  setTimeout(()=>{document.getElementById('result').hidden=false;},1600);
+  /* the operation's closing conversation, then the result */
+  const talk=op.talk&&(win?op.talk.win:op.talk.lose);
+  setTimeout(()=>startTalk(talk,()=>{document.getElementById('result').hidden=false;}),1600);
 }
 
+/* enemy W.A.S. go for the transports first when they are within reach; everything else takes the nearest foe */
+function craftTarget(u,type,maxD){
+  if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD) return convoy;
+  return nearestFoe(u,maxD);
+}
+let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut at once */
 function launchCheck(f){
   for(const h of f.hangars){ const W=WING[h.type];
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
-    const tgt=nearestFoe(f,W.launchR); if(!tgt) continue;
+    const tgt=craftTarget(f,h.type,W.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd; sq.state='out';
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
       pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp,hpPool:sq.n*W.hp,eva:W.eva,dmg:W.dmg,range:W.range,
@@ -88,6 +97,7 @@ function launchCheck(f){
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
       const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r); w.ships.push({off,pos:f.pos.clone(),wob:Math.random()*6}); }
     sq.wing=w; wings.push(w);
+    if(f.team===1&&h.type==='was'&&!enemyWASSeen&&op.onEnemyWAS){ enemyWASSeen=true; logEvent(...op.onEnemyWAS); }
     if(f.team===0&&!h.announced){ h.announced=true;
       logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${W.maxOut}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
   }
@@ -102,7 +112,7 @@ function stepWings(dt){
     const c=w.carrier;
     if(w.state==='attack'){
       w.fuel-=dt;
-      if(!w.target||!w.target.alive||!w.target.seen) w.target=nearestFoe(w,w.W.launchR*.6)||(c.alive?nearestFoe(c,w.W.launchR):null);
+      if(!w.target||!w.target.alive||!w.target.seen) w.target=craftTarget(w,w.type,w.W.launchR*.6)||(c.alive?craftTarget(c,w.type,w.W.launchR):null);
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
     if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
@@ -114,7 +124,7 @@ function stepWings(dt){
       if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.W.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
     }
     if(w.state!=='attack') continue;
-    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; w.fireTarget=nearestFoe(w,w.range); }
+    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range?t:nearestFoe(w,w.range); }
     const ft=w.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08){
       damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL;
@@ -151,6 +161,21 @@ function fireTargetOf(f){
   return t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
 }
 
+/* escort operations: the convoy boards until `depart` (operation minutes), then follows its route to the departure point.
+   It wins when the convoy gets through with fewer than `lose` transports lost, and loses when that many are gone */
+function stepConvoy(){
+  if(!convoy||over) return;
+  const C=op.convoy;
+  if(convoy.alive&&!convoy.departed&&gameSec*CLOCK_RATE>=C.depart){ convoy.departed=true; convoy.sub='離脱点へ航行中';
+    const pts=C.route.map(r=>new THREE.Vector3(r.pos[0],r.alt||0,r.pos[1]));
+    order(convoy,{type:'move',via:pts.slice(0,-1),dest:pts[pts.length-1]}); }
+  if(convoy.alive&&convoy.departed&&!convoy.order){ convoy.escaped=true; convoy.alive=false; convoy.el.remove(); dropArrow(convoy.arrow); convoy.arrow=null;
+    logEvent('輸送船団 離脱',`輸送船${convoy.ships.length}隻が離脱点を越えた。`); }
+  const lost=convoy.n-(convoy.alive||convoy.escaped?convoy.ships.length:0);
+  if(lost>=(op.win&&op.win.lose||convoy.n)) end(false);
+  else if(convoy.escaped) end(true);
+}
+
 let aiTimer=0;
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 function enemyAI(){
@@ -167,13 +192,15 @@ function enemyAI(){
 
 function step(dt){
   gameSec+=dt;
-  /* reinforcements arrive in order, `after` minutes into the operation clock */
-  const rf=op.reinforcements||[];
-  while(nextReinf<rf.length&&gameSec*CLOCK_RATE>=rf[nextReinf].after){ const R=rf[nextReinf++];
-    const r=makeFleet(1,{leash:0,...R.fleet}); fleets.push(r);
-    if(R.arrow) makeArrow(r.pos,new THREE.Vector3(R.arrow.pos[0],R.arrow.alt||0,R.arrow.pos[1]),TEAM_COL[1],{life:6});
-    if(R.log) logEvent(...R.log);
+  /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
+  while(nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
+    if(E.fleet){ const r=makeFleet(1,{leash:0,...E.fleet}); fleets.push(r);
+      if(E.arrow) makeArrow(r.pos,new THREE.Vector3(E.arrow.pos[0],E.arrow.alt||0,E.arrow.pos[1]),TEAM_COL[1],{life:6}); }
+    if(E.blast){ const p=new THREE.Vector3(E.blast[0],E.blast[2]||0,E.blast[1]); for(let i=0;i<6;i++) burst(p.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,30,10,1.4); }
+    if(E.phase) setPhase(E.phase);
+    if(E.log) logEvent(...E.log);
   }
+  stepConvoy();
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}

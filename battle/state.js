@@ -4,7 +4,8 @@
 let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, fortressMarks, fid;
 /* the operation being fought (data/operations.js) */
 const OPS=WOS_DATA.operations;
-let op=OPS[0], nextReinf=0;
+/* opEvents: reinforcements and timed events of the operation, in order; convoy: the transports of an escort operation */
+let op=OPS[0], opEvents=[], nextEvent=0, convoy=null;
 
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
@@ -53,7 +54,12 @@ try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',ro
 /* roster: with an army group, its armies sit in a group section; drag a button between sections to take an army out or put it back */
 function buildRoster(){
   rosterEl.innerHTML='';
-  const mine=fleets.filter(f=>f.team===0);
+  const mine=fleets.filter(f=>f.team===0&&!f.convoy);
+  /* an escort operation lists the convoy first: its state at a glance, and a click brings the camera to it */
+  if(convoy){ const c=document.createElement('button'); c.className='convoyRow'; c.id='convoyRow'; c.title='クリックで船団へ視点を移す';
+    c.innerHTML='<span></span><span class="n"></span><span class="bar"><i></i></span>';
+    c.addEventListener('click',()=>{ if(convoy.alive) flyTo(convoy.pos,camera.position.clone().sub(controls.target),Math.min(camera.position.distanceTo(controls.target),120)); });
+    rosterEl.appendChild(c); }
   const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); if(i<9) b.title=`${i+1}キーで選択`;
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
@@ -104,6 +110,10 @@ function groupOrder(o){
   } else t.forEach(f=>{ f.syncSpeed=sync; order(f,o); });
 }
 function updateRoster(){
+  const cr=document.getElementById('convoyRow');
+  if(cr&&convoy){ const left=convoy.escaped?convoy.ships.length:convoy.alive?convoy.ships.length:0;
+    cr.querySelector('span').textContent=`${convoy.name}　${convoy.escaped?'離脱':convoy.alive?convoy.sub:'全滅'}`;
+    cr.querySelector('.n').textContent=`${left}/${convoy.n}隻`; cr.querySelector('.bar i').style.width=(100*left/convoy.n)+'%'; }
   fleets.forEach(f=>{ if(!f.btn) return;
     f.btn.querySelector('.n').textContent=(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
@@ -117,19 +127,29 @@ let lastCfg=null, armyGroup=null, selGroupMode=false;
 function reset(cfg=lastCfg){
   lastCfg=cfg;
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
-  if(fortress) fortress.el.remove();
+  if(fortress&&fortress.el) fortress.el.remove();
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
-  fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextReinf=0; fortressMarks=new Set(); events=[];
+  fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  enemyWASSeen=false;
+  opEvents=[...(op.reinforcements||[]),...(op.events||[])].sort((a,b)=>a.after-b.after);
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
   selGroupMode=false;
   armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
+  /* the transports of an escort operation: own side, but they follow their own route and take no orders */
+  convoy=null;
+  if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy); }
+  /* the object in the middle of the field: the fortress (a target), or a relay station (scenery) */
   const F=op.fortress;
-  fortress={kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0};
-  fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px';
-  setPhase('布陣');
+  fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}
+    :{kind:'fortress',team:1,id:0,name:'',pos:new THREE.Vector3(0,3,0),alive:false,el:null};
+  if(F){ fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px'; }
+  fortressObj.visible=!!F; zoneLines.visible=!!F; gridMat.uniforms.uZone.value=F?1:0;
+  stationObj.visible=op.center==='station';
+  exitObj.visible=!!op.exit; if(op.exit) exitObj.position.set(op.exit.pos[0],(op.exit.alt||0)+.2,op.exit.pos[1]);
+  setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);

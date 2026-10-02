@@ -145,7 +145,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||!shown(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||!shown(f)||f.convoy) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&Math.hypot(fs.x-x,fs.y-y)<46};
 }
@@ -210,20 +210,32 @@ document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click'
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks the whole army group, Esc clears the selection */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(pickCtx) closePick(); else select(null); return; }
+  if(e.code==='Escape'){ if(talking) endTalk(); else if(pickCtx) closePick(); else select(null); return; }
+  if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }
   if(e.code==='KeyG'){ if(armyGroup&&!selGroupMode) selectGroup(); return; }
-  const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0)[+m[1]-1]; if(f&&f.alive) select(f); }
+  const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.convoy)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
-document.getElementById('again').addEventListener('click',()=>reset());
+document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(op.talk&&op.talk.before); });
 document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
-function openMenu(){ menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
+function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
 /* entry point used by the preparation screens (prep.js) */
 window.WOS={ start(cfg){
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
-  reset(cfg||null); setSpeed(1);
-  setView(0); flyTo(new THREE.Vector3(0,0,24),new THREE.Vector3(.3,.4,.87),190);
+  reset(cfg||null); setSpeed(1); startTalk(op.talk&&op.talk.before);
+  /* the opening view: op.view {target:[x,z], dist} or the whole field */
+  const V=op.view||{target:[0,24],dist:190};
+  setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(.3,.4,.87),V.dist);
   hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
 }, openMenu };
+
+/* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
+   Click or Enter for the next line, Esc or とばす to skip */
+const talkEl=document.getElementById('talk'), talkWho=document.getElementById('talkWho'), talkText=document.getElementById('talkText');
+let talkQ=[], talkDone=null, talking=false;
+function startTalk(lines,done){ talkQ=(lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
+function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkText.textContent=l[1]; }
+function endTalk(){ talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); }
+talkEl.addEventListener('click',e=>{ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); });
 
 /* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open */
 const briefEl=document.getElementById('brief'); let briefTimer=0;

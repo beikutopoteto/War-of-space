@@ -65,9 +65,10 @@ function updateStalks(){
   fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
 }
 
-/* defense zone as a sphere: three faint great circles around the fortress */
+/* defense zone as a sphere: three faint great circles around the fortress (hidden when the operation has none) */
+const zoneLines=new THREE.Group(); scene.add(zoneLines);
 {
   const pts=[]; for(let i=0;i<=96;i++){const a=i/96*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*40,Math.sin(a)*40,0));}
   const g=new THREE.BufferGeometry().setFromPoints(pts), m=new THREE.LineBasicMaterial({color:0xff6a45,transparent:true,opacity:.28,depthWrite:false});
-  [0,Math.PI/3,2*Math.PI/3].forEach(r=>{const l=new THREE.Line(g,m); l.rotation.y=r; l.position.y=3; scene.add(l);});
+  [0,Math.PI/3,2*Math.PI/3].forEach(r=>{const l=new THREE.Line(g,m); l.rotation.y=r; l.position.y=3; zoneLines.add(l);});
 }

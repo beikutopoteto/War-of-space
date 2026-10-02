@@ -68,10 +68,10 @@ try {
 /* tactical grid plane */
 const gridMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, extensions:{derivatives:true},
-  uniforms:{uTime:{value:0}},
+  uniforms:{uTime:{value:0},uZone:{value:1}},
   vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader:`
-    varying vec2 vP; uniform float uTime;
+    varying vec2 vP; uniform float uTime, uZone;
     float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
     void main(){
       float r=length(vP);
@@ -82,8 +82,8 @@ const gridMat = new THREE.ShaderMaterial({
       float fade=1.-smoothstep(130.,260.,r);
       vec3 cyan=vec3(.5,.8,1.);
       vec3 col=cyan; float a=max(sq,max(ring,rad))*fade;
-      float zone=1.-smoothstep(39.6,40.,r);
-      float edge=ln(r/40.,2.2)*step(30.,r)*step(r,50.);
+      float zone=(1.-smoothstep(39.6,40.,r))*uZone;
+      float edge=ln(r/40.,2.2)*step(30.,r)*step(r,50.)*uZone;
       col=mix(col,vec3(1.,.42,.3),zone*.85);
       a=max(a,zone*.13);
       a+=edge*(.9+.1*sin(uTime*2.));
@@ -121,6 +121,34 @@ fortressObj.add(capRock, stemRock);
   fortressObj.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xffb070,size:.55,transparent:true,blending:THREE.AdditiveBlending})));
 }
 fortressObj.position.y=3; scene.add(fortressObj);
+
+/* relay station (中継ステーション): a hub, a turning habitat ring on spokes, solar wings and a docking arm */
+const stationObj=new THREE.Group(), stationRing=new THREE.Group();
+{
+  const hull=new THREE.MeshStandardMaterial({color:0x8a96a8,metalness:.6,roughness:.4}), dark=new THREE.MeshStandardMaterial({color:0x3a4658,metalness:.5,roughness:.6});
+  const panel=new THREE.MeshStandardMaterial({color:0x1d3f7a,emissive:0x16306a,emissiveIntensity:.5,metalness:.4,roughness:.3});
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,7,16),hull); stationObj.add(hub);
+  const cap=new THREE.Mesh(new THREE.SphereGeometry(2.3,16,10),dark); cap.position.y=3.6; stationObj.add(cap);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(10,1.1,10,48),hull); ring.rotation.x=Math.PI/2; stationRing.add(ring);
+  for(let i=0;i<4;i++){ const sp=new THREE.Mesh(new THREE.BoxGeometry(.5,.5,10),dark); sp.rotation.y=i*Math.PI/2; sp.position.set(Math.sin(i*Math.PI/2)*5,0,Math.cos(i*Math.PI/2)*5); stationRing.add(sp); }
+  stationObj.add(stationRing);
+  [-1,1].forEach(s=>{ const arm=new THREE.Mesh(new THREE.BoxGeometry(9,.3,.3),dark); arm.position.set(s*6.5,-2.8,0); stationObj.add(arm);
+    const w=new THREE.Mesh(new THREE.BoxGeometry(6,.12,3.2),panel); w.position.set(s*11.5,-2.8,0); stationObj.add(w); });
+  const dock=new THREE.Mesh(new THREE.BoxGeometry(1.2,1.2,7),dark); dock.position.set(0,-2,5.5); stationObj.add(dock);
+  const n=40,p=new Float32Array(n*3); for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; p.set([Math.cos(a)*10,.9*(i%2?1:-1),Math.sin(a)*10],i*3); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(p,3));
+  stationRing.add(new THREE.Points(g,new THREE.PointsMaterial({color:0xbfe4ff,size:.5,transparent:true,blending:THREE.AdditiveBlending})));
+}
+stationObj.position.y=3; stationObj.visible=false; scene.add(stationObj);
+
+/* departure point (離脱点) for escort operations: a slowly turning ring on the plane */
+const exitObj=new THREE.Group();
+{
+  const m=new THREE.MeshBasicMaterial({color:0x9fe8c8,transparent:true,opacity:.55,depthWrite:false,side:THREE.DoubleSide});
+  const r=new THREE.Mesh(new THREE.RingGeometry(9,9.6,64),m); r.rotation.x=-Math.PI/2; exitObj.add(r);
+  for(let i=0;i<4;i++){ const t=new THREE.Mesh(new THREE.PlaneGeometry(2.4,.5),m); t.rotation.x=-Math.PI/2; t.rotation.z=i*Math.PI/2; t.position.set(Math.cos(i*Math.PI/2)*11,0,Math.sin(i*Math.PI/2)*11); exitObj.add(t); }
+}
+exitObj.visible=false; scene.add(exitObj);
 
 /* debris field */
 {
