@@ -30,6 +30,17 @@ const craftMeshes=[0,1].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Colo
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});
   return Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)])); });
 
+/* faint trails behind small craft: the last TRAIL_N positions, one every TRAIL_DT game seconds (about 0.6 s in all), fading
+   toward the tail. W.A.S. trails are a slightly deeper shade than fighters' */
+const TRAIL_N=8, TRAIL_DT=.075;
+const trailCol=[0,1].map(t=>({ftr:TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.4),
+  was:TEAM_COL[t].clone().offsetHSL(0,.15,-.12).multiplyScalar(.4)}));
+const trPos=new Float32Array(CRAFT_MAX*2*TRAIL_N*2*3), trCol=new Float32Array(trPos.length);
+const trGeo=new THREE.BufferGeometry();
+trGeo.setAttribute('position',new THREE.BufferAttribute(trPos,3)); trGeo.setAttribute('color',new THREE.BufferAttribute(trCol,3));
+const trails=new THREE.LineSegments(trGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+trails.frustumCulled=false; scene.add(trails);
+
 /* selection rings */
 const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
 selRing.rotation.x=-Math.PI/2; selRing.visible=false; scene.add(selRing);
