@@ -199,9 +199,17 @@ addEventListener('pointerdown',hideHint,{capture:true});
 
 /* engagement stance of the selected fleets: 交戦 fires at anything in range, 回避 holds fire unless ordered to attack. R toggles */
 const stanceEl=document.getElementById('stance');
-function setStance(v){ const t=orderTargets(); if(!t.length) return; t.forEach(f=>f.stance=v); updateRoster();
-  const n=t.length>1?`${armyGroup.name} 全軍`:t[0].name;
+function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,t.length>1?`${armyGroup.name} 全軍`:null); }
+/* set 交戦/回避 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
+function applyStance(t,v,label){ t.forEach(f=>f.stance=v); updateRoster();
+  const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 回避`:`${n} 交戦`, v==='evade'?'射程内の敵にも自分からは撃たない。攻撃を命じた相手だけを撃つ。':'射程内に入った敵を撃つ。'); }
+/* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
+function toggleSync(){ if(!armyGroup) return; armyGroup.sync=!armyGroup.sync;
+  const m=groupAlive(), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
+  m.forEach(f=>{ if(armyGroup.sync){ if(f.order&&f.order.type==='move') f.syncSpeed=slow; } else f.syncSpeed=null; });
+  updateRoster();
+  logEvent(armyGroup.sync?`${armyGroup.name} 速度同期`:`${armyGroup.name} 個別の速度`, armyGroup.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各軍がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
   stanceEl.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
 stanceEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
