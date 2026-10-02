@@ -30,6 +30,7 @@
 
   `prep.js` の `armyToFleet()` が軍をこの形に変換する。
 - 確認方法: ヘッドレスの Chromium（Playwright）で開き、スクリーンショットを撮る。CDN に届かない環境では、`npm pack three@0.128.0` の中身を `page.route` で返す。
+- サブエージェント: `.claude/agents/wos-dev.md`（ゲーム作成の手伝い。実装と動作確認まで行う。確認用のスクリプトもここにある）。
 
 ## 作業の進め方
 - 正本はこのリポジトリ。変更はブランチを切って PR にし、`main` へ直接 push しない。
