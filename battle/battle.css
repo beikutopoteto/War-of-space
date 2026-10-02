@@ -101,7 +101,8 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #alt button{width:34px;height:28px;background:transparent;color:var(--ink);border:1px solid var(--line);font-size:13px;cursor:pointer}
 #alt button:focus-visible,#altTrack:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #stance{display:grid;gap:3px;margin-top:2px}
-#alt #stance button{height:22px;font-family:var(--f-ui);font-size:11px;padding:0;color:var(--ink-dim)}
+#alt #stance button{width:52px;height:22px;font-family:var(--f-ui);font-size:11px;padding:0;color:var(--ink-dim)}
+#alt #stance button.undo:disabled{opacity:.4;cursor:default}
 #alt #stance button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
 #alt #stance button[data-st="evade"][aria-pressed="true"]{background:var(--brass);border-color:var(--brass)}
 #roster button.evade{border-left-style:dashed}

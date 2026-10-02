@@ -19,8 +19,8 @@ function makeFleet(team,o){
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r-(rear?R+Rc+2*o.scale:0));
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6,type:types[i]});}
   f.hangars=makeHangars(o.hangar);
-  f.launchR=f.hangars.reduce((m,h)=>Math.max(m,WING[h.type].launchR),0);
-  f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,WING[h.type].launchR),Infinity);
+  f.launchR=f.hangars.reduce((m,h)=>Math.max(m,h.launchR),0);
+  f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,h.launchR),Infinity);
   f.carrierOnly=f.hangars.length>0&&nc===o.n;
   f.el=mkUnitLabel(team,o.name,'');
   return f;
@@ -38,12 +38,13 @@ function shipClasses(o){
 const WING=WOS_DATA.crafts;
 /* ship classes that carry craft (a hangar in data/ships.js) */
 const CARRIERS=new Set(WOS_DATA.ships.filter(c=>c.hangar).map(c=>c.id));
-function makeHangars(hg){
+/* launchR: the launch distance, if not the craft's own (a fortress reaches further) */
+function makeHangars(hg,launchR){
   if(!hg) return [];
   return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
     const W=WING[type], squads=[]; let left=Math.round(cap);
     while(squads.length<W.maxOut&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
-    return {type,reserve:left,squads,next:0,announced:false};
+    return {type,reserve:left,squads,next:0,announced:false,launchR:launchR||W.launchR};
   });
 }
 function hangarText(f){
@@ -66,8 +67,8 @@ function buildRoster(){
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
     b.addEventListener('click',()=>{ if(b._dragged){ b._dragged=false; return; } select(f.alive&&(selected!==f||selGroupMode)?f:null); });
     if(armyGroup) dragSource(b,f);
-    /* each row has a small 交戦/回避 switch for that fleet */
-    const st=document.createElement('button'); st.className='st'; st.title='この艦隊の交戦/回避を切り替える';
+    /* each row has a small 自動交戦/命令優先 switch for that fleet */
+    const st=document.createElement('button'); st.className='st'; st.title='この艦隊の自動交戦/命令優先を切り替える';
     st.addEventListener('click',()=>{ if(f.alive) applyStance([f],f.stance==='evade'?'engage':'evade'); });
     const row=document.createElement('div'); row.className='frow'; row.append(b,st);
     f.btn=b; f.stBtn=st; return row; };
@@ -76,10 +77,10 @@ function buildRoster(){
   const gb=document.createElement('button'); gb.className='grpBtn'; gb.id='grpBtn';
   gb.textContent=`${armyGroup.name} 全軍`; gb.title='軍集団の全軍を選ぶ（Gキー）';
   gb.addEventListener('click',()=>selectGroup());
-  /* the army group's own switches: speed sync, and 交戦/回避 for every army in it */
+  /* the army group's own switches: speed sync, and 自動交戦/命令優先 for every army in it */
   const gs=document.createElement('button'); gs.className='st'; gs.id='rgSync'; gs.title='移動のとき、最も遅い艦に速度を合わせるか';
   gs.addEventListener('click',toggleSync);
-  const gt=document.createElement('button'); gt.className='st'; gt.id='rgStance'; gt.title='軍集団の全軍の交戦/回避をまとめて切り替える';
+  const gt=document.createElement('button'); gt.className='st'; gt.id='rgStance'; gt.title='軍集団の全軍の自動交戦/命令優先をまとめて切り替える';
   gt.addEventListener('click',()=>{ const m=groupAlive(); if(m.length) applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',`${armyGroup.name} 全軍`); });
   const gf=document.createElement('button'); gf.className='st'; gf.id='rgForm'; gf.textContent='陣形'; gf.title='旗艦を中心に、決めておいた陣形に組み直す';
   gf.addEventListener('click',reform);
@@ -143,7 +144,7 @@ function undo(){
     f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync; }
   updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
 }
-function updateUndo(){ const b=document.getElementById('undoBtn'); if(b) b.disabled=!undoStack.length; }
+function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
   const t=orderTargets(); if(!t.length) return;
   saveUndo(t);
@@ -168,12 +169,12 @@ function updateRoster(){
     f.btn.querySelector('span').textContent=(armyGroup&&f===groupFlag()?'★ ':'')+f.name; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
-    if(f.stBtn){ f.stBtn.textContent=f.stance==='evade'?'回避':'交戦'; f.stBtn.dataset.st=f.stance; f.stBtn.disabled=!f.alive; }
+    if(f.stBtn){ f.stBtn.textContent=f.stance==='evade'?'命令':'自動'; f.stBtn.dataset.st=f.stance; f.stBtn.disabled=!f.alive; }
   });
   const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
   const gs=document.getElementById('rgSync'); if(gs){ gs.textContent=armyGroup.sync?'速度同期':'速度個別'; gs.setAttribute('aria-pressed',String(armyGroup.sync)); }
   const gt=document.getElementById('rgStance'); if(gt){ const m=groupAlive(), ev=m.filter(f=>f.stance==='evade').length;
-    gt.textContent='全軍'+(!m.length?'—':ev===m.length?'回避':ev?'混在':'交戦'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length; }
+    gt.textContent='全軍'+(!m.length?'—':ev===m.length?'命令':ev?'混在':'自動'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length; }
   syncStance();
 }
 
@@ -204,7 +205,9 @@ function reset(cfg=lastCfg){
   const F=op.fortress;
   fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}
     :{kind:'fortress',team:1,id:0,name:'',pos:new THREE.Vector3(0,3,0),alive:false,el:null};
-  if(F){ fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px'; }
+  if(F){ fortress.hangars=makeHangars(F.hangar,F.launchR); fortress.heading=new THREE.Vector3(0,0,1); fortress.launchR=F.launchR||0;
+    fortress.sortie=(F.sortie||[]).map(s=>({...s,started:false,left:null,next:0}));
+    fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px'; }
   fortressObj.visible=!!F; zoneLines.visible=!!F; gridMat.uniforms.uZone.value=F?1:0;
   stationObj.visible=op.center==='station';
   exitObj.visible=!!op.exit; if(op.exit) exitObj.position.set(op.exit.pos[0],(op.exit.alt||0)+.2,op.exit.pos[1]);

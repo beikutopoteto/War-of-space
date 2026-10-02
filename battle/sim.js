@@ -90,9 +90,20 @@ function underGuns(t,team){ return fortress.alive&&fortress.team!==team&&(t===fo
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
 function craftMayHit(u,t){ if(t===orderedTarget(u)) return true; if(t===fortress) return false;
   const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
-/* the ordered target comes first; then enemy W.A.S. go for the transports when they are within reach; otherwise the nearest foe */
+/* craft against craft: the enemy craft within reach that is closest to their own carrier. So the craft meet the enemy's
+   in between and fight there (the front line), and when enemy craft press in toward the carrier the line falls back with them */
+function enemyCraft(u,maxD){
+  const c=u.carrier&&u.carrier.alive?u.carrier:u; let best=null,bd=1e9;
+  for(const x of wings){ if(!x.alive||x.team===u.team||!x.seen||gap(u,x)>=maxD||!craftMayHit(u,x)) continue;
+    const d=x.pos.distanceTo(c.pos); if(d<bd){bd=d;best=x;} }
+  return best;
+}
+/* the ordered target comes first; a carrier set to 命令優先 sends its craft at nothing else. Then enemy craft; then enemy W.A.S.
+   go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
+  if((u.carrier||u).stance==='evade') return null;
+  const ec=enemyCraft(u,maxD); if(ec) return ec;
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
   return nearestFoe(u,maxD,t=>craftMayHit(u,t));
 }
@@ -102,9 +113,9 @@ function launchCheck(f){
   for(const h of f.hangars){ const W=WING[h.type];
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
-    const tgt=craftTarget(f,h.type,W.launchR); if(!tgt) continue;
+    const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd; sq.state='out';
-    const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
+    const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
       pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp,hpPool:sq.n*W.hp,eva:W.eva,dmg:W.dmg,range:W.range,
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
@@ -141,8 +152,10 @@ function stepWings(dt){
     const c=w.carrier;
     if(w.state==='attack'){
       w.fuel-=dt;
-      const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.W.launchR) w.target=o;   // a new attack order turns them at once
-      if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)) w.target=craftTarget(w,w.type,w.W.launchR*.6)||(c.alive?craftTarget(c,w.type,w.W.launchR):null);
+      const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.launchR) w.target=o;   // a new attack order turns them at once
+      else if(!(o&&w.target===o)&&c.stance!=='evade'&&w.target){ const ec=enemyCraft(w,w.launchR);   // enemy craft come first; the one pressing nearest the carrier
+        if(ec&&ec!==w.target&&(w.target.kind!=='wing'||ec.pos.distanceTo(c.pos)<w.target.pos.distanceTo(c.pos)-10)) w.target=ec; }
+      if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)) w.target=craftTarget(w,w.type,w.launchR*.6)||(c.alive?craftTarget(c,w.type,w.launchR):null);
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
     if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
@@ -187,7 +200,7 @@ function followPath(f,dt){
   return p.s>=p.L;
 }
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
-   A fleet set to 回避 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
+   A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
   const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
   if(f.stance!=='evade') return inRange(orderedTarget(f))||nearestFoe(f,f.range);
@@ -211,6 +224,21 @@ function stepConvoy(){
   else if(convoy.escaped) end(true);
 }
 
+/* the fortress sends out its defenders as its armour falls (op.fortress.sortie): those fleets leave their posts and hunt.
+   With every, one fleet goes every `every` seconds, the one nearest our fleets first */
+function stepSorties(){
+  if(!fortress.alive||!fortress.sortie) return;
+  const pct=fortress.hpPool/fortress.max;
+  for(const s of fortress.sortie){
+    if(!s.started){ if(pct>=s.below) continue; s.started=true; s.left=fleets.filter(f=>f.team===1&&f.alive&&s.fleets.includes(f.name)); s.next=gameSec; if(s.log) logEvent(...s.log); }
+    while(s.left.length&&gameSec>=s.next){
+      const ours=fleets.filter(f=>f.team===0&&f.alive&&!f.convoy), near=f=>Math.min(1e9,...ours.map(o=>o.pos.distanceTo(f.pos)));
+      s.left=s.left.filter(f=>f.alive).sort((a,b)=>near(a)-near(b)); const f=s.left.shift(); if(!f) break;
+      f.ai='hunt'; f.leash=1e9; f.watchPos=fortress.pos.clone();
+      if(s.every){ s.next=gameSec+s.every; logEvent(`${f.name} 迎撃`,`${f.name}が持ち場を離れ、こちらへ向かってくる。`); }
+    }
+  }
+}
 let aiTimer=0;
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 function enemyAI(){
@@ -240,6 +268,8 @@ function step(dt){
   fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
   stepWings(dt);
+  if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
+  stepSorties();
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);

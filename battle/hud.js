@@ -197,13 +197,14 @@ function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('g
 hintEl.addEventListener('click',hideHint);
 addEventListener('pointerdown',hideHint,{capture:true});
 
-/* engagement stance of the selected fleets: 交戦 fires at anything in range, 回避 holds fire unless ordered to attack. R toggles */
+/* attack policy of the selected fleets (internally stance): 自動交戦 (engage) fires at anything in range and carriers send craft at the
+   nearest foe; 命令優先 (evade) fires only on the target of an attack order, and carriers send craft only there. R toggles */
 const stanceEl=document.getElementById('stance');
 function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,t.length>1?`${armyGroup.name} 全軍`:null); }
-/* set 交戦/回避 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
+/* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
 function applyStance(t,v,label){ t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
-  logEvent(v==='evade'?`${n} 回避`:`${n} 交戦`, v==='evade'?'射程内の敵にも自分からは撃たない。攻撃を命じた相手だけを撃つ。':'射程内に入った敵を撃つ。'); }
+  logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
 function toggleSync(){ if(!armyGroup) return; armyGroup.sync=!armyGroup.sync;
   const m=groupAlive(), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
@@ -211,8 +212,9 @@ function toggleSync(){ if(!armyGroup) return; armyGroup.sync=!armyGroup.sync;
   updateRoster();
   logEvent(armyGroup.sync?`${armyGroup.name} 速度同期`:`${armyGroup.name} 個別の速度`, armyGroup.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各軍がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
-  stanceEl.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
-stanceEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
+  stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
+stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
+stanceEl.querySelector('.undo').addEventListener('click',()=>undo());
 addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==='INPUT') return; const t=orderTargets(); if(t.length) setStance(t.every(f=>f.stance==='evade')?'engage':'evade'); });
 let runSpeed=1;
 function setSpeed(s){ speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }

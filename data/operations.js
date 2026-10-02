@@ -8,6 +8,9 @@ window.WOS_DATA=window.WOS_DATA||{};
    date / start: 画面左上の日付と開始時刻。時計は1秒で30秒進む
    deploy: 出撃した軍集団の立方体の中心 [x, z]（立方体の前方は北）
    sectors: 戦場に出す宙域の名前　fortress: 要塞（装甲 hp を0にすると勝利）
+     fortress.hangar / launchR: 要塞の艦載機（母艦と同じ {ftr, was}）と発進距離
+     fortress.sortie: 装甲が below（割合）を切ったら、fleets（名前）の敵艦隊が持ち場を離れて迎撃に出る [{below, fleets, every?, log?}]。
+       every（秒）を書くと、自軍に近い隊から every 秒ごとに1隊ずつ出る
    quick: クイック戦闘で使う自軍　enemies: 開戦時の敵艦隊
      ai:'guard' は持ち場から leash 以内に来た敵だけを追う。ai:'hunt' は見えている敵を追い、
      見えないときは watch の位置で待つ。
@@ -40,7 +43,11 @@ WOS_DATA.operations=[
       {name:'南宙域', sub:'連合艦隊の進入方向', pos:[-20,92]},
       {name:'西宙域', sub:'哨戒線のみ', pos:[-92,-12]},
     ],
-    fortress:{name:'要塞カリュブディス', hp:3200, dps:18, range:46, radius:11, vis:8},
+    fortress:{name:'要塞カリュブディス', hp:3200, dps:18, range:46, radius:11, vis:8, hangar:{ftr:120}, launchR:70,
+      sortie:[
+        {below:.75, fleets:['近衛艦隊'], log:['近衛艦隊 出撃', '要塞の装甲が75%を切った。直掩の近衛艦隊が持ち場を離れ、迎撃に出てきた。']},
+        {below:.5, fleets:['防空第1隊','防空第2隊','防空第3隊','防空第4隊'], every:20, log:['防空隊 迎撃', '要塞の装甲が50%を切った。四方の防空隊が、近い隊から順に迎撃に加わる。']},
+      ]},
     quick:[
       {name:'第1突撃艇隊', sub:'高速・軽装', type:'cv', n:24, hp:10, dmg:1.25, range:15, speed:10, scale:.75, pos:[-24,112], alt:-8, vis:8, stl:7},
       {name:'第2戦隊', sub:'主力巡洋艦', type:'cl', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[12,118], alt:6, vis:6, stl:4},

@@ -143,20 +143,20 @@ function check(ok, label, detail = '') {
     check(qa.queued === 1 && qa.first === 'move' && qa.then === 'attack' && qa.target, '予約指示: 移動のあとに予約した攻撃が始まる');
     await page.evaluate(() => { reset(); select(null); });
 
-    /* engagement stance: 回避 holds fire, 交戦 fires */
+    /* attack policy: 命令優先 (evade) holds fire, 自動交戦 (engage) fires */
     const stance = await page.evaluate(() => ['evade', 'engage'].map(st => {
       reset(); const f = fleets.find(x => x.team === 0), e = fleets.find(x => x.team === 1);
       select(f); setStance(st); f.pos.set(e.pos.x, e.pos.y, e.pos.z + Math.min(12, f.range * .8));
       let fired = 0; for (let i = 0; i < 40; i++) { step(.05); if (f.revealT > 0) fired++; } return fired;
     }));
-    check(stance[0] === 0 && stance[1] > 0, '交戦/回避: 回避中は撃たず、交戦では撃つ');
+    check(stance[0] === 0 && stance[1] > 0, '自動交戦/命令優先: 命令優先では撃たず、自動交戦では撃つ');
     await page.evaluate(() => { reset(); select(null); });
 
     /* small craft and a hostile fortress (both sides): never the fortress on their own; they keep to their carrier's side of its guns.
        The target their carrier was ordered to attack overrides this and holds through later moves */
     const fort = await page.evaluate(() => {
       reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length), foes = fleets.filter(x => x.team === 1), e = foes[0];
-      foes.forEach(x => { x.alive = false; }); c.speed = 0; c.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range + FORT_MARGIN + 3);
+      fortress.hangars = []; foes.forEach(x => { x.alive = false; }); c.speed = 0; c.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range + FORT_MARGIN + 3);
       const run = () => { for (let i = 0; i < 40; i++) step(.05); return wings.filter(w => w.team === 0 && w.alive); };
       const fortOnly = run().length;
       e.alive = true; e.ai = null; e.leash = 0; e.speed = 0; e.pos.set(c.pos.x + 8, c.pos.y, fortress.pos.z + fortress.range - 6); e.post = e.pos.clone();
@@ -170,7 +170,7 @@ function check(ok, label, detail = '') {
       const kept = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
       /* a carrier inside the guns: its craft take the foe inside and leave the one outside alone */
       reset(); const c2 = fleets.find(x => x.team === 0 && x.hangars.length), [a, b] = fleets.filter(x => x.team === 1);
-      fleets.filter(x => x.team === 1).forEach(x => { x.alive = false; }); c2.speed = 0;
+      fortress.hangars = []; fleets.filter(x => x.team === 1).forEach(x => { x.alive = false; }); c2.speed = 0;
       c2.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range - 4);
       [[a, c2.pos.x + 6, fortress.pos.z + fortress.range - 12], [b, c2.pos.x, c2.pos.z + 22]].forEach(([x, px, pz]) => {
         x.alive = true; x.ai = null; x.leash = 0; x.speed = 0; x.hpPool = 1e9; x.pos.set(px, c2.pos.y, pz); x.post = x.pos.clone(); });
@@ -215,6 +215,36 @@ function check(ok, label, detail = '') {
       c.el.remove(); e.el.remove(); return r;
     });
     check(duel.foeKilled && duel.carrierLoss === 0 && duel.slowed, '空母: 戦闘母艦だけの軍は、追ってくる巡洋艦隊を被弾なしで倒せる（下がりながら戦い、艦載機が足止め）', JSON.stringify(duel));
+    await page.evaluate(() => { reset(); select(null); });
+
+    /* the fortress: its fighters come out to meet us; the guard fleet sorties below 75% armour, the air-defence fleets one by one below 50% */
+    const fd = await page.evaluate(() => {
+      reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length); fleets.filter(x => x.team === 0 && x !== c).forEach(x => { x.alive = false; });
+      c.speed = 0; c.stance = 'evade'; c.pos.set(0, 0, 150);
+      for (let i = 0; i < 20; i++) step(.05); const far = wings.filter(w => w.team === 1).length;
+      c.pos.set(0, 0, fortress.radius + 50); for (let i = 0; i < 40; i++) step(.05);
+      const near = wings.filter(w => w.team === 1 && w.carrier === fortress).length, ownOut = wings.filter(w => w.team === 0).length;
+      const guard = fleets.find(f => f.name === '近衛艦隊'), ad = fleets.filter(f => f.name.startsWith('防空'));
+      fortress.hpPool = fortress.max * .74; step(.05); const g75 = guard.ai, ad75 = ad.filter(f => f.ai === 'hunt').length;
+      fortress.hpPool = fortress.max * .49; step(.05); const ad49 = ad.filter(f => f.ai === 'hunt').length;
+      for (let i = 0; i < 420; i++) step(.05); const ad70 = ad.filter(f => f.ai === 'hunt').length;
+      return { far, near, ownOut, g75, ad75, ad49, ad70 };
+    });
+    check(fd.far === 0 && fd.near > 0 && fd.ownOut === 0 && fd.g75 === 'hunt' && fd.ad75 === 0 && fd.ad49 === 1 && fd.ad70 === 2,
+      '要塞: 艦載機が迎撃に出て、装甲75%で近衛艦隊、50%から防空隊が20秒ごとに迎撃に出る。命令優先の母艦は命令なしに発進しない', JSON.stringify(fd));
+    await page.evaluate(() => { reset(); select(null); });
+
+    /* craft against craft: our fighters turn on the enemy's craft before its ships */
+    const air = await page.evaluate(() => {
+      reset(); fortress.alive = false; fleets.forEach(f => { f.alive = false; });
+      const c = makeFleet(0, { name: '母艦', sub: '', type: 'cvb', n: 3, hp: 70, dmg: 0, range: 14, speed: 0, scale: 1.6, pos: [0, 150], alt: 0, vis: 7, stl: 3, hangar: { ftr: 120 } });
+      const e = makeFleet(1, { name: '敵母艦', sub: '', type: 'cvb', n: 3, hp: 999, dmg: 0, range: 14, speed: 0, scale: 1.6, pos: [0, 105], alt: 0, vis: 7, stl: 3, hangar: { ftr: 120 } });
+      fleets.push(c, e); for (let i = 0; i < 60; i++) step(.05);
+      const ours = wings.filter(w => w.team === 0 && w.alive), theirs = wings.filter(w => w.team === 1 && w.alive);
+      const r = { ours: ours.length, theirs: theirs.length, oursOnCraft: ours.filter(w => w.target && w.target.kind === 'wing').length };
+      c.el.remove(); e.el.remove(); return r;
+    });
+    check(air.ours > 0 && air.theirs > 0 && air.oursOnCraft === air.ours, '空中戦: 小型機は敵の小型機を艦より先に狙う', JSON.stringify(air));
     await page.evaluate(() => { reset(); select(null); });
 
     /* ship guns: the foe ordered to attack comes first while in range, then the nearest */
@@ -309,7 +339,7 @@ function check(ok, label, detail = '') {
     await page.click('#rgStance');
     const sw2 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
     const sync0 = await page.evaluate(() => armyGroup.sync); await page.click('#rgSync'); const sync1 = await page.evaluate(() => armyGroup.sync);
-    check(sw1.filter(s => s === 'evade').length === 1 && sw2.every(s => s === 'evade') && sync0 !== sync1, '艦隊一覧: 交戦/回避（1隊・全軍）と速度同期を切り替えられる');
+    check(sw1.filter(s => s === 'evade').length === 1 && sw2.every(s => s === 'evade') && sync0 !== sync1, '艦隊一覧: 自動交戦/命令優先（1隊・全軍）と速度同期を切り替えられる');
     await page.evaluate(() => { fleets.forEach(f => f.stance = 'engage'); armyGroup.sync = false; updateRoster(); });
     check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
     check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
