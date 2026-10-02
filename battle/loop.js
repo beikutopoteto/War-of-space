@@ -12,29 +12,27 @@ function frame(now){
   const dt=(over||menuOpen)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
-  const cnt=[0,0];
+  for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5);
     for(const s of f.ships){
       _w.copy(f.pos).add(s.off); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
-      const m=shipMeshes[f.team], i=cnt[f.team]++; if(i>=600) continue;
-      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(f.scale); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
+      const m=shipMeshes[f.team][s.type]; if(m.count>=SHIP_MAX) continue;
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
-  shipMeshes.forEach((m,t)=>{m.count=cnt[t];m.instanceMatrix.needsUpdate=true;});
-  const cc=[0,0];
   for(const w of wings){ if(!w.alive||!shown(w)) continue;
     const k=1-Math.exp(-(dt>0?dt:0)*5);
     for(const s of w.ships){
       _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4;
       s.pos.lerp(_w,dt>0?k:0);
-      const m=craftMeshes[w.team], i=cc[w.team]++; if(i>=1500) continue;
-      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(w.heading)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(i,o3.matrix);
+      const m=craftMeshes[w.team][w.type]||craftMeshes[w.team].ftr; if(m.count>=CRAFT_MAX) continue;
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(w.heading)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
-  craftMeshes.forEach((m,t)=>{m.count=cc[t];m.instanceMatrix.needsUpdate=true;});
+  for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)*(over?1:1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;

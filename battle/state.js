@@ -11,13 +11,23 @@ function makeFleet(team,o){
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage'};
   const R=Math.sqrt(o.n)*1.35*o.scale;
+  const types=shipClasses(o);
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
-    f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6});}
+    f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6,type:types[i]});}
   f.hangars=makeHangars(o.hangar);
   f.launchR=f.hangars.reduce((m,h)=>Math.max(m,WING[h.type].launchR),0);
   f.el=mkUnitLabel(team,o.name,'');
   return f;
+}
+/* the class of each ship, from comp ({class: count}) or type; shuffled so losses fall on every class */
+function shipClasses(o){
+  let list=[];
+  if(o.comp){ const tot=Object.values(o.comp).reduce((a,b)=>a+b,0)||1;
+    Object.entries(o.comp).forEach(([t,c])=>{ for(let i=0;i<Math.round(c*o.n/tot);i++) list.push(t); }); }
+  while(list.length<o.n) list.push(o.type||(list[0]??'gen')); list.length=o.n;
+  for(let i=list.length-1;i>0;i--){ const j=Math.random()*(i+1)|0; [list[i],list[j]]=[list[j],list[i]]; }
+  return list.map(t=>SHAPES[t]?t:'gen');
 }
 /* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
 const WING=WOS_DATA.crafts;

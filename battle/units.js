@@ -18,19 +18,17 @@ function buildSectors(list){
 }
 
 /* ---------- ships ---------- */
-const shipGeo=new THREE.ConeGeometry(.45,2,5); shipGeo.rotateX(Math.PI/2);
-const shipMeshes=[0,1].map(t=>{
-  const c=TEAM_COL[t];
-  const m=new THREE.InstancedMesh(shipGeo,new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.75,metalness:.3,roughness:.45}),600);
-  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
-});
+/* one instanced mesh per team and ship class (shapes.js); a ship is drawn at its class's size */
+const SHIP_MAX=600, CRAFT_MAX=1500;
+const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
+function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
+const shipMeshes=[0,1].map(t=>{ const c=TEAM_COL[t];
+  const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5});
+  return Object.fromEntries(Object.keys(SHAPES).map(k=>[k,instanced(shapeGeo(k),mat,SHIP_MAX)])); });
 /* small craft (fighters and W.A.S.) launched from carriers */
-const craftGeo=new THREE.ConeGeometry(.55,1.7,3); craftGeo.rotateX(Math.PI/2);
-const craftMeshes=[0,1].map(t=>{
-  const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
-  const m=new THREE.InstancedMesh(craftGeo,new THREE.MeshBasicMaterial({color:c}),1500);
-  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m;
-});
+const craftMeshes=[0,1].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+  const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});
+  return Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)])); });
 
 /* selection rings */
 const selRing=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));

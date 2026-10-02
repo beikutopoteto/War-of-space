@@ -15,7 +15,8 @@
 - `battle/`: 戦闘画面。`index.html` が次の順で読み込む。普通の `<script>` なので、各ファイルの一番外側の `const`/`let`/`function` はほかのファイルからも見える（ファイルを読み込んだ時点で後のファイルの関数はまだないので、読み込み時に呼ぶ処理は `loop.js` に置く）。
   - `scene.js`: レンダラー、シーン、星、グリッド、要塞小惑星、デブリ
   - `effects.js`: 爆発の粒子、曳光弾、進軍矢印
-  - `units.js`: 名札、艦のメッシュ、選択リング、高度の線
+  - `shapes.js`: 艦種（8種）と艦載機・W.A.S. の形（箱・円錐・円柱の組み合わせ）
+  - `units.js`: 名札、艦のメッシュ（陣営と艦種ごと）、選択リング、高度の線
   - `state.js`: 戦闘の状態、艦隊と格納庫の生成、ロスター、`reset()`（作戦のデータから戦場を組む）
   - `hud.js`: 解説パネル、選択と命令、高度バー、視点、入力
   - `sim.js`: 索敵、戦闘、艦載機と W.A.S.、敵 AI、`step()`
@@ -29,10 +30,10 @@
 - 艦隊の仕様の形式:
 
   ```
-  {name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, eva?, hangar?:{ftr, was}, ai?, leash?, watch?:{pos:[x,z], alt}}
+  {name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, type?, comp?:{艦種:隻数}, eva?, hangar?:{ftr, was}, ai?, leash?, watch?:{pos:[x,z], alt}}
   ```
 
-  `prep.js` の `armyToFleet()` が軍をこの形に変換する。
+  `prep.js` の `armyToFleet()` が軍をこの形に変換する。`type`（全艦の艦種）か `comp`（艦種ごとの隻数）で艦の形が決まり、どちらもなければ昔の円錐で描く。
 - 確認方法: `npm install` のあと `npm test`。`tests/smoke.cjs` がヘッドレスの Chromium（Playwright）で主な画面と戦闘を一通り動かし、エラーがないことを確かめ、`test-results/` にスクリーンショットを撮る。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても動く。GitHub Actions（`.github/workflows/check.yml`）が PR と `main` への push のたびに同じテストを走らせる。
 - `package.json` は確認用の道具（Playwright と three）だけ。ゲーム自体はビルドも npm も要らない。
 - 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（ユーザーだけが開ける claude.ai の非公開ページ。GitHub Pages は公開になるので使わない）。ゲームの変更を `main` にマージしたら、Claude が Artifact ツールで `url` にこのページを指定し、`index.html` と `battle/`・`data/`・`prep.js`・`prep.css` を載せ直す。
