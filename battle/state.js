@@ -60,13 +60,23 @@ function buildRoster(){
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
     b.addEventListener('click',()=>{ if(b._dragged){ b._dragged=false; return; } select(f.alive&&(selected!==f||selGroupMode)?f:null); });
     if(armyGroup) dragSource(b,f);
-    f.btn=b; return b; };
+    /* each row has a small 交戦/回避 switch for that fleet */
+    const st=document.createElement('button'); st.className='st'; st.title='この艦隊の交戦/回避を切り替える';
+    st.addEventListener('click',()=>{ if(f.alive) applyStance([f],f.stance==='evade'?'engage':'evade'); });
+    const row=document.createElement('div'); row.className='frow'; row.append(b,st);
+    f.btn=b; f.stBtn=st; return row; };
   if(!armyGroup){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
   const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group';
   const gb=document.createElement('button'); gb.className='grpBtn'; gb.id='grpBtn';
-  gb.textContent=`${armyGroup.name} 全軍`; gb.title=(armyGroup.sync?'最も遅い艦に速度を合わせて移動':'各軍の速度で移動')+'（Gキー）';
+  gb.textContent=`${armyGroup.name} 全軍`; gb.title='軍集団の全軍を選ぶ（Gキー）';
   gb.addEventListener('click',()=>selectGroup());
-  gz.appendChild(gb);
+  /* the army group's own switches: speed sync, and 交戦/回避 for every army in it */
+  const gs=document.createElement('button'); gs.className='st'; gs.id='rgSync'; gs.title='移動のとき、最も遅い艦に速度を合わせるか';
+  gs.addEventListener('click',toggleSync);
+  const gt=document.createElement('button'); gt.className='st'; gt.id='rgStance'; gt.title='軍集団の全軍の交戦/回避をまとめて切り替える';
+  gt.addEventListener('click',()=>{ const m=groupAlive(); if(m.length) applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',`${armyGroup.name} 全軍`); });
+  const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gs,gt);
+  gz.appendChild(gh);
   const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
   fz.innerHTML='<div class="rhead">独立行動（ここへドラッグで外す）</div>';
   mine.forEach(f=>(armyGroup.members.has(f)?gz:fz).appendChild(mk(f)));
@@ -112,11 +122,15 @@ function groupOrder(o){
 }
 function updateRoster(){
   fleets.forEach(f=>{ if(!f.btn) return;
-    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
+    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
+    if(f.stBtn){ f.stBtn.textContent=f.stance==='evade'?'回避':'交戦'; f.stBtn.dataset.st=f.stance; f.stBtn.disabled=!f.alive; }
   });
   const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
+  const gs=document.getElementById('rgSync'); if(gs){ gs.textContent=armyGroup.sync?'速度：同期':'速度：個別'; gs.setAttribute('aria-pressed',String(armyGroup.sync)); }
+  const gt=document.getElementById('rgStance'); if(gt){ const m=groupAlive(), ev=m.filter(f=>f.stance==='evade').length;
+    gt.textContent='全軍：'+(!m.length?'—':ev===m.length?'回避':ev?'混在':'交戦'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length; }
   syncStance();
 }
 

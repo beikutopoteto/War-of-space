@@ -168,6 +168,14 @@ function check(ok, label, detail = '') {
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
     const grp = await page.textContent('#grpBtn').catch(() => '');
     check(grp.includes('ネオ信濃駐屯隊'), 'ネオ信濃奇襲: 4隊が軍集団「ネオ信濃駐屯隊」にまとまる', grp);
+    /* switches in the fleet list: one fleet's stance, the whole group's stance, and speed sync */
+    await page.click('#roster .frow:nth-of-type(1) .st, #roster .rzone .frow .st');
+    const sw1 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
+    await page.click('#rgStance');
+    const sw2 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
+    const sync0 = await page.evaluate(() => armyGroup.sync); await page.click('#rgSync'); const sync1 = await page.evaluate(() => armyGroup.sync);
+    check(sw1.filter(s => s === 'evade').length === 1 && sw2.every(s => s === 'evade') && sync0 !== sync1, '艦隊一覧: 交戦/回避（1隊・全軍）と速度同期を切り替えられる');
+    await page.evaluate(() => { fleets.forEach(f => f.stance = 'engage'); armyGroup.sync = false; updateRoster(); });
     check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
     check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);
