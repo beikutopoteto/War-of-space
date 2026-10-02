@@ -37,6 +37,14 @@ const mirror=g=>{ const m=g.clone(); m.scale(-1,1,1); const p=m.attributes.posit
 const pair=g=>{ g=g.index?g.toNonIndexed():g; return [g,mirror(g)]; };
 /* a low turret: a flat hexagonal base and a slim barrel pointing forward */
 const turret=(x,y,z,r=.12)=>[at(new THREE.CylinderGeometry(r,r*1.15,r*.6,6),x,y,z), at(tube(r*.18,r*2.6,5),x,y+r*.1,z+r*1.4)];
+/* rounded profiles for loft: a circle and a rounded square */
+const ROUND=[...Array(12)].map((_,i)=>[Math.cos(i*Math.PI/6),Math.sin(i*Math.PI/6)]);
+const SQR=[...Array(16)].map((_,i)=>{ const c=Math.cos(i*Math.PI/8), s=Math.sin(i*Math.PI/8); return [Math.sign(c)*Math.abs(c)**.5,Math.sign(s)*Math.abs(s)**.5]; });
+/* an ellipsoid with radii rx, ry, rz at x, y, z */
+const ell=(x,y,z,rx,ry,rz)=>{ const g=new THREE.SphereGeometry(1,8,6); g.scale(rx,ry,rz); return at(g,x,y,z); };
+/* a round limb from point a to point b, radius r0 at a and r1 at b */
+function limb(a,b,r0,r1){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...b).sub(A), l=d.length(), g=new THREE.CylinderGeometry(r1,r0,l,10);
+  g.translate(0,l/2,0); g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()))); g.translate(A.x,A.y,A.z); return g.toNonIndexed(); }
 /* engine bells at the stern */
 const engines=(xs,y,z,r)=>xs.map(x=>at(taper(r*1.15,r*.8,.22,8),x,y,z));
 
@@ -76,21 +84,32 @@ const SHAPES={
 const CRAFT_SHAPES={
   /* 艦載機: a small delta wing */
   ftr:()=>[at(nose(.17,1.2,4),0,0,.15), at(box(1.0,.04,.42),0,0,-.25), at(box(.04,.26,.3),0,.13,-.4)],
-  /* W.A.S.: a powered exoskeleton a size larger than a person, leaning into its flight. A thin frame with armor plates on the chest,
-     shoulders, forearms and shins; two fighter-style thruster pods and small fins on the back; a rifle in the right hand and a cannon on the left shoulder */
-  was:()=>{ const lean=.7, c=Math.cos(lean), s=Math.sin(lean), L=(x,y,z)=>[x,y*c-z*s,y*s+z*c], up=Math.PI/2;
-    const torso=taper(.12,.16,.34,6); torso.scale(1.3,1,.8);
-    const body=[at(box(.24,.11,.15),0,0,0), at(torso,0,.25,0,-up), at(box(.28,.17,.05),0,.33,.1,-.2),
-      at(box(.12,.14,.13),0,.55,.01), at(box(.1,.035,.02),0,.56,.075)];
-    for(const x of [1,-1]) body.push(at(box(.14,.08,.17),.23*x,.44,0,0,0,-.25*x), at(tube(.03,.22,6),.25*x,.3,0,up), at(box(.08,.2,.09),.26*x,.08,.02),
-      at(tube(.035,.26,6),.09*x,-.18,0,up), at(box(.09,.27,.11),.1*x,-.45,.01), at(taper(.032,.05,.1,6),.1*x,-.63,0,up));
+  /* W.A.S.: a small, rounded powered exoskeleton a size larger than a person, leaning into its flight with the elbows and knees bent.
+     Large arms: a rifle in the right hand and a cannon above the left shoulder. Flight thrusters on the backpack and at the waist */
+  was:()=>{ const lean=.7, c=Math.cos(lean), s=Math.sin(lean), L=(x,y,z)=>[x,y*c-z*s,y*s+z*c], add=(p,q)=>p.map((v,i)=>v+q[i]);
+    /* the body, standing and facing +Z (its right is -X) */
+    const body=[ell(0,0,0,.095,.06,.07), ell(0,.12,0,.075,.08,.065), ell(0,.25,0,.12,.1,.085), limb([0,.32,0],[0,.37,.01],.03,.026),
+      ell(0,.41,.02,.055,.065,.065), ell(0,.415,.065,.045,.022,.025), loft([[-.21,.11,.09,.25],[-.17,.13,.11,.25],[-.09,.12,.1,.25]],SQR)];
+    for(const [x,gun] of [[-1,true],[1,false]]){
+      const sh=[.16*x,.32,0], el=gun?[.2*x,.15,.08]:[.21*x,.16,.07], hd=gun?[.2*x,.13,.24]:[.2*x,.04,.17];
+      body.push(ell(.17*x,.345,0,.075,.045,.085), limb(sh,el,.03,.026), ell(...el,.03,.03,.03), limb(el,hd,.038,.03), ell(...hd,.028,.028,.028));
+      const hip=[.08*x,-.04,0], kn=gun?[.09*x,-.27,.08]:[.09*x,-.25,.1], an=gun?[.09*x,-.48,-.02]:[.09*x,-.45,0];
+      body.push(limb(hip,kn,.04,.033), ell(...add(kn,[0,0,.02]),.04,.04,.04), limb(kn,an,.045,.032), ell(...add(an,[0,-.02,.035]),.035,.028,.065));
+    }
     body.forEach(g=>g.rotateX(lean));
-    const [, by, bz]=L(0,.32,-.15), [, hy, hz]=L(.26,-.03,.05), [, cy, cz]=L(-.23,.5,0);
-    const gear=[at(box(.28,.2,.1),0,by,bz,lean), ...engines([.12,-.12],by,bz-.42,.06),
-      at(tube(.022,.4,6),.26,hy-.02,hz+.14), at(box(.03,.07,.05),.26,hy-.06,hz+.04), at(tube(.02,.3,6),-.23,cy+.05,cz+.06)];
-    for(const x of [1,-1]) gear.push(at(loft([[-.3,.05,.05],[0,.06,.06],[.16,0,0]]),.12*x,by,bz-.12));
-    gear.push(...pair(at(plate([[.16,-.12],[.36,-.3],[.36,-.38],[.16,-.3]]),0,by,bz)));
-    const p=[...body, ...gear]; p.forEach(g=>g.scale(.6,.6,.6)); return p; },
+    /* gear, placed level in flight */
+    const [, py, pz]=L(0,.3,-.2), [, wy, wz]=L(0,-.01,-.03), [, cy, cz]=L(.15,.42,-.04), [, hy, hz]=L(-.2,.13,.24), gear=[];
+    for(const x of [1,-1]) gear.push(
+      at(loft([[-.3,.042,.042],[-.22,.055,.055],[.05,.055,.055],[.16,.03,.03],[.2,0,0]],ROUND),.12*x,py,pz), at(taper(.065,.045,.1,12),.12*x,py,pz-.35),
+      at(loft([[-.2,.03,.03],[-.14,.038,.038],[.04,.035,.035],[.1,0,0]],ROUND),.14*x,wy,wz), at(taper(.045,.032,.07,12),.14*x,wy,wz-.235));
+    gear.push(...pair(at(plate([[.15,-.1],[.3,-.22],[.32,-.28],[.15,-.24]],.02),0,py,pz)),
+      /* shoulder cannon */
+      limb(L(.13,.36,-.1),[.15,cy+.04,cz+.05],.022,.018), at(loft([[-.16,.045,.05],[.1,.045,.05],[.16,.03,.035]],SQR),.15,cy+.07,cz+.08),
+      at(tube(.022,.5,10),.15,cy+.07,cz+.49), at(taper(.022,.03,.05,10),.15,cy+.07,cz+.76),
+      /* rifle */
+      at(loft([[-.2,.022,.035],[-.12,.03,.045],[.12,.035,.05],[.18,.025,.03]],SQR),-.2,hy+.03,hz+.02),
+      at(tube(.018,.4,10),-.2,hy+.035,hz+.4), at(taper(.018,.026,.05,10),-.2,hy+.035,hz+.62), at(box(.028,.09,.05),-.2,hy-.04,hz+.08));
+    const p=[...body, ...gear]; p.forEach(g=>g.scale(.55,.55,.55)); return p; },
 };
 function shapeGeo(type){ return joinParts((SHAPES[type]||SHAPES.gen)()); }
 function craftGeo(type){ return joinParts((CRAFT_SHAPES[type]||CRAFT_SHAPES.ftr)()); }
