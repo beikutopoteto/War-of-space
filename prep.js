@@ -29,15 +29,15 @@ function defaults(){
   return {
     seq: 100,
     bgs: [
-      {id:'bg1', name:'第1戦艦戦闘団', type:'bb', count:3},
-      {id:'bg2', name:'第11巡洋戦闘団', type:'cl', count:6},
-      {id:'bg3', name:'第21駆逐戦闘団', type:'dd', count:8},
-      {id:'bg4', name:'第31護衛戦闘団', type:'ff', count:10},
-      {id:'bg5', name:'第1航空戦闘団', type:'cvb', count:2},
-      {id:'bg6', name:'第41偵察戦闘団', type:'cv', count:12},
-      {id:'bg7', name:'第1突撃揚陸戦闘団', type:'mas', count:6},
-      {id:'bg8', name:'第2強襲母艦戦闘団', type:'masc', count:2},
-      {id:'bg9', name:'第22駆逐戦闘団', type:'dd', count:8},
+      {id:'bg1', name:'第1戦闘団', type:'bb', count:3},
+      {id:'bg2', name:'第2戦闘団', type:'cl', count:6},
+      {id:'bg3', name:'第3戦闘団', type:'dd', count:8},
+      {id:'bg4', name:'第4戦闘団', type:'ff', count:10},
+      {id:'bg5', name:'第5戦闘団', type:'cvb', count:2},
+      {id:'bg6', name:'第6戦闘団', type:'cv', count:12},
+      {id:'bg7', name:'第7戦闘団', type:'mas', count:6},
+      {id:'bg8', name:'第8戦闘団', type:'masc', count:2},
+      {id:'bg9', name:'第9戦闘団', type:'dd', count:8},
     ],
     armies: [
       {id:'a1', name:'第1軍', bgs:['bg1','bg2','bg3']},
@@ -202,11 +202,13 @@ function delBtn(key,label){ return `<button class="danger" data-del="${key}">${c
 function wireDel(detail,key,fn){ const b=detail.querySelector('[data-del]'); if(b) b.onclick=()=>{ if(confirmDel===key){ confirmDel=null; fn(); persist(); renderOrg(); } else { confirmDel=key; renderOrg(); } }; }
 
 /* battle groups */
+/* a new battle group is named 第N戦闘団 with the smallest number not yet taken */
+function nextBgName(){ const used=new Set(save.bgs.map(b=>(/^第(\d+)戦闘団$/.exec(b.name)||[])[1]).filter(Boolean).map(Number)); let n=1; while(used.has(n)) n++; return `第${n}戦闘団`; }
 function renderBgTab(){
   if(!bgById(selBg)) selBg=save.bgs[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
   list.innerHTML=listHtml(save.bgs.map(b=>({id:b.id,name:b.name,meta:`${SHIP[b.type].name}×${b.count}・${armyOfBg(b.id)?esc(armyOfBg(b.id).name):'未所属'}`})),selBg,'＋ 戦闘団を作る','data-bg');
-  list.querySelector('[data-new]').onclick=()=>{ const b={id:newId('bg'),name:`新戦闘団${save.bgs.length+1}`,type:'dd',count:4}; save.bgs.push(b); selBg=b.id; persist(); renderOrg(); };
+  list.querySelector('[data-new]').onclick=()=>{ const b={id:newId('bg'),name:nextBgName(),type:'dd',count:4}; save.bgs.push(b); selBg=b.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-bg]').forEach(x=>x.onclick=()=>{ selBg=x.dataset.bg; confirmDel=null; renderOrg(); });
   const b=bgById(selBg);
   if(!b){ det.innerHTML='<p class="empty">戦闘団がありません。左の「戦闘団を作る」から追加してください。</p>'; return; }

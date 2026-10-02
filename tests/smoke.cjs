@@ -51,6 +51,13 @@ function check(ok, label, detail = '') {
       await page.click(`[data-tab="${tab}"]`);
       check(await page.locator('#orgList ' + sel).count() > 0, `編成: ${tab} タブ`);
     }
+    /* a new battle group gets the next free 第N戦闘団 */
+    await page.click('[data-tab="bg"]');
+    const bgCount = await page.locator('#orgList [data-bg]').count();
+    await page.click('#orgList [data-new]');
+    const newName = await page.inputValue('#bgName');
+    check(newName === `第${bgCount + 1}戦闘団`, '編成: 新しい戦闘団の名前', newName);
+    await page.click('[data-tab="group"]');
     await shot('03-org-group');
     await page.click('[data-s="org"] .back');
 
