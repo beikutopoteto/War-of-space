@@ -23,7 +23,7 @@ function updateFog(){
       if(t.team===1&&gameSec>0&&by!==t) logEvent(`${t.name} 発見`,`${by.name}が${t.name}（${t.ships.length}隻）を捕捉。`); }
   }
 }
-function nearestFoe(f,maxD){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
+function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
@@ -79,10 +79,17 @@ function end(win){
   setTimeout(()=>startTalk(talk,()=>{document.getElementById('result').hidden=false;}),1600);
 }
 
-/* enemy W.A.S. go for the transports first when they are within reach; everything else takes the nearest foe */
+/* small craft (both sides) keep out of a hostile fortress's guns: they do not pick the fortress, or a unit within its range
+   (plus FORT_MARGIN), as a target on their own. Only the target their carrier was ordered to attack takes them there. */
+const FORT_MARGIN=6;
+function underGuns(t,team){ return fortress.alive&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
+function orderedTarget(u){ const c=u.carrier||u; return c.alive&&c.order&&c.order.type==='attack'?c.order.target:null; }
+function craftMayHit(u,t){ return !underGuns(t,u.team)||t===orderedTarget(u); }
+/* the ordered target comes first; then enemy W.A.S. go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){
-  if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD) return convoy;
-  return nearestFoe(u,maxD);
+  const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
+  if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
+  return nearestFoe(u,maxD,t=>craftMayHit(u,t));
 }
 let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut at once */
@@ -114,7 +121,7 @@ function stepWings(dt){
     const c=w.carrier;
     if(w.state==='attack'){
       w.fuel-=dt;
-      if(!w.target||!w.target.alive||!w.target.seen) w.target=craftTarget(w,w.type,w.W.launchR*.6)||(c.alive?craftTarget(c,w.type,w.W.launchR):null);
+      if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)) w.target=craftTarget(w,w.type,w.W.launchR*.6)||(c.alive?craftTarget(c,w.type,w.W.launchR):null);
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
     if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
