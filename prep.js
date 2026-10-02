@@ -159,10 +159,13 @@ function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boole
 function renderSortie(){
   if(!OPS.find(o=>o.id===sortieOp)) sortieOp=OPS[0].id;
   const ol=document.getElementById('opList');
-  ol.innerHTML=OPS.map(o=>`<button class="op ${o.id===sortieOp?'sel':''}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}"><b>${esc(o.name)}</b><span>${esc(o.summary)}</span><em>${esc(o.threat)}</em></button>`).join('');
+  ol.innerHTML=OPS.map(o=>`<button class="op ${o.id===sortieOp?'sel':''}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}">${o.chapter?`<i class="chap">${esc(o.chapter)}</i>`:''}<b>${esc(o.name)}</b><span>${esc(o.summary)}</span><em>${esc(o.threat)}</em></button>`).join('');
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   if(!save.groups.find(g=>g.id===sortieGroup)) sortieGroup=save.groups[0]?.id||null;
-  const el=document.getElementById('sgList');
+  const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
+  /* a story operation is fought with the fleets the story gives; army groups are not used */
+  if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
+    const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS) window.WOS.start({op:fixedOp.id}); }; return; }
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0);
     return `<button class="sgcard ${g.id===sortieGroup?'sel':''}" data-sg="${g.id}" aria-pressed="${g.id===sortieGroup}"><b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'軍が未配置'}</span><em>${arms.length}個軍・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
     :'<p class="empty">軍集団がありません。編成画面で作成してください。</p>';

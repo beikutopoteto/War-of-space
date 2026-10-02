@@ -194,6 +194,12 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
   .rzone .rhead{font-size:10px}
   #roster{width:auto}
 }
+#talk{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brass);padding:8px 12px;backdrop-filter:blur(6px);cursor:pointer;z-index:6}
+#talk b{font-size:12px;color:var(--brass);letter-spacing:.05em}
+#talk p{margin:3px 0 4px;font-size:14px;line-height:1.6;color:var(--ink)}
+#talk .ctl{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-dim)}
+#talk button{font-family:var(--f-ui);font-size:11px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:2px 8px;cursor:pointer}
+#roster .convoyRow{border-left-color:var(--brass);background:rgba(240,210,122,.08)}
 #pick{position:fixed;left:0;top:0;display:grid;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px);z-index:5}
 #pick button{font-family:var(--f-ui);font-size:12px;text-align:left;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);padding:4px 10px;cursor:pointer}
 #pick button[data-pk="attack"]{border-color:rgba(255,106,69,.6)}

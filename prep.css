@@ -39,6 +39,7 @@
 .op,.sgcard{display:grid;gap:4px;text-align:left;padding:12px 14px;background:rgba(8,14,26,.6);border:1px solid var(--line);color:var(--ink)}
 .op b,.sgcard b{font-size:16px}
 .op span,.sgcard span{font-size:12.5px;color:var(--ink-dim);line-height:1.6}
+.op .chap{font-style:normal;font-size:11px;letter-spacing:.08em;color:var(--blue)}
 .op em,.sgcard em{font-style:normal;font-size:11.5px;color:var(--brass);font-family:var(--f-num)}
 .op.sel,.sgcard.sel{border-color:var(--blue);background:rgba(127,200,255,.12)}
 .cards{display:grid;gap:8px}
@@ -126,7 +127,7 @@
 .pip{display:inline-block;width:34px;height:5px;margin-right:6px;vertical-align:middle;background:linear-gradient(90deg,var(--blue) var(--v),rgba(127,200,255,.12) var(--v))}
 
 /* while the menu is up the battle HUD stays out of the way */
-body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt{display:none!important}
+body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,body.inmenu #pick{display:none!important}
 
 /* battle roster: army group section with drag and drop */
 .rzone{display:grid;gap:3px;padding:4px;border:1px dashed transparent}

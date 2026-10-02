@@ -33,6 +33,8 @@ const SHAPES={
   mas:()=>[at(box(.8,.55,1.3),0,0,-.1), at(box(.66,.46,.36),0,-.03,.72), at(tube(.15,.9),.5,-.05,-.1), at(tube(.15,.9),-.5,-.05,-.1), at(box(.22,.2,.3),0,.37,-.45)],
   /* 強襲母艦: twin hulls joined by a deck */
   masc:()=>[at(box(.38,.36,1.9),.44,0,0), at(box(.38,.36,1.9),-.44,0,0), at(box(1.3,.1,1.4),0,.22,-.1), at(nose(.22,.4,4),.44,0,1.15), at(nose(.22,.4,4),-.44,0,1.15), at(box(.26,.32,.36),0,.43,-.45)],
+  /* 輸送船: a long cargo spine with containers and a tank, the civilian ship of escort operations */
+  tr:()=>[at(box(.5,.5,1.9),0,0,0), at(box(.7,.42,.5),0,.05,.45), at(box(.7,.42,.5),0,.05,-.15), at(tube(.3,.7,10),0,0,-.85), at(box(.36,.3,.32),0,.36,.8)],
   /* fleets without a class (the old cone) */
   gen:()=>[at(new THREE.ConeGeometry(.45,2,5),0,0,0,Math.PI/2)],
 };

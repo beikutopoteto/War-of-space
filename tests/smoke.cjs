@@ -139,6 +139,34 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(2000);
     check(await page.isVisible('#result') && await page.textContent('#rh') === '勝利', 'クイック戦闘: 要塞を落とすと勝利');
     await shot('08-victory');
+    /* chapter 1 section 1: the escort operation from the sortie screen */
+    await page.evaluate(() => WOS.openMenu());
+    await page.click('#result >> text=メニューへ').catch(() => {});
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
+    check((await page.textContent('#sgList')).includes('決まった艦隊'), '信濃奇襲: 出撃画面で決まった艦隊を使う');
+    await page.click('#goBattle'); await page.waitForTimeout(1500);
+    const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
+    check(talk.talking && talk.sec === 0 && talk.who.length > 0, '信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
+    await page.click('#talkSkip');
+    const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
+      /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
+      fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
+      const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
+      r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
+    check(sh.convoy && sh.station && !sh.fort, '信濃奇襲: 中継ステーションと輸送船団が出る');
+    check(sh.departed && sh.assault && sh.phase === '出港', '信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
+    await page.waitForTimeout(500);
+    await shot('09-shinano');
+    const win = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
+      let n = 0; while (!over && n++ < 6000) step(.05); return { over, saved: convoy.escaped }; });
+    await page.waitForTimeout(2200);
+    const winTalk = await page.isVisible('#talk');
+    await page.click('#talkSkip').catch(() => {});
+    await page.waitForTimeout(300);
+    check(win.over && win.saved && winTalk && await page.textContent('#rh') === '勝利', '信濃奇襲: 船団が離脱点を越えると、会話のあと勝利');
+    const lose = await page.evaluate(() => { reset(); endTalk(); const src = fleets.find(f => f.team === 1);
+      damage(convoy, convoy.hp * 3.2 / (1 - (convoy.eva || 0)), src); step(.05); return { over, left: convoy.ships.length, rh: document.getElementById('rh').textContent }; });
+    check(lose.over && lose.rh === '敗北', '信濃奇襲: 輸送船を3隻失うと敗北');
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }
