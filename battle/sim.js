@@ -144,6 +144,8 @@ function makePath(from,pts){
   const lens=curve.getLengths();
   return {curve, L:Math.max(lens[lens.length-1],1e-3), s:0, pts:all.slice(1), at:all.slice(1).map((_,i)=>lens[(i+1)*PATH_DIV])};
 }
+/* when an order is done, the next queued one starts (an attack on a target already gone is skipped) */
+function nextOrder(f){ while(f.queue&&f.queue.length){ const o=f.queue.shift(); if(o.type==='attack'&&!o.target.alive) continue; order(f,o); return; } }
 /* the waypoints (and destination) still ahead of a move order */
 function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+.5):[...(o.via||[]),o.dest]; }
 /* advance along the path; true when the end is reached */
@@ -211,9 +213,9 @@ function step(dt){
     f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
     let goal=null, moving=false;
     if(f.order){
-      if(f.order.type==='move'){ moving=true; if(followPath(f,dt)){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } } }
-      else { const t=f.order.target; if(!t.alive){ f.order=null; }
-        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; } }
+      if(f.order.type==='move'){ moving=true; if(followPath(f,dt)){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } nextOrder(f); } }
+      else { const t=f.order.target; if(!t.alive){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } }
         else goal=t; }
     }
     if(goal){ const stop=f.range*.75+(goal.radius||0);

@@ -10,7 +10,7 @@ let op=OPS[0], opEvents=[], nextEvent=0, convoy=null;
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
-    watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage'};
+    watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   const R=Math.sqrt(o.n)*1.35*o.scale;
   const types=shipClasses(o);
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
@@ -97,17 +97,23 @@ function selectGroup(){ const m=groupAlive(); if(!m.length) return; if(selGroupM
   fleets.forEach(x=>x.el.classList.toggle('sel',m.includes(x))); updateRoster(); }
 /* the fleets an order goes to: the whole army group, or just the selected army */
 function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.alive?[selected]:[]); }
+/* o.queue (Shift) adds the order after the ones already given: a point joins the route of the last move (current or queued),
+   anything after an attack waits in f.queue until that attack is over. Without Shift the queue is cleared.
+   Several fleets keep their formation around a point */
 function groupOrder(o){
   const t=orderTargets(); if(!t.length) return;
   const sync=selGroupMode&&armyGroup.sync?Math.min(...t.map(f=>f.speed)):null;
+  if(!o.queue) t.forEach(f=>f.queue=[]);
+  const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;
   if(o.type==='move'){
-    /* o.queue (Shift): the point is added after the waypoints still ahead. Several fleets keep their formation around the point */
-    const queued=f=>o.queue&&f.order&&f.order.type==='move'?pathLeft(f.order):[];
-    const base=f=>{ const q=queued(f); return q.length?q[q.length-1]:f.pos; };
+    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
-    t.forEach(f=>{ const via=queued(f).slice(-(MAX_WAYPOINTS-1)), dest=o.dest.clone().add(base(f).clone().sub(c));
-      f.syncSpeed=sync; order(f,{type:'move',via,dest}); });
-  } else t.forEach(f=>{ f.syncSpeed=sync; order(f,o); });
+    t.forEach(f=>{ const x=tail(f), dest=o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
+      if(x&&x.type==='move'&&x===f.order) order(f,{type:'move',via:pathLeft(x).slice(-(MAX_WAYPOINTS-1)),dest});
+      else if(x&&x.type==='move'){ x.via=pathLeft(x).slice(-(MAX_WAYPOINTS-1)); x.dest=dest; }
+      else if(x) f.queue.push({type:'move',dest});
+      else order(f,{type:'move',dest}); });
+  } else t.forEach(f=>{ f.syncSpeed=sync; if(tail(f)) f.queue.push({type:o.type,target:o.target}); else order(f,o); });
 }
 function updateRoster(){
   const cr=document.getElementById('convoyRow');
@@ -115,7 +121,7 @@ function updateRoster(){
     cr.querySelector('span').textContent=`${convoy.name}　${convoy.escaped?'離脱':convoy.alive?convoy.sub:'全滅'}`;
     cr.querySelector('.n').textContent=`${left}/${convoy.n}隻`; cr.querySelector('.bar i').style.width=(100*left/convoy.n)+'%'; }
   fleets.forEach(f=>{ if(!f.btn) return;
-    f.btn.querySelector('.n').textContent=(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
+    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
   });
