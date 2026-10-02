@@ -73,7 +73,7 @@ function frame(now){
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
   document.getElementById('date').textContent=op.date+'　'+clockStr();
-  rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster();}
+  rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster(); updateGoal();}
   requestAnimationFrame(frame);
 }
 reset();

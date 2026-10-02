@@ -3,7 +3,8 @@
 /* ---------- HUD ---------- */
 /* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second */
 const CLOCK_RATE=.5;
-function clockStr(){ const [h0,m0]=(op.start||'08:00').split(':').map(Number), m=h0*60+m0+Math.floor(gameSec*CLOCK_RATE); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+/* the operation clock at `min` minutes after the start (now, by default) */
+function clockStr(min=gameSec*CLOCK_RATE){ const [h0,m0]=(op.start||'08:00').split(':').map(Number), m=h0*60+m0+Math.floor(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
 function logEvent(title,desc){
@@ -228,6 +229,23 @@ window.WOS={ start(cfg){
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(.3,.4,.87),V.dist);
   hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
 }, openMenu };
+
+/* mission panel (top right, under the legend): what to do now, with a gauge.
+   Escort: boarding % until the convoy sails, then how far along its route it is. Fortress: the armor left. Click to fold it */
+const goalEl=document.getElementById('goal'), goalText=document.getElementById('goalText'), goalBar=document.getElementById('goalBar'),
+  goalLabel=document.getElementById('goalLabel'), goalSub=document.getElementById('goalSub');
+goalEl.addEventListener('click',()=>goalEl.classList.toggle('fold'));
+function updateGoal(){
+  let text='', p=0, label='', subT='', mode='';
+  if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
+    if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
+    else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }
+    else if(!convoy.departed){ p=Math.min(1,gameSec*CLOCK_RATE/C.depart); text=C.boardText||'乗船が終わるまで、敵を輸送船団に近づけるな'; label=`乗船 ${Math.floor(p*100)}%　${clockStr(C.depart)} 出港`; mode='board'; }
+    else { const pa=convoy.order&&convoy.order.path; p=pa?pa.s/pa.L:1; text=C.escortText||'輸送船団を離脱点まで守れ'; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
+    subT=`輸送船 ${left}/${convoy.n}隻　${lose}隻失うと失敗`; }
+  else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
+  goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
+}
 
 /* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
    Click or Enter for the next line, Esc or とばす to skip */

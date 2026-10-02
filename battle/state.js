@@ -55,11 +55,6 @@ try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',ro
 function buildRoster(){
   rosterEl.innerHTML='';
   const mine=fleets.filter(f=>f.team===0&&!f.convoy);
-  /* an escort operation lists the convoy first: its state at a glance, and a click brings the camera to it */
-  if(convoy){ const c=document.createElement('button'); c.className='convoyRow'; c.id='convoyRow'; c.title='クリックで船団へ視点を移す';
-    c.innerHTML='<span></span><span class="n"></span><span class="bar"><i></i></span>';
-    c.addEventListener('click',()=>{ if(convoy.alive) flyTo(convoy.pos,camera.position.clone().sub(controls.target),Math.min(camera.position.distanceTo(controls.target),120)); });
-    rosterEl.appendChild(c); }
   const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); if(i<9) b.title=`${i+1}キーで選択`;
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
@@ -116,10 +111,6 @@ function groupOrder(o){
   } else t.forEach(f=>{ f.syncSpeed=sync; if(tail(f)) f.queue.push({type:o.type,target:o.target}); else order(f,o); });
 }
 function updateRoster(){
-  const cr=document.getElementById('convoyRow');
-  if(cr&&convoy){ const left=convoy.escaped?convoy.ships.length:convoy.alive?convoy.ships.length:0;
-    cr.querySelector('span').textContent=`${convoy.name}　${convoy.escaped?'離脱':convoy.alive?convoy.sub:'全滅'}`;
-    cr.querySelector('.n').textContent=`${left}/${convoy.n}隻`; cr.querySelector('.bar i').style.width=(100*left/convoy.n)+'%'; }
   fleets.forEach(f=>{ if(!f.btn) return;
     f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+(f.stance==='evade'?'回避 ':'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
@@ -161,5 +152,5 @@ function reset(cfg=lastCfg){
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
   buildSectors(op.sectors);
   fogTimer=0; updateFog();
-  buildRoster(); updateRoster();
+  buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }
