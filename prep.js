@@ -116,7 +116,7 @@ menu.innerHTML=`
   <div class="ttl">
     <p class="eyebrow">宙域艦隊戦　試作版</p>
     <h1>WAR OF SPACE</h1>
-    <p class="lead">蒼環同盟の司令官として艦隊を編成し、緋星帝国の要塞宙域へ出撃する。</p>
+    <p class="lead">地球連合の司令官として艦隊を編成し、惑星共和国の要塞宙域へ出撃する。</p>
   </div>
   <nav class="mainnav" aria-label="メインメニュー">
     <button data-go="sortie"><b>出撃</b><span>作戦と軍集団を選んで戦闘を始める</span></button>

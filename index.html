@@ -203,8 +203,8 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 <div id="clock" class="hud"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
 
 <div id="legend" class="hud">
-  <div class="row t0"><span id="lg0"></span><span style="color:var(--ink)">蒼環同盟（自軍）</span></div>
-  <div class="row t1"><span id="lg1"></span><span style="color:var(--ink)">緋星帝国</span></div>
+  <div class="row t0"><span id="lg0"></span><span style="color:var(--ink)">地球連合（自軍）</span></div>
+  <div class="row t1"><span id="lg1"></span><span style="color:var(--ink)">惑星共和国</span></div>
   <div id="view" role="group" aria-label="表示">
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
@@ -267,7 +267,7 @@ const EMB = [
 document.getElementById('lg0').innerHTML = EMB[0];
 document.getElementById('lg1').innerHTML = EMB[1];
 const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45)];
-const TEAM_NAME = ['蒼環同盟','緋星帝国'];
+const TEAM_NAME = ['地球連合','惑星共和国'];
 
 /* ---------- renderer / scene ---------- */
 const stage = document.getElementById('stage');
@@ -498,7 +498,7 @@ function mkUnitLabel(team,name,sub){
 const sectors=[
   {name:'北宙域',sub:'本国航路・増援の出口',p:[22,-82]},
   {name:'東宙域',sub:'暗礁帯',p:[86,10]},
-  {name:'南宙域',sub:'同盟艦隊の進入方向',p:[-20,92]},
+  {name:'南宙域',sub:'連合艦隊の進入方向',p:[-20,92]},
   {name:'西宙域',sub:'哨戒線のみ',p:[-92,-12]}
 ].map(s=>{const el=document.createElement('div');el.className='sector';el.innerHTML=`<b>${s.name}</b><span>${s.sub}</span>`;labelsEl.appendChild(el);return {el,pos:new THREE.Vector3(s.p[0],0,s.p[1])};});
 
@@ -945,8 +945,8 @@ function end(win){
   if(over) return; over=true; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
-  document.getElementById('rp').textContent=win?`${clockStr()}、要塞カリュブディス陥落。残存艦 ${left}隻。`:`${clockStr()}、同盟艦隊は壊滅した。防空隊を一つずつ引き剥がしてから要塞を叩こう。`;
-  logEvent(win?'要塞カリュブディス陥落':'同盟艦隊 壊滅',win?'要塞の主砲が沈黙した。緋星帝国の防衛線は崩壊。':'作戦は失敗に終わった。');
+  document.getElementById('rp').textContent=win?`${clockStr()}、要塞カリュブディス陥落。残存艦 ${left}隻。`:`${clockStr()}、連合艦隊は壊滅した。防空隊を一つずつ引き剥がしてから要塞を叩こう。`;
+  logEvent(win?'要塞カリュブディス陥落':'連合艦隊 壊滅',win?'要塞の主砲が沈黙した。惑星共和国の防衛線は崩壊。':'作戦は失敗に終わった。');
   setTimeout(()=>{document.getElementById('result').hidden=false;},1600);
 }
 
@@ -1020,7 +1020,7 @@ function step(dt){
   if(!reinforced&&gameSec>=60){ reinforced=true;
     const r=makeFleet(1,{name:'第5戦隊',sub:'本国からの増援',n:14,hp:30,dmg:3,range:20,speed:6.5,scale:1.3,pos:[10,-150],alt:34,ai:'hunt',leash:0});
     fleets.push(r); makeArrow(r.pos,new THREE.Vector3(0,20,-60),TEAM_COL[1],{life:6});
-    logEvent('北宙域に艦影の反応','本国航路の出口で大きな反応。緋星帝国の増援とみられる。位置をつかむには視界に捉える必要がある。');
+    logEvent('北宙域に艦影の反応','本国航路の出口で大きな反応。惑星共和国の増援とみられる。位置をつかむには視界に捉える必要がある。');
   }
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
