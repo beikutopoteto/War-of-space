@@ -152,26 +152,68 @@ function check(ok, label, detail = '') {
     check(stance[0] === 0 && stance[1] > 0, '交戦/回避: 回避中は撃たず、交戦では撃つ');
     await page.evaluate(() => { reset(); select(null); });
 
-    /* small craft keep out of a hostile fortress's guns unless their carrier was ordered to attack there (both sides) */
+    /* small craft and a hostile fortress (both sides): never the fortress on their own; they keep to their carrier's side of its guns.
+       The target their carrier was ordered to attack overrides this and holds through later moves */
     const fort = await page.evaluate(() => {
       reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length), foes = fleets.filter(x => x.team === 1), e = foes[0];
-      foes.forEach(x => { x.alive = false; }); c.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range + 2);
+      foes.forEach(x => { x.alive = false; }); c.speed = 0; c.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range + FORT_MARGIN + 3);
       const run = () => { for (let i = 0; i < 40; i++) step(.05); return wings.filter(w => w.team === 0 && w.alive); };
       const fortOnly = run().length;
-      e.alive = true; e.ai = null; e.pos.set(c.pos.x + 8, c.pos.y, fortress.pos.z + fortress.range - 6); e.post = e.pos.clone();
+      e.alive = true; e.ai = null; e.leash = 0; e.speed = 0; e.pos.set(c.pos.x + 8, c.pos.y, fortress.pos.z + fortress.range - 6); e.post = e.pos.clone();
       const nearFort = run().length;
       e.pos.set(c.pos.x, c.pos.y, c.pos.z + 40); e.post = e.pos.clone(); const away = run(); const awayHit = away.length > 0 && away.every(w => w.target === e);
       e.alive = false; for (let i = 0; i < 40; i++) step(.05);
       const retarget = wings.filter(w => w.team === 0 && w.alive).every(w => w.target !== fortress);
-      c.speed = 0; order(c, { type: 'attack', target: fortress }); for (let i = 0; i < 80; i++) step(.05);
+      order(c, { type: 'attack', target: fortress }); for (let i = 0; i < 80; i++) step(.05);
       const ordered = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
       order(c, { type: 'move', dest: c.pos.clone().add(new THREE.Vector3(4, 2, 0)) }); for (let i = 0; i < 40; i++) step(.05);
       const kept = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
-      fortress.team = 0; const mirrored = underGuns(c, 1) && !underGuns(c, 0); fortress.team = 1;
-      return { fortOnly, nearFort, awayHit, retarget, ordered, kept, mirrored };
+      /* a carrier inside the guns: its craft take the foe inside and leave the one outside alone */
+      reset(); const c2 = fleets.find(x => x.team === 0 && x.hangars.length), [a, b] = fleets.filter(x => x.team === 1);
+      fleets.filter(x => x.team === 1).forEach(x => { x.alive = false; }); c2.speed = 0;
+      c2.pos.set(fortress.pos.x, fortress.pos.y, fortress.pos.z + fortress.range - 4);
+      [[a, c2.pos.x + 6, fortress.pos.z + fortress.range - 12], [b, c2.pos.x, c2.pos.z + 22]].forEach(([x, px, pz]) => {
+        x.alive = true; x.ai = null; x.leash = 0; x.speed = 0; x.hpPool = 1e9; x.pos.set(px, c2.pos.y, pz); x.post = x.pos.clone(); });
+      const inside = run(); const insideHit = inside.length > 0 && inside.every(w => w.target === a);
+      fortress.team = 0; const mirrored = underGuns(c2, 1) && !underGuns(c2, 0); fortress.team = 1;
+      return { fortOnly, nearFort, awayHit, retarget, ordered, kept, insideHit, mirrored };
     });
-    check(!fort.fortOnly && !fort.nearFort && fort.awayHit && fort.retarget && fort.ordered && fort.kept && fort.mirrored,
-      '小型機: 命令がなければ要塞と要塞の射程内の敵を狙わない。攻撃を命じた相手は移動しても狙い続ける（敵も同じ）', JSON.stringify(fort));
+    check(!fort.fortOnly && !fort.nearFort && fort.awayHit && fort.retarget && fort.ordered && fort.kept && fort.insideHit && fort.mirrored,
+      '小型機: 要塞は命令がなければ狙わず、母艦が要塞の射程の外なら外の敵、内なら内の敵を狙う。命じた相手は移動しても狙い続ける（敵も同じ）', JSON.stringify(fort));
+    await page.evaluate(() => { reset(); select(null); });
+
+    /* carriers: a fleet of carriers stops once the target is inside 80% of its shortest launch distance; a new attack order turns the craft;
+       in a fleet mixing carriers with other classes the carriers keep to the rear */
+    const cv = await page.evaluate(() => {
+      reset(); const c = fleets.find(x => x.team === 0 && x.carrierOnly), [a, b] = fleets.filter(x => x.team === 1);
+      fleets.filter(x => x.team === 1).forEach(x => { x.alive = false; });
+      c.pos.set(0, 10, 200); c.hpPool = 1e9;
+      [[a, -10, 100], [b, 10, 100]].forEach(([x, px, pz]) => { x.alive = true; x.ai = null; x.leash = 0; x.speed = 0; x.hpPool = 1e9; x.dmg = 0; x.pos.set(px, 10, pz); x.post = x.pos.clone(); });
+      order(c, { type: 'attack', target: a }); for (let i = 0; i < 400; i++) step(.05);
+      const stopAt = c.pos.distanceTo(a.pos), want = c.launchMin * .8;
+      const onA = wings.some(w => w.team === 0 && w.target === a);
+      order(c, { type: 'attack', target: b }); for (let i = 0; i < 6; i++) step(.05);
+      const out = wings.filter(w => w.team === 0 && w.alive && w.state === 'attack'), onB = out.length > 0 && out.every(w => w.target === b);
+      const m = makeFleet(0, { name: 'mix', sub: '', comp: { cl: 6, cvb: 3 }, n: 9, hp: 1, dmg: 0, range: 20, speed: 5, scale: 1, pos: [0, 150], alt: 0, vis: 5, stl: 4, hangar: { ftr: 40 } });
+      const zc = m.ships.filter(s => CARRIERS.has(s.type)).map(s => s.off.z), zo = m.ships.filter(s => !CARRIERS.has(s.type)).map(s => s.off.z);
+      m.el.remove();
+      return { stopAt: +stopAt.toFixed(1), want: +want.toFixed(1), onA, onB, rear: Math.max(...zc) < Math.min(...zo), mixedNotCarrierOnly: !m.carrierOnly };
+    });
+    check(Math.abs(cv.stopAt - cv.want) < 1.5 && cv.onA && cv.onB && cv.rear && cv.mixedNotCarrierOnly,
+      '空母: 発進距離の0.8倍で止まり、攻撃の相手を替えると小型機も替える。混ざった軍では空母が最後尾', JSON.stringify(cv));
+    await page.evaluate(() => { reset(); select(null); });
+
+    /* ship guns: the foe ordered to attack comes first while in range, then the nearest */
+    const fire = await page.evaluate(() => {
+      reset(); const f = fleets.find(x => x.team === 0 && !x.hangars.length), [a, b] = fleets.filter(x => x.team === 1);
+      fleets.filter(x => x.team === 1).forEach(x => { x.alive = false; });
+      f.pos.set(0, 10, 200); f.speed = 0; f.hpPool = 1e9;
+      [[a, f.range * .3], [b, f.range * .7]].forEach(([x, d]) => { x.alive = true; x.ai = null; x.leash = 0; x.speed = 0; x.hpPool = 1e9; x.dmg = 0; x.pos.set(0, 10, 200 - d); x.post = x.pos.clone(); });
+      for (let i = 0; i < 20; i++) step(.05); const near = f.fireTarget === a;
+      order(f, { type: 'attack', target: b }); for (let i = 0; i < 20; i++) step(.05);
+      return { near, ordered: f.fireTarget === b };
+    });
+    check(fire.near && fire.ordered, '艦砲: 攻撃を命じた敵が射程内なら優先して撃ち、なければ近い敵を撃つ', JSON.stringify(fire));
     await page.evaluate(() => { reset(); select(null); });
 
     /* a player order, then tens of seconds of combat */

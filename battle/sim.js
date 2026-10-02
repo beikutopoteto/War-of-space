@@ -79,13 +79,15 @@ function end(win){
   setTimeout(()=>startTalk(talk,()=>{document.getElementById('result').hidden=false;}),1600);
 }
 
-/* small craft (both sides) keep out of a hostile fortress's guns: they do not pick the fortress, or a unit within its range
-   (plus FORT_MARGIN), as a target on their own. Only the target their carrier was last ordered to attack takes them there;
-   it holds through later move orders (a carrier shifting its position in range) until it falls or another attack is ordered. */
+/* small craft (both sides) and a hostile fortress: they never pick the fortress itself on their own, and they keep to the side
+   of its guns (its range plus FORT_MARGIN) their carrier is on: a carrier outside sends them only at foes outside, a carrier
+   inside only at foes inside. The target their carrier was last ordered to attack overrides this and comes first; it holds
+   through later move orders (a carrier shifting its position in range) until it falls or another attack is ordered. */
 const FORT_MARGIN=6;
 function underGuns(t,team){ return fortress.alive&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
-function craftMayHit(u,t){ return !underGuns(t,u.team)||t===orderedTarget(u); }
+function craftMayHit(u,t){ if(t===orderedTarget(u)) return true; if(t===fortress) return false;
+  const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
 /* the ordered target comes first; then enemy W.A.S. go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
@@ -122,6 +124,7 @@ function stepWings(dt){
     const c=w.carrier;
     if(w.state==='attack'){
       w.fuel-=dt;
+      const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.W.launchR) w.target=o;   // a new attack order turns them at once
       if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)) w.target=craftTarget(w,w.type,w.W.launchR*.6)||(c.alive?craftTarget(c,w.type,w.W.launchR):null);
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
@@ -166,11 +169,12 @@ function followPath(f,dt){
   _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6) f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize();
   return p.s>=p.L;
 }
-/* engagement: a fleet set to 回避 (evade) holds fire and keeps its craft aboard; it only fires on a target it was ordered to attack */
+/* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
+   A fleet set to 回避 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  if(f.stance!=='evade') return nearestFoe(f,f.range);
-  const t=f.order&&f.order.type==='attack'?f.order.target:null;
-  return t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
+  if(f.stance!=='evade') return inRange(orderedTarget(f))||nearestFoe(f,f.range);
+  return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
 /* a large explosion at [x, z, alt] (operation data) */
@@ -230,7 +234,9 @@ function step(dt){
         else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } }
         else goal=t; }
     }
-    if(goal){ const stop=f.range*.75+(goal.radius||0);
+    /* an attack closes until the target is well inside the guns (75% of range); a fleet of carriers only stops sooner,
+       once the target is inside 80% (1:4 from the edge) of its shortest launch distance */
+    if(goal){ const stop=(f.carrierOnly?f.launchMin*.8:f.range*.75)+(goal.radius||0);
       _v.subVectors(goal.pos,f.pos); const d=_v.length();
       if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min((f.syncSpeed||f.speed)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
     }
