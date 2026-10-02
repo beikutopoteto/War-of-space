@@ -14,6 +14,8 @@
   <div class="row t0"><span id="lg0"></span><span style="color:var(--ink)">地球連合（自軍）</span></div>
   <div class="row t1"><span id="lg1"></span><span style="color:var(--ink)">惑星共和国</span></div>
   <div id="view" role="group" aria-label="表示">
+    <button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧">メニュー Esc</button>
+    <button id="undoBtn" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
   </div>
@@ -31,7 +33,7 @@
   <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gs" id="goalSub"></div></div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約。高度は左のバーか Q/E、R で交戦と回避の切り替え。ドラッグで回転、ホイールで拡大、WASD で移動、Space で一時停止。</div>
+<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約。高度は左のバーか Q/E、R で交戦と回避の切り替え。ドラッグで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
 
 <div id="azBar" class="hud camBar"><span>横回転</span><div id="azTrack" class="tr" tabindex="0" role="slider" aria-label="視点の横回転（←→キー）" aria-valuemin="-180" aria-valuemax="180"><span id="azKnob" class="kn"></span></div></div>
 <div id="elBar" class="hud camBar"><span>上</span><div id="elTrack" class="tr" tabindex="0" role="slider" aria-label="視点の上下角度（↑↓キー）" aria-valuemin="-80" aria-valuemax="88"><span class="lv"></span><span id="elKnob" class="kn"></span></div><span>下</span></div>
@@ -57,6 +59,23 @@
 <div id="roster" class="hud" aria-label="自軍艦隊"></div>
 
 <div id="talk" hidden aria-live="polite"><b id="talkWho"></b><p id="talkText"></p><div class="ctl"><span>クリック・Enter で次へ</span><button id="talkSkip">とばす</button></div></div>
+<div id="pause" hidden><div class="card" role="dialog" aria-label="メニュー">
+  <h2>一時停止中</h2>
+  <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button></div>
+  <table id="keys" hidden><tbody>
+    <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で軍集団の全軍。同じ艦隊をもう一度クリックで解除</td></tr>
+    <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
+    <tr><th>予約</th><td>Shift+クリックで経由地や攻撃を予約</td></tr>
+    <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す</td></tr>
+    <tr><th>高度</th><td>左の高度バー、Q / E</td></tr>
+    <tr><th>交戦・回避</th><td>R、高度バーの下のボタン、右下の艦隊一覧</td></tr>
+    <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーで回転、V で斜め/真上/真横</td></tr>
+    <tr><th>時間</th><td>Space で一時停止、停止・1×・2×・4×</td></tr>
+    <tr><th>表示</th><td>H でパネル、L で名札</td></tr>
+    <tr><th>会話</th><td>クリックか Enter で次へ</td></tr>
+    <tr><th>メニュー</th><td>Esc で開く・閉じる</td></tr>
+  </tbody></table>
+</div></div>
 <div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="again" id="again">もう一度</button><button class="again" id="toMenu" style="background:transparent;color:var(--ink);border:1px solid var(--line)">メニューへ</button></div></div></div>
 <div id="menu"></div>
 

@@ -226,3 +226,17 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 #pick button:hover:not(:disabled),#pick button:focus-visible{background:rgba(127,200,255,.15);outline:none}
 #pick button:disabled{opacity:.4;cursor:default}
 #cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
+
+/* in-battle menu (Esc): small card over a dimmed field; the battle is paused while it is open */
+#pause{position:fixed;inset:0;display:grid;place-items:center;background:rgba(3,6,12,.45);z-index:11}
+#pause .card{background:var(--panel);border-left:4px solid var(--brass);padding:16px 20px;max-width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;backdrop-filter:blur(8px)}
+#pause h2{margin:0 0 10px;font-size:16px;letter-spacing:.08em;color:var(--ink)}
+#pause .pbtns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#pause .pbtns button{font-family:var(--f-ui);font-size:13px;background:transparent;color:var(--ink);border:1px solid var(--line);padding:7px 10px;cursor:pointer;text-align:left}
+#pause .pbtns button[data-pm="resume"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
+#pause .pbtns button[aria-pressed="true"]{border-color:var(--blue)}
+#pause .pbtns button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#keys{margin-top:10px;border-collapse:collapse;font-size:12px;line-height:1.5;color:var(--ink-dim)}
+#keys th{text-align:left;white-space:nowrap;padding:3px 10px 3px 0;color:var(--ink);font-weight:600;vertical-align:top}
+#keys td{padding:3px 0}
+#view button:disabled{opacity:.4;cursor:default}
