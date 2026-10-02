@@ -14,7 +14,7 @@ function logEvent(title,desc){
 }
 
 /* ---------- selection & orders ---------- */
-function select(f){ selected=f; selGroupMode=false; if(!f) hideGhost(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
+function select(f){ selected=f; selGroupMode=false; if(!f) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
   if(f){ setAlt(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y,false); }
   document.getElementById('alt').hidden=!f; updateRoster(); }
 /* altitude control: sets the height of the selected fleet's destination */
@@ -62,7 +62,7 @@ function order(f,o){
   if(o.type==='move') o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
   if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
-  else { const ar=makeArrow(f.pos,o.target.pos,TEAM_COL[f.team],{life:3.5}); if(f.team===0) f.arrow=ar; }
+  else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
 }
 
 const ray=new THREE.Raycaster(), plane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
@@ -158,16 +158,36 @@ function tap(x,y,cmdOnly=false,queue=false){
   const {best,fort}=pick(x,y);
   if(best&&best.team===0){ if(!cmdOnly) select(best===selected?null:best); return; }
   if(selected&&selected.alive){
-    if(best&&best.team===1){ groupOrder({type:'attack',target:best}); return; }
-    if(fort){ groupOrder({type:'attack',target:fortress}); return; }
-    ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3();
-    plane.constant=-selAlt;
-    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ groupOrder({type:'move',dest:hit,queue}); hideHint(); }
+    const hit=groundAt(x,y);
+    /* on an enemy or the fortress, a small choice: attack it, or move to this point */
+    if(best&&best.team===1||fort){ openPick(x,y,best&&best.team===1?best:fortress,hit,queue); return; }
+    if(hit){ groupOrder({type:'move',dest:hit,queue}); hideHint(); }
   }
 }
+/* the point under the screen position, at the altitude set on the altitude bar */
+function groundAt(x,y){
+  ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3(); plane.constant=-selAlt;
+  return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200?hit:null;
+}
+const pickEl=document.getElementById('pick'); let pickCtx=null;
+function openPick(x,y,target,dest,queue){
+  pickCtx={target,dest,queue};
+  pickEl.querySelector('[data-pk="attack"]').textContent=`攻撃：${target.name}`;
+  pickEl.querySelector('[data-pk="move"]').disabled=!dest;
+  pickEl.hidden=false;
+  const r=pickEl.getBoundingClientRect();
+  pickEl.style.transform=`translate(${Math.min(x+12,W-r.width-8)}px,${Math.min(y+8,H-r.height-8)}px)`;
+}
+function closePick(){ pickCtx=null; pickEl.hidden=true; }
+pickEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  const c=pickCtx; closePick(); if(!c||over||!selected||!selected.alive) return;
+  if(b.dataset.pk==='attack'){ if(c.target.alive) groupOrder({type:'attack',target:c.target}); }
+  else if(c.dest){ groupOrder({type:'move',dest:c.dest,queue:c.queue}); hideHint(); }
+}));
 let down=null;
-renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button};});
-renderer.domElement.addEventListener('pointerup',e=>{ if(down&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey); down=null; });
+/* a click that only closes the choice does not also give an order */
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button,closing:!!pickCtx}; closePick();});
+renderer.domElement.addEventListener('pointerup',e=>{ if(down&&!down.closing&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey); down=null; });
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const hintEl=document.getElementById('hint'); let hintGone=false;
 function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); setTimeout(()=>hintEl.hidden=true,800); }
@@ -190,7 +210,7 @@ document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click'
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks the whole army group, Esc clears the selection */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ select(null); return; }
+  if(e.code==='Escape'){ if(pickCtx) closePick(); else select(null); return; }
   if(e.code==='KeyG'){ if(armyGroup&&!selGroupMode) selectGroup(); return; }
   const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
