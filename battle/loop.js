@@ -66,7 +66,7 @@ function frame(now){
   }
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
   for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
-  stepParticles(rdt*(speed||1)*(over?1:1)); stepTracers(dt>0?dt:0);
+  stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
   for(const ar of [...arrows]){

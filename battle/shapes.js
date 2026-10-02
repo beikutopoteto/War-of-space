@@ -13,7 +13,6 @@ function joinParts(parts){
   return out;
 }
 const box=(w,h,l)=>new THREE.BoxGeometry(w,h,l);
-const nose=(r,l,seg=4)=>{ const g=new THREE.ConeGeometry(r,l,seg); g.rotateX(Math.PI/2); return g; }      // tip toward +Z
 const tube=(r,l,seg=8)=>{ const g=new THREE.CylinderGeometry(r,r,l,seg); g.rotateX(Math.PI/2); return g; } // along Z
 const taper=(r0,r1,l,seg=8)=>{ const g=new THREE.CylinderGeometry(r1,r0,l,seg); g.rotateX(Math.PI/2); return g; } // r0 at the back, r1 at the front
 
