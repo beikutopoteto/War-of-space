@@ -2,7 +2,7 @@
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- HUD ---------- */
 /* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second */
-const CLOCK_RATE=.5;
+const CLOCK_RATE=5;   // 戦闘の1秒で作戦の時計が5分進む（ユーザー決定 2026-10-02: 前の10倍）
 /* the operation clock at `min` minutes after the start (now, by default) */
 function clockStr(min=gameSec*CLOCK_RATE){ const [h0,m0]=(op.start||'08:00').split(':').map(Number), m=h0*60+m0+Math.floor(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }

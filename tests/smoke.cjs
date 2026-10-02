@@ -321,13 +321,13 @@ function check(ok, label, detail = '') {
     const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
     check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
     await page.click('#talkSkip');
-    const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = 10 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
+    const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = op.convoy.depart * .5 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
       return { text: goalText.textContent, label: goalLabel.textContent, sub: goalSub.textContent }; });
     check(goal.label.startsWith('乗船 50%') && goal.text.length > 0 && goal.sub.includes('5/5'), 'ネオ信濃奇襲: 右上の任務欄に乗船のゲージと指示が出る', goal.label);
     const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
       /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
       fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
-      const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
+      const end = (op.convoy.depart + 10) / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
@@ -342,7 +342,7 @@ function check(ok, label, detail = '') {
     check(sw1.filter(s => s === 'evade').length === 1 && sw2.every(s => s === 'evade') && sync0 !== sync1, '艦隊一覧: 自動交戦/命令優先（1隊・全軍）と速度同期を切り替えられる');
     await page.evaluate(() => { fleets.forEach(f => f.stance = 'engage'); armyGroup.sync = false; updateRoster(); });
     check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
-    check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
+    check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、09:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);
     await shot('09-shinano');
     const win = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
