@@ -3,34 +3,23 @@
 (() => {
 'use strict';
 
-/* ---------- master data (values are provisional) ---------- */
+/* ---------- master data (data/*.js, values are provisional) ---------- */
 const STATS = [
   {k:'atk', n:'攻撃'}, {k:'def', n:'防御'}, {k:'eva', n:'回避'},
   {k:'rng', n:'射程'}, {k:'vis', n:'視界'}, {k:'stl', n:'隠蔽性'}
 ];
-const SHIPS = [
-  {id:'cv',   name:'コルベット',        atk:2, def:1, eva:9, rng:3, vis:8, stl:9, spd:10, max:12, scale:.55, note:'偵察と哨戒を担う小型艦'},
-  {id:'ff',   name:'フリゲート',        atk:3, def:2, eva:7, rng:4, vis:7, stl:7, spd:8,  max:10, scale:.7,  note:'護衛と対小型艦戦'},
-  {id:'dd',   name:'駆逐艦',            atk:5, def:3, eva:6, rng:5, vis:6, stl:6, spd:7,  max:8,  scale:.85, note:'雷撃で大型艦を狙う'},
-  {id:'cl',   name:'巡洋艦',            atk:6, def:6, eva:4, rng:6, vis:6, stl:4, spd:5,  max:6,  scale:1.2, note:'攻守の均衡した主力艦'},
-  {id:'bb',   name:'戦艦',              atk:9, def:9, eva:2, rng:8, vis:5, stl:2, spd:3,  max:4,  scale:1.7, note:'長射程の主砲を持つ決戦艦'},
-  {id:'cvb',  name:'戦闘母艦',          atk:4, def:5, eva:3, rng:4, vis:7, stl:3, spd:4,  max:3,  scale:1.6, hangar:{ftr:40}, note:'艦載機（W.A.S.ではない）を発進させ、遠くの敵を叩く'},
-  {id:'mas',  name:'突撃揚陸艦',        atk:5, def:4, eva:5, rng:2, vis:5, stl:7, spd:6,  max:6,  scale:.9,  hangar:{was:10}, note:'W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる'},
-  {id:'masc', name:'強襲母艦',          atk:4, def:5, eva:2, rng:3, vis:6, stl:3, spd:4,  max:3,  scale:1.6, hangar:{was:30,ftr:10}, note:'W.A.S.が主力。艦載機も少し出せる'},
-];
-const SHIP = Object.fromEntries(SHIPS.map(s=>[s.id,s]));
-const CARRIERS = ['cvb','masc'];
-const CRAFT = {ftr:'艦載機', was:'W.A.S.'};
-const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${CRAFT[k]}${Math.round(v)}`).join('・'):'';
-const BONUSES = [
-  {id:'strike', name:'打撃艦隊', cond:'戦艦・巡洋艦・駆逐艦を含む', eff:'攻撃 +15%', test:t=>t.has('bb')&&t.has('cl')&&t.has('dd'), mod:{atk:1.15}},
-  {id:'escort', name:'護衛艦隊', cond:'母艦と、フリゲートかコルベットを含む', eff:'防御 +15%', test:t=>CARRIERS.some(c=>t.has(c))&&(t.has('ff')||t.has('cv')), mod:{def:1.15}},
-  {id:'air',    name:'機動部隊', cond:'母艦の戦闘団が2つ以上', eff:'射程 +10%', test:(t,bgs)=>bgs.filter(b=>CARRIERS.includes(b.type)).length>=2, mod:{rng:1.1}},
-  {id:'scout',  name:'前衛偵察', cond:'コルベットを含む', eff:'視界 +25%', test:t=>t.has('cv'), mod:{vis:1.25}},
-  {id:'stealth',name:'隠密艦隊', cond:'全戦闘団の隠蔽性が6以上', eff:'隠蔽性 +20%', test:(t,bgs)=>bgs.length>0&&bgs.every(b=>SHIP[b.type].stl>=6), mod:{stl:1.2}},
-  {id:'assault',name:'強襲揚陸', cond:'突撃揚陸艦と強襲母艦を含む', eff:'攻撃 +10%・回避 +10%', test:t=>t.has('mas')&&t.has('masc'), mod:{atk:1.1,eva:1.1}},
-  {id:'uniform',name:'単一艦種', cond:'3つ以上の戦闘団がすべて同じ艦種', eff:'全能力 +5%', test:(t,bgs)=>bgs.length>=3&&t.size===1, mod:{atk:1.05,def:1.05,eva:1.05,rng:1.05,vis:1.05,stl:1.05}},
-];
+const D=window.WOS_DATA;
+const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations;
+const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
+const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
+/* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */
+function bonusOn(bn,types,bgs){ const c=bn.when||{};
+  if(c.need&&!c.need.every(any=>any.some(t=>types.has(t)))) return false;
+  if(c.count&&bgs.filter(b=>c.count.types.includes(b.type)).length<c.count.min) return false;
+  if(c.minStat&&!(bgs.length&&bgs.every(b=>SHIP[b.type][c.minStat.stat]>=c.minStat.min))) return false;
+  if(c.minBgs&&bgs.length<c.minBgs) return false;
+  if(c.sameType&&types.size!==1) return false;
+  return true; }
 const MAX_BG=5, MAX_ARMY=5, CUBE=5;
 const GROUP_COLORS=['#7fc8ff','#8fe8c0','#f0d27a','#c9a7ff','#ff9fc2'];
 
@@ -84,11 +73,11 @@ function armyStats(a){
     st.vis=Math.max(st.vis,s.vis); st.stl=Math.min(st.stl,s.stl); st.spd=Math.min(st.spd,s.spd); });
   if(!bgs.length) st.stl=0;
   const hangar={}; bgs.forEach(b=>Object.entries(SHIP[b.type].hangar||{}).forEach(([k,v])=>hangar[k]=(hangar[k]||0)+v*b.count));
-  const active=BONUSES.filter(b=>b.test(types,bgs));
+  const active=BONUSES.filter(b=>bonusOn(b,types,bgs));
   active.forEach(b=>Object.entries(b.mod).forEach(([k,m])=>st[k]*=m));
   return {st,ships,bgs,active,hangar};
 }
-/* convert an army into the battle fleet spec used by index.html */
+/* convert an army into the battle fleet spec used by battle/ */
 function armyToFleet(a){
   const {st,ships,bgs,hangar}=armyStats(a);
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
@@ -100,7 +89,7 @@ function armyToFleet(a){
 
 /* ---------- screens ---------- */
 const menu=document.getElementById('menu');
-let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroup=null, confirmDel=null;
+let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroup=null, sortieOp=OPS[0].id, confirmDel=null;
 
 function show(s){ screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
@@ -130,7 +119,7 @@ menu.innerHTML=`
   <div class="sortie">
     <div class="pane">
       <h3>作戦</h3>
-      <div class="op sel"><b>要塞カリュブディス攻略戦</b><span>二つの小惑星を接合した敵要塞。防空4隊と近衛艦隊が守り、開戦30分後に北から増援が来る。</span><em>敵戦力：艦隊5・要塞1／難易度：標準</em></div>
+      <div id="opList" class="cards"></div>
     </div>
     <div class="pane">
       <h3>出撃する軍集団</h3>
@@ -168,6 +157,10 @@ menu.addEventListener('click',e=>{
 /* ---------- sortie ---------- */
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function renderSortie(){
+  if(!OPS.find(o=>o.id===sortieOp)) sortieOp=OPS[0].id;
+  const ol=document.getElementById('opList');
+  ol.innerHTML=OPS.map(o=>`<button class="op ${o.id===sortieOp?'sel':''}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}"><b>${esc(o.name)}</b><span>${esc(o.summary)}</span><em>${esc(o.threat)}</em></button>`).join('');
+  ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   if(!save.groups.find(g=>g.id===sortieGroup)) sortieGroup=save.groups[0]?.id||null;
   const el=document.getElementById('sgList');
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0);
@@ -181,10 +174,11 @@ function renderSortie(){
 function startBattle(g){
   if(!window.WOS) return;
   if(!g){ window.WOS.start(null); return; }
+  const op=OPS.find(o=>o.id===sortieOp)||OPS[0], [cx,cz]=op.deploy||[0,112];
   const fleets=[], members=[];
   g.members.forEach(m=>{ const a=armyById(m.army); if(!a||!armyStats(a).ships) return;
-    const f=armyToFleet(a); f.pos=[(m.x-2)*16,112+(m.z-2)*16]; f.alt=(m.y-2)*10; members.push(fleets.length); fleets.push(f); });
-  window.WOS.start({fleets, group:{name:g.name, sync:g.sync, members}});
+    const f=armyToFleet(a); f.pos=[cx+(m.x-2)*16,cz+(m.z-2)*16]; f.alt=(m.y-2)*10; members.push(fleets.length); fleets.push(f); });
+  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members}});
 }
 
 /* ---------- organization ---------- */
