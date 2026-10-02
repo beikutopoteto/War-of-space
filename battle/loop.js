@@ -35,9 +35,9 @@ function frame(now){
   // ships
   for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
-    const k=1-Math.exp(-(dt>0?dt:0)*2.5);
+    const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
-      _w.copy(f.pos).add(s.off); _w.y+=Math.sin(time*.8+s.wob)*.35;
+      _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
       const m=shipMeshes[f.team][s.type]; if(m.count>=SHIP_MAX) continue;

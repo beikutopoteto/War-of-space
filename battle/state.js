@@ -11,13 +11,17 @@ function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
-  const R=Math.sqrt(o.n)*1.35*o.scale;
-  const types=shipClasses(o);
-  for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
-    const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
+  /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
+     In a fleet that mixes carriers with other classes, the carriers keep to the rear */
+  const types=shipClasses(o), nc=types.filter(t=>CARRIERS.has(t)).length, mixed=nc>0&&nc<o.n;
+  const R=Math.sqrt(mixed?o.n-nc:o.n)*1.35*o.scale, Rc=Math.sqrt(nc)*1.35*o.scale;
+  for(let i=0;i<o.n;i++){ const rear=mixed&&CARRIERS.has(types[i]), rr=rear?Rc:R, a=Math.random()*Math.PI*2, r=rr*Math.sqrt(Math.random());
+    const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r-(rear?R+Rc+2*o.scale:0));
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6,type:types[i]});}
   f.hangars=makeHangars(o.hangar);
   f.launchR=f.hangars.reduce((m,h)=>Math.max(m,WING[h.type].launchR),0);
+  f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,WING[h.type].launchR),Infinity);
+  f.carrierOnly=f.hangars.length>0&&nc===o.n;
   f.el=mkUnitLabel(team,o.name,'');
   return f;
 }
@@ -32,6 +36,8 @@ function shipClasses(o){
 }
 /* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
 const WING=WOS_DATA.crafts;
+/* ship classes that carry craft (a hangar in data/ships.js) */
+const CARRIERS=new Set(WOS_DATA.ships.filter(c=>c.hangar).map(c=>c.id));
 function makeHangars(hg){
   if(!hg) return [];
   return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
