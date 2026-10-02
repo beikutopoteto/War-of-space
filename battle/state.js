@@ -1,24 +1,15 @@
 /* War of Space battle: game state, fleet specs, fleets and hangars, roster, reset.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- game state ---------- */
-let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, reinforced, fortressMarks, fid;
-const PLAYER_SPEC=[
-  {name:'第1突撃艇隊',sub:'高速・軽装',n:24,hp:10,dmg:1.25,range:15,speed:10,scale:.75,pos:[-24,112],alt:-8,vis:8,stl:7},
-  {name:'第2戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[12,118],alt:6,vis:6,stl:4},
-  {name:'第3戦隊',sub:'主力巡洋艦',n:10,hp:42,dmg:4.2,range:22,speed:5.5,scale:1.5,pos:[100,64],alt:24,vis:6,stl:4},
-  {name:'第7機動部隊',sub:'戦闘母艦',n:3,hp:70,dmg:1.6,range:14,speed:5,scale:1.6,pos:[-108,46],alt:-26,vis:7,stl:3,hangar:{ftr:120}},
-];
-const ENEMY_SPEC=[
-  {name:'防空第1隊',sub:'北宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,-52],alt:18,ai:'guard',leash:42,vis:5,stl:5},
-  {name:'防空第2隊',sub:'南宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[0,52],alt:-14,ai:'guard',leash:42,vis:5,stl:5},
-  {name:'防空第3隊',sub:'東宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[54,0],alt:4,ai:'guard',leash:42,vis:5,stl:5},
-  {name:'防空第4隊',sub:'西宙域守備',n:16,hp:12,dmg:1.3,range:16,speed:7,scale:.8,pos:[-54,0],alt:22,ai:'guard',leash:42,vis:5,stl:5},
-  {name:'近衛艦隊',sub:'要塞直掩',n:12,hp:36,dmg:3.4,range:20,speed:5,scale:1.4,pos:[-8,-22],alt:-6,ai:'guard',leash:30,vis:6,stl:3},
-];
+let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, fortressMarks, fid;
+/* the operation being fought (data/operations.js) */
+const OPS=WOS_DATA.operations;
+let op=OPS[0], nextReinf=0;
 
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9};
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
+    watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null};
   const R=Math.sqrt(o.n)*1.35*o.scale;
   for(let i=0;i<o.n;i++){const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r);
@@ -29,10 +20,7 @@ function makeFleet(team,o){
   return f;
 }
 /* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
-const WING={
-  ftr:{name:'艦載機',squad:30,maxOut:3,launchR:52,range:9,speed:17,hp:5,eva:.45,dmg:.3,fuel:24,rearm:8,cd:3,vis:5,stl:7},
-  was:{name:'W.A.S.',squad:20,maxOut:3,launchR:30,range:5,speed:10,hp:10,eva:.25,dmg:.65,fuel:16,rearm:10,cd:4,vis:4,stl:6},
-};
+const WING=WOS_DATA.crafts;
 function makeHangars(hg){
   if(!hg) return [];
   return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
@@ -117,17 +105,20 @@ function reset(cfg=lastCfg){
   if(fortress) fortress.el.remove();
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
-  fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); reinforced=false; fortressMarks=new Set(); events=[];
-  const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:PLAYER_SPEC;
-  fleets=[...spec.map(o=>makeFleet(0,o)),...ENEMY_SPEC.map(o=>makeFleet(1,o))];
+  fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextReinf=0; fortressMarks=new Set(); events=[];
+  op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
+  fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
   selGroupMode=false;
   armyGroup=cfg&&cfg.group?{name:cfg.group.name,sync:cfg.group.sync,members:new Set(cfg.group.members.map(i=>fleets[i]))}:null;
-  fortress={kind:'fortress',team:1,id:0,name:'要塞カリュブディス',pos:new THREE.Vector3(0,3,0),hpPool:3200,max:3200,dps:18,range:46,radius:11,alive:true,retarget:0,fireTarget:null,vis:8,seen:true,everSeen:true,revealT:0};
+  const F=op.fortress;
+  fortress={kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0};
   fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px';
   setPhase('布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
-  showBrief('作戦概要','要塞カリュブディス攻略戦','二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。敵艦隊は味方の視界に入るまで見えない。'); flashBrief(8000);
+  showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
+  buildSectors(op.sectors);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster();
 }

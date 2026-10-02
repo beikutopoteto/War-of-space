@@ -1,7 +1,9 @@
 /* War of Space battle: HUD text, selection and orders, altitude bar, camera, input.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- HUD ---------- */
-function clockStr(){ const m=8*60+Math.floor(gameSec*.5); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+/* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second */
+const CLOCK_RATE=.5;
+function clockStr(){ const [h0,m0]=(op.start||'08:00').split(':').map(Number), m=h0*60+m0+Math.floor(gameSec*CLOCK_RATE); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
 function logEvent(title,desc){

@@ -8,12 +8,14 @@ function mkUnitLabel(team,name,sub){
   el.querySelector('b').textContent=name; el.querySelector('span').innerHTML=sub;
   labelsEl.appendChild(el); return el;
 }
-const sectors=[
-  {name:'北宙域',sub:'本国航路・増援の出口',p:[22,-82]},
-  {name:'東宙域',sub:'暗礁帯',p:[86,10]},
-  {name:'南宙域',sub:'連合艦隊の進入方向',p:[-20,92]},
-  {name:'西宙域',sub:'哨戒線のみ',p:[-92,-12]}
-].map(s=>{const el=document.createElement('div');el.className='sector';el.innerHTML=`<b>${s.name}</b><span>${s.sub}</span>`;labelsEl.appendChild(el);return {el,pos:new THREE.Vector3(s.p[0],0,s.p[1])};});
+/* sector names on the battle plane, set per operation */
+let sectors=[];
+function buildSectors(list){
+  sectors.forEach(s=>s.el.remove());
+  sectors=(list||[]).map(s=>{const el=document.createElement('div');el.className='sector';el.innerHTML='<b></b><span></span>';
+    el.querySelector('b').textContent=s.name; el.querySelector('span').textContent=s.sub||'';
+    labelsEl.appendChild(el);return {el,pos:new THREE.Vector3(s.pos[0],0,s.pos[1])};});
+}
 
 /* ---------- ships ---------- */
 const shipGeo=new THREE.ConeGeometry(.45,2,5); shipGeo.rotateX(Math.PI/2);

@@ -36,7 +36,7 @@ function damage(t,amt,src){
     if(last===undefined){
       const a=src.team===0?src:t, b=src.team===0?t:src;
       if(t.kind==='fortress'||src.kind==='fortress'){
-        if(phaseName!=='要塞攻略'){ setPhase('要塞攻略'); logEvent('要塞攻略開始',`${a.name}が要塞の防空砲火圏に突入。要塞の主砲は射程46、近づくほど危険。`); }
+        if(phaseName!=='要塞攻略'){ setPhase('要塞攻略'); logEvent('要塞攻略開始',`${a.name}が要塞の防空砲火圏に突入。要塞の主砲は射程${fortress.range}、近づくほど危険。`); }
       } else { if(phaseName==='布陣') setPhase('交戦'); if(!wingy) logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
     }
     engaged.set(key,gameSec);
@@ -68,8 +68,9 @@ function end(win){
   if(over) return; over=true; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
-  document.getElementById('rp').textContent=win?`${clockStr()}、要塞カリュブディス陥落。残存艦 ${left}隻。`:`${clockStr()}、連合艦隊は壊滅した。防空隊を一つずつ引き剥がしてから要塞を叩こう。`;
-  logEvent(win?'要塞カリュブディス陥落':'連合艦隊 壊滅',win?'要塞の主砲が沈黙した。惑星共和国の防衛線は崩壊。':'作戦は失敗に終わった。');
+  const R=op.result;
+  document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}残存艦 ${left}隻。`:`${clockStr()}、${R.lose}`;
+  logEvent(...(win?R.winLog:R.loseLog));
   setTimeout(()=>{document.getElementById('result').hidden=false;},1600);
 }
 
@@ -124,8 +125,7 @@ function stepWings(dt){
 }
 
 let aiTimer=0;
-/* with no allied fleet in sight, the reinforcement takes up a watch north of the fortress */
-const HUNT_POST=new THREE.Vector3(0,22,-38);
+/* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 function enemyAI(){
   const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen);
   for(const f of fleets){
@@ -133,17 +133,19 @@ function enemyAI(){
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
-    else if(f.ai==='hunt'){ if(f.pos.distanceTo(HUNT_POST)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:HUNT_POST.clone()}; }
+    else if(f.ai==='hunt'){ const w=f.watchPos||f.post; if(f.pos.distanceTo(w)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:w.clone()}; }
     else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2){ f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
   }
 }
 
 function step(dt){
   gameSec+=dt;
-  if(!reinforced&&gameSec>=60){ reinforced=true;
-    const r=makeFleet(1,{name:'第5戦隊',sub:'本国からの増援',n:14,hp:30,dmg:3,range:20,speed:6.5,scale:1.3,pos:[10,-150],alt:34,ai:'hunt',leash:0});
-    fleets.push(r); makeArrow(r.pos,new THREE.Vector3(0,20,-60),TEAM_COL[1],{life:6});
-    logEvent('北宙域に艦影の反応','本国航路の出口で大きな反応。惑星共和国の増援とみられる。位置をつかむには視界に捉える必要がある。');
+  /* reinforcements arrive in order, `after` minutes into the operation clock */
+  const rf=op.reinforcements||[];
+  while(nextReinf<rf.length&&gameSec*CLOCK_RATE>=rf[nextReinf].after){ const R=rf[nextReinf++];
+    const r=makeFleet(1,{leash:0,...R.fleet}); fleets.push(r);
+    if(R.arrow) makeArrow(r.pos,new THREE.Vector3(R.arrow.pos[0],R.arrow.alt||0,R.arrow.pos[1]),TEAM_COL[1],{life:6});
+    if(R.log) logEvent(...R.log);
   }
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}

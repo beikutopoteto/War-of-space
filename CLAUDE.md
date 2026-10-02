@@ -8,11 +8,15 @@
 
 ## ファイルと動かし方
 - `index.html`: 画面の骨組み（HUD の HTML）と読み込みだけ。ビルド不要。ブラウザで開けば動く（`file://` でも動くよう、ES モジュールではなく普通の `<script>` で読む）。
+- `data/`: ゲームのデータ。`index.html` が `battle/` より先に読み込み、`window.WOS_DATA` にまとめる。数値や作戦を足すときはここだけを直す。書き方は各ファイルの先頭のコメント。
+  - `ships.js`: 艦種（8種）と小型機（艦載機・W.A.S.）
+  - `bonuses.js`: 編成ボーナス（条件もデータで書く）
+  - `operations.js`: 作戦（マップ）。宙域名、要塞、敵艦隊、増援、クイック戦闘の自軍、勝敗の文。最初の作戦がクイック戦闘になる
 - `battle/`: 戦闘画面。`index.html` が次の順で読み込む。普通の `<script>` なので、各ファイルの一番外側の `const`/`let`/`function` はほかのファイルからも見える（ファイルを読み込んだ時点で後のファイルの関数はまだないので、読み込み時に呼ぶ処理は `loop.js` に置く）。
   - `scene.js`: レンダラー、シーン、星、グリッド、要塞小惑星、デブリ
   - `effects.js`: 爆発の粒子、曳光弾、進軍矢印
   - `units.js`: 名札、艦のメッシュ、選択リング、高度の線
-  - `state.js`: 戦闘の状態、両軍の艦隊データ、艦隊と格納庫の生成、ロスター、`reset()`
+  - `state.js`: 戦闘の状態、艦隊と格納庫の生成、ロスター、`reset()`（作戦のデータから戦場を組む）
   - `hud.js`: 解説パネル、選択と命令、高度バー、視点、入力
   - `sim.js`: 索敵、戦闘、艦載機と W.A.S.、敵 AI、`step()`
   - `loop.js`: 描画ループと起動
@@ -21,11 +25,11 @@
 - `docs/menu.md`: メニュー構成、ユニット階層、仮の数値（能力値、編成ボーナス、索敵の式、艦載機と W.A.S. のルール）。
 - ライブラリ: Three.js r128 を cdnjs から、OrbitControls と EffectComposer/UnrealBloom を jsdelivr の `three@0.128.0/examples/js` から読む。
 - 保存: localStorage のキー `wos.save.v1`。読み込み時に `migrate()` で古い名前を直す。
-- 連携: `prep.js` は `window.WOS.start({fleets, group})`（`battle/hud.js` が定義）で戦闘を始める。戦闘後は `battle/hud.js` が `window.WOS_MENU.open()`（`prep.js` が定義）を呼んでメニューへ戻る。
+- 連携: `prep.js` は `window.WOS.start({op, fleets, group})`（`battle/hud.js` が定義）で戦闘を始める。`op` は作戦の `id`。戦闘後は `battle/hud.js` が `window.WOS_MENU.open()`（`prep.js` が定義）を呼んでメニューへ戻る。
 - 艦隊の仕様の形式:
 
   ```
-  {name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, eva?, hangar?:{ftr, was}, ai?, leash?}
+  {name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, eva?, hangar?:{ftr, was}, ai?, leash?, watch?:{pos:[x,z], alt}}
   ```
 
   `prep.js` の `armyToFleet()` が軍をこの形に変換する。
