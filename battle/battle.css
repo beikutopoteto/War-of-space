@@ -90,6 +90,11 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #alt .val{font-family:var(--f-num);font-weight:600;font-size:15px;color:var(--blue);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:center}
 #alt button{width:34px;height:28px;background:transparent;color:var(--ink);border:1px solid var(--line);font-size:13px;cursor:pointer}
 #alt button:focus-visible,#altTrack:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#stance{display:grid;gap:3px;margin-top:2px}
+#alt #stance button{height:22px;font-family:var(--f-ui);font-size:11px;padding:0;color:var(--ink-dim)}
+#alt #stance button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
+#alt #stance button[data-st="evade"][aria-pressed="true"]{background:var(--brass);border-color:var(--brass)}
+#roster button.evade{border-left-style:dashed}
 #altTrack{position:relative;width:34px;height:170px;cursor:ns-resize;touch-action:none}
 #altTrack::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(var(--blue),rgba(127,200,255,.15) 50%,var(--blue))}
 #altTrack .zero{position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--brass)}

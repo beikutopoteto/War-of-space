@@ -42,7 +42,7 @@ function frame(now){
     ar.mat.uniforms.uTime.value=time;
     if(ar.life!==Infinity){ ar.age+=dt>0?dt:0; ar.mat.uniforms.uOp.value=Math.max(0,1-ar.age/ar.life); if(ar.age>=ar.life) dropArrow(ar); }
   }
-  for(const f of fleets){ if(f.alive&&f.arrow&&f.order&&f.order.type==='move'){ const rem=f.pos.distanceTo(f.arrow.to); f.arrow.mat.uniforms.uCut.value=Math.max(0,Math.min(.9,1-rem/f.arrow.len)); } }
+  for(const f of fleets){ if(f.alive&&f.arrow&&f.order&&f.order.type==='move'&&f.order.path){ const p=f.order.path; f.arrow.mat.uniforms.uCut.value=Math.max(0,Math.min(.9,p.s/p.L)); } }
   // selection visuals
   if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));

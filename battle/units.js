@@ -62,7 +62,7 @@ function updateStalks(){
   sCol.fill(0); fCol.fill(0); let i=0;
   const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
   for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[f.team],1);
-    if(f.team===0&&f.order&&f.order.type==='move') put(f.order.dest,TEAM_COL[0],.6); }
+    if(f.team===0&&f.order&&f.order.type==='move') pathLeft(f.order).forEach(p=>put(p,TEAM_COL[0],.6)); }
   sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
   fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
 }

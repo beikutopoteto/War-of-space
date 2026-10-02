@@ -27,7 +27,7 @@ function setAlt(v,apply=true){
   const t=orderTargets(); if(!t.length) return;
   const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
   t.forEach(f=>{
-    if(f.order&&f.order.type==='move'){ const d=f.order.dest.clone(); d.y+=selAlt-cy; order(f,{type:'move',dest:d}); }
+    if(f.order&&f.order.type==='move'){ const via=pathLeft(f.order), d=via.pop().clone(); d.y+=selAlt-cy; order(f,{type:'move',via,dest:d}); }
     else if(!f.order){ order(f,{type:'move',dest:new THREE.Vector3(f.pos.x,f.pos.y+selAlt-cy,f.pos.z)}); }
   });
 }
@@ -59,8 +59,9 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o;
+  if(o.type==='move') o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
   if(f.team===1&&!f.seen) return;
-  if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team]);
+  if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
   else { const ar=makeArrow(f.pos,o.target.pos,TEAM_COL[f.team],{life:3.5}); if(f.team===0) f.arrow=ar; }
 }
 
@@ -89,15 +90,17 @@ renderer.domElement.addEventListener('pointermove',e=>{
 });
 renderer.domElement.addEventListener('pointerleave',hideGhost);
 
-/* camera views: oblique / top-down / side-on, plus F to center on the selected fleet */
-const VIEWS=[{name:'斜め',dir:()=>new THREE.Vector3(.3,.4,.87)},{name:'真上',dir:()=>new THREE.Vector3(0,1,.002)},
-  {name:'真横',dir:()=>{const d=camera.position.clone().sub(controls.target);d.y=0;if(d.lengthSq()<1e-4)d.set(0,0,1);d.normalize();d.y=.06;return d;}}];
+/* camera views: oblique / top-down / side-on, plus F to center on the selected fleet.
+   A view only sets the vertical angle (degrees above the plane); the horizontal angle stays where the player turned it */
+const VIEWS=[{name:'斜め',el:24},{name:'真上',el:88},{name:'真横',el:3}];
 let viewIdx=0, camAnim=null;
 function flyTo(target,dir,dist){
   dist=dist??camera.position.distanceTo(controls.target);
   camAnim={t:0,fT:controls.target.clone(),tT:target.clone(),fP:camera.position.clone(),tP:target.clone().add(dir.clone().normalize().multiplyScalar(dist))};
+  camAnim.fD=camAnim.fP.distanceTo(camAnim.fT); camAnim.tD=dist;
 }
-function setView(i){ viewIdx=i; flyTo(controls.target,VIEWS[i].dir());
+function setView(i){ viewIdx=i; const a=getAngles();
+  flyTo(controls.target,new THREE.Vector3().setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-VIEWS[i].el),THREE.MathUtils.degToRad(a.az)));
   document.querySelectorAll('#camView button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===i))); }
 function cycleView(){ setView((viewIdx+1)%VIEWS.length); }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
@@ -133,6 +136,7 @@ function rotateByKeys(dt){
 function stepCam(dt){
   if(!camAnim) return; camAnim.t=Math.min(1,camAnim.t+dt/.6); const k=camAnim.t*camAnim.t*(3-2*camAnim.t);
   controls.target.lerpVectors(camAnim.fT,camAnim.tT,k); camera.position.lerpVectors(camAnim.fP,camAnim.tP,k);
+  _off.subVectors(camera.position,controls.target); if(_off.lengthSq()>1e-6) camera.position.copy(controls.target).add(_off.setLength(camAnim.fD+(camAnim.tD-camAnim.fD)*k));
   if(camAnim.t>=1) camAnim=null;
 }
 document.querySelectorAll('#camView button').forEach(b=>b.addEventListener('click',()=>setView(+b.dataset.v)));
@@ -147,8 +151,9 @@ function pick(x,y){
 }
 function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
   return !!best&&best.team===0||!!(selected&&selected.alive&&(best||fort)); }
-/* left click (or tap) selects an own fleet or gives the selected fleet an order; right click only gives orders */
-function tap(x,y,cmdOnly=false){
+/* left click (or tap) selects an own fleet or gives the selected fleet an order; right click only gives orders.
+   With Shift, a click on open space queues a waypoint after the ones already set */
+function tap(x,y,cmdOnly=false,queue=false){
   if(over) return;
   const {best,fort}=pick(x,y);
   if(best&&best.team===0){ if(!cmdOnly) select(best===selected?null:best); return; }
@@ -157,12 +162,12 @@ function tap(x,y,cmdOnly=false){
     if(fort){ groupOrder({type:'attack',target:fortress}); return; }
     ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3();
     plane.constant=-selAlt;
-    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ groupOrder({type:'move',dest:hit}); hideHint(); }
+    if(ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200){ groupOrder({type:'move',dest:hit,queue}); hideHint(); }
   }
 }
 let down=null;
 renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button};});
-renderer.domElement.addEventListener('pointerup',e=>{ if(down&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2); down=null; });
+renderer.domElement.addEventListener('pointerup',e=>{ if(down&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey); down=null; });
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const hintEl=document.getElementById('hint'); let hintGone=false;
 function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); setTimeout(()=>hintEl.hidden=true,800); }
@@ -170,6 +175,15 @@ function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('g
 hintEl.addEventListener('click',hideHint);
 addEventListener('pointerdown',hideHint,{capture:true});
 
+/* engagement stance of the selected fleets: 交戦 fires at anything in range, 回避 holds fire unless ordered to attack. R toggles */
+const stanceEl=document.getElementById('stance');
+function setStance(v){ const t=orderTargets(); if(!t.length) return; t.forEach(f=>f.stance=v); updateRoster();
+  const n=t.length>1?`${armyGroup.name} 全軍`:t[0].name;
+  logEvent(v==='evade'?`${n} 回避`:`${n} 交戦`, v==='evade'?'射程内の敵にも自分からは撃たない。攻撃を命じた相手だけを撃つ。':'射程内に入った敵を撃つ。'); }
+function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
+  stanceEl.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
+stanceEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
+addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==='INPUT') return; const t=orderTargets(); if(t.length) setStance(t.every(f=>f.stance==='evade')?'engage':'evade'); });
 let runSpeed=1;
 function setSpeed(s){ speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.s)));

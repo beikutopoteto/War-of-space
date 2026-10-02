@@ -124,6 +124,33 @@ function stepWings(dt){
   wings=wings.filter(w=>w.alive);
 }
 
+/* move orders follow a path: a straight line to one point, or a smooth curve through the waypoints queued with Shift+click.
+   The arrow is drawn from the same curve, so the fleet goes exactly where the arrow shows. */
+const MAX_WAYPOINTS=8, PATH_DIV=40;
+function makePath(from,pts){
+  const all=[from.clone(),...pts.map(p=>p.clone())];
+  const curve=all.length>2?new THREE.CatmullRomCurve3(all,false,'centripetal'):new THREE.LineCurve3(all[0],all[1]);
+  curve.arcLengthDivisions=(all.length-1)*PATH_DIV;
+  const lens=curve.getLengths();
+  return {curve, L:Math.max(lens[lens.length-1],1e-3), s:0, pts:all.slice(1), at:all.slice(1).map((_,i)=>lens[(i+1)*PATH_DIV])};
+}
+/* the waypoints (and destination) still ahead of a move order */
+function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+.5):[...(o.via||[]),o.dest]; }
+/* advance along the path; true when the end is reached */
+function followPath(f,dt){
+  const o=f.order; if(!o.path) o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
+  const p=o.path; p.s=Math.min(p.L,p.s+(f.syncSpeed||f.speed)*dt);
+  const u=p.s/p.L; f.pos.copy(p.curve.getPointAt(u));
+  _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6) f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize();
+  return p.s>=p.L;
+}
+/* engagement: a fleet set to 回避 (evade) holds fire and keeps its craft aboard; it only fires on a target it was ordered to attack */
+function fireTargetOf(f){
+  if(f.stance!=='evade') return nearestFoe(f,f.range);
+  const t=f.order&&f.order.type==='attack'?f.order.target:null;
+  return t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
+}
+
 let aiTimer=0;
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 function enemyAI(){
@@ -153,23 +180,22 @@ function step(dt){
   stepWings(dt);
   for(const f of fleets){
     if(!f.alive) continue;
-    if(f.hangars.length) launchCheck(f);
-    f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=nearestFoe(f,f.range); }
-    let goal=null, stop=.6;
+    if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
+    f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
+    let goal=null, moving=false;
     if(f.order){
-      if(f.order.type==='move') goal=f.order.dest;
+      if(f.order.type==='move'){ moving=true; if(followPath(f,dt)){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } } }
       else { const t=f.order.target; if(!t.alive){ f.order=null; }
-        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; } if(f.order) goal=f.order.dest; }
-        else { goal=t.pos; stop=f.range*.75+(t.radius||0); } }
+        else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; } }
+        else goal=t; }
     }
-    if(goal){
-      _v.subVectors(goal,f.pos); const d=_v.length();
+    if(goal){ const stop=f.range*.75+(goal.radius||0);
+      _v.subVectors(goal.pos,f.pos); const d=_v.length();
       if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min((f.syncSpeed||f.speed)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
-      else if(f.order.type==='move'){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } }
     }
     const ft=f.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
-      if(!goal){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
+      if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
       damage(ft,f.ships.length*f.dmg*dt,f); f.revealT=FIRE_REVEAL;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
