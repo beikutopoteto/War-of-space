@@ -118,6 +118,14 @@ function check(ok, label, detail = '') {
     const follows = await page.evaluate(() => { const f = selected; return !!f.arrow && f.arrow.to.distanceTo(f.order.target.pos) < 1.5; });
     check(chase === 'attack' && follows, '敵をクリック: 「攻撃」で追撃し、矢印が敵を追う');
 
+    /* a queued attack starts once the move ahead of it is done */
+    const qa = await page.evaluate(() => { reset(); const f = fleets.find(x => x.team === 0), e = fleets.find(x => x.team === 1 && x.seen); select(f);
+      groupOrder({ type: 'move', dest: f.pos.clone().add(new THREE.Vector3(0, 0, -15)) }); groupOrder({ type: 'attack', target: e, queue: true });
+      const queued = f.queue.length, first = f.order.type; let n = 0; while (f.order && f.order.type === 'move' && n++ < 2000) step(.05);
+      return { queued, first, then: f.order && f.order.type, target: f.order && f.order.target === e }; });
+    check(qa.queued === 1 && qa.first === 'move' && qa.then === 'attack' && qa.target, '予約指示: 移動のあとに予約した攻撃が始まる');
+    await page.evaluate(() => { reset(); select(null); });
+
     /* engagement stance: 回避 holds fire, 交戦 fires */
     const stance = await page.evaluate(() => ['evade', 'engage'].map(st => {
       reset(); const f = fleets.find(x => x.team === 0), e = fleets.find(x => x.team === 1);
@@ -143,18 +151,18 @@ function check(ok, label, detail = '') {
     await page.evaluate(() => WOS.openMenu());
     await page.click('#result >> text=メニューへ').catch(() => {});
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
-    check((await page.textContent('#sgList')).includes('決まった艦隊'), '信濃奇襲: 出撃画面で決まった艦隊を使う');
+    check((await page.textContent('#sgList')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
     const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
-    check(talk.talking && talk.sec === 0 && talk.who.length > 0, '信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
+    check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
     await page.click('#talkSkip');
     const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
       /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
       fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
       const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
-    check(sh.convoy && sh.station && !sh.fort, '信濃奇襲: 中継ステーションと輸送船団が出る');
-    check(sh.departed && sh.assault && sh.phase === '出港', '信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
+    check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
+    check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);
     await shot('09-shinano');
     const win = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
@@ -163,10 +171,10 @@ function check(ok, label, detail = '') {
     const winTalk = await page.isVisible('#talk');
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
-    check(win.over && win.saved && winTalk && await page.textContent('#rh') === '勝利', '信濃奇襲: 船団が離脱点を越えると、会話のあと勝利');
+    check(win.over && win.saved && winTalk && await page.textContent('#rh') === '勝利', 'ネオ信濃奇襲: 船団が離脱点を越えると、会話のあと勝利');
     const lose = await page.evaluate(() => { reset(); endTalk(); const src = fleets.find(f => f.team === 1);
       damage(convoy, convoy.hp * 3.2 / (1 - (convoy.eva || 0)), src); step(.05); return { over, left: convoy.ships.length, rh: document.getElementById('rh').textContent }; });
-    check(lose.over && lose.rh === '敗北', '信濃奇襲: 輸送船を3隻失うと敗北');
+    check(lose.over && lose.rh === '敗北', 'ネオ信濃奇襲: 輸送船を3隻失うと敗北');
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

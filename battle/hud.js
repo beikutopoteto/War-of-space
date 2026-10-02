@@ -172,7 +172,8 @@ function groundAt(x,y){
 const pickEl=document.getElementById('pick'); let pickCtx=null;
 function openPick(x,y,target,dest,queue){
   pickCtx={target,dest,queue};
-  pickEl.querySelector('[data-pk="attack"]').textContent=`攻撃：${target.name}`;
+  pickEl.querySelector('[data-pk="attack"]').textContent=queue?`攻撃を予約：${target.name}`:`攻撃：${target.name}`;
+  pickEl.querySelector('[data-pk="move"]').textContent=queue?'ここを経由地に予約':'ここへ移動';
   pickEl.querySelector('[data-pk="move"]').disabled=!dest;
   pickEl.hidden=false;
   const r=pickEl.getBoundingClientRect();
@@ -181,7 +182,7 @@ function openPick(x,y,target,dest,queue){
 function closePick(){ pickCtx=null; pickEl.hidden=true; }
 pickEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const c=pickCtx; closePick(); if(!c||over||!selected||!selected.alive) return;
-  if(b.dataset.pk==='attack'){ if(c.target.alive) groupOrder({type:'attack',target:c.target}); }
+  if(b.dataset.pk==='attack'){ if(c.target.alive) groupOrder({type:'attack',target:c.target,queue:c.queue}); }
   else if(c.dest){ groupOrder({type:'move',dest:c.dest,queue:c.queue}); hideHint(); }
 }));
 let down=null;
