@@ -165,6 +165,8 @@ function check(ok, label, detail = '') {
       const end = 21 / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
+    const rosterNames = await page.$$eval('#roster button', e => e.map(x => x.textContent));
+    check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
     check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、06:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);
     await shot('09-shinano');

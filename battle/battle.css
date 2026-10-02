@@ -209,7 +209,6 @@ body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important
 #talk p{margin:3px 0 4px;font-size:14px;line-height:1.6;color:var(--ink)}
 #talk .ctl{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-dim)}
 #talk button{font-family:var(--f-ui);font-size:11px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:2px 8px;cursor:pointer}
-#roster .convoyRow{border-left-color:var(--brass);background:rgba(240,210,122,.08)}
 #pick{position:fixed;left:0;top:0;display:grid;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px);z-index:5}
 #pick button{font-family:var(--f-ui);font-size:12px;text-align:left;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);padding:4px 10px;cursor:pointer}
 #pick button[data-pk="attack"]{border-color:rgba(255,106,69,.6)}
