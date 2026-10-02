@@ -18,7 +18,8 @@ window.WOS_DATA=window.WOS_DATA||{};
    center: 中央の物。'station' は中継ステーション（攻撃の対象ではない）。fortress を書かなければ要塞は出ない
    phase: 開始時の段階の名前　exit: 離脱点 {pos, alt}（地図に輪を出す）　view: 最初の視点 {target:[x,z], dist}
    events: 時刻の出来事 [{after, log?, phase?, fleet?, arrow?, blast?:[x,z,alt]}]（reinforcements と同じ形で、まとめて時刻順に起きる）
-   convoy: 輸送船団 {fleet, depart, route:[{pos, alt}…]}。depart 分まで乗船して動かず、そのあと route をたどる。最後の点が離脱点
+   convoy: 輸送船団 {fleet, depart, route:[{pos, alt}…], boardText?, escortText?}。depart 分まで乗船して動かず、そのあと route をたどる。最後の点が離脱点。
+     boardText / escortText は右上の任務欄に出す指示（乗船中 / 出港後）
    win: {type:'escort', lose} なら、船団が離脱点を越えれば勝ち、輸送船を lose 隻失えば負け（書かなければ要塞の撃破で勝ち）
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …] */
@@ -89,6 +90,7 @@ WOS_DATA.operations=[
     convoy:{
       fleet:{name:'輸送船団', sub:'白鷺ほか', type:'tr', n:5, hp:30, speed:4, scale:1.4, pos:[16,10], alt:-4, vis:4, stl:2},
       depart:20,
+      boardText:'乗船が終わるまで、敵を輸送船団に近づけるな', escortText:'輸送船団を離脱点（南の輪）まで守れ',
       route:[{pos:[24,60], alt:-4}, {pos:[10,120], alt:0}, {pos:[0,175], alt:0}],
     },
     win:{type:'escort', lose:3},

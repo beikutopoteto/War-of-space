@@ -161,5 +161,5 @@ function reset(cfg=lastCfg){
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
   buildSectors(op.sectors);
   fogTimer=0; updateFog();
-  buildRoster(); updateRoster();
+  buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }

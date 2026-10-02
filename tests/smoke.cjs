@@ -156,6 +156,9 @@ function check(ok, label, detail = '') {
     const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
     check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
     await page.click('#talkSkip');
+    const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = 10 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
+      return { text: goalText.textContent, label: goalLabel.textContent, sub: goalSub.textContent }; });
+    check(goal.label.startsWith('乗船 50%') && goal.text.length > 0 && goal.sub.includes('5/5'), 'ネオ信濃奇襲: 右上の任務欄に乗船のゲージと指示が出る', goal.label);
     const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
       /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
       fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
