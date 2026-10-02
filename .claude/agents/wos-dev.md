@@ -31,42 +31,11 @@ description: War of Space のゲーム作成を手伝うエージェント。戦
 
 ## 動作確認
 
-変更したら必ずヘッドレス Chromium（Playwright）で開いて確かめる。CDN に届かない環境があるので、three の中身を `npm pack` で取ってきて `page.route` で返す。作業用のファイルはリポジトリの外（スクラッチパッドなど）に置く。
+変更したら必ずヘッドレス Chromium（Playwright）で確かめる。
 
-```bash
-W=<作業用ディレクトリ>   # スクラッチパッドがあればそこ
-cd $W && [ -d package ] || (npm pack three@0.128.0 && tar xzf three-0.128.0.tgz)
-NODE_PATH=$(npm root -g) node $W/check.cjs <リポジトリの絶対パス> $W/package $W/shots
-```
-
-`check.cjs` の中身（作業に合わせて、クリックする場所や待ち時間、撮る場面を足す）:
-
-```js
-const { chromium } = require('playwright');
-const path = require('path'), fs = require('fs');
-const [repo, three, out] = process.argv.slice(2);
-(async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  const errors = [];
-  page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, route => {
-    const u = route.request().url();
-    const rel = u.includes('cdnjs') ? 'build/three.min.js' : u.split('three@0.128.0/')[1];
-    route.fulfill({ path: path.join(three, rel), contentType: 'application/javascript' });
-  });
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ body: '' }));
-  await page.goto('file://' + path.join(repo, 'index.html'));
-  fs.mkdirSync(out, { recursive: true });
-  await page.screenshot({ path: path.join(out, 'menu.png') });
-  await page.click('[data-act="quick"]');       // クイック戦闘
-  await page.waitForTimeout(8000);
-  await page.screenshot({ path: path.join(out, 'battle.png') });
-  console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'OK: エラーなし');
-  await browser.close();
-})();
-```
+1. **`npm test`**（初回は `npm install`）: `tests/smoke.cjs` が、タイトル → 艦艇データ → 編成 → 出撃 → 戦闘 → クイック戦闘 → 勝利 を一通り動かし、ページのエラーがないことを確かめる。スクリーンショットは `test-results/` に出る。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても動く。同じテストが GitHub Actions でも PR ごとに走る。
+2. **変えた部分の確認**: スモークテストで足りないときは、`tests/smoke.cjs` を手本にした確認用のスクリプトを作業用ディレクトリ（スクラッチパッドなど、リポジトリの外）に書き、変えた場面のスクリーンショットを撮って見る。戦闘を早送りしたいときは `page.evaluate` の中で `step(.05)` を繰り返す（ヘッドレスでは描画が遅く、実時間で待つと進まない）。
+3. 長く使う確認になりそうなら、`tests/smoke.cjs` に確認項目を足す。
 
 - ページのエラーが出ないこと、変えた部分が画面に出ていることをスクリーンショットを見て確かめる。
 - 確認できなかった（環境の問題など）ときは、確認できなかったとはっきり書く。確かめていないことを「動く」と書かない。
