@@ -35,6 +35,7 @@
   `prep.js` の `armyToFleet()` が軍をこの形に変換する。
 - 確認方法: `npm install` のあと `npm test`。`tests/smoke.cjs` がヘッドレスの Chromium（Playwright）で主な画面と戦闘を一通り動かし、エラーがないことを確かめ、`test-results/` にスクリーンショットを撮る。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても動く。GitHub Actions（`.github/workflows/check.yml`）が PR と `main` への push のたびに同じテストを走らせる。
 - `package.json` は確認用の道具（Playwright と three）だけ。ゲーム自体はビルドも npm も要らない。
+- 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（ユーザーだけが開ける claude.ai の非公開ページ。GitHub Pages は公開になるので使わない）。ゲームの変更を `main` にマージしたら、Claude が Artifact ツールで `url` にこのページを指定し、`index.html` と `battle/`・`data/`・`prep.js`・`prep.css` を載せ直す。
 - サブエージェント: `.claude/agents/wos-dev.md`（ゲーム作成の手伝い。実装と動作確認まで行う）。
 
 ## 作業の進め方
