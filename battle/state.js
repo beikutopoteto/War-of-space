@@ -45,7 +45,7 @@ function buildRoster(){
   rosterEl.innerHTML='';
   const mine=fleets.filter(f=>f.team===0);
   const mk=(f)=>{ const i=mine.indexOf(f);
-    const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false');
+    const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); if(i<9) b.title=`${i+1}キーで選択`;
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
     b.addEventListener('click',()=>{ if(b._dragged){ b._dragged=false; return; } select(f.alive&&(selected!==f||selGroupMode)?f:null); });
     if(armyGroup) dragSource(b,f);
@@ -53,7 +53,7 @@ function buildRoster(){
   if(!armyGroup){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
   const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group';
   const gb=document.createElement('button'); gb.className='grpBtn'; gb.id='grpBtn';
-  gb.textContent=`${armyGroup.name} 全軍`; gb.title=armyGroup.sync?'最も遅い艦に速度を合わせて移動':'各軍の速度で移動';
+  gb.textContent=`${armyGroup.name} 全軍`; gb.title=(armyGroup.sync?'最も遅い艦に速度を合わせて移動':'各軍の速度で移動')+'（Gキー）';
   gb.addEventListener('click',()=>selectGroup());
   gz.appendChild(gb);
   const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
