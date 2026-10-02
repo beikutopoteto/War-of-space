@@ -1,37 +1,44 @@
 /* War of Space battle: explosion particles, tracers, movement arrows.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
-/* ---------- particles (explosions) ---------- */
-const PMAX=4000;
-const pPos=new Float32Array(PMAX*3), pCol=new Float32Array(PMAX*3), pVel=new Float32Array(PMAX*3), pBase=new Float32Array(PMAX*3), pLife=new Float32Array(PMAX), pMaxL=new Float32Array(PMAX);
-let pHead=0;
-const pGeo=new THREE.BufferGeometry();
-pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
-pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+/* ---------- particles (explosions, sparks) ---------- */
 const dot=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.35,'rgba(255,255,255,.6)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
-const pts=new THREE.Points(pGeo,new THREE.PointsMaterial({size:1.8,map:dot,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
-pts.frustumCulled=false; scene.add(pts);
 const HOT=new THREE.Color(1,.82,.5);
-function burst(at,col,n,spd,life){
-  for(let k=0;k<n;k++){
-    const i=pHead; pHead=(pHead+1)%PMAX;
-    pPos[i*3]=at.x;pPos[i*3+1]=at.y;pPos[i*3+2]=at.z;
-    const v=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(spd*(.3+Math.random()));
-    pVel[i*3]=v.x;pVel[i*3+1]=v.y;pVel[i*3+2]=v.z;
-    const c=Math.random()<.55?HOT:col; pBase[i*3]=c.r*2;pBase[i*3+1]=c.g*2;pBase[i*3+2]=c.b*2;
-    pLife[i]=pMaxL[i]=life*(.5+Math.random()*.7);
-  }
+/* a pool of glowing points: burst(at, color, count, speed, life) throws some out, step(dt) moves and fades them.
+   hot is the share of points drawn in the white-hot colour instead of the given one */
+function particles(max,size,hot){
+  const pos=new Float32Array(max*3), col=new Float32Array(max*3), vel=new Float32Array(max*3), base=new Float32Array(max*3), life=new Float32Array(max), maxL=new Float32Array(max);
+  let head=0;
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3)); geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const pts=new THREE.Points(geo,new THREE.PointsMaterial({size,map:dot,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  pts.frustumCulled=false; scene.add(pts);
+  return {
+    burst(at,c,n,spd,l){
+      for(let k=0;k<n;k++){
+        const i=head; head=(head+1)%max;
+        pos[i*3]=at.x;pos[i*3+1]=at.y;pos[i*3+2]=at.z;
+        const v=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(spd*(.3+Math.random()));
+        vel[i*3]=v.x;vel[i*3+1]=v.y;vel[i*3+2]=v.z;
+        const cc=Math.random()<hot?HOT:c; base[i*3]=cc.r*2;base[i*3+1]=cc.g*2;base[i*3+2]=cc.b*2;
+        life[i]=maxL[i]=l*(.5+Math.random()*.7);
+      }
+    },
+    step(dt){
+      for(let i=0;i<max;i++){
+        if(life[i]>0){
+          life[i]-=dt; const k=Math.max(0,life[i]/maxL[i]), d=Math.pow(.25,dt);
+          pos[i*3]+=vel[i*3]*dt;pos[i*3+1]+=vel[i*3+1]*dt;pos[i*3+2]+=vel[i*3+2]*dt;
+          vel[i*3]*=d;vel[i*3+1]*=d;vel[i*3+2]*=d;
+          col[i*3]=base[i*3]*k;col[i*3+1]=base[i*3+1]*k;col[i*3+2]=base[i*3+2]*k;
+        } else if(col[i*3]!==0||col[i*3+1]!==0){col[i*3]=col[i*3+1]=col[i*3+2]=0;}
+      }
+      geo.attributes.position.needsUpdate=true; geo.attributes.color.needsUpdate=true;
+    }
+  };
 }
-function stepParticles(dt){
-  for(let i=0;i<PMAX;i++){
-    if(pLife[i]>0){
-      pLife[i]-=dt; const k=Math.max(0,pLife[i]/pMaxL[i]), d=Math.pow(.25,dt);
-      pPos[i*3]+=pVel[i*3]*dt;pPos[i*3+1]+=pVel[i*3+1]*dt;pPos[i*3+2]+=pVel[i*3+2]*dt;
-      pVel[i*3]*=d;pVel[i*3+1]*=d;pVel[i*3+2]*=d;
-      pCol[i*3]=pBase[i*3]*k;pCol[i*3+1]=pBase[i*3+1]*k;pCol[i*3+2]=pBase[i*3+2]*k;
-    } else if(pCol[i*3]!==0||pCol[i*3+1]!==0){pCol[i*3]=pCol[i*3+1]=pCol[i*3+2]=0;}
-  }
-  pGeo.attributes.position.needsUpdate=true; pGeo.attributes.color.needsUpdate=true;
-}
+const blasts=particles(4000,1.8,.55), sparks=particles(600,.35,.3);   // explosions; the tiny sparks W.A.S. give off now and then
+function burst(at,col,n,spd,life){ blasts.burst(at,col,n,spd,life); }
+function stepParticles(dt){ blasts.step(dt); sparks.step(dt); }
 
 /* ---------- tracers ---------- */
 const TMAX=500;

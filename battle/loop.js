@@ -44,6 +44,7 @@ function frame(now){
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
+  let trV=0;   // vertices of craft trails written this frame
   for(const w of wings){ if(!w.alive) continue;
     const t=w.state==='attack'?w.target:null, orbit=t&&t.alive&&w.pos.distanceTo(t.pos)<=w.range*.6+(t.radius||0)+3;
     const k=1-Math.exp(-(dt>0?dt:0)*(orbit?4:5)), hide=!shown(w);
@@ -52,11 +53,18 @@ function frame(now){
       if(!s.hd) s.hd=w.heading.clone();
       if(dt>0){ _v.copy(s.pos); s.pos.lerp(_w,k); _v.subVectors(s.pos,_v); const d=_v.length();
         if(orbit&&d>1e-4) s.hd.lerp(_v.multiplyScalar(1/d),Math.min(1,dt*10)).normalize(); else if(!orbit) s.hd.lerp(w.heading,Math.min(1,dt*4)).normalize(); }
+      if(!s.tr){ s.tr=[]; s.trT=0; }
+      if(dt>0){ s.trT+=dt; if(s.trT>=TRAIL_DT){ s.trT=0; s.tr.unshift(s.pos.clone()); if(s.tr.length>TRAIL_N) s.tr.pop(); }
+        if(w.type==='was'&&!hide&&Math.random()<dt*.5) sparks.burst(_v.copy(s.hd).multiplyScalar(-.3).add(s.pos),TEAM_COL[w.team],3,2,.3); }
       if(hide) continue;
+      if(trV+TRAIL_N*2<=trPos.length/3){ const c=trailCol[w.team][w.type]||trailCol[w.team].ftr; let p=s.pos;
+        for(let j=0;j<s.tr.length;j++){ const q=s.tr[j], k0=1-j/TRAIL_N, k1=1-(j+1)/TRAIL_N;
+          trPos.set([p.x,p.y,p.z,q.x,q.y,q.z],trV*3); trCol.set([c.r*k0,c.g*k0,c.b*k0,c.r*k1,c.g*k1,c.b*k1],trV*3); trV+=2; p=q; } }
       const m=craftMeshes[w.team][w.type]||craftMeshes[w.team].ftr; if(m.count>=CRAFT_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(s.hd)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
+  trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
   for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)*(over?1:1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
