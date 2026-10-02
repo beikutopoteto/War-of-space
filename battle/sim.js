@@ -80,10 +80,11 @@ function end(win){
 }
 
 /* small craft (both sides) keep out of a hostile fortress's guns: they do not pick the fortress, or a unit within its range
-   (plus FORT_MARGIN), as a target on their own. Only the target their carrier was ordered to attack takes them there. */
+   (plus FORT_MARGIN), as a target on their own. Only the target their carrier was last ordered to attack takes them there;
+   it holds through later move orders (a carrier shifting its position in range) until it falls or another attack is ordered. */
 const FORT_MARGIN=6;
 function underGuns(t,team){ return fortress.alive&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
-function orderedTarget(u){ const c=u.carrier||u; return c.alive&&c.order&&c.order.type==='attack'?c.order.target:null; }
+function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
 function craftMayHit(u,t){ return !underGuns(t,u.team)||t===orderedTarget(u); }
 /* the ordered target comes first; then enemy W.A.S. go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){

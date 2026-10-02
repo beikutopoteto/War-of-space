@@ -163,13 +163,15 @@ function check(ok, label, detail = '') {
       e.pos.set(c.pos.x, c.pos.y, c.pos.z + 40); e.post = e.pos.clone(); const away = run(); const awayHit = away.length > 0 && away.every(w => w.target === e);
       e.alive = false; for (let i = 0; i < 40; i++) step(.05);
       const retarget = wings.filter(w => w.team === 0 && w.alive).every(w => w.target !== fortress);
-      c.order = { type: 'attack', target: fortress }; c.speed = 0; for (let i = 0; i < 80; i++) { c.order = { type: 'attack', target: fortress }; step(.05); }
+      c.speed = 0; order(c, { type: 'attack', target: fortress }); for (let i = 0; i < 80; i++) step(.05);
       const ordered = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
+      order(c, { type: 'move', dest: c.pos.clone().add(new THREE.Vector3(4, 2, 0)) }); for (let i = 0; i < 40; i++) step(.05);
+      const kept = wings.some(w => w.team === 0 && w.alive && w.target === fortress);
       fortress.team = 0; const mirrored = underGuns(c, 1) && !underGuns(c, 0); fortress.team = 1;
-      return { fortOnly, nearFort, awayHit, retarget, ordered, mirrored };
+      return { fortOnly, nearFort, awayHit, retarget, ordered, kept, mirrored };
     });
-    check(!fort.fortOnly && !fort.nearFort && fort.awayHit && fort.retarget && fort.ordered && fort.mirrored,
-      '小型機: 命令がなければ要塞と要塞の射程内の敵を狙わない（敵も同じ）', JSON.stringify(fort));
+    check(!fort.fortOnly && !fort.nearFort && fort.awayHit && fort.retarget && fort.ordered && fort.kept && fort.mirrored,
+      '小型機: 命令がなければ要塞と要塞の射程内の敵を狙わない。攻撃を命じた相手は移動しても狙い続ける（敵も同じ）', JSON.stringify(fort));
     await page.evaluate(() => { reset(); select(null); });
 
     /* a player order, then tens of seconds of combat */
