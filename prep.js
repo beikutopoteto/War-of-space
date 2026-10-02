@@ -174,14 +174,20 @@ function renderSortie(){
   const btn=document.getElementById('goBattle'); btn.disabled=!g||!groupSummary(g).some(a=>armyStats(a).ships>0);
   btn.onclick=()=>startBattle(g);
 }
+/* the flagship of an army group: the army chosen with ☆, or the first one */
+function flagIndex(g){ const i=g.members.findIndex(m=>m.army===g.flag); return i<0?0:i; }
+/* the cube is laid out around the flagship: it takes the deploy point, the others keep their places in the cube relative to it
+   (1 cell = 16 across, 10 up) */
 function startBattle(g){
   if(!window.WOS) return;
   if(!g){ window.WOS.start(null); return; }
   const op=OPS.find(o=>o.id===sortieOp)||OPS[0], [cx,cz]=op.deploy||[0,112];
-  const fleets=[], members=[];
-  g.members.forEach(m=>{ const a=armyById(m.army); if(!a||!armyStats(a).ships) return;
-    const f=armyToFleet(a); f.pos=[cx+(m.x-2)*16,cz+(m.z-2)*16]; f.alt=(m.y-2)*10; members.push(fleets.length); fleets.push(f); });
-  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members}});
+  const ok=g.members.filter(m=>{ const a=armyById(m.army); return a&&armyStats(a).ships; }); if(!ok.length) return;
+  const fm=ok.includes(g.members[flagIndex(g)])?g.members[flagIndex(g)]:ok[0];
+  const fleets=[], members=[], offsets=[];
+  ok.forEach(m=>{ const a=armyById(m.army), d=[(m.x-fm.x)*16,(m.y-fm.y)*10,(m.z-fm.z)*16];
+    const f=armyToFleet(a); f.pos=[cx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
+  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members, flag:ok.indexOf(fm), offsets}});
 }
 
 /* ---------- organization ---------- */
@@ -268,8 +274,9 @@ function renderGroupTab(){
   if(!g){ det.innerHTML='<p class="empty">軍集団がありません。左の「軍集団を作る」から追加してください。</p>'; preview.set(null); return; }
   if(placing!=null&&!g.members[placing]) placing=null;
   const avail=save.armies.filter(a=>!g.members.some(m=>m.army===a.id));
+  const fi=flagIndex(g);
   const chips=g.members.map((m,i)=>{ const a=armyById(m.army); const s=a?armyStats(a):null;
-    return `<div class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}"><i></i><b>${a?esc(a.name):'?'}</b><span>${s?`${s.ships}隻・速度${s.st.spd.toFixed(0)}`:''}　位置 ${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span></button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
+    return `<div class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}"><i></i><b>${a?esc(a.name):'?'}</b><span>${s?`${s.ships}隻・速度${s.st.spd.toFixed(0)}`:''}　位置 ${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span></button><button class="flg" data-flag="${i}" aria-pressed="${i===fi}" title="${i===fi?'この軍が旗艦（陣形の中心）':'この軍を旗艦（陣形の中心）にする'}">${i===fi?'★ 旗艦':'☆'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
   const cells=[];
   for(let z=0;z<CUBE;z++) for(let x=0;x<CUBE;x++){
     const here=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);
@@ -280,7 +287,7 @@ function renderGroupTab(){
   det.innerHTML=`
     <label class="fld">名前<input id="grpName" maxlength="20" value="${esc(g.name)}"></label>
     <label class="toggle"><input type="checkbox" id="grpSync" ${g.sync?'checked':''}> 移動時は最も遅い艦に速度を合わせる <span class="dim">${slowest.length?`（この軍集団では速度${Math.min(...slowest).toFixed(0)}）`:''}</span></label>
-    <h4>所属する軍（${g.members.length}/${MAX_ARMY}）　<span class="dim">軍を選んでから、下の格子で置き場所を押します</span></h4>
+    <h4>所属する軍（${g.members.length}/${MAX_ARMY}）　<span class="dim">軍を選んでから、下の格子で置き場所を押します。★の旗艦を中心に陣形を組みます</span></h4>
     <div class="chips">${chips}${g.members.length<MAX_ARMY?(avail.length?`<select id="addArmy" aria-label="追加する軍"><option value="">＋ 軍を追加…</option>${avail.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>`:'<span class="dim">追加できる軍がありません</span>'):''}</div>
     <div class="cubeed">
       <div class="layer">
@@ -294,7 +301,8 @@ function renderGroupTab(){
   det.querySelector('#grpSync').onchange=e=>{ g.sync=e.target.checked; persist(); renderOrg(); };
   const add=det.querySelector('#addArmy'); if(add) add.onchange=()=>{ if(!add.value) return; const spot=freeCell(g); g.members.push({army:add.value,...spot}); placing=g.members.length-1; layer=spot.y; persist(); renderOrg(); };
   det.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>{ const i=+x.dataset.pick; placing=placing===i?null:i; if(placing!=null) layer=g.members[i].y; renderOrg(); });
-  det.querySelectorAll('[data-out]').forEach(x=>x.onclick=()=>{ g.members.splice(+x.dataset.out,1); placing=null; persist(); renderOrg(); });
+  det.querySelectorAll('[data-out]').forEach(x=>x.onclick=()=>{ const [m]=g.members.splice(+x.dataset.out,1); if(m&&m.army===g.flag) delete g.flag; placing=null; persist(); renderOrg(); });
+  det.querySelectorAll('[data-flag]').forEach(x=>x.onclick=()=>{ g.flag=g.members[+x.dataset.flag].army; persist(); renderOrg(); });
   det.querySelectorAll('[data-ly]').forEach(x=>x.onclick=()=>{ layer=+x.dataset.ly; renderOrg(); });
   det.querySelectorAll('[data-cx]').forEach(c=>c.onclick=()=>{
     const x=+c.dataset.cx, z=+c.dataset.cz, occ=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);
@@ -324,7 +332,9 @@ const preview=(()=>{
     canvas.replaceWith(r.domElement); r.domElement.id='cubeCv'; cv=r.domElement;
     if(!ctl){ ctl=new THREE.OrbitControls(cam,r.domElement); ctl.enableZoom=false; ctl.enablePan=false; ctl.autoRotate=true; ctl.autoRotateSpeed=.8; }
     while(boxes.children.length) boxes.remove(boxes.children[0]);
-    g.members.forEach((m,i)=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(.86,.86,.86),new THREE.MeshStandardMaterial({color:GROUP_COLORS[i],emissive:GROUP_COLORS[i],emissiveIntensity:.25,transparent:true,opacity:.9}));
+    const fi=flagIndex(g);
+    g.members.forEach((m,i)=>{ const s=i===fi?1:.86; /* the flagship's box is a little larger and brighter */
+      const b=new THREE.Mesh(new THREE.BoxGeometry(s,s,s),new THREE.MeshStandardMaterial({color:GROUP_COLORS[i],emissive:GROUP_COLORS[i],emissiveIntensity:i===fi?.6:.25,transparent:true,opacity:.9}));
       b.position.set(m.x-2,m.y-2,m.z-2); boxes.add(b);
       const st=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(m.x-2,m.y-2,m.z-2),new THREE.Vector3(m.x-2,-2.5,m.z-2)]),new THREE.LineBasicMaterial({color:GROUP_COLORS[i],transparent:true,opacity:.6})); boxes.add(st); });
   }

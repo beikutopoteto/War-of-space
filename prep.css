@@ -98,6 +98,8 @@
 .chip .pick i{grid-row:span 2;width:10px;height:10px;margin-top:4px;background:var(--c)}
 .chip .pick b{font-size:13px}
 .chip .pick span{font-size:10.5px;color:var(--ink-dim)}
+.chip .flg{background:rgba(8,14,26,.6);color:var(--ink-dim);border:0;border-left:1px solid var(--line);padding:0 8px;font-size:12px;cursor:pointer;white-space:nowrap}
+.chip .flg[aria-pressed="true"]{color:var(--brass);font-weight:700}
 .chip.sel{border-color:var(--c);box-shadow:0 0 0 1px var(--c)}
 .chip.sel .pick{background:color-mix(in srgb,var(--c) 22%,transparent)}
 .chip .x{border:0;border-left:1px solid var(--line)}

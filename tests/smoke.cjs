@@ -58,6 +58,11 @@ function check(ok, label, detail = '') {
     const newName = await page.inputValue('#bgName');
     check(newName === `第${bgCount + 1}戦闘団`, '編成: 新しい戦闘団の名前', newName);
     await page.click('[data-tab="group"]');
+    /* choose another army as the flagship */
+    await page.click('#orgDetail [data-flag="1"]');
+    const flag = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups[0].flag);
+    check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 軍集団の旗艦を選べる', flag);
+    await page.click('#orgDetail [data-flag="0"]');
     await shot('03-org-group');
     await page.click('[data-s="org"] .back');
 
@@ -70,6 +75,18 @@ function check(ok, label, detail = '') {
     const opName = await page.evaluate(() => op.name);
     check(await page.textContent('#bh') === opName, '出撃: 作戦概要', opName);
     check(await page.locator('#grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
+    /* the formation is laid out around the flagship: at deploy, after a group move, and after 陣形 */
+    const fm = await page.evaluate(() => {
+      const fl = groupFlag(), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(f);
+      const near = (a, b) => a.distanceTo(b) < .01, others = groupAlive().filter(f => f !== fl);
+      const deploy = others.every(f => near(rel(f), want(f))) && Math.abs(fl.pos.z - op.deploy[1]) < .01;
+      selectGroup(); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)); groupOrder({ type: 'move', dest: D });
+      const move = near(fl.order.dest, D) && others.every(f => near(f.order.dest.clone().sub(D), want(f)));
+      fl.pos.x += 20; reform();
+      const re = !fl.order && others.every(f => near(f.order.dest.clone().sub(fl.pos), want(f)));
+      select(null); return { deploy, move, re, flag: fl.name, roster: fl.btn.textContent };
+    });
+    check(fm.deploy && fm.move && fm.re && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動・陣形ボタン）', fm.flag);
     const before = await page.evaluate(() => fleets.length);
     await advance(90);
     const after = await page.evaluate(() => ({ n: fleets.length, reinf: (op.reinforcements || []).filter(r => r.after <= 90 * CLOCK_RATE).length }));

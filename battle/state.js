@@ -75,7 +75,9 @@ function buildRoster(){
   gs.addEventListener('click',toggleSync);
   const gt=document.createElement('button'); gt.className='st'; gt.id='rgStance'; gt.title='軍集団の全軍の交戦/回避をまとめて切り替える';
   gt.addEventListener('click',()=>{ const m=groupAlive(); if(m.length) applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',`${armyGroup.name} 全軍`); });
-  const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gs,gt);
+  const gf=document.createElement('button'); gf.className='st'; gf.id='rgForm'; gf.textContent='陣形'; gf.title='旗艦を中心に、決めておいた陣形に組み直す';
+  gf.addEventListener('click',reform);
+  const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gs,gt,gf);
   gz.appendChild(gh);
   const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
   fz.innerHTML='<div class="rhead">独立行動（ここへドラッグで外す）</div>';
@@ -98,7 +100,17 @@ function dragSource(b,f){
 }
 function zoneAt(e){ const el=document.elementFromPoint(e.clientX,e.clientY); return el&&el.closest?el.closest('.rzone'):null; }
 function groupAlive(){ return armyGroup?[...armyGroup.members].filter(f=>f.alive):[]; }
-function selectGroup(){ const m=groupAlive(); if(!m.length) return; if(selGroupMode){ select(null); return; } select(m[0]); selGroupMode=true;
+/* the flagship: the one chosen at sortie while it is alive and in the group, otherwise the first army left in the group */
+function groupFlag(){ if(!armyGroup) return null; const f=armyGroup.flag; return f&&f.alive&&armyGroup.members.has(f)?f:groupAlive()[0]||null; }
+/* where an army stands in the formation, relative to the flagship */
+function formationOffset(f){ const fl=groupFlag(), a=armyGroup.off.get(f), b=fl&&armyGroup.off.get(fl);
+  return a&&b?a.clone().sub(b):fl?f.pos.clone().sub(fl.pos):new THREE.Vector3(); }
+/* gather the army group into its formation around the flagship, where the flagship is now */
+function reform(){ const fl=groupFlag(); if(!fl) return;
+  dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
+  groupAlive().forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null; order(f,{type:'move',dest:fl.pos.clone().add(formationOffset(f))}); });
+  logEvent(`${armyGroup.name} 陣形`,`旗艦の${fl.name}を中心に、決めておいた陣形に組み直す。`); }
+function selectGroup(){ const m=groupAlive(); if(!m.length) return; if(selGroupMode){ select(null); return; } select(groupFlag()||m[0]); selGroupMode=true;
   fleets.forEach(x=>x.el.classList.toggle('sel',m.includes(x))); updateRoster(); }
 /* the fleets an order goes to: the whole army group, or just the selected army */
 function orderTargets(){ return selGroupMode?groupAlive():(selected&&selected.alive?[selected]:[]); }
@@ -111,9 +123,11 @@ function groupOrder(o){
   if(!o.queue) t.forEach(f=>f.queue=[]);
   const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;
   if(o.type==='move'){
+    /* the whole army group: the flagship goes to the point and the others take their places in the formation around it */
+    const formation=selGroupMode&&armyGroup&&groupFlag();
     const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
-    t.forEach(f=>{ const x=tail(f), dest=o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
+    t.forEach(f=>{ const x=tail(f), dest=o.dest.clone().add(formation?formationOffset(f):base(f).clone().sub(c)); f.syncSpeed=sync;
       if(x&&x.type==='move'&&x===f.order) order(f,{type:'move',via:pathLeft(x).slice(-(MAX_WAYPOINTS-1)),dest});
       else if(x&&x.type==='move'){ x.via=pathLeft(x).slice(-(MAX_WAYPOINTS-1)); x.dest=dest; }
       else if(x) f.queue.push({type:'move',dest});
@@ -122,15 +136,16 @@ function groupOrder(o){
 }
 function updateRoster(){
   fleets.forEach(f=>{ if(!f.btn) return;
-    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+'×'+f.ships.length; f.btn.classList.toggle('evade',f.stance==='evade');
+    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+'×'+f.ships.length;
+    f.btn.querySelector('span').textContent=(armyGroup&&f===groupFlag()?'★ ':'')+f.name; f.btn.classList.toggle('evade',f.stance==='evade');
     f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(selGroupMode?armyGroup.members.has(f):selected===f));
     if(f.stBtn){ f.stBtn.textContent=f.stance==='evade'?'回避':'交戦'; f.stBtn.dataset.st=f.stance; f.stBtn.disabled=!f.alive; }
   });
   const gb=document.getElementById('grpBtn'); if(gb){ gb.setAttribute('aria-pressed',String(selGroupMode)); gb.disabled=!groupAlive().length; }
-  const gs=document.getElementById('rgSync'); if(gs){ gs.textContent=armyGroup.sync?'速度：同期':'速度：個別'; gs.setAttribute('aria-pressed',String(armyGroup.sync)); }
+  const gs=document.getElementById('rgSync'); if(gs){ gs.textContent=armyGroup.sync?'速度同期':'速度個別'; gs.setAttribute('aria-pressed',String(armyGroup.sync)); }
   const gt=document.getElementById('rgStance'); if(gt){ const m=groupAlive(), ev=m.filter(f=>f.stance==='evade').length;
-    gt.textContent='全軍：'+(!m.length?'—':ev===m.length?'回避':ev?'混在':'交戦'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length; }
+    gt.textContent='全軍'+(!m.length?'—':ev===m.length?'回避':ev?'混在':'交戦'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length; }
   syncStance();
 }
 
@@ -150,7 +165,10 @@ function reset(cfg=lastCfg){
   selGroupMode=false;
   /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
   const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
-  armyGroup=G?{name:G.name,sync:G.sync,members:new Set(G.members.map(i=>fleets[i]))}:null;
+  armyGroup=G?{name:G.name,sync:G.sync,members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
+  /* each army's place in the formation, relative to the flagship (from the cube at sortie, or from where the armies start) */
+  if(armyGroup) G.members.forEach((i,k)=>{ const o=G.offsets&&G.offsets[k];
+    armyGroup.off.set(fleets[i],o?new THREE.Vector3(o[0],o[1],o[2]):fleets[i].pos.clone().sub(armyGroup.flag.pos)); });
   /* the transports of an escort operation: own side, but they follow their own route and take no orders */
   convoy=null;
   if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy); }
