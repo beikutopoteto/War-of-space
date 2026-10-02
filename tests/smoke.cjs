@@ -237,6 +237,46 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(500);
     await shot('07-quick-combat');
 
+    /* in-battle menu: Esc opens it and stops the battle, Esc closes it; the controls list; やり直す and やめる */
+    await page.evaluate(() => { select(null); setSpeed(2); });
+    await page.keyboard.press('Escape');
+    const pm = await page.evaluate(() => ({ open: !document.getElementById('pause').hidden, speed, t: gameSec }));
+    await page.waitForTimeout(400);
+    const pmStill = await page.evaluate(() => gameSec);
+    await page.click('#pause [data-pm="keys"]');
+    const keysShown = await page.isVisible('#keys');
+    await shot('07b-pause-menu');
+    await page.keyboard.press('Escape');
+    const pmClosed = await page.evaluate(() => ({ closed: document.getElementById('pause').hidden, speed }));
+    check(pm.open && pm.speed === 0 && pmStill === pm.t && keysShown && pmClosed.closed && pmClosed.speed === 2,
+      'メニュー: Esc で開くと戦闘が止まり、操作の一覧が出て、Esc で閉じると元の速さに戻る', JSON.stringify({ pm, pmStill, keysShown, pmClosed }));
+
+    /* undo: 戻す takes back the last order, one at a time */
+    const un = await page.evaluate(() => {
+      reset(); const f = fleets.find(x => x.team === 0); select(f);
+      const before = !!f.order, dis0 = document.getElementById('undoBtn').disabled;
+      const A = f.pos.clone().add(new THREE.Vector3(30, 0, 0)), B = f.pos.clone().add(new THREE.Vector3(0, 0, -30));
+      groupOrder({ type: 'move', dest: A }); step(.05); groupOrder({ type: 'move', dest: B }); step(.05);
+      const e = fleets.find(x => x.team === 1); groupOrder({ type: 'attack', target: e });
+      undo(); const backToB = f.order && f.order.type === 'move' && f.order.dest.distanceTo(B) < .5;
+      undo(); const backToA = f.order && f.order.type === 'move' && f.order.dest.distanceTo(A) < .5;
+      undo(); const backToNone = !f.order === !before;
+      return { dis0, backToB, backToA, backToNone, dis1: document.getElementById('undoBtn').disabled };
+    });
+    check(un.dis0 && un.backToB && un.backToA && un.backToNone && un.dis1, '戻す: 一つ前の指示を順に取り消せる', JSON.stringify(un));
+
+    /* やり直す starts over; やめる ends the battle as a defeat */
+    await page.evaluate(() => { for (let i = 0; i < 100; i++) step(.05); });
+    await page.click('#pmBtn'); await page.click('#pause [data-pm="retry"]');
+    const retry = await page.evaluate(() => ({ t: gameSec, closed: document.getElementById('pause').hidden, speed }));
+    await page.evaluate(() => { if (talking) endTalk(); });
+    await page.click('#pmBtn'); await page.click('#pause [data-pm="quit"]');
+    await page.waitForTimeout(300);
+    const quit = { result: await page.isVisible('#result'), rh: await page.textContent('#rh'), rp: await page.textContent('#rp') };
+    check(retry.t < 1 && retry.closed && retry.speed === 1 && quit.result && quit.rh === '敗北' && quit.rp.includes('中止'),
+      'メニュー: やり直すで最初から、やめるで敗北', JSON.stringify({ retry, quit }));
+    await page.click('#again'); await page.evaluate(() => { if (talking) endTalk(); });
+
     /* victory: destroy the fortress */
     await page.evaluate(() => damage(fortress, fortress.hpPool + 1, fleets.find(x => x.team === 0 && x.alive)));
     await page.waitForTimeout(2000);

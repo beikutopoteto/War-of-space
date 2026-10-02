@@ -66,12 +66,14 @@ function destroyFleet(f,src){
   updateRoster();
 }
 let outcome=null;
-function end(win){
+/* the end of the battle. quit: the player gave up from the in-battle menu; a defeat with no closing scene */
+function end(win,quit=false){
   if(over) return; over=true; outcome=win; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
   const R=op.result, tail=convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
-  document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:`${clockStr()}、${R.lose}`;
+  document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
+  if(quit){ logEvent('作戦中止','指揮官の判断で作戦を中止した。'); document.getElementById('result').hidden=false; return; }
   if(!win&&R.loseBlast) blast(R.loseBlast);
   logEvent(...(win?R.winLog:R.loseLog));
   /* the operation's closing conversation, then the result */

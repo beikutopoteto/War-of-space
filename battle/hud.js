@@ -217,10 +217,28 @@ addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==
 let runSpeed=1;
 function setSpeed(s){ speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.s)));
-/* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks the whole army group, Esc clears the selection */
+/* in-battle menu (Esc or the メニュー button): the battle stands still while it is open.
+   続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls */
+const pauseEl=document.getElementById('pause'); let paused=false, pausedSpeed=1;
+function openPause(){ if(paused||over||menuOpen) return; paused=true; pausedSpeed=speed; setSpeed(0); closePick(); pauseEl.hidden=false; pauseEl.querySelector('[data-pm="resume"]').focus(); }
+function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; setSpeed(pausedSpeed); }
+pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  const a=b.dataset.pm;
+  if(a==='resume') closePause();
+  if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startTalk(op.talk&&op.talk.before); }
+  if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
+  if(a==='keys'){ const k=document.getElementById('keys'); k.hidden=!k.hidden; b.setAttribute('aria-pressed',String(!k.hidden)); }
+}));
+pauseEl.addEventListener('pointerdown',e=>{ if(e.target===pauseEl) closePause(); });
+document.getElementById('pmBtn').addEventListener('click',()=>paused?closePause():openPause());
+document.getElementById('undoBtn').addEventListener('click',()=>undo());
+/* while the menu is open, only Esc (to close it) reaches the battle */
+addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.preventDefault(); closePause(); } if(e.code!=='Tab') e.stopImmediatePropagation(); },true);
+/* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks the whole army group, Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(talking) endTalk(); else if(pickCtx) closePick(); else select(null); return; }
+  if(e.code==='Escape'){ openPause(); return; }
+  if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }
   if(e.code==='KeyG'){ if(armyGroup&&!selGroupMode) selectGroup(); return; }
   const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.convoy)[+m[1]-1]; if(f&&f.alive) select(f); }
