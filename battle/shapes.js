@@ -76,10 +76,21 @@ const SHAPES={
 const CRAFT_SHAPES={
   /* 艦載機: a small delta wing */
   ftr:()=>[at(nose(.17,1.2,4),0,0,.15), at(box(1.0,.04,.42),0,0,-.25), at(box(.04,.26,.3),0,.13,-.4)],
-  /* W.A.S.: a person-shaped shell leaning into its flight, with a thruster pack on its back */
-  was:()=>{ const lean=.7, p=[at(box(.46,.5,.28),0,.15,0), at(box(.2,.2,.2),0,.55,.02), at(box(.12,.5,.14),.32,.1,0), at(box(.12,.5,.14),-.32,.1,0),
-      at(box(.15,.55,.16),.13,-.42,0), at(box(.15,.55,.16),-.13,-.42,0), at(box(.38,.32,.16),0,.2,-.23), at(tube(.07,.25),.12,.1,-.4), at(tube(.07,.25),-.12,.1,-.4)];
-    p.forEach(g=>g.rotateX(lean)); return p; },
+  /* W.A.S.: a powered exoskeleton a size larger than a person, leaning into its flight. A thin frame with armor plates on the chest,
+     shoulders, forearms and shins; two fighter-style thruster pods and small fins on the back; a rifle in the right hand and a cannon on the left shoulder */
+  was:()=>{ const lean=.7, c=Math.cos(lean), s=Math.sin(lean), L=(x,y,z)=>[x,y*c-z*s,y*s+z*c], up=Math.PI/2;
+    const torso=taper(.12,.16,.34,6); torso.scale(1.3,1,.8);
+    const body=[at(box(.24,.11,.15),0,0,0), at(torso,0,.25,0,-up), at(box(.28,.17,.05),0,.33,.1,-.2),
+      at(box(.12,.14,.13),0,.55,.01), at(box(.1,.035,.02),0,.56,.075)];
+    for(const x of [1,-1]) body.push(at(box(.14,.08,.17),.23*x,.44,0,0,0,-.25*x), at(tube(.03,.22,6),.25*x,.3,0,up), at(box(.08,.2,.09),.26*x,.08,.02),
+      at(tube(.035,.26,6),.09*x,-.18,0,up), at(box(.09,.27,.11),.1*x,-.45,.01), at(taper(.032,.05,.1,6),.1*x,-.63,0,up));
+    body.forEach(g=>g.rotateX(lean));
+    const [, by, bz]=L(0,.32,-.15), [, hy, hz]=L(.26,-.03,.05), [, cy, cz]=L(-.23,.5,0);
+    const gear=[at(box(.28,.2,.1),0,by,bz,lean), ...engines([.12,-.12],by,bz-.42,.06),
+      at(tube(.022,.4,6),.26,hy-.02,hz+.14), at(box(.03,.07,.05),.26,hy-.06,hz+.04), at(tube(.02,.3,6),-.23,cy+.05,cz+.06)];
+    for(const x of [1,-1]) gear.push(at(loft([[-.3,.05,.05],[0,.06,.06],[.16,0,0]]),.12*x,by,bz-.12));
+    gear.push(...pair(at(plate([[.16,-.12],[.36,-.3],[.36,-.38],[.16,-.3]]),0,by,bz)));
+    const p=[...body, ...gear]; p.forEach(g=>g.scale(.6,.6,.6)); return p; },
 };
 function shapeGeo(type){ return joinParts((SHAPES[type]||SHAPES.gen)()); }
 function craftGeo(type){ return joinParts((CRAFT_SHAPES[type]||CRAFT_SHAPES.ftr)()); }
