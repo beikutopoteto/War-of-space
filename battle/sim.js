@@ -119,6 +119,21 @@ function dock(w){
   const h=w.hangar, q=w.squad, rec=Math.min(Math.ceil((w.launched-w.n)/2),h.reserve);
   h.reserve-=rec; q.n=w.n+rec; q.state='docked'; q.ready=gameSec+w.W.rearm; q.wing=null; w.alive=false;
 }
+/* fighters pin what they attack: a fleet under fighter fire moves at half speed (SLOW_BY) for a moment */
+const SLOW_BY=.5, KITE_MARGIN=6;
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1); }
+/* a fleet of carriers only keeps its distance: when a seen enemy fleet comes within its own range plus KITE_MARGIN,
+   the carriers back away from it (facing the same way) instead of closing. Returns true while backing away */
+function kite(f,dt){
+  _v.set(0,0,0); let n=0;
+  for(const e of fleets){ if(e.team===f.team||!e.alive||!e.seen) continue;
+    const d=f.pos.distanceTo(e.pos); if(d>e.range+KITE_MARGIN) continue;
+    _v.add(_w.subVectors(f.pos,e.pos).multiplyScalar(1/Math.max(d,1))); n++; }
+  if(!n||_v.lengthSq()<1e-6) return false;
+  _v.normalize(); f.pos.addScaledVector(_v,speedOf(f)*dt);
+  const r=Math.hypot(f.pos.x,f.pos.z); if(r>215){ f.pos.x*=215/r; f.pos.z*=215/r; }   // stay on the map
+  return true;
+}
 function stepWings(dt){
   for(const w of wings){ if(!w.alive) continue;
     const c=w.carrier;
@@ -140,7 +155,7 @@ function stepWings(dt){
     w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range?t:nearestFoe(w,w.range); }
     const ft=w.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08){
-      damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL;
+      damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL; if(w.type==='ftr'&&ft.kind==='fleet') ft.slowT=.5;
       if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randShip(w),randShip(ft),TEAM_COL[w.team],.18);
     }
   }
@@ -164,7 +179,7 @@ function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+.
 /* advance along the path; true when the end is reached */
 function followPath(f,dt){
   const o=f.order; if(!o.path) o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
-  const p=o.path; p.s=Math.min(p.L,p.s+(f.syncSpeed||f.speed)*dt);
+  const p=o.path; p.s=Math.min(p.L,p.s+speedOf(f)*dt);
   const u=p.s/p.L; f.pos.copy(p.curve.getPointAt(u));
   _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6) f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize();
   return p.s>=p.L;
@@ -234,11 +249,13 @@ function step(dt){
         else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } }
         else goal=t; }
     }
+    if(f.slowT>0) f.slowT-=dt;
+    const kited=f.carrierOnly&&!moving&&kite(f,dt);
     /* an attack closes until the target is well inside the guns (75% of range); a fleet of carriers only stops sooner,
        once the target is inside 80% (1:4 from the edge) of its shortest launch distance */
     if(goal){ const stop=(f.carrierOnly?f.launchMin*.8:f.range*.75)+(goal.radius||0);
       _v.subVectors(goal.pos,f.pos); const d=_v.length();
-      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min((f.syncSpeed||f.speed)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
+      if(d>stop&&!kited){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
     }
     const ft=f.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
