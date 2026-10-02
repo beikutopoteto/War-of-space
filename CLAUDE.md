@@ -7,12 +7,13 @@
 - ユーザーが決めた仕様（下記）は勝手に変えない。Claude が仮に置いた数値は「仮」と明示し、`docs/menu.md` に記録する。
 
 ## ファイルと動かし方
-- `index.html`: 戦闘画面と全体のシェル（HUD、Three.js の描画、シミュレーション）。ビルド不要。ブラウザで開けば動く。
-- `prep.js` / `prep.css`: タイトル、出撃、編成（軍集団・軍・戦闘団）、艦艇データの画面。`index.html` の最後で読み込む。
+- `index.html`: 画面の骨組み（HUD の HTML）と読み込みだけ。ビルド不要。ブラウザで開けば動く（`file://` でも動くよう、ES モジュールではなく普通の `<script>` で読む）。
+- `battle.js` / `battle.css`: 戦闘画面（Three.js の描画、シミュレーション、AI、HUD の動き）とその見た目。
+- `prep.js` / `prep.css`: タイトル、出撃、編成（軍集団・軍・戦闘団）、艦艇データの画面。`index.html` の最後で `battle.js` の後に読み込む。
 - `docs/menu.md`: メニュー構成、ユニット階層、仮の数値（能力値、編成ボーナス、索敵の式、艦載機と W.A.S. のルール）。
 - ライブラリ: Three.js r128 を cdnjs から、OrbitControls と EffectComposer/UnrealBloom を jsdelivr の `three@0.128.0/examples/js` から読む。
 - 保存: localStorage のキー `wos.save.v1`。読み込み時に `migrate()` で古い名前を直す。
-- 連携: `prep.js` は `window.WOS.start({fleets, group})`（`index.html` が定義）で戦闘を始める。戦闘後は `index.html` が `window.WOS_MENU.open()`（`prep.js` が定義）を呼んでメニューへ戻る。
+- 連携: `prep.js` は `window.WOS.start({fleets, group})`（`battle.js` が定義）で戦闘を始める。戦闘後は `battle.js` が `window.WOS_MENU.open()`（`prep.js` が定義）を呼んでメニューへ戻る。
 - 艦隊の仕様の形式:
 
   ```

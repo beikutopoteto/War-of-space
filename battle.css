@@ -1,0 +1,192 @@
+/* Layout: full-bleed 3D tactical map, HUD pinned to the four corners like a war-room broadcast overlay. Single dark look by design. */
+:root{
+  --void:#05080f;
+  --panel:rgba(8,14,26,.78);
+  --line:rgba(127,200,255,.22);
+  --ink:#e6edf6;
+  --ink-dim:#93a3b8;
+  --blue:#7fc8ff;
+  --red:#ff6a45;
+  --brass:#e2c58a;
+  --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"Chakra Petch","Zen Kaku Gothic New",ui-monospace,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-family:var(--f-ui);overflow:hidden;-webkit-user-select:none;user-select:none}
+#stage{position:fixed;inset:0}
+#stage canvas{display:block;touch-action:none}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.hud{position:fixed;pointer-events:none;z-index:5}
+.hud *{pointer-events:auto}
+
+/* top-left: clock + phase */
+#clock{top:calc(14px + env(safe-area-inset-top,0px));left:16px;border-left:3px solid var(--brass);padding:2px 0 2px 12px;text-shadow:0 1px 6px #000}
+#clock .date{font-family:var(--f-num);font-weight:600;color:var(--brass);font-size:15px;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+#clock .phase{font-size:22px;font-weight:700;margin-top:4px;letter-spacing:.06em}
+
+/* top-right: legend + speed */
+#legend{top:calc(14px + env(safe-area-inset-top,0px));right:16px;background:var(--panel);border:1px solid var(--line);padding:10px 14px;display:grid;gap:8px;backdrop-filter:blur(6px)}
+#legend .row{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px}
+#legend svg{width:24px;height:24px}
+#speed{display:flex;gap:4px;margin-top:2px}
+#speed button{flex:1;white-space:nowrap;font-family:var(--f-num);font-size:12px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:4px 6px;cursor:pointer}
+#speed button[aria-pressed="true"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
+#camView{display:flex;gap:4px}
+#camView button{flex:1;white-space:nowrap;font-family:var(--f-ui);font-size:11px;padding:2px 6px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);cursor:pointer}
+#camView button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
+#camView button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#speed button:focus-visible,#roster button:focus-visible,.again:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+/* bottom-left: briefing / event panel */
+#brief{left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(560px,52vw);background:var(--panel);border-left:3px solid var(--brass);padding:12px 18px 14px;backdrop-filter:blur(6px)}
+#brief .t{font-family:var(--f-num);color:var(--brass);font-weight:600;font-size:13px;letter-spacing:.06em}
+#brief h2{margin:4px 0 6px;font-size:19px;font-weight:700;text-wrap:balance;line-height:1.35}
+#brief p{margin:0;color:var(--ink-dim);font-size:13px;line-height:1.7}
+#log{margin:8px 0 0;padding:8px 0 0;border-top:1px solid var(--line);list-style:none;display:grid;gap:2px;font-size:11.5px;color:var(--ink-dim)}
+#log li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#log b{font-family:var(--f-num);color:var(--brass);font-weight:500;margin-right:8px}
+
+/* bottom-right: roster */
+#roster{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:6px;width:220px}
+#roster button{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;text-align:left;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:3px solid var(--blue);padding:7px 10px;font-family:var(--f-ui);font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px)}
+#roster button .n{font-family:var(--f-num);font-weight:500;color:var(--ink-dim);font-variant-numeric:tabular-nums}
+#roster button .bar{grid-column:1/-1;height:3px;background:rgba(127,200,255,.15)}
+#roster button .bar i{display:block;height:100%;background:var(--blue)}
+#roster button[aria-pressed="true"]{background:rgba(127,200,255,.22);border-color:var(--blue)}
+#roster button:disabled{opacity:.35;border-left-color:#555;cursor:default}
+
+#hint{top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;font-size:12.5px;color:var(--ink);max-width:min(460px,calc(100vw - 32px));text-align:center;line-height:1.6;transition:opacity .8s}
+#hint{cursor:pointer}
+#hint.gone{opacity:0}
+
+/* in-world labels */
+.unit{position:absolute;left:0;top:0;will-change:transform}
+.emb{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid currentColor;background:color-mix(in srgb,currentColor 22%,transparent);box-shadow:0 0 12px currentColor;transform:translate(-50%,-50%)}
+.emb svg{width:18px;height:18px}
+.t0{color:var(--blue)} .t1{color:var(--red)}
+.unit.sel .emb{box-shadow:0 0 0 4px rgba(255,255,255,.18),0 0 18px currentColor;border-color:#fff}
+/* an enemy that slipped out of sight: a faint marker at its last known position */
+.unit.lost{opacity:.42}
+.unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
+.unit.lost .flag span{display:block}
+.flag{position:absolute;left:22px;top:-44px;border-left:3px solid currentColor;padding:3px 10px 4px 8px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 38%,transparent),color-mix(in srgb,currentColor 6%,transparent));white-space:nowrap;color:var(--ink)}
+.flag b{display:block;font-size:13px;font-weight:700;letter-spacing:.03em}
+.flag span{display:block;font-size:10px;color:#cfd8e3;opacity:.85}
+.flag .num{font-family:var(--f-num)}
+.sector{position:absolute;left:0;top:0;border-left:3px solid var(--brass);background:rgba(40,36,26,.55);padding:3px 10px;color:var(--ink);white-space:nowrap}
+.sector b{display:block;font-size:12.5px}
+.sector span{display:block;font-size:10px;color:var(--ink-dim)}
+
+#result{position:fixed;inset:0;display:grid;place-items:center;background:rgba(3,6,12,.55);z-index:10}
+#result .card{background:var(--panel);border-left:4px solid var(--brass);padding:22px 28px;max-width:min(420px,calc(100vw - 32px));backdrop-filter:blur(8px)}
+#result h1{margin:0 0 6px;font-size:28px;letter-spacing:.08em}
+#result p{margin:0 0 16px;color:var(--ink-dim);line-height:1.7}
+.again{font-family:var(--f-ui);font-weight:700;font-size:14px;padding:8px 18px;background:var(--brass);color:var(--void);border:0;cursor:pointer}
+
+/* right edge: altitude control for the selected fleet */
+#alt{left:16px;top:50%;transform:translateY(-50%);display:grid;justify-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:8px 6px;backdrop-filter:blur(6px)}
+#alt .cap{font-size:10.5px;color:var(--ink-dim);letter-spacing:.1em}
+#alt .val{font-family:var(--f-num);font-weight:600;font-size:15px;color:var(--blue);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:center}
+#alt button{width:34px;height:28px;background:transparent;color:var(--ink);border:1px solid var(--line);font-size:13px;cursor:pointer}
+#alt button:focus-visible,#altTrack:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#altTrack{position:relative;width:34px;height:170px;cursor:ns-resize;touch-action:none}
+#altTrack::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(var(--blue),rgba(127,200,255,.15) 50%,var(--blue))}
+#altTrack .zero{position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--brass)}
+#altKnob{position:absolute;left:50%;width:26px;height:12px;transform:translate(-50%,-50%);background:var(--blue);box-shadow:0 0 10px var(--blue)}
+@media (max-width:760px),(max-height:500px){
+  #altTrack{height:72px}
+  #alt{padding:5px 4px;gap:3px;top:46%}
+  #alt .cap{display:none}
+  #alt button{height:24px;width:30px}
+  #alt .val{font-size:12px}
+}
+@media (max-width:520px){ #alt{top:38%} }
+/* camera bars: horizontal = turn around, vertical (right edge) = look from above / below */
+.camBar{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:4px 8px;opacity:.85;font-size:10.5px;color:var(--ink-dim)}
+.camBar .tr{position:relative;touch-action:none;cursor:pointer}
+.camBar .tr:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.camBar .tr::before{content:"";position:absolute;background:rgba(226,197,138,.8)}
+.camBar .kn{position:absolute;background:var(--brass);box-shadow:0 0 8px var(--brass);transform:translate(-50%,-50%)}
+#azBar{left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%)}
+#azTrack{width:200px;height:22px}
+#azTrack::before{left:0;right:0;top:50%;height:2px;transform:translateY(-50%)}
+#azKnob{top:50%;width:10px;height:18px}
+#elBar{right:16px;top:50%;transform:translateY(-50%);flex-direction:column;padding:6px 4px}
+#elTrack{width:22px;height:140px}
+#elTrack::before{top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%)}
+#elTrack .lv{position:absolute;left:3px;right:3px;height:1px;background:var(--ink-dim)}
+#elKnob{left:50%;width:18px;height:10px}
+@media (max-height:500px){ #elBar{right:196px} }
+@media (max-width:760px),(max-height:500px){ #azBar{bottom:auto;top:calc(14px + env(safe-area-inset-top,0px))} #azTrack{width:150px} #elTrack{height:72px} #elBar{top:48%} .camBar>span{display:none} }
+@media (max-width:520px){ #azBar{top:calc(134px + env(safe-area-inset-top,0px))} #azTrack{width:160px} #elBar{top:40%} }
+@media (max-width:760px),(max-height:500px){
+  #brief{width:min(380px,48vw);padding:8px 12px}
+  #brief h2{font-size:15px}
+  #brief p{font-size:11.5px;line-height:1.55}
+  #log{display:none}
+  #roster{width:170px;gap:4px}
+  #roster button{font-size:11.5px;padding:5px 8px}
+  #clock .phase{font-size:17px}
+  .flag span{display:none}
+  .flag b{font-size:11px}
+  .sector span{display:none}
+  #hint{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+}
+@media (max-width:520px){
+  #brief{left:16px;right:16px;width:auto;bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+  #roster{left:16px;right:16px;width:auto;grid-template-columns:1fr 1fr}
+  #legend{padding:6px 10px}
+  #legend .row{font-size:12px}
+  #hint{bottom:calc(230px + env(safe-area-inset-bottom,0px))}
+  #clock .date{font-size:12px}
+  #clock .phase{font-size:15px}
+  #legend{gap:5px}
+  #legend .row{font-size:11px;gap:6px}
+  #legend svg{width:18px;height:18px}
+  #speed button{padding:3px 4px;font-size:11px}
+}
+@media (prefers-reduced-motion:reduce){#hint{transition:none}}
+
+/* ---- quiet HUD: smaller, see-through, collapsible ---- */
+:root{--panel:rgba(8,14,26,.48)}
+#clock .date{font-size:13px}
+#clock .phase{font-size:16px;margin-top:2px}
+#legend{padding:6px 8px;gap:5px;opacity:.85}
+#legend .row{font-size:11.5px;gap:6px}
+#legend svg{width:16px;height:16px}
+#speed button,#view button{padding:2px 6px;font-size:11px}
+#view{display:flex;gap:4px}
+#view button{flex:1;white-space:nowrap;font-family:var(--f-ui);background:transparent;color:var(--ink-dim);border:1px solid var(--line);cursor:pointer}
+#view button[aria-pressed="true"]{color:var(--ink);border-color:var(--blue)}
+#view button:focus-visible,#brief:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#brief{width:min(400px,44vw);padding:6px 12px 7px;cursor:pointer;opacity:.9}
+#brief .t{font-size:11.5px}
+#brief h2{font-size:14.5px;margin:1px 0 0}
+#brief p,#log{display:none}
+#brief.fresh p,#brief.open p{display:block;margin-top:4px;font-size:12px;line-height:1.6}
+#brief.open #log{display:grid}
+#brief .t::after{content:"　＋詳細";color:var(--ink-dim);font-family:var(--f-ui);font-weight:400;font-size:10.5px}
+#brief.open .t::after{content:"　－閉じる"}
+#roster{width:168px;gap:3px}
+#roster button{font-size:11.5px;padding:4px 8px;opacity:.88}
+#alt{opacity:.88}
+.flag{top:-32px;left:18px;padding:1px 7px 2px 6px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 26%,transparent),transparent)}
+.flag b{font-size:11px}
+.flag span{display:none}
+.unit.sel .flag span,.unit.fort .flag span{display:block}
+.t1 .flag{opacity:.8}
+.emb{width:24px;height:24px}
+.emb svg{width:14px;height:14px}
+.sector{opacity:.5;padding:1px 7px}
+.sector b{font-size:11px}
+.sector span{display:none}
+body.nolabels .flag,body.nolabels .sector{display:none}
+body.noui .hud:not(#legend),body.noui #legend>:not(#view){display:none!important}
+@media (max-width:520px){
+  #brief{width:auto;bottom:calc(var(--rh,64px) + 24px + env(safe-area-inset-bottom,0px))}
+  #roster:has(.rzone){grid-template-columns:1fr}
+  .rzone .rhead{font-size:10px}
+  #roster{width:auto}
+}
+#cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
