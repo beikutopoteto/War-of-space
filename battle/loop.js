@@ -93,7 +93,7 @@ function frame(now){
   updateStalks();
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
-  controls.update(); syncCamBars();
+  controls.update();
   if(composer) composer.render(); else renderer.render(scene,camera);
 
   // labels

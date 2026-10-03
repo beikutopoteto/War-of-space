@@ -8,13 +8,28 @@
 <div id="cursorAlt" hidden></div>
 <div id="pick" hidden role="menu" aria-label="敵をクリックしたときの命令"><button data-pk="attack" role="menuitem">攻撃</button><button data-pk="move" role="menuitem">ここへ移動</button></div>
 
-<div id="clock" class="hud"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
+<div id="tl" class="hud">
+  <div id="clock"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
+  <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧">メニュー Esc</button></div>
+  <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gs" id="goalSub"></div></div>
+  <div id="alt" hidden aria-label="高度">
+    <span class="cap">高度</span>
+    <button id="altUp" aria-label="高度を上げる">▲</button>
+    <div id="altTrack" tabindex="0" role="slider" aria-label="移動先の高度" aria-valuemin="-60" aria-valuemax="60" aria-valuenow="0"><span class="zero"></span><span id="altKnob"></span></div>
+    <button id="altDn" aria-label="高度を下げる">▼</button>
+    <span class="val" id="altVal">±0</span>
+    <div id="stance" role="group" aria-label="攻撃の方針（Rキーで切り替え）">
+      <button data-st="engage" aria-pressed="true" title="射程内の敵を撃つ。母艦は近い敵に小型機を出す（Rキーで切り替え）">自動交戦</button>
+      <button data-st="evade" aria-pressed="false" title="攻撃を命じた敵だけを撃つ。母艦も命じた敵にだけ小型機を出す（Rキーで切り替え）">命令優先</button>
+      <button class="undo" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
+    </div>
+  </div>
+</div>
 
 <div id="legend" class="hud">
   <div class="row t0"><span id="lg0"></span><span style="color:var(--ink)">地球連合（自軍）</span></div>
   <div class="row t1"><span id="lg1"></span><span style="color:var(--ink)">惑星共和国</span></div>
   <div id="view" role="group" aria-label="表示">
-    <button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧">メニュー Esc</button>
     <button id="undoBtn" class="undo" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
@@ -30,24 +45,13 @@
     <button id="sp2" data-s="2" aria-pressed="false">2×</button>
     <button id="sp4" data-s="4" aria-pressed="false">4×</button>
   </div>
-  <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gs" id="goalSub"></div></div>
 </div>
 
-<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
+<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約、味方の艦隊ならまとめて選択（一覧の「＋ 軍集団を作る」で軍集団に）。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグか下のスティックで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
 
-<div id="azBar" class="hud camBar"><span>横回転</span><div id="azTrack" class="tr" tabindex="0" role="slider" aria-label="視点の横回転（←→キー）" aria-valuemin="-180" aria-valuemax="180"><span id="azKnob" class="kn"></span></div></div>
-<div id="elBar" class="hud camBar"><span>上</span><div id="elTrack" class="tr" tabindex="0" role="slider" aria-label="視点の上下角度（↑↓キー）" aria-valuemin="-80" aria-valuemax="88"><span class="lv"></span><span id="elKnob" class="kn"></span></div><span>下</span></div>
-<div id="alt" class="hud" hidden aria-label="高度">
-  <span class="cap">高度</span>
-  <button id="altUp" aria-label="高度を上げる">▲</button>
-  <div id="altTrack" tabindex="0" role="slider" aria-label="移動先の高度" aria-valuemin="-60" aria-valuemax="60" aria-valuenow="0"><span class="zero"></span><span id="altKnob"></span></div>
-  <button id="altDn" aria-label="高度を下げる">▼</button>
-  <span class="val" id="altVal">±0</span>
-  <div id="stance" role="group" aria-label="攻撃の方針（Rキーで切り替え）">
-    <button data-st="engage" aria-pressed="true" title="射程内の敵を撃つ。母艦は近い敵に小型機を出す（Rキーで切り替え）">自動交戦</button>
-    <button data-st="evade" aria-pressed="false" title="攻撃を命じた敵だけを撃つ。母艦も命じた敵にだけ小型機を出す（Rキーで切り替え）">命令優先</button>
-    <button class="undo" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
-  </div>
+<div id="camSticks" class="hud" aria-label="視点の回転">
+  <div class="stick h"><span>横回転</span><div id="azTrack" class="tr" role="slider" aria-label="視点の横回転（倒すと回り続ける。←→キーでも）"><span class="kn"></span></div></div>
+  <div class="stick v"><span>上下</span><div id="elTrack" class="tr" role="slider" aria-label="視点の上下（上へ倒すと上から見る。↑↓キーでも）"><span class="kn"></span></div></div>
 </div>
 
 <div id="brief" class="hud" aria-live="polite">
@@ -64,17 +68,18 @@
   <h2>一時停止中</h2>
   <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button></div>
   <table id="keys" hidden><tbody>
-    <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で軍集団の全軍。同じ艦隊をもう一度クリックで解除</td></tr>
+    <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で軍集団の全軍（押すたびに次の軍集団）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
     <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
+    <tr><th>軍集団</th><td>まとめて選んで右下の「＋ 軍集団を作る」。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで軍を出し入れ</td></tr>
     <tr><th>予約</th><td>Shift+クリックで経由地や攻撃を予約</td></tr>
     <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す</td></tr>
     <tr><th>高度</th><td>左の高度バー、Q / E</td></tr>
     <tr><th>自動交戦・命令優先</th><td>R、高度バーの下のボタン、右下の艦隊一覧。自動交戦は射程内の敵を撃ち、命令優先は攻撃を命じた敵だけを撃つ</td></tr>
-    <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーで回転、V で斜め/真上/真横</td></tr>
+    <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーか下のスティック（横回転・上下）で回転、V で斜め/真上/真横</td></tr>
     <tr><th>時間</th><td>Space で一時停止、停止・1×・2×・4×</td></tr>
     <tr><th>表示</th><td>H でパネル、L で名札</td></tr>
     <tr><th>会話</th><td>クリックか Enter で次へ</td></tr>
-    <tr><th>メニュー</th><td>Esc で開く・閉じる</td></tr>
+    <tr><th>メニュー</th><td>Esc か左上の「メニュー」で開く・閉じる</td></tr>
   </tbody></table>
 </div></div>
 <div id="result" hidden><div class="card"><h1 id="rh">勝利</h1><p id="rp"></p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="again" id="again">もう一度</button><button class="again" id="toMenu" style="background:transparent;color:var(--ink);border:1px solid var(--line)">メニューへ</button></div></div></div>

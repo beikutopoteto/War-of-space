@@ -15,9 +15,16 @@ function logEvent(title,desc){
 }
 
 /* ---------- selection & orders ---------- */
-function select(f){ selected=f; selGroupMode=false; if(!f) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',x===f));
-  if(f){ setAlt(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y,false); }
-  document.getElementById('alt').hidden=!f; updateRoster(); }
+/* the selection: one fleet, several picked with Shift, or a whole army group (g). `selected` is the one the altitude bar and rings follow */
+function setSel(list,g=null){
+  list=list.filter(f=>f&&f.alive); selGroup=g&&list.length?g:null; selMulti=list;
+  selected=(selGroup?groupFlag(selGroup):null)||(list.includes(selected)?selected:list[0])||null;
+  if(!selected) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',list.includes(x)));
+  if(selected){ setAlt(selected.order&&selected.order.type==='move'?selected.order.dest.y:selected.pos.y,false); }
+  document.getElementById('alt').hidden=!selected; updateRoster(); }
+function select(f){ setSel(f?[f]:[]); }
+/* a fleet that is lost leaves the selection */
+function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
 /* altitude control: sets the height of the selected fleet's destination */
 let selAlt=0; const ALT_MAX=60;
 const altTrack=document.getElementById('altTrack'), altKnob=document.getElementById('altKnob'), altVal=document.getElementById('altVal');
@@ -105,10 +112,9 @@ function setView(i){ viewIdx=i; const a=getAngles();
   document.querySelectorAll('#camView button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===i))); }
 function cycleView(){ setView((viewIdx+1)%VIEWS.length); }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
-/* view angle: horizontal bar turns the camera around the target, vertical bar tilts it from above to below; arrow keys do the same */
+/* view angle: two spring sticks at the bottom, one turns the camera around the target, the other tilts it from above to below.
+   Push a stick and the view keeps turning, faster the further it is pushed; let go and it springs back. Arrow keys do the same */
 const EL_MIN=-80, EL_MAX=88, _sph=new THREE.Spherical(), _off=new THREE.Vector3();
-const azTrack=document.getElementById('azTrack'), azKnob=document.getElementById('azKnob'), elTrack=document.getElementById('elTrack'), elKnob=document.getElementById('elKnob');
-elTrack.querySelector('.lv').style.top=(100*EL_MAX/(EL_MAX-EL_MIN))+'%';
 function getAngles(){ _off.subVectors(camera.position,controls.target); _sph.setFromVector3(_off); return {az:THREE.MathUtils.radToDeg(_sph.theta), el:90-THREE.MathUtils.radToDeg(_sph.phi)}; }
 function setAngles(az,el){
   camAnim=null; _off.subVectors(camera.position,controls.target); _sph.setFromVector3(_off);
@@ -116,23 +122,29 @@ function setAngles(az,el){
   if(el!=null) _sph.phi=THREE.MathUtils.degToRad(90-Math.max(EL_MIN,Math.min(EL_MAX,el)));
   _off.setFromSpherical(_sph); camera.position.copy(controls.target).add(_off);
 }
-function syncCamBars(){ const a=getAngles();
-  azKnob.style.left=(50+50*a.az/180)+'%'; elKnob.style.top=(100*(EL_MAX-a.el)/(EL_MAX-EL_MIN))+'%';
-  azTrack.setAttribute('aria-valuenow',Math.round(a.az)); elTrack.setAttribute('aria-valuenow',Math.round(a.el)); }
-function bindBar(tr,fromEvent){
-  tr.addEventListener('pointerdown',e=>{ tr.setPointerCapture(e.pointerId); fromEvent(e); });
-  tr.addEventListener('pointermove',e=>{ if(tr.hasPointerCapture(e.pointerId)) fromEvent(e); });
+const stick={az:0,el:0};
+function bindStick(tr,axis){
+  const kn=tr.querySelector('.kn'), h=axis==='az';
+  const put=v=>{ stick[axis]=v=Math.max(-1,Math.min(1,v)); kn.style[h?'left':'top']=(50+42*v)+'%'; };
+  const from=e=>{ const r=tr.getBoundingClientRect(); put(h?(e.clientX-r.left)/r.width*2-1:(e.clientY-r.top)/r.height*2-1); };
+  const free=()=>{ tr.classList.remove('held'); put(0); };
+  tr.addEventListener('pointerdown',e=>{ tr.setPointerCapture(e.pointerId); tr.classList.add('held'); from(e); });
+  tr.addEventListener('pointermove',e=>{ if(tr.hasPointerCapture(e.pointerId)) from(e); });
+  tr.addEventListener('pointerup',free); tr.addEventListener('pointercancel',free); tr.addEventListener('lostpointercapture',free);
 }
-bindBar(azTrack,e=>{ const r=azTrack.getBoundingClientRect(); setAngles(360*((e.clientX-r.left)/r.width)-180,null); });
-bindBar(elTrack,e=>{ const r=elTrack.getBoundingClientRect(); setAngles(null,EL_MAX-(EL_MAX-EL_MIN)*(e.clientY-r.top)/r.height); });
+bindStick(document.getElementById('azTrack'),'az');
+bindStick(document.getElementById('elTrack'),'el');
 const rotKeys=new Set();
 addEventListener('keydown',e=>{ if(e.target===altTrack) return; if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){ rotKeys.add(e.key); e.preventDefault(); } });
 addEventListener('keyup',e=>rotKeys.delete(e.key));
 addEventListener('blur',()=>rotKeys.clear());
+/* turns per second: arrow keys 90° around / 60° up-down; a stick pushed all the way 130° / 75° (pushing it up looks from higher) */
+const dz=v=>Math.abs(v)<.08?0:v;   // a small dead zone around the middle of a stick
 function rotateByKeys(dt){
-  if(!rotKeys.size) return; const a=getAngles();
-  const daz=(rotKeys.has('ArrowLeft')?-1:0)+(rotKeys.has('ArrowRight')?1:0), del=(rotKeys.has('ArrowUp')?1:0)+(rotKeys.has('ArrowDown')?-1:0);
-  if(daz||del) setAngles(a.az+daz*90*dt, a.el+del*60*dt);
+  const daz=(rotKeys.has('ArrowLeft')?-90:0)+(rotKeys.has('ArrowRight')?90:0)+130*dz(stick.az),
+    del=(rotKeys.has('ArrowUp')?60:0)+(rotKeys.has('ArrowDown')?-60:0)-75*dz(stick.el);
+  if(!daz&&!del) return; const a=getAngles();
+  setAngles(a.az+daz*dt, a.el+del*dt);
 }
 function stepCam(dt){
   if(!camAnim) return; camAnim.t=Math.min(1,camAnim.t+dt/.6); const k=camAnim.t*camAnim.t*(3-2*camAnim.t);
@@ -160,7 +172,8 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 function tap(x,y,cmdOnly=false,queue=false){
   if(over) return;
   const {best,fort}=pick(x,y);
-  if(best&&best.team===0){ if(!cmdOnly) select(best===selected?null:best); return; }
+  /* an own fleet: select it (again to let go); with Shift, add it to the selection or take it out */
+  if(best&&best.team===0){ if(cmdOnly) return; if(queue){ toggleMulti(best); return; } const t=orderTargets(); select(t.length===1&&t[0]===best?null:best); return; }
   if(selected&&selected.alive){
     const hit=groundAt(x,y);
     /* on an enemy or the fortress, a small choice: attack it, or move to this point */
@@ -203,17 +216,17 @@ addEventListener('pointerdown',hideHint,{capture:true});
 /* attack policy of the selected fleets (internally stance): 自動交戦 (engage) fires at anything in range and carriers send craft at the
    nearest foe; 命令優先 (evade) fires only on the target of an attack order, and carriers send craft only there. R toggles */
 const stanceEl=document.getElementById('stance');
-function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,t.length>1?`${armyGroup.name} 全軍`:null); }
+function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selGroup?`${selGroup.name} 全軍`:null); }
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
 function applyStance(t,v,label){ t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
-function toggleSync(){ if(!armyGroup) return; armyGroup.sync=!armyGroup.sync;
-  const m=groupAlive(), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
-  m.forEach(f=>{ if(armyGroup.sync){ if(f.order&&f.order.type==='move') f.syncSpeed=slow; } else f.syncSpeed=null; });
+function toggleSync(g){ if(!g) return; g.sync=!g.sync;
+  const m=groupAlive(g), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
+  m.forEach(f=>{ if(g.sync){ if(f.order&&f.order.type==='move') f.syncSpeed=slow; } else f.syncSpeed=null; });
   updateRoster();
-  logEvent(armyGroup.sync?`${armyGroup.name} 速度同期`:`${armyGroup.name} 個別の速度`, armyGroup.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各軍がそれぞれの速度で進む。'); }
+  logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各軍がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
   stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
 stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
@@ -239,13 +252,13 @@ document.getElementById('pmBtn').addEventListener('click',()=>paused?closePause(
 document.getElementById('undoBtn').addEventListener('click',()=>undo());
 /* while the menu is open, only Esc (to close it) reaches the battle */
 addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.preventDefault(); closePause(); } if(e.code!=='Tab') e.stopImmediatePropagation(); },true);
-/* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks the whole army group, Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
+/* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
   if(e.code==='Escape'){ openPause(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }
-  if(e.code==='KeyG'){ if(armyGroup&&!selGroupMode) selectGroup(); return; }
+  if(e.code==='KeyG'){ cycleGroup(); return; }
   const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.ward)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
 document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(op.talk&&op.talk.before); });

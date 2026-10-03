@@ -74,19 +74,29 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(1500);
     const opName = await page.evaluate(() => op.name);
     check(await page.textContent('#bh') === opName, '出撃: 作戦概要', opName);
-    check(await page.locator('#grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
-    /* the formation is laid out around the flagship: at deploy, after a group move, and after 陣形 */
+    check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
+    /* the formation is laid out around the flagship: at deploy and after a group move; with 陣形OFF everyone goes to the point */
     const fm = await page.evaluate(() => {
-      const fl = groupFlag(), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(f);
-      const near = (a, b) => a.distanceTo(b) < .01, others = groupAlive().filter(f => f !== fl);
+      const g = groups[0], fl = groupFlag(g), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(g, f);
+      const near = (a, b) => a.distanceTo(b) < .01, others = groupAlive(g).filter(f => f !== fl);
       const deploy = others.every(f => near(rel(f), want(f))) && Math.abs(fl.pos.z - op.deploy[1]) < .01;
-      selectGroup(); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)); groupOrder({ type: 'move', dest: D });
+      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)); groupOrder({ type: 'move', dest: D });
       const move = near(fl.order.dest, D) && others.every(f => near(f.order.dest.clone().sub(D), want(f)));
-      fl.pos.x += 20; reform();
-      const re = !fl.order && others.every(f => near(f.order.dest.clone().sub(fl.pos), want(f)));
-      select(null); return { deploy, move, re, flag: fl.name, roster: fl.btn.textContent };
+      toggleForm(g); groupOrder({ type: 'move', dest: D }); const point = groupAlive(g).every(f => near(f.order.dest, D)); toggleForm(g);
+      select(null); return { deploy, move, point, flag: fl.name, roster: fl.btn.textContent };
     });
-    check(fm.deploy && fm.move && fm.re && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動・陣形ボタン）', fm.flag);
+    check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動）', fm.flag);
+    check(fm.point, '軍集団: 陣形OFF では全軍が指示した一点に集まる');
+    /* Shift+click picks several fleets; ＋ forms a new army group from them, the first one picked as flagship; 解散 lets them go */
+    const ng = await page.evaluate(() => {
+      const g0 = groups[0], [a, b] = groupAlive(g0); select(a); toggleMulti(b);
+      const multi = orderTargets().length === 2; document.getElementById('newGrp').click();
+      const g = groups[groups.length - 1], made = groups.length === 2 && g.members.size === 2 && groupFlag(g) === a && selGroup === g && !g0.members.has(a);
+      const names = [...document.querySelectorAll('#roster .grpBtn')].map(x => x.textContent);
+      disband(g); const gone = groups.length === 1 && !groupOf(a);
+      return { multi, made, gone, names: names.join('/') };
+    });
+    check(ng.multi && ng.made && ng.gone, '軍集団: Shift でまとめて選び、＋で新しい軍集団を作り、解散できる', ng.names);
     const before = await page.evaluate(() => fleets.length);
     await advance(90);
     const after = await page.evaluate(() => ({ n: fleets.length, reinf: (op.reinforcements || []).filter(r => r.after <= 90 * CLOCK_RATE).length }));
@@ -109,6 +119,14 @@ function check(ok, label, detail = '') {
     const view = await page.evaluate(() => getAngles());
     check(Math.round(view.az) === 60 && view.el > 80, '視点: 真上にしても横の角度が変わらない', `横${Math.round(view.az)}° 縦${Math.round(view.el)}°`);
     await page.click('#cv0'); await page.waitForTimeout(1200);
+    /* the turn stick at the bottom: held to the right the view keeps turning, let go it springs back to the middle */
+    const az0 = await page.evaluate(() => getAngles().az);
+    const tb = await page.locator('#azTrack').boundingBox();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.down();
+    await page.mouse.move(tb.x + tb.width - 4, tb.y + tb.height / 2); await page.waitForTimeout(500);
+    const az1 = await page.evaluate(() => getAngles().az); await page.mouse.up(); await page.waitForTimeout(300);
+    const back = await page.evaluate(() => stick.az === 0);
+    check(Math.abs(az1 - az0) > 20 && back, '視点: 下の横回転スティックを倒すと回り続け、離すと戻る', `${Math.round(az1 - az0)}°`);
 
     /* queued waypoints: the fleet passes the first point and stops at the last */
     const route = await page.evaluate(() => {
@@ -323,7 +341,7 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip');
     const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = op.convoy.depart * .5 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
       return { text: goalText.textContent, label: goalLabel.textContent, sub: goalSub.textContent }; });
-    check(goal.label.startsWith('乗船 50%') && goal.text.length > 0 && goal.sub.includes('5/5'), 'ネオ信濃奇襲: 右上の任務欄に乗船のゲージと指示が出る', goal.label);
+    check(goal.label.startsWith('乗船 50%') && goal.text.length > 0 && goal.sub.includes('5/5'), 'ネオ信濃奇襲: 左上の任務欄に乗船のゲージと指示が出る', goal.label);
     const sh = await page.evaluate(() => { const r = { convoy: !!convoy, station: stationObj.visible, fort: fortressObj.visible };
       /* the fight itself is random; keep own ships afloat so this checks only the timed flow */
       fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9);
@@ -331,16 +349,16 @@ function check(ok, label, detail = '') {
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
-    const grp = await page.textContent('#grpBtn').catch(() => '');
+    const grp = await page.textContent('#roster .grpBtn').catch(() => '');
     check(grp.includes('ネオ信濃駐屯隊'), 'ネオ信濃奇襲: 4隊が軍集団「ネオ信濃駐屯隊」にまとまる', grp);
     /* switches in the fleet list: one fleet's stance, the whole group's stance, and speed sync */
     await page.click('#roster .frow:nth-of-type(1) .st, #roster .rzone .frow .st');
     const sw1 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
-    await page.click('#rgStance');
+    await page.click('#roster .rgStance');
     const sw2 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
-    const sync0 = await page.evaluate(() => armyGroup.sync); await page.click('#rgSync'); const sync1 = await page.evaluate(() => armyGroup.sync);
+    const sync0 = await page.evaluate(() => groups[0].sync); await page.click('#roster .rgSync'); const sync1 = await page.evaluate(() => groups[0].sync);
     check(sw1.filter(s => s === 'evade').length === 1 && sw2.every(s => s === 'evade') && sync0 !== sync1, '艦隊一覧: 自動交戦/命令優先（1隊・全軍）と速度同期を切り替えられる');
-    await page.evaluate(() => { fleets.forEach(f => f.stance = 'engage'); armyGroup.sync = false; updateRoster(); });
+    await page.evaluate(() => { fleets.forEach(f => f.stance = 'engage'); groups[0].sync = false; updateRoster(); });
     check(rosterNames.length === 4 && !rosterNames.some(t => t.includes('輸送')), 'ネオ信濃奇襲: 動かせない輸送船団は艦隊一覧に入らない', `${rosterNames.length}隊`);
     check(sh.departed && sh.assault && sh.phase === '出港', 'ネオ信濃奇襲: 揚陸隊が現れ、09:20 に船団が出港する', sh.phase);
     await page.waitForTimeout(500);
