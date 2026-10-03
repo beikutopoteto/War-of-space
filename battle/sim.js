@@ -102,6 +102,8 @@ function end(win,quit=false){
   document.getElementById('rh').textContent=win?'勝利':'敗北';
   const R=op.result, tail=convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
+  /* the menu records the progress and the reward (prep.js) and tells what was gained */
+  if(window.WOS_MENU&&WOS_MENU.onEnd) document.getElementById('rp').textContent+=WOS_MENU.onEnd(op.id,win);
   if(quit){ logEvent('作戦中止','指揮官の判断で作戦を中止した。'); document.getElementById('result').hidden=false; return; }
   if(!win&&R.loseBlast) blast(R.loseBlast);
   logEvent(...(win?R.winLog:R.loseLog));
