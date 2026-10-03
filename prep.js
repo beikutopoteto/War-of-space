@@ -288,6 +288,9 @@ const ICONS={
 };
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||ICONS.cap}</svg>`;
 const num=v=>(Math.round(v*10)/10).toFixed(1);
+/* one line for the tooltip: what a node raises */
+const effShort=(b,n)=>n.cap?`出撃上限 +${b.steps[n.cap].cap-b.steps[n.cap-1].cap}隻`
+  :Object.keys(n.add).map(k=>`${STAT_NAME[k]} +${b.types.map(t=>num(SHIP[t][k]*n.add[k])).join('/')}`).join('・');
 let techForce='space', techBr=null, techSel=null;
 function renderTech(){
   const P=prog(), F=D.techForces, force=F.find(f=>f.id===techForce)||F[0];
@@ -302,17 +305,19 @@ function renderTech(){
   const b=techBr;
   document.getElementById('brBar').innerHTML=open.map(x=>`<button data-br="${x.id}" aria-pressed="${x===b}"><b>${esc(x.name)}</b><span>上限${branchCap(x)}隻</span></button>`).join('');
   document.querySelectorAll('#brBar [data-br]').forEach(x=>x.onclick=()=>{ techBr=BRANCHES.find(y=>y.id===x.dataset.br); techSel=null; renderTech(); });
-  /* the branch now: each ship class's stats as numbers, now / final form */
+  /* the branch now: each ship class's stats as numbers (the final form is not shown) */
   document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻</span></div>`+
-    b.types.map(t=>`<div class="trrow"><span class="tname">${SHIP[t].name}</span>${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${num(SHIP[t][k]*statRate(b,k))}</em><small>/${SHIP[t][k]}</small></i>`).join('')}</div>`).join('');
+    b.types.map(t=>`<div class="trrow"><span class="tname">${SHIP[t].name}</span>${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${num(SHIP[t][k]*statRate(b,k))}</em></i>`).join('')}</div>`).join('');
   /* the web: nodes at (col,row), a curve from each requirement to the node */
   const CW=168, RH=68, R=21, PADX=80, PADY=10;
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+n.row*RH});
   const cols=Math.max(...TREE.map(n=>n.col))+1, rows=Math.max(...TREE.map(n=>n.row))+1;
   const edges=TREE.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=(p.x+q.x)/2;
-    return `<path d="M${p.x+R} ${p.y}C${m} ${p.y} ${m} ${q.y} ${q.x-R} ${q.y}" class="${nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):''}"/>`; })).join('');
-  const nodes=TREE.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id;
-    return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
+    const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
+    return `<path d="M${p.x+R} ${p.y}C${m} ${p.y} ${m} ${q.y} ${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
+  const selN=nodeById(techSel);
+  const nodes=TREE.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
+    return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
   const cv=document.getElementById('trCv');
   cv.style.cssText=`width:${PADX*2+(cols-1)*CW}px;height:${PADY*2+(rows-1)*RH+R*2+30}px`;
   cv.innerHTML=`<svg class="tedges" width="100%" height="100%" aria-hidden="true">${edges}</svg>${nodes}`;
@@ -323,9 +328,11 @@ function renderTech(){
   const done=nodeDone(b,n), can=nodeOpen(b,n), cost=nodeCost(b,n);
   const eff=n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
     :Object.keys(n.add).map(k=>{ const from=statRate(b,k)-(done?n.add[k]:0), to=Math.min(1,from+n.add[k]);
-      return `${STAT_NAME[k]}　${b.types.map(t=>`${SHIP[t].name} ${num(SHIP[t][k]*from)} → ${num(SHIP[t][k]*to)}（最大${SHIP[t][k]}）`).join('、')}`; }).join('<br>');
-  const need=n.req.filter(r=>!techOf(b).includes(r)).map(r=>`「${esc(nodeName(b,nodeById(r)))}」`);
-  info.innerHTML=`<div><b>${esc(nodeName(b,n))}</b><p>${eff}</p>${need.length?`<p class="dim">先に研究が要るもの：${need.join('・')}</p>`:''}</div>`+
+      return `${STAT_NAME[k]}　${b.types.map(t=>`${SHIP[t].name} ${num(SHIP[t][k]*from)} → ${num(SHIP[t][k]*to)}（+${num(SHIP[t][k]*(to-from))}）`).join('、')}`; }).join('<br>');
+  /* prerequisites (all of them, marked done or not) and what this one leads to */
+  const reqs=n.req.length?n.req.map(r=>{ const x=nodeById(r), ok=nodeDone(b,x); return `<span class="${ok?'ok':'ng'}">${ok?'✓':'✗'} ${esc(nodeName(b,x))}</span>`; }).join(''):'<span class="ok">なし（最初から研究できる）</span>';
+  const leads=TREE.filter(c=>c.req.includes(n.id)).map(c=>esc(nodeName(b,c)));
+  info.innerHTML=`<div><b>${esc(nodeName(b,n))}</b><p>${eff}</p><p class="treq">前提の研究：${reqs}</p>${leads.length?`<p class="dim">この先：${leads.join('・')}</p>`:''}</div>`+
     `<div class="tact">${done?'<em>研究済み</em>':`<span>資金 ${cost}</span><button id="tRes" ${can&&P.funds>=cost?'':'disabled'}>研究する</button>${can&&P.funds<cost?'<em class="dim">資金が足りません</em>':''}`}</div>`;
   const r=document.getElementById('tRes'); if(r) r.onclick=()=>{ if(!nodeOpen(b,n)||P.funds<cost) return; P.funds-=cost; techOf(b).push(n.id); persist(); renderTech(); };
 }

@@ -98,7 +98,6 @@
 .trrow .tname{min-width:6em;color:var(--ink)}
 .trrow i{font-style:normal}
 .trrow em{font-style:normal;color:var(--blue);font-family:var(--f-num);font-size:13px}
-.trrow small{font-family:var(--f-num);font-size:10.5px;opacity:.7}
 .trscroll{overflow-x:auto;overflow-y:hidden;background:rgba(8,14,26,.45);border:1px solid var(--line)}
 .trcv{position:relative}
 .tedges{position:absolute;inset:0}
@@ -118,6 +117,13 @@
 .tn.can .orb{border-color:var(--brass)}
 .tn.can .orb svg{opacity:1;color:var(--brass)}
 .tn.can span{color:var(--brass)}
+.tedges path.req{stroke:var(--ink);stroke-opacity:.9;stroke-width:2.2}
+.tedges path.next{stroke:var(--ink);stroke-opacity:.35;stroke-dasharray:4 4}
+.tn.pre .orb{box-shadow:0 0 0 2px rgba(5,8,15,.9),0 0 0 3.5px rgba(232,238,245,.6)}
+.tinfo .treq{color:var(--ink-dim)}
+.tinfo .treq span{margin-right:12px}
+.tinfo .treq .ok{color:var(--blue)}
+.tinfo .treq .ng{color:var(--red)}
 .tn.sel .orb{box-shadow:0 0 0 3px rgba(5,8,15,.9),0 0 0 4.5px var(--ink)}
 .tinfo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;min-height:52px;padding:8px 12px;background:rgba(8,14,26,.55);border:1px solid var(--line);font-size:12.5px}
 .tinfo b{font-size:14px}
