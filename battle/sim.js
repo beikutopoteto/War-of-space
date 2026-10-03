@@ -165,7 +165,10 @@ function dock(w){
 }
 /* fighters pin what they attack: a fleet under fighter fire moves at half speed (SLOW_BY) for a moment */
 const SLOW_BY=.5, KITE_MARGIN=6;
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1); }
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*formWait(f); }
+/* a formation's leader slows down while its armies are out of place (formLag: the farthest one, last step), so the shape holds in a turn */
+function formWait(f){ const l=f.formLag||0; return l<=FORM_SLACK?1:Math.max(.2,1-(l-FORM_SLACK)/12); }
+const FORM_SLACK=2;
 /* a fleet of carriers only keeps its distance: when a seen enemy fleet comes within its own range plus KITE_MARGIN,
    the carriers back away from it (facing the same way) instead of closing. Returns true while backing away */
 function kite(f,dt){
@@ -227,8 +230,20 @@ function followPath(f,dt){
   const o=f.order; if(!o.path) o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
   const p=o.path; p.s=Math.min(p.L,p.s+speedOf(f)*dt);
   const u=p.s/p.L; f.pos.copy(p.curve.getPointAt(u));
-  _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6) f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize();
+  _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6){ f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); }
   return p.s>=p.L;
+}
+/* the march turns smoothly toward the way the fleet moves (level only, so a formation does not tilt) */
+const _mv2=new THREE.Vector3();
+function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) return; f.march.lerp(_mv2.normalize(),Math.min(1,dt*1.5)); f.march.y=0; if(f.march.lengthSq()<1e-6) f.march.copy(_mv2); f.march.normalize(); }
+/* keep station in a formation (order type 'follow'): head for the place beside the leader at full speed (not the group's synced speed,
+   so the outer armies can keep up in a turn); true while still on the way */
+function followSlot(f,dt){
+  const sp=f.speed*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1);
+  slotPos(f.order,_w); _v.subVectors(_w,f.pos); const d=_v.length(); const L=f.order.leader; L.formLagAcc=Math.max(L.formLagAcc||0,d); if(d<1e-3) return false;
+  _v.multiplyScalar(1/d); f.pos.addScaledVector(_v,Math.min(sp*dt,d));
+  if(d>2){ f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); return true; }
+  f.heading.lerp(f.order.leader.march,Math.min(1,dt*2)).normalize(); return false;
 }
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
@@ -364,6 +379,7 @@ function step(dt){
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
+  for(const f of fleets){ f.formLag=f.formLagAcc||0; f.formLagAcc=0; }
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
@@ -371,6 +387,10 @@ function step(dt){
     let goal=null, moving=false;
     if(f.order){
       if(f.order.type==='move'){ moving=true; if(followPath(f,dt)){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } nextOrder(f); } }
+      else if(f.order.type==='follow'){
+        /* the flagship is lost: keep station on the next one, or stop */
+        if(!f.order.leader.alive){ const g=groupOf(f), nf=g&&g.form&&groupFlag(g); if(nf&&nf!==f) follow(g,nf,groupAlive(g)); else { f.order=null; nextOrder(f); } }
+        else moving=followSlot(f,dt); }
       else { const t=f.order.target; if(!t.alive){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
         else if(!t.seen){ if(f.team===0&&t.lastPos) order(f,{type:'move',dest:t.lastPos.clone()}); else { f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } }
         else goal=t; }
@@ -381,7 +401,7 @@ function step(dt){
        once the target is inside 80% (1:4 from the edge) of its shortest launch distance */
     if(goal){ const stop=(f.carrierOnly?f.launchMin*.8:f.range*.75)+(goal.radius||0);
       _v.subVectors(goal.pos,f.pos); const d=_v.length();
-      if(d>stop&&!kited){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); }
+      if(d>stop&&!kited){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); }
     }
     const ft=f.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){

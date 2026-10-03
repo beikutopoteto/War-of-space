@@ -16,7 +16,8 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
 function makeFleet(team,o){
-  const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
+  /* march: the way the fleet last moved, level; a formation led by this fleet faces it (sim.js followSlot) */
+  const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
@@ -148,12 +149,20 @@ const SHAPES_FORM={
 };
 /* gather the army group into its formation around the flagship, where the flagship is now (the flagship stops) */
 function reform(g){ const fl=groupFlag(g); if(!fl) return; const m=groupAlive(g);
-  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
-  m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null; order(f,{type:'move',dest:fl.pos.clone().add(formationOffset(g,f))}); }); }
+  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[]; follow(g,fl,m); }
+/* the other armies keep station on the flagship: their place in the formation turns with the way the flagship moves,
+   so the formation always faces where it is going and holds its shape on the way (sim.js followSlot) */
+function follow(g,fl,m){ m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null;
+  const off=formationOffset(g,f); if(f.order&&f.order.type==='follow'&&f.order.leader===fl) f.order.off=off; else order(f,{type:'follow',leader:fl,off}); }); }
+/* stop keeping station (the fleets that match stay where they are) */
+function unfollow(match){ fleets.forEach(x=>{ if(x.order&&x.order.type==='follow'&&match(x)) x.order=null; }); }
+/* where an army keeping station should be: the leader's position plus its place, turned so that ahead (-z) is the leader's march */
+const _up=new THREE.Vector3(0,1,0);
+function slotPos(o,out=new THREE.Vector3()){ const m=o.leader.march; return out.copy(o.off).applyAxisAngle(_up,Math.atan2(-m.x,-m.z)).add(o.leader.pos); }
 function setShape(g,kind){ if(!SHAPES_FORM[kind]&&!(kind==='base'&&g.baseName)) return; g.kind=kind; reform(g); updateRoster();
   const fl=groupFlag(g); logEvent(`${g.name} ${kind==='base'?g.baseName:SHAPES_FORM[kind].name}`,`旗艦の${fl?fl.name:'—'}を中心に組み直す。このあとの移動もこの陣形を保つ。`); }
 /* take an army out of its group; a group left with no armies goes away */
-function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); f.syncSpeed=null;
+function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); f.syncSpeed=null; unfollow(x=>x===f||x.order.leader===f);
   if(!g.members.size) groups.splice(groups.indexOf(g),1); }
 /* drag in the roster: into another group (it takes the place where it stands now, relative to the flagship) or out to act alone */
 function moveToGroup(f,g){ const from=groupOf(f); if(g===from) return;
@@ -173,7 +182,7 @@ function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) retur
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
   groups.push(g); buildRoster(); selectGroup(g);
   logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で軍集団を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
-function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null);
+function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null); unfollow(x=>g.members.has(x));
   if(selGroup===g) select(null); buildRoster(); updateRoster();
   logEvent(`${g.name} 解散`,'各軍は独立行動に戻った。'); }
 /* formation on: a move keeps the formation around the flagship. Off: every army goes to the point itself */
@@ -196,6 +205,7 @@ function orderTargets(){ return selGroup?groupAlive(selGroup):selMulti.filter(f=
 const UNDO_MAX=30; let undoStack=[];
 function copyOrder(o){
   if(!o) return null;
+  if(o.type==='follow') return {type:'follow',leader:o.leader,off:o.off.clone()};
   if(o.type!=='move') return {type:o.type,target:o.target};
   const left=o.path?pathLeft(o):[...(o.via||[]),o.dest], pts=left.length?left:[o.dest];   // the points still ahead
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
@@ -223,9 +233,11 @@ function groupOrder(o){
     /* the whole army group: with formation on, the flagship goes to the point and the others take their places around it;
        with formation off, every army goes to the point itself. Several fleets picked one by one keep how they stand */
     const formation=g&&g.form&&groupFlag(g), point=g&&!g.form;
-    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
+    const base=f=>{ const x=tail(f); if(!x||x.type==='follow') return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
-    t.forEach(f=>{ const x=tail(f), dest=point?o.dest.clone():o.dest.clone().add(formation?formationOffset(g,f):base(f).clone().sub(c)); f.syncSpeed=sync;
+    /* with formation on, only the flagship takes the route; the others keep station on it */
+    if(formation){ follow(g,formation,t); t.length=0; t.push(formation); }
+    t.forEach(f=>{ const x=tail(f), dest=point||formation?o.dest.clone():o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
       if(x&&x.type==='move'&&x===f.order) order(f,{type:'move',via:pathLeft(x).slice(-(MAX_WAYPOINTS-1)),dest});
       else if(x&&x.type==='move'){ x.via=pathLeft(x).slice(-(MAX_WAYPOINTS-1)); x.dest=dest; }
       else if(x) f.queue.push({type:'move',dest});
