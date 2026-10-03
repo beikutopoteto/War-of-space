@@ -100,8 +100,13 @@ function buildRoster(){
     gt.addEventListener('click',()=>{ const m=groupAlive(g); if(m.length) applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',`${g.name} 全軍`); });
     const gf=document.createElement('button'); gf.className='st rgForm'; gf.title='ON: 旗艦を中心に陣形を保って動く。OFF: 指示した一点に全軍が集まる';
     gf.addEventListener('click',()=>toggleForm(g));
-    const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gx,gs,gt,gf);
-    gz.appendChild(gh); g.ui={gb,gs,gt,gf};
+    /* with formation on: which formation to keep (the starting one, or one of the shapes); choosing one regroups at once */
+    const gk=document.createElement('select'); gk.className='rgShape'; gk.title='陣形を選ぶと、旗艦を中心にすぐ組み直す';
+    gk.setAttribute('aria-label',`${g.name}の陣形`);
+    gk.innerHTML=(g.baseName?`<option value="base">${g.baseName}</option>`:'')+Object.entries(SHAPES_FORM).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
+    gk.addEventListener('change',()=>setShape(g,gk.value));
+    const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gx,gs,gt,gf,gk);
+    gz.appendChild(gh); g.ui={gb,gs,gt,gf,gk};
     mine.filter(f=>g.members.has(f)).forEach(f=>gz.appendChild(mk(f)));
     rosterEl.appendChild(gz);
   });
@@ -127,8 +132,26 @@ function groupAlive(g){ return g?[...g.members].filter(f=>f.alive):[]; }
 /* the flagship: the one chosen at sortie (or when the group was formed) while it is alive and in the group, otherwise the first army left */
 function groupFlag(g){ if(!g) return null; const f=g.flag; return f&&f.alive&&g.members.has(f)?f:groupAlive(g)[0]||null; }
 /* where an army stands in the formation, relative to the flagship */
-function formationOffset(g,f){ const fl=groupFlag(g), a=g.off.get(f), b=fl&&g.off.get(fl);
+function formationOffset(g,f){ const fl=groupFlag(g);
+  if(g.kind!=='base'&&SHAPES_FORM[g.kind]){ if(!fl||f===fl) return new THREE.Vector3();
+    /* the other armies in roster order take the places of the shape one by one */
+    const rest=fleets.filter(x=>x!==fl&&x.alive&&g.members.has(x)), k=rest.indexOf(f);
+    return k<0?f.pos.clone().sub(fl.pos):SHAPES_FORM[g.kind].at(k,rest.length); }
+  const a=g.off.get(f), b=fl&&g.off.get(fl);
   return a&&b?a.clone().sub(b):fl?f.pos.clone().sub(fl.pos):new THREE.Vector3(); }
+/* the formation shapes, relative to the flagship (-z is ahead). The gap between armies is FORM_GAP (provisional) */
+const FORM_GAP=20;
+const SHAPES_FORM={
+  line:{name:'横陣', at:(k)=>new THREE.Vector3((k%2?-1:1)*FORM_GAP*(Math.floor(k/2)+1),0,0)},
+  column:{name:'縦陣', at:(k)=>new THREE.Vector3(0,0,FORM_GAP*(k+1))},
+  ring:{name:'輪形陣', at:(k,n)=>{ const a=Math.PI*2*k/n, r=FORM_GAP*1.1; return new THREE.Vector3(Math.sin(a)*r,0,-Math.cos(a)*r); }},
+};
+/* gather the army group into its formation around the flagship, where the flagship is now (the flagship stops) */
+function reform(g){ const fl=groupFlag(g); if(!fl) return; const m=groupAlive(g);
+  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
+  m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null; order(f,{type:'move',dest:fl.pos.clone().add(formationOffset(g,f))}); }); }
+function setShape(g,kind){ if(!SHAPES_FORM[kind]&&!(kind==='base'&&g.baseName)) return; g.kind=kind; reform(g); updateRoster();
+  const fl=groupFlag(g); logEvent(`${g.name} ${kind==='base'?g.baseName:SHAPES_FORM[kind].name}`,`旗艦の${fl?fl.name:'—'}を中心に組み直す。このあとの移動もこの陣形を保つ。`); }
 /* take an army out of its group; a group left with no armies goes away */
 function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); f.syncSpeed=null;
   if(!g.members.size) groups.splice(groups.indexOf(g),1); }
@@ -146,7 +169,7 @@ function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) retur
   if(t.length>GROUP_MAX){ logEvent('軍集団は5個の軍まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
   const fl=t.includes(selected)?selected:t[0];
   t.forEach(leaveGroup);
-  const g={name:newGroupName(),sync:true,form:true,members:new Set(t),flag:fl,off:new Map()};
+  const g={name:newGroupName(),sync:true,form:true,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
   groups.push(g); buildRoster(); selectGroup(g);
   logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で軍集団を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
@@ -223,7 +246,8 @@ function updateRoster(){
     gb.setAttribute('aria-pressed',String(selGroup===g)); gb.disabled=!m.length;
     gs.textContent=g.sync?'速度同期':'速度個別'; gs.setAttribute('aria-pressed',String(g.sync));
     gt.textContent='全軍'+(!m.length?'—':ev===m.length?'命令':ev?'混在':'自動'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length;
-    gf.textContent=g.form?'陣形ON':'陣形OFF'; gf.setAttribute('aria-pressed',String(g.form)); });
+    gf.textContent=g.form?'陣形ON':'陣形OFF'; gf.setAttribute('aria-pressed',String(g.form));
+    g.ui.gk.hidden=!g.form; g.ui.gk.value=g.kind; g.ui.gk.disabled=!m.length; });
   syncStance();
 }
 
@@ -246,7 +270,7 @@ function reset(cfg=lastCfg){
   /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
   const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
   /* more army groups can be formed during the battle (＋ in the roster) */
-  const AG=G?{name:G.name,sync:G.sync,form:true,members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
+  const AG=G?{name:G.name,sync:G.sync,form:true,kind:'base',baseName:'出撃時の陣形',members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
   groups=AG?[AG]:[];
   /* each army's place in the formation, relative to the flagship (from the cube at sortie, or from where the armies start) */
   if(AG) G.members.forEach((i,k)=>{ const o=G.offsets&&G.offsets[k];
