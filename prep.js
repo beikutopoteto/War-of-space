@@ -65,6 +65,8 @@ function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.
     const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
   /* saves from before the campaign progress start at the beginning */
   s.prog=Object.assign(newProg(),s.prog||{});
+  /* saves that cleared an operation before its grant existed get the grant now */
+  OPS.forEach(o=>{ const k='aid:'+o.id; if(o.aid&&s.prog.cleared.includes(o.id)&&!s.prog.flags[k]){ s.prog.flags[k]=true; s.prog.funds+=o.aid.funds; } });
   /* earlier tech trees kept a number per branch, then {line: steps}: only the sortie-limit steps carry over */
   Object.keys(s.prog.tech).forEach(k=>{ const v=s.prog.tech[k]; if(Array.isArray(v)) return;
     const n=typeof v==='number'?v:(v&&v.cap)||0; s.prog.tech[k]=['cap1','cap2','cap3'].slice(0,n); }); }
@@ -130,15 +132,18 @@ function groupLoad(g){
   const n={}; g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count));
   return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
 }
+/* a one-time grant on the first clear of an operation (o.aid), remembered in the story flags */
+function grantAid(o){ const k='aid:'+o.id; if(!o.aid||prog().flags[k]) return 0; prog().flags[k]=true; prog().funds+=o.aid.funds; return o.aid.funds; }
 /* the battle the menu started: the result is recorded when it ends (quick battle is not counted) */
 let running=null;
 function onEnd(opId,win){
   if(!running||running.quick||running.op!==opId||!win) return '';
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   const gain=Math.round((o.reward||0)*(first?1:D.reward.replay));
-  prog().funds+=gain; if(first) prog().cleared.push(opId); persist();
+  prog().funds+=gain; if(first) prog().cleared.push(opId);
+  const aid=first?grantAid(o):0; persist();
   const opened=[['fleet','艦隊編集'],['tech','技術ツリー']].filter(([k])=>!before[k]&&unlocked(k)).map(([,n])=>`「${n}」`);
-  return `${gain?`　報酬：資金 +${gain}${first?'':'（再戦）'}。`:''}${opened.length?`　${opened.join('と')}が使えるようになった。`:''}`;
+  return `${gain?`　報酬：資金 +${gain}${first?'':'（再戦）'}。`:''}${aid?`　${o.aid.name}：資金 +${aid}。`:''}${opened.length?`　${opened.join('と')}が使えるようになった。`:''}`;
 }
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -284,7 +289,7 @@ function renderDebug(){
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
     if(a!=='reset') dbgConfirm=false;
-    if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); });
+    if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全研究 also opens the branches the story has not opened yet (戦艦・母艦・W.A.S. 部隊) */
     if(a==='tech') BRANCHES.forEach(br=>{ if(br.need) P.flags[br.need]=true; P.tech[br.id]=TREE.map(n=>n.id); });

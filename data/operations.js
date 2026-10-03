@@ -27,6 +27,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
    reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay の割合）
+   aid: 初めてクリアしたときに一度だけもらえる資金 {funds, name}（name は結果に出す名前）
    group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの軍集団にまとめる
    result.loseBlast: 負けたときに爆発させる位置 [x, z, alt]
    field:'convoy' なら作戦フィールドの中心が輸送船団になり、船団と一緒に動く（枠の半径215、自軍は枠の外へ出られない）。
@@ -166,6 +167,8 @@ WOS_DATA.operations=[
   {
     id:'retreat',
     reward:400,
+    /* 第3節の前に強化する資金。いずれ技術ツリーのチュートリアルで渡す（ユーザー決定 2026-10-03） */
+    aid:{funds:1000, name:'司令部からの緊急援助'},
     chapter:'第一章 第2節',
     name:'後退',
     summary:'ネオ信濃を出て3日目。共和国の偵察と本隊が追ってくる。プラズマ雲に隠れながら、輸送船団をナイルまで護衛する。',
