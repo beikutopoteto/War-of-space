@@ -3,7 +3,8 @@
   "private": true,
   "description": "War of Space の試作。ゲーム自体はビルド不要で、ここにあるのは自動確認用の道具だけ。",
   "scripts": {
-    "test": "node tests/smoke.cjs"
+    "test": "node tests/smoke.cjs",
+    "check-docs": "node tests/docs-check.cjs"
   },
   "devDependencies": {
     "playwright": "1.56.1",
