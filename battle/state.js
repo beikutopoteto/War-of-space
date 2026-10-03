@@ -28,7 +28,7 @@ function makeFleet(team,o){
   for(let i=0;i<o.n;i++){ const rear=mixed&&CARRIERS.has(types[i]), rr=rear?Rc:R, a=Math.random()*Math.PI*2, r=rr*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r-(rear?R+Rc+2*o.scale:0));
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6,type:types[i]});}
-  f.hangars=makeHangars(o.hangar);
+  f.hangars=makeHangars(o.hangar,0,o.craft);
   f.launchR=f.hangars.reduce((m,h)=>Math.max(m,h.launchR),0);
   f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,h.launchR),Infinity);
   f.carrierOnly=f.hangars.length>0&&nc===o.n;
@@ -44,17 +44,18 @@ function shipClasses(o){
   for(let i=list.length-1;i>0;i--){ const j=Math.random()*(i+1)|0; [list[i],list[j]]=[list[j],list[i]]; }
   return list.map(t=>SHAPES[t]?t:'gen');
 }
-/* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve */
+/* carriers: craft sortie in squadrons. Each hangar fills up to maxOut squadrons, the rest waits aboard as reserve.
+   craft: the research of the player's own fleets (prep.js): out squadrons at once, turn = speed of rearming and launching */
 const WING=WOS_DATA.crafts;
 /* ship classes that carry craft (a hangar in data/ships.js) */
 const CARRIERS=new Set(WOS_DATA.ships.filter(c=>c.hangar).map(c=>c.id));
 /* launchR: the launch distance, if not the craft's own (a fortress reaches further) */
-function makeHangars(hg,launchR){
+function makeHangars(hg,launchR,craft){
   if(!hg) return [];
   return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
-    const W=WING[type], squads=[]; let left=Math.round(cap);
-    while(squads.length<W.maxOut&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
-    return {type,reserve:left,squads,next:0,announced:false,launchR:launchR||W.launchR};
+    const W=WING[type], C=craft&&craft[type]||{}, out=C.out||W.maxOut, squads=[]; let left=Math.round(cap);
+    while(squads.length<out&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
+    return {type,reserve:left,squads,next:0,announced:false,launchR:launchR||W.launchR,out,slow:1/(C.turn||1)};
   });
 }
 function hangarText(f){

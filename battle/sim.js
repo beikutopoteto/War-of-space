@@ -142,13 +142,13 @@ function craftTarget(u,type,maxD){
   return nearestFoe(u,maxD,t=>craftMayHit(u,t));
 }
 let enemyWASSeen=false;
-/* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut at once */
+/* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut (h.out) at once */
 function launchCheck(f){
   for(const h of f.hangars){ const W=WING[h.type], C=f.craft&&f.craft[h.type]||{};   /* C: research of the player's own fleets (prep.js) */
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
-    h.next=gameSec+W.cd; sq.state='out';
+    h.next=gameSec+W.cd*h.slow; sq.state='out';
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
       pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1),hpPool:sq.n*W.hp*(C.hp??1),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),range:W.range,
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
@@ -158,13 +158,13 @@ function launchCheck(f){
     sq.wing=w; wings.push(w);
     if(f.team===1&&h.type==='was'&&!enemyWASSeen&&op.onEnemyWAS){ enemyWASSeen=true; logEvent(...op.onEnemyWAS); }
     if(f.team===0&&!h.announced){ h.announced=true;
-      logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${W.maxOut}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
+      logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${h.out}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
   }
 }
 /* back aboard: half of this sortie's losses are made up from the reserve, then the squadron rearms */
 function dock(w){
   const h=w.hangar, q=w.squad, rec=Math.min(Math.ceil((w.launched-w.n)/2),h.reserve);
-  h.reserve-=rec; q.n=w.n+rec; q.state='docked'; q.ready=gameSec+w.W.rearm; q.wing=null; w.alive=false;
+  h.reserve-=rec; q.n=w.n+rec; q.state='docked'; q.ready=gameSec+w.W.rearm*h.slow; q.wing=null; w.alive=false;
 }
 /* fighters pin what they attack: a fleet under fighter fire moves at half speed (SLOW_BY) for a moment */
 const SLOW_BY=.5, KITE_MARGIN=6;

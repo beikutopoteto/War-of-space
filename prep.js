@@ -109,6 +109,10 @@ function statRate(b,k){ if(!b) return 1;
 function craftRate(b,c,k){ if(!b) return 1;
   return Math.min(1,D.techStat.base+TREE.reduce((s,n)=>s+(n.craft===c&&nodeDone(b,n)?n.add[k]||0:0),0)); }
 const CRAFT_STATS=['dmg','hp','eva'];
+/* carrier operations (craft:'all' nodes): squadrons out at once, and the speed of rearming (time = data ÷ speed) */
+const OUT_NODES=TREE.filter(n=>n.add&&n.add.out);
+const craftOut=(b,c)=>Math.max(1,D.crafts[c].maxOut-OUT_NODES.filter(n=>(!n.only||n.only.includes(b.id))&&!nodeDone(b,n)).length);
+const craftTurn=b=>Math.min(1,D.techStat.base+TREE.reduce((s,n)=>s+(n.add&&n.add.turn&&nodeDone(b,n)?n.add.turn:0),0));
 /* the nodes a branch shows: the craft lines only for the branches whose ships carry them */
 const nodesOf=b=>TREE.filter(n=>!n.only||n.only.includes(b.id));
 const RATED=['atk','def','eva','rng','aa','vis','stl','spd'];
@@ -152,10 +156,10 @@ function armyStats(a){
 function armyToFleet(a){
   const {st,ships,bgs,hangar}=armyStats(a);
   /* the small craft's rates, weighted by how many each ship class brings */
-  const craft={}; Object.keys(hangar).forEach(c=>{ let w=0; const r={dmg:0,hp:0,eva:0};
-    bgs.forEach(b=>{ const v=(SHIP[b.type].hangar||{})[c]; if(!v) return; const n=v*b.count; w+=n;
-      CRAFT_STATS.forEach(k=>r[k]+=craftRate(branchOfType(b.type),c,k)*n); });
-    if(w) craft[c]=Object.fromEntries(CRAFT_STATS.map(k=>[k,r[k]/w])); });
+  const craft={}; Object.keys(hangar).forEach(c=>{ let w=0, out=1, turn=0; const r={dmg:0,hp:0,eva:0};
+    bgs.forEach(b=>{ const v=(SHIP[b.type].hangar||{})[c]; if(!v) return; const n=v*b.count, br=branchOfType(b.type); w+=n;
+      CRAFT_STATS.forEach(k=>r[k]+=craftRate(br,c,k)*n); out=Math.max(out,craftOut(br,c)); turn+=craftTurn(br)*n; });
+    if(w) craft[c]={...Object.fromEntries(CRAFT_STATS.map(k=>[k,r[k]/w])), out, turn:turn/w}; });
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
   const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name+c).join('・');
@@ -301,13 +305,17 @@ const ICONS={
   sensor:'<path d="M5 19a10 10 0 0 1 0-14M8.5 15.5a5 5 0 0 1 0-7"/><circle cx="12" cy="12" r="1.6"/><path d="M12 12l8-6"/>',
   fighter:'<path d="M12 3l2 7 7 4v2l-7-2-1 5 2 2v1l-3-1-3 1v-1l2-2-1-5-7 2v-2l7-4z"/>',
   was:'<circle cx="12" cy="5" r="2"/><path d="M8 9h8l-1 6h-6zM9 15l-1 6M15 15l1 6M8 10l-3 5M16 10l3 5"/>',
+  deck:'<path d="M3 15h18l-2 4H5zM6 15V9h12v6M9 9V6h6v3"/>',
+  supply:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/><path d="M9 12h6M12 9v6"/>',
   flak:'<path d="M12 21v-6M8 21h8"/><path d="M12 15l-5-9M12 15l5-9"/><circle cx="6" cy="4" r="1.2"/><circle cx="18" cy="4" r="1.2"/>',
   stealth:'<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/><path d="M4 20L20 4"/>',
 };
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||ICONS.cap}</svg>`;
 const num=v=>(Math.round(v*10)/10).toFixed(1);
 /* one line for the tooltip: what a node raises */
-const effShort=(b,n)=>n.cap?`出撃上限 +${b.steps[n.cap].cap-b.steps[n.cap-1].cap}隻`
+const effShort=(b,n)=>n.add&&n.add.out?'同時に出撃できる隊 +1'
+  :n.add&&n.add.turn?'補給が速くなる'
+  :n.cap?`出撃上限 +${b.steps[n.cap].cap-b.steps[n.cap-1].cap}隻`
   :n.craft?Object.keys(n.add).map(k=>`${D.crafts[n.craft].name} ${CRAFT_NAME[k]} +${num2(D.crafts[n.craft][k]*n.add[k])}`).join('・')
   :Object.keys(n.add).map(k=>`${STAT_NAME[k]} +${b.types.map(t=>num(SHIP[t][k]*n.add[k])).join('/')}`).join('・');
 let techForce='space', techBr=null, techSel=null;
@@ -327,12 +335,13 @@ function renderTech(){
   /* the branch now: each ship class's stats as numbers (the final form is not shown) */
   document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻</span></div>`+
     b.types.map(t=>`<div class="trrow"><span class="tname">${SHIP[t].name}</span>${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${num(SHIP[t][k]*statRate(b,k))}</em></i>`).join('')}</div>`).join('')+
-    crafts(b).map(c=>`<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join('')}</div>`).join('');
+    crafts(b).map(c=>`<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join('')}`+
+      `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`).join('');
   /* the web: nodes at (col,row), a curve from each requirement to the node */
   const CW=168, RH=68, R=21, PADX=80, PADY=10;
-  const at=n=>({x:PADX+n.col*CW, y:PADY+R+n.row*RH});
-  const NODES=nodesOf(b);
-  const cols=Math.max(...NODES.map(n=>n.col))+1, rows=Math.max(...NODES.map(n=>n.row))+1;
+  const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
+  const NODES=nodesOf(b), ROWS=[...new Set(NODES.map(n=>n.row))].sort((x,y)=>x-y);
+  const cols=Math.max(...NODES.map(n=>n.col))+1, rows=ROWS.length;
   const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=(p.x+q.x)/2;
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
     return `<path d="M${p.x+R} ${p.y}C${m} ${p.y} ${m} ${q.y} ${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
@@ -348,6 +357,9 @@ function renderTech(){
   if(!n){ info.innerHTML='<p class="dim">研究を選ぶと、ここに効果と必要な資金が出ます。左の列の研究は最初から始められます。</p>'; return; }
   const done=nodeDone(b,n), can=nodeOpen(b,n), cost=nodeCost(b,n);
   const eff=n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
+    :n.add&&n.add.out?crafts(b).map(c=>{ const now=craftOut(b,c), from=done?now-1:now; return `${D.crafts[c].name} 同時に出撃できる隊　${from} → ${from+1}`; }).join('<br>')
+    :n.add&&n.add.turn?crafts(b).map(c=>{ const C=D.crafts[c], from=craftTurn(b)-(done?n.add.turn:0), to=Math.min(1,from+n.add.turn);
+      return `${C.name} 補給　${num(C.rearm/from)} → ${num(C.rearm/to)}秒、次の隊の発進間隔　${num(C.cd/from)} → ${num(C.cd/to)}秒`; }).join('<br>')
     :n.craft?Object.keys(n.add).map(k=>{ const C=D.crafts[n.craft], from=craftRate(b,n.craft,k)-(done?n.add[k]:0), to=Math.min(1,from+n.add[k]);
       return `${C.name} ${CRAFT_NAME[k]}　${num2(C[k]*from)} → ${num2(C[k]*to)}（+${num2(C[k]*(to-from))}）`; }).join('<br>')
     :Object.keys(n.add).map(k=>{ const from=statRate(b,k)-(done?n.add[k]:0), to=Math.min(1,from+n.add[k]);

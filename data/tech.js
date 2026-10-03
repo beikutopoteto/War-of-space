@@ -21,7 +21,7 @@ WOS_DATA.techForces=[
 ];
 
 /* 宇宙軍の技術ツリー（どの兵科も同じ形。名前の {gun} は兵科の主兵装の名前に置き換わる）。年は A.E.（開戦は A.E.45）。
-   id: 保存データが使う名前（変えると研究済みが消える）　icon: 節点の絵（cap gun aim armor engine sensor stealth flak fighter was）
+   id: 保存データが使う名前（変えると研究済みが消える）　icon: 節点の絵（cap gun aim armor engine sensor stealth flak fighter was deck supply）
    col / row: 画面上の位置（列は左から、行は上から）　req: 先に研究が要る節点（すべて）。空なら最初から研究できる
    cap: 兵科の出撃上限の段階（下の branches の steps の番号。資金もそこの cost）
    add: 研究すると能力が最大の何割ぶん上がるか（同じ能力の合計が 1 - techStat.base になるように置く）
@@ -62,6 +62,14 @@ WOS_DATA.techTree=[
   {id:'was1',  name:'W-21 ルクス',          icon:'was',     col:1, row:9, req:['def1'],         only:['was'], craft:'was', add:{dmg:.2,hp:.2,eva:.2},    cost:120},
   {id:'was2',  name:'W-24 ノクス',          icon:'was',     col:3, row:9, req:['was1','eng1'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:200},
   {id:'was3',  name:'W-27 ウンブラ',        icon:'was',     col:5, row:9, req:['was2','def3'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:320},
+  /* 母艦の運用（母艦と W.A.S. 部隊だけ）。craft:'all' はその兵科の艦が積む小型機すべて。
+     out: 同時に出撃できる隊の数が1つ増える（data/ships.js の maxOut が最終形態。研究前は out の節点の数だけ少ない、最低1隊）
+     turn: 補給（帰還後の整備 rearm と次の隊の発進間隔 cd）が速くなる。速さは techStat.base から始まり、時間は data の値 ÷ 速さ */
+  {id:'out1',  name:'第2飛行甲板増設',      icon:'deck',    col:2, row:10, req:['ftr1','def2'],  only:['carrier','was'], craft:'all', add:{out:1},     cost:200},
+  {id:'out2',  name:'多層格納甲板',          icon:'deck',    col:5, row:10, req:['out1','eng2'],  only:['carrier','was'], craft:'all', add:{out:1},     cost:360},
+  {id:'turn1', name:'40式 自動補給機構',     icon:'supply',  col:1, row:11, req:['ftr1'],         only:['carrier','was'], craft:'all', add:{turn:.2},   cost:90},
+  {id:'turn2', name:'44式 高速整備ライン',   icon:'supply',  col:3, row:11, req:['turn1','eng1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:180},
+  {id:'turn3', name:'46式 無人整備システム', icon:'supply',  col:5, row:11, req:['turn2','out1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:320},
 ];
 
 /* 兵科（宇宙軍）。技術ツリーの左の縦の欄で選ぶ単位（物語で解放されていない兵科は出さない）。
