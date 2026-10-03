@@ -55,19 +55,20 @@ WOS_DATA.techTree=[
   {id:'aa1',   name:'40式 対空機銃',        icon:'flak',    col:1, row:7, req:['gun1'],         add:{aa:.2},   cost:90},
   {id:'aa2',   name:'44式 対空誘導弾',      icon:'flak',    col:3, row:7, req:['aa1','vis2'],   add:{aa:.25},  cost:180},
   {id:'aa3',   name:'46式 近接防御網',      icon:'flak',    col:5, row:7, req:['aa2','rng2'],   add:{aa:.25},  cost:320},
-  /* 小型機の機体（母艦と W.A.S. 部隊だけ）。craft の小型機の火力 dmg・耐久 hp・回避 eva が上がる */
-  {id:'ftr1',  name:'F-38 アクィラ',        icon:'fighter', col:0, row:8, req:[],               only:['carrier','was'], craft:'ftr', add:{dmg:.2,hp:.2,eva:.2},    cost:80},
-  {id:'ftr2',  name:'F-42 ファルコ',        icon:'fighter', col:2, row:8, req:['ftr1','eng1'],  only:['carrier','was'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:160},
-  {id:'ftr3',  name:'F-46 ハルピュイア',    icon:'fighter', col:4, row:8, req:['ftr2','aa2'],   only:['carrier','was'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:280},
+  /* 小型機の機体。艦載機は母艦、W.A.S. は W.A.S. 部隊（data/ships.js の crafts の branch）。craft の小型機の火力 dmg・耐久 hp・回避 eva が上がる。
+     強襲母艦の艦載機にも母艦の研究が効く */
+  {id:'ftr1',  name:'F-38 アクィラ',        icon:'fighter', col:0, row:8, req:[],               only:['carrier'], craft:'ftr', add:{dmg:.2,hp:.2,eva:.2},    cost:80},
+  {id:'ftr2',  name:'F-42 ファルコ',        icon:'fighter', col:2, row:8, req:['ftr1','eng1'],  only:['carrier'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:160},
+  {id:'ftr3',  name:'F-46 ハルピュイア',    icon:'fighter', col:4, row:8, req:['ftr2','aa2'],   only:['carrier'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:280},
   {id:'was1',  name:'W-21 ルクス',          icon:'was',     col:1, row:9, req:['def1'],         only:['was'], craft:'was', add:{dmg:.2,hp:.2,eva:.2},    cost:120},
   {id:'was2',  name:'W-24 ノクス',          icon:'was',     col:3, row:9, req:['was1','eng1'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:200},
   {id:'was3',  name:'W-27 ウンブラ',        icon:'was',     col:5, row:9, req:['was2','def3'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:320},
   /* 母艦の運用（母艦と W.A.S. 部隊だけ）。craft:'all' はその兵科の艦が積む小型機すべて。
      out: 同時に出撃できる隊の数が1つ増える（data/ships.js の maxOut が最終形態。研究前は out の節点の数だけ少ない、最低1隊）
      turn: 補給（帰還後の整備 rearm と次の隊の発進間隔 cd）が速くなる。速さは techStat.base から始まり、時間は data の値 ÷ 速さ */
-  {id:'out1',  name:'第2飛行甲板増設',      icon:'deck',    col:2, row:10, req:['ftr1','def2'],  only:['carrier','was'], craft:'all', add:{out:1},     cost:200},
+  {id:'out1',  name:'第2飛行甲板増設',      icon:'deck',    col:2, row:10, req:['turn1','def2'], only:['carrier','was'], craft:'all', add:{out:1},     cost:200},
   {id:'out2',  name:'多層格納甲板',          icon:'deck',    col:5, row:10, req:['out1','eng2'],  only:['carrier','was'], craft:'all', add:{out:1},     cost:360},
-  {id:'turn1', name:'40式 自動補給機構',     icon:'supply',  col:1, row:11, req:['ftr1'],         only:['carrier','was'], craft:'all', add:{turn:.2},   cost:90},
+  {id:'turn1', name:'40式 自動補給機構',     icon:'supply',  col:1, row:11, req:['def1'],         only:['carrier','was'], craft:'all', add:{turn:.2},   cost:90},
   {id:'turn2', name:'44式 高速整備ライン',   icon:'supply',  col:3, row:11, req:['turn1','eng1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:180},
   {id:'turn3', name:'46式 無人整備システム', icon:'supply',  col:5, row:11, req:['turn2','out1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:320},
 ];

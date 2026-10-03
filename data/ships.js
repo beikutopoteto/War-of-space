@@ -24,8 +24,9 @@ WOS_DATA.aa={per:.1, std:5};
 
 /* 母艦から出る小型機。戦闘画面の値をそのまま使う。
    squad: 1隊の数　maxOut: 同時に出られる隊の数　launchR: 発進距離　fuel: 燃料（秒）
+   branch: 機体の研究をする兵科（data/tech.js の branches）
    rearm: 帰還後の整備（秒）　cd: 次の隊を出すまで（秒）　eva: 回避率（0〜1）。艦載機は W.A.S. より当たりやすい（ユーザー決定 2026-10-03） */
 WOS_DATA.crafts={
-  ftr:{name:'艦載機', squad:30, maxOut:3, launchR:52, range:9, speed:17, hp:5,  eva:.25, dmg:.3,  fuel:24, rearm:8,  cd:3, vis:5, stl:7},
-  was:{name:'W.A.S.', squad:20, maxOut:3, launchR:30, range:5, speed:10, hp:10, eva:.45, dmg:.65, fuel:16, rearm:10, cd:4, vis:4, stl:6},
+  ftr:{name:'艦載機', branch:'carrier', squad:30, maxOut:3, launchR:52, range:9, speed:17, hp:5,  eva:.25, dmg:.3,  fuel:24, rearm:8,  cd:3, vis:5, stl:7},
+  was:{name:'W.A.S.', branch:'was',     squad:20, maxOut:3, launchR:30, range:5, speed:10, hp:10, eva:.45, dmg:.65, fuel:16, rearm:10, cd:4, vis:4, stl:6},
 };

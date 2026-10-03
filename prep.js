@@ -109,6 +109,8 @@ function statRate(b,k){ if(!b) return 1;
 function craftRate(b,c,k){ if(!b) return 1;
   return Math.min(1,D.techStat.base+TREE.reduce((s,n)=>s+(n.craft===c&&nodeDone(b,n)?n.add[k]||0:0),0)); }
 const CRAFT_STATS=['dmg','hp','eva'];
+/* the branch that researches a craft's airframe (艦載機 → 母艦, W.A.S. → W.A.S. 部隊), whichever ship carries it */
+const craftOwner=c=>BRANCHES.find(x=>x.id===D.crafts[c].branch);
 /* carrier operations (craft:'all' nodes): squadrons out at once, and the speed of rearming (time = data ÷ speed) */
 const OUT_NODES=TREE.filter(n=>n.add&&n.add.out);
 const craftOut=(b,c)=>Math.max(1,D.crafts[c].maxOut-OUT_NODES.filter(n=>(!n.only||n.only.includes(b.id))&&!nodeDone(b,n)).length);
@@ -158,7 +160,7 @@ function armyToFleet(a){
   /* the small craft's rates, weighted by how many each ship class brings */
   const craft={}; Object.keys(hangar).forEach(c=>{ let w=0, out=1, turn=0; const r={dmg:0,hp:0,eva:0};
     bgs.forEach(b=>{ const v=(SHIP[b.type].hangar||{})[c]; if(!v) return; const n=v*b.count, br=branchOfType(b.type); w+=n;
-      CRAFT_STATS.forEach(k=>r[k]+=craftRate(br,c,k)*n); out=Math.max(out,craftOut(br,c)); turn+=craftTurn(br)*n; });
+      CRAFT_STATS.forEach(k=>r[k]+=craftRate(craftOwner(c)||br,c,k)*n); out=Math.max(out,craftOut(br,c)); turn+=craftTurn(br)*n; });
     if(w) craft[c]={...Object.fromEntries(CRAFT_STATS.map(k=>[k,r[k]/w])), out, turn:turn/w}; });
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
@@ -335,8 +337,8 @@ function renderTech(){
   /* the branch now: each ship class's stats as numbers (the final form is not shown) */
   document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻</span></div>`+
     b.types.map(t=>`<div class="trrow"><span class="tname">${SHIP[t].name}</span>${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${num(SHIP[t][k]*statRate(b,k))}</em></i>`).join('')}</div>`).join('')+
-    crafts(b).map(c=>`<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join('')}`+
-      `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`).join('');
+    crafts(b).map(c=>{ const o=craftOwner(c)||b; return `<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${o===b?CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join(''):`<i>機体の研究は${esc(o.name)}</i>`}`+
+      `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`; }).join('');
   /* the web: nodes at (col,row), a curve from each requirement to the node */
   const CW=168, RH=68, R=21, PADX=80, PADY=10;
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});

@@ -74,12 +74,12 @@ function check(ok, label, detail = '') {
     const wasTree = await page.evaluate(() => ({ fighter: !!document.querySelector('#trCv [data-node="ftr1"]'), was: !!document.querySelector('#trCv [data-node="was1"]'), sum: document.getElementById('trSum').textContent }));
     await page.click('#brBar [data-br="carrier"]');
     const cvTree = await page.evaluate(() => ({ out: !!document.querySelector('#trCv [data-node="out2"]'), turn: !!document.querySelector('#trCv [data-node="turn3"]'),
-      was: !!document.querySelector('#trCv [data-node="was1"]'), sum: document.getElementById('trSum').textContent }));
+      was: !!document.querySelector('#trCv [data-node="was1"]'), fighter: !!document.querySelector('#trCv [data-node="ftr1"]'), sum: document.getElementById('trSum').textContent }));
     check(cvTree.out && cvTree.turn && !cvTree.was && cvTree.sum.includes(`出撃 ${3}隊`) && cvTree.sum.includes('補給 8.0秒'),
       '技術ツリー: 母艦に出撃部隊数と補給の研究（全研究で 3隊・8秒）', JSON.stringify(cvTree));
     await page.click('#brBar [data-br="dd"]');
     const ddTree = await page.evaluate(() => !!document.querySelector('#trCv [data-node="ftr1"]'));
-    check(wasTree.fighter && wasTree.was && wasTree.sum.includes('W.A.S.') && !ddTree, '技術ツリー: W.A.S. 部隊には艦載機と W.A.S. の機体の研究が出る（駆逐艦には出ない）', JSON.stringify(wasTree));
+    check(!wasTree.fighter && wasTree.was && wasTree.sum.includes('W.A.S.') && !ddTree && cvTree.fighter, '技術ツリー: 艦載機の機体は母艦、W.A.S. の機体は W.A.S. 部隊に出る（駆逐艦には出ない）', JSON.stringify(wasTree));
     await page.evaluate(() => { document.getElementById('trScroll').scrollLeft = 0; });
     await shot('01c-tech');
     await page.click('[data-s="tech"] .back');
