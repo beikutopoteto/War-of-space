@@ -383,7 +383,7 @@ function check(ok, label, detail = '') {
       s.hpPool = 1e9; const us = fleets.find(f => f.name === '第31駆逐戦隊');
       for (let i = 0; i < 440 && !rescue.done && !over; i++) { us.order = null; us.pos.copy(s.pos).add(new THREE.Vector3(4, 0, 0)); step(.05); }
       return { spawned: true, done: rescue.done, rescued, gone: !s.alive }; });
-    check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに20秒付くと救助できる', JSON.stringify(rs));
+    check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに10秒付くと救助できる', JSON.stringify(rs));
     await page.waitForTimeout(400);
     await shot('10-retreat');
     const rw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
