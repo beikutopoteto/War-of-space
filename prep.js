@@ -284,11 +284,13 @@ function renderDebug(){
   b.innerHTML=`
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
-    <div class="dbgr"><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
     if(a!=='reset') dbgConfirm=false;
+    /* 一節だけ: the first section not cleared yet counts as won (its reward and aid too) */
+    if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); grantAid(o); } }
     if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全研究 also opens the branches the story has not opened yet (戦艦・母艦・W.A.S. 部隊) */

@@ -450,6 +450,14 @@ function check(ok, label, detail = '') {
     await page.uncheck('#dbgB [data-dbg="free"]');
     const reset0 = await page.evaluate(() => ({ prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog, org: document.querySelector('#mainNav [data-go="org"]').disabled }));
     check(reset0.prog.cleared.length === 0 && reset0.prog.funds === 0 && reset0.org, 'デバッグ: 進行を最初に戻す', JSON.stringify(reset0.prog));
+    /* debug: 一節だけクリア counts the next section as won (reward and aid included); then back to the start again */
+    await page.click('#dbgB [data-dbga="one"]');
+    const one1 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    await page.click('#dbgB [data-dbga="one"]');
+    const one2 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(one1.cleared.join() === 'shinano' && one1.funds === 300 && one2.cleared.join() === 'shinano,retreat' && one2.funds === 1700 && one2.flags['aid:retreat'],
+      'デバッグ: 一節だけクリアで次の節が報酬つきでクリアになる', JSON.stringify([one1, one2]));
+    await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     check((await page.textContent('#sgList')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
