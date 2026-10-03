@@ -165,10 +165,7 @@ function dock(w){
 }
 /* fighters pin what they attack: a fleet under fighter fire moves at half speed (SLOW_BY) for a moment */
 const SLOW_BY=.5, KITE_MARGIN=6;
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*formWait(f); }
-/* a formation's leader slows down while its armies are out of place (formLag: the farthest one, last step), so the shape holds in a turn */
-function formWait(f){ const l=f.formLag||0; return l<=FORM_SLACK?1:Math.max(.2,1-(l-FORM_SLACK)/12); }
-const FORM_SLACK=2;
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1); }
 /* a fleet of carriers only keeps its distance: when a seen enemy fleet comes within its own range plus KITE_MARGIN,
    the carriers back away from it (facing the same way) instead of closing. Returns true while backing away */
 function kite(f,dt){
@@ -231,8 +228,14 @@ function followPath(f,dt){
   const p=o.path; p.s=Math.min(p.L,p.s+speedOf(f)*dt);
   const u=p.s/p.L; f.pos.copy(p.curve.getPointAt(u));
   _v.copy(p.curve.getTangentAt(Math.min(u,.999))); if(_v.lengthSq()>1e-6){ f.heading.lerp(_v.normalize(),Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); }
+  markTrail(f);
   return p.s>=p.L;
 }
+/* the trail a moving fleet leaves (newest first, a point every TRAIL_STEP): the armies behind it in a formation follow it,
+   so a column bends smoothly round a turn instead of swinging as a rigid shape (state.js slotPos) */
+const TRAIL_STEP=1.5, TRAIL_MAX=120;
+function markTrail(f){ if(!f.trail) f.trail=[]; const t=f.trail;
+  if(!t.length||t[0].p.distanceTo(f.pos)>=TRAIL_STEP){ t.unshift({p:f.pos.clone(),m:f.march.clone()}); if(t.length>TRAIL_MAX) t.pop(); } }
 /* the march turns smoothly toward the way the fleet moves (level only, so a formation does not tilt) */
 const _mv2=new THREE.Vector3();
 function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) return; f.march.lerp(_mv2.normalize(),Math.min(1,dt*1.5)); f.march.y=0; if(f.march.lengthSq()<1e-6) f.march.copy(_mv2); f.march.normalize(); }
@@ -240,7 +243,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
    so the outer armies can keep up in a turn); true while still on the way */
 function followSlot(f,dt){
   const sp=f.speed*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1);
-  slotPos(f.order,_w); _v.subVectors(_w,f.pos); const d=_v.length(); const L=f.order.leader; L.formLagAcc=Math.max(L.formLagAcc||0,d); if(d<1e-3) return false;
+  slotPos(f.order,_w); _v.subVectors(_w,f.pos); const d=_v.length(); if(d<1e-3) return false;
   _v.multiplyScalar(1/d); f.pos.addScaledVector(_v,Math.min(sp*dt,d));
   if(d>2){ f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); return true; }
   f.heading.lerp(f.order.leader.march,Math.min(1,dt*2)).normalize(); return false;
@@ -379,12 +382,11 @@ function step(dt){
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
-  for(const f of fleets){ f.formLag=f.formLagAcc||0; f.formLagAcc=0; }
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
     f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
-    let goal=null, moving=false;
+    let goal=null, moving=false; const wasMarching=f.marching;
     if(f.order){
       if(f.order.type==='move'){ moving=true; if(followPath(f,dt)){ f.order=null; if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } nextOrder(f); } }
       else if(f.order.type==='follow'){
@@ -396,6 +398,8 @@ function step(dt){
         else goal=t; }
     }
     if(f.slowT>0) f.slowT-=dt;
+    f.marching=!!(f.order&&f.order.type==='move');   // a leader on the move: its formation follows its trail
+    if(wasMarching&&!f.marching) f.trail=null;
     const kited=f.carrierOnly&&!moving&&kite(f,dt);
     /* an attack closes until the target is well inside the guns (75% of range); a fleet of carriers only stops sooner,
        once the target is inside 80% (1:4 from the edge) of its shortest launch distance */
