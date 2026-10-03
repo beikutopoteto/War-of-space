@@ -22,7 +22,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    phase: 開始時の段階の名前　exit: 離脱点 {pos, alt}（地図に輪を出す）　view: 最初の視点 {target:[x,z], dist, dir?:カメラの向き [x,y,z]}
    events: 時刻の出来事 [{after, log?, phase?, fleet?, arrow?, blast?:[x,z,alt]}]（reinforcements と同じ形で、まとめて時刻順に起きる）
    convoy: 輸送船団 {fleet, depart, route:[{pos, alt}…], boardText?, escortText?}。depart 分まで乗船して動かず、そのあと route をたどる。最後の点が離脱点。
-     boardText / escortText は右上の任務欄に出す指示（乗船中 / 出港後）
+     boardText / escortText は左上の任務欄に出す指示（乗船中 / 出港後）
    win: {type:'escort', lose} なら、船団が離脱点を越えれば勝ち、輸送船を lose 隻失えば負け（書かなければ要塞の撃破で勝ち）
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
