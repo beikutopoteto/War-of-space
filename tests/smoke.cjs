@@ -51,7 +51,7 @@ function check(ok, label, detail = '') {
     await page.click('#dbgB [data-dbga="all"]');
     await page.click('#dbgB [data-dbga="funds"]');
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
-    check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && dbg1.prog.flags.was, 'デバッグ: 全解放と資金+1000', JSON.stringify(dbg1.prog));
+    check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦クリアと資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
     /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 動員計画 and the gun are open from the start */
     await page.click('[data-go="tech"]');
@@ -61,11 +61,25 @@ function check(ok, label, detail = '') {
     await res('cap1'); await res('gun1'); await res('rng1');
     const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]').length,
       next: document.querySelector('#trCv [data-node="gun2"]').classList.contains('can'), sum: document.getElementById('trSum').textContent }));
-    check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 6 && !tech.sum.includes('%'),
+    check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
       '技術ツリー: 左の列から研究し、つながる元を終えると次が開く。能力は数で出る', JSON.stringify(tech));
     await page.click('#forceTabs [data-force="ground"]');
     check(await page.isVisible('#forceSoon') && !(await page.isVisible('#techWrap')), '技術ツリー: 地上軍のタブ（準備中）');
     await page.click('#forceTabs [data-force="space"]');
+    /* debug 全研究: every node of every branch, and the branches the story has not opened yet */
+    await page.click('[data-s="tech"] .back'); await page.click('#dbgB [data-dbga="tech"]'); await page.click('[data-go="tech"]');
+    const all = await page.evaluate(() => ({ bar: document.querySelectorAll('#brBar [data-br]').length, done: document.querySelectorAll('#trCv .tn.done').length, nodes: document.querySelectorAll('#trCv .tn').length }));
+    check(all.bar === 6 && all.done === all.nodes, 'デバッグ: 全研究で全兵科が出て、すべて研究済み', JSON.stringify(all));
+    await page.click('#brBar [data-br="was"]');
+    const wasTree = await page.evaluate(() => ({ fighter: !!document.querySelector('#trCv [data-node="ftr1"]'), was: !!document.querySelector('#trCv [data-node="was1"]'), sum: document.getElementById('trSum').textContent }));
+    await page.click('#brBar [data-br="carrier"]');
+    const cvTree = await page.evaluate(() => ({ out: !!document.querySelector('#trCv [data-node="out2"]'), turn: !!document.querySelector('#trCv [data-node="turn3"]'),
+      was: !!document.querySelector('#trCv [data-node="was1"]'), fighter: !!document.querySelector('#trCv [data-node="ftr1"]'), sum: document.getElementById('trSum').textContent }));
+    check(cvTree.out && cvTree.turn && !cvTree.was && cvTree.sum.includes(`出撃 ${3}隊`) && cvTree.sum.includes('補給 8.0秒'),
+      '技術ツリー: 母艦に出撃部隊数と補給の研究（全研究で 3隊・8秒）', JSON.stringify(cvTree));
+    await page.click('#brBar [data-br="dd"]');
+    const ddTree = await page.evaluate(() => !!document.querySelector('#trCv [data-node="ftr1"]'));
+    check(!wasTree.fighter && wasTree.was && wasTree.sum.includes('W.A.S.') && !ddTree && cvTree.fighter, '技術ツリー: 艦載機の機体は母艦、W.A.S. の機体は W.A.S. 部隊に出る（駆逐艦には出ない）', JSON.stringify(wasTree));
     await page.evaluate(() => { document.getElementById('trScroll').scrollLeft = 0; });
     await shot('01c-tech');
     await page.click('[data-s="tech"] .back');
@@ -300,7 +314,7 @@ function check(ok, label, detail = '') {
       '空母: 発進距離の0.8倍で止まり、攻撃の相手を替えると小型機も替える。混ざった軍では空母が最後尾', JSON.stringify(cv));
     await page.evaluate(() => { reset(); select(null); });
 
-    /* a fleet of fighter carriers beats a cruiser fleet that chases it without taking a hit: it backs away and the fighters slow the cruisers */
+    /* a fleet of fighter carriers beats a cruiser fleet that chases it without losing a ship: it backs away and the fighters slow the cruisers */
     const duel = await page.evaluate(() => {
       reset(); fortress.alive = false; fleets.forEach(f => { f.alive = false; });
       const c = makeFleet(0, { name: '母艦', sub: '', type: 'cvb', n: 3, hp: 70, dmg: 1.6, range: 14, speed: 5, scale: 1.6, pos: [0, 150], alt: 0, vis: 7, stl: 3, hangar: { ftr: 120 } });
@@ -311,7 +325,8 @@ function check(ok, label, detail = '') {
       const r = { foeKilled: !e.alive, carrierLoss: hp0 - c.hpPool, slowed };
       c.el.remove(); e.el.remove(); return r;
     });
-    check(duel.foeKilled && duel.carrierLoss === 0 && duel.slowed, '空母: 戦闘母艦だけの軍は、追ってくる巡洋艦隊を被弾なしで倒せる（下がりながら戦い、艦載機が足止め）', JSON.stringify(duel));
+    /* since 2026-10-03 the fighters are easier to hit, so the carriers may take some hits (user decision); they still win without losing a ship (70 each) */
+    check(duel.foeKilled && duel.carrierLoss < 70 && duel.slowed, '空母: 戦闘母艦だけの軍は、追ってくる巡洋艦隊を1隻も失わずに倒せる（下がりながら戦い、艦載機が足止め）', JSON.stringify(duel));
     await page.evaluate(() => { reset(); select(null); });
 
     /* the fortress: its fighters come out to meet us; the guard fleet sorties below 75% armour, the air-defence fleets one by one below 50% */
