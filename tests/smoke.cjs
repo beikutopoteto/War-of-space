@@ -36,7 +36,30 @@ function check(ok, label, detail = '') {
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
     const data = await page.evaluate(() => ({ ships: WOS_DATA.ships.length, bonuses: WOS_DATA.bonuses.length, ops: WOS_DATA.operations.length }));
+    /* before 第一章 第2節 is cleared: 艦隊編集 and 技術ツリー are locked; only the first campaign operation is open */
+    const lock0 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, tech: document.querySelector('#mainNav [data-go="tech"]').disabled,
+      text: document.querySelector('#mainNav [data-go="org"]').textContent }));
+    check(lock0.org && lock0.tech && lock0.text.includes('後退'), 'メニュー: 第2節クリアまで艦隊編集と技術ツリーは鍵付き', lock0.text);
     await shot('01-title');
+    await page.click('[data-go="sortie"]');
+    const ops0 = await page.evaluate(() => ['shinano', 'retreat', 'charybdis'].map(id => document.querySelector(`[data-op="${id}"]`).disabled));
+    check(!ops0[0] && ops0[1] && ops0[2], '出撃: 最初は第1節だけ選べる（第2節と演習は鍵付き）', JSON.stringify(ops0));
+    await page.click('[data-s="sortie"] .back');
+    /* debug: unlock everything, turn on the in-battle instant win/defeat */
+    await page.click('#dbgT');
+    await page.check('#dbgB [data-dbg="battle"]');
+    await page.click('#dbgB [data-dbga="all"]');
+    await page.click('#dbgB [data-dbga="funds"]');
+    const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
+    check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && dbg1.prog.flags.was, 'デバッグ: 全解放と資金+1000', JSON.stringify(dbg1.prog));
+    await shot('01b-debug');
+    /* tech tree: research one step of 駆逐艦 */
+    await page.click('[data-go="tech"]');
+    await page.click('#techTree [data-res="dd"]');
+    const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, cost: WOS_DATA.branches.find(b => b.id === 'dd').steps[1].cost }));
+    check(tech.tech.dd === 1 && tech.funds === 1000 - tech.cost, '技術ツリー: 資金で研究すると段階が上がる', JSON.stringify(tech));
+    await shot('01c-tech');
+    await page.click('[data-s="tech"] .back');
 
     /* ship data */
     await page.click('[data-go="data"]');
@@ -69,6 +92,8 @@ function check(ok, label, detail = '') {
     /* sortie with the first army group */
     await page.click('[data-go="sortie"]');
     check(await page.locator('#opList [data-op]').count() === data.ops, '出撃: 作戦の一覧', `${data.ops}作戦`);
+    await page.click('[data-op="charybdis"]');
+    check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
     await shot('04-sortie');
     await page.click('#goBattle');
     await page.waitForTimeout(1500);
@@ -369,6 +394,12 @@ function check(ok, label, detail = '') {
     check(retry.t < 1 && retry.closed && retry.speed === 1 && quit.result && quit.rh === '敗北' && quit.rp.includes('中止'),
       'メニュー: やり直すで最初から、やめるで敗北', JSON.stringify({ retry, quit }));
     await page.click('#again'); await page.evaluate(() => { if (talking) endTalk(); });
+    /* debug: 勝利にする in the in-battle menu */
+    await page.click('#pmBtn'); await page.click('#pause [data-pm="dwin"]');
+    const dwin = await page.evaluate(() => ({ over, outcome, rh: document.getElementById('rh').textContent }));
+    check(dwin.over && dwin.outcome && dwin.rh === '勝利', 'デバッグ: 戦闘中のメニューで即勝利', JSON.stringify(dwin));
+    await page.waitForTimeout(1800); await page.click('#talkSkip').catch(() => {});
+    await page.click('#again'); await page.evaluate(() => { if (talking) endTalk(); });
 
     /* victory: destroy the fortress */
     await page.evaluate(() => damage(fortress, fortress.hpPool + 1, fleets.find(x => x.team === 0 && x.alive)));
@@ -378,6 +409,16 @@ function check(ok, label, detail = '') {
     /* chapter 1 section 1: the escort operation from the sortie screen */
     await page.evaluate(() => WOS.openMenu());
     await page.click('#result >> text=メニューへ').catch(() => {});
+    /* debug: back to the start of the campaign (press twice); with 自由に選ぶ the sortie limits are ignored */
+    await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
+    await page.check('#dbgB [data-dbg="free"]');
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="charybdis"]');
+    const over = { rows: await page.locator('#sgLoad tr.over').count(), warn: await page.textContent('#sgLoad').catch(() => ''), go: !(await page.isDisabled('#goBattle')) };
+    check(over.rows > 0 && over.warn.includes('デバッグ') && over.go, 'デバッグ: 自由に選ぶと、出撃上限（W.A.S. 未解放）を超えても出撃できる', JSON.stringify(over));
+    await page.click('[data-s="sortie"] .back');
+    await page.uncheck('#dbgB [data-dbg="free"]');
+    const reset0 = await page.evaluate(() => ({ prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog, org: document.querySelector('#mainNav [data-go="org"]').disabled }));
+    check(reset0.prog.cleared.length === 0 && reset0.prog.funds === 0 && reset0.org, 'デバッグ: 進行を最初に戻す', JSON.stringify(reset0.prog));
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     check((await page.textContent('#sgList')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
@@ -415,6 +456,8 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
     check(win.over && win.saved && winTalk && await page.textContent('#rh') === '勝利', 'ネオ信濃奇襲: 船団が離脱点を越えると、会話のあと勝利');
+    const rw1 = await page.textContent('#rp');
+    check(rw1.includes('資金 +300'), 'ネオ信濃奇襲: 勝つと報酬の資金が入る', rw1);
     const lose = await page.evaluate(() => { reset(); endTalk(); const src = fleets.find(f => f.team === 1);
       damage(convoy, convoy.hp * 3.2 / (1 - (convoy.eva || 0)), src); step(.05); return { over, left: convoy.ships.length, rh: document.getElementById('rh').textContent }; });
     check(lose.over && lose.rh === '敗北', 'ネオ信濃奇襲: 輸送船を3隻失うと敗北');
@@ -455,6 +498,15 @@ function check(ok, label, detail = '') {
     const rwTalk = await page.evaluate(() => [...document.querySelectorAll('#talkText')].map(e => e.textContent).join(''));
     check(rw.over && rw.outcome && rw.saved, '後退: 船団が撤退地点に着くと勝利', JSON.stringify(rw) + rwTalk);
     await page.click('#talkSkip').catch(() => {});
+    /* clearing 第2節 opens 艦隊編集 and 技術ツリー */
+    await page.waitForTimeout(300);
+    const rw2 = await page.textContent('#rp');
+    await page.click('#toMenu');
+    const open2 = await page.evaluate(() => ({ org: !document.querySelector('#mainNav [data-go="org"]').disabled, tech: !document.querySelector('#mainNav [data-go="tech"]').disabled,
+      prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
+    check(rw2.includes('艦隊編集') && open2.org && open2.tech && open2.prog.funds === 700 && open2.prog.cleared.join() === 'shinano,retreat',
+      '後退: クリアで艦隊編集と技術ツリーが解放される', rw2 + JSON.stringify(open2.prog));
+    await shot('11-unlocked');
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

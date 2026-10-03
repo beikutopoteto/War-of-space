@@ -244,7 +244,8 @@ let runSpeed=1;
 function setSpeed(s){ speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.s)));
 /* in-battle menu (Esc or the メニュー button): the battle stands still while it is open.
-   続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls */
+   続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls.
+   With the debug switch on (prep.js, body.dbg-battle) it also offers an instant win or defeat */
 const pauseEl=document.getElementById('pause'); let paused=false, pausedSpeed=1;
 function openPause(){ if(paused||over||menuOpen) return; paused=true; pausedSpeed=speed; setSpeed(0); closePick(); pauseEl.hidden=false; pauseEl.querySelector('[data-pm="resume"]').focus(); }
 function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; setSpeed(pausedSpeed); }
@@ -253,6 +254,7 @@ pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   if(a==='resume') closePause();
   if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startTalk(op.talk&&op.talk.before); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
+  if(a==='dwin'||a==='dlose'){ closePause(); talkDone=null; endTalk(); end(a==='dwin'); }
   if(a==='keys'){ const k=document.getElementById('keys'); k.hidden=!k.hidden; b.setAttribute('aria-pressed',String(!k.hidden)); }
 }));
 pauseEl.addEventListener('pointerdown',e=>{ if(e.target===pauseEl) closePause(); });

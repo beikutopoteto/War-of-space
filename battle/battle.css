@@ -245,6 +245,8 @@ body.noui .hud:not(#legend):not(#tl),body.noui #legend>:not(#view),body.noui #tl
 #pause .pbtns button{font-family:var(--f-ui);font-size:13px;background:transparent;color:var(--ink);border:1px solid var(--line);padding:7px 10px;cursor:pointer;text-align:left}
 #pause .pbtns button[data-pm="resume"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
 #pause .pbtns button[aria-pressed="true"]{border-color:var(--blue)}
+#pause .pbtns .dbg{display:none;border-style:dashed;color:var(--ink-dim)}
+body.dbg-battle #pause .pbtns .dbg{display:block}
 #pause .pbtns button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #keys{margin-top:10px;border-collapse:collapse;font-size:12px;line-height:1.5;color:var(--ink-dim)}
 #keys th{text-align:left;white-space:nowrap;padding:3px 10px 3px 0;color:var(--ink);font-weight:600;vertical-align:top}

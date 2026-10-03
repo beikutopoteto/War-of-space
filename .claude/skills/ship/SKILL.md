@@ -32,7 +32,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 - `files`:
 
 ```json
-{"battle/battle.css":"battle/battle.css","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/operations.js":"data/operations.js","data/ships.js":"data/ships.js","prep.js":"prep.js","prep.css":"prep.css"}
+{"battle/battle.css":"battle/battle.css","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/operations.js":"data/operations.js","data/tech.js":"data/tech.js","data/ships.js":"data/ships.js","prep.js":"prep.js","prep.css":"prep.css"}
 ```
 
 `battle/` や `data/` にファイルを足したら、この表にも足す。

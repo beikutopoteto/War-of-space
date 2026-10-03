@@ -26,6 +26,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    win: {type:'escort', lose} なら、船団が離脱点を越えれば勝ち、輸送船を lose 隻失えば負け（書かなければ要塞の撃破で勝ち）
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
+   reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay の割合）
    group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの軍集団にまとめる
    result.loseBlast: 負けたときに爆発させる位置 [x, z, alt]
    field:'convoy' なら作戦フィールドの中心が輸送船団になり、船団と一緒に動く（枠の半径215、自軍は枠の外へ出られない）。
@@ -41,6 +42,7 @@ window.WOS_DATA=window.WOS_DATA||{};
 WOS_DATA.operations=[
   {
     id:'charybdis',
+    reward:200,
     name:'要塞カリュブディス攻略戦',
     summary:'二つの小惑星を接合した敵要塞。防空4隊と近衛艦隊が守り、開戦30分後に北から増援が来る。',
     threat:'敵戦力：艦隊5・要塞1／難易度：標準',
@@ -88,6 +90,7 @@ WOS_DATA.operations=[
   },
   {
     id:'shinano',
+    reward:300,
     chapter:'第一章 第1節',
     name:'ネオ信濃奇襲',
     summary:'開戦の日。中継ステーション「ネオ信濃」が惑星共和国の奇襲を受ける。司令は戦死。残った警備艦隊で、避難民を乗せた輸送船団を逃がす。',
@@ -162,6 +165,7 @@ WOS_DATA.operations=[
   },
   {
     id:'retreat',
+    reward:400,
     chapter:'第一章 第2節',
     name:'後退',
     summary:'ネオ信濃を出て3日目。共和国の偵察と本隊が追ってくる。プラズマ雲に隠れながら、輸送船団をナイルまで護衛する。',

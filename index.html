@@ -66,7 +66,7 @@
 <div id="talk" hidden aria-live="polite"><b id="talkWho"></b><p id="talkText"></p><div class="ctl"><span>クリック・Enter で次へ</span><button id="talkSkip">とばす</button></div></div>
 <div id="pause" hidden><div class="card" role="dialog" aria-label="メニュー">
   <h2>一時停止中</h2>
-  <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button></div>
+  <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button><button data-pm="dwin" class="dbg">勝利にする（デバッグ）</button><button data-pm="dlose" class="dbg">敗北にする（デバッグ）</button></div>
   <table id="keys" hidden><tbody>
     <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で軍集団の全軍（押すたびに次の軍集団）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
     <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
@@ -97,6 +97,7 @@
 <script src="data/ships.js"></script>
 <script src="data/bonuses.js"></script>
 <script src="data/operations.js"></script>
+<script src="data/tech.js"></script>
 <script src="battle/scene.js"></script>
 <script src="battle/effects.js"></script>
 <script src="battle/shapes.js"></script>
