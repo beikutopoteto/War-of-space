@@ -108,7 +108,7 @@ function frame(now){
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
-  document.getElementById('date').textContent=op.date+'　'+clockStr();
+  document.getElementById('date').textContent=dateStr()+'　'+clockStr();
   rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster(); updateGoal();}
   requestAnimationFrame(frame);
 }

@@ -127,6 +127,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #altTrack{position:relative;width:34px;height:84px;cursor:ns-resize;touch-action:none}
 #altTrack::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(var(--blue),rgba(127,200,255,.15) 50%,var(--blue))}
 #altTrack .zero{position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--brass)}
+#altTrack .tick{position:absolute;left:9px;right:9px;height:1px;background:rgba(127,200,255,.55)}
 #altKnob{position:absolute;left:50%;width:26px;height:12px;transform:translate(-50%,-50%);background:var(--blue);box-shadow:0 0 10px var(--blue)}
 @media (max-width:760px),(max-height:500px){
   #altTrack{height:72px}
