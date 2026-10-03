@@ -99,10 +99,11 @@ function check(ok, label, detail = '') {
     }
     /* a new battle group gets the next free 第N戦闘団 */
     await page.click('[data-tab="bg"]');
-    const bgCount = await page.locator('#orgList [data-bg]').count();
+    const used = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1') || '{"bgs":[]}').bgs.map(b => b.name));
+    let free = 1; while (used.includes(`第${free}戦闘団`)) free++;
     await page.click('#orgList [data-new]');
     const newName = await page.inputValue('#bgName');
-    check(newName === `第${bgCount + 1}戦闘団`, '編成: 新しい戦闘団の名前', newName);
+    check(newName === `第${free}戦闘団`, '編成: 新しい戦闘団の名前', newName);
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');
@@ -436,10 +437,16 @@ function check(ok, label, detail = '') {
     /* debug: back to the start of the campaign (press twice); with 自由に選ぶ the sortie limits are ignored */
     await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
     await page.check('#dbgB [data-dbg="free"]');
+    /* the starting fleet fits the limits, so push a battle group of escorts over its branch's limit */
+    const setBgCount = async v => { await page.click('[data-go="org"]'); await page.click('[data-tab="bg"]'); await page.click('#orgList [data-bg="bg2"]');
+      const n = await page.evaluate(v => { const r = document.getElementById('bgCount'), n = +r.value; r.value = v === 'max' ? r.max : v; r.dispatchEvent(new Event('input')); return n; }, v);
+      await page.click('[data-s="org"] .back'); return n; };
+    const bgN = await setBgCount('max');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="charybdis"]');
     const over = { rows: await page.locator('#sgLoad tr.over').count(), warn: await page.textContent('#sgLoad').catch(() => ''), go: !(await page.isDisabled('#goBattle')) };
-    check(over.rows > 0 && over.warn.includes('デバッグ') && over.go, 'デバッグ: 自由に選ぶと、出撃上限（W.A.S. 未解放）を超えても出撃できる', JSON.stringify(over));
+    check(over.rows > 0 && over.warn.includes('デバッグ') && over.go, 'デバッグ: 自由に選ぶと、出撃上限を超えても出撃できる', JSON.stringify(over));
     await page.click('[data-s="sortie"] .back');
+    await setBgCount(bgN);
     await page.uncheck('#dbgB [data-dbg="free"]');
     const reset0 = await page.evaluate(() => ({ prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog, org: document.querySelector('#mainNav [data-go="org"]').disabled }));
     check(reset0.prog.cleared.length === 0 && reset0.prog.funds === 0 && reset0.org, 'デバッグ: 進行を最初に戻す', JSON.stringify(reset0.prog));

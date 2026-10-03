@@ -30,25 +30,24 @@ const KEY='wos.save.v1';
 function defaults(){
   return {
     seq: 100,
+    /* the starting fleet: the four squadrons of 第2節 (same counts) and the cruiser squadron that joins at Nile (user decision 2026-10-03) */
     bgs: [
-      {id:'bg1', name:'第1戦闘団', type:'bb', count:3},
-      {id:'bg2', name:'第2戦闘団', type:'cl', count:6},
-      {id:'bg3', name:'第3戦闘団', type:'dd', count:8},
-      {id:'bg4', name:'第4戦闘団', type:'ff', count:10},
-      {id:'bg5', name:'第5戦闘団', type:'cvb', count:2},
-      {id:'bg6', name:'第6戦闘団', type:'cv', count:12},
-      {id:'bg7', name:'第7戦闘団', type:'mas', count:6},
-      {id:'bg8', name:'第8戦闘団', type:'masc', count:2},
-      {id:'bg9', name:'第9戦闘団', type:'dd', count:8},
+      {id:'bg1', name:'第41巡洋戦隊', type:'cl', count:6},
+      {id:'bg2', name:'第11哨戒戦隊', type:'cv', count:9},
+      {id:'bg3', name:'第21護衛戦隊', type:'ff', count:8},
+      {id:'bg4', name:'第31駆逐戦隊', type:'dd', count:6},
+      {id:'bg5', name:'第22護衛戦隊', type:'ff', count:6},
     ],
     armies: [
-      {id:'a1', name:'第1軍', bgs:['bg1','bg2','bg3']},
-      {id:'a2', name:'第2軍', bgs:['bg5','bg4','bg6']},
-      {id:'a3', name:'第3軍', bgs:['bg7','bg8','bg9']},
+      {id:'a1', name:'第41巡洋戦隊', bgs:['bg1']},
+      {id:'a2', name:'第11哨戒戦隊', bgs:['bg2']},
+      {id:'a3', name:'第21護衛戦隊', bgs:['bg3']},
+      {id:'a4', name:'第31駆逐戦隊', bgs:['bg4']},
+      {id:'a5', name:'第22護衛戦隊', bgs:['bg5']},
     ],
     groups: [
-      {id:'g1', name:'第1軍集団', sync:true, members:[
-        {army:'a1', x:2, y:2, z:1}, {army:'a2', x:1, y:3, z:3}, {army:'a3', x:3, y:1, z:2}]},
+      {id:'g1', name:'ネオ信濃駐屯隊', sync:true, members:[
+        {army:'a1', x:2, y:2, z:2}, {army:'a2', x:1, y:3, z:2}, {army:'a3', x:3, y:1, z:2}, {army:'a4', x:2, y:2, z:1}, {army:'a5', x:2, y:3, z:3}]},
     ],
     prog: newProg(),
   };
@@ -57,8 +56,13 @@ function defaults(){
 function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}}; }
 let save;
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
+const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘団','cl',6],['bg3','第3戦闘団','dd',8],['bg4','第4戦闘団','ff',10],['bg5','第5戦闘団','cvb',2],
+  ['bg6','第6戦闘団','cv',12],['bg7','第7戦闘団','mas',6],['bg8','第8戦闘団','masc',2],['bg9','第9戦闘団','dd',8]]);
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
 function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
+  /* the first starting fleet (battleships, carriers, W.A.S.) is replaced by the new one while the player has not changed it */
+  if(JSON.stringify(s.bgs.map(b=>[b.id,b.name,b.type,b.count]))===OLD_BGS&&s.armies.length===3&&s.groups.length===1){
+    const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
   /* saves from before the campaign progress start at the beginning */
   s.prog=Object.assign(newProg(),s.prog||{});
   /* earlier tech trees kept a number per branch, then {line: steps}: only the sortie-limit steps carry over */
