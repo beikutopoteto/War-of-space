@@ -21,11 +21,13 @@ WOS_DATA.techForces=[
 ];
 
 /* 宇宙軍の技術ツリー（どの兵科も同じ形。名前の {gun} は兵科の主兵装の名前に置き換わる）。年は A.E.（開戦は A.E.45）。
-   id: 保存データが使う名前（変えると研究済みが消える）　icon: 節点の絵（cap gun aim armor engine sensor stealth）
+   id: 保存データが使う名前（変えると研究済みが消える）　icon: 節点の絵（cap gun aim armor engine sensor stealth flak fighter was）
    col / row: 画面上の位置（列は左から、行は上から）　req: 先に研究が要る節点（すべて）。空なら最初から研究できる
    cap: 兵科の出撃上限の段階（下の branches の steps の番号。資金もそこの cost）
    add: 研究すると能力が最大の何割ぶん上がるか（同じ能力の合計が 1 - techStat.base になるように置く）
-   cost: 資金（兵科の costMul を掛ける） */
+   cost: 資金（兵科の costMul を掛ける）
+   only: この兵科にだけ出す（branches の id）　craft: 艦ではなく、その小型機（data/ships.js の crafts）の能力を上げる。
+     小型機の値も最終形態で、自分で編成した艦隊の小型機は最初 techStat.base の割合 */
 WOS_DATA.techTree=[
   {id:'cap1',  name:'第一次艦隊動員計画',   icon:'cap',     col:0, row:0, req:[],               cap:1},
   {id:'cap2',  name:'第二次艦隊動員計画',   icon:'cap',     col:3, row:0, req:['cap1','eng1'],  cap:2},
@@ -50,6 +52,16 @@ WOS_DATA.techTree=[
   {id:'stl1',  name:'40式 低放射塗装',      icon:'stealth', col:1, row:6, req:['vis1'],         add:{stl:.2},  cost:90},
   {id:'stl2',  name:'44式 排熱遮蔽外殻',    icon:'stealth', col:3, row:6, req:['stl1','def2'],  add:{stl:.25}, cost:180},
   {id:'stl3',  name:'試製47式 航跡攪乱装置', icon:'stealth', col:5, row:6, req:['stl2','vis3'], add:{stl:.25}, cost:320},
+  {id:'aa1',   name:'40式 対空機銃',        icon:'flak',    col:1, row:7, req:['gun1'],         add:{aa:.2},   cost:90},
+  {id:'aa2',   name:'44式 対空誘導弾',      icon:'flak',    col:3, row:7, req:['aa1','vis2'],   add:{aa:.25},  cost:180},
+  {id:'aa3',   name:'46式 近接防御網',      icon:'flak',    col:5, row:7, req:['aa2','rng2'],   add:{aa:.25},  cost:320},
+  /* 小型機の機体（母艦と W.A.S. 部隊だけ）。craft の小型機の火力 dmg・耐久 hp・回避 eva が上がる */
+  {id:'ftr1',  name:'F-38 アクィラ',        icon:'fighter', col:0, row:8, req:[],               only:['carrier','was'], craft:'ftr', add:{dmg:.2,hp:.2,eva:.2},    cost:80},
+  {id:'ftr2',  name:'F-42 ファルコ',        icon:'fighter', col:2, row:8, req:['ftr1','eng1'],  only:['carrier','was'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:160},
+  {id:'ftr3',  name:'F-46 ハルピュイア',    icon:'fighter', col:4, row:8, req:['ftr2','aa2'],   only:['carrier','was'], craft:'ftr', add:{dmg:.25,hp:.25,eva:.25}, cost:280},
+  {id:'was1',  name:'W-21 ルクス',          icon:'was',     col:1, row:9, req:['def1'],         only:['was'], craft:'was', add:{dmg:.2,hp:.2,eva:.2},    cost:120},
+  {id:'was2',  name:'W-24 ノクス',          icon:'was',     col:3, row:9, req:['was1','eng1'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:200},
+  {id:'was3',  name:'W-27 ウンブラ',        icon:'was',     col:5, row:9, req:['was2','def3'],  only:['was'], craft:'was', add:{dmg:.25,hp:.25,eva:.25}, cost:320},
 ];
 
 /* 兵科（宇宙軍）。技術ツリーの左の縦の欄で選ぶ単位（物語で解放されていない兵科は出さない）。

@@ -15,6 +15,7 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 /* a point [x, z] given relative to the field centre */
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
+const AA=window.WOS_DATA.aa;
 function makeFleet(team,o){
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
