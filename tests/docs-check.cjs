@@ -21,7 +21,7 @@ for (const f of DOCS) {
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   lines.forEach((line, i) => {
     for (const [, ref] of line.matchAll(/`([\w./-]+\.(?:md|js|cjs|css|html|json|yml))`/g)) {
-      if (ref.includes('*') || ref.startsWith('node_modules')) continue;
+      if (ref.includes('*') || /[a-z][NM]\./.test(ref) || ref.startsWith('node_modules')) continue;
       const rel = ref.startsWith(ROOT + '/') ? ref.slice(ROOT.length + 1) : ref;
       const cands = [rel, 'docs/' + rel, 'battle/' + rel, 'data/' + rel, 'tests/' + rel];
       if (!cands.some(c => fs.existsSync(path.join(ROOT, c)))) fail(`${f}:${i + 1} のファイル \`${ref}\` が見つからない`);

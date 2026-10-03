@@ -16,7 +16,7 @@ description: War of Space の資料（CLAUDE.md、docs/*.md、サブエージェ
 この会話でユーザーが決めたことと、Claude が置いた仮の値を、正しい場所へ移す。会話にしか残っていないものを優先する。
 - ユーザーが決めた仕様 → `docs/spec.md`（日付つき。前の決定を変えたなら、古い記述を直し「〇〇から変更」と書く）
 - 細かい操作、仮の数値 → `docs/menu.md`（「仮」と書く）
-- 作戦、ストーリー → `docs/campaign.md`、`docs/chapter1.md`、`docs/story.md`
+- 物語（人物、あらすじ、戦闘の流れ、会話）→ 章ごとの `docs/chapterN.md`。作戦の表と実装（編成、数値、仕組み）→ `docs/campaign.md`。章をまたぐ世界設定 → `docs/story.md`（`/story-draft` の置き場所の表と同じ）
 - 進み具合 → `docs/roadmap.md` の「現在地」とフェーズのチェック。「ユーザーの判断」の表も更新する。
 - 書かない: 試した手順の細かい経過、すでにコードやテストを見ればわかること、一度きりの質問への答え。
 
