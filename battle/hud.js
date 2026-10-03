@@ -30,12 +30,12 @@ function select(f){ setSel(f?[f]:[]); }
 /* a fleet that is lost leaves the selection */
 function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
 /* altitude control: sets the height of the selected fleet's destination */
-/* the height snaps to steps of ALT_STEP from 0 (ユーザー決定 2026-10-03: 上下に15ずつ), so it is easy to pick */
+/* the ▲▼ buttons move to the next step of ALT_STEP from 0 (ユーザー決定 2026-10-03: 上下に15ずつ); the bar and Q/E stay free */
 let selAlt=0; const ALT_MAX=60, ALT_STEP=15;
 const altTrack=document.getElementById('altTrack'), altKnob=document.getElementById('altKnob'), altVal=document.getElementById('altVal');
 for(let v=-ALT_MAX;v<=ALT_MAX;v+=ALT_STEP){ if(!v) continue; const t=document.createElement('span'); t.className='tick'; t.style.top=(50-50*v/ALT_MAX)+'%'; altTrack.appendChild(t); }
 function setAlt(v,apply=true){
-  selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v/ALT_STEP)*ALT_STEP))||0;
+  selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
   const t=orderTargets(); if(!t.length) return;
@@ -48,9 +48,11 @@ function setAlt(v,apply=true){
 function altFromPointer(e){ const r=altTrack.getBoundingClientRect(); setAlt(ALT_MAX*(1-2*(e.clientY-r.top)/r.height)); }
 altTrack.addEventListener('pointerdown',e=>{ altTrack.setPointerCapture(e.pointerId); altFromPointer(e); });
 altTrack.addEventListener('pointermove',e=>{ if(altTrack.hasPointerCapture(e.pointerId)) altFromPointer(e); });
-altTrack.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){setAlt(selAlt+ALT_STEP);e.preventDefault();} if(e.key==='ArrowDown'){setAlt(selAlt-ALT_STEP);e.preventDefault();} });
-document.getElementById('altUp').addEventListener('click',()=>setAlt(selAlt+ALT_STEP));
-document.getElementById('altDn').addEventListener('click',()=>setAlt(selAlt-ALT_STEP));
+altTrack.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){setAlt(selAlt+5);e.preventDefault();} if(e.key==='ArrowDown'){setAlt(selAlt-5);e.preventDefault();} });
+/* the next step above or below: from +7, ▲ goes to +15 and ▼ to ±0 */
+function stepAlt(dir){ setAlt(dir>0?(Math.floor(selAlt/ALT_STEP)+1)*ALT_STEP:(Math.ceil(selAlt/ALT_STEP)-1)*ALT_STEP); }
+document.getElementById('altUp').addEventListener('click',()=>stepAlt(1));
+document.getElementById('altDn').addEventListener('click',()=>stepAlt(-1));
 /* WASD pans the camera across the battle plane, relative to where it is looking; Shift doubles the speed */
 const panKeys=new Set();
 addEventListener('keydown',e=>{ if(['KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight'].includes(e.code)) panKeys.add(e.code); });
@@ -70,7 +72,7 @@ function panCamera(dt){
   if(Math.hypot(controls.target.x+_mv.x-fieldC.x,controls.target.z+_mv.z-fieldC.z)>220) return;
   controls.target.add(_mv); camera.position.add(_mv);
 }
-addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+ALT_STEP); if(e.key==='e'||e.key==='E') setAlt(selAlt-ALT_STEP); });
+addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
