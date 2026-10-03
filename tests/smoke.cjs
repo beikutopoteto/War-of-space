@@ -81,23 +81,29 @@ function check(ok, label, detail = '') {
       const near = (a, b) => a.distanceTo(b) < .01, others = groupAlive(g).filter(f => f !== fl);
       const deploy = others.every(f => near(rel(f), want(f))) && Math.abs(fl.pos.z - op.deploy[1]) < .01;
       selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)); groupOrder({ type: 'move', dest: D });
-      const move = near(fl.order.dest, D) && others.every(f => near(f.order.dest.clone().sub(D), want(f)));
+      const move = near(fl.order.dest, D) && others.every(f => f.order.type === 'follow' && f.order.leader === fl && near(f.order.off, want(f)));
       toggleForm(g); groupOrder({ type: 'move', dest: D }); const point = groupAlive(g).every(f => near(f.order.dest, D)); toggleForm(g);
       select(null); return { deploy, move, point, flag: fl.name, roster: fl.btn.textContent };
     });
     check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動）', fm.flag);
     check(fm.point, '軍集団: 陣形OFF では全軍が指示した一点に集まる');
-    /* formation shapes: choosing 縦陣 regroups behind the flagship at once, and the next move keeps it; 出撃時の陣形 is offered too */
+    /* formation shapes: choosing 縦陣 regroups behind the flagship at once; 出撃時の陣形 is offered too.
+       Moving east, the formation turns so that east is ahead: the column trails to the west, and holds its shape on the way */
     const fs2 = await page.evaluate(() => {
       const g = groups[0], fl = groupFlag(g), others = groupAlive(g).filter(f => f !== fl), sel = g.ui.gk;
+      fleets.forEach(f => { if (f.team === 0) f.hpPool = 1e9; });
       const opts = [...sel.options].map(o => o.textContent);
       sel.value = 'column'; sel.dispatchEvent(new Event('change'));
-      const behind = !fl.order && others.every((f, k) => Math.abs(f.order.dest.x - fl.pos.x) < .01 && Math.abs(f.order.dest.z - fl.pos.z - FORM_GAP * (k + 1)) < .01);
-      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(0, 0, -40)); groupOrder({ type: 'move', dest: D });
-      const keep = others.every((f, k) => f.order.dest.distanceTo(D.clone().add(new THREE.Vector3(0, 0, FORM_GAP * (k + 1)))) < .01);
-      setShape(g, 'base'); select(null); return { opts: opts.join('/'), behind, keep };
+      const set = !fl.order && others.every((f, k) => f.order.type === 'follow' && f.order.off.distanceTo(new THREE.Vector3(0, 0, FORM_GAP * (k + 1))) < .01);
+      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(90, 0, 0)); groupOrder({ type: 'move', dest: D });
+      let worst = 0, n = 0;
+      while (fl.order && n++ < 3000) { step(.05); if (fl.order && fl.order.path.s > fl.order.path.L * .6) others.forEach(f => worst = Math.max(worst, f.pos.distanceTo(slotPos(f.order)))); }
+      for (let i = 0; i < 200; i++) step(.05);
+      const trail = others.every((f, k) => f.pos.x < fl.pos.x - FORM_GAP * (k + 1) + 3 && Math.abs(f.pos.z - fl.pos.z) < 3) && fl.march.x > .9;
+      setShape(g, 'base'); select(null); return { opts: opts.join('/'), set, trail, worst: +worst.toFixed(1) };
     });
-    check(fs2.behind && fs2.keep && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes("輪形陣"), "軍集団: 陣形を選ぶとすぐ組み直し、移動でも保つ（出撃時＋3種）", fs2.opts);
+    check(fs2.set && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes('輪形陣'), '軍集団: 陣形を選ぶとすぐ組み直す（出撃時＋3種）', fs2.opts);
+    check(fs2.trail && fs2.worst < 4, '軍集団: 陣形のまま動くと進む向きが正面になり、形を崩さない', `ずれ最大 ${fs2.worst}`);
     /* Shift+click picks several fleets; ＋ forms a new army group from them, the first one picked as flagship; 解散 lets them go */
     const ng = await page.evaluate(() => {
       const g0 = groups[0], [a, b] = groupAlive(g0); select(a); toggleMulti(b);
