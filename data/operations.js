@@ -63,6 +63,8 @@ WOS_DATA.operations=[
       {name:'第2戦隊', sub:'主力巡洋艦', type:'cl', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[12,118], alt:6, vis:6, stl:4},
       {name:'第3戦隊', sub:'主力巡洋艦', type:'cl', n:10, hp:42, dmg:4.2, range:22, speed:5.5, scale:1.5, pos:[100,64], alt:24, vis:6, stl:4},
       {name:'第7機動部隊', sub:'戦闘母艦', type:'cvb', n:3, hp:70, dmg:1.6, range:14, speed:5, scale:1.6, pos:[-108,46], alt:-26, vis:7, stl:3, hangar:{ftr:120}},
+      /* 戦艦を主軸とした主力艦隊: 硬く射程が長いが遅い（数値は仮） */
+      {name:'第1主力艦隊', sub:'戦艦主軸', comp:{bb:6, cl:4, dd:4}, n:14, hp:46, dmg:4.6, range:26, speed:4, scale:1.6, pos:[-46,132], alt:0, vis:6, stl:2},
     ],
     enemies:[
       {name:'防空第1隊', sub:'北宙域守備', comp:{ff:10, dd:6}, n:16, hp:12, dmg:1.3, range:16, speed:7, scale:.8, pos:[0,-52], alt:18, ai:'guard', leash:42, vis:5, stl:5},
