@@ -8,20 +8,48 @@ function gap(a,b){ return a.pos.distanceTo(b.pos)-(b.radius||0); }
    sight grows with the observer's 視界, shrinks with the target's 隠蔽性; vision is shared across the team,
    and a unit that opens fire gives itself away for a few seconds. */
 const sightOf=u=>60+(u.vis??6)*8, concealOf=u=>1-Math.min(10,u.stl??4)*.04, FIRE_REVEAL=3, LOST_MEMORY=30;
+/* plasma clouds: a unit inside one sees half as far, and is seen from half as far (both inside: a quarter).
+   D-RAMS ram assist in the dense plasma: a fleet inside moves a little faster (仮) */
+const CLOUD_SIGHT=.5, CLOUD_SPEED=1.1;
+/* an observer outside the clouds cannot keep its eyes on a unit inside one for long: after CLOUD_HOLD seconds it loses it,
+   and for CLOUD_BLIND seconds it cannot pick out anything inside a cloud (仮). So hiding in a cloud shakes off a scout */
+const CLOUD_HOLD=6, CLOUD_BLIND=15;
+/* whether o can see t now: within its sight (clouds halve it), and not lost in a cloud it has watched too long */
+function canSee(o,t){ if(t.inCloud&&!o.inCloud&&o.blindT>gameSec) return false;
+  return o.pos.distanceTo(t.pos)<=sightOf(o)*concealOf(t)*(o.inCloud?CLOUD_SIGHT:1)*(t.inCloud?CLOUD_SIGHT:1); }
+function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function shown(u){ return u.team===0||u.seen; }
-let fogTimer=0;
+let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
   const all=units();
+  if(clouds.length) for(const u of all) u.inCloud=u.alive&&u.kind!=='fortress'&&inCloud(u);
+  let spotted=null;
   for(const t of all){ if(!t.alive) continue;
     let by=null;
     if(t.kind==='fortress'||t.revealT>0) by=t;
-    else for(const o of all){ if(!o.alive||o.team===t.team) continue;
-      if(o.pos.distanceTo(t.pos)<=sightOf(o)*concealOf(t)){ by=o; break; } }
+    else for(const o of all){ if(!o.alive||o.team===t.team||!canSee(o,t)) continue;
+      /* every observer watching a unit inside a cloud tires of it (CLOUD_HOLD); one in the open is simply seen */
+      if(t.inCloud&&!o.inCloud){ if(gameSec-(o.holdT??-1e9)>1) o.cloudHold=0; o.holdT=gameSec;
+        if((o.cloudHold+=FOG_DT)>CLOUD_HOLD){ o.cloudHold=0; o.blindT=gameSec+CLOUD_BLIND; continue; }
+        by=by||o; continue; }
+      by=o; break; }
     const was=t.seen; t.seen=!!by;
     if(was&&!t.seen){ t.lastPos=t.pos.clone(); t.lostAt=gameSec; }
     if(t.seen&&!t.everSeen){ t.everSeen=true;
       if(t.team===1&&gameSec>0&&by!==t) logEvent(`${t.name} 発見`,`${by.name}が${t.name}（${t.ships.length}隻）を捕捉。`); }
+    if(t.team===0&&t.seen&&t.kind==='fleet'&&!t.rescue&&!spotted) spotted=t;
   }
+  /* the enemy has eyes on one of ours: its main force heads there (enemyAI). Losing every contact shakes them off */
+  if(spotted){ lastSpot={pos:spotted.pos.clone(),t:gameSec,unit:spotted}; spotEarly(); }
+  if(!!spotted!==spotNow&&gameSec>0){ spotNow=!!spotted;
+    const L=spotNow?op.spotLog:lastSpot&&op.shakeLog; if(L&&gameSec-spotLogT>12){ spotLogT=gameSec; logEvent(...L); } }
+}
+/* an event with onSpot {min, delay} (minutes) comes early once the enemy has seen one of ours: delay after that, but not before min */
+function spotEarly(){
+  let moved=false; const now=gameSec*CLOCK_RATE;
+  for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(!E.onSpot||E.early) continue;
+    E.early=true; const at=Math.max(E.onSpot.min||0,now+(E.onSpot.delay||0)); if(at<E.after){ E.after=at; moved=true; } }
+  if(moved){ const rest=opEvents.splice(nextEvent).sort((a,b)=>a.after-b.after); opEvents.push(...rest); }
 }
 function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
@@ -61,8 +89,9 @@ function destroyFleet(f,src){
   f.alive=false; f.el.remove(); dropArrow(f.arrow); f.arrow=null;
   burst(f.pos,TEAM_COL[f.team],40,10,1.3);
   if(selected===f) select(null);
-  logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
-  if(!fleets.some(x=>x.team===0&&x.alive&&!x.convoy)) end(false);
+  logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
+  if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
+  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(false);
   updateRoster();
 }
 let outcome=null;
@@ -77,8 +106,10 @@ function end(win,quit=false){
   if(!win&&R.loseBlast) blast(R.loseBlast);
   logEvent(...(win?R.winLog:R.loseLog));
   /* the operation's closing conversation, then the result */
-  const talk=op.talk&&(win?op.talk.win:op.talk.lose);
-  setTimeout(()=>startTalk(talk,()=>{document.getElementById('result').hidden=false;}),1600);
+  /* a line may carry a condition: 'rescued' / '!rescued' (the distress call was answered or not) */
+  const talk=op.talk&&(win?op.talk.win:op.talk.lose), flags={rescued};
+  const lines=(talk||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]]));
+  setTimeout(()=>startTalk(lines,()=>{document.getElementById('result').hidden=false;}),1600);
 }
 
 /* small craft (both sides) and a hostile fortress: they never pick the fortress itself on their own, and they keep to the side
@@ -134,7 +165,7 @@ function dock(w){
 }
 /* fighters pin what they attack: a fleet under fighter fire moves at half speed (SLOW_BY) for a moment */
 const SLOW_BY=.5, KITE_MARGIN=6;
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1); }
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1); }
 /* a fleet of carriers only keeps its distance: when a seen enemy fleet comes within its own range plus KITE_MARGIN,
    the carriers back away from it (facing the same way) instead of closing. Returns true while backing away */
 function kite(f,dt){
@@ -144,7 +175,7 @@ function kite(f,dt){
     _v.add(_w.subVectors(f.pos,e.pos).multiplyScalar(1/Math.max(d,1))); n++; }
   if(!n||_v.lengthSq()<1e-6) return false;
   _v.normalize(); f.pos.addScaledVector(_v,speedOf(f)*dt);
-  const r=Math.hypot(f.pos.x,f.pos.z); if(r>215){ f.pos.x*=215/r; f.pos.z*=215/r; }   // stay on the map
+  keepInField(f);   // stay on the map
   return true;
 }
 function stepWings(dt){
@@ -214,14 +245,47 @@ function blast(at){ const p=new THREE.Vector3(at[0],at[2]||0,at[1]); for(let i=0
 function stepConvoy(){
   if(!convoy||over) return;
   const C=op.convoy;
-  if(convoy.alive&&!convoy.departed&&gameSec*CLOCK_RATE>=C.depart){ convoy.departed=true; convoy.sub='離脱点へ航行中';
-    const pts=C.route.map(r=>new THREE.Vector3(r.pos[0],r.alt||0,r.pos[1]));
-    order(convoy,{type:'move',via:pts.slice(0,-1),dest:pts[pts.length-1]}); }
+  if(convoy.alive&&!convoy.departed&&gameSec*CLOCK_RATE>=C.depart) departConvoy();
   if(convoy.alive&&convoy.departed&&!convoy.order){ convoy.escaped=true; convoy.alive=false; convoy.el.remove(); dropArrow(convoy.arrow); convoy.arrow=null;
     logEvent('輸送船団 離脱',`輸送船${convoy.ships.length}隻が離脱点を越えた。`); }
   const lost=convoy.n-(convoy.alive||convoy.escaped?convoy.ships.length:0);
   if(lost>=(op.win&&op.win.lose||convoy.n)) end(false);
   else if(convoy.escaped) end(true);
+}
+
+function departConvoy(){
+  const C=op.convoy; convoy.departed=true; convoy.sub=C.sailSub||'離脱点へ航行中';
+  const pts=C.route.map(r=>new THREE.Vector3(r.pos[0],r.alt||0,r.pos[1]));
+  order(convoy,{type:'move',via:pts.slice(0,-1),dest:pts[pts.length-1]});
+}
+/* the field moves with the convoy (op.field:'convoy'): its centre follows the transports, the camera goes along,
+   and our fleets cannot leave it (one caught by the rear edge is pushed along) */
+function keepInField(f){
+  const dx=f.pos.x-fieldC.x, dz=f.pos.z-fieldC.z, r=Math.hypot(dx,dz);
+  if(r>FIELD_R){ f.pos.x=fieldC.x+dx*FIELD_R/r; f.pos.z=fieldC.z+dz*FIELD_R/r; }
+}
+const _fd=new THREE.Vector3();
+function stepField(){
+  if(!fieldMoves||!convoy.alive) return;
+  _fd.set(convoy.pos.x-fieldC.x,0,convoy.pos.z-fieldC.z); if(_fd.lengthSq()<1e-8) return;
+  fieldC.add(_fd); shiftView(_fd);
+  for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInField(f);
+}
+/* the optional distress call (op.rescue): a disabled ship appears beside the route at `after` minutes. It cannot move;
+   one of our fleets staying within `reach` of it for `need` seconds takes its people aboard. It is lost if it is sunk
+   or falls behind out of the field */
+function stepRescue(dt){
+  const R=op.rescue; if(!R||over) return;
+  if(!rescue){ if(gameSec*CLOCK_RATE<R.after) return;
+    const [x,z]=relPos(R.pos), ship=makeFleet(0,{dmg:0,range:0,eva:0,speed:0,...R.fleet,pos:[x,z]});
+    ship.ward=ship.rescue=true; fleets.push(ship); rescue={ship,prog:0,done:false,lost:false};
+    if(R.lure){ const s=fleets.find(f=>f.team===1&&f.alive&&f.name===R.lure); if(s) s.lurePos=ship.pos.clone(); }
+    if(R.log) logEvent(...R.log); return; }
+  const s=rescue.ship; if(rescue.done||rescue.lost||!s.alive) return;
+  if(fleets.some(f=>f.alive&&f.team===0&&!f.ward&&gap(f,s)<=R.reach)) rescue.prog+=dt;
+  s.sub=`${R.sub||'救難信号'}　救助 ${Math.floor(100*Math.min(1,rescue.prog/R.need))}%`;
+  if(rescue.prog>=R.need){ rescue.done=rescued=true; s.alive=false; s.el.remove(); burst(s.pos,TEAM_COL[0],12,5,.8); if(R.doneLog) logEvent(...R.doneLog); }
+  else if(Math.hypot(s.pos.x-fieldC.x,s.pos.z-fieldC.z)>FIELD_R+10){ rescue.lost=true; s.alive=false; s.el.remove(); if(R.lostLog) logEvent(...R.lostLog); }
 }
 
 /* the fortress sends out its defenders as its armour falls (op.fortress.sortie): those fleets leave their posts and hunt.
@@ -241,10 +305,39 @@ function stepSorties(){
 }
 let aiTimer=0;
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
+const SCOUT_KEEP=.7;
+function nearestOf(f,list){ let b=null,bd=1e9; for(const p of list){ const d=p.pos.distanceTo(f.pos); if(d<bd){bd=d;b=p;} } return b; }
+function moveTo(f,x,y,z){ if(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(_w.set(x,y,z))<4) return; f.order={type:'move',dest:new THREE.Vector3(x,y,z)}; }
+/* scout: never fights. It keeps watch on what it has found from a distance, and otherwise patrols points
+   around the moving field (patrol: [[x,z],…] relative to the field centre, at its watch alt), or makes for a lure */
+function scoutAI(f,foes){
+  const t=nearestOf(f,foes.filter(x=>canSee(f,x)));   // only what it sees itself
+  if(t){ const keep=sightOf(f)*concealOf(t)*SCOUT_KEEP*(f.inCloud?CLOUD_SIGHT:1)*(t.inCloud?CLOUD_SIGHT:1);
+    _v.subVectors(f.pos,t.pos); if(_v.lengthSq()<1e-6) _v.set(0,0,-1); _v.setLength(keep).add(t.pos);
+    moveTo(f,_v.x,_v.y,_v.z); return; }
+  if(f.lurePos){ if(f.pos.distanceTo(f.lurePos)>6) moveTo(f,f.lurePos.x,f.lurePos.y,f.lurePos.z); return; }
+  const P=f.patrol||[[0,-100]]; f.pi=(f.pi||0)%P.length;
+  const [x,z]=relPos(P[f.pi]), y=f.watch&&f.watch.alt||0;
+  if(Math.hypot(f.pos.x-x,f.pos.z-z)<8) f.pi++; else moveTo(f,x,y,z);
+}
+/* pursuer: attacks what the enemy can see; otherwise goes to where one of ours was last seen, then searches the clouds
+   ahead along the lane, nearest first */
+function pursueAI(f,foes){
+  const t=nearestOf(f,foes);
+  if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); return; }
+  if(lastSpot&&f.spotDone!==lastSpot.t){ const p=lastSpot.pos;
+    if(f.pos.distanceTo(p)<8) f.spotDone=lastSpot.t; else { moveTo(f,p.x,p.y,p.z); return; } }
+  if(!f.searched) f.searched=new Set();
+  let c=null,bd=1e9; for(const k of clouds){ if(f.searched.has(k)||k.c.z<f.pos.z-k.r) continue; const d=k.c.distanceTo(f.pos); if(d<bd){bd=d;c=k;} }
+  if(!c){ moveTo(f,fieldC.x,f.pos.y,fieldC.z); return; }
+  if(bd<c.r*.5) f.searched.add(c); else moveTo(f,c.c.x,c.c.y,c.c.z);
+}
 function enemyAI(){
   const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen);
   for(const f of fleets){
     if(f.team!==1||!f.alive) continue;
+    if(f.ai==='scout'){ scoutAI(f,foes); continue; }
+    if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
@@ -257,15 +350,16 @@ function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   while(nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
-    if(E.fleet){ const r=makeFleet(1,{leash:0,...E.fleet}); fleets.push(r);
-      if(E.arrow) makeArrow(r.pos,new THREE.Vector3(E.arrow.pos[0],E.arrow.alt||0,E.arrow.pos[1]),TEAM_COL[1],{life:6}); }
+    /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
+    if(E.fleet){ const r=makeFleet(1,{leash:0,...E.fleet,...(E.rel?{pos:relPos(E.fleet.pos)}:{})}); fleets.push(r);
+      if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
     if(E.blast) blast(E.blast);
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
   }
-  stepConvoy();
+  stepConvoy(); stepRescue(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
-  fogTimer-=dt; if(fogTimer<=0){fogTimer=.25; updateFog();}
+  fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
@@ -298,6 +392,7 @@ function step(dt){
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
+  stepField();   // after the convoy has moved this step
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
     const ft=fortress.fireTarget;

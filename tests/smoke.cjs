@@ -355,6 +355,43 @@ function check(ok, label, detail = '') {
     const lose = await page.evaluate(() => { reset(); endTalk(); const src = fleets.find(f => f.team === 1);
       damage(convoy, convoy.hp * 3.2 / (1 - (convoy.eva || 0)), src); step(.05); return { over, left: convoy.ships.length, rh: document.getElementById('rh').textContent }; });
     check(lose.over && lose.rh === '敗北', 'ネオ信濃奇襲: 輸送船を3隻失うと敗北');
+
+    /* chapter 1 section 2: the field moves with the convoy, plasma clouds hide, scouts bring the main force, a distress call */
+    await page.evaluate(() => WOS.openMenu());
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="retreat"]');
+    await page.click('#goBattle'); await page.waitForTimeout(1200); await page.evaluate(() => { if (talking) endTalk(); });
+    const rmv = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const c0 = controls.target.clone();
+      while (gameSec < 20 && !over) step(.05);
+      return { id: op.id, departed: convoy.departed, moved: fieldC.length(), onConvoy: Math.hypot(fieldC.x - convoy.pos.x, fieldC.z - convoy.pos.z), cam: controls.target.distanceTo(c0),
+        clouds: clouds.length, inField: fleets.filter(f => f.team === 0 && !f.ward && f.alive).every(f => Math.hypot(f.pos.x - fieldC.x, f.pos.z - fieldC.z) <= FIELD_R + .01) }; });
+    check(rmv.id === 'retreat' && rmv.departed && rmv.moved > 50 && rmv.onConvoy < .01 && Math.abs(rmv.cam - rmv.moved) < 2 && rmv.inField,
+      '後退: 作戦フィールドの中心が船団と一緒に動き、視点も付いていく。自軍は枠の外へ出ない', JSON.stringify(rmv));
+    const rcl = await page.evaluate(() => { const c = clouds[1], us = fleets.find(f => f.name === '第11哨戒戦隊'), sc = fleets.find(f => f.ai === 'scout' && f.alive);
+      const R = sightOf(sc) * concealOf(us), off = new THREE.Vector3(R * .75, 0, 0); sc.blindT = 0;
+      us.pos.copy(c.c); sc.pos.copy(c.c).add(off); us.inCloud = inCloud(us); sc.inCloud = inCloud(sc); const hidden = !canSee(sc, us);
+      us.pos.set(c.c.x, 300, c.c.z); sc.pos.copy(us.pos).add(off); us.inCloud = inCloud(us); sc.inCloud = inCloud(sc); const open = canSee(sc, us);
+      return { hidden, open, fast: speedOf({ speed: 10, inCloud: true }) > speedOf({ speed: 10 }) }; });
+    check(rcl.hidden && rcl.open && rcl.fast, '後退: プラズマ雲の中の艦は外から見つかりにくく、雲の中では少し速い', JSON.stringify(rcl));
+    const rsp = await page.evaluate(() => { while (gameSec < 40 && !over) step(.05);
+      const main = fleets.find(f => f.name === '共和国本隊' && f.alive), us = fleets.find(f => f.name === '第21護衛戦隊');
+      if (!main) return { main: false };
+      us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.blindT = 0; updateFog(); enemyAI();
+      const t = main.order && main.order.target;
+      return { main: true, seen: us.seen, chase: !!(t && main.order.type === 'attack' && t.team === 0 && t.seen), target: t && t.name, spot: spotNow }; });
+    check(rsp.main && rsp.seen && rsp.chase && rsp.spot, '後退: 見つかった部隊へ共和国の本隊が向かう', JSON.stringify(rsp));
+    const rs = await page.evaluate(() => { const s = rescue && rescue.ship; if (!s) return { spawned: false };
+      s.hpPool = 1e9; const us = fleets.find(f => f.name === '第31駆逐戦隊');
+      for (let i = 0; i < 440 && !rescue.done && !over; i++) { us.order = null; us.pos.copy(s.pos).add(new THREE.Vector3(4, 0, 0)); step(.05); }
+      return { spawned: true, done: rescue.done, rescued, gone: !s.alive }; });
+    check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに20秒付くと救助できる', JSON.stringify(rs));
+    await page.waitForTimeout(400);
+    await shot('10-retreat');
+    const rw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
+      let n = 0; while (!over && n++ < 8000) step(.05); return { over, outcome, saved: convoy.escaped }; });
+    await page.waitForTimeout(2200);
+    const rwTalk = await page.evaluate(() => [...document.querySelectorAll('#talkText')].map(e => e.textContent).join(''));
+    check(rw.over && rw.outcome && rw.saved, '後退: 船団が撤退地点に着くと勝利', JSON.stringify(rw) + rwTalk);
+    await page.click('#talkSkip').catch(() => {});
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

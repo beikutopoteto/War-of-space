@@ -69,6 +69,9 @@ function frame(now){
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
+  /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */
+  grid.position.set(fieldC.x,0,fieldC.z); gridMat.uniforms.uC.value.set(fieldC.x,-fieldC.z);
+  for(const c of clouds){ c.mat.uniforms.uTime.value=time; c.mat.uniforms.uOp.value=camera.position.distanceTo(c.c)<c.r*1.1?.25:1; }
   for(const ar of [...arrows]){
     ar.mat.uniforms.uTime.value=time;
     if(ar.life!==Infinity){ ar.age+=dt>0?dt:0; ar.mat.uniforms.uOp.value=Math.max(0,1-ar.age/ar.life); if(ar.age>=ar.life) dropArrow(ar); }

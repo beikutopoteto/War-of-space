@@ -37,7 +37,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #goal[data-mode="board"] .gauge i{background:var(--brass)}
 #goal[data-mode="fort"] .gauge i{background:#ff6a45}
 #goal .gl{font-family:var(--f-num);font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
-#goal .gs{font-size:11px;color:var(--ink-dim)}
+#goal .gs{font-size:11px;color:var(--ink-dim);white-space:pre-line}
 #goal.fold b,#goal.fold .gs{display:none}
 #speed{display:flex;gap:4px;margin-top:2px}
 #speed button{flex:1;white-space:nowrap;font-family:var(--f-num);font-size:12px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:4px 6px;cursor:pointer}
