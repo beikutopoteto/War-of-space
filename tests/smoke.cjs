@@ -535,8 +535,11 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const open2 = await page.evaluate(() => ({ org: !document.querySelector('#mainNav [data-go="org"]').disabled, tech: !document.querySelector('#mainNav [data-go="tech"]').disabled,
       prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
-    check(rw2.includes('艦隊編集') && open2.org && open2.tech && open2.prog.funds === 700 && open2.prog.cleared.join() === 'shinano,retreat',
+    check(rw2.includes('艦隊編集') && open2.org && open2.tech && open2.prog.cleared.join() === 'shinano,retreat',
       '後退: クリアで艦隊編集と技術ツリーが解放される', rw2 + JSON.stringify(open2.prog));
+    /* the first clear of 第2節 also brings the one-time emergency aid (reward 300 + 400, aid 1000) */
+    check(open2.prog.funds === 1700 && open2.prog.flags['aid:retreat'] && rw2.includes('緊急援助：資金 +1000'),
+      '後退: 初めてのクリアで司令部からの緊急援助（資金 +1000）', rw2 + JSON.stringify(open2.prog));
     await shot('11-unlocked');
   } catch (e) {
     check(false, '実行中に例外', e.message);
