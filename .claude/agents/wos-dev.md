@@ -12,7 +12,7 @@ description: War of Space のゲーム作成を手伝うエージェント。戦
 
 1. `docs/spec.md`: ユーザーが決めた仕様（戦闘や画面の動きを変えるとき）
 2. 作業に関わるファイルだけ。大きなファイルは grep で場所を探して、その部分だけ読む。
-3. 必要なときだけ: `docs/menu.md`（仮の数値、細かい操作）、`docs/campaign.md` と `docs/chapter1.md`（作戦とストーリー）、`docs/story.md`（設定）
+3. 必要なときだけ: `docs/menu.md`（仮の数値、細かい操作）、`docs/campaign.md`（作戦の表と各節の実装メモ）と `docs/chapterN.md`（その章の物語）、`docs/story.md`（設定）
 
 `battle/` は普通の `<script>` で順に読み込まれ、一番外側の名前をファイル間で共有している。名前を変えるときは全ファイルを検索する。
 
