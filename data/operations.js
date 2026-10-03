@@ -19,7 +19,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    ここから下は省略できる:
    chapter: 出撃画面に出す章と節　forces:'fixed' なら軍集団を使わず quick の艦隊で戦う（ストーリーの作戦）
    center: 中央の物。'station' は中継ステーション（攻撃の対象ではない）。fortress を書かなければ要塞は出ない
-   phase: 開始時の段階の名前　exit: 離脱点 {pos, alt}（地図に輪を出す）　view: 最初の視点 {target:[x,z], dist}
+   phase: 開始時の段階の名前　exit: 離脱点 {pos, alt}（地図に輪を出す）　view: 最初の視点 {target:[x,z], dist, dir?:カメラの向き [x,y,z]}
    events: 時刻の出来事 [{after, log?, phase?, fleet?, arrow?, blast?:[x,z,alt]}]（reinforcements と同じ形で、まとめて時刻順に起きる）
    convoy: 輸送船団 {fleet, depart, route:[{pos, alt}…], boardText?, escortText?}。depart 分まで乗船して動かず、そのあと route をたどる。最後の点が離脱点。
      boardText / escortText は右上の任務欄に出す指示（乗船中 / 出港後）
@@ -27,7 +27,17 @@ window.WOS_DATA=window.WOS_DATA||{};
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
    group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの軍集団にまとめる
-   result.loseBlast: 負けたときに爆発させる位置 [x, z, alt] */
+   result.loseBlast: 負けたときに爆発させる位置 [x, z, alt]
+   field:'convoy' なら作戦フィールドの中心が輸送船団になり、船団と一緒に動く（枠の半径215、自軍は枠の外へ出られない）。
+     convoy.depart を 0 にすると最初から航行する。convoy.sailSub は航行中の説明、pointName は任務欄でのゴールの名前
+   clouds: プラズマ雲 [{pos, alt, r}]。中の艦は見える距離が半分、外から見つかる距離も半分（両方中なら4分の1）、速度1.1倍
+   events の rel:true: fleet.pos と arrow.pos を作戦フィールドの中心からの位置で書く
+   events の onSpot:{min, delay}: 敵に見つかったら delay 分後（min 分より前にはしない）に早める
+   ai:'scout' は戦わずに見張る（見つけた相手から距離を取ってついていく）。patrol:[[x,z],…] はフィールドの中心からの巡回点（高度は watch.alt）
+   ai:'pursue' は見えている相手を攻撃し、見えなければ最後に見つけた位置へ、そのあとは前方の雲を近い順に探す
+   spotLog / shakeLog: 敵に見つかったとき / 振り切ったときの通知
+   rescue: 救難信号 {after, pos（フィールドの中心から）, fleet, need（秒）, reach, lure?（向かってくる偵察隊の名前）, log, doneLog, lostLog}
+   talk の台詞に3つ目の要素 'rescued' / '!rescued' を付けると、救助した / しなかったときだけ出す */
 WOS_DATA.operations=[
   {
     id:'charybdis',
@@ -146,6 +156,99 @@ WOS_DATA.operations=[
       winLog:['ネオ信濃 脱出', '船団と駐屯隊はナイルへ向かう。背後のネオ信濃には共和国の旗が上がった。'],
       loseLog:['船団 壊滅', '予備指揮所に直撃。ネオ信濃からの脱出は失敗に終わった。'],
       loseBlast:[0,0,3],
+    },
+  },
+  {
+    id:'retreat',
+    chapter:'第一章 第2節',
+    name:'後退',
+    summary:'ネオ信濃を出て3日目。共和国の偵察と本隊が追ってくる。プラズマ雲に隠れながら、輸送船団をナイルまで護衛する。',
+    threat:'敵戦力：偵察隊5・本隊（W.A.S.）／目標：輸送船団の護衛（撤退）',
+    brief:'作戦フィールドの中心は輸送船団で、船団と一緒に動く。プラズマ雲の中は見つかりにくいが、こちらも前が見えない。偵察隊に見つかると、共和国の本隊が見つかった部隊へ向かってくる。雲に隠れるか偵察を沈めて振り切り、船団を撤退地点まで守れ。輸送船を3隻失えば作戦は失敗。',
+    forces:'fixed', field:'convoy', phase:'航行', view:{target:[0,30], dist:170, dir:[.25,.45,-.86]},
+    date:'A.E. 45.04.15', start:'04:00',
+    deploy:[0,0],
+    exit:{pos:[0,450], alt:0},
+    sectors:[
+      {name:'撤退地点', sub:'ジャディード・ナイル方面', pos:[10,452]},
+      {name:'信濃側航路', sub:'共和国の追撃が来る方向', pos:[0,-70]},
+    ],
+    /* 第1節の4隊。損害は引き継がず、2〜3割減らした数（ユーザー決定 2026-10-03） */
+    quick:[
+      {name:'第11哨戒戦隊', sub:'コルベット・哨戒', type:'cv', n:9, hp:11, dmg:1.3, eva:.36, range:14.8, speed:12, scale:.73, pos:[-26,-8], alt:6, vis:8, stl:9},
+      {name:'第21護衛戦隊', sub:'フリゲート・護衛', type:'ff', n:8, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[24,4], alt:-4, vis:7, stl:7},
+      {name:'第31駆逐戦隊', sub:'駆逐艦・雷撃', type:'dd', n:6, hp:21, dmg:2.65, eva:.24, range:18, speed:9, scale:.91, pos:[0,24], alt:0, vis:6, stl:6},
+      {name:'第22護衛戦隊', sub:'フリゲート・予備', type:'ff', n:6, hp:16, dmg:1.75, eva:.28, range:16.4, speed:10, scale:.82, pos:[0,-28], alt:8, vis:7, stl:7},
+    ],
+    group:{name:'ネオ信濃駐屯隊', sync:false},
+    convoy:{
+      fleet:{name:'輸送船団', sub:'白鷺ほか', type:'tr', n:5, hp:30, speed:4, scale:1.4, pos:[0,0], alt:0, vis:4, stl:2},
+      depart:0, sailSub:'ナイルへ航行中', pointName:'撤退地点',
+      escortText:'輸送船団を撤退地点まで守れ。雲に隠れ、偵察を振り切れ',
+      route:[{pos:[10,60], alt:0}, {pos:[-18,138], alt:0}, {pos:[-8,215], alt:0}, {pos:[22,295], alt:0}, {pos:[12,365], alt:0}, {pos:[0,450], alt:0}],
+    },
+    win:{type:'escort', lose:3},
+    /* 航路はほとんど雲の中を通る。最後の区間（365〜450）は雲がない */
+    clouds:[
+      {pos:[6,52], alt:0, r:34}, {pos:[-16,132], alt:2, r:40}, {pos:[-6,214], alt:-2, r:36}, {pos:[20,292], alt:0, r:38}, {pos:[14,352], alt:0, r:24},
+      {pos:[140,140], alt:0, r:30}, {pos:[-95,190], alt:6, r:34}, {pos:[85,330], alt:-8, r:28},
+    ],
+    enemies:[
+      {name:'偵察第1隊', sub:'共和国 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[0,-200], alt:10, ai:'scout', stance:'evade', patrol:[[-70,-110],[70,-110]], watch:{pos:[0,0], alt:10}, vis:8, stl:8},
+    ],
+    events:[
+      {after:5, log:['ハッダード曹長', '「船団は止まりません。作戦フィールドの中心は、いつも船団です。枠の外へは出られないので、予約指示（Shift+クリック）で先回りしてください」']},
+      {after:20, log:['ハッダード曹長', '「雲の中は見つかりにくい。そのかわり、こちらの目も半分です。撃てば居場所がばれます。隠れるなら R で命令優先に」']},
+      {after:30, rel:true, fleet:{name:'偵察第2隊', sub:'共和国 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[-215,10], alt:0, ai:'scout', stance:'evade', patrol:[[-120,50],[-120,-50]], watch:{pos:[0,0], alt:0}, vis:8, stl:8},
+        arrow:{pos:[-140,10], alt:0}, log:['ハッダード曹長', '「左舷の外に小さな反応。偵察です」']},
+      {after:60, rel:true, fleet:{name:'偵察第3隊', sub:'共和国 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[215,30], alt:-10, ai:'scout', stance:'evade', patrol:[[120,70],[115,-40]], watch:{pos:[0,0], alt:-10}, vis:8, stl:8},
+        arrow:{pos:[140,30], alt:-10}, log:['ハッダード曹長', '「右舷にも偵察。網を張られています」']},
+      {after:90, rel:true, fleet:{name:'偵察第4隊', sub:'共和国 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[20,-40], alt:80, ai:'scout', stance:'evade', patrol:[[0,70],[-30,-60]], watch:{pos:[0,0], alt:45}, vis:8, stl:8},
+        arrow:{pos:[10,0], alt:50}, log:['ハッダード曹長', '「真上に偵察。高度を上げないと届きません」']},
+      {after:150, rel:true, fleet:{name:'偵察第5隊', sub:'共和国 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[-20,10], alt:-80, ai:'scout', stance:'evade', patrol:[[40,-60],[-40,40]], watch:{pos:[0,0], alt:-45}, vis:8, stl:8},
+        arrow:{pos:[-10,0], alt:-50}, log:['ハッダード曹長', '「下方にも偵察。上下も見張られています」']},
+      {after:180, rel:true, phase:'追撃', onSpot:{min:150, delay:30},
+        fleet:{name:'共和国本隊', sub:'追撃艦隊', comp:{bb:2, cl:6}, n:8, hp:40, dmg:3.6, eva:.14, range:21, speed:9, scale:1.5, pos:[0,-215], alt:10, ai:'pursue', vis:6, stl:3},
+        arrow:{pos:[0,-140], alt:10}, log:['ハッダード曹長', '「後方に大型艦の光。本隊です。見つかった隊へ向かってきます」']},
+      {after:185, rel:true, onSpot:{min:155, delay:35},
+        fleet:{name:'追撃揚陸隊', sub:'共和国 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[-30,-215], alt:-30, ai:'pursue', vis:5, stl:7, hangar:{was:20}},
+        arrow:{pos:[-20,-140], alt:-25}},
+      {after:400, rel:true, phase:'最後の区間',
+        fleet:{name:'追撃分隊', sub:'共和国 駆逐隊', comp:{ff:6, dd:4}, n:10, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[215,-40], alt:20, ai:'pursue', vis:6, stl:6},
+        arrow:{pos:[140,-20], alt:20}, log:['ハッダード曹長', '「ナイルの手前は雲が切れています。右から追撃分隊。高度で船団の上下を固めて、一気に抜けてください」']},
+    ],
+    spotLog:['ハッダード曹長', '「見られてます。本隊がこっちへ向きを変えました。雲に入るか、偵察を沈めてください」'],
+    shakeLog:['ハッダード曹長', '「……見失ったようです。本隊は最後の位置へ向かっています」'],
+    rescue:{after:120, pos:[120,20], need:20, reach:18, lure:'偵察第3隊',
+      fleet:{name:'貨客船カワセミ', sub:'救難信号', type:'tr', n:1, hp:30, scale:1.2, alt:-4, vis:3, stl:3},
+      log:['救難信号', 'ベケレ機関士「こちら貨客船カワセミ、機関停止。乗客が……誰か、聞こえますか」　右舷の雲の端。寄るなら、乗客を移すあいだ（20秒）そばに付いていること。信号は共和国にも聞こえている。'],
+      doneLog:['カワセミ 救助', 'カワセミの乗客を駐屯隊の艦に移した。船体は放棄する。'],
+      lostLog:['救難信号 途絶', 'カワセミの救難信号が途切れた。'],
+    },
+    onEnemyWAS:['ハッダード曹長', '「下方から人型。船団の腹を狙っています」'],
+    talk:{
+      before:[
+        ['', 'A.E. 45.04.15。ネオ信濃を出て3日目。駐屯隊は輸送船団を囲み、ナイルへの航路を進んでいる。'],
+        ['ハッダード曹長', '傍受です。ミシシッピ、ドナウ、ともに応答なし。……共和国の放送では「解放した」と。'],
+        ['ハッダード曹長', '重水素の残りは4割。タンクの半分は火星産ですよ。皮肉なもんです。'],
+        ['リン船長', '船団は雲の中を通ります。速くは進めません。……守ってくださいね、少尉。'],
+        ['ミナセ少尉', '全艦、船団から離れるな。撃つのは、見つかったときだけだ。'],
+      ],
+      win:[
+        ['マンスール准将', 'こちらジャディード・ナイル。信濃の駐屯隊だな。……よく来た。船団の入港を誘導する。'],
+        ['ベケレ機関士', 'ありがとう。ドナウを出てから、初めて味方の声を聞いた。', 'rescued'],
+        ['', 'カワセミの救難信号は、いつの間にか途切れていた。ハッダードは何も言わなかった。', '!rescued'],
+        ['ハッダード曹長', 'ナイルは、まだ地球連合の旗を掲げています。'],
+      ],
+      lose:[
+        ['', 'ナイルに届いたのは、船団の最後の通信だけだった。'],
+      ],
+    },
+    result:{
+      win:'輸送船団はナイルにたどり着いた。',
+      lose:'輸送船団を守りきれなかった。',
+      winLog:['撤退地点 到着', '船団はジャディード・ナイルの誘導に入った。ナイルはまだ、地球連合の旗を掲げている。'],
+      loseLog:['船団 壊滅', 'ナイルへの撤退は失敗に終わった。'],
     },
   },
 ];

@@ -68,14 +68,15 @@ try {
 /* tactical grid plane */
 const gridMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, extensions:{derivatives:true},
-  uniforms:{uTime:{value:0},uZone:{value:1}},
+  uniforms:{uTime:{value:0},uZone:{value:1},uC:{value:new THREE.Vector2()},uFrame:{value:0}},
   vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader:`
-    varying vec2 vP; uniform float uTime, uZone;
+    varying vec2 vP; uniform float uTime, uZone, uFrame; uniform vec2 uC;
     float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
     void main(){
       float r=length(vP);
-      float sq=max(ln(vP.x/10.,1.),ln(vP.y/10.,1.))*.16;
+      vec2 wP=vP+uC;   /* the squares stay put in space while the plane follows a moving field (uC) */
+      float sq=max(ln(wP.x/10.,1.),ln(wP.y/10.,1.))*.16;
       float ring=(r<161.)?ln(r/20.,1.6)*.75:0.;
       float ang=atan(vP.y,vP.x)/6.2831853*12.;
       float rad=ln(ang,1.3)*.45*smoothstep(9.,14.,r);
@@ -87,6 +88,8 @@ const gridMat = new THREE.ShaderMaterial({
       col=mix(col,vec3(1.,.42,.3),zone*.85);
       a=max(a,zone*.13);
       a+=edge*(.9+.1*sin(uTime*2.));
+      float frame=ln(r/215.,1.6)*step(200.,r)*step(r,230.)*uFrame;   /* the edge of a field that moves with the convoy */
+      a=max(a,frame*.55);
       col=mix(col,vec3(1.,.45,.32),edge);
       gl_FragColor=vec4(col*1.15,a*.95);
     }`
@@ -149,6 +152,26 @@ const exitObj=new THREE.Group();
   for(let i=0;i<4;i++){ const t=new THREE.Mesh(new THREE.PlaneGeometry(2.4,.5),m); t.rotation.x=-Math.PI/2; t.rotation.z=i*Math.PI/2; t.position.set(Math.cos(i*Math.PI/2)*11,0,Math.sin(i*Math.PI/2)*11); exitObj.add(t); }
 }
 exitObj.visible=false; scene.add(exitObj);
+
+/* plasma clouds (プラズマ雲): left by D-RAMS exhaust. A soft pale glow, a few overlapping puffs each;
+   the battle uses one sphere per cloud (data: {pos:[x,z], alt, r}). A cloud the camera is inside fades (loop.js) */
+const cloudObj=new THREE.Group(); scene.add(cloudObj);
+const cloudGeo=new THREE.IcosahedronGeometry(1,3);
+function cloudMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  uniforms:{uOp:{value:1},uTime:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;void main(){vN=normalize(normalMatrix*normal);vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mv=viewMatrix*w;vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform float uOp,uTime;void main(){float f=pow(abs(dot(vN,vV)),1.8);float n=.65+.35*sin(vW.x*.11+uTime*.15)*sin(vW.y*.13-uTime*.1)*sin(vW.z*.09);gl_FragColor=vec4(vec3(.62,.58,.95),f*n*.17*uOp);}'}); }
+function buildClouds(list){
+  for(const m of [...cloudObj.children]){ cloudObj.remove(m); m.material.dispose(); }
+  const out=[];
+  (list||[]).forEach((c,i)=>{ const at=new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]), mat=cloudMat();
+    const rnd=k=>{ const x=Math.sin((i+1)*91.7+k*13.3)*43758.5453; return x-Math.floor(x); };
+    for(let k=0;k<5;k++){ const m=new THREE.Mesh(cloudGeo,mat), r=k?c.r*(.45+.25*rnd(k)):c.r;
+      if(k) m.position.set((rnd(k+5)-.5)*c.r,(rnd(k+9)-.5)*c.r*.6,(rnd(k+13)-.5)*c.r);
+      m.position.add(at); m.scale.set(r*(1+.15*rnd(k+2)),r*(.75+.2*rnd(k+3)),r); cloudObj.add(m); }
+    out.push({c:at,r:c.r,mat}); });
+  return out;
+}
 
 /* debris field */
 {

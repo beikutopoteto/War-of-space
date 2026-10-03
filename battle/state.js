@@ -6,6 +6,14 @@ let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, even
 const OPS=WOS_DATA.operations;
 /* opEvents: reinforcements and timed events of the operation, in order; convoy: the transports of an escort operation */
 let op=OPS[0], opEvents=[], nextEvent=0, convoy=null;
+/* the field: its centre (fieldC) and radius. It stays at the origin, or moves with the convoy (op.field:'convoy') */
+const FIELD_R=215, fieldC=new THREE.Vector3();
+let fieldMoves=false;
+/* clouds: plasma clouds {c, r, mat}; lastSpot: where the enemy last saw one of ours {pos, t};
+   rescue: the optional distress call (op.rescue) {ship, prog, done, lost}; rescued: it was answered */
+let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued=false;
+/* a point [x, z] given relative to the field centre */
+function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
 function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
@@ -61,7 +69,7 @@ try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',ro
 /* roster: with an army group, its armies sit in a group section; drag a button between sections to take an army out or put it back */
 function buildRoster(){
   rosterEl.innerHTML='';
-  const mine=fleets.filter(f=>f.team===0&&!f.convoy);
+  const mine=fleets.filter(f=>f.team===0&&!f.ward);
   const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); if(i<9) b.title=`${i+1}キーで選択`;
     b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
@@ -185,10 +193,12 @@ function reset(cfg=lastCfg){
   if(fortress&&fortress.el) fortress.el.remove();
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
+  if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
+  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   enemyWASSeen=false;
-  opEvents=[...(op.reinforcements||[]),...(op.events||[])].sort((a,b)=>a.after-b.after);
+  opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
   selGroupMode=false;
@@ -200,7 +210,12 @@ function reset(cfg=lastCfg){
     armyGroup.off.set(fleets[i],o?new THREE.Vector3(o[0],o[1],o[2]):fleets[i].pos.clone().sub(armyGroup.flag.pos)); });
   /* the transports of an escort operation: own side, but they follow their own route and take no orders */
   convoy=null;
-  if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy); }
+  if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=convoy.ward=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy);
+    if(!(op.convoy.depart>0)) departConvoy(); }
+  /* a field that moves with the convoy: the grid, the camera and the edge go along with it (sim.js stepField) */
+  fieldMoves=op.field==='convoy'&&!!convoy;
+  gridMat.uniforms.uFrame.value=fieldMoves?1:0;
+  clouds=buildClouds(op.clouds);
   /* the object in the middle of the field: the fortress (a target), or a relay station (scenery) */
   const F=op.fortress;
   fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}

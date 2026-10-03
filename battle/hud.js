@@ -54,7 +54,7 @@ function panCamera(dt){
   if(_mv.lengthSq()===0) return;
   const fast=panKeys.has('ShiftLeft')||panKeys.has('ShiftRight')?2:1;
   _mv.normalize().multiplyScalar(camera.position.distanceTo(controls.target)*.45*fast*dt);
-  if(Math.hypot(controls.target.x+_mv.x,controls.target.z+_mv.z)>220) return;
+  if(Math.hypot(controls.target.x+_mv.x-fieldC.x,controls.target.z+_mv.z-fieldC.z)>220) return;
   controls.target.add(_mv); camera.position.add(_mv);
 }
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
@@ -83,7 +83,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
   if(e.pointerType!=='mouse'||!selected||!selected.alive||over||e.buttons){ hideGhost(); return; }
   ray.setFromCamera({x:e.clientX/W*2-1,y:-(e.clientY/H)*2+1},camera); plane.constant=-selAlt;
   const hit=new THREE.Vector3();
-  if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x,hit.z)>200){ hideGhost(); return; }
+  if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)>200){ hideGhost(); return; }
   ghost.position.copy(hit); ghostFoot.position.set(hit.x,.05,hit.z);
   ghostStalkGeo.setFromPoints([hit,new THREE.Vector3(hit.x,0,hit.z)]); ghostStalk.computeLineDistances();
   ghost.visible=true; ghostFoot.visible=ghostStalk.visible=Math.abs(selAlt)>.5;
@@ -140,13 +140,16 @@ function stepCam(dt){
   _off.subVectors(camera.position,controls.target); if(_off.lengthSq()>1e-6) camera.position.copy(controls.target).add(_off.setLength(camAnim.fD+(camAnim.tD-camAnim.fD)*k));
   if(camAnim.t>=1) camAnim=null;
 }
+/* the view moves along with a field that follows the convoy (sim.js stepField) */
+function shiftView(d){ controls.target.add(d); camera.position.add(d);
+  if(camAnim){ camAnim.fT.add(d); camAnim.tT.add(d); camAnim.fP.add(d); camAnim.tP.add(d); } }
 document.querySelectorAll('#camView button').forEach(b=>b.addEventListener('click',()=>setView(+b.dataset.v)));
 addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='KeyF') focusSelected(); });
 
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||!shown(f)||f.convoy) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||!shown(f)||f.ward) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&Math.hypot(fs.x-x,fs.y-y)<46};
 }
@@ -168,7 +171,7 @@ function tap(x,y,cmdOnly=false,queue=false){
 /* the point under the screen position, at the altitude set on the altitude bar */
 function groundAt(x,y){
   ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3(); plane.constant=-selAlt;
-  return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x,hit.z)<200?hit:null;
+  return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)<200?hit:null;
 }
 const pickEl=document.getElementById('pick'); let pickCtx=null;
 function openPick(x,y,target,dest,queue){
@@ -243,7 +246,7 @@ addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }
   if(e.code==='KeyG'){ if(armyGroup&&!selGroupMode) selectGroup(); return; }
-  const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.convoy)[+m[1]-1]; if(f&&f.alive) select(f); }
+  const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.ward)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
 document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(op.talk&&op.talk.before); });
 document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
@@ -252,9 +255,9 @@ function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.clas
 window.WOS={ start(cfg){
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startTalk(op.talk&&op.talk.before);
-  /* the opening view: op.view {target:[x,z], dist} or the whole field */
-  const V=op.view||{target:[0,24],dist:190};
-  setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(.3,.4,.87),V.dist);
+  /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */
+  const V=op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
+  setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
   hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
 }, openMenu };
 
@@ -269,8 +272,12 @@ function updateGoal(){
     if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
     else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }
     else if(!convoy.departed){ p=Math.min(1,gameSec*CLOCK_RATE/C.depart); text=C.boardText||'乗船が終わるまで、敵を輸送船団に近づけるな'; label=`乗船 ${Math.floor(p*100)}%　${clockStr(C.depart)} 出港`; mode='board'; }
-    else { const pa=convoy.order&&convoy.order.path; p=pa?pa.s/pa.L:1; text=C.escortText||'輸送船団を離脱点まで守れ'; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
-    subT=`輸送船 ${left}/${convoy.n}隻　${lose}隻失うと失敗`; }
+    else { const pa=convoy.order&&convoy.order.path; p=pa?pa.s/pa.L:1; text=C.escortText||'輸送船団を離脱点まで守れ'; label=`${C.pointName||'離脱点'}まで ${Math.floor(p*100)}%`; mode='escort'; }
+    subT=`輸送船 ${left}/${convoy.n}隻　${lose}隻失うと失敗`;
+    /* a field with clouds: whether the enemy has eyes on us; the distress call */
+    if(clouds.length&&!over){ const seen=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.rescue);
+      subT+=seen.length?`\n発見されている：${seen.map(f=>f.name).join('・')}`:'\n敵に見つかっていない'; }
+    if(rescue&&!over) subT+=`\n${op.rescue.fleet.name}：${rescue.done?'救助した':rescue.lost?'失われた':`救助 ${Math.floor(100*Math.min(1,rescue.prog/op.rescue.need))}%`}`; }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?'任務達成':'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
