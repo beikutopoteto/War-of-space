@@ -88,7 +88,7 @@ function damage(t,amt,src){
 function destroyFleet(f,src){
   f.alive=false; f.el.remove(); dropArrow(f.arrow); f.arrow=null;
   burst(f.pos,TEAM_COL[f.team],40,10,1.3);
-  if(selected===f) select(null);
+  unselect(f);
   logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
   if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
   if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(false);
