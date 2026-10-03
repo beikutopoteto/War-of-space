@@ -77,33 +77,44 @@ function check(ok, label, detail = '') {
     check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
     /* the formation is laid out around the flagship: at deploy and after a group move; with 陣形OFF everyone goes to the point */
     const fm = await page.evaluate(() => {
-      const g = groups[0], fl = groupFlag(g), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(g, f);
+      const g = groups[0], fl = groupFlag(g), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(g, f), off0 = !g.form;
+      toggleForm(g);   // formation starts off; turn it on
       const near = (a, b) => a.distanceTo(b) < .01, others = groupAlive(g).filter(f => f !== fl);
       const deploy = others.every(f => near(rel(f), want(f))) && Math.abs(fl.pos.z - op.deploy[1]) < .01;
-      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)); groupOrder({ type: 'move', dest: D });
-      const move = near(fl.order.dest, D) && others.every(f => f.order.type === 'follow' && f.order.leader === fl && near(f.order.off, want(f)));
+      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(10, 0, -30)), dir = D.clone().sub(fl.pos); groupOrder({ type: 'move', dest: D });
+      /* every army heads straight for its own place around the point (none chases the flagship), turned to face the way they go */
+      const move = near(fl.order.dest, D) && others.every(f => f.order.type === 'move' && near(f.order.dest, D.clone().add(turnTo(want(f), dir))));
       toggleForm(g); groupOrder({ type: 'move', dest: D }); const point = groupAlive(g).every(f => near(f.order.dest, D)); toggleForm(g);
-      select(null); return { deploy, move, point, flag: fl.name, roster: fl.btn.textContent };
+      select(null); return { deploy, move, point, off0, flag: fl.name, roster: fl.btn.textContent };
     });
-    check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動）', fm.flag);
-    check(fm.point, '軍集団: 陣形OFF では全軍が指示した一点に集まる');
-    /* formation shapes: choosing 縦陣 regroups behind the flagship at once; 出撃時の陣形 is offered too.
-       Moving east, the formation turns so that east is ahead: the column trails to the west, and holds its shape on the way */
+    check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 陣形ONでは各軍が目的地の持ち場へ直接向かう（旗艦を追わない）', fm.flag);
+    check(fm.point && fm.off0, '軍集団: 陣形は最初OFF。OFF では全軍が指示した一点に集まる');
+    /* formation shapes: choosing 縦陣 regroups at once; 出撃時の陣形 is offered too.
+       Moving east, the formation turns so that east is ahead: the column lies along the east-west line */
     const fs2 = await page.evaluate(() => {
       const g = groups[0], fl = groupFlag(g), others = groupAlive(g).filter(f => f !== fl), sel = g.ui.gk;
       fleets.forEach(f => { if (f.team === 0) f.hpPool = 1e9; });
       const opts = [...sel.options].map(o => o.textContent);
       sel.value = 'column'; sel.dispatchEvent(new Event('change'));
-      const set = !fl.order && others.every((f, k) => f.order.type === 'follow' && f.order.off.distanceTo(new THREE.Vector3(0, 0, FORM_GAP * (k + 1))) < .01);
-      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(90, 0, 0)); groupOrder({ type: 'move', dest: D });
-      let worst = 0, n = 0;
-      while (fl.order && n++ < 3000) { step(.05); if (fl.order && fl.order.path.s > fl.order.path.L * .6) others.forEach(f => worst = Math.max(worst, f.pos.distanceTo(slotPos(f.order)))); }
-      for (let i = 0; i < 200; i++) step(.05);
-      const trail = others.every((f, k) => f.pos.x < fl.pos.x - FORM_GAP * (k + 1) + 3 && Math.abs(f.pos.z - fl.pos.z) < 3) && fl.march.x > .9;
-      setShape(g, 'base'); select(null); return { opts: opts.join('/'), set, trail, worst: +worst.toFixed(1) };
+      const set = !fl.order && others.every(f => f.order.type === 'move' && f.order.dest.distanceTo(fl.pos.clone().add(turnTo(formationOffset(g, f), fl.march))) < .01);
+      const t0 = gameSec, ne = nextEvent; nextEvent = opEvents.length;   // hold the timed events while this runs
+      select(null); selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(90, 0, 0)); groupOrder({ type: 'move', dest: D });
+      for (let i = 0; i < 1600; i++) step(.05);
+      const east = new THREE.Vector3(1, 0, 0);
+      const shape = others.every(f => f.pos.distanceTo(D.clone().add(turnTo(formationOffset(g, f), east))) < 3 && Math.abs(f.pos.z - fl.pos.z) < 3);
+      /* attacking in formation: every army closes on the target itself, so the whole column gets it in range */
+      const e = fleets.find(f => f.team === 1 && f.alive && !f.convoy); e.seen = true; e.hpPool = 1e9; e.speed = 0; e.ai = null; e.revealT = 1e9;
+      select(null); selectGroup(g); groupOrder({ type: 'attack', target: e });
+      for (let i = 0; i < 1500; i++) { step(.05); e.seen = true; }
+      const gaps = groupAlive(g).map(f => [f.name, Math.round(gap(f, e)), f.range, f.order && f.order.type]);
+      const reach = groupAlive(g).every(f => gap(f, e) <= f.range * 1.08);
+      e.alive = false; e.el.remove(); step(.05);
+      gameSec = t0; nextEvent = ne;
+      setShape(g, 'base'); select(null); return { opts: opts.join('/'), set, shape, reach, gaps: JSON.stringify(gaps) };
     });
+    check(fs2.reach, '軍集団: 縦陣のまま攻撃しても全軍の射程が届く', fs2.reach ? '' : fs2.gaps);
     check(fs2.set && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes('輪形陣'), '軍集団: 陣形を選ぶとすぐ組み直す（出撃時＋3種）', fs2.opts);
-    check(fs2.trail && fs2.worst < 4, '軍集団: 陣形のまま動くと進む向きが正面になり、形を崩さない', `ずれ最大 ${fs2.worst}`);
+    check(fs2.shape, '軍集団: 陣形のまま動くと進む向きが正面になり、着いたとき形がそろう');
     /* Shift+click picks several fleets; ＋ forms a new army group from them, the first one picked as flagship; 解散 lets them go */
     const ng = await page.evaluate(() => {
       const g0 = groups[0], [a, b] = groupAlive(g0); select(a); toggleMulti(b);
@@ -136,6 +147,16 @@ function check(ok, label, detail = '') {
     const view = await page.evaluate(() => getAngles());
     check(Math.round(view.az) === 60 && view.el > 80, '視点: 真上にしても横の角度が変わらない', `横${Math.round(view.az)}° 縦${Math.round(view.el)}°`);
     await page.click('#cv0'); await page.waitForTimeout(1200);
+    /* formation shapes put the light ships ahead and around, the heavy ones at the rear and the centre (flagship included) */
+    const cls = await page.evaluate(() => {
+      const by = n => fleets.find(f => f.team === 0 && f.name === n), cv = by('第1突撃艇隊'), cl = by('第2戦隊'), cvb = by('第7機動部隊');
+      select(cl); toggleMulti(cv); toggleMulti(cvb); newGroup(); const g = groups[groups.length - 1];
+      const col = shapeSlots('column', [cl, cv, cvb]), ring = shapeSlots('ring', [cl, cv, cvb]), line = shapeSlots('line', [cl, cv, cvb]);
+      const r = { column: col.get(cv).z < col.get(cl).z && col.get(cl).z < col.get(cvb).z,
+        ring: Math.hypot(ring.get(cvb).x, ring.get(cvb).z) < FORM_GAP * .5 && ring.get(cv).z < ring.get(cl).z,
+        line: line.get(cvb).x === 0 && line.get(cl).x !== 0 && line.get(cv).x !== 0, form0: !g.form };
+      disband(g); select(null); return r; });
+    check(cls.column && cls.ring && cls.line && cls.form0, '陣形: 軽い艦は前と周り、空母や重い艦は後ろと中央。新しい軍集団は陣形OFF', JSON.stringify(cls));
     /* altitude: ▲▼ go to the next step of 15 from 0, the bar and Q/E are free; the date moves on past midnight */
     const alt = await page.evaluate(() => { const f = fleets.find(x => x.team === 0); select(f); const r = [];
       setAlt(8, false); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt);

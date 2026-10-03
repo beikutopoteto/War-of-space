@@ -16,7 +16,7 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
 function makeFleet(team,o){
-  /* march: the way the fleet last moved, level; a formation led by this fleet faces it (sim.js followSlot) */
+  /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
@@ -135,45 +135,41 @@ function groupFlag(g){ if(!g) return null; const f=g.flag; return f&&f.alive&&g.
 /* where an army stands in the formation, relative to the flagship */
 function formationOffset(g,f){ const fl=groupFlag(g);
   if(g.kind!=='base'&&SHAPES_FORM[g.kind]){ if(!fl||f===fl) return new THREE.Vector3();
-    /* the other armies in roster order take the places of the shape one by one */
-    const rest=fleets.filter(x=>x!==fl&&x.alive&&g.members.has(x)), k=rest.indexOf(f);
-    return k<0?f.pos.clone().sub(fl.pos):SHAPES_FORM[g.kind].at(k,rest.length); }
+    const m=shapeSlots(g.kind,fleets.filter(x=>x.alive&&g.members.has(x))), a=m.get(f), b=m.get(fl);
+    return a&&b?a.clone().sub(b):f.pos.clone().sub(fl.pos); }
   const a=g.off.get(f), b=fl&&g.off.get(fl);
   return a&&b?a.clone().sub(b):fl?f.pos.clone().sub(fl.pos):new THREE.Vector3(); }
 /* the formation shapes, relative to the flagship (-z is ahead). The gap between armies is FORM_GAP (provisional) */
 const FORM_GAP=20;
-const SHAPES_FORM={
-  line:{name:'横陣', at:(k)=>new THREE.Vector3((k%2?-1:1)*FORM_GAP*(Math.floor(k/2)+1),0,0)},
-  column:{name:'縦陣', at:(k)=>new THREE.Vector3(0,0,FORM_GAP*(k+1))},
-  ring:{name:'輪形陣', at:(k,n)=>{ const a=Math.PI*2*k/n, r=FORM_GAP*1.1; return new THREE.Vector3(Math.sin(a)*r,0,-Math.cos(a)*r); }},
-};
+const SHAPES_FORM={line:{name:'横陣'}, column:{name:'縦陣'}, ring:{name:'輪形陣'}};
+/* how far back an army belongs: the ship classes in data/ships.js run from the vanguard (top: corvettes) to the rear
+   (bottom: carriers). An assault lander stands with the destroyers (ユーザー決定 2026-10-03). A fleet's rank is the mean of its ships' */
+const SHIP_ORDER=WOS_DATA.ships.map(c=>c.id);
+function shipRank(t){ const i=SHIP_ORDER.indexOf(t==='mas'?'dd':t); return i<0?SHIP_ORDER.indexOf('cl'):i; }
+function fleetRank(f){ return f.ships.length?f.ships.reduce((s,x)=>s+shipRank(x.type),0)/f.ships.length:0; }
+/* the places of a shape for these armies (ahead is -z): the heavy ones go to the rear and the centre, the light ones ahead and around.
+   縦陣: light at the head, heavy at the tail. 横陣: the heaviest in the middle, lighter ones further out and a little ahead.
+   輪形陣: the heaviest in the middle (a little back), the others on the ring, the lightest at the front */
+function shapeSlots(kind,list){
+  const by=[...list].sort((a,b)=>fleetRank(a)-fleetRank(b)), m=new Map(), G=FORM_GAP, V=(x,z)=>new THREE.Vector3(x,0,z);
+  if(kind==='column'){ by.forEach((f,i)=>m.set(f,V(0,G*i))); return m; }
+  const h=by.pop(); if(!h) return m;
+  if(kind==='line'){ m.set(h,V(0,0)); by.reverse().forEach((f,k)=>{ const s=Math.floor(k/2)+1; m.set(f,V((k%2?-1:1)*G*s,-G*.25*s)); }); return m; }
+  m.set(h,V(0,G*.2)); const n=by.length, r=G*1.1;
+  const slots=by.map((_,k)=>{ const a=Math.PI*2*k/n; return V(Math.sin(a)*r,-Math.cos(a)*r); }).sort((a,b)=>a.z-b.z);
+  by.forEach((f,i)=>m.set(f,slots[i])); return m;
+}
 /* gather the army group into its formation around the flagship, where the flagship is now (the flagship stops) */
 function reform(g){ const fl=groupFlag(g); if(!fl) return; const m=groupAlive(g);
-  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[]; follow(g,fl,m); }
-/* the other armies keep station on the flagship: their place in the formation turns with the way the flagship moves,
-   so the formation always faces where it is going and holds its shape on the way (sim.js followSlot) */
-function follow(g,fl,m){ m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null;
-  const off=formationOffset(g,f); if(f.order&&f.order.type==='follow'&&f.order.leader===fl) f.order.off=off; else order(f,{type:'follow',leader:fl,off}); }); }
-/* stop keeping station (the fleets that match stay where they are) */
-function unfollow(match){ fleets.forEach(x=>{ if(x.order&&x.order.type==='follow'&&match(x)) x.order=null; }); }
-/* where an army keeping station should be: the leader's position plus its place, turned so that ahead (-z) is the leader's march.
-   While the leader moves, a place behind it (z > 0) is taken that far back along the leader's trail instead, so the formation
-   re-forms as it goes and a column bends smoothly round a turn; once the leader stops, the formation straightens out */
-const _up=new THREE.Vector3(0,1,0), _tp=new THREE.Vector3(), _tm=new THREE.Vector3(), _to=new THREE.Vector3();
-function slotPos(o,out=new THREE.Vector3()){ const L=o.leader;
-  if(L.marching&&L.trail&&o.off.z>.5){ trailAt(L,o.off.z,_tp,_tm);
-    return out.set(o.off.x,o.off.y,0).applyAxisAngle(_up,Math.atan2(-_tm.x,-_tm.z)).add(_tp); }
-  const m=L.march; return out.copy(o.off).applyAxisAngle(_up,Math.atan2(-m.x,-m.z)).add(L.pos); }
-/* the point `dist` back along a fleet's trail, and the way it was heading there (beyond the trail's end: straight back from it) */
-function trailAt(L,dist,p,m){ let acc=0, prev=L.pos; m.copy(L.march);
-  for(const q of L.trail){ const seg=prev.distanceTo(q.p);
-    if(acc+seg>=dist){ const k=seg>1e-6?(dist-acc)/seg:0; p.copy(prev).lerp(q.p,k); m.copy(q.m); return; }
-    acc+=seg; prev=q.p; m.copy(q.m); }
-  p.copy(prev).addScaledVector(_to.copy(m).normalize(),-(dist-acc)); }
+  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
+  m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null; order(f,{type:'move',dest:fl.pos.clone().add(turnTo(formationOffset(g,f),fl.march))}); }); }
+/* a place in the formation (ahead is -z), turned so that ahead is `dir` (level) */
+const _up=new THREE.Vector3(0,1,0);
+function turnTo(off,dir){ return off.clone().applyAxisAngle(_up,Math.atan2(-dir.x,-dir.z)); }
 function setShape(g,kind){ if(!SHAPES_FORM[kind]&&!(kind==='base'&&g.baseName)) return; g.kind=kind; reform(g); updateRoster();
-  const fl=groupFlag(g); logEvent(`${g.name} ${kind==='base'?g.baseName:SHAPES_FORM[kind].name}`,`旗艦の${fl?fl.name:'—'}を中心に組み直す。このあとの移動もこの陣形を保つ。`); }
+  const fl=groupFlag(g); logEvent(`${g.name} ${kind==='base'?g.baseName:SHAPES_FORM[kind].name}`,`旗艦の${fl?fl.name:'—'}を基準に組み直す。このあとの移動もこの陣形を保つ。`); }
 /* take an army out of its group; a group left with no armies goes away */
-function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); f.syncSpeed=null; unfollow(x=>x===f||x.order.leader===f);
+function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); f.syncSpeed=null;
   if(!g.members.size) groups.splice(groups.indexOf(g),1); }
 /* drag in the roster: into another group (it takes the place where it stands now, relative to the flagship) or out to act alone */
 function moveToGroup(f,g){ const from=groupOf(f); if(g===from) return;
@@ -189,11 +185,11 @@ function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) retur
   if(t.length>GROUP_MAX){ logEvent('軍集団は5個の軍まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
   const fl=t.includes(selected)?selected:t[0];
   t.forEach(leaveGroup);
-  const g={name:newGroupName(),sync:true,form:true,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
+  const g={name:newGroupName(),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
   groups.push(g); buildRoster(); selectGroup(g);
   logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で軍集団を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
-function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null); unfollow(x=>g.members.has(x));
+function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null);
   if(selGroup===g) select(null); buildRoster(); updateRoster();
   logEvent(`${g.name} 解散`,'各軍は独立行動に戻った。'); }
 /* formation on: a move keeps the formation around the flagship. Off: every army goes to the point itself */
@@ -216,7 +212,6 @@ function orderTargets(){ return selGroup?groupAlive(selGroup):selMulti.filter(f=
 const UNDO_MAX=30; let undoStack=[];
 function copyOrder(o){
   if(!o) return null;
-  if(o.type==='follow') return {type:'follow',leader:o.leader,off:o.off.clone()};
   if(o.type!=='move') return {type:o.type,target:o.target};
   const left=o.path?pathLeft(o):[...(o.via||[]),o.dest], pts=left.length?left:[o.dest];   // the points still ahead
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
@@ -243,12 +238,13 @@ function groupOrder(o){
   if(o.type==='move'){
     /* the whole army group: with formation on, the flagship goes to the point and the others take their places around it;
        with formation off, every army goes to the point itself. Several fleets picked one by one keep how they stand */
+    /* with formation on, every army heads straight for its own place around the point (it does not chase the flagship);
+       the formation is turned so that ahead is the way the flagship goes from where it is (or from its last point) */
     const formation=g&&g.form&&groupFlag(g), point=g&&!g.form;
-    const base=f=>{ const x=tail(f); if(!x||x.type==='follow') return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
+    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
-    /* with formation on, only the flagship takes the route; the others keep station on it */
-    if(formation){ follow(g,formation,t); t.length=0; t.push(formation); }
-    t.forEach(f=>{ const x=tail(f), dest=point||formation?o.dest.clone():o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
+    const dir=formation?o.dest.clone().sub(base(formation)):null; if(dir&&dir.x*dir.x+dir.z*dir.z<1e-4) dir.copy(formation.march);
+    t.forEach(f=>{ const x=tail(f), dest=point?o.dest.clone():formation?o.dest.clone().add(turnTo(formationOffset(g,f),dir)):o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
       if(x&&x.type==='move'&&x===f.order) order(f,{type:'move',via:pathLeft(x).slice(-(MAX_WAYPOINTS-1)),dest});
       else if(x&&x.type==='move'){ x.via=pathLeft(x).slice(-(MAX_WAYPOINTS-1)); x.dest=dest; }
       else if(x) f.queue.push({type:'move',dest});
@@ -293,7 +289,7 @@ function reset(cfg=lastCfg){
   /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
   const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
   /* more army groups can be formed during the battle (＋ in the roster) */
-  const AG=G?{name:G.name,sync:G.sync,form:true,kind:'base',baseName:'出撃時の陣形',members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
+  const AG=G?{name:G.name,sync:G.sync,form:false,kind:'base',baseName:'出撃時の陣形',members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
   groups=AG?[AG]:[];
   /* each army's place in the formation, relative to the flagship (from the cube at sortie, or from where the armies start) */
   if(AG) G.members.forEach((i,k)=>{ const o=G.offsets&&G.offsets[k];
