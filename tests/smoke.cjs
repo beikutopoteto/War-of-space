@@ -87,6 +87,17 @@ function check(ok, label, detail = '') {
     });
     check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 旗艦を中心に陣形を組む（展開・全軍の移動）', fm.flag);
     check(fm.point, '軍集団: 陣形OFF では全軍が指示した一点に集まる');
+    /* formation shapes: choosing 縦陣 regroups behind the flagship at once, and the next move keeps it; 出撃時の陣形 is offered too */
+    const fs2 = await page.evaluate(() => {
+      const g = groups[0], fl = groupFlag(g), others = groupAlive(g).filter(f => f !== fl), sel = g.ui.gk;
+      const opts = [...sel.options].map(o => o.textContent);
+      sel.value = 'column'; sel.dispatchEvent(new Event('change'));
+      const behind = !fl.order && others.every((f, k) => Math.abs(f.order.dest.x - fl.pos.x) < .01 && Math.abs(f.order.dest.z - fl.pos.z - FORM_GAP * (k + 1)) < .01);
+      selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(0, 0, -40)); groupOrder({ type: 'move', dest: D });
+      const keep = others.every((f, k) => f.order.dest.distanceTo(D.clone().add(new THREE.Vector3(0, 0, FORM_GAP * (k + 1)))) < .01);
+      setShape(g, 'base'); select(null); return { opts: opts.join('/'), behind, keep };
+    });
+    check(fs2.behind && fs2.keep && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes("輪形陣"), "軍集団: 陣形を選ぶとすぐ組み直し、移動でも保つ（出撃時＋3種）", fs2.opts);
     /* Shift+click picks several fleets; ＋ forms a new army group from them, the first one picked as flagship; 解散 lets them go */
     const ng = await page.evaluate(() => {
       const g0 = groups[0], [a, b] = groupAlive(g0); select(a); toggleMulti(b);
