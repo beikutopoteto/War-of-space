@@ -9,7 +9,7 @@ const STATS = [
   {k:'rng', n:'射程'}, {k:'vis', n:'視界'}, {k:'stl', n:'隠蔽性'}
 ];
 const D=window.WOS_DATA;
-const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations, BRANCHES=D.branches;
+const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations, BRANCHES=D.branches, LINES=D.techLines;
 /* the campaign: the operations with a chapter, in order. Each opens when the one before it is cleared */
 const CAMP=OPS.filter(o=>o.chapter);
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
@@ -53,14 +53,16 @@ function defaults(){
     prog: newProg(),
   };
 }
-/* campaign progress: cleared operations, funds, tech level per branch (0 = the first step), story flags */
+/* campaign progress: cleared operations, funds, research per branch ({line id: steps researched}), story flags */
 function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}}; }
 let save;
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
 function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
   /* saves from before the campaign progress start at the beginning */
-  s.prog=Object.assign(newProg(),s.prog||{}); }
+  s.prog=Object.assign(newProg(),s.prog||{});
+  /* the first tech tree kept one number per branch: the sortie-limit step */
+  Object.keys(s.prog.tech).forEach(k=>{ if(typeof s.prog.tech[k]==='number') s.prog.tech[k]={cap:s.prog.tech[k]}; }); }
 function persist(){ try{ localStorage.setItem(KEY,JSON.stringify(save)); }catch(e){} }
 save=load();
 const newId=p=>p+(++save.seq);
@@ -87,10 +89,25 @@ function opOpen(o){ if(dbg.free) return true;
 const LOCK='<svg class="lock" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="1"/><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/></svg>';
 const opLabel=o=>`${o.chapter?o.chapter+'「':'「'}${o.name}」`;
 const unlockText=key=>{ const o=OPS.find(x=>x.id===D.unlocks[key]); return o?`${opLabel(o)}をクリアで解放`:'未解放'; };
-/* the tech tree: the sortie limit of a branch */
-const techLv=b=>Math.min(prog().tech[b.id]||0,b.steps.length-1);
+/* the tech tree (data/tech.js): every branch has the same lines; a line's steps are researched in order,
+   and a line growing from another opens when that one is finished */
+const techOf=b=>prog().tech[b.id]||(prog().tech[b.id]={});
+const lineLen=(b,l)=>l.cap?b.steps.length-1:l.costs.length;
+const lineLv=(b,l)=>Math.min(techOf(b)[l.id]||0,lineLen(b,l));
+const lineById=id=>LINES.find(l=>l.id===id);
+const lineDone=(b,l)=>lineLv(b,l)>=lineLen(b,l);
+const stepCost=(b,l,i)=>l.cap?b.steps[i+1].cost:Math.round(l.costs[i]*(b.costMul||1));
+const stepOpen=(b,l,i)=>branchOpen(b)&&i===lineLv(b,l)&&(!l.parent||lineDone(b,lineById(l.parent)));
+const techLv=b=>lineLv(b,lineById('cap'));
 const branchOpen=b=>!b.need||!!prog().flags[b.need];
 const branchCap=b=>branchOpen(b)?b.steps[techLv(b)].cap:0;
+/* the ship values in data/ships.js are the final form. A fleet built by the player has, per stat,
+   techStat.base of it plus techStat.step per researched step of the line that raises the stat */
+const branchOfType=t=>BRANCHES.find(b=>b.types.includes(t));
+function statRate(b,k){ const l=LINES.find(x=>x.stats&&x.stats.includes(k)); if(!b||!l) return 1;
+  return Math.min(1,D.techStat.base+D.techStat.step*lineLv(b,l)); }
+const RATED=['atk','def','eva','rng','vis','stl','spd'];
+function shipNow(t){ const s={...SHIP[t]}, b=branchOfType(t); RATED.forEach(k=>s[k]=SHIP[t][k]*statRate(b,k)); return s; }
 /* ships per branch in an army group, against the limits */
 function groupLoad(g){
   const n={}; g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count));
@@ -115,7 +132,7 @@ function armyStats(a){
   const types=new Set(bgs.map(b=>b.type));
   const ships=bgs.reduce((s,b)=>s+b.count,0);
   const st={atk:0,def:0,eva:0,rng:0,vis:0,stl:10,spd:bgs.length?99:0};
-  bgs.forEach(b=>{ const s=SHIP[b.type], w=b.count/ships;
+  bgs.forEach(b=>{ const s=shipNow(b.type), w=b.count/ships;
     st.atk+=s.atk*w; st.def+=s.def*w; st.eva+=s.eva*w; st.rng+=s.rng*w;
     st.vis=Math.max(st.vis,s.vis); st.stl=Math.min(st.stl,s.stl); st.spd=Math.min(st.spd,s.spd); });
   if(!bgs.length) st.stl=0;
@@ -165,8 +182,15 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="tech" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>技術ツリー</h2><p class="funds" id="techFunds"></p></header>
-  <p class="tabnote">軍集団で出撃するとき、兵科ごとに出撃できる艦の数（出撃上限）が決まっています。作戦の報酬の資金で研究を進めると上限が上がります。数値はすべて仮の値です。</p>
-  <div class="tree" id="techTree"></div>
+  <p class="tabnote">作戦の報酬の資金で研究します。上限解放で兵科ごとの出撃上限が、強化で自分で編成した艦隊の能力が上がります（最初は最大の3割。決まった艦隊で戦う作戦には効きません）。数値はすべて仮の値です。</p>
+  <div class="techwrap">
+    <nav class="brbar" id="brBar" aria-label="兵科"></nav>
+    <div class="treebox">
+      <div class="trsum" id="trSum"></div>
+      <div class="trscroll" id="trScroll"><div class="trcv" id="trCv"></div></div>
+      <div class="tinfo" id="tInfo"></div>
+    </div>
+  </div>
 </section>
 <section class="scr" data-s="sortie" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2></header>
@@ -197,7 +221,7 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="data" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦艇データ</h2></header>
-  <p class="tabnote">数値はすべて仮の値です（1〜10）。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
+  <p class="tabnote">数値はすべて仮の値です（1〜10）。表の値は技術ツリーの研究をすべて終えた最終形態（最大）で、自分で編成した艦隊は最初その3割から始まります。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
   <h3 class="sub">編成ボーナス（軍単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
@@ -231,30 +255,78 @@ function renderDebug(){
   b.innerHTML=`
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
-    <div class="dbgr"><button data-dbga="all">全作戦クリア・全解放</button><button data-dbga="funds">資金 +1000</button><button data-dbga="reset" class="danger">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="all">全作戦クリア・全解放</button><button data-dbga="funds">資金 +1000</button><button data-dbga="tech">全研究</button><button data-dbga="reset" class="danger">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
     if(a!=='reset') dbgConfirm=false;
     if(a==='all'){ OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); }); BRANCHES.forEach(br=>{ if(br.need) P.flags[br.need]=true; }); }
     if(a==='funds') P.funds+=1000;
+    if(a==='tech') BRANCHES.forEach(br=>LINES.forEach(l=>techOf(br)[l.id]=lineLen(br,l)));
     if(a==='reset'){ if(!dbgConfirm){ dbgConfirm=true; renderDebug(); return; } dbgConfirm=false; save.prog=newProg(); }
     persist(); renderTitle(); });
 }
 document.addEventListener('click',e=>{ if(e.target.closest('#dbgT')){ dbgOpen=!dbgOpen; dbgConfirm=false; renderDebug(); } });
 
-/* ---------- tech tree ---------- */
-function renderTech(){
-  const P=prog();
-  document.getElementById('techFunds').innerHTML=`資金 <b>${P.funds.toLocaleString()}</b>`;
-  document.getElementById('techTree').innerHTML=BRANCHES.map(br=>{ const lv=techLv(br), open=branchOpen(br);
-    const nodes=br.steps.map((st,i)=>{ const done=open&&i<=lv, next=open&&i===lv+1, can=next&&P.funds>=st.cost;
-      return `<div class="node ${done?'done':''} ${next?'next':''}"><b>段階${i+1}</b><span>上限 ${st.cap}隻</span>${
-        i===0?'<em>初期</em>':done?'<em>研究済み</em>':next?`<button data-res="${br.id}" ${can?'':'disabled'}>研究する　資金${st.cost}</button>`:`<em class="dim">資金${st.cost}</em>`}</div>`; }).join('<i class="link" aria-hidden="true"></i>');
-    return `<section class="branch ${open?'':'shut'}"><header><b>${esc(br.name)}</b><span>${br.types.map(t=>SHIP[t].name).join('・')}</span><em>${open?`出撃上限 ${branchCap(br)}隻`:LOCK+esc(br.needText||'未解放')}</em></header><div class="nodes">${nodes}</div></section>`; }).join('');
-  document.querySelectorAll('#techTree [data-res]').forEach(x=>x.onclick=()=>{ const br=BRANCHES.find(b=>b.id===x.dataset.res), st=br.steps[techLv(br)+1];
-    if(!st||P.funds<st.cost) return; P.funds-=st.cost; P.tech[br.id]=techLv(br)+1; persist(); renderTech(); });
+/* ---------- tech tree ----------
+   left: a thin bar of branches (a branch not opened by the story is not shown). right: the tree of the chosen branch,
+   from the ○ at the root to the right, scrolled sideways. Click a step to see it below and research it there */
+const ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X'];
+const STAT_NAME={atk:'攻撃',def:'防御',eva:'回避',rng:'射程',vis:'視界',stl:'隠蔽性',spd:'速度'};
+let techBr=null, techSel=null;
+/* where each step sits: a line from the root starts in column 1 on a new row; a line growing from another starts after
+   its parent's last step, the first child on the parent's row and the others on new rows below */
+function treeLayout(b){
+  const pos={}; let row=0;
+  const place=(l,col,r)=>{ for(let i=0;i<lineLen(b,l);i++) pos[l.id+':'+i]={col:col+i,row:r};
+    LINES.filter(c=>c.parent===l.id).forEach((c,k)=>{ place(c,col+lineLen(b,l),k?++row:r); }); };
+  LINES.filter(l=>!l.parent).forEach((l,k)=>{ place(l,1,k?++row:0); });
+  return {pos,rows:row+1,cols:Math.max(...Object.values(pos).map(p=>p.col))+1};
 }
+function renderTech(){
+  const P=prog(), open=BRANCHES.filter(branchOpen);
+  if(!open.includes(techBr)) techBr=open[0];
+  const b=techBr;
+  document.getElementById('techFunds').innerHTML=`資金 <b>${P.funds.toLocaleString()}</b>`;
+  document.getElementById('brBar').innerHTML=open.map(x=>`<button data-br="${x.id}" aria-pressed="${x===b}"><b>${esc(x.name)}</b><span>上限${branchCap(x)}隻</span></button>`).join('');
+  document.querySelectorAll('#brBar [data-br]').forEach(x=>x.onclick=()=>{ techBr=BRANCHES.find(y=>y.id===x.dataset.br); techSel=null; renderTech(); });
+  /* the branch now: its ships and how far each stat has come */
+  document.getElementById('trSum').innerHTML=`<b>${esc(b.name)}</b><span>${b.types.map(t=>SHIP[t].name).join('・')}</span>`+
+    `<span class="rates">${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${Math.round(statRate(b,k)*100)}%</em></i>`).join('')}</span>`;
+  /* the tree */
+  const {pos,rows,cols}=treeLayout(b), CW=150, RH=62, NW=118, NH=44, PAD=16;
+  const at=id=>({x:PAD+pos[id].col*CW, y:PAD+pos[id].row*RH});
+  const root={x:PAD+NW/2-22, y:PAD+(rows-1)*RH/2};
+  const edges=[];
+  const curve=(x1,y1,x2,y2)=>{ const m=(x1+x2)/2; return `M${x1} ${y1}C${m} ${y1} ${m} ${y2} ${x2} ${y2}`; };
+  LINES.forEach(l=>{ const n=lineLen(b,l); if(!n) return;
+    const from=l.parent?(()=>{ const p=lineById(l.parent), q=at(p.id+':'+(lineLen(b,p)-1)); return {x:q.x+NW,y:q.y+NH/2,done:lineDone(b,p)}; })()
+      :{x:root.x+44,y:root.y+22,done:true};
+    const f=at(l.id+':0'); edges.push({d:curve(from.x,from.y,f.x,f.y+NH/2),on:from.done&&lineLv(b,l)>0});
+    for(let i=1;i<n;i++){ const p=at(l.id+':'+(i-1)), q=at(l.id+':'+i); edges.push({d:`M${p.x+NW} ${p.y+NH/2}H${q.x}`,on:lineLv(b,l)>i}); } });
+  const nodes=LINES.flatMap(l=>[...Array(lineLen(b,l))].map((_,i)=>{ const id=l.id+':'+i, p=at(id), done=i<lineLv(b,l), can=stepOpen(b,l,i);
+    const sel=techSel===id, name=l.cap?`上限 ${b.steps[i+1].cap}隻`:lineLen(b,l)>1?`${l.name.replace(/強化$/,'')} ${ROMAN[i]}`:l.name;
+    return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''}" data-node="${id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}"><b>${esc(name)}</b><span>${done?'研究済み':`資金${stepCost(b,l,i)}`}</span></button>`; })).join('');
+  document.getElementById('trCv').style.cssText=`width:${PAD*2+(cols-1)*CW+NW}px;height:${PAD*2+(rows-1)*RH+NH}px`;
+  document.getElementById('trCv').innerHTML=`<svg class="tedges" width="100%" height="100%" aria-hidden="true">${edges.map(e=>`<path d="${e.d}" class="${e.on?'on':''}"/>`).join('')}</svg>`+
+    `<div class="troot" style="left:${root.x}px;top:${root.y}px"><i></i><span>${esc(b.name)}</span></div>`+nodes;
+  document.querySelectorAll('#trCv [data-node]').forEach(x=>x.onclick=()=>{ techSel=x.dataset.node; renderTech(); });
+  /* the chosen step */
+  const info=document.getElementById('tInfo');
+  if(!techSel){ info.innerHTML='<p class="dim">研究を選ぶと、ここに効果と必要な資金が出ます。〇から右へ順に研究します。</p>'; return; }
+  const [lid,si]=techSel.split(':'), l=lineById(lid), i=+si, done=i<lineLv(b,l), can=stepOpen(b,l,i), cost=stepCost(b,l,i);
+  const title=l.cap?`上限解放 ${ROMAN[i]}`:lineLen(b,l)>1?`${l.name} ${ROMAN[i]}`:l.name;
+  const pct=n=>Math.round(Math.min(1,D.techStat.base+D.techStat.step*n)*100);
+  const eff=l.cap?`${esc(b.name)}の出撃上限 ${b.steps[i].cap} → ${b.steps[i+1].cap}隻`
+    :l.stats?l.stats.map(k=>`${STAT_NAME[k]} ${pct(i)}% → ${pct(i+1)}%（${b.types.map(t=>`${SHIP[t].name} ${(SHIP[t][k]*pct(i)/100).toFixed(1)}→${(SHIP[t][k]*pct(i+1)/100).toFixed(1)}`).join('、')}）`).join('<br>')
+    :`${LINES.filter(c=>c.parent===l.id).map(c=>c.name).join('と')}の研究が始められる`;
+  const why=done?'研究済み':can?'':i>lineLv(b,l)?'前の段を先に研究してください':`先に「${esc(lineById(l.parent).name)}」を研究してください`;
+  info.innerHTML=`<div><b>${esc(title)}</b><p>${eff}</p></div><div class="tact">${done?'<em>研究済み</em>':`<span>資金 ${cost}</span><button id="tRes" ${can&&P.funds>=cost?'':'disabled'}>研究する</button>`}${why&&!done?`<em class="dim">${why}</em>`:''}${can&&P.funds<cost?'<em class="dim">資金が足りません</em>':''}</div>`;
+  const r=document.getElementById('tRes'); if(r) r.onclick=()=>{ if(!stepOpen(b,l,i)||P.funds<cost) return; P.funds-=cost; techOf(b)[l.id]=i+1; persist(); renderTech(); };
+}
+/* the mouse wheel scrolls the tree sideways */
+document.addEventListener('wheel',e=>{ const sc=e.target.closest&&e.target.closest('#trScroll'); if(!sc||Math.abs(e.deltaX)>Math.abs(e.deltaY)) return;
+  if(sc.scrollWidth>sc.clientWidth){ e.preventDefault(); sc.scrollLeft+=e.deltaY; } },{passive:false});
 
 /* ---------- sortie ---------- */
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
@@ -339,7 +411,7 @@ function renderBgTab(){
     <div class="fld">艦種<div class="types">${SHIPS.map(t=>`<button data-type="${t.id}" aria-pressed="${t.id===b.type}">${t.name}</button>`).join('')}</div></div>
     <label class="fld"><span>隻数 <b id="bgCountV">${b.count}</b> / 最大${s.max}</span><input id="bgCount" type="range" min="1" max="${s.max}" value="${Math.min(b.count,s.max)}"></label>
     <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
-    <h4>1隻あたりの能力（仮）</h4>${bars(s)}
+    <h4>1隻あたりの能力（仮）　<span class="dim">技術ツリーの研究で上がります。最大は艦艇データの値</span></h4>${bars(shipNow(b.type))}
     <div class="row">${delBtn('bg:'+b.id,'この戦闘団を解散する')}</div>`;
   det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
   det.querySelectorAll('[data-type]').forEach(x=>x.onclick=()=>{ b.type=x.dataset.type; b.count=Math.min(b.count,SHIP[b.type].max); persist(); renderOrg(); });
