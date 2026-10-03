@@ -156,9 +156,20 @@ function follow(g,fl,m){ m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpe
   const off=formationOffset(g,f); if(f.order&&f.order.type==='follow'&&f.order.leader===fl) f.order.off=off; else order(f,{type:'follow',leader:fl,off}); }); }
 /* stop keeping station (the fleets that match stay where they are) */
 function unfollow(match){ fleets.forEach(x=>{ if(x.order&&x.order.type==='follow'&&match(x)) x.order=null; }); }
-/* where an army keeping station should be: the leader's position plus its place, turned so that ahead (-z) is the leader's march */
-const _up=new THREE.Vector3(0,1,0);
-function slotPos(o,out=new THREE.Vector3()){ const m=o.leader.march; return out.copy(o.off).applyAxisAngle(_up,Math.atan2(-m.x,-m.z)).add(o.leader.pos); }
+/* where an army keeping station should be: the leader's position plus its place, turned so that ahead (-z) is the leader's march.
+   While the leader moves, a place behind it (z > 0) is taken that far back along the leader's trail instead, so the formation
+   re-forms as it goes and a column bends smoothly round a turn; once the leader stops, the formation straightens out */
+const _up=new THREE.Vector3(0,1,0), _tp=new THREE.Vector3(), _tm=new THREE.Vector3(), _to=new THREE.Vector3();
+function slotPos(o,out=new THREE.Vector3()){ const L=o.leader;
+  if(L.marching&&L.trail&&o.off.z>.5){ trailAt(L,o.off.z,_tp,_tm);
+    return out.set(o.off.x,o.off.y,0).applyAxisAngle(_up,Math.atan2(-_tm.x,-_tm.z)).add(_tp); }
+  const m=L.march; return out.copy(o.off).applyAxisAngle(_up,Math.atan2(-m.x,-m.z)).add(L.pos); }
+/* the point `dist` back along a fleet's trail, and the way it was heading there (beyond the trail's end: straight back from it) */
+function trailAt(L,dist,p,m){ let acc=0, prev=L.pos; m.copy(L.march);
+  for(const q of L.trail){ const seg=prev.distanceTo(q.p);
+    if(acc+seg>=dist){ const k=seg>1e-6?(dist-acc)/seg:0; p.copy(prev).lerp(q.p,k); m.copy(q.m); return; }
+    acc+=seg; prev=q.p; m.copy(q.m); }
+  p.copy(prev).addScaledVector(_to.copy(m).normalize(),-(dist-acc)); }
 function setShape(g,kind){ if(!SHAPES_FORM[kind]&&!(kind==='base'&&g.baseName)) return; g.kind=kind; reform(g); updateRoster();
   const fl=groupFlag(g); logEvent(`${g.name} ${kind==='base'?g.baseName:SHAPES_FORM[kind].name}`,`旗艦の${fl?fl.name:'—'}を中心に組み直す。このあとの移動もこの陣形を保つ。`); }
 /* take an army out of its group; a group left with no armies goes away */
