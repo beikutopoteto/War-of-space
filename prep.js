@@ -134,11 +134,15 @@ function groupLoad(g){
 }
 /* a one-time grant on the first clear of an operation (o.aid), remembered in the story flags */
 function grantAid(o){ const k='aid:'+o.id; if(!o.aid||prog().flags[k]) return 0; prog().flags[k]=true; prog().funds+=o.aid.funds; return o.aid.funds; }
+/* story flags the battle's conversations may use (a line's third element, battle/hud.js talkFor) */
+function storyFlags(){ return {kawasemi:!!prog().flags['rescued:retreat']}; }
 /* the battle the menu started: the result is recorded when it ends (quick battle is not counted) */
 let running=null;
-function onEnd(opId,win){
+function onEnd(opId,win,res={}){
   if(!running||running.quick||running.op!==opId||!win) return '';
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
+  /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */
+  if(o.rescue) prog().flags['rescued:'+opId]=!!res.rescued;
   const gain=Math.round((o.reward||0)*(first?1:D.reward.replay));
   prog().funds+=gain; if(first) prog().cleared.push(opId);
   const aid=first?grantAid(o):0; persist();
@@ -409,7 +413,7 @@ function renderSortie(){
   const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
   /* a story operation is fought with the fleets the story gives; army groups are not used */
   if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
-    const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id}); } }; return; }
+    const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0);
     return `<button class="sgcard ${g.id===sortieGroup?'sel':''}" data-sg="${g.id}" aria-pressed="${g.id===sortieGroup}"><b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'軍が未配置'}</span><em>${arms.length}個軍・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
     :'<p class="empty">軍集団がありません。艦隊編集で作成してください。</p>';
@@ -435,7 +439,7 @@ function startBattle(g){
   const fleets=[], members=[], offsets=[];
   ok.forEach(m=>{ const a=armyById(m.army), d=[(m.x-fm.x)*16,(m.y-fm.y)*10,(m.z-fm.z)*16];
     const f=armyToFleet(a); f.pos=[cx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
-  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members, flag:ok.indexOf(fm), offsets}});
+  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members, flag:ok.indexOf(fm), offsets}, flags:storyFlags()});
 }
 
 /* ---------- organization ---------- */

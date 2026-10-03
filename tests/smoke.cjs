@@ -570,6 +570,48 @@ function check(ok, label, detail = '') {
     check(open2.prog.funds === 1700 && open2.prog.flags['aid:retreat'] && rw2.includes('緊急援助：資金 +1000'),
       '後退: 初めてのクリアで司令部からの緊急援助（資金 +1000）', rw2 + JSON.stringify(open2.prog));
     await shot('11-unlocked');
+
+    /* 第3節 ナイル防衛線: fought with the player's army group; we defend the station, allied fleets (AI) hold the line */
+    check(open2.prog.flags['rescued:retreat'] === true, '後退: カワセミを助けたかどうかが保存される', JSON.stringify(open2.prog.flags));
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="nile"]');
+    const nSortie = { fixed: (await page.textContent('#sgList')).includes('決まった艦隊'), go: !(await page.isDisabled('#goBattle')) };
+    check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の軍集団で出撃する', JSON.stringify(nSortie));
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[0]));
+    check(nTalk.includes('ベケレ機関士'), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の会話にベケレ機関士が出る', nTalk.join(','));
+    await page.click('#talkSkip').catch(() => {});
+    const n1 = await page.evaluate(() => {
+      const al = fleets.filter(f => f.ally), mine = fleets.filter(f => f.team === 0 && !f.ward);
+      const r = { op: op.id, station: !!(fortress.defend && fortress.team === 0 && fortress.alive), allies: al.length, mine: mine.length, group: groups[0] && groups[0].name,
+        notInRoster: !document.getElementById('roster').textContent.includes('アマゾン') };
+      /* the evacuation slows by half the share of armour lost: 40% lost → 0.8 */
+      fortress.hpPool = fortress.max * .6; step(.05); r.rate = +evacRate.toFixed(2); fortress.hpPool = fortress.max;
+      /* the Donau squadron gives ground once under 2/3 of its ships, toward the rear of the station */
+      const d = al.find(f => f.name === 'ドナウ残存隊'), home = d.post.clone();
+      while (d.ships.length > 5) d.ships.pop();
+      allyAI(); r.falling = !!d.falling; r.moved = +d.post.distanceTo(home).toFixed(1); r.rear = d.post.z > home.z;
+      /* a siege fleet makes for the station; enemy W.A.S. (not fighters) may hit it */
+      const s = makeFleet(1, { name: '試験', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 5, scale: 1, pos: [0, -100], alt: 0, vis: 5, stl: 5, ai: 'siege' });
+      fleets.push(s); enemyAI(); r.siege = !!(s.order && s.order.target === fortress); s.alive = false; s.el.remove();
+      r.was = craftMayHit({ team: 1, type: 'was' }, fortress) && !craftMayHit({ team: 1, type: 'ftr' }, fortress);
+      return r; });
+    check(n1.op === 'nile' && n1.station && n1.allies === 3 && n1.mine === 5 && n1.group === 'ネオ信濃駐屯隊' && n1.notInRoster,
+      'ナイル防衛線: 守るステーションと友軍3隊が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
+    check(n1.rate === .8, 'ナイル防衛線: ステーションの耐久が削られた割合の半分だけ避難が遅れる', JSON.stringify(n1));
+    check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
+    check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
+    await page.evaluate(() => { while (gameSec < 22 && !over) step(.05); });
+    await page.waitForTimeout(500);
+    await shot('12-nile');
+    const nw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
+      let n = 0; while (!over && n++ < 6000) step(.05); return { over, outcome, evac: Math.round(evac), clock: clockStr() }; });
+    await page.waitForTimeout(2200);
+    check(nw.over && nw.outcome, 'ナイル防衛線: 避難が終わると勝利', JSON.stringify(nw));
+    await page.click('#talkSkip').catch(() => {});
+    await page.waitForTimeout(300);
+    await page.click('#toMenu');
+    const n3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(n3.cleared.includes('nile') && n3.funds === 1700 + 500, 'ナイル防衛線: クリアが記録され、報酬が入る', JSON.stringify(n3));
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

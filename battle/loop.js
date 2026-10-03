@@ -33,14 +33,14 @@ function frame(now){
   const dt=(over||menuOpen||talking)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
-  for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
+  for(const t of [0,1,2]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
-      const m=shipMeshes[f.team][s.type]; if(m.count>=SHIP_MAX) continue;
+      const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
@@ -65,7 +65,7 @@ function frame(now){
     }
   }
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
-  for(const t of [0,1]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
+  for(const t of [0,1,2]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
@@ -78,7 +78,7 @@ function frame(now){
   }
   for(const f of fleets){ if(f.alive&&f.arrow&&f.order&&f.order.type==='move'&&f.order.path){ const p=f.order.path; f.arrow.mat.uniforms.uCut.value=Math.max(0,Math.min(.9,p.s/p.L)); } }
   /* an own fleet chasing its target keeps an arrow that follows the target; it goes away once the target is in range */
-  for(const f of fleets){ if(!f.alive||f.team!==0||!f.order||f.order.type!=='attack') continue;
+  for(const f of fleets){ if(!f.alive||f.team!==0||f.ally||!f.order||f.order.type!=='attack') continue;
     const t=f.order.target, chasing=t.alive&&t.seen&&gap(f,t)>f.range;
     if(!chasing){ if(f.arrow){ dropArrow(f.arrow); f.arrow=null; } continue; }
     if(!f.arrow||f.arrow.from.distanceTo(f.pos)>1||f.arrow.to.distanceTo(t.pos)>1){
@@ -104,7 +104,7 @@ function frame(now){
     const s=proj(_v.copy(at).add(_w.set(0,u.kind==='fortress'?7:4,0)));
     if(s.z>1||s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){u.el.style.visibility='hidden';continue;}
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
-    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`装甲 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
+    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }

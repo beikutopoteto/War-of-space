@@ -12,6 +12,9 @@ let fieldMoves=false;
 /* clouds: plasma clouds {c, r, mat}; lastSpot: where the enemy last saw one of ours {pos, t};
    rescue: the optional distress call (op.rescue) {ship, prog, done, lost}; rescued: it was answered */
 let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued=false;
+/* a defence operation (op.win.type 'defend'): evac is how far the evacuation has got (operation minutes, need: op.win.need),
+   evacRate how fast it goes now (the station's damage slows it), evacShips how many background ships have left */
+let evac=0, evacRate=1, evacShips=0;
 /* a point [x, z] given relative to the field centre */
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
@@ -32,7 +35,7 @@ function makeFleet(team,o){
   f.launchR=f.hangars.reduce((m,h)=>Math.max(m,h.launchR),0);
   f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,h.launchR),Infinity);
   f.carrierOnly=f.hangars.length>0&&nc===o.n;
-  f.el=mkUnitLabel(team,o.name,'');
+  f.el=mkUnitLabel(o.ally?2:team,o.name,'');
   return f;
 }
 /* the class of each ship, from comp ({class: count}) or type; shuffled so losses fall on every class */
@@ -280,13 +283,16 @@ function reset(cfg=lastCfg){
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
-  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false;
+  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
+  /* allied fleets (op.allies): on our side but run by the AI (sim.js allyAI); not in the roster and not ours to select */
+  for(const a of op.allies||[]){ const f=makeFleet(0,{ai:'guard',leash:40,...a,ally:true}); f.ward=true; f.home=f.post.clone();
+    if(a.retreat) f.fallTo=new THREE.Vector3(a.retreat.to[0],a.retreat.alt||f.post.y,a.retreat.to[1]); fleets.push(f); }
   selGroup=null; selMulti=[];
   /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
   const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
@@ -304,15 +310,18 @@ function reset(cfg=lastCfg){
   fieldMoves=op.field==='convoy'&&!!convoy;
   gridMat.uniforms.uFrame.value=fieldMoves?1:0;
   clouds=buildClouds(op.clouds);
-  /* the object in the middle of the field: the fortress (a target), or a relay station (scenery) */
-  const F=op.fortress;
+  /* the object in the middle of the field: the enemy fortress (a target), a relay station we defend (op.station: it has armour and
+     batteries, and the enemy shoots at it), or a relay station as scenery. The defended station uses the fortress slot with team 0 */
+  const F=op.fortress, S=op.station;
   fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}
+    :S?{kind:'fortress',team:0,defend:true,id:0,name:S.name,pos:new THREE.Vector3(0,0,0),hpPool:S.hp,max:S.hp,dps:S.dps,range:S.range,radius:S.radius||8,alive:true,retarget:0,fireTarget:null,vis:S.vis??6,seen:true,everSeen:true,revealT:0}
     :{kind:'fortress',team:1,id:0,name:'',pos:new THREE.Vector3(0,3,0),alive:false,el:null};
+  if(S){ fortress.el=mkUnitLabel(0,S.name,S.sub||''); fortress.el.classList.add('fort'); }
   if(F){ fortress.hangars=makeHangars(F.hangar,F.launchR); fortress.heading=new THREE.Vector3(0,0,1); fortress.launchR=F.launchR||0;
     fortress.sortie=(F.sortie||[]).map(s=>({...s,started:false,left:null,next:0}));
     fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px'; }
   fortressObj.visible=!!F; zoneLines.visible=!!F; gridMat.uniforms.uZone.value=F?1:0;
-  stationObj.visible=op.center==='station';
+  stationObj.visible=op.center==='station'||!!S;
   exitObj.visible=!!op.exit; if(op.exit) exitObj.position.set(op.exit.pos[0],(op.exit.alt||0)+.2,op.exit.pos[1]);
   setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
