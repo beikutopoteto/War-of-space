@@ -2,9 +2,13 @@
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- HUD ---------- */
 /* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second */
-const CLOCK_RATE=5;   // 戦闘の1秒で作戦の時計が5分進む（ユーザー決定 2026-10-02: 前の10倍）
+const CLOCK_RATE=15;   // 戦闘の1秒で作戦の時計が15分進む（ユーザー決定: 2026-10-02 に前の10倍、2026-10-03 にさらに3倍）
+/* minutes since midnight of the operation's first day, at `min` minutes after the start */
+function clockMin(min){ const [h0,m0]=(op.start||'08:00').split(':').map(Number); return h0*60+m0+Math.floor(min); }
 /* the operation clock at `min` minutes after the start (now, by default) */
-function clockStr(min=gameSec*CLOCK_RATE){ const [h0,m0]=(op.start||'08:00').split(':').map(Number), m=h0*60+m0+Math.floor(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function clockStr(min=gameSec*CLOCK_RATE){ const m=clockMin(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+/* the date moves on when the clock passes midnight: the last number of op.date is the day */
+function dateStr(){ const d=Math.floor(clockMin(gameSec*CLOCK_RATE)/1440); return d?op.date.replace(/(\d+)$/,x=>String(+x+d).padStart(x.length,'0')):op.date; }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
 function logEvent(title,desc){
@@ -26,10 +30,12 @@ function select(f){ setSel(f?[f]:[]); }
 /* a fleet that is lost leaves the selection */
 function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
 /* altitude control: sets the height of the selected fleet's destination */
-let selAlt=0; const ALT_MAX=60;
+/* the height snaps to steps of ALT_STEP from 0 (ユーザー決定 2026-10-03: 上下に15ずつ), so it is easy to pick */
+let selAlt=0; const ALT_MAX=60, ALT_STEP=15;
 const altTrack=document.getElementById('altTrack'), altKnob=document.getElementById('altKnob'), altVal=document.getElementById('altVal');
+for(let v=-ALT_MAX;v<=ALT_MAX;v+=ALT_STEP){ if(!v) continue; const t=document.createElement('span'); t.className='tick'; t.style.top=(50-50*v/ALT_MAX)+'%'; altTrack.appendChild(t); }
 function setAlt(v,apply=true){
-  selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)));
+  selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v/ALT_STEP)*ALT_STEP))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
   const t=orderTargets(); if(!t.length) return;
@@ -42,9 +48,9 @@ function setAlt(v,apply=true){
 function altFromPointer(e){ const r=altTrack.getBoundingClientRect(); setAlt(ALT_MAX*(1-2*(e.clientY-r.top)/r.height)); }
 altTrack.addEventListener('pointerdown',e=>{ altTrack.setPointerCapture(e.pointerId); altFromPointer(e); });
 altTrack.addEventListener('pointermove',e=>{ if(altTrack.hasPointerCapture(e.pointerId)) altFromPointer(e); });
-altTrack.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){setAlt(selAlt+5);e.preventDefault();} if(e.key==='ArrowDown'){setAlt(selAlt-5);e.preventDefault();} });
-document.getElementById('altUp').addEventListener('click',()=>setAlt(selAlt+5));
-document.getElementById('altDn').addEventListener('click',()=>setAlt(selAlt-5));
+altTrack.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'){setAlt(selAlt+ALT_STEP);e.preventDefault();} if(e.key==='ArrowDown'){setAlt(selAlt-ALT_STEP);e.preventDefault();} });
+document.getElementById('altUp').addEventListener('click',()=>setAlt(selAlt+ALT_STEP));
+document.getElementById('altDn').addEventListener('click',()=>setAlt(selAlt-ALT_STEP));
 /* WASD pans the camera across the battle plane, relative to where it is looking; Shift doubles the speed */
 const panKeys=new Set();
 addEventListener('keydown',e=>{ if(['KeyW','KeyA','KeyS','KeyD','ShiftLeft','ShiftRight'].includes(e.code)) panKeys.add(e.code); });
@@ -64,7 +70,7 @@ function panCamera(dt){
   if(Math.hypot(controls.target.x+_mv.x-fieldC.x,controls.target.z+_mv.z-fieldC.z)>220) return;
   controls.target.add(_mv); camera.position.add(_mv);
 }
-addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
+addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+ALT_STEP); if(e.key==='e'||e.key==='E') setAlt(selAlt-ALT_STEP); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
