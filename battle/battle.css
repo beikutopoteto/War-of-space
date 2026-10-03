@@ -252,3 +252,34 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #keys th{text-align:left;white-space:nowrap;padding:3px 10px 3px 0;color:var(--ink);font-weight:600;vertical-align:top}
 #keys td{padding:3px 0}
 #view button:disabled{opacity:.4;cursor:default}
+
+/* ---------- windows: thin corner brackets instead of the left bar (案 B, user decision 2026-10-03) ----------
+   --bk is the bracket colour, --bs its arm length. The brackets are drawn on ::before so the box needs no border */
+#clock,#goal,#result .card,#roster button{position:relative}
+#clock::before,#goal::before,#brief::before,#talk::before,#result .card::before,.sector::before,.flag::before,
+#roster button[id^="fl"]::before,#roster .grpBtn::before,#roster #newGrp::before{
+  content:"";position:absolute;inset:0;pointer-events:none;--k:var(--bk,var(--brass));--s:var(--bs,10px);
+  background:
+    linear-gradient(var(--k),var(--k)) left top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left top/1px var(--s) no-repeat,
+    linear-gradient(var(--k),var(--k)) right top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) right top/1px var(--s) no-repeat,
+    linear-gradient(var(--k),var(--k)) left bottom/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left bottom/1px var(--s) no-repeat,
+    linear-gradient(var(--k),var(--k)) right bottom/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) right bottom/1px var(--s) no-repeat}
+#clock{border-left:0;padding:6px 12px 6px}
+#goal{border:0}
+#brief{border-left:0}
+#talk{border:0}
+#result .card{border-left:0}
+.sector{border-left:0;--bs:7px}
+/* fleet name tags: a light wash of the team colour, brackets only at the top left and bottom right */
+.t0{--tc:var(--blue)} .t1{--tc:var(--red)}
+.flag{border-left:0;background:color-mix(in srgb,var(--tc) 18%,rgba(8,14,26,.55))}
+.flag::before{--k:var(--tc);--s:7px;background:
+  linear-gradient(var(--k),var(--k)) left top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left top/1px var(--s) no-repeat,
+  linear-gradient(var(--k),var(--k)) right bottom/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) right bottom/1px var(--s) no-repeat}
+.flag b,.flag span{color:var(--ink)}
+/* fleet list: a thin frame with blue brackets (the 命令優先 fleets keep a dashed frame) */
+#roster button{border-left-width:1px}
+#roster button[id^="fl"]{--bk:var(--blue);--bs:8px}
+#roster button:disabled{--bk:#555}
+#roster .grpBtn,#roster #newGrp{--bk:var(--brass);--bs:8px}
+#roster button.evade{border-style:dashed}
