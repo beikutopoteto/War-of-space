@@ -307,8 +307,8 @@ const ICONS={
   sensor:'<path d="M5 19a10 10 0 0 1 0-14M8.5 15.5a5 5 0 0 1 0-7"/><circle cx="12" cy="12" r="1.6"/><path d="M12 12l8-6"/>',
   fighter:'<path d="M12 3l2 7 7 4v2l-7-2-1 5 2 2v1l-3-1-3 1v-1l2-2-1-5-7 2v-2l7-4z"/>',
   /* W.A.S.: a little larger than a person. Armored arms, a destroyer-class main gun on the back, an autocannon on the arm,
-     short thick legs with thrusters: the head and body look small. The armor is lightly filled */
-  was:'<g stroke-width="1.2"><circle cx="12" cy="3.6" r="1.1"/><path d="M7 5.5L2.2 1.6M17 13v6.6"/><g fill="currentColor" fill-opacity=".3"><path d="M10.7 5.7h2.6v4.3h-2.6zM5 5.5h4v7.5H5zM15 5.5h4v7.5h-4zM8.2 10.4h3.2v6.2H8.2zM12.6 10.4h3.2v6.2h-3.2zM7.6 16.6h4.4l.4 4.8H7.2zM12 16.6h4.4l.4 4.8h-5.2z"/></g></g>',
+     short thick legs with thrusters: the head and body look small. Curved armor, lightly filled */
+  was:'<g stroke-width="1.2"><circle cx="12" cy="3.5" r="1.1"/><path d="M7.2 5.4L2.2 1.6M17.4 13.4v6.2"/><g fill="currentColor" fill-opacity=".3"><path d="M10.3 6.1c.6-.6 2.8-.6 3.4 0l-.4 4c-.5.6-2.1.6-2.6 0z"/><path d="M9.4 5.7C7.8 4.8 5.3 5.2 4.9 7.1l-.2 5.4c.6 1 3 1 3.5 0l.5-4.4c.6-.8.9-1.6.7-2.4z"/><path d="M14.6 5.7c1.6-.9 4.1-.5 4.5 1.4l.2 5.4c-.6 1-3 1-3.5 0l-.5-4.4c-.6-.8-.9-1.6-.7-2.4z"/><path d="M10.5 10.5c-1.5 0-2.4 1.1-2.4 2.5v3.4h3.3l.5-4c.1-1.1-.5-1.9-1.4-1.9z"/><path d="M13.5 10.5c1.5 0 2.4 1.1 2.4 2.5v3.4h-3.3l-.5-4c-.1-1.1.5-1.9 1.4-1.9z"/><path d="M8 16.4h3.4c.1 1.6.2 3.2.4 4.8H7.6c.2-1.6.3-3.2.4-4.8z"/><path d="M12.6 16.4H16c.1 1.6.2 3.2.4 4.8h-4.2c.2-1.6.3-3.2.4-4.8z"/></g></g>',
   deck:'<path d="M3 15h18l-2 4H5zM6 15V9h12v6M9 9V6h6v3"/>',
   supply:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/><path d="M9 12h6M12 9v6"/>',
   flak:'<path d="M12 21v-6M8 21h8"/><path d="M12 15l-5-9M12 15l5-9"/><circle cx="6" cy="4" r="1.2"/><circle cx="18" cy="4" r="1.2"/>',
