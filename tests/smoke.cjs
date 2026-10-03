@@ -130,12 +130,13 @@ function check(ok, label, detail = '') {
     const view = await page.evaluate(() => getAngles());
     check(Math.round(view.az) === 60 && view.el > 80, '視点: 真上にしても横の角度が変わらない', `横${Math.round(view.az)}° 縦${Math.round(view.el)}°`);
     await page.click('#cv0'); await page.waitForTimeout(1200);
-    /* altitude snaps to steps of 15 from 0; Q/E move one step; the date moves on past midnight */
+    /* altitude: ▲▼ go to the next step of 15 from 0, the bar and Q/E are free; the date moves on past midnight */
     const alt = await page.evaluate(() => { const f = fleets.find(x => x.team === 0); select(f); const r = [];
-      setAlt(8, false); r.push(selAlt); setAlt(-22, false); r.push(selAlt); setAlt(99, false); r.push(selAlt);
+      setAlt(8, false); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt);
+      setAlt(-22, false); document.getElementById('altDn').click(); r.push(selAlt); setAlt(-22, false); document.getElementById('altUp').click(); r.push(selAlt);
       setAlt(0, false); dispatchEvent(new KeyboardEvent('keydown', { key: 'q' })); r.push(selAlt); select(null);
       const g = gameSec; gameSec = 24 * 60 / CLOCK_RATE; const d = dateStr(); gameSec = g; return { r: r.join(','), d, d0: op.date }; });
-    check(alt.r === '15,-15,60,15' && alt.d !== alt.d0, '高度: 0から15ずつ区切り、Q/Eで1段。日をまたぐと日付が進む', `${alt.r} / ${alt.d}`);
+    check(alt.r === '8,15,30,-30,-15,5' && alt.d !== alt.d0, '高度: ▲▼は0から15ずつの段へ、バーとQ/Eは自由。日をまたぐと日付が進む', `${alt.r} / ${alt.d}`);
     /* the turn stick at the bottom: held to the right the view keeps turning, let go it springs back to the middle */
     const az0 = await page.evaluate(() => getAngles().az);
     const tb = await page.locator('#azTrack').boundingBox();
