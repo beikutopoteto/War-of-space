@@ -83,6 +83,8 @@ const unlocked=key=>cleared(D.unlocks[key]);
 function opOpen(o){ if(dbg.free) return true;
   const i=CAMP.indexOf(o); if(i<0) return unlocked('fleet');   // 演習: with the player's own army groups
   return i===0||cleared(CAMP[i-1].id); }
+/* a thin line lock in the text colour (no emoji) */
+const LOCK='<svg class="lock" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="1"/><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/></svg>';
 const opLabel=o=>`${o.chapter?o.chapter+'「':'「'}${o.name}」`;
 const unlockText=key=>{ const o=OPS.find(x=>x.id===D.unlocks[key]); return o?`${opLabel(o)}をクリアで解放`:'未解放'; };
 /* the tech tree: the sortie limit of a branch */
@@ -212,7 +214,7 @@ function renderTitle(){
   const P=prog(), next=CAMP.find(o=>!cleared(o.id)), last=[...CAMP].reverse().find(o=>cleared(o.id));
   document.getElementById('tStat').innerHTML=`<span>資金 <b>${P.funds.toLocaleString()}</b></span><span>進行 <b>${last?esc(opLabel(last))+'まで完了':'開始前'}</b></span>${dbg.free||dbg.battle?'<span class="dbgon">デバッグ中</span>':''}`;
   const item=(key,go,name,desc)=>{ const ok=!key||unlocked(key)||dbg.free;
-    return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':'<i class="lock" aria-hidden="true">🔒</i>'}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
+    return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':LOCK}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
   document.getElementById('mainNav').innerHTML=
     `<button data-go="sortie" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
     item('fleet','org','艦隊編集','戦闘団・軍・軍集団を組む')+
@@ -249,7 +251,7 @@ function renderTech(){
     const nodes=br.steps.map((st,i)=>{ const done=open&&i<=lv, next=open&&i===lv+1, can=next&&P.funds>=st.cost;
       return `<div class="node ${done?'done':''} ${next?'next':''}"><b>段階${i+1}</b><span>上限 ${st.cap}隻</span>${
         i===0?'<em>初期</em>':done?'<em>研究済み</em>':next?`<button data-res="${br.id}" ${can?'':'disabled'}>研究する　資金${st.cost}</button>`:`<em class="dim">資金${st.cost}</em>`}</div>`; }).join('<i class="link" aria-hidden="true"></i>');
-    return `<section class="branch ${open?'':'shut'}"><header><b>${esc(br.name)}</b><span>${br.types.map(t=>SHIP[t].name).join('・')}</span><em>${open?`出撃上限 ${branchCap(br)}隻`:'🔒 '+esc(br.needText||'未解放')}</em></header><div class="nodes">${nodes}</div></section>`; }).join('');
+    return `<section class="branch ${open?'':'shut'}"><header><b>${esc(br.name)}</b><span>${br.types.map(t=>SHIP[t].name).join('・')}</span><em>${open?`出撃上限 ${branchCap(br)}隻`:LOCK+esc(br.needText||'未解放')}</em></header><div class="nodes">${nodes}</div></section>`; }).join('');
   document.querySelectorAll('#techTree [data-res]').forEach(x=>x.onclick=()=>{ const br=BRANCHES.find(b=>b.id===x.dataset.res), st=br.steps[techLv(br)+1];
     if(!st||P.funds<st.cost) return; P.funds-=st.cost; P.tech[br.id]=techLv(br)+1; persist(); renderTech(); });
 }
@@ -263,7 +265,7 @@ function renderSortie(){
   const ol=document.getElementById('opList');
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlockText('fleet');
-    return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':'🔒 '}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
+    return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
   ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の軍集団で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
