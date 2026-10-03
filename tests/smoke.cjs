@@ -53,11 +53,18 @@ function check(ok, label, detail = '') {
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
     check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && dbg1.prog.flags.was, 'デバッグ: 全解放と資金+1000', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
-    /* tech tree: research one step of 駆逐艦 */
+    /* tech tree: the branch bar, then 駆逐艦: 上限解放 I, 兵装技術, 火力強化 I (火力 needs 兵装 first) */
     await page.click('[data-go="tech"]');
-    await page.click('#techTree [data-res="dd"]');
-    const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, cost: WOS_DATA.branches.find(b => b.id === 'dd').steps[1].cost }));
-    check(tech.tech.dd === 1 && tech.funds === 1000 - tech.cost, '技術ツリー: 資金で研究すると段階が上がる', JSON.stringify(tech));
+    await page.click('#brBar [data-br="dd"]');
+    const res = async id => { await page.click(`#trCv [data-node="${id}"]`); const ok = !(await page.isDisabled('#tRes')); if (ok) await page.click('#tRes'); return ok; };
+    const early = await res('atk:0');
+    await res('cap:0'); await res('arms:0'); await res('atk:0');
+    const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]').length,
+      next: document.querySelector('#trCv [data-node="atk:1"]').classList.contains('can') }));
+    const spent = 200 + 100 + 60;
+    check(!early && tech.tech.dd.cap === 1 && tech.tech.dd.arms === 1 && tech.tech.dd.atk === 1 && tech.next && tech.funds === 1000 - spent,
+      '技術ツリー: 〇から順に研究し、親の枝を終えると次の強化が開く', JSON.stringify(tech));
+    await page.evaluate(() => { document.getElementById('trScroll').scrollLeft = 0; });
     await shot('01c-tech');
     await page.click('[data-s="tech"] .back');
 
