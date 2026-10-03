@@ -330,6 +330,27 @@ function check(ok, label, detail = '') {
     check(duel.foeKilled && duel.carrierLoss < 70 && duel.slowed, '空母: 戦闘母艦だけの軍は、追ってくる巡洋艦隊を1隻も失わずに倒せる（下がりながら戦い、艦載機が足止め）', JSON.stringify(duel));
     await page.evaluate(() => { reset(); select(null); });
 
+    /* under 命令優先 a fleet of carriers backs away only from the fleet it was ordered to attack: it holds its ground while attacking
+       something else (here a ship that does not move) and once at the place it was sent to. Under 自動交戦 it backs away from any fleet closing in */
+    const hold = await page.evaluate(() => {
+      const run = (stance, how) => {
+        reset(); fortress.alive = false; fleets.forEach(f => { f.alive = false; });
+        const c = makeFleet(0, { name: '母艦', sub: '', type: 'cvb', n: 3, hp: 70, dmg: 1.6, range: 14, speed: 5, scale: 1.6, pos: [0, 150], alt: 0, vis: 7, stl: 3, hangar: { ftr: 120 } });
+        const s = makeFleet(1, { name: '標的', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, range: 10, speed: 0, scale: 1, pos: [0, 136], alt: 0, vis: 4, stl: 2, leash: 0 });
+        const e = makeFleet(1, { name: '巡洋艦隊', sub: '', type: 'cl', n: 10, hp: 999, dmg: 0, range: 22, speed: 5.5, scale: 1.5, pos: [0, 95], alt: 0, vis: 6, stl: 4, ai: 'hunt', leash: 200 });
+        fleets.push(c, s, e); c.stance = stance; c.hpPool = 1e9; s.hpPool = e.hpPool = 1e9;
+        if (how === 'attack') order(c, { type: 'attack', target: s }); else if (how === 'foe') order(c, { type: 'attack', target: e }); else order(c, { type: 'move', dest: new THREE.Vector3(4, 0, 152) });
+        for (let i = 0; i < 60; i++) step(.05);
+        const p0 = c.pos.clone(); for (let i = 0; i < 300; i++) step(.05);
+        const near = c.pos.distanceTo(e.pos), moved = c.pos.distanceTo(p0); [c, s, e].forEach(x => x.el.remove());
+        return { moved: +moved.toFixed(1), near: +near.toFixed(1) };
+      };
+      return { atkEvade: run('evade', 'attack'), moveEvade: run('evade', 'move'), foeEvade: run('evade', 'foe'), atkEngage: run('engage', 'attack') };
+    });
+    check(hold.atkEvade.moved < 1 && hold.moveEvade.moved < 1 && hold.foeEvade.moved > 5 && hold.atkEngage.moved > 5 && hold.atkEvade.near < 30,
+      '空母: 命令優先なら、攻撃を命じた相手からだけ距離を取る（ほかの敵が近づいても、攻撃中の場所や移動先から下がらない。自動交戦では下がる）', JSON.stringify(hold));
+    await page.evaluate(() => { reset(); select(null); });
+
     /* the fortress: its fighters come out to meet us; the guard fleet sorties below 75% armour, the air-defence fleets one by one below 50% */
     const fd = await page.evaluate(() => {
       reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length); fleets.filter(x => x.team === 0 && x !== c).forEach(x => { x.alive = false; });

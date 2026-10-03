@@ -170,10 +170,13 @@ function dock(w){
 const SLOW_BY=.5, KITE_MARGIN=6;
 function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1); }
 /* a fleet of carriers only keeps its distance: when a seen enemy fleet comes within its own range plus KITE_MARGIN,
-   the carriers back away from it (facing the same way) instead of closing. Returns true while backing away */
+   the carriers back away from it (facing the same way) instead of closing. Under 命令優先 only the fleet it was ordered
+   to attack counts, so it holds its ground otherwise (user decision 2026-10-03). Returns true while backing away */
 function kite(f,dt){
+  const only=f.stance==='evade'?(f.order&&f.order.type==='attack'?f.order.target:null):undefined;
+  if(only===null) return false;
   _v.set(0,0,0); let n=0;
-  for(const e of fleets){ if(e.team===f.team||!e.alive||!e.seen) continue;
+  for(const e of fleets){ if(e.team===f.team||!e.alive||!e.seen||only&&e!==only) continue;
     const d=f.pos.distanceTo(e.pos); if(d>e.range+KITE_MARGIN) continue;
     _v.add(_w.subVectors(f.pos,e.pos).multiplyScalar(1/Math.max(d,1))); n++; }
   if(!n||_v.lengthSq()<1e-6) return false;
