@@ -21,7 +21,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .hud *{pointer-events:auto}
 
 /* top-left column: clock + phase, the menu button, the mission panel, then the altitude control while a fleet is selected */
-#tl{top:calc(14px + env(safe-area-inset-top,0px));left:16px;display:flex;flex-direction:column;flex-wrap:wrap;align-content:flex-start;align-items:flex-start;gap:7px;max-height:calc(100vh - 120px)}
+#tl{top:calc(14px + env(safe-area-inset-top,0px));left:16px;display:flex;flex-direction:column;align-items:flex-start;gap:7px}
 #tlBtns button{font-family:var(--f-ui);font-size:11px;white-space:nowrap;background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:2px 9px;cursor:pointer;backdrop-filter:blur(6px)}
 #tlBtns button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #clock{border-left:3px solid var(--brass);padding:2px 0 2px 12px;text-shadow:0 1px 6px #000}
@@ -98,10 +98,10 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .again{font-family:var(--f-ui);font-weight:700;font-size:14px;padding:8px 18px;background:var(--brass);color:var(--void);border:0;cursor:pointer}
 
 /* right edge: altitude control for the selected fleet */
-#alt{display:grid;justify-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:8px 6px;backdrop-filter:blur(6px)}
+#alt{display:grid;justify-items:center;gap:4px;background:var(--panel);border:1px solid var(--line);padding:5px 5px;backdrop-filter:blur(6px)}
 #alt .cap{font-size:10.5px;color:var(--ink-dim);letter-spacing:.1em}
 #alt .val{font-family:var(--f-num);font-weight:600;font-size:15px;color:var(--blue);font-variant-numeric:tabular-nums;min-width:3.2em;text-align:center}
-#alt button{width:34px;height:28px;background:transparent;color:var(--ink);border:1px solid var(--line);font-size:13px;cursor:pointer}
+#alt button{width:34px;height:22px;background:transparent;color:var(--ink);border:1px solid var(--line);font-size:13px;cursor:pointer}
 #alt button:focus-visible,#altTrack:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #stance{display:grid;gap:3px;margin-top:2px}
 #alt #stance button{width:52px;height:22px;font-family:var(--f-ui);font-size:11px;padding:0;color:var(--ink-dim)}
@@ -124,7 +124,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #roster button.st[data-st="evade"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
 #roster button.st[data-st="mixed"]{color:var(--brass);border-color:var(--brass)}
 #roster button.rgSync[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue)}
-#altTrack{position:relative;width:34px;height:170px;cursor:ns-resize;touch-action:none}
+#altTrack{position:relative;width:34px;height:84px;cursor:ns-resize;touch-action:none}
 #altTrack::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(var(--blue),rgba(127,200,255,.15) 50%,var(--blue))}
 #altTrack .zero{position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--brass)}
 #altKnob{position:absolute;left:50%;width:26px;height:12px;transform:translate(-50%,-50%);background:var(--blue);box-shadow:0 0 10px var(--blue)}
