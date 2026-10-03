@@ -306,9 +306,10 @@ const ICONS={
   engine:'<path d="M4 8l6 4-6 4M11 8l6 4-6 4"/><path d="M19 7v10"/>',
   sensor:'<path d="M5 19a10 10 0 0 1 0-14M8.5 15.5a5 5 0 0 1 0-7"/><circle cx="12" cy="12" r="1.6"/><path d="M12 12l8-6"/>',
   fighter:'<path d="M12 3l2 7 7 4v2l-7-2-1 5 2 2v1l-3-1-3 1v-1l2-2-1-5-7 2v-2l7-4z"/>',
-  /* W.A.S.: a little larger than a person. Armored arms, a destroyer-class main gun on the back, an autocannon on the arm,
-     short thick legs with thrusters: the head and body look small. Curved armor, lightly filled */
-  was:'<g stroke-width="1.2"><circle cx="12" cy="3.5" r="1.1"/><path d="M7.2 5.4L2.2 1.6M17.4 13.4v6.2"/><g fill="currentColor" fill-opacity=".3"><path d="M10.3 6.1c.6-.6 2.8-.6 3.4 0l-.4 4c-.5.6-2.1.6-2.6 0z"/><path d="M9.4 5.7C7.8 4.8 5.3 5.2 4.9 7.1l-.2 5.4c.6 1 3 1 3.5 0l.5-4.4c.6-.8.9-1.6.7-2.4z"/><path d="M14.6 5.7c1.6-.9 4.1-.5 4.5 1.4l.2 5.4c-.6 1-3 1-3.5 0l-.5-4.4c-.6-.8-.9-1.6-.7-2.4z"/><path d="M10.5 10.5c-1.5 0-2.4 1.1-2.4 2.5v3.4h3.3l.5-4c.1-1.1-.5-1.9-1.4-1.9z"/><path d="M13.5 10.5c1.5 0 2.4 1.1 2.4 2.5v3.4h-3.3l-.5-4c-.1-1.1.5-1.9 1.4-1.9z"/><path d="M8 16.4h3.4c.1 1.6.2 3.2.4 4.8H7.6c.2-1.6.3-3.2.4-4.8z"/><path d="M12.6 16.4H16c.1 1.6.2 3.2.4 4.8h-4.2c.2-1.6.3-3.2.4-4.8z"/></g></g>',
+  /* W.A.S.: a little larger than a person. Armored arms rising above the shoulders and spread like ハ, joined to the body by
+     thin lines; a destroyer-class main gun on the back, straight up along the body; an autocannon on the arm; short thick legs
+     with thrusters. The head and body look small. Curved armor, lightly filled */
+  was:'<g stroke-width="1.2" transform="translate(0 2.4)"><path d="M10.2 8V1.2"/><circle cx="12" cy="6.4" r="1.1"/><path stroke-width=".6" d="M10.5 8.7L9 7.6M10.6 9.6L9.2 9.2M13.5 8.7L15 7.6M13.4 9.6l1.4-.4"/><g fill="currentColor" fill-opacity=".3"><path d="M10.4 8.2c.6-.6 2.6-.6 3.2 0l-.4 4.2c-.5.6-1.9.6-2.4 0z"/><g transform="rotate(14 7.55 4.6)"><path d="M5.6 6.4c0-2.6 3.9-2.6 3.9 0v6.4c-.6 1-3.3 1-3.9 0z"/></g><g transform="rotate(-14 16.45 4.6)"><path d="M14.5 6.4c0-2.6 3.9-2.6 3.9 0v6.4c-.6 1-3.3 1-3.9 0z"/><path fill="none" d="M16.45 13.4v3.6"/></g><path d="M8.7 15.4v-1.2c0-1.1.7-1.7 1.6-1.7s1.3.6 1.3 1.4l-.2 1.5z"/><path d="M15.3 15.4v-1.2c0-1.1-.7-1.7-1.6-1.7s-1.3.6-1.3 1.4l.2 1.5z"/><path d="M8.6 15.4h2.8c.1.9.2 1.8.4 2.6H8.2c.2-.8.3-1.7.4-2.6z"/><path d="M12.6 15.4h2.8c.1.9.2 1.8.4 2.6h-3.6c.2-.8.3-1.7.4-2.6z"/></g></g>',
   deck:'<path d="M3 15h18l-2 4H5zM6 15V9h12v6M9 9V6h6v3"/>',
   supply:'<path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/><path d="M9 12h6M12 9v6"/>',
   flak:'<path d="M12 21v-6M8 21h8"/><path d="M12 15l-5-9M12 15l5-9"/><circle cx="6" cy="4" r="1.2"/><circle cx="18" cy="4" r="1.2"/>',
