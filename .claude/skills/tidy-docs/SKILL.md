@@ -24,7 +24,7 @@ description: War of Space の資料（CLAUDE.md、docs/*.md、サブエージェ
 ## 3. CLAUDE.md を短く保つ
 - 7000 バイト以下（`npm run check-docs` が確かめる）。毎回読み込まれるので、全セッションで要ることだけを置く。
 - 詳しい仕様、数値、経緯は docs/ へ移し、CLAUDE.md には「どこに何があるか」だけを残す。
-- ファイルを足したり消したりしたら、CLAUDE.md の「資料」の表と「ファイルと動かし方」を直す。
+- ファイルを足したり消したりしたら、CLAUDE.md の「資料」の表と「ファイルと動かし方」、`docs/code.md` を直す。コードの細かい構成は `docs/code.md` に置き、CLAUDE.md には要点だけ。
 
 ## 4. ほかの .md をそろえる
 - `.claude/agents/wos-dev.md` と `.claude/skills/*/SKILL.md` が、今のファイル構成と手順に合っているか確かめる。
