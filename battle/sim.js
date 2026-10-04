@@ -163,7 +163,7 @@ function launchCheck(f){
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
       const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r); w.ships.push({off,pos:f.pos.clone(),wob:Math.random()*6}); }
     sq.wing=w; wings.push(w);
-    if(f.team===1&&h.type==='was'&&!enemyWASSeen&&op.onEnemyWAS){ enemyWASSeen=true; logEvent(...op.onEnemyWAS); }
+    if(f.team===1&&h.type==='was'&&!enemyWASSeen&&op.onEnemyWAS){ enemyWASSeen=true; const L=op.onEnemyWAS; (Array.isArray(L[0])?L:[L]).forEach(l=>logEvent(...l)); }   // one line, or several [[who, text], …]
     if(f.team===0&&!h.announced){ h.announced=true;
       logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${h.out}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
   }

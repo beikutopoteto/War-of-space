@@ -25,7 +25,8 @@ window.WOS_DATA=window.WOS_DATA||{};
    convoy: 輸送船団 {fleet, depart, route:[{pos, alt}…], boardText?, escortText?}。depart 分まで乗船して動かず、そのあと route をたどる。最後の点が離脱点。
      boardText / escortText は左上の任務欄に出す指示（乗船中 / 出港後）
    win: {type:'escort', lose} なら、船団が離脱点を越えれば勝ち、輸送船を lose 隻失えば負け（書かなければ要塞の撃破で勝ち）
-   onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]
+   onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]、または [[見出し, 本文], …]（続けて出す）
+   station: 守るステーション {name, sub, hp, dps, range, radius, vis, hangar?:{ftr}, launchR?}（hangar は近づいた敵へ出す艦載機）
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
    reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay の割合）
    aid: 初めてクリアしたときに一度だけもらえる資金 {funds, name}（name は結果に出す名前）
@@ -278,7 +279,7 @@ WOS_DATA.operations=[
       {name:'地球側', sub:'避難船の航路', pos:[10,150]},
     ],
     /* 守るステーション（数値は仮）。耐久が削られた割合の半分だけ避難が遅れる（ユーザー決定 2026-10-03） */
-    station:{name:'ジャディード・ナイル', sub:'中継ステーション', hp:700, dps:9, range:24, radius:9, vis:7},
+    station:{name:'ジャディード・ナイル', sub:'中継ステーション', hp:700, dps:9, range:24, radius:9, vis:7, hangar:{ftr:30}, launchR:60},
     win:{type:'defend', need:840, text:'避難が終わるまでナイルを守れ'},
     evacShip:{name:'避難船', sub:'地球へ'},
     evacLast:{name:'病院船', sub:'アイゼンハウアー大元帥ほか'},
@@ -298,9 +299,10 @@ WOS_DATA.operations=[
     /* 友軍（操作できない。ユーザー決定 2026-10-03）。持ち場から leash 以内の敵だけを追う。
        ドナウ残存隊は隻数が3分の2を切ると、減るほどステーションの後ろへ下がる（ユーザー決定 2026-10-03） */
     allies:[
-      {name:'アマゾン残存隊', sub:'友軍 駆逐艦・巡洋艦', comp:{dd:6, cl:2}, n:8, hp:22, dmg:2, eva:.2, range:18, speed:6, scale:1, pos:[-70,-48], alt:0, vis:6, stl:5, leash:40},
-      {name:'ナイル警備戦隊', sub:'友軍 フリゲート・駆逐艦', comp:{ff:8, dd:4}, n:12, hp:16, dmg:1.7, eva:.24, range:17, speed:7, scale:.9, pos:[0,-55], alt:0, vis:6, stl:6, leash:40},
-      {name:'ドナウ残存隊', sub:'友軍 コルベット・フリゲート', comp:{cv:5, ff:4}, n:9, hp:13, dmg:1.4, eva:.3, range:15, speed:9, scale:.8, pos:[70,-48], alt:0, vis:7, stl:7, leash:40,
+      /* アマゾンとナイルは巡洋艦が中心、ドナウは戦艦を持つそれなりの艦隊（ユーザー決定 2026-10-04） */
+      {name:'アマゾン残存隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:4, dd:4}, n:8, hp:24, dmg:2.1, eva:.16, range:19, speed:5.5, scale:1.1, pos:[-70,-48], alt:0, vis:6, stl:5, leash:40},
+      {name:'ナイル警備戦隊', sub:'友軍 巡洋艦・フリゲート', comp:{cl:5, ff:5}, n:10, hp:21, dmg:1.9, eva:.18, range:19, speed:6, scale:1.1, pos:[0,-55], alt:0, vis:6, stl:5, leash:40},
+      {name:'ドナウ残存隊', sub:'友軍 戦艦・巡洋艦・フリゲート', comp:{bb:2, cl:3, ff:4}, n:9, hp:30, dmg:2.5, eva:.12, range:22, speed:4.5, scale:1.4, pos:[70,-48], alt:0, vis:6, stl:4, leash:40,
         retreat:{below:2/3, to:[24,26], log:['ノヴァーク大尉', '「こちらドナウ残存隊、もう持たない。……すまない、下がる」'],
           heldIf:'右翼突破隊', heldLog:['ノヴァーク大尉', '「……助かった、中尉。ドナウ残存隊、持ち場を維持する」']}},
     ],
@@ -309,23 +311,24 @@ WOS_DATA.operations=[
     events:[
       {after:15, log:['ハッダード曹長', '「友軍は自分の持ち場を守ります。こちらからは動かせません。崩れたところへ回るのが、うちの仕事です」']},
       {after:45, log:['ハッダード曹長', '「巡洋艦は遅いぶん硬い。線の正面に据えてください」']},
-      {after:0, phase:'先遣', fleet:{name:'先遣第1隊', sub:'共和国 先遣艦隊', comp:{ff:6, dd:4}, n:10, hp:12, dmg:1.1, eva:.24, range:16, speed:9, scale:.9, pos:[-60,-150], alt:6, ai:'hunt', watch:{pos:[-10,-14], alt:4}, vis:6, stl:6}, arrow:{pos:[-50,-60]}},
-      {after:0, fleet:{name:'先遣第2隊', sub:'共和国 先遣艦隊', comp:{ff:6, dd:4}, n:10, hp:12, dmg:1.1, eva:.24, range:16, speed:9, scale:.9, pos:[55,-150], alt:-6, ai:'hunt', watch:{pos:[10,-14], alt:-4}, vis:6, stl:6}, arrow:{pos:[50,-60]}},
+      {after:0, phase:'先遣', fleet:{name:'先遣第1隊', sub:'共和国 重巡洋艦・突撃揚陸艦', comp:{cl:3, mas:2, dd:3}, n:8, hp:15, dmg:1.3, eva:.2, range:18, speed:9, scale:1.1, hangar:{was:6}, pos:[-60,-150], alt:6, ai:'hunt', watch:{pos:[-10,-14], alt:4}, vis:6, stl:6}, arrow:{pos:[-50,-60]}},
+      {after:0, fleet:{name:'先遣第2隊', sub:'共和国 重巡洋艦・突撃揚陸艦', comp:{cl:3, mas:2, dd:3}, n:8, hp:15, dmg:1.3, eva:.2, range:18, speed:9, scale:1.1, hangar:{was:6}, pos:[55,-150], alt:-6, ai:'hunt', watch:{pos:[10,-14], alt:-4}, vis:6, stl:6}, arrow:{pos:[50,-60]}},
       {after:90, log:['オリヴェイラ少佐', '「アマゾン残存隊、左翼につく。ここから先は通さないよ」']},
       {after:150, phase:'上下から', log:['ハッダード曹長', '「上と下からも来ます。友軍は自分の高さしか見ていません」'],
-        fleet:{name:'第2波 上方隊', sub:'共和国 駆逐艦・巡洋艦', comp:{dd:7, cl:3}, n:10, hp:15, dmg:1.5, eva:.2, range:17, speed:9, scale:1, pos:[-20,-110], alt:58, ai:'siege', vis:6, stl:5}, arrow:{pos:[-6,-30], alt:30}},
-      {after:150, fleet:{name:'第2波 下方隊', sub:'共和国 駆逐艦・巡洋艦', comp:{dd:7, cl:3}, n:10, hp:15, dmg:1.5, eva:.2, range:17, speed:9, scale:1, pos:[20,-110], alt:-58, ai:'siege', vis:6, stl:5}, arrow:{pos:[6,-30], alt:-30}},
+        fleet:{name:'第2波 上方隊', sub:'共和国 重巡洋艦・突撃揚陸艦', comp:{cl:4, mas:3}, n:7, hp:17, dmg:1.6, eva:.16, range:18, speed:9, scale:1.1, hangar:{was:9}, pos:[-20,-110], alt:58, ai:'siege', vis:6, stl:5}, arrow:{pos:[-6,-30], alt:30}},
+      {after:150, fleet:{name:'第2波 下方隊', sub:'共和国 重巡洋艦・突撃揚陸艦', comp:{cl:4, mas:3}, n:7, hp:17, dmg:1.6, eva:.16, range:18, speed:9, scale:1.1, hangar:{was:9}, pos:[20,-110], alt:-58, ai:'siege', vis:6, stl:5}, arrow:{pos:[6,-30], alt:-30}},
       {after:330, phase:'右翼の突破', log:['ハッダード曹長', '「右から巡洋艦。ドナウ残存隊が押されています」'],
-        fleet:{name:'右翼突破隊', sub:'共和国 巡洋艦・駆逐艦', comp:{cl:4, dd:6}, n:10, hp:16, dmg:1.5, eva:.18, range:18, speed:8, scale:1.1, pos:[150,-70], alt:0, ai:'hunt', watch:{pos:[8,-6], alt:0}, vis:6, stl:5}, arrow:{pos:[80,-50]}},
+        fleet:{name:'右翼突破隊', sub:'共和国 重巡洋艦・突撃揚陸艦', comp:{cl:5, mas:3}, n:8, hp:20, dmg:1.7, eva:.15, range:19, speed:8, scale:1.2, hangar:{was:9}, pos:[150,-70], alt:0, ai:'hunt', watch:{pos:[8,-6], alt:0}, vis:6, stl:5}, arrow:{pos:[80,-50]}},
       {after:420, log:['オリヴェイラ少佐', '「こっちは心配いらないよ、中尉。うちの連中、逃げ足より踏ん張りのほうが得意でね」']},
-      {after:480, phase:'主力の影', log:['ハッダード曹長', '「北に大きな反応。戦艦です。……数えたくないですね」']},
+      {after:480, phase:'主力の影', log:['ハッダード曹長', '「北に大きな反応。重巡洋艦の群れです。……数えたくないですね」']},
       {after:510, log:['マンスール准将', '「主力と撃ち合うな。時間を稼げばいい。勝つ必要はない」']},
       {after:510,
-        fleet:{name:'共和国主力', sub:'主力艦隊', comp:{bb:4, cl:8}, n:12, hp:26, dmg:2.2, eva:.12, range:21, speed:7, scale:1.5, pos:[0,-95], alt:12, ai:'siege', vis:6, stl:3}, arrow:{pos:[0,-60]}},
-      {after:600, phase:'最後の2時間', fleet:{name:'強襲揚陸隊', sub:'共和国 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:8, scale:1, pos:[-40,-120], alt:-30, ai:'siege', vis:5, stl:7, hangar:{was:24}}},
+        fleet:{name:'共和国主力', sub:'主力艦隊 重巡洋艦・突撃揚陸艦', comp:{cl:9, mas:3}, n:12, hp:26, dmg:2, eva:.12, range:21, speed:7, scale:1.4, hangar:{was:12}, pos:[0,-95], alt:12, ai:'siege', vis:6, stl:3}, arrow:{pos:[0,-60]}},
+      {after:600, phase:'最後の2時間', log:['ハッダード曹長', '「下方から人型の群れ。ステーションの腹に取り付く気です」'], fleet:{name:'強襲揚陸隊', sub:'共和国 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:8, scale:1, pos:[-40,-120], alt:-30, ai:'siege', vis:5, stl:7, hangar:{was:24}}},
       {after:690, log:['傍受', 'アルバレス大尉「ナイルは本隊に任せろ。俺たちの出番は次だ」']},
     ],
-    onEnemyWAS:['ハッダード曹長', '「下方から人型。ステーションの腹に取り付く気です」'],
+    /* 敵の W.A.S. が初めて出たとき（ユーザー決定 2026-10-04） */
+    onEnemyWAS:[['オリヴェイラ少佐', '「あの飛び回ってるハエみたいなのはなんだ？」'], ['マンスール准将', '「敵の新型兵器だ。今はとにかく叩き潰せ」']],
     talk:{
       before:[
         ['', 'A.E. 45.04.17。ジャディード・ナイル。陥落したステーションから逃れてきた艦が、港の外にばらばらに浮かんでいる。'],
