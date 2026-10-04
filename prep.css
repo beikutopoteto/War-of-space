@@ -49,6 +49,11 @@
 .tabs button{background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:6px 16px;font-size:14px;font-weight:700}
 .tabs button[aria-selected="true"]{color:var(--void);background:var(--blue);border-color:var(--blue)}
 .tabnote{margin:0 0 12px;color:var(--ink-dim);font-size:12.5px;line-height:1.7}
+/* 艦隊編集: ships per branch (all battle groups) against the sortie limit */
+.orgcap{display:flex;flex-wrap:wrap;gap:4px 14px;margin:-6px 0 12px;font-size:12px;color:var(--ink-dim)}
+.orgcap b{font-weight:500;color:var(--brass)}
+.orgcap i{font-style:normal;font-family:var(--f-num);color:var(--ink);font-variant-numeric:tabular-nums}
+.orgcap .over,.orgcap .over i{color:var(--red)}
 
 /* sortie */
 .sortie{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}

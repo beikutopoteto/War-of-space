@@ -247,6 +247,7 @@ menu.innerHTML=`
     </div>
   </header>
   <p class="tabnote" id="tabNote"></p>
+  <p class="orgcap" id="orgCap"></p>
   <div class="org">
     <aside class="list" id="orgList"></aside>
     <div class="detail" id="orgDetail"></div>
@@ -448,9 +449,16 @@ const NOTES={
   army:'軍は最大5個の戦闘団で編成します。組み合わせで編成ボーナスが付きます。戦闘で操作する単位です。',
   bg:'戦闘団は同じ艦種の艦をまとめた単位です。戦闘中は編成を変えられません。'
 };
+/* per branch: the ships of every battle group the player has, against the branch's sortie limit (tech tree; user decision 2026-10-04).
+   Branches not opened yet show only when they hold ships */
+function updateOrgCap(){
+  const n={}; save.bgs.forEach(b=>n[b.type]=(n[b.type]||0)+b.count);
+  const rows=BRANCHES.map(b=>({b,used:b.types.reduce((s,t)=>s+(n[t]||0),0),cap:branchCap(b)})).filter(r=>branchOpen(r.b)||r.used);
+  document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}隻</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
+}
 function renderOrg(){
   menu.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
-  document.getElementById('tabNote').textContent=NOTES[tab];
+  document.getElementById('tabNote').textContent=NOTES[tab]; updateOrgCap();
   ({bg:renderBgTab,army:renderArmyTab,group:renderGroupTab})[tab]();
 }
 function listHtml(items,selId,newLabel,attr){
@@ -487,7 +495,7 @@ function renderBgTab(){
     <div class="row">${delBtn('bg:'+b.id,'この戦闘団を解散する')}</div>`;
   det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; delete b.auto; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
   det.querySelectorAll('[data-type]').forEach(x=>x.onclick=()=>{ b.type=x.dataset.type; b.count=Math.min(b.count,SHIP[b.type].max); if(b.auto) b.name=nextBgName(b.type,b); persist(); renderOrg(); });
-  det.querySelector('#bgCount').oninput=e=>{ b.count=+e.target.value; det.querySelector('#bgCountV').textContent=b.count; persist(); list.querySelector(`[data-bg="${b.id}"] span`).textContent=`${SHIP[b.type].name}×${b.count}・${a?a.name:'未所属'}`; };
+  det.querySelector('#bgCount').oninput=e=>{ b.count=+e.target.value; det.querySelector('#bgCountV').textContent=b.count; persist(); updateOrgCap(); list.querySelector(`[data-bg="${b.id}"] span`).textContent=`${SHIP[b.type].name}×${b.count}・${a?a.name:'未所属'}`; };
   wireDel(det,'bg:'+b.id,()=>{ save.armies.forEach(x=>x.bgs=x.bgs.filter(id=>id!==b.id)); save.bgs=save.bgs.filter(x=>x!==b); selBg=null; });
 }
 
