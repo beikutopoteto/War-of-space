@@ -72,6 +72,9 @@
 .cards{display:grid;gap:8px}
 /* the sortie button sits at the right end of the screen header (user decision 2026-10-04) */
 .gohead{margin-left:auto}
+.gohead:not([hidden])~.gohead{margin-left:0}
+/* クイック出撃: beside 出撃する, outlined so the main button stays first */
+.quick{font-size:15px;font-weight:700;letter-spacing:.1em;padding:9px 20px;background:transparent;color:var(--brass);border:1px solid var(--brass)}
 .primary{font-size:16px;font-weight:700;letter-spacing:.1em;padding:10px 28px;background:var(--brass);color:var(--void);border:0}
 .primary:disabled{opacity:.4;cursor:default}
 
