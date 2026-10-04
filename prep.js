@@ -463,13 +463,17 @@ function delBtn(key,label){ return `<button class="danger" data-del="${key}">${c
 function wireDel(detail,key,fn){ const b=detail.querySelector('[data-del]'); if(b) b.onclick=()=>{ if(confirmDel===key){ confirmDel=null; fn(); persist(); renderOrg(); } else { confirmDel=key; renderOrg(); } }; }
 
 /* battle groups */
-/* a new battle group is named 第N戦闘団 with the smallest number not yet taken */
-function nextBgName(){ const used=new Set(save.bgs.map(b=>(/^第(\d+)戦闘団$/.exec(b.name)||[])[1]).filter(Boolean).map(Number)); let n=1; while(used.has(n)) n++; return `第${n}戦闘団`; }
+/* a new battle group is named 第N＋役目＋戦隊 after its class (data/ships.js unit), N the smallest free number with the class's
+   no as the tens digit (護衛: 21, 22 …; user decision 2026-10-04). self is left out when renaming an existing battle group */
+function nextBgName(type,self){ const S=SHIP[type], used=new Set(save.bgs.filter(b=>b!==self).map(b=>+((/^第(\d+)/.exec(b.name)||[])[1]||0)));
+  let n=S.no*10+1; while(used.has(n)) n=n%10===9?S.no*100+10:n+1; return `第${n}${S.unit}戦隊`; }
 function renderBgTab(){
   if(!bgById(selBg)) selBg=save.bgs[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
   list.innerHTML=listHtml(save.bgs.map(b=>({id:b.id,name:b.name,meta:`${SHIP[b.type].name}×${b.count}・${armyOfBg(b.id)?esc(armyOfBg(b.id).name):'未所属'}`})),selBg,'＋ 戦闘団を作る','data-bg');
-  list.querySelector('[data-new]').onclick=()=>{ const b={id:newId('bg'),name:nextBgName(),type:SHIPS.find(t=>t.id==='dd'&&typeOpen('dd'))?'dd':SHIPS.find(t=>typeOpen(t.id)).id,count:4}; save.bgs.push(b); selBg=b.id; persist(); renderOrg(); };
+  /* auto: the name was given here and not edited since, so it follows a change of class */
+  list.querySelector('[data-new]').onclick=()=>{ const type=SHIPS.find(t=>t.id==='dd'&&typeOpen('dd'))?'dd':SHIPS.find(t=>typeOpen(t.id)).id;
+    const b={id:newId('bg'),name:nextBgName(type),type,count:4,auto:true}; save.bgs.push(b); selBg=b.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-bg]').forEach(x=>x.onclick=()=>{ selBg=x.dataset.bg; confirmDel=null; renderOrg(); });
   const b=bgById(selBg);
   if(!b){ det.innerHTML='<p class="empty">戦闘団がありません。左の「戦闘団を作る」から追加してください。</p>'; return; }
@@ -481,8 +485,8 @@ function renderBgTab(){
     <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
     <h4>1隻あたりの能力（仮）　<span class="dim">技術ツリーの研究で上がります。最大は艦艇データの値</span></h4>${bars(shipNow(b.type))}
     <div class="row">${delBtn('bg:'+b.id,'この戦闘団を解散する')}</div>`;
-  det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
-  det.querySelectorAll('[data-type]').forEach(x=>x.onclick=()=>{ b.type=x.dataset.type; b.count=Math.min(b.count,SHIP[b.type].max); persist(); renderOrg(); });
+  det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; delete b.auto; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
+  det.querySelectorAll('[data-type]').forEach(x=>x.onclick=()=>{ b.type=x.dataset.type; b.count=Math.min(b.count,SHIP[b.type].max); if(b.auto) b.name=nextBgName(b.type,b); persist(); renderOrg(); });
   det.querySelector('#bgCount').oninput=e=>{ b.count=+e.target.value; det.querySelector('#bgCountV').textContent=b.count; persist(); list.querySelector(`[data-bg="${b.id}"] span`).textContent=`${SHIP[b.type].name}×${b.count}・${a?a.name:'未所属'}`; };
   wireDel(det,'bg:'+b.id,()=>{ save.armies.forEach(x=>x.bgs=x.bgs.filter(id=>id!==b.id)); save.bgs=save.bgs.filter(x=>x!==b); selBg=null; });
 }

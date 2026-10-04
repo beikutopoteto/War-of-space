@@ -97,13 +97,16 @@ function check(ok, label, detail = '') {
       await page.click(`[data-tab="${tab}"]`);
       check(await page.locator('#orgList ' + sel).count() > 0, `編成: ${tab} タブ`);
     }
-    /* a new battle group gets the next free 第N戦闘団 */
+    /* a new battle group (駆逐艦 at first) is named 第3N駆逐戦隊 with the next free number (the starting fleet has 第31駆逐戦隊);
+       while its name is untouched it follows a change of class (巡洋: the starting fleet has 第41巡洋戦隊) */
     await page.click('[data-tab="bg"]');
-    const used = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1') || '{"bgs":[]}').bgs.map(b => b.name));
-    let free = 1; while (used.includes(`第${free}戦闘団`)) free++;
     await page.click('#orgList [data-new]');
     const newName = await page.inputValue('#bgName');
-    check(newName === `第${free}戦闘団`, '編成: 新しい戦闘団の名前', newName);
+    await page.click('#orgDetail [data-type="cl"]');
+    const clName = await page.inputValue('#bgName');
+    await page.fill('#bgName', '試験戦隊'); await page.click('#orgDetail [data-type="dd"]');
+    const kept = await page.inputValue('#bgName');
+    check(newName === '第32駆逐戦隊' && clName === '第42巡洋戦隊' && kept === '試験戦隊', '編成: 新しい戦闘団は「第N＋役目＋戦隊」、名前を触るまでは艦種に合わせて付け直す', [newName, clName, kept].join(' / '));
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');
