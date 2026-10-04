@@ -139,6 +139,9 @@ function check(ok, label, detail = '') {
     await page.click('#orgList [data-new]');
     const armyNew = await page.inputValue('#armyName');
     check(armyTwo === '第2 巡洋 打撃群' && armyOne === '第9 前衛巡洋 支隊' && armyNew === '第1 打撃群', '編成: 支隊1つの打撃群は支隊の名前、2つ以上なら主力の艦種で「第N 役割 打撃群」', [armyTwo, armyOne, armyNew].join(' / '));
+    /* the role comes from the highest class in the unit, whatever the numbers (user decision 2026-10-04) */
+    const rank = await page.evaluate(() => [mainType({ dd: 4, cl: 1 }), mainType({ cv: 10, mas: 1 }), mainType({ dd: 6, mas: 2, ff: 3 }), mainType({ bb: 6, cvb: 1 }), mainType({ cvb: 3, masc: 1 }), mainType({ cl: 3, bb: 0 })]);
+    check(rank.join() === 'cl,mas,mas,cvb,masc,cl', '名前: 役割は隻数でなく一番上位の艦種（コルベット < フリゲート < 駆逐艦 < 突撃揚陸艦 < 巡洋艦 < 戦艦 < 戦闘母艦 < 強襲母艦）', rank.join());
     await page.click('#orgDetail [data-del]'); await page.click('#orgDetail [data-del]');
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */

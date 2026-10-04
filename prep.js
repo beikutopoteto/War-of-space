@@ -521,13 +521,13 @@ function wireDel(detail,key,fn){ const b=detail.querySelector('[data-del]'); if(
    class's number and moves on to the next free one (user decision 2026-10-04). self is left out when renaming an existing one */
 function nextBgName(type,self){ return unitName('bg',type,new Set(save.bgs.filter(b=>b!==self).map(b=>unitNo(b.name)))); }
 /* armies and army groups whose name was given here (auto: the main class it was named after, '' for none) follow a change of
-   their main class: most ships, a tie goes to the flagship (an army's first battle group, an army group's ☆).
+   their main class: the highest class in them (battle/state.js mainType).
    An army of one battle group goes by that battle group's name (auto 'bg:id'); with two or more it becomes 第N 役割 打撃群
    (user decision 2026-10-04) */
-function armyMain(a){ const by={}, bgs=a.bgs.map(bgById).filter(Boolean); bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count); return mainType(by,bgs[0]&&bgs[0].type)||''; }
+function armyMain(a){ const by={}, bgs=a.bgs.map(bgById).filter(Boolean); bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count); return mainType(by)||''; }
 function groupMain(g){ const by={}, ar=g.members.map(m=>armyById(m.army)).filter(Boolean);
   ar.forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>by[b.type]=(by[b.type]||0)+b.count));
-  const fl=armyById((g.members[flagIndex(g)]||{}).army); return mainType(by,fl&&armyMain(fl))||''; }
+  return mainType(by)||''; }
 function armyKey(a){ const b=a.bgs.length===1&&bgById(a.bgs[0]); return b?'bg:'+b.id:armyMain(a); }
 function refreshAutoNames(){ let ch=false;
   const run=(list,level,main)=>list.forEach(x=>{ if(x.auto===undefined) return; const t=main(x);
