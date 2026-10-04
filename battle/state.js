@@ -23,8 +23,10 @@ const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
 const unitNo=name=>+((/^第(\d+)/.exec(name||'')||[])[1]||0);
 function unitName(level,type,used,side='earth'){ const T=UNAMES[side], row=T[type]; let [n,role]=row?row[ULEVEL[level]]:[1,''];
   while(used.has(n)) n++; return `第${n} ${role?role+' ':''}${T.word[level]}`; }
-/* the main class of a unit: the most ships ({class: count}), a tie goes to the flagship's class */
-function mainType(by,flag){ let best=null; Object.entries(by).forEach(([t,c])=>{ if(!best||c>by[best]||(c===by[best]&&t===flag)) best=t; }); return best; }
+/* the main class of a unit ({class: count}): the highest class in it, whatever the numbers (user decision 2026-10-04:
+   one cruiser among four destroyers names the unit after the cruiser). NAME_RANK runs from the lowest up */
+const NAME_RANK=['cv','ff','dd','mas','cl','bb','cvb','masc'];
+function mainType(by){ let best=null; Object.keys(by).forEach(t=>{ if(by[t]>0&&(!best||NAME_RANK.indexOf(t)>NAME_RANK.indexOf(best))) best=t; }); return best; }
 
 /* a point [x, z] given relative to the field centre */
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
@@ -194,17 +196,16 @@ function moveToGroup(f,g){ const from=groupOf(f); if(g===from) return;
   if(g){ const fl=groupFlag(g); g.members.add(f); if(fl) g.off.set(f,f.pos.clone().sub(fl.pos).add(g.off.get(fl)||new THREE.Vector3())); }
   logEvent(g?`${f.name} ${g.name}へ`:`${f.name} 独立行動へ`, g?`${f.name}が${g.name}の指揮下に入った。`:`${f.name}が${from.name}を離れ、単独で行動する。`);
   if(selGroup) select(null); buildRoster(); updateRoster(); }
-/* a new army group is named after its main class (ships alive in its fleets; a tie goes to the flagship's main class) */
-function newGroupName(t,fl){ const by=f=>{ const c={}; f.ships.forEach(s=>c[s.type]=(c[s.type]||0)+1); return c; }, all={};
-  t.forEach(f=>Object.entries(by(f)).forEach(([k,c])=>all[k]=(all[k]||0)+c));
-  return unitName('group',mainType(all,mainType(by(fl))),new Set(groups.map(g=>unitNo(g.name)))); }
+/* a new army group is named after its main class (the highest class among the ships alive in its fleets) */
+function newGroupName(t){ const all={}; t.forEach(f=>f.ships.forEach(s=>all[s.type]=(all[s.type]||0)+1));
+  return unitName('group',mainType(all),new Set(groups.map(g=>unitNo(g.name)))); }
 /* a new army group from the selected fleets (Shift+click to pick several): the first one picked is the flagship,
    and the formation is how they stand now */
 function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) return;
   if(t.length>GROUP_MAX){ logEvent('戦区軍は5個の打撃群まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
   const fl=t.includes(selected)?selected:t[0];
   t.forEach(leaveGroup);
-  const g={name:newGroupName(t,fl),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
+  const g={name:newGroupName(t),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
   groups.push(g); buildRoster(); selectGroup(g);
   logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で戦区軍を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
