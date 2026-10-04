@@ -384,12 +384,13 @@ function allyAI(){
     else f.order=null;
   }
 }
-/* a defence operation (op.win {type:'defend', need}): the evacuation runs with the clock until `need` minutes have gone by,
-   slowed by the station's damage: rate = 1 − (share of armour lost) ÷ 2 (user decision 2026-10-03). Done: the operation is won.
+/* a defence operation (op.win {type:'defend', need, speed}): the evacuation runs with the clock until `need` minutes have gone by,
+   slowed by the station's damage: rate = speed × (1 − (share of armour lost) ÷ 2) (user decision 2026-10-03; speed defaults to 1).
+   Done: the operation is won.
    Every tenth of the way a background ship (op.evacShip) leaves southward; it is no one's target. The last one is op.evacLast */
 function stepDefend(dt){
   const W=op.win; if(!W||W.type!=='defend'||over) return;
-  evacRate=fortress.alive?1-(1-Math.max(0,fortress.hpPool/fortress.max))/2:0;
+  evacRate=fortress.alive?(W.speed||1)*(1-(1-Math.max(0,fortress.hpPool/fortress.max))/2):0;
   const was=evac; evac=Math.min(W.need,evac+dt*CLOCK_RATE*evacRate);
   for(const L of op.evacLogs||[]) if(was<L[0]*W.need&&evac>=L[0]*W.need) logEvent(L[1],L[2]);
   const k=Math.floor(10*evac/W.need+1e-9);

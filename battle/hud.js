@@ -336,7 +336,7 @@ function updateGoal(){
   else if(op.win&&op.win.type==='defend'){ const W=op.win, hp=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0;
     p=Math.min(1,evac/W.need); text=W.text||`避難が終わるまで${fortress.name}を守れ`; mode='defend';
     label=`避難 ${Math.floor(p*100)}%　完了 ${evacRate>0?clockStr(gameSec*CLOCK_RATE+(W.need-evac)/evacRate):'--:--'} 予定`;
-    subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<.999?`　避難の速さ ${Math.round(evacRate*100)}%`:''}`;
+    subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<(W.speed||1)-.001?`　避難の速さ ${Math.round(evacRate/(W.speed||1)*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
