@@ -63,6 +63,18 @@ function check(ok, label, detail = '') {
       next: document.querySelector('#trCv [data-node="gun2"]').classList.contains('can'), sum: document.getElementById('trSum').textContent }));
     check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
       '技術ツリー: 左の列から研究し、つながる元を終えると次が開く。能力は数で出る', JSON.stringify(tech));
+    /* Enter researches the chosen node; the tree is dragged with the left button and zoomed with the wheel; the screen needs no vertical scroll */
+    await page.click('#trCv [data-node="gun2"]'); await page.keyboard.press('Enter');
+    const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog.tech.dd.includes('gun2'));
+    const tf = () => page.evaluate(() => document.getElementById('trCv').style.transform);
+    const box = await page.locator('#trScroll').boundingBox(), t0 = await tf();
+    await page.mouse.move(box.x + box.width - 30, box.y + box.height - 20); await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 110, box.y + box.height - 60, { steps: 5 }); await page.mouse.up();
+    const t1 = await tf();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.wheel(0, -400); await page.waitForTimeout(100);
+    const t2 = await tf(), sc = s => +(/scale\(([\d.]+)\)/.exec(s) || [0, 0])[1];
+    const fits = await page.evaluate(() => document.getElementById('menu').scrollHeight <= document.getElementById('menu').clientHeight + 1);
+    check(entered && t1 !== t0 && sc(t2) > sc(t1) && fits, '技術ツリー: Enter で研究、左ドラッグで動かし、ホイールで拡大縮小。縦のスクロールは出ない', JSON.stringify({ entered, t0, t1, t2, fits }));
     await page.click('#forceTabs [data-force="ground"]');
     check(await page.isVisible('#forceSoon') && !(await page.isVisible('#techWrap')), '技術ツリー: 地上軍のタブ（準備中）');
     await page.click('#forceTabs [data-force="space"]');
@@ -129,7 +141,7 @@ function check(ok, label, detail = '') {
     const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一戦闘団を含みます') })));
     check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ軍を含む軍集団は一緒に選べず、暗くなって「同一戦闘団を含みます」と出る', JSON.stringify(clash));
     await shot('04-sortie');
-    await page.click('#goBattle');
+    await page.keyboard.press('Enter');   // Enter decides the sortie (same as the 出撃 button)
     await page.waitForTimeout(1500);
     /* the deploy step: the clock waits; an army group can be put anywhere inside the zone, then 作戦開始 */
     const dep = await page.evaluate(() => {
