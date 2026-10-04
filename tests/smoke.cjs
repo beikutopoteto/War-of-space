@@ -93,6 +93,9 @@ function check(ok, label, detail = '') {
 
     /* organization: each tab renders */
     await page.click('[data-go="org"]');
+    /* ships per branch (all battle groups) against the sortie limit: the starting fleet has escorts 23, cruisers 6 */
+    const orgCap = await page.evaluate(() => ({ text: document.getElementById('orgCap').textContent, cl: document.getElementById('orgCap').textContent.match(/巡洋艦 6\/(\d+)隻/) }));
+    check(/護衛艦艇 23\/\d+隻/.test(orgCap.text) && !!orgCap.cl, '編成: 兵科ごとの隻数と出撃上限が出る', orgCap.text);
     for (const [tab, sel] of [['bg', '[data-bg]'], ['army', '[data-army]'], ['group', '[data-grp]']]) {
       await page.click(`[data-tab="${tab}"]`);
       check(await page.locator('#orgList ' + sel).count() > 0, `編成: ${tab} タブ`);
