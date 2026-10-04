@@ -38,7 +38,7 @@
 - ライブラリ: Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdelivr の `three@0.128.0/examples/js`）。r128 なので新しい API（`BufferGeometry.applyQuaternion` など）はない。
 - 保存: localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `migrate()` で古いデータを直す。
 - 連携: `prep.js` → `window.WOS.start({op, fleets, group})`（`hud.js`）。戦闘後は `window.WOS_MENU.open()`（`prep.js`）。
-- 艦隊の仕様の形式（`prep.js` の `armyToFleet()` が軍をこの形にする。`type` か `comp` で艦の形が決まる）:
+- 艦隊の仕様の形式（`prep.js` の `armyToFleet()` が打撃群をこの形にする。`type` か `comp` で艦の形が決まる）:
 
   ```
   {name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, type?, comp?:{艦種:隻数}, eva?, hangar?:{ftr, was}, ai?, leash?, watch?:{pos:[x,z], alt}}

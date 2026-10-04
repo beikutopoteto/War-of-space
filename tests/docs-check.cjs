@@ -8,7 +8,7 @@ const DOCS = ['CLAUDE.md', 'README.md', ...fs.readdirSync(path.join(ROOT, 'docs'
   '.claude/agents/wos-dev.md', ...fs.readdirSync(path.join(ROOT, '.claude/skills')).map(d => `.claude/skills/${d}/SKILL.md`)];
 const CLAUDE_MAX = 7000;   // bytes
 /* names replaced by user decisions: [old, allowed only on lines that also contain this] */
-const OLD_NAMES = [['M.A.S.', '使わない'], ['蒼環同盟', '差し替え'], ['緋星帝国', '差し替え'], ['交戦/回避', 'から']];
+const OLD_NAMES = [['M.A.S.', '使わない'], ['蒼環同盟', '差し替え'], ['緋星帝国', '差し替え'], ['交戦/回避', 'から'], ['軍集団', '以前'], ['戦闘団', '以前'], ['第N＋役目＋戦隊', '以前']];
 let bad = 0;
 const fail = m => { bad++; console.log('✗ ' + m); };
 
