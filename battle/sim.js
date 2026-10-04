@@ -91,7 +91,7 @@ function damage(t,amt,src){
     const pct=t.hpPool/t.max;
     for(const m of [.75,.5,.25]) if(pct<m&&!fortressMarks.has(m)){ fortressMarks.add(m); logEvent(`要塞装甲 ${m*100}%`,m===.25?'要塞の外殻が崩れ始めた。もう一押しで陥落する。':'要塞表面で誘爆が続いている。砲火はまだ衰えていない。'); }
     if(Math.random()<amt*.06) burst(randShip(t),TEAM_COL[1],10,6,1);
-    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); end(true); }
+    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); startChase(); }
   }
 }
 function destroyFleet(f,src){
@@ -100,16 +100,17 @@ function destroyFleet(f,src){
   unselect(f);
   logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
   if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
-  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(false);
+  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
   updateRoster();
 }
 let outcome=null;
-/* the end of the battle. quit: the player gave up from the in-battle menu; a defeat with no closing scene */
-function end(win,quit=false){
-  if(over) return; over=true; outcome=win; setPhase('戦闘終結');
+/* the end of the battle. quit: the player gave up from the in-battle menu; a defeat with no closing scene.
+   full: a complete victory (op.chase: the fortress's guard was sunk too) */
+function end(win,quit=false,full=false){
+  if(over) return; over=true; outcome=win; perfect=win&&full; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
-  document.getElementById('rh').textContent=win?'勝利':'敗北';
-  const R=op.result, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
+  document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
+  const R={...op.result,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
   /* the menu records the progress and the reward (prep.js) and tells what was gained */
   if(window.WOS_MENU&&WOS_MENU.onEnd) document.getElementById('rp').textContent+=WOS_MENU.onEnd(op.id,win,{rescued});
@@ -289,6 +290,28 @@ function stepRescue(dt){
   else if(Math.hypot(s.pos.x-fieldC.x,s.pos.z-fieldC.z)>FIELD_R+10){ rescue.lost=true; s.alive=false; s.el.remove(); if(R.lostLog) logEvent(...R.lostLog); }
 }
 
+/* after the fortress falls (op.chase): its guard fleet runs for the exit, and the other enemy fleets come at us to cover it.
+   Sinking the guard is a complete victory; if it gets away the operation is still won (user decision 2026-10-04).
+   An operation without op.chase, or a guard already sunk, ends at once */
+function startChase(){
+  const C=op.chase, g=C&&fleets.find(f=>f.team===1&&f.alive&&f.name===C.fleet);
+  if(!g){ end(true,false,!!C); return; }
+  chase={fleet:g,exit:new THREE.Vector3(C.exit.pos[0],C.exit.alt||0,C.exit.pos[1]),escaped:false};
+  chase.from=g.pos.distanceTo(chase.exit);
+  g.ai='escape'; g.order=null; g.queue=[];
+  for(const f of fleets) if(f.team===1&&f.alive&&f!==g){ f.ai='hunt'; f.leash=1e9; f.cover=true; }
+  if(fortress.el) fortress.el.remove(); zoneLines.visible=false; gridMat.uniforms.uZone.value=0;
+  exitObj.visible=true; exitObj.position.set(chase.exit.x,chase.exit.y+.2,chase.exit.z);
+  makeArrow(g.pos,chase.exit,TEAM_COL[1],{life:6});
+  if(C.phase) setPhase(C.phase);
+  if(C.log) logEvent(...C.log);
+}
+function stepChase(){
+  if(!chase||over) return; const g=chase.fleet;
+  if(!g.alive){ end(true,false,true); return; }
+  if(g.pos.distanceTo(chase.exit)<=(op.chase.reach||10)){ chase.escaped=true; g.alive=false; g.el.remove(); unselect(g);
+    if(op.chase.escapeLog) logEvent(...op.chase.escapeLog); updateRoster(); end(true); }
+}
 /* the fortress sends out its defenders as its armour falls (op.fortress.sortie): those fleets leave their posts and hunt.
    With every, one fleet goes every `every` seconds, the one nearest our fleets first */
 function stepSorties(){
@@ -341,9 +364,11 @@ function enemyAI(){
     /* siege: makes for the station we defend and shoots it, answering only what blocks the way (fireTargetOf) */
     if(f.ai==='siege'&&fortress.alive&&fortress.defend){ if(!(f.order&&f.order.target===fortress)) order(f,{type:'attack',target:fortress}); continue; }
     if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
+    if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    else if(f.cover&&chase&&chase.fleet.alive){ const p=chase.fleet.pos; if(f.pos.distanceTo(p)>12) moveTo(f,p.x,p.y,p.z); }   // nothing in sight: stay by the guard
     else if(f.ai==='hunt'){ const w=f.watchPos||f.post; if(f.pos.distanceTo(w)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:w.clone()}; }
     else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2){ f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
   }
@@ -397,7 +422,7 @@ function step(dt){
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
   }
-  stepConvoy(); stepRescue(dt);
+  stepConvoy(); stepRescue(dt); stepChase();
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI();}

@@ -339,8 +339,12 @@ function updateGoal(){
     subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<(W.speed||1)-.001?`　避難の速さ ${Math.round(evacRate/(W.speed||1)*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
+  else if(chase&&!over){ const C=op.chase, g=chase.fleet;
+    p=Math.max(0,Math.min(1,1-(g.pos.distanceTo(chase.exit)-(C.reach||10))/Math.max(1,chase.from-(C.reach||10))));
+    text=C.text||`${g.name}の撤退を阻止せよ`; label=`近衛の離脱 ${Math.floor(p*100)}%`; mode='chase';
+    subT=`${g.name} ${g.alive?g.ships.length:0}/${g.n}隻　撃破で完全勝利`; }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
-  if(over) text=outcome?'任務達成':'任務失敗';
+  if(over) text=outcome?(perfect?'完全勝利':'任務達成'):'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
 }
 
