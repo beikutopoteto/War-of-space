@@ -345,6 +345,25 @@ const effShort=(b,n)=>n.add&&n.add.out?'同時に出撃できる隊 +1'
   :n.craft?Object.keys(n.add).map(k=>`${D.crafts[n.craft].name} ${CRAFT_NAME[k]} +${num2(D.crafts[n.craft][k]*n.add[k])}`).join('・')
   :Object.keys(n.add).map(k=>`${STAT_NAME[k]} +${b.types.map(t=>num(SHIP[t][k]*n.add[k])).join('/')}`).join('・');
 let techForce='space', techBr=null, techSel=null;
+/* the tree view (user decision 2026-10-04): drag with the left button to move it up, down and sideways, the wheel to zoom.
+   tv = {br, x, y, z}: the branch shown, the offset of the tree in its box and the zoom */
+let tv=null, treeDragged=false, treeWired=false;
+const TREE_Z=[.4,1.8];
+function fitTree(br,cw,ch){ const box=document.getElementById('trScroll'), W=box.clientWidth||900, H=box.clientHeight||480;
+  const z=Math.max(TREE_Z[0],Math.min(1,(H-8)/ch,(W-8)/Math.min(cw,W/.6))); tv={br,x:8,y:Math.max(4,(H-ch*z)/2),z}; }
+function placeTree(){ document.getElementById('trCv').style.transform=`translate(${tv.x}px,${tv.y}px) scale(${tv.z})`; }
+function wireTree(){
+  if(treeWired) return; treeWired=true;
+  const box=document.getElementById('trScroll'); let drag=null;
+  box.addEventListener('pointerdown',e=>{ if(e.button!==0) return; drag={x:e.clientX,y:e.clientY,tx:tv.x,ty:tv.y}; treeDragged=false; });
+  addEventListener('pointermove',e=>{ if(!drag) return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if(!treeDragged&&Math.hypot(dx,dy)<4) return; treeDragged=true; box.classList.add('drag'); tv.x=drag.tx+dx; tv.y=drag.ty+dy; placeTree(); });
+  addEventListener('pointerup',()=>{ if(!drag) return; drag=null; box.classList.remove('drag'); setTimeout(()=>treeDragged=false,0); });
+  /* zoom around the pointer */
+  box.addEventListener('wheel',e=>{ e.preventDefault(); const r=box.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
+    const z=Math.max(TREE_Z[0],Math.min(TREE_Z[1],tv.z*Math.exp(-e.deltaY*.0015))), k=z/tv.z;
+    tv.x=mx-(mx-tv.x)*k; tv.y=my-(my-tv.y)*k; tv.z=z; placeTree(); },{passive:false});
+}
 function renderTech(){
   const P=prog(), F=D.techForces, force=F.find(f=>f.id===techForce)||F[0];
   document.getElementById('techFunds').innerHTML=`資金 <b>${P.funds.toLocaleString()}</b>`;
@@ -374,10 +393,12 @@ function renderTech(){
   const selN=nodeById(techSel);
   const nodes=NODES.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
     return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
-  const cv=document.getElementById('trCv');
-  cv.style.cssText=`width:${PADX*2+(cols-1)*CW}px;height:${PADY*2+(rows-1)*RH+R*2+30}px`;
+  const cv=document.getElementById('trCv'), cw=PADX*2+(cols-1)*CW, ch=PADY*2+(rows-1)*RH+R*2+30;
+  cv.style.width=cw+'px'; cv.style.height=ch+'px';
+  /* a new branch starts fitted to the box (no vertical scroll); then it is dragged and zoomed freely (treeView) */
+  if(!tv||tv.br!==b.id) fitTree(b.id,cw,ch); placeTree(); wireTree();
   cv.innerHTML=`<svg class="tedges" width="100%" height="100%" aria-hidden="true">${edges}</svg>${nodes}`;
-  cv.querySelectorAll('[data-node]').forEach(x=>x.onclick=()=>{ techSel=x.dataset.node; renderTech(); });
+  cv.querySelectorAll('[data-node]').forEach(x=>x.onclick=()=>{ if(treeDragged) return; techSel=x.dataset.node; renderTech(); });
   /* the chosen node */
   const info=document.getElementById('tInfo'), n=nodeById(techSel);
   if(!n){ info.innerHTML='<p class="dim">研究を選ぶと、ここに効果と必要な資金が出ます。左の列の研究は最初から始められます。</p>'; return; }
@@ -631,6 +652,12 @@ function renderData(){
 }
 
 /* back to the menu from the battle */
-window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd };
+/* Enter decides: 出撃 on the sortie screen, 研究する on the tech tree (user decision 2026-10-04). Called by battle/scene.js while the menu is open */
+function onKey(e){
+  if(e.key!=='Enter'||e.isComposing||menu.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||'')) return;
+  const b=screen==='sortie'?document.getElementById('goBattle'):screen==='tech'?document.getElementById('tRes'):null;
+  if(b&&!b.disabled){ e.preventDefault(); b.click(); }
+}
+window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey };
 render();
 })();

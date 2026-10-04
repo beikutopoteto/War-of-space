@@ -2,7 +2,7 @@
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* while the menu is open the battle is paused and its keyboard shortcuts are off */
 let menuOpen=true; document.body.classList.add('inmenu');
-addEventListener('keydown',e=>{ if(menuOpen) e.stopImmediatePropagation(); },true);
+addEventListener('keydown',e=>{ if(menuOpen){ if(window.WOS_MENU&&WOS_MENU.onKey) WOS_MENU.onKey(e); e.stopImmediatePropagation(); } },true);   // the menu's own keys (prep.js onKey)
 const EMB = [
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 18.5 17h-13Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><ellipse cx="12" cy="13.5" rx="10" ry="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.4 6.6 7 .5-5.4 4.4 1.8 6.9L12 17l-5.8 3.9L8 14 2.6 9.6l7-.5Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12.4" r="2.1" fill="currentColor"/></svg>'
