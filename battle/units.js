@@ -22,18 +22,18 @@ function buildSectors(list){
 const SHIP_MAX=600, CRAFT_MAX=1500;
 const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
 function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
-const shipMeshes=[0,1].map(t=>{ const c=TEAM_COL[t];
+const shipMeshes=[0,1,2].map(t=>{ const c=TEAM_COL[t];
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5});
   return Object.fromEntries(Object.keys(SHAPES).map(k=>[k,instanced(shapeGeo(k),mat,SHIP_MAX)])); });
 /* small craft (fighters and W.A.S.) launched from carriers */
-const craftMeshes=[0,1].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+const craftMeshes=[0,1,2].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});
   return Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)])); });
 
 /* faint trails behind small craft: the last TRAIL_N positions, one every TRAIL_DT game seconds (about 0.6 s in all), fading
    toward the tail. W.A.S. trails are a slightly deeper shade than fighters' */
 const TRAIL_N=8, TRAIL_DT=.075;
-const trailCol=[0,1].map(t=>({ftr:TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.4),
+const trailCol=[0,1,2].map(t=>({ftr:TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.4),
   was:TEAM_COL[t].clone().offsetHSL(0,.15,-.12).multiplyScalar(.4)}));
 const trPos=new Float32Array(CRAFT_MAX*2*TRAIL_N*2*3), trCol=new Float32Array(trPos.length);
 const trGeo=new THREE.BufferGeometry();
@@ -70,9 +70,9 @@ const feet=new THREE.Points(fGeo,new THREE.PointsMaterial({size:2.2,map:dot,vert
 function updateStalks(){
   sCol.fill(0); fCol.fill(0); let i=0;
   const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
-  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[f.team],1);
-    if(f.team===0&&f.order&&f.order.type==='move') pathLeft(f.order).forEach(p=>put(p,TEAM_COL[0],.6));
-    if(f.team===0) f.queue.forEach(o=>{ if(o.type==='move') pathLeft(o).forEach(p=>put(p,TEAM_COL[0],.4)); }); }
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[colOf(f)],1);
+    if(f.team===0&&!f.ally&&f.order&&f.order.type==='move') pathLeft(f.order).forEach(p=>put(p,TEAM_COL[0],.6));
+    if(f.team===0&&!f.ally) f.queue.forEach(o=>{ if(o.type==='move') pathLeft(o).forEach(p=>put(p,TEAM_COL[0],.4)); }); }
   sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
   fGeo.attributes.position.needsUpdate=fGeo.attributes.color.needsUpdate=true;
 }

@@ -51,7 +51,7 @@ function spotEarly(){
     E.early=true; const at=Math.max(E.onSpot.min||0,now+(E.onSpot.delay||0)); if(at<E.after){ E.after=at; moved=true; } }
   if(moved){ const rest=opEvents.splice(nextEvent).sort((a,b)=>a.after-b.after); opEvents.push(...rest); }
 }
-function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
+function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
@@ -64,7 +64,9 @@ function damage(t,amt,src){
   if(last===undefined||gameSec-last>40){
     if(last===undefined){
       const a=src.team===0?src:t, b=src.team===0?t:src;
-      if(t.kind==='fortress'||src.kind==='fortress'){
+      if(fortress.defend&&(t===fortress||src===fortress)){
+        if(t===fortress&&gameSec-(t.hitLogT??-1e9)>20){ t.hitLogT=gameSec; logEvent(`${t.name} 被弾`,`${src.name}が${t.name}を攻撃している。耐久が減るほど避難が遅れる。`); }
+      } else if(t.kind==='fortress'||src.kind==='fortress'){
         if(phaseName!=='要塞攻略'){ setPhase('要塞攻略'); logEvent('要塞攻略開始',`${a.name}が要塞の防空砲火圏に突入。要塞の主砲は射程${fortress.range}、近づくほど危険。`); }
       } else { if(phaseName==='布陣') setPhase('交戦'); if(!wingy) logEvent(`${a.name} 対 ${b.name}`,`${a.name}（${a.ships.length}隻）と${b.name}（${b.ships.length}隻）が交戦を開始。`); }
     }
@@ -79,6 +81,12 @@ function damage(t,amt,src){
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(t.convoy&&want<had&&want>0) logEvent('輸送船 撃沈',`${src.name}の攻撃で輸送船を失った。残り${want}隻。`);
     if(want===0) destroyFleet(t,src);
+  } else if(t.defend){
+    /* the station we defend: its armour slows the evacuation (stepDefend); at 0 it falls and the operation is lost */
+    const pct=t.hpPool/t.max;
+    for(const m of [.75,.5,.3]) if(pct<m&&!fortressMarks.has(m)){ fortressMarks.add(m); logEvent(`${t.name} 耐久 ${m*100}%`,m===.3?'砲台の半分が沈黙した。これ以上撃たれれば、ステーションが落ちる。':'区画で火災が広がっている。避難が遅れ始めた。'); }
+    if(Math.random()<amt*.06) burst(randShip(t),HOT,10,6,1);
+    if(t.hpPool<=0){ t.alive=false; t.el.remove(); for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); end(false); }
   } else {
     const pct=t.hpPool/t.max;
     for(const m of [.75,.5,.25]) if(pct<m&&!fortressMarks.has(m)){ fortressMarks.add(m); logEvent(`要塞装甲 ${m*100}%`,m===.25?'要塞の外殻が崩れ始めた。もう一押しで陥落する。':'要塞表面で誘爆が続いている。砲火はまだ衰えていない。'); }
@@ -101,18 +109,15 @@ function end(win,quit=false){
   if(over) return; over=true; outcome=win; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?'勝利':'敗北';
-  const R=op.result, tail=convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
+  const R=op.result, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
   /* the menu records the progress and the reward (prep.js) and tells what was gained */
-  if(window.WOS_MENU&&WOS_MENU.onEnd) document.getElementById('rp').textContent+=WOS_MENU.onEnd(op.id,win);
+  if(window.WOS_MENU&&WOS_MENU.onEnd) document.getElementById('rp').textContent+=WOS_MENU.onEnd(op.id,win,{rescued});
   if(quit){ logEvent('作戦中止','指揮官の判断で作戦を中止した。'); document.getElementById('result').hidden=false; return; }
   if(!win&&R.loseBlast) blast(R.loseBlast);
   logEvent(...(win?R.winLog:R.loseLog));
   /* the operation's closing conversation, then the result */
-  /* a line may carry a condition: 'rescued' / '!rescued' (the distress call was answered or not) */
-  const talk=op.talk&&(win?op.talk.win:op.talk.lose), flags={rescued};
-  const lines=(talk||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]]));
-  setTimeout(()=>startTalk(lines,()=>{document.getElementById('result').hidden=false;}),1600);
+  setTimeout(()=>startTalk(talkFor(op.talk&&(win?op.talk.win:op.talk.lose)),()=>{document.getElementById('result').hidden=false;}),1600);
 }
 
 /* small craft (both sides) and a hostile fortress: they never pick the fortress itself on their own, and they keep to the side
@@ -120,9 +125,9 @@ function end(win,quit=false){
    inside only at foes inside. The target their carrier was last ordered to attack overrides this and comes first; it holds
    through later move orders (a carrier shifting its position in range) until it falls or another attack is ordered. */
 const FORT_MARGIN=6;
-function underGuns(t,team){ return fortress.alive&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
+function underGuns(t,team){ return fortress.alive&&!fortress.defend&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
-function craftMayHit(u,t){ if(t===orderedTarget(u)) return true; if(t===fortress) return false;
+function craftMayHit(u,t){ if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
   const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
 /* craft against craft: the enemy craft within reach that is closest to their own carrier. So the craft meet the enemy's
    in between and fight there (the front line), and when enemy craft press in toward the carrier the line falls back with them */
@@ -139,6 +144,8 @@ function craftTarget(u,type,maxD){
   if((u.carrier||u).stance==='evade') return null;
   const ec=enemyCraft(u,maxD); if(ec) return ec;
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
+  /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
+  if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
   return nearestFoe(u,maxD,t=>craftMayHit(u,t));
 }
 let enemyWASSeen=false;
@@ -342,10 +349,12 @@ function pursueAI(f,foes){
   if(bd<c.r*.5) f.searched.add(c); else moveTo(f,c.c.x,c.c.y,c.c.z);
 }
 function enemyAI(){
-  const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen);
+  const foes=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   for(const f of fleets){
     if(f.team!==1||!f.alive) continue;
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
+    /* siege: makes for the station we defend and shoots it, answering only what blocks the way (fireTargetOf) */
+    if(f.ai==='siege'&&fortress.alive&&fortress.defend){ if(!(f.order&&f.order.target===fortress)) order(f,{type:'attack',target:fortress}); continue; }
     if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
     let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
@@ -353,6 +362,42 @@ function enemyAI(){
     else if(f.ai==='hunt'){ const w=f.watchPos||f.post; if(f.pos.distanceTo(w)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:w.clone()}; }
     else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2){ f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
   }
+}
+
+/* allied fleets (op.allies): guard their post like an enemy guard fleet does. With retreat {below, to}, a fleet whose ships fall
+   under `below` of its strength starts to give ground: the fewer it has left, the closer its post moves to `to`
+   (all the way there at half of `below`). It never fights to the last ship there; it falls back instead (user decision 2026-10-03).
+   heldLog: said once if the fleet named in heldIf is destroyed while this one still holds its post */
+function allyAI(){
+  const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen);
+  for(const f of fleets){
+    if(!f.ally||!f.alive) continue;
+    const R=f.retreat;
+    if(R){ const k=f.ships.length/f.n;
+      if(k<R.below){ if(!f.falling){ f.falling=true; if(R.log) logEvent(...R.log); }
+        f.post.copy(f.home).lerp(f.fallTo,Math.min(1,(R.below-k)/(R.below/2))); }
+      else if(R.heldLog&&!f.heldSaid&&R.heldIf&&fleets.some(e=>e.team===1&&e.name===R.heldIf&&!e.alive)){ f.heldSaid=true; logEvent(...R.heldLog); } }
+    let threat=null,bd=f.leash;
+    for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
+    if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    else if(f.pos.distanceTo(f.post)>2){ if(!f.order||f.order.type!=='move'||f.order.dest.distanceTo(f.post)>3) f.order={type:'move',dest:f.post.clone()}; }
+    else f.order=null;
+  }
+}
+/* a defence operation (op.win {type:'defend', need}): the evacuation runs with the clock until `need` minutes have gone by,
+   slowed by the station's damage: rate = 1 − (share of armour lost) ÷ 2 (user decision 2026-10-03). Done: the operation is won.
+   Every tenth of the way a background ship (op.evacShip) leaves southward; it is no one's target. The last one is op.evacLast */
+function stepDefend(dt){
+  const W=op.win; if(!W||W.type!=='defend'||over) return;
+  evacRate=fortress.alive?1-(1-Math.max(0,fortress.hpPool/fortress.max))/2:0;
+  const was=evac; evac=Math.min(W.need,evac+dt*CLOCK_RATE*evacRate);
+  for(const L of op.evacLogs||[]) if(was<L[0]*W.need&&evac>=L[0]*W.need) logEvent(L[1],L[2]);
+  const k=Math.floor(10*evac/W.need+1e-9);
+  while(evacShips<k){ evacShips++; const last=evacShips>=10, S=last&&op.evacLast||op.evacShip;
+    if(S){ const g=makeFleet(0,{dmg:0,range:0,eva:0,hp:1,n:1,speed:6,scale:1.3,alt:-4,vis:2,stl:2,type:'tr',...S,name:last?S.name:`${S.name} 第${evacShips}便`,pos:[(Math.random()-.5)*10,8]});
+      g.ward=g.ghost=true; g.el.classList.add('ghost'); g.sub=S.sub||'地球へ'; g.order={type:'move',dest:new THREE.Vector3(g.pos.x,g.pos.y,FIELD_R+20)}; fleets.push(g); } }
+  for(const g of fleets) if(g.ghost&&g.alive&&!g.order){ g.alive=false; g.el.remove(); }
+  if(evac>=W.need) end(true);
 }
 
 function step(dt){
@@ -369,7 +414,8 @@ function step(dt){
   stepConvoy(); stepRescue(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
-  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI();}
+  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI();}
+  stepDefend(dt);
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
@@ -405,6 +451,8 @@ function step(dt){
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
     const ft=fortress.fireTarget;
-    if(ft&&ft.alive&&ft.seen){ damage(ft,fortress.dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),new THREE.Color(1,.55,.3),.35); }
+    /* the station we defend: its batteries fire at half strength once its armour is under 30% (仮) */
+    const dps=fortress.dps*(fortress.defend&&fortress.hpPool/fortress.max<.3?.5:1);
+    if(ft&&ft.alive&&ft.seen){ damage(ft,dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),fortress.defend?TEAM_COL[0]:new THREE.Color(1,.55,.3),.35); }
   }
 }

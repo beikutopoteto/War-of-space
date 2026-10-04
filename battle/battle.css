@@ -8,6 +8,7 @@
   --blue:#7fc8ff;
   --red:#ff6a45;
   --brass:#e2c58a;
+  --ally:#8fe8c0;   /* allied fleets (AI): green-tinted blue (案 B, user decision 2026-10-03) */
   --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --f-num:"Chakra Petch","Zen Kaku Gothic New",ui-monospace,monospace;
   color-scheme:dark;
@@ -77,10 +78,11 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .unit{position:absolute;left:0;top:0;will-change:transform}
 .emb{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid currentColor;background:color-mix(in srgb,currentColor 22%,transparent);box-shadow:0 0 12px currentColor;transform:translate(-50%,-50%)}
 .emb svg{width:18px;height:18px}
-.t0{color:var(--blue)} .t1{color:var(--red)}
+.t0{color:var(--blue)} .t1{color:var(--red)} .t2{color:var(--ally)}
 .unit.sel .emb{box-shadow:0 0 0 4px rgba(255,255,255,.18),0 0 18px currentColor;border-color:#fff}
 /* an enemy that slipped out of sight: a faint marker at its last known position */
 .unit.lost{opacity:.42}
+.unit.ghost{opacity:.5}   /* background evacuation ships (第3節): not targets, only scenery */
 .unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
 .unit.lost .flag span{display:block}
 .flag{position:absolute;left:22px;top:-44px;border-left:3px solid currentColor;padding:3px 10px 4px 8px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 38%,transparent),color-mix(in srgb,currentColor 6%,transparent));white-space:nowrap;color:var(--ink)}
@@ -271,7 +273,7 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #result .card{border-left:0}
 .sector{border-left:0;--bs:7px}
 /* fleet name tags: a light wash of the team colour, brackets only at the top left and bottom right */
-.t0{--tc:var(--blue)} .t1{--tc:var(--red)}
+.t0{--tc:var(--blue)} .t1{--tc:var(--red)} .t2{--tc:var(--ally)}
 .flag{border-left:0;background:color-mix(in srgb,var(--tc) 18%,rgba(8,14,26,.55))}
 .flag::before{--k:var(--tc);--s:7px;background:
   linear-gradient(var(--k),var(--k)) left top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left top/1px var(--s) no-repeat,

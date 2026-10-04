@@ -171,7 +171,7 @@ function pick(x,y){
   let best=null,bd=34;
   for(const f of fleets){ if(!f.alive||!shown(f)||f.ward) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
-  return {best, fort:fortress.alive&&Math.hypot(fs.x-x,fs.y-y)<46};
+  return {best, fort:fortress.alive&&fortress.team===1&&Math.hypot(fs.x-x,fs.y-y)<46};   // our own station is not a target
 }
 function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
   return !!best&&best.team===0||!!(selected&&selected.alive&&(best||fort)); }
@@ -252,7 +252,7 @@ function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; se
 pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const a=b.dataset.pm;
   if(a==='resume') closePause();
-  if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startTalk(op.talk&&op.talk.before); }
+  if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startTalk(talkFor(op.talk&&op.talk.before)); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
   if(a==='dwin'||a==='dlose'){ closePause(); talkDone=null; endTalk(); end(a==='dwin'); }
   if(a==='keys'){ const k=document.getElementById('keys'); k.hidden=!k.hidden; b.setAttribute('aria-pressed',String(!k.hidden)); }
@@ -271,13 +271,13 @@ addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='KeyG'){ cycleGroup(); return; }
   const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.ward)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
-document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(op.talk&&op.talk.before); });
+document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(talkFor(op.talk&&op.talk.before)); });
 document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
 function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
 /* entry point used by the preparation screens (prep.js) */
 window.WOS={ start(cfg){
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
-  reset(cfg||null); setSpeed(1); startTalk(op.talk&&op.talk.before);
+  reset(cfg||null); setSpeed(1); startTalk(talkFor(op.talk&&op.talk.before));
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */
   const V=op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
@@ -301,6 +301,12 @@ function updateGoal(){
     if(clouds.length&&!over){ const seen=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.rescue);
       subT+=seen.length?`\n発見されている：${seen.map(f=>f.name).join('・')}`:'\n敵に見つかっていない'; }
     if(rescue&&!over) subT+=`\n${op.rescue.fleet.name}：${rescue.done?'救助した':rescue.lost?'失われた':`救助 ${Math.floor(100*Math.min(1,rescue.prog/op.rescue.need))}%`}`; }
+  else if(op.win&&op.win.type==='defend'){ const W=op.win, hp=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0;
+    p=Math.min(1,evac/W.need); text=W.text||`避難が終わるまで${fortress.name}を守れ`; mode='defend';
+    label=`避難 ${Math.floor(p*100)}%　完了 ${evacRate>0?clockStr(gameSec*CLOCK_RATE+(W.need-evac)/evacRate):'--:--'} 予定`;
+    subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<.999?`　避難の速さ ${Math.round(evacRate*100)}%`:''}`;
+    /* the allied fleets: ships left, and whether one is giving ground */
+    const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/残存隊|警備戦隊/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?'任務達成':'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
@@ -310,6 +316,11 @@ function updateGoal(){
    Click or Enter for the next line, Esc or とばす to skip */
 const talkEl=document.getElementById('talk'), talkWho=document.getElementById('talkWho'), talkText=document.getElementById('talkText');
 let talkQ=[], talkDone=null, talking=false;
+/* a line may carry a condition as its third element: 'rescued' / '!rescued' (the distress call was answered or not in this battle),
+   a flag the menu passes in (cfg.flags, e.g. 'kawasemi': the Kawasemi was rescued in 第2節), or 'ally:<name>' */
+function talkFor(lines){ const flags={...(lastCfg&&lastCfg.flags||{}),rescued};
+  for(const f of fleets||[]) if(f.ally) flags['ally:'+f.name]=f.alive;   // 'ally:<name>': that allied fleet is still afloat
+  return (lines||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]])); }
 function startTalk(lines,done){ talkQ=(lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
 /* a line with no speaker is narration */
 function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=l[1]; }

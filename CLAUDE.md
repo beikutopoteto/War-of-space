@@ -31,7 +31,7 @@
 
 ## ファイルと動かし方
 - `index.html`: HUD の骨組みと読み込みだけ。ビルド不要、`file://` でも動くよう ES モジュールではなく普通の `<script>` で読む。
-- `data/`: ゲームのデータ（`ships.js` 艦種と小型機、`bonuses.js` 編成ボーナス、`operations.js` 作戦、`tech.js` 解放・報酬・技術ツリー）。`window.WOS_DATA` にまとめる。数値や作戦を足すときはここだけ直す。書き方は各ファイルの先頭のコメント。最初の作戦がクイック戦闘、2つ目が第一章第1節「ネオ信濃奇襲」、3つ目が第2節「後退」。
+- `data/`: ゲームのデータ（`ships.js` 艦種と小型機、`bonuses.js` 編成ボーナス、`operations.js` 作戦、`tech.js` 解放・報酬・技術ツリー）。`window.WOS_DATA` にまとめる。数値や作戦を足すときはここだけ直す。書き方は各ファイルの先頭のコメント。最初の作戦がクイック戦闘、2つ目が第一章第1節「ネオ信濃奇襲」、3つ目が第2節「後退」、4つ目が第3節「ナイル防衛線」。
 - `battle/`: 戦闘画面。読み込み順は `scene.js`（シーン・要塞・ステーション）→ `effects.js`（粒子・曳光弾・矢印）→ `shapes.js`（艦と小型機の形）→ `units.js`（名札・メッシュ・軌跡）→ `state.js`（状態・艦隊生成・ロスター・`reset()`・戻す）→ `hud.js`（パネル・任務欄・会話・命令・視点・入力・メニュー）→ `sim.js`（索敵・戦闘・小型機・出来事・敵 AI・`step()`）→ `loop.js`（描画ループと起動）。一番外側の名前はファイル間で共有される。読み込み時に呼ぶ処理は `loop.js` に置く。
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、デバッグ欄。`battle/` の後に読む。
 - ライブラリ: Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdelivr の `three@0.128.0/examples/js`）。r128 なので新しい API（`BufferGeometry.applyQuaternion` など）はない。
