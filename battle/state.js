@@ -15,6 +15,8 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 /* a defence operation (op.win.type 'defend'): evac is how far the evacuation has got (operation minutes, need: op.win.need),
    evacRate how fast it goes now (the station's damage slows it), evacShips how many background ships have left */
 let evac=0, evacRate=1, evacShips=0;
+/* chase: after the fortress falls, its guard runs for the exit (op.chase) {fleet, exit, from, escaped}; perfect: the battle ended in a complete victory */
+let chase=null, perfect=false;
 /* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
    N starts at the main class's number and moves on past the numbers in used (a Set); with no class, there is no role */
 const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
@@ -295,7 +297,7 @@ function reset(cfg=lastCfg){
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
-  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; evac=0; evacRate=1; evacShips=0;
+  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   enemyWASSeen=false;

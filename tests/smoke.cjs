@@ -386,7 +386,7 @@ function check(ok, label, detail = '') {
       '空母: 艦載機と W.A.S. に撃たれた艦隊は速度が4割に落ち、空母だけの軍は下がらない', JSON.stringify(duel));
     await page.evaluate(() => { reset(); select(null); });
 
-    /* the fortress: its fighters come out to meet us; the guard fleet sorties below 75% armour, the air-defence fleets one by one below 50% */
+    /* the fortress: its fighters come out to meet us; the guard fleet sorties below 75% armour, all the air-defence fleets at once below 50% (user decision 2026-10-04) */
     const fd = await page.evaluate(() => {
       reset(); const c = fleets.find(x => x.team === 0 && x.hangars.length); fleets.filter(x => x.team === 0 && x !== c).forEach(x => { x.alive = false; });
       c.speed = 0; c.stance = 'evade'; c.pos.set(0, 0, 150);
@@ -399,8 +399,8 @@ function check(ok, label, detail = '') {
       for (let i = 0; i < 420; i++) step(.05); const ad70 = ad.filter(f => f.ai === 'hunt').length;
       return { far, near, ownOut, g75, ad75, ad49, ad70 };
     });
-    check(fd.far === 0 && fd.near > 0 && fd.ownOut === 0 && fd.g75 === 'hunt' && fd.ad75 === 0 && fd.ad49 === 1 && fd.ad70 === 2,
-      '要塞: 艦載機が迎撃に出て、装甲75%で近衛艦隊、50%から防空隊が20秒ごとに迎撃に出る。命令優先の母艦は命令なしに発進しない', JSON.stringify(fd));
+    check(fd.far === 0 && fd.near > 0 && fd.ownOut === 0 && fd.g75 === 'hunt' && fd.ad75 === 0 && fd.ad49 === 4 && fd.ad70 === 4,
+      '要塞: 艦載機が迎撃に出て、装甲75%で近衛艦隊、50%で防空隊が全隊一斉に迎撃に出る。命令優先の母艦は命令なしに発進しない', JSON.stringify(fd));
     await page.evaluate(() => { reset(); select(null); });
 
     /* craft against craft: our fighters turn on the enemy's craft before its ships */
@@ -482,11 +482,29 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(1800); await page.click('#talkSkip').catch(() => {});
     await page.click('#again'); await page.evaluate(() => { if (talking) endTalk(); });
 
-    /* victory: destroy the fortress */
-    await page.evaluate(() => damage(fortress, fortress.hpPool + 1, fleets.find(x => x.team === 0 && x.alive)));
+    /* the fortress falls: its guard runs north for the exit, the other enemy fleets come at us. Sinking the guard is a complete victory,
+       letting it go a plain one (user decision 2026-10-04) */
+    const chs = await page.evaluate(() => {
+      const src = fleets.find(x => x.team === 0 && x.alive), g = fleets.find(f => f.name === op.chase.fleet);
+      damage(fortress, fortress.hpPool + 1, src); const d0 = g.pos.distanceTo(chase.exit);
+      for (let i = 0; i < 40; i++) step(.05);
+      const others = fleets.filter(f => f.team === 1 && f.alive && f !== g);
+      return { over, phase: phaseName, ai: g.ai, closer: g.pos.distanceTo(chase.exit) < d0 - 1, cover: others.length > 0 && others.every(f => f.ai === 'hunt' && f.cover), goal: document.getElementById('goalText').textContent };
+    });
+    check(!chs.over && chs.phase === '追撃' && chs.ai === 'escape' && chs.closer && chs.cover, '要塞戦: 要塞を落とすと近衛艦隊が北へ撤退し、ほかの敵艦隊は攻めてくる', JSON.stringify(chs));
+    await shot('08-chase');
+    await page.evaluate(() => { const g = chase.fleet; damage(g, g.hpPool + 1, fleets.find(x => x.team === 0 && x.alive)); step(.05); });
     await page.waitForTimeout(2000);
-    check(await page.isVisible('#result') && await page.textContent('#rh') === '勝利', 'クイック戦闘: 要塞を落とすと勝利');
+    check(await page.isVisible('#result') && await page.textContent('#rh') === '完全勝利', '要塞戦: 撤退する近衛艦隊を沈めると完全勝利');
     await shot('08-victory');
+    await page.click('#again'); await page.evaluate(() => { if (talking) endTalk(); });
+    const esc = await page.evaluate(() => {
+      damage(fortress, fortress.hpPool + 1, fleets.find(x => x.team === 0 && x.alive));
+      const g = chase.fleet; g.pos.copy(chase.exit).add(new THREE.Vector3(0, 0, 12)); for (let i = 0; i < 20 && !over; i++) step(.05);
+      return { over, outcome, perfect, rh: document.getElementById('rh').textContent, rp: document.getElementById('rp').textContent };
+    });
+    check(esc.over && esc.outcome && !esc.perfect && esc.rh === '勝利' && esc.rp.includes('逃れた'), '要塞戦: 近衛艦隊に逃げられると普通の勝利', JSON.stringify(esc));
+    await page.waitForTimeout(1800); await page.click('#talkSkip').catch(() => {});
     /* chapter 1 section 1: the escort operation from the sortie screen */
     await page.evaluate(() => WOS.openMenu());
     await page.click('#result >> text=メニューへ').catch(() => {});
