@@ -654,8 +654,8 @@ function check(ok, label, detail = '') {
       /* the evacuation slows by half the share of armour lost: 40% lost → 0.8 */
       fortress.hpPool = fortress.max * .6; step(.05); r.rate = +evacRate.toFixed(2); fortress.hpPool = fortress.max;
       /* the Donau squadron gives ground once under 2/3 of its ships, toward the rear of the station */
-      const d = al.find(f => f.name === '第20 ドナウ残存 支隊'), home = d.post.clone();
-      while (d.ships.length > 5) d.ships.pop();
+      const d = al.find(f => f.name === '第13 ドナウ主力 支隊'), home = d.post.clone();
+      while (d.ships.length >= d.n * 2 / 3) d.ships.pop();
       allyAI(); r.falling = !!d.falling; r.moved = +d.post.distanceTo(home).toFixed(1); r.rear = d.post.z > home.z;
       /* a siege fleet makes for the station; enemy W.A.S. (not fighters) may hit it */
       const s = makeFleet(1, { name: '試験', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 5, scale: 1, pos: [0, -100], alt: 0, vis: 5, stl: 5, ai: 'siege' });
@@ -666,8 +666,8 @@ function check(ok, label, detail = '') {
       fleets.push(e); e.seen = true; launchCheck(fortress); r.stationFtr = fortress.hangars.length === 1 && wings.length > w0 && wings[wings.length - 1].carrier === fortress;
       wings.filter(w => w.carrier === fortress).forEach(w => { w.alive = false; }); wings = wings.filter(w => w.alive); e.alive = false; e.el.remove();
       return r; });
-    check(n1.op === 'nile' && n1.station && n1.allies === 3 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
-      'ナイル防衛線: 守るステーションと友軍3隊が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
+    check(n1.op === 'nile' && n1.station && n1.allies === 4 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
+      'ナイル防衛線: 守るステーションと友軍4隊（ドナウは前衛と主力）が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
     check(n1.rate === .8, 'ナイル防衛線: ステーションの耐久が削られた割合の半分だけ避難が遅れる', JSON.stringify(n1));
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
