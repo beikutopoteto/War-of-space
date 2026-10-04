@@ -47,8 +47,8 @@
   </div>
 </div>
 
-<div id="deploy" class="hud" hidden><b>配置</b><p>軍集団を選び、光る範囲の中をクリックすると、そこへ置けます。並べ終えたら作戦を始めます。</p><button id="deployGo">作戦開始</button></div>
-<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約、味方の艦隊ならまとめて選択（一覧の「＋ 軍集団を作る」で軍集団に）。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグか下のスティックで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
+<div id="deploy" class="hud" hidden><b>配置</b><p>戦区軍を選び、光る範囲の中をクリックすると、そこへ置けます。並べ終えたら作戦を始めます。</p><button id="deployGo">作戦開始</button></div>
+<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約、味方の艦隊ならまとめて選択（一覧の「＋ 戦区軍を作る」で戦区軍に）。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグか下のスティックで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
 
 <div id="camSticks" class="hud" aria-label="視点の回転">
   <div class="stick h"><span>横回転</span><div id="azTrack" class="tr" role="slider" aria-label="視点の横回転（倒すと回り続ける。←→キーでも）"><span class="kn"></span></div></div>
@@ -69,9 +69,9 @@
   <h2>一時停止中</h2>
   <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button><button data-pm="dwin" class="dbg">勝利にする（デバッグ）</button><button data-pm="dlose" class="dbg">敗北にする（デバッグ）</button></div>
   <table id="keys" hidden><tbody>
-    <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で軍集団の全軍（押すたびに次の軍集団）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
+    <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で戦区軍の全軍（押すたびに次の戦区軍）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
     <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
-    <tr><th>軍集団</th><td>まとめて選んで右下の「＋ 軍集団を作る」。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き（出撃時の陣形・横陣・縦陣・輪形陣から選べる）、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで軍を出し入れ</td></tr>
+    <tr><th>戦区軍</th><td>まとめて選んで右下の「＋ 戦区軍を作る」。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き（出撃時の陣形・横陣・縦陣・輪形陣から選べる）、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで打撃群を出し入れ</td></tr>
     <tr><th>予約</th><td>Shift+クリックで経由地や攻撃を予約</td></tr>
     <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す</td></tr>
     <tr><th>高度</th><td>左の高度バー、Q / E</td></tr>

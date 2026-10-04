@@ -266,7 +266,7 @@ function toggleSync(g){ if(!g) return; g.sync=!g.sync;
   const m=groupAlive(g), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
   m.forEach(f=>{ if(g.sync){ if(f.order&&f.order.type==='move') f.syncSpeed=slow; } else f.syncSpeed=null; });
   updateRoster();
-  logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各軍がそれぞれの速度で進む。'); }
+  logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各打撃群がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
   stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
 stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
@@ -338,7 +338,7 @@ function updateGoal(){
     label=`避難 ${Math.floor(p*100)}%　完了 ${evacRate>0?clockStr(gameSec*CLOCK_RATE+(W.need-evac)/evacRate):'--:--'} 予定`;
     subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<.999?`　避難の速さ ${Math.round(evacRate*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
-    const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/残存隊|警備戦隊/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
+    const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?'任務達成':'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
