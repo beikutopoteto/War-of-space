@@ -122,12 +122,17 @@ function check(ok, label, detail = '') {
     await page.fill('#bgName', '試験戦隊'); await page.click('#orgDetail [data-type="dd"]');
     const kept = await page.inputValue('#bgName');
     check(newName === '第25 駆逐突撃 支隊' && clName === '第10 前衛巡洋 支隊' && kept === '試験戦隊', '編成: 新しい支隊は「第N 役割 支隊」、名前を触るまでは艦種に合わせて付け直す', [newName, clName, kept].join(' / '));
-    /* a new army is named 第N 打撃群 until it holds ships, then after its main class (駆逐艦: 第7 機動水雷 打撃群); deleted again */
-    await page.click('[data-tab="army"]'); await page.click('#orgList [data-new]');
-    const armyNew = await page.inputValue('#armyName');
+    /* an army of one battle group goes by its name; with two or more it is named 第N 役割 打撃群 after its main class
+       (the starting 第9 前衛巡洋 支隊 with 試験戦隊 added: 巡洋艦 6 to 駆逐艦 4, 第2 巡洋 打撃群), and goes back when one is taken out */
+    await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a1"]');
     await page.selectOption('#addBg', { label: '試験戦隊（駆逐艦×4）' });
-    const armyDd = await page.inputValue('#armyName');
-    check(armyNew === '第1 打撃群' && armyDd === '第7 機動水雷 打撃群', '編成: 新しい打撃群は主力の艦種で「第N 役割 打撃群」になる', [armyNew, armyDd].join(' / '));
+    const armyTwo = await page.inputValue('#armyName');
+    await page.click('#orgDetail [data-rm]:not([data-rm="bg1"])');
+    const armyOne = await page.inputValue('#armyName');
+    /* a new army is 第N 打撃群 while empty; deleted again */
+    await page.click('#orgList [data-new]');
+    const armyNew = await page.inputValue('#armyName');
+    check(armyTwo === '第2 巡洋 打撃群' && armyOne === '第9 前衛巡洋 支隊' && armyNew === '第1 打撃群', '編成: 支隊1つの打撃群は支隊の名前、2つ以上なら主力の艦種で「第N 役割 打撃群」', [armyTwo, armyOne, armyNew].join(' / '));
     await page.click('#orgDetail [data-del]'); await page.click('#orgDetail [data-del]');
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
