@@ -72,6 +72,12 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 
 #hint{top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;font-size:12.5px;color:var(--ink);max-width:min(460px,calc(100vw - 32px));text-align:center;line-height:1.6;transition:opacity .8s}
 #hint{cursor:pointer}
+/* the deploy step before an operation fought with army groups: a small panel at the top centre */
+#deploy{top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);padding:8px 14px 10px;display:grid;gap:4px;justify-items:center;text-align:center;max-width:min(420px,calc(100vw - 32px));backdrop-filter:blur(6px)}
+#deploy b{font-family:var(--f-num);color:var(--brass);font-size:12px;letter-spacing:.15em}
+#deploy p{margin:0;font-size:12px;color:var(--ink);line-height:1.6}
+#deploy button{margin-top:2px;font-family:var(--f-ui);font-size:13px;font-weight:700;padding:5px 22px;background:rgba(127,200,255,.18);color:var(--ink);border:1px solid var(--blue);cursor:pointer}
+#deploy button:hover{background:rgba(127,200,255,.3)}
 #hint.gone{opacity:0}
 
 /* in-world labels */
@@ -258,7 +264,7 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 /* ---------- windows: thin corner brackets instead of the left bar (案 B, user decision 2026-10-03) ----------
    --bk is the bracket colour, --bs its arm length. The brackets are drawn on ::before so the box needs no border */
 #clock,#goal,#result .card,#roster button{position:relative}
-#clock::before,#goal::before,#brief::before,#talk::before,#result .card::before,.sector::before,.flag::before,
+#clock::before,#goal::before,#brief::before,#talk::before,#deploy::before,#result .card::before,.sector::before,.flag::before,
 #roster button[id^="fl"]::before,#roster .grpBtn::before,#roster #newGrp::before{
   content:"";position:absolute;inset:0;pointer-events:none;--k:var(--bk,var(--brass));--s:var(--bs,10px);
   background:

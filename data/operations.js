@@ -7,6 +7,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    name / summary / threat: 出撃画面に出す名前と説明　brief: 戦闘開始時の作戦概要
    date / start: 画面左上の日付と開始時刻。時計は1秒で15分進む。日をまたぐと日付も進む
    deploy: 出撃した軍集団の立方体の中心 [x, z]（立方体の前方は北）
+   deployZone: 始まる前に軍集団を置ける範囲 {pos:[x,z], r}（書かなければ deploy から半径60の円）
    sectors: 戦場に出す宙域の名前　fortress: 要塞（装甲 hp を0にすると勝利）
      fortress.hangar / launchR: 要塞の艦載機（母艦と同じ {ftr, was}）と発進距離
      fortress.sortie: 装甲が below（割合）を切ったら、fleets（名前）の敵艦隊が持ち場を離れて迎撃に出る [{below, fleets, every?, log?}]。

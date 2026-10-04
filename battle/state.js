@@ -294,14 +294,13 @@ function reset(cfg=lastCfg){
   for(const a of op.allies||[]){ const f=makeFleet(0,{ai:'guard',leash:40,...a,ally:true}); f.ward=true; f.home=f.post.clone();
     if(a.retreat) f.fallTo=new THREE.Vector3(a.retreat.to[0],a.retreat.alt||f.post.y,a.retreat.to[1]); fleets.push(f); }
   selGroup=null; selMulti=[];
-  /* the army group: the one chosen at sortie, or for an operation fought with its own fleets, op.group around all of them */
-  const G=cfg&&cfg.group||(op.group&&spec===op.quick?{...op.group,members:op.quick.map((_,i)=>i)}:null);
-  /* more army groups can be formed during the battle (＋ in the roster) */
-  const AG=G?{name:G.name,sync:G.sync,form:false,kind:'base',baseName:'出撃時の陣形',members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()}:null;
-  groups=AG?[AG]:[];
-  /* each army's place in the formation, relative to the flagship (from the cube at sortie, or from where the armies start) */
-  if(AG) G.members.forEach((i,k)=>{ const o=G.offsets&&G.offsets[k];
-    AG.off.set(fleets[i],o?new THREE.Vector3(o[0],o[1],o[2]):fleets[i].pos.clone().sub(AG.flag.pos)); });
+  /* the army groups: the ones chosen at sortie (several may go out together), or for an operation fought with its own fleets,
+     op.group around all of them. More army groups can be formed during the battle (＋ in the roster) */
+  const GS=cfg&&(cfg.groups||cfg.group&&[cfg.group])||(op.group&&spec===op.quick?[{...op.group,members:op.quick.map((_,i)=>i)}]:[]);
+  groups=GS.map(G=>{ const AG={name:G.name,sync:G.sync,form:false,kind:'base',baseName:'出撃時の陣形',members:new Set(G.members.map(i=>fleets[i])),flag:fleets[G.flag??G.members[0]],off:new Map()};
+    /* each army's place in the formation, relative to the flagship (from the cube at sortie, or from where the armies start) */
+    G.members.forEach((i,k)=>{ const o=G.offsets&&G.offsets[k]; AG.off.set(fleets[i],o?new THREE.Vector3(o[0],o[1],o[2]):fleets[i].pos.clone().sub(AG.flag.pos)); });
+    return AG; });
   /* the transports of an escort operation: own side, but they follow their own route and take no orders */
   convoy=null;
   if(op.convoy){ convoy=makeFleet(0,{dmg:0,range:0,eva:0,...op.convoy.fleet}); convoy.convoy=convoy.ward=true; convoy.departed=false; convoy.escaped=false; convoy.sub='乗船中'; fleets.push(convoy);
