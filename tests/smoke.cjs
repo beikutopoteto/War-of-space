@@ -603,6 +603,11 @@ function check(ok, label, detail = '') {
     check(open2.prog.funds === 1700 && open2.prog.flags['aid:retreat'] && rw2.includes('緊急援助：資金 +1000'),
       '後退: 初めてのクリアで司令部からの緊急援助（資金 +1000）', rw2 + JSON.stringify(open2.prog));
     await shot('11-unlocked');
+    /* the battle group screen offers only the classes whose branch is open (no locked ones with a lock mark) */
+    await page.click('[data-go="org"]'); await page.click('[data-tab="bg"]'); await page.click('#orgList [data-bg="bg1"]');
+    const types = await page.evaluate(() => ({ ids: [...document.querySelectorAll('#orgDetail [data-type]')].map(b => b.dataset.type).join(','), locks: document.querySelectorAll('#orgDetail .types .lock').length }));
+    check(types.ids === 'cv,ff,dd,cl' && types.locks === 0, '編成: 戦闘団の艦種は開いている兵科だけ出す（鍵のマークは出さない）', JSON.stringify(types));
+    await page.click('[data-s="org"] .back');
 
     /* 第3節 ナイル防衛線: fought with the player's army group; we defend the station, allied fleets (AI) hold the line */
     check(open2.prog.flags['rescued:retreat'] === true, '後退: カワセミを助けたかどうかが保存される', JSON.stringify(open2.prog.flags));

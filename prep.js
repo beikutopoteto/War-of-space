@@ -499,9 +499,10 @@ function renderBgTab(){
   const b=bgById(selBg);
   if(!b){ det.innerHTML='<p class="empty">戦闘団がありません。左の「戦闘団を作る」から追加してください。</p>'; return; }
   const s=SHIP[b.type], a=armyOfBg(b.id);
+  /* the class buttons: only classes whose branch is open (or the one this battle group already has); locked ones are not shown (user decision 2026-10-04) */
   det.innerHTML=`
     <label class="fld">名前<input id="bgName" maxlength="20" value="${esc(b.name)}"></label>
-    <div class="fld">艦種<div class="types">${SHIPS.map(t=>{ const ok=typeOpen(t.id)||t.id===b.type; return `<button data-type="${t.id}" aria-pressed="${t.id===b.type}" ${ok?'':`disabled title="${esc(branchOfType(t.id).needText||'未解放')}"`}>${ok?'':LOCK}${t.name}</button>`; }).join('')}</div></div>
+    <div class="fld">艦種<div class="types">${SHIPS.filter(t=>typeOpen(t.id)||t.id===b.type).map(t=>`<button data-type="${t.id}" aria-pressed="${t.id===b.type}">${t.name}</button>`).join('')}</div></div>
     <label class="fld"><span>隻数 <b id="bgCountV">${b.count}</b> / 最大${s.max}</span><input id="bgCount" type="range" min="1" max="${s.max}" value="${Math.min(b.count,s.max)}"></label>
     <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
     <h4>1隻あたりの能力（仮）　<span class="dim">技術ツリーの研究で上がります。最大は艦艇データの値</span></h4>${bars(shipNow(b.type))}
