@@ -495,8 +495,15 @@ function check(ok, label, detail = '') {
     await page.click('[data-s="sortie"] .back');
     await setBgCount(bgN);
     await page.uncheck('#dbgB [data-dbg="free"]');
-    const reset0 = await page.evaluate(() => ({ prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog, org: document.querySelector('#mainNav [data-go="org"]').disabled }));
+    const reset0 = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('wos.save.v1'));
+      return { prog: s.prog, org: document.querySelector('#mainNav [data-go="org"]').disabled, bgs: s.bgs.map(b => b.name + b.count).join(','), groups: s.groups.map(g => g.name).join(',') }; });
     check(reset0.prog.cleared.length === 0 && reset0.prog.funds === 0 && reset0.org, 'デバッグ: 進行を最初に戻す', JSON.stringify(reset0.prog));
+    /* the fleets go back too: the battle group and the army group made earlier in this test are gone */
+    check(reset0.bgs === '第41巡洋戦隊6,第11哨戒戦隊9,第21護衛戦隊8,第31駆逐戦隊6,第22護衛戦隊6' && reset0.groups === 'ネオ信濃駐屯隊', 'デバッグ: 進行を最初に戻すと、艦隊も最初の状態に戻る', JSON.stringify(reset0));
+    /* debug: 全兵科解放 opens every branch without researching anything */
+    await page.click('#dbgB [data-dbga="branches"]');
+    const br = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(br.flags.bb && br.flags.carrier && br.flags.was && Object.values(br.tech).every(t => !t.length), 'デバッグ: 全兵科解放で、研究はせずに全兵科が開く', JSON.stringify(br));
     /* debug: 一節だけクリア counts the next section as won (reward and aid included); then back to the start again */
     await page.click('#dbgB [data-dbga="one"]');
     const one1 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
