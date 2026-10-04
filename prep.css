@@ -70,7 +70,8 @@
 .sgcard.clash{opacity:.45;cursor:default}
 .sgcard .clashnote{font-style:normal;font-size:11.5px;color:var(--red)}
 .cards{display:grid;gap:8px}
-.act{display:flex;justify-content:flex-end;margin-top:16px}
+/* the sortie button sits at the right end of the screen header (user decision 2026-10-04) */
+.gohead{margin-left:auto}
 .primary{font-size:16px;font-weight:700;letter-spacing:.1em;padding:10px 28px;background:var(--brass);color:var(--void);border:0}
 .primary:disabled{opacity:.4;cursor:default}
 

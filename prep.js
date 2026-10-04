@@ -234,7 +234,7 @@ menu.innerHTML=`
   </div>
 </section>
 <section class="scr" data-s="sortie" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2></header>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2><button id="goBattle" class="primary gohead">出撃する</button></header>
   <div class="sortie">
     <div class="pane">
       <h3>作戦</h3>
@@ -246,7 +246,6 @@ menu.innerHTML=`
       <div id="sgLoad"></div>
     </div>
   </div>
-  <footer class="act"><button id="goBattle" class="primary">出撃する</button></footer>
 </section>
 <section class="scr" data-s="org" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦隊編集</h2>
