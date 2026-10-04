@@ -1,5 +1,5 @@
 /* War of Space data: operations (maps). Values are provisional (see docs/menu.md).
-   Classic script; goes into window.WOS_DATA. The first operation is used for クイック戦闘. */
+   Classic script; goes into window.WOS_DATA. The first operation is the exercise (演習) 要塞カリュブディス攻略戦; its quick fleets are used for クイック出撃. */
 window.WOS_DATA=window.WOS_DATA||{};
 
 /* 作戦。座標は [x, z]（-z が北＝敵側）、alt は高度（上が +）。要塞は戦場の中央に置く。
@@ -15,7 +15,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    chase: 要塞を壊したあとの追撃 {fleet（逃げる艦隊の名前）, exit:{pos, alt}（逃げる先、地図に輪を出す）, reach, text（任務欄）, phase, log, escapeLog}。
      その艦隊は exit へ逃げ、ほかの敵艦隊は自軍を攻撃しに来る。沈めれば完全勝利（result.perfect / perfectLog）、
      reach 以内まで逃げられたら普通の勝利（result.escape）。書かなければ要塞の撃破で勝ち
-   quick: クイック戦闘で使う自軍　enemies: 開戦時の敵艦隊
+   quick: 決まった艦隊の作戦と、演習のクイック出撃で使う自軍　enemies: 開戦時の敵艦隊
      ai:'guard' は持ち場から leash 以内に来た敵だけを追う。ai:'hunt' は見えている敵を追い、
      見えないときは watch の位置で待つ。
    reinforcements: 増援。after は開戦から何分後か（作戦の時計）、arrow は登場時の矢印の向かう先、log は通知

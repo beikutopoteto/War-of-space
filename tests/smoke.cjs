@@ -43,7 +43,13 @@ function check(ok, label, detail = '') {
     await shot('01-title');
     await page.click('[data-go="sortie"]');
     const ops0 = await page.evaluate(() => ['shinano', 'retreat', 'charybdis'].map(id => document.querySelector(`[data-op="${id}"]`).disabled));
-    check(!ops0[0] && ops0[1] && ops0[2], '出撃: 最初は第1節だけ選べる（第2節と演習は鍵付き）', JSON.stringify(ops0));
+    check(!ops0[0] && ops0[1] && !ops0[2], '出撃: 最初は第1節と演習（クイック出撃）だけ選べる（第2節は鍵付き）', JSON.stringify(ops0));
+    await page.click('[data-op="charybdis"]');
+    const q0 = { quick: await page.isVisible('#goQuick'), own: await page.isDisabled('#goBattle'), note: await page.textContent('#sgList') };
+    check(q0.quick && q0.own && q0.note.includes('後退'), '出撃: 演習は最初からクイック出撃でき、自分の戦区軍での出撃は第2節クリアまで鍵付き', JSON.stringify(q0));
+    await page.click('[data-op="shinano"]');
+    check(!(await page.isVisible('#goQuick')), '出撃: 決まった艦隊の作戦にはクイック出撃がない');
+    check(await page.evaluate(() => !document.querySelector('#mainNav [data-act="quick"]') && !document.getElementById('mainNav').textContent.includes('クイック')), 'メニュー: タイトルにクイック戦闘はない');
     await page.click('[data-s="sortie"] .back');
     /* debug: unlock everything, turn on the in-battle instant win/defeat */
     await page.click('#dbgT');
@@ -234,9 +240,9 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(500);
     await shot('05-sortie-battle');
 
-    /* quick battle */
+    /* quick battle: クイック出撃 on the sortie screen (the exercise with its prepared fleets) */
     await page.evaluate(() => WOS.openMenu());
-    await page.click('[data-act="quick"]');
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="charybdis"]'); await page.click('#goQuick');
     await page.waitForTimeout(3000);
     const legend = await page.textContent('#legend');
     check(legend.includes('地球連合') && legend.includes('惑星共和国'), 'クイック戦闘: 凡例の陣営名');

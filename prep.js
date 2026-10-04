@@ -98,7 +98,7 @@ const cleared=id=>prog().cleared.includes(id);
 /* a menu screen opens when its operation is cleared (data/tech.js unlocks) */
 const unlocked=key=>cleared(D.unlocks[key]);
 function opOpen(o){ if(dbg.free) return true;
-  const i=CAMP.indexOf(o); if(i<0) return unlocked('fleet');   // 演習: with the player's own army groups
+  const i=CAMP.indexOf(o); if(i<0) return !!o.quick||unlocked('fleet');   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens
   return i===0||cleared(CAMP[i-1].id); }
 /* a thin line lock in the text colour (no emoji) */
 const LOCK='<svg class="lock" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="1"/><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/></svg>';
@@ -144,7 +144,7 @@ function groupLoad(gs){
 function grantAid(o){ const k='aid:'+o.id; if(!o.aid||prog().flags[k]) return 0; prog().flags[k]=true; prog().funds+=o.aid.funds; return o.aid.funds; }
 /* story flags the battle's conversations may use (a line's third element, battle/hud.js talkFor) */
 function storyFlags(){ return {kawasemi:!!prog().flags['rescued:retreat']}; }
-/* the battle the menu started: the result is recorded when it ends (quick battle is not counted) */
+/* the battle the menu started: the result is recorded when it ends (クイック出撃 is not counted) */
 let running=null;
 function onEnd(opId,win,res={}){
   if(!running||running.quick||running.op!==opId||!win) return '';
@@ -234,7 +234,7 @@ menu.innerHTML=`
   </div>
 </section>
 <section class="scr" data-s="sortie" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2><button id="goBattle" class="primary gohead">出撃する</button></header>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2><button id="goQuick" class="gohead quick" hidden title="用意された艦隊ですぐに戦う（進行と報酬には数えない）">クイック出撃</button><button id="goBattle" class="primary gohead">出撃する</button></header>
   <div class="sortie">
     <div class="pane">
       <h3>作戦</h3>
@@ -270,7 +270,6 @@ menu.innerHTML=`
 
 menu.addEventListener('click',e=>{
   const go=e.target.closest('[data-go]'); if(go){ show(go.dataset.go); return; }
-  const act=e.target.closest('[data-act]'); if(act&&act.dataset.act==='quick'){ running={quick:true}; startBattle(null); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
 
@@ -284,8 +283,7 @@ function renderTitle(){
     `<button data-go="sortie" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
     item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
-    item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+
-    `<button data-act="quick"><b>クイック戦闘</b><span>用意された艦隊ですぐに戦う（進行と報酬には数えない）</span></button>`;
+    item(null,'data','艦艇データ','8艦種の能力と編成ボーナス');
   renderDebug();
 }
 /* the debug panel (bottom right of the title, folded at first) */
@@ -439,16 +437,22 @@ function renderSortie(){
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlockText('fleet');
     return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
-  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
+  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
      Two groups that share an army cannot go out together: once one is chosen, the other is dimmed */
   sortieGroups=sortieGroups.filter(id=>save.groups.some(g=>g.id===id)); if(!sortieGroups.length&&save.groups[0]) sortieGroups=[save.groups[0].id];
   const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
+  /* an exercise with prepared fleets (op.quick): クイック出撃 fights with them, not counted for progress or reward (user decision 2026-10-04) */
+  const qOp=!fixedOp&&OPS.find(o=>o.id===sortieOp&&o.quick), qb=document.getElementById('goQuick'); qb.hidden=!qOp;
+  if(qOp) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:qOp.id}); } };
   /* a story operation is fought with the fleets the story gives; army groups are not used */
   if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
     const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
+  /* before 艦隊編集 opens, an exercise is fought only with クイック出撃 */
+  if(!unlocked('fleet')&&!dbg.free){ el.innerHTML=`<p class="empty">自分の戦区軍での出撃は、${esc(unlockText('fleet'))}。今はクイック出撃（用意された艦隊）で戦えます。</p>`;
+    const btn=document.getElementById('goBattle'); btn.disabled=true; btn.onclick=null; return; }
   const chosen=sortieGroups.map(id=>save.groups.find(g=>g.id===id)), clashes=g=>!sortieGroups.includes(g.id)&&chosen.some(h=>shareArmy(g,h));
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0), on=sortieGroups.includes(g.id), cl=clashes(g);
     return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一支隊を含みます</i>':''}<b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'打撃群が未配置'}</span><em>${arms.length}個打撃群・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
