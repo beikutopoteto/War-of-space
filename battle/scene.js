@@ -9,8 +9,8 @@ const EMB = [
 ];
 document.getElementById('lg0').innerHTML = EMB[0];
 document.getElementById('lg1').innerHTML = EMB[1];
-/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (colour is provisional until the user picks one) */
-const ALLY_HEX = 0x6fe3e8;
+/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03) */
+const ALLY_HEX = 0x8fe8c0;
 const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX)];
 EMB[2] = EMB[0];
 /* the colour slot of a unit: allies are drawn in their own colour */

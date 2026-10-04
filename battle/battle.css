@@ -8,7 +8,7 @@
   --blue:#7fc8ff;
   --red:#ff6a45;
   --brass:#e2c58a;
-  --ally:#6fe3e8;   /* allied fleets (AI); provisional until the user picks the colour */
+  --ally:#8fe8c0;   /* allied fleets (AI): green-tinted blue (案 B, user decision 2026-10-03) */
   --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
   --f-num:"Chakra Petch","Zen Kaku Gothic New",ui-monospace,monospace;
   color-scheme:dark;
