@@ -622,12 +622,17 @@ function check(ok, label, detail = '') {
       const s = makeFleet(1, { name: '試験', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 5, scale: 1, pos: [0, -100], alt: 0, vis: 5, stl: 5, ai: 'siege' });
       fleets.push(s); enemyAI(); r.siege = !!(s.order && s.order.target === fortress); s.alive = false; s.el.remove();
       r.was = craftMayHit({ team: 1, type: 'was' }, fortress) && !craftMayHit({ team: 1, type: 'ftr' }, fortress);
+      /* the station's own fighters go out at an enemy coming near */
+      const w0 = wings.length, e = makeFleet(1, { name: '試験2', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 0, scale: 1, pos: [0, -30], alt: 0, vis: 5, stl: 5 });
+      fleets.push(e); e.seen = true; launchCheck(fortress); r.stationFtr = fortress.hangars.length === 1 && wings.length > w0 && wings[wings.length - 1].carrier === fortress;
+      wings.filter(w => w.carrier === fortress).forEach(w => { w.alive = false; }); wings = wings.filter(w => w.alive); e.alive = false; e.el.remove();
       return r; });
     check(n1.op === 'nile' && n1.station && n1.allies === 3 && n1.mine === 5 && n1.group === 'ネオ信濃駐屯隊' && n1.notInRoster,
       'ナイル防衛線: 守るステーションと友軍3隊が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
     check(n1.rate === .8, 'ナイル防衛線: ステーションの耐久が削られた割合の半分だけ避難が遅れる', JSON.stringify(n1));
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
+    check(n1.stationFtr, 'ナイル防衛線: ステーションは艦載機を持ち、近づいた敵へ出す', JSON.stringify(n1));
     await page.evaluate(() => { while (gameSec < 22 && !over) step(.05); });
     await page.waitForTimeout(500);
     await shot('12-nile');

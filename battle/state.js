@@ -315,7 +315,9 @@ function reset(cfg=lastCfg){
   fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp,max:F.hp,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}
     :S?{kind:'fortress',team:0,defend:true,id:0,name:S.name,pos:new THREE.Vector3(0,0,0),hpPool:S.hp,max:S.hp,dps:S.dps,range:S.range,radius:S.radius||8,alive:true,retarget:0,fireTarget:null,vis:S.vis??6,seen:true,everSeen:true,revealT:0}
     :{kind:'fortress',team:1,id:0,name:'',pos:new THREE.Vector3(0,3,0),alive:false,el:null};
-  if(S){ fortress.el=mkUnitLabel(0,S.name,S.sub||''); fortress.el.classList.add('fort'); }
+  if(S){ fortress.el=mkUnitLabel(0,S.name,S.sub||''); fortress.el.classList.add('fort');
+    /* the station's own fighters (S.hangar): they go out at enemies coming within S.launchR, like a carrier's */
+    fortress.hangars=makeHangars(S.hangar,S.launchR); fortress.heading=new THREE.Vector3(0,0,-1); fortress.launchR=S.launchR||0; }
   if(F){ fortress.hangars=makeHangars(F.hangar,F.launchR); fortress.heading=new THREE.Vector3(0,0,1); fortress.launchR=F.launchR||0;
     fortress.sortie=(F.sortie||[]).map(s=>({...s,started:false,left:null,next:0}));
     fortress.el=mkUnitLabel(1,fortress.name,''); fortress.el.classList.add('fort'); fortress.el.querySelector('.emb').style.cssText='width:32px;height:32px'; }
