@@ -112,8 +112,8 @@ function check(ok, label, detail = '') {
       await page.click(`[data-tab="${tab}"]`);
       check(await page.locator('#orgList ' + sel).count() > 0, `編成: ${tab} タブ`);
     }
-    /* a new battle group (駆逐艦 at first) is named 第3N駆逐戦隊 with the next free number (the starting fleet has 第31駆逐戦隊);
-       while its name is untouched it follows a change of class (巡洋: the starting fleet has 第41巡洋戦隊) */
+    /* a new battle group (駆逐艦 at first) is named 第N 駆逐突撃 支隊, N from 24 on to the next free number (the starting fleet has 24);
+       while its name is untouched it follows a change of class (前衛巡洋: from 9, the starting fleet has 9) */
     await page.click('[data-tab="bg"]');
     await page.click('#orgList [data-new]');
     const newName = await page.inputValue('#bgName');
@@ -121,16 +121,25 @@ function check(ok, label, detail = '') {
     const clName = await page.inputValue('#bgName');
     await page.fill('#bgName', '試験戦隊'); await page.click('#orgDetail [data-type="dd"]');
     const kept = await page.inputValue('#bgName');
-    check(newName === '第32駆逐戦隊' && clName === '第42巡洋戦隊' && kept === '試験戦隊', '編成: 新しい戦闘団は「第N＋役目＋戦隊」、名前を触るまでは艦種に合わせて付け直す', [newName, clName, kept].join(' / '));
+    check(newName === '第25 駆逐突撃 支隊' && clName === '第10 前衛巡洋 支隊' && kept === '試験戦隊', '編成: 新しい支隊は「第N 役割 支隊」、名前を触るまでは艦種に合わせて付け直す', [newName, clName, kept].join(' / '));
+    /* a new army is named 第N 打撃群 until it holds ships, then after its main class (駆逐艦: 第7 機動水雷 打撃群); deleted again */
+    await page.click('[data-tab="army"]'); await page.click('#orgList [data-new]');
+    const armyNew = await page.inputValue('#armyName');
+    await page.selectOption('#addBg', { label: '試験戦隊（駆逐艦×4）' });
+    const armyDd = await page.inputValue('#armyName');
+    check(armyNew === '第1 打撃群' && armyDd === '第7 機動水雷 打撃群', '編成: 新しい打撃群は主力の艦種で「第N 役割 打撃群」になる', [armyNew, armyDd].join(' / '));
+    await page.click('#orgDetail [data-del]'); await page.click('#orgDetail [data-del]');
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');
     const flag = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups[0].flag);
-    check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 軍集団の旗艦を選べる', flag);
+    check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 戦区軍の旗艦を選べる', flag);
     await page.click('#orgDetail [data-flag="0"]');
     await shot('03-org-group');
     /* a second army group holding an army of the first: the two cannot sortie together */
     await page.click('#orgList [data-new]'); await page.selectOption('#addArmy', 'a1');
+    const grpName = await page.inputValue('#grpName');
+    check(grpName === '第1 軌道制圧 戦区軍', '編成: 新しい戦区軍は主力の艦種で「第N 役割 戦区軍」になる', grpName);
     await page.click('[data-s="org"] .back');
 
     /* sortie with the first army group */
@@ -138,8 +147,8 @@ function check(ok, label, detail = '') {
     check(await page.locator('#opList [data-op]').count() === data.ops, '出撃: 作戦の一覧', `${data.ops}作戦`);
     await page.click('[data-op="charybdis"]');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
-    const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一戦闘団を含みます') })));
-    check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ軍を含む軍集団は一緒に選べず、暗くなって「同一戦闘団を含みます」と出る', JSON.stringify(clash));
+    const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一支隊を含みます') })));
+    check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ打撃群を含む戦区軍は一緒に選べず、暗くなって「同一支隊を含みます」と出る', JSON.stringify(clash));
     await shot('04-sortie');
     await page.keyboard.press('Enter');   // Enter decides the sortie (same as the 出撃 button)
     await page.waitForTimeout(1500);
@@ -154,14 +163,14 @@ function check(ok, label, detail = '') {
       const c = lastCfg; reset({ ...c, group: null, groups: [{ name: 'A', sync: true, members: [0, 1], flag: 0 }, { name: 'B', sync: true, members: [2, 3, 4], flag: 2 }] });
       r.groups = groups.length; r.buttons = document.querySelectorAll('#roster .grpBtn').length; reset(c); startDeploy(); select(null);
       return r; });
-    check(dep.deploying && dep.zone && dep.panel && dep.t0 === 0, '配置: 軍集団で出撃すると、始まる前に配置の段階になる（時間は止まっている）', JSON.stringify(dep));
-    check(dep.inside && dep.kept, '配置: 選んだ軍集団を範囲の中へ置ける（範囲の外を押しても中に収まり、軍の並びは崩れない）', JSON.stringify(dep));
-    check(dep.groups === 2 && dep.buttons === 2, '出撃: 軍集団を複数まとめて出撃できる', JSON.stringify(dep));
+    check(dep.deploying && dep.zone && dep.panel && dep.t0 === 0, '配置: 戦区軍で出撃すると、始まる前に配置の段階になる（時間は止まっている）', JSON.stringify(dep));
+    check(dep.inside && dep.kept, '配置: 選んだ戦区軍を範囲の中へ置ける（範囲の外を押しても中に収まり、軍の並びは崩れない）', JSON.stringify(dep));
+    check(dep.groups === 2 && dep.buttons === 2, '出撃: 戦区軍を複数まとめて出撃できる', JSON.stringify(dep));
     await page.click('#deployGo');
     check(!(await page.evaluate(() => deploying)) && await page.isHidden('#deploy'), '配置: 「作戦開始」で時間が動き出す');
     const opName = await page.evaluate(() => op.name);
     check(await page.textContent('#bh') === opName, '出撃: 作戦概要', opName);
-    check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
+    check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 戦区軍の全軍ボタン');
     /* the formation is laid out around the flagship: at deploy and after a group move; with 陣形OFF everyone goes to the point */
     const fm = await page.evaluate(() => {
       const g = groups[0], fl = groupFlag(g), rel = f => f.pos.clone().sub(fl.pos), want = f => formationOffset(g, f), off0 = !g.form;
@@ -174,8 +183,8 @@ function check(ok, label, detail = '') {
       toggleForm(g); groupOrder({ type: 'move', dest: D }); const point = groupAlive(g).every(f => near(f.order.dest, D)); toggleForm(g);
       select(null); return { deploy, move, point, off0, flag: fl.name, roster: fl.btn.textContent };
     });
-    check(fm.deploy && fm.move && fm.roster.startsWith('★'), '軍集団: 陣形ONでは各軍が目的地の持ち場へ直接向かう（旗艦を追わない）', fm.flag);
-    check(fm.point && fm.off0, '軍集団: 陣形は最初OFF。OFF では全軍が指示した一点に集まる');
+    check(fm.deploy && fm.move && fm.roster.startsWith('★'), '戦区軍: 陣形ONでは各軍が目的地の持ち場へ直接向かう（旗艦を追わない）', fm.flag);
+    check(fm.point && fm.off0, '戦区軍: 陣形は最初OFF。OFF では全軍が指示した一点に集まる');
     /* formation shapes: choosing 縦陣 regroups at once; 出撃時の陣形 is offered too.
        Moving east, the formation turns so that east is ahead: the column lies along the east-west line */
     const fs2 = await page.evaluate(() => {
@@ -199,19 +208,20 @@ function check(ok, label, detail = '') {
       gameSec = t0; nextEvent = ne;
       setShape(g, 'base'); select(null); return { opts: opts.join('/'), set, shape, reach, gaps: JSON.stringify(gaps) };
     });
-    check(fs2.reach, '軍集団: 縦陣のまま攻撃しても全軍の射程が届く', fs2.reach ? '' : fs2.gaps);
-    check(fs2.set && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes('輪形陣'), '軍集団: 陣形を選ぶとすぐ組み直す（出撃時＋3種）', fs2.opts);
-    check(fs2.shape, '軍集団: 陣形のまま動くと進む向きが正面になり、着いたとき形がそろう');
+    check(fs2.reach, '戦区軍: 縦陣のまま攻撃しても全軍の射程が届く', fs2.reach ? '' : fs2.gaps);
+    check(fs2.set && fs2.opts.startsWith('出撃時の陣形') && fs2.opts.includes('輪形陣'), '戦区軍: 陣形を選ぶとすぐ組み直す（出撃時＋3種）', fs2.opts);
+    check(fs2.shape, '戦区軍: 陣形のまま動くと進む向きが正面になり、着いたとき形がそろう');
     /* Shift+click picks several fleets; ＋ forms a new army group from them, the first one picked as flagship; 解散 lets them go */
     const ng = await page.evaluate(() => {
       const g0 = groups[0], [a, b] = groupAlive(g0); select(a); toggleMulti(b);
       const multi = orderTargets().length === 2; document.getElementById('newGrp').click();
       const g = groups[groups.length - 1], made = groups.length === 2 && g.members.size === 2 && groupFlag(g) === a && selGroup === g && !g0.members.has(a);
       const names = [...document.querySelectorAll('#roster .grpBtn')].map(x => x.textContent);
+      const named = /^第\d+ \S+ 戦区軍$/.test(g.name) && g.name !== g0.name;
       disband(g); const gone = groups.length === 1 && !groupOf(a);
-      return { multi, made, gone, names: names.join('/') };
+      return { multi, made, gone, named, names: names.join('/') };
     });
-    check(ng.multi && ng.made && ng.gone, '軍集団: Shift でまとめて選び、＋で新しい軍集団を作り、解散できる', ng.names);
+    check(ng.multi && ng.made && ng.gone && ng.named, '戦区軍: Shift でまとめて選び、＋で新しい戦区軍（第N 役割 戦区軍）を作り、解散できる', ng.names);
     const before = await page.evaluate(() => fleets.length);
     await advance(90);
     const after = await page.evaluate(() => ({ n: fleets.length, reinf: (op.reinforcements || []).filter(r => r.after <= 90 * CLOCK_RATE).length }));
@@ -236,14 +246,14 @@ function check(ok, label, detail = '') {
     await page.click('#cv0'); await page.waitForTimeout(1200);
     /* formation shapes put the light ships ahead and around, the heavy ones at the rear and the centre (flagship included) */
     const cls = await page.evaluate(() => {
-      const by = n => fleets.find(f => f.team === 0 && f.name === n), cv = by('第1突撃艇隊'), cl = by('第2戦隊'), cvb = by('第7機動部隊');
+      const by = n => fleets.find(f => f.team === 0 && f.name === n), cv = by('第3 突撃艇 打撃群'), cl = by('第2 巡洋 打撃群'), cvb = by('第4 空母航空 打撃群');
       select(cl); toggleMulti(cv); toggleMulti(cvb); newGroup(); const g = groups[groups.length - 1];
       const col = shapeSlots('column', [cl, cv, cvb]), ring = shapeSlots('ring', [cl, cv, cvb]), line = shapeSlots('line', [cl, cv, cvb]);
       const r = { column: col.get(cv).z < col.get(cl).z && col.get(cl).z < col.get(cvb).z,
         ring: Math.hypot(ring.get(cvb).x, ring.get(cvb).z) < FORM_GAP * .5 && ring.get(cv).z < ring.get(cl).z,
         line: line.get(cvb).x === 0 && line.get(cl).x !== 0 && line.get(cv).x !== 0, form0: !g.form };
       disband(g); select(null); return r; });
-    check(cls.column && cls.ring && cls.line && cls.form0, '陣形: 軽い艦は前と周り、空母や重い艦は後ろと中央。新しい軍集団は陣形OFF', JSON.stringify(cls));
+    check(cls.column && cls.ring && cls.line && cls.form0, '陣形: 軽い艦は前と周り、空母や重い艦は後ろと中央。新しい戦区軍は陣形OFF', JSON.stringify(cls));
     /* altitude: ▲▼ go to the next step of 15 from 0, the bar and Q/E are free; the date moves on past midnight */
     const alt = await page.evaluate(() => { const f = fleets.find(x => x.team === 0); select(f); const r = [];
       setAlt(8, false); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt); document.getElementById('altUp').click(); r.push(selAlt);
@@ -396,7 +406,7 @@ function check(ok, label, detail = '') {
       for (let i = 0; i < 20; i++) step(.05); const far = wings.filter(w => w.team === 1).length;
       c.pos.set(0, 0, fortress.radius + 50); for (let i = 0; i < 40; i++) step(.05);
       const near = wings.filter(w => w.team === 1 && w.carrier === fortress).length, ownOut = wings.filter(w => w.team === 0).length;
-      const guard = fleets.find(f => f.name === '近衛艦隊'), ad = fleets.filter(f => f.name.startsWith('防空'));
+      const guard = fleets.find(f => f.name === '第5 要塞近衛 エスカドラ'), ad = fleets.filter(f => f.name.includes('防空'));
       fortress.hpPool = fortress.max * .74; step(.05); const g75 = guard.ai, ad75 = ad.filter(f => f.ai === 'hunt').length;
       fortress.hpPool = fortress.max * .49; step(.05); const ad49 = ad.filter(f => f.ai === 'hunt').length;
       for (let i = 0; i < 420; i++) step(.05); const ad70 = ad.filter(f => f.ai === 'hunt').length;
@@ -511,7 +521,7 @@ function check(ok, label, detail = '') {
       return { prog: s.prog, org: document.querySelector('#mainNav [data-go="org"]').disabled, bgs: s.bgs.map(b => b.name + b.count).join(','), groups: s.groups.map(g => g.name).join(',') }; });
     check(reset0.prog.cleared.length === 0 && reset0.prog.funds === 0 && reset0.org, 'デバッグ: 進行を最初に戻す', JSON.stringify(reset0.prog));
     /* the fleets go back too: the battle group and the army group made earlier in this test are gone */
-    check(reset0.bgs === '第41巡洋戦隊6,第11哨戒戦隊9,第21護衛戦隊8,第31駆逐戦隊6,第22護衛戦隊6' && reset0.groups === 'ネオ信濃駐屯隊', 'デバッグ: 進行を最初に戻すと、艦隊も最初の状態に戻る', JSON.stringify(reset0));
+    check(reset0.bgs === '第9 前衛巡洋 支隊6,第12 沿岸哨戒 支隊9,第18 護送護衛 支隊8,第24 駆逐突撃 支隊6,第19 護送護衛 支隊6' && reset0.groups === '第2 ネオ信濃駐屯 戦区軍', 'デバッグ: 進行を最初に戻すと、艦隊も最初の状態に戻る', JSON.stringify(reset0));
     /* debug: 全兵科解放 opens every branch without researching anything */
     await page.click('#dbgB [data-dbga="branches"]');
     const br = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
@@ -541,7 +551,7 @@ function check(ok, label, detail = '') {
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
     const grp = await page.textContent('#roster .grpBtn').catch(() => '');
-    check(grp.includes('ネオ信濃駐屯隊'), 'ネオ信濃奇襲: 4隊が軍集団「ネオ信濃駐屯隊」にまとまる', grp);
+    check(grp.includes('第2 ネオ信濃駐屯 戦区軍'), 'ネオ信濃奇襲: 4隊が戦区軍「第2 ネオ信濃駐屯 戦区軍」にまとまる', grp);
     /* switches in the fleet list: one fleet's stance, the whole group's stance, and speed sync */
     await page.click('#roster .frow:nth-of-type(1) .st, #roster .rzone .frow .st');
     const sw1 = await page.evaluate(() => fleets.filter(f => f.team === 0 && !f.convoy).map(f => f.stance));
@@ -577,21 +587,21 @@ function check(ok, label, detail = '') {
         clouds: clouds.length, inField: fleets.filter(f => f.team === 0 && !f.ward && f.alive).every(f => Math.hypot(f.pos.x - fieldC.x, f.pos.z - fieldC.z) <= FIELD_R + .01) }; });
     check(rmv.id === 'retreat' && rmv.departed && rmv.moved > 50 && rmv.onConvoy < .01 && Math.abs(rmv.cam - rmv.moved) < 2 && rmv.inField,
       '後退: 作戦フィールドの中心が船団と一緒に動き、視点も付いていく。自軍は枠の外へ出ない', JSON.stringify(rmv));
-    const rcl = await page.evaluate(() => { const c = clouds[1], us = fleets.find(f => f.name === '第11哨戒戦隊'), sc = fleets.find(f => f.ai === 'scout' && f.alive);
+    const rcl = await page.evaluate(() => { const c = clouds[1], us = fleets.find(f => f.name === '第12 沿岸哨戒 支隊'), sc = fleets.find(f => f.ai === 'scout' && f.alive);
       const R = sightOf(sc) * concealOf(us), off = new THREE.Vector3(R * .75, 0, 0); sc.blindT = 0;
       us.pos.copy(c.c); sc.pos.copy(c.c).add(off); us.inCloud = inCloud(us); sc.inCloud = inCloud(sc); const hidden = !canSee(sc, us);
       us.pos.set(c.c.x, 300, c.c.z); sc.pos.copy(us.pos).add(off); us.inCloud = inCloud(us); sc.inCloud = inCloud(sc); const open = canSee(sc, us);
       return { hidden, open, fast: speedOf({ speed: 10, inCloud: true }) > speedOf({ speed: 10 }) }; });
     check(rcl.hidden && rcl.open && rcl.fast, '後退: プラズマ雲の中の艦は外から見つかりにくく、雲の中では少し速い', JSON.stringify(rcl));
     const rsp = await page.evaluate(() => { while (gameSec < 40 && !over) step(.05);
-      const main = fleets.find(f => f.name === '共和国本隊' && f.alive), us = fleets.find(f => f.name === '第21護衛戦隊');
+      const main = fleets.find(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive), us = fleets.find(f => f.name === '第18 護送護衛 支隊');
       if (!main) return { main: false };
       us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.blindT = 0; updateFog(); enemyAI();
       const t = main.order && main.order.target;
       return { main: true, seen: us.seen, chase: !!(t && main.order.type === 'attack' && t.team === 0 && t.seen), target: t && t.name, spot: spotNow }; });
     check(rsp.main && rsp.seen && rsp.chase && rsp.spot, '後退: 見つかった部隊へ共和国の本隊が向かう', JSON.stringify(rsp));
     const rs = await page.evaluate(() => { const s = rescue && rescue.ship; if (!s) return { spawned: false };
-      s.hpPool = 1e9; const us = fleets.find(f => f.name === '第31駆逐戦隊');
+      s.hpPool = 1e9; const us = fleets.find(f => f.name === '第24 駆逐突撃 支隊');
       for (let i = 0; i < 440 && !rescue.done && !over; i++) { us.order = null; us.pos.copy(s.pos).add(new THREE.Vector3(4, 0, 0)); step(.05); }
       return { spawned: true, done: rescue.done, rescued, gone: !s.alive }; });
     check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに10秒付くと救助できる', JSON.stringify(rs));
@@ -618,19 +628,19 @@ function check(ok, label, detail = '') {
     /* the battle group screen offers only the classes whose branch is open (no locked ones with a lock mark) */
     await page.click('[data-go="org"]'); await page.click('[data-tab="bg"]'); await page.click('#orgList [data-bg="bg1"]');
     const types = await page.evaluate(() => ({ ids: [...document.querySelectorAll('#orgDetail [data-type]')].map(b => b.dataset.type).join(','), locks: document.querySelectorAll('#orgDetail .types .lock').length }));
-    check(types.ids === 'cv,ff,dd,cl' && types.locks === 0, '編成: 戦闘団の艦種は開いている兵科だけ出す（鍵のマークは出さない）', JSON.stringify(types));
+    check(types.ids === 'cv,ff,dd,cl' && types.locks === 0, '編成: 支隊の艦種は開いている兵科だけ出す（鍵のマークは出さない）', JSON.stringify(types));
     await page.click('[data-s="org"] .back');
 
     /* 第3節 ナイル防衛線: fought with the player's army group; we defend the station, allied fleets (AI) hold the line */
     check(open2.prog.flags['rescued:retreat'] === true, '後退: カワセミを助けたかどうかが保存される', JSON.stringify(open2.prog.flags));
     await page.click('[data-go="sortie"]'); await page.click('[data-op="nile"]');
     const nSortie = { fixed: (await page.textContent('#sgList')).includes('決まった艦隊'), go: !(await page.isDisabled('#goBattle')) };
-    check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の軍集団で出撃する', JSON.stringify(nSortie));
+    check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の戦区軍で出撃する', JSON.stringify(nSortie));
     await page.click('#goBattle'); await page.waitForTimeout(800);
     const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[0]));
     check(nTalk.includes('ベケレ機関士'), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の会話にベケレ機関士が出る', nTalk.join(','));
     await page.click('#talkSkip').catch(() => {});
-    check(await page.evaluate(() => deploying), 'ナイル防衛線: 軍集団で出撃するので、始まる前に配置できる');
+    check(await page.evaluate(() => deploying), 'ナイル防衛線: 戦区軍で出撃するので、始まる前に配置できる');
     await page.click('#deployGo');
     const n1 = await page.evaluate(() => {
       const al = fleets.filter(f => f.ally), mine = fleets.filter(f => f.team === 0 && !f.ward);
@@ -639,7 +649,7 @@ function check(ok, label, detail = '') {
       /* the evacuation slows by half the share of armour lost: 40% lost → 0.8 */
       fortress.hpPool = fortress.max * .6; step(.05); r.rate = +evacRate.toFixed(2); fortress.hpPool = fortress.max;
       /* the Donau squadron gives ground once under 2/3 of its ships, toward the rear of the station */
-      const d = al.find(f => f.name === 'ドナウ残存隊'), home = d.post.clone();
+      const d = al.find(f => f.name === '第20 ドナウ残存 支隊'), home = d.post.clone();
       while (d.ships.length > 5) d.ships.pop();
       allyAI(); r.falling = !!d.falling; r.moved = +d.post.distanceTo(home).toFixed(1); r.rear = d.post.z > home.z;
       /* a siege fleet makes for the station; enemy W.A.S. (not fighters) may hit it */
@@ -651,7 +661,7 @@ function check(ok, label, detail = '') {
       fleets.push(e); e.seen = true; launchCheck(fortress); r.stationFtr = fortress.hangars.length === 1 && wings.length > w0 && wings[wings.length - 1].carrier === fortress;
       wings.filter(w => w.carrier === fortress).forEach(w => { w.alive = false; }); wings = wings.filter(w => w.alive); e.alive = false; e.el.remove();
       return r; });
-    check(n1.op === 'nile' && n1.station && n1.allies === 3 && n1.mine === 5 && n1.group === 'ネオ信濃駐屯隊' && n1.notInRoster,
+    check(n1.op === 'nile' && n1.station && n1.allies === 3 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
       'ナイル防衛線: 守るステーションと友軍3隊が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
     check(n1.rate === .8, 'ナイル防衛線: ステーションの耐久が削られた割合の半分だけ避難が遅れる', JSON.stringify(n1));
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));

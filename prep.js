@@ -32,21 +32,22 @@ function defaults(){
     seq: 100,
     /* the starting fleet: the four squadrons of 第2節 (same counts) and the cruiser squadron that joins at Nile (user decision 2026-10-03) */
     bgs: [
-      {id:'bg1', name:'第41巡洋戦隊', type:'cl', count:6},
-      {id:'bg2', name:'第11哨戒戦隊', type:'cv', count:9},
-      {id:'bg3', name:'第21護衛戦隊', type:'ff', count:8},
-      {id:'bg4', name:'第31駆逐戦隊', type:'dd', count:6},
-      {id:'bg5', name:'第22護衛戦隊', type:'ff', count:6},
+      {id:'bg1', name:'第9 前衛巡洋 支隊', type:'cl', count:6},
+      {id:'bg2', name:'第12 沿岸哨戒 支隊', type:'cv', count:9},
+      {id:'bg3', name:'第18 護送護衛 支隊', type:'ff', count:8},
+      {id:'bg4', name:'第24 駆逐突撃 支隊', type:'dd', count:6},
+      {id:'bg5', name:'第19 護送護衛 支隊', type:'ff', count:6},
     ],
+    /* each army holds one battle group and keeps its name, as in the story (第一章第1・2節) */
     armies: [
-      {id:'a1', name:'第41巡洋戦隊', bgs:['bg1']},
-      {id:'a2', name:'第11哨戒戦隊', bgs:['bg2']},
-      {id:'a3', name:'第21護衛戦隊', bgs:['bg3']},
-      {id:'a4', name:'第31駆逐戦隊', bgs:['bg4']},
-      {id:'a5', name:'第22護衛戦隊', bgs:['bg5']},
+      {id:'a1', name:'第9 前衛巡洋 支隊', bgs:['bg1']},
+      {id:'a2', name:'第12 沿岸哨戒 支隊', bgs:['bg2']},
+      {id:'a3', name:'第18 護送護衛 支隊', bgs:['bg3']},
+      {id:'a4', name:'第24 駆逐突撃 支隊', bgs:['bg4']},
+      {id:'a5', name:'第19 護送護衛 支隊', bgs:['bg5']},
     ],
     groups: [
-      {id:'g1', name:'ネオ信濃駐屯隊', sync:true, members:[
+      {id:'g1', name:'第2 ネオ信濃駐屯 戦区軍', sync:true, members:[
         {army:'a1', x:2, y:2, z:2}, {army:'a2', x:1, y:3, z:2}, {army:'a3', x:3, y:1, z:2}, {army:'a4', x:2, y:2, z:1}, {army:'a5', x:2, y:3, z:3}]},
     ],
     prog: newProg(),
@@ -58,11 +59,16 @@ let save;
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
 const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘団','cl',6],['bg3','第3戦闘団','dd',8],['bg4','第4戦闘団','ff',10],['bg5','第5戦闘団','cvb',2],
   ['bg6','第6戦闘団','cv',12],['bg7','第7戦闘団','mas',6],['bg8','第8戦闘団','masc',2],['bg9','第9戦闘団','dd',8]]);
+const OLD_NAMES={'第41巡洋戦隊':'第9 前衛巡洋 支隊','第11哨戒戦隊':'第12 沿岸哨戒 支隊','第21護衛戦隊':'第18 護送護衛 支隊',
+  '第31駆逐戦隊':'第24 駆逐突撃 支隊','第22護衛戦隊':'第19 護送護衛 支隊','ネオ信濃駐屯隊':'第2 ネオ信濃駐屯 戦区軍'};
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
 function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
   /* the first starting fleet (battleships, carriers, W.A.S.) is replaced by the new one while the player has not changed it */
   if(JSON.stringify(s.bgs.map(b=>[b.id,b.name,b.type,b.count]))===OLD_BGS&&s.armies.length===3&&s.groups.length===1){
     const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
+  /* the starting fleet's names before the naming rule of 2026-10-04 */
+  const rn=x=>{ if(OLD_NAMES[x.name]) x.name=OLD_NAMES[x.name]; }; s.bgs.forEach(rn); s.armies.forEach(rn); s.groups.forEach(rn);
+  s.bgs.forEach(b=>{ if(b.auto&&/戦隊$/.test(b.name)) b.name=unitName('bg',b.type,new Set(s.bgs.filter(y=>y!==b).map(y=>unitNo(y.name)))); });
   /* saves from before the campaign progress start at the beginning */
   s.prog=Object.assign(newProg(),s.prog||{});
   /* saves that cleared an operation before its grant existed get the grant now */
@@ -233,7 +239,7 @@ menu.innerHTML=`
       <div id="opList" class="cards"></div>
     </div>
     <div class="pane">
-      <h3>出撃する軍集団</h3>
+      <h3>出撃する戦区軍</h3>
       <div id="sgList" class="cards"></div>
       <div id="sgLoad"></div>
     </div>
@@ -243,7 +249,7 @@ menu.innerHTML=`
 <section class="scr" data-s="org" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦隊編集</h2>
     <div class="tabs" role="tablist">
-      <button role="tab" data-tab="group">軍集団</button><button role="tab" data-tab="army">軍</button><button role="tab" data-tab="bg">戦闘団</button>
+      <button role="tab" data-tab="group">戦区軍</button><button role="tab" data-tab="army">打撃群</button><button role="tab" data-tab="bg">支隊</button>
     </div>
   </header>
   <p class="tabnote" id="tabNote"></p>
@@ -255,9 +261,9 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="data" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦艇データ</h2></header>
-  <p class="tabnote">数値はすべて仮の値です（1〜10）。表の値は技術ツリーの研究をすべて終えた最終形態（最大）で、自分で編成した艦隊は最初その3割から始まります。速度は軍の移動速度を決め、軍は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、軍の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
+  <p class="tabnote">数値はすべて仮の値です（1〜10）。表の値は技術ツリーの研究をすべて終えた最終形態（最大）で、自分で編成した艦隊は最初その3割から始まります。速度は打撃群の移動速度を決め、打撃群は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、打撃群の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
-  <h3 class="sub">編成ボーナス（軍単位・仮）</h3>
+  <h3 class="sub">編成ボーナス（打撃群単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
 </section>`;
 
@@ -275,7 +281,7 @@ function renderTitle(){
     return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':LOCK}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
   document.getElementById('mainNav').innerHTML=
     `<button data-go="sortie" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
-    item('fleet','org','艦隊編集','戦闘団・軍・軍集団を組む')+
+    item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
     item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+
     `<button data-act="quick"><b>クイック戦闘</b><span>用意された艦隊ですぐに戦う（進行と報酬には数えない）</span></button>`;
@@ -289,7 +295,7 @@ function renderDebug(){
   b.innerHTML=`
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
-    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（戦闘団・軍・軍集団）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
@@ -432,7 +438,7 @@ function renderSortie(){
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlockText('fleet');
     return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
-  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の軍集団で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
+  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
@@ -444,12 +450,12 @@ function renderSortie(){
     const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
   const chosen=sortieGroups.map(id=>save.groups.find(g=>g.id===id)), clashes=g=>!sortieGroups.includes(g.id)&&chosen.some(h=>shareArmy(g,h));
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0), on=sortieGroups.includes(g.id), cl=clashes(g);
-    return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一戦闘団を含みます</i>':''}<b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'軍が未配置'}</span><em>${arms.length}個軍・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
-    :'<p class="empty">軍集団がありません。艦隊編集で作成してください。</p>';
+    return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一支隊を含みます</i>':''}<b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'打撃群が未配置'}</span><em>${arms.length}個打撃群・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
+    :'<p class="empty">戦区軍がありません。艦隊編集で作成してください。</p>';
   el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ const id=b.dataset.sg; sortieGroups=sortieGroups.includes(id)?sortieGroups.filter(x=>x!==id):[...sortieGroups,id]; renderSortie(); });
   /* the sortie limit per branch (tech tree), for all the chosen groups together */
   const rows=chosen.length?groupLoad(chosen):[], over=rows.some(r=>r.used>r.cap);
-  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個軍集団の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}</tbody></table>${
+  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
   const btn=document.getElementById('goBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
   btn.onclick=()=>{ running={op:sortieOp}; startBattle(chosen); };
@@ -479,9 +485,9 @@ function startBattle(gs){
 
 /* ---------- organization ---------- */
 const NOTES={
-  group:'軍集団は最大5個の軍をまとめ、5×5×5の立方体に配置して保存します。戦闘中は軍集団単位で動かせ、軍の出し入れもできます。',
-  army:'軍は最大5個の戦闘団で編成します。組み合わせで編成ボーナスが付きます。戦闘で操作する単位です。',
-  bg:'戦闘団は同じ艦種の艦をまとめた単位です。戦闘中は編成を変えられません。'
+  group:'戦区軍は最大5個の打撃群をまとめ、5×5×5の立方体に配置して保存します。戦闘中は戦区軍単位で動かせ、打撃群の出し入れもできます。',
+  army:'打撃群は最大5個の支隊で編成します。組み合わせで編成ボーナスが付きます。戦闘で操作する単位です。',
+  bg:'支隊は同じ艦種の艦をまとめた単位です。戦闘中は編成を変えられません。'
 };
 /* per branch: the ships of every battle group the player has, against the branch's sortie limit (tech tree; user decision 2026-10-04).
    Branches not opened yet show only when they hold ships */
@@ -491,6 +497,7 @@ function updateOrgCap(){
   document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}隻</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
 }
 function renderOrg(){
+  refreshAutoNames();
   menu.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
   document.getElementById('tabNote').textContent=NOTES[tab]; updateOrgCap();
   ({bg:renderBgTab,army:renderArmyTab,group:renderGroupTab})[tab]();
@@ -505,30 +512,39 @@ function delBtn(key,label){ return `<button class="danger" data-del="${key}">${c
 function wireDel(detail,key,fn){ const b=detail.querySelector('[data-del]'); if(b) b.onclick=()=>{ if(confirmDel===key){ confirmDel=null; fn(); persist(); renderOrg(); } else { confirmDel=key; renderOrg(); } }; }
 
 /* battle groups */
-/* a new battle group is named 第N＋役目＋戦隊 after its class (data/ships.js unit), N the smallest free number with the class's
-   no as the tens digit (護衛: 21, 22 …; user decision 2026-10-04). self is left out when renaming an existing battle group */
-function nextBgName(type,self){ const S=SHIP[type], used=new Set(save.bgs.filter(b=>b!==self).map(b=>+((/^第(\d+)/.exec(b.name)||[])[1]||0)));
-  let n=S.no*10+1; while(used.has(n)) n=n%10===9?S.no*100+10:n+1; return `第${n}${S.unit}戦隊`; }
+/* a new battle group is named 第N 役割 支隊 after its class (data/ships.js unitNames; battle/state.js unitName): N starts at the
+   class's number and moves on to the next free one (user decision 2026-10-04). self is left out when renaming an existing one */
+function nextBgName(type,self){ return unitName('bg',type,new Set(save.bgs.filter(b=>b!==self).map(b=>unitNo(b.name)))); }
+/* armies and army groups whose name was given here (auto: the main class it was named after, '' for none) follow a change of
+   their main class: most ships, a tie goes to the flagship (an army's first battle group, an army group's ☆) */
+function armyMain(a){ const by={}, bgs=a.bgs.map(bgById).filter(Boolean); bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count); return mainType(by,bgs[0]&&bgs[0].type)||''; }
+function groupMain(g){ const by={}, ar=g.members.map(m=>armyById(m.army)).filter(Boolean);
+  ar.forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>by[b.type]=(by[b.type]||0)+b.count));
+  const fl=armyById((g.members[flagIndex(g)]||{}).army); return mainType(by,fl&&armyMain(fl))||''; }
+function refreshAutoNames(){ let ch=false;
+  const run=(list,level,main)=>list.forEach(x=>{ if(x.auto===undefined) return; const t=main(x); if(t===x.auto) return;
+    x.auto=t; x.name=unitName(level,t,new Set(list.filter(y=>y!==x).map(y=>unitNo(y.name)))); ch=true; });
+  run(save.armies,'army',armyMain); run(save.groups,'group',groupMain); if(ch) persist(); }
 function renderBgTab(){
   if(!bgById(selBg)) selBg=save.bgs[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
-  list.innerHTML=listHtml(save.bgs.map(b=>({id:b.id,name:b.name,meta:`${SHIP[b.type].name}×${b.count}・${armyOfBg(b.id)?esc(armyOfBg(b.id).name):'未所属'}`})),selBg,'＋ 戦闘団を作る','data-bg');
+  list.innerHTML=listHtml(save.bgs.map(b=>({id:b.id,name:b.name,meta:`${SHIP[b.type].name}×${b.count}・${armyOfBg(b.id)?esc(armyOfBg(b.id).name):'未所属'}`})),selBg,'＋ 支隊を作る','data-bg');
   /* auto: the name was given here and not edited since, so it follows a change of class */
   list.querySelector('[data-new]').onclick=()=>{ const type=SHIPS.find(t=>t.id==='dd'&&typeOpen('dd'))?'dd':SHIPS.find(t=>typeOpen(t.id)).id;
     const b={id:newId('bg'),name:nextBgName(type),type,count:4,auto:true}; save.bgs.push(b); selBg=b.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-bg]').forEach(x=>x.onclick=()=>{ selBg=x.dataset.bg; confirmDel=null; renderOrg(); });
   const b=bgById(selBg);
-  if(!b){ det.innerHTML='<p class="empty">戦闘団がありません。左の「戦闘団を作る」から追加してください。</p>'; return; }
+  if(!b){ det.innerHTML='<p class="empty">支隊がありません。左の「支隊を作る」から追加してください。</p>'; return; }
   const s=SHIP[b.type], a=armyOfBg(b.id);
   /* the class buttons: only classes whose branch is open (or the one this battle group already has); locked ones are not shown (user decision 2026-10-04) */
   det.innerHTML=`
     <label class="fld">名前<input id="bgName" maxlength="20" value="${esc(b.name)}"></label>
     <div class="fld">艦種<div class="types">${SHIPS.filter(t=>typeOpen(t.id)||t.id===b.type).map(t=>`<button data-type="${t.id}" aria-pressed="${t.id===b.type}">${t.name}</button>`).join('')}</div></div>
     <label class="fld"><span>隻数 <b id="bgCountV">${b.count}</b> / 最大${s.max}</span><input id="bgCount" type="range" min="1" max="${s.max}" value="${Math.min(b.count,s.max)}"></label>
-    <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（軍の画面で編入できます）'}</p>
+    <p class="note">${esc(s.note)}。${s.hangar?`搭載（1隻あたり）：${hangarStr(s.hangar)}。`:''}所属：${a?esc(a.name):'未所属（打撃群の画面で編入できます）'}</p>
     <h4>1隻あたりの能力（仮）　<span class="dim">技術ツリーの研究で上がります。最大は艦艇データの値</span></h4>${bars(shipNow(b.type))}
-    <div class="row">${delBtn('bg:'+b.id,'この戦闘団を解散する')}</div>`;
-  det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の戦闘団'; delete b.auto; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
+    <div class="row">${delBtn('bg:'+b.id,'この支隊を解散する')}</div>`;
+  det.querySelector('#bgName').oninput=e=>{ b.name=e.target.value||'無名の支隊'; delete b.auto; persist(); list.querySelector(`[data-bg="${b.id}"] b`).textContent=b.name; };
   det.querySelectorAll('[data-type]').forEach(x=>x.onclick=()=>{ b.type=x.dataset.type; b.count=Math.min(b.count,SHIP[b.type].max); if(b.auto) b.name=nextBgName(b.type,b); persist(); renderOrg(); });
   det.querySelector('#bgCount').oninput=e=>{ b.count=+e.target.value; det.querySelector('#bgCountV').textContent=b.count; persist(); updateOrgCap(); list.querySelector(`[data-bg="${b.id}"] span`).textContent=`${SHIP[b.type].name}×${b.count}・${a?a.name:'未所属'}`; };
   wireDel(det,'bg:'+b.id,()=>{ save.armies.forEach(x=>x.bgs=x.bgs.filter(id=>id!==b.id)); save.bgs=save.bgs.filter(x=>x!==b); selBg=null; });
@@ -538,25 +554,25 @@ function renderBgTab(){
 function renderArmyTab(){
   if(!armyById(selArmy)) selArmy=save.armies[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
-  list.innerHTML=listHtml(save.armies.map(a=>{ const s=armyStats(a); return {id:a.id,name:a.name,meta:`戦闘団${a.bgs.length}・${s.ships}隻・ボーナス${s.active.length}`}; }),selArmy,'＋ 軍を作る','data-army');
-  list.querySelector('[data-new]').onclick=()=>{ const a={id:newId('a'),name:`第${save.armies.length+1}軍`,bgs:[]}; save.armies.push(a); selArmy=a.id; persist(); renderOrg(); };
+  list.innerHTML=listHtml(save.armies.map(a=>{ const s=armyStats(a); return {id:a.id,name:a.name,meta:`支隊${a.bgs.length}・${s.ships}隻・ボーナス${s.active.length}`}; }),selArmy,'＋ 打撃群を作る','data-army');
+  list.querySelector('[data-new]').onclick=()=>{ const a={id:newId('a'),name:unitName('army',null,new Set(save.armies.map(x=>unitNo(x.name)))),bgs:[],auto:''}; save.armies.push(a); selArmy=a.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-army]').forEach(x=>x.onclick=()=>{ selArmy=x.dataset.army; confirmDel=null; renderOrg(); });
   const a=armyById(selArmy);
-  if(!a){ det.innerHTML='<p class="empty">軍がありません。左の「軍を作る」から追加してください。</p>'; return; }
+  if(!a){ det.innerHTML='<p class="empty">打撃群がありません。左の「打撃群を作る」から追加してください。</p>'; return; }
   const {st,ships,active,hangar}=armyStats(a);
   const free=save.bgs.filter(b=>!armyOfBg(b.id));
   const slots=[...Array(MAX_BG)].map((_,i)=>{ const b=bgById(a.bgs[i]);
     if(b) return `<div class="slot full"><span class="no">${i+1}</span><b>${esc(b.name)}</b><span>${SHIP[b.type].name}×${b.count}</span><button class="x" data-rm="${b.id}" aria-label="${esc(b.name)}を外す">外す</button></div>`;
-    if(i===a.bgs.length) return `<div class="slot"><span class="no">${i+1}</span>${free.length?`<select id="addBg" aria-label="編入する戦闘団"><option value="">＋ 未所属の戦闘団を編入…</option>${free.map(f=>`<option value="${f.id}">${esc(f.name)}（${SHIP[f.type].name}×${f.count}）</option>`).join('')}</select>`:'<span class="dim">未所属の戦闘団がありません（戦闘団の画面で作成）</span>'}</div>`;
+    if(i===a.bgs.length) return `<div class="slot"><span class="no">${i+1}</span>${free.length?`<select id="addBg" aria-label="編入する支隊"><option value="">＋ 未所属の支隊を編入…</option>${free.map(f=>`<option value="${f.id}">${esc(f.name)}（${SHIP[f.type].name}×${f.count}）</option>`).join('')}</select>`:'<span class="dim">未所属の支隊がありません（支隊の画面で作成）</span>'}</div>`;
     return `<div class="slot vacant"><span class="no">${i+1}</span><span class="dim">空き</span></div>`; }).join('');
   det.innerHTML=`
     <label class="fld">名前<input id="armyName" maxlength="20" value="${esc(a.name)}"></label>
-    <h4>戦闘団（${a.bgs.length}/${MAX_BG}）</h4><div class="slots">${slots}</div>
-    <h4>軍の能力　<span class="dim">総数${ships}隻${Object.keys(hangar).length?`・搭載 ${hangarStr(hangar)}`:''}・速度は最も遅い艦に合わせます</span></h4>${bars(st)}
+    <h4>支隊（${a.bgs.length}/${MAX_BG}）</h4><div class="slots">${slots}</div>
+    <h4>打撃群の能力　<span class="dim">総数${ships}隻${Object.keys(hangar).length?`・搭載 ${hangarStr(hangar)}`:''}・速度は最も遅い艦に合わせます</span></h4>${bars(st)}
     <h4>編成ボーナス</h4>
     <ul class="bonus">${BONUSES.map(bn=>`<li class="${active.includes(bn)?'on':''}"><b>${bn.name}</b><span>${bn.cond}</span><em>${bn.eff}</em></li>`).join('')}</ul>
-    <div class="row">${delBtn('army:'+a.id,'この軍を解散する')}</div>`;
-  det.querySelector('#armyName').oninput=e=>{ a.name=e.target.value||'無名の軍'; persist(); list.querySelector(`[data-army="${a.id}"] b`).textContent=a.name; };
+    <div class="row">${delBtn('army:'+a.id,'この打撃群を解散する')}</div>`;
+  det.querySelector('#armyName').oninput=e=>{ a.name=e.target.value||'無名の打撃群'; delete a.auto; persist(); list.querySelector(`[data-army="${a.id}"] b`).textContent=a.name; };
   const add=det.querySelector('#addBg'); if(add) add.onchange=()=>{ if(add.value){ a.bgs.push(add.value); persist(); renderOrg(); } };
   det.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{ a.bgs=a.bgs.filter(id=>id!==x.dataset.rm); persist(); renderOrg(); });
   wireDel(det,'army:'+a.id,()=>{ save.groups.forEach(g=>g.members=g.members.filter(m=>m.army!==a.id)); save.armies=save.armies.filter(x=>x!==a); selArmy=null; });
@@ -566,16 +582,16 @@ function renderArmyTab(){
 function renderGroupTab(){
   if(!save.groups.find(g=>g.id===selGroup)) selGroup=save.groups[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
-  list.innerHTML=listHtml(save.groups.map(g=>({id:g.id,name:g.name,meta:`軍${g.members.length}/${MAX_ARMY}・速度同期${g.sync?'あり':'なし'}`})),selGroup,'＋ 軍集団を作る','data-grp');
-  list.querySelector('[data-new]').onclick=()=>{ const g={id:newId('g'),name:`第${save.groups.length+1}軍集団`,sync:true,members:[]}; save.groups.push(g); selGroup=g.id; persist(); renderOrg(); };
+  list.innerHTML=listHtml(save.groups.map(g=>({id:g.id,name:g.name,meta:`打撃群${g.members.length}/${MAX_ARMY}・速度同期${g.sync?'あり':'なし'}`})),selGroup,'＋ 戦区軍を作る','data-grp');
+  list.querySelector('[data-new]').onclick=()=>{ const g={id:newId('g'),name:unitName('group',null,new Set(save.groups.map(x=>unitNo(x.name)))),sync:true,members:[],auto:''}; save.groups.push(g); selGroup=g.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-grp]').forEach(x=>x.onclick=()=>{ selGroup=x.dataset.grp; placing=null; confirmDel=null; renderOrg(); });
   const g=save.groups.find(x=>x.id===selGroup);
-  if(!g){ det.innerHTML='<p class="empty">軍集団がありません。左の「軍集団を作る」から追加してください。</p>'; preview.set(null); return; }
+  if(!g){ det.innerHTML='<p class="empty">戦区軍がありません。左の「戦区軍を作る」から追加してください。</p>'; preview.set(null); return; }
   if(placing!=null&&!g.members[placing]) placing=null;
   const avail=save.armies.filter(a=>!g.members.some(m=>m.army===a.id));
   const fi=flagIndex(g);
   const chips=g.members.map((m,i)=>{ const a=armyById(m.army); const s=a?armyStats(a):null;
-    return `<div class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}"><i></i><b>${a?esc(a.name):'?'}</b><span>${s?`${s.ships}隻・速度${s.st.spd.toFixed(0)}`:''}　位置 ${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span></button><button class="flg" data-flag="${i}" aria-pressed="${i===fi}" title="${i===fi?'この軍が旗艦（陣形の中心）':'この軍を旗艦（陣形の中心）にする'}">${i===fi?'★ 旗艦':'☆'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
+    return `<div class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}"><i></i><b>${a?esc(a.name):'?'}</b><span>${s?`${s.ships}隻・速度${s.st.spd.toFixed(0)}`:''}　位置 ${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span></button><button class="flg" data-flag="${i}" aria-pressed="${i===fi}" title="${i===fi?'この打撃群が旗艦（陣形の中心）':'この打撃群を旗艦（陣形の中心）にする'}">${i===fi?'★ 旗艦':'☆'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
   const cells=[];
   for(let z=0;z<CUBE;z++) for(let x=0;x<CUBE;x++){
     const here=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);
@@ -585,18 +601,18 @@ function renderGroupTab(){
   const slowest=g.members.map(m=>armyById(m.army)).filter(Boolean).map(a=>armyStats(a).st.spd).filter(v=>v>0);
   det.innerHTML=`
     <label class="fld">名前<input id="grpName" maxlength="20" value="${esc(g.name)}"></label>
-    <label class="toggle"><input type="checkbox" id="grpSync" ${g.sync?'checked':''}> 移動時は最も遅い艦に速度を合わせる <span class="dim">${slowest.length?`（この軍集団では速度${Math.min(...slowest).toFixed(0)}）`:''}</span></label>
-    <h4>所属する軍（${g.members.length}/${MAX_ARMY}）　<span class="dim">軍を選んでから、下の格子で置き場所を押します。★の旗艦を中心に陣形を組みます</span></h4>
-    <div class="chips">${chips}${g.members.length<MAX_ARMY?(avail.length?`<select id="addArmy" aria-label="追加する軍"><option value="">＋ 軍を追加…</option>${avail.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>`:'<span class="dim">追加できる軍がありません</span>'):''}</div>
+    <label class="toggle"><input type="checkbox" id="grpSync" ${g.sync?'checked':''}> 移動時は最も遅い艦に速度を合わせる <span class="dim">${slowest.length?`（この戦区軍では速度${Math.min(...slowest).toFixed(0)}）`:''}</span></label>
+    <h4>所属する打撃群（${g.members.length}/${MAX_ARMY}）　<span class="dim">打撃群を選んでから、下の格子で置き場所を押します。★の旗艦を中心に陣形を組みます</span></h4>
+    <div class="chips">${chips}${g.members.length<MAX_ARMY?(avail.length?`<select id="addArmy" aria-label="追加する打撃群"><option value="">＋ 打撃群を追加…</option>${avail.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>`:'<span class="dim">追加できる打撃群がありません</span>'):''}</div>
     <div class="cubeed">
       <div class="layer">
         <div class="lyr" role="group" aria-label="高さの段">${[4,3,2,1,0].map(y=>`<button data-ly="${y}" aria-pressed="${y===layer}">${y+1}${y===4?' 上':y===0?' 下':''}</button>`).join('')}</div>
-        <div class="gridwrap"><p class="front">▲ 前方（敵側）</p><div class="grid">${cells.join('')}</div><p class="dim small">点線の枠は別の高さにいる軍です</p></div>
+        <div class="gridwrap"><p class="front">▲ 前方（敵側）</p><div class="grid">${cells.join('')}</div><p class="dim small">点線の枠は別の高さにいる打撃群です</p></div>
       </div>
       <div class="pv"><canvas id="cubeCv" aria-label="配置の立体表示（ドラッグで回転）"></canvas><p class="dim small">ドラッグで回転</p></div>
     </div>
-    <div class="row">${delBtn('grp:'+g.id,'この軍集団を削除する')}</div>`;
-  det.querySelector('#grpName').oninput=e=>{ g.name=e.target.value||'無名の軍集団'; persist(); list.querySelector(`[data-grp="${g.id}"] b`).textContent=g.name; };
+    <div class="row">${delBtn('grp:'+g.id,'この戦区軍を削除する')}</div>`;
+  det.querySelector('#grpName').oninput=e=>{ g.name=e.target.value||'無名の戦区軍'; delete g.auto; persist(); list.querySelector(`[data-grp="${g.id}"] b`).textContent=g.name; };
   det.querySelector('#grpSync').onchange=e=>{ g.sync=e.target.checked; persist(); renderOrg(); };
   const add=det.querySelector('#addArmy'); if(add) add.onchange=()=>{ if(!add.value) return; const spot=freeCell(g); g.members.push({army:add.value,...spot}); placing=g.members.length-1; layer=spot.y; persist(); renderOrg(); };
   det.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>{ const i=+x.dataset.pick; placing=placing===i?null:i; if(placing!=null) layer=g.members[i].y; renderOrg(); });
@@ -646,7 +662,7 @@ const preview=(()=>{
 
 /* ---------- ship data ---------- */
 function renderData(){
-  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th>${s.n}</th>`).join('')}<th>速度</th><th>戦闘団の最大隻数</th><th>搭載</th><th>役割</th></tr></thead><tbody>${
+  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th>${s.n}</th>`).join('')}<th>速度</th><th>支隊の最大隻数</th><th>搭載</th><th>役割</th></tr></thead><tbody>${
     SHIPS.map(s=>`<tr><th>${s.name}</th>${STATS.map(k=>`<td><span class="pip" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td>${hangarStr(s.hangar)||'—'}</td><td class="note">${s.note}</td></tr>`).join('')}</tbody>`;
   document.getElementById('bonusTbl').innerHTML=`<thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead><tbody>${BONUSES.map(b=>`<tr><th>${b.name}</th><td class="note">${b.cond}</td><td>${b.eff}</td></tr>`).join('')}</tbody>`;
 }

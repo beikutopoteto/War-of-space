@@ -15,6 +15,15 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 /* a defence operation (op.win.type 'defend'): evac is how far the evacuation has got (operation minutes, need: op.win.need),
    evacRate how fast it goes now (the station's damage slows it), evacShips how many background ships have left */
 let evac=0, evacRate=1, evacShips=0;
+/* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
+   N starts at the main class's number and moves on past the numbers in used (a Set); with no class, there is no role */
+const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
+const unitNo=name=>+((/^第(\d+)/.exec(name||'')||[])[1]||0);
+function unitName(level,type,used,side='earth'){ const T=UNAMES[side], row=T[type]; let [n,role]=row?row[ULEVEL[level]]:[1,''];
+  while(used.has(n)) n++; return `第${n} ${role?role+' ':''}${T.word[level]}`; }
+/* the main class of a unit: the most ships ({class: count}), a tie goes to the flagship's class */
+function mainType(by,flag){ let best=null; Object.entries(by).forEach(([t,c])=>{ if(!best||c>by[best]||(c===by[best]&&t===flag)) best=t; }); return best; }
+
 /* a point [x, z] given relative to the field centre */
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
@@ -89,20 +98,20 @@ function buildRoster(){
     st.addEventListener('click',()=>{ if(f.alive) applyStance([f],f.stance==='evade'?'engage':'evade'); });
     const row=document.createElement('div'); row.className='frow'; row.append(b,st);
     f.btn=b; f.stBtn=st; return row; };
-  const nb=document.createElement('button'); nb.id='newGrp'; nb.title='選んだ艦隊で新しい軍集団を作る（Shift+クリックでまとめて選ぶ。最大5個の軍）';
-  nb.innerHTML='<span>＋ 軍集団を作る</span><span class="n"></span>'; nb.addEventListener('click',newGroup);
+  const nb=document.createElement('button'); nb.id='newGrp'; nb.title='選んだ艦隊で新しい戦区軍を作る（Shift+クリックでまとめて選ぶ。最大5個の打撃群）';
+  nb.innerHTML='<span>＋ 戦区軍を作る</span><span class="n"></span>'; nb.addEventListener('click',newGroup);
   rosterEl.appendChild(nb);
   if(!groups.length){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
   groups.forEach((g,gi)=>{
     const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group'; gz.dataset.g=gi;
-    const gb=document.createElement('button'); gb.className='grpBtn'; gb.textContent=`${g.name} 全軍`; gb.title='この軍集団の全軍を選ぶ（Gキーで順に）';
+    const gb=document.createElement('button'); gb.className='grpBtn'; gb.textContent=`${g.name} 全軍`; gb.title='この戦区軍の全軍を選ぶ（Gキーで順に）';
     gb.addEventListener('click',()=>selectGroup(g));
-    const gx=document.createElement('button'); gx.className='st rgDel'; gx.textContent='解散'; gx.title='この軍集団を解散し、各軍を独立行動にする';
+    const gx=document.createElement('button'); gx.className='st rgDel'; gx.textContent='解散'; gx.title='この戦区軍を解散し、各打撃群を独立行動にする';
     gx.addEventListener('click',()=>disband(g));
     /* the army group's own switches: speed sync, 自動交戦/命令優先 for every army in it, and formation on/off */
     const gs=document.createElement('button'); gs.className='st rgSync'; gs.title='移動のとき、最も遅い艦に速度を合わせるか';
     gs.addEventListener('click',()=>toggleSync(g));
-    const gt=document.createElement('button'); gt.className='st rgStance'; gt.title='軍集団の全軍の自動交戦/命令優先をまとめて切り替える';
+    const gt=document.createElement('button'); gt.className='st rgStance'; gt.title='戦区軍の全軍の自動交戦/命令優先をまとめて切り替える';
     gt.addEventListener('click',()=>{ const m=groupAlive(g); if(m.length) applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',`${g.name} 全軍`); });
     const gf=document.createElement('button'); gf.className='st rgForm'; gf.title='ON: 旗艦を中心に陣形を保って動く。OFF: 指示した一点に全軍が集まる';
     gf.addEventListener('click',()=>toggleForm(g));
@@ -178,25 +187,28 @@ function leaveGroup(f){ const g=groupOf(f); if(!g) return; g.members.delete(f); 
   if(!g.members.size) groups.splice(groups.indexOf(g),1); }
 /* drag in the roster: into another group (it takes the place where it stands now, relative to the flagship) or out to act alone */
 function moveToGroup(f,g){ const from=groupOf(f); if(g===from) return;
-  if(g&&g.members.size>=GROUP_MAX){ logEvent('軍集団は満員です',`軍集団に入れられる軍は${GROUP_MAX}個までです。`); return; }
+  if(g&&g.members.size>=GROUP_MAX){ logEvent('戦区軍は満員です',`戦区軍に入れられる打撃群は${GROUP_MAX}個までです。`); return; }
   leaveGroup(f);
   if(g){ const fl=groupFlag(g); g.members.add(f); if(fl) g.off.set(f,f.pos.clone().sub(fl.pos).add(g.off.get(fl)||new THREE.Vector3())); }
   logEvent(g?`${f.name} ${g.name}へ`:`${f.name} 独立行動へ`, g?`${f.name}が${g.name}の指揮下に入った。`:`${f.name}が${from.name}を離れ、単独で行動する。`);
   if(selGroup) select(null); buildRoster(); updateRoster(); }
+/* a new army group is named after its main class (ships alive in its fleets; a tie goes to the flagship's main class) */
+function newGroupName(t,fl){ const by=f=>{ const c={}; f.ships.forEach(s=>c[s.type]=(c[s.type]||0)+1); return c; }, all={};
+  t.forEach(f=>Object.entries(by(f)).forEach(([k,c])=>all[k]=(all[k]||0)+c));
+  return unitName('group',mainType(all,mainType(by(fl))),new Set(groups.map(g=>unitNo(g.name)))); }
 /* a new army group from the selected fleets (Shift+click to pick several): the first one picked is the flagship,
    and the formation is how they stand now */
-function newGroupName(){ for(let n=1;;n++){ const s=`第${n}軍集団`; if(!groups.some(g=>g.name===s)) return s; } }
 function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) return;
-  if(t.length>GROUP_MAX){ logEvent('軍集団は5個の軍まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
+  if(t.length>GROUP_MAX){ logEvent('戦区軍は5個の打撃群まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
   const fl=t.includes(selected)?selected:t[0];
   t.forEach(leaveGroup);
-  const g={name:newGroupName(),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
+  const g={name:newGroupName(t,fl),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
   groups.push(g); buildRoster(); selectGroup(g);
-  logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で軍集団を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
+  logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で戦区軍を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
 function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null);
   if(selGroup===g) select(null); buildRoster(); updateRoster();
-  logEvent(`${g.name} 解散`,'各軍は独立行動に戻った。'); }
+  logEvent(`${g.name} 解散`,'各打撃群は独立行動に戻った。'); }
 /* formation on: a move keeps the formation around the flagship. Off: every army goes to the point itself */
 function toggleForm(g){ g.form=!g.form; updateRoster();
   logEvent(g.form?`${g.name} 陣形ON`:`${g.name} 陣形OFF`, g.form?`旗艦の${(groupFlag(g)||{name:'—'}).name}を中心に、陣形を保って動く。`:'移動を命じると、全軍が指示した一点に集まる。'); }
