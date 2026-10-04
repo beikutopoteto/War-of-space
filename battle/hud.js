@@ -180,6 +180,9 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 function tap(x,y,cmdOnly=false,queue=false){
   if(over) return;
   const {best,fort}=pick(x,y);
+  /* the deploy step: a click on one of ours picks its army group; a click on the plane puts the selection there */
+  if(deploying){ if(best&&best.team===0){ if(!cmdOnly){ const g=groupOf(best); if(g) selectGroup(g); else select(best); } return; }
+    const hit=groundAt(x,y); if(hit) placeAt(hit); return; }
   /* an own fleet: select it (again to let go); with Shift, add it to the selection or take it out */
   if(best&&best.team===0){ if(cmdOnly) return; if(queue){ toggleMulti(best); return; } const t=orderTargets(); select(t.length===1&&t[0]===best?null:best); return; }
   if(selected&&selected.alive){
@@ -188,6 +191,35 @@ function tap(x,y,cmdOnly=false,queue=false){
     if(best&&best.team===1||fort){ openPick(x,y,best&&best.team===1?best:fortress,hit,queue); return; }
     if(hit){ groupOrder({type:'move',dest:hit,queue}); hideHint(); }
   }
+}
+/* the deploy step (user decision 2026-10-04): an operation fought with the player's army groups starts paused after its opening
+   talk. The deploy zone (op.deployZone {pos:[x,z], r}, or a circle of DEPLOY_R around op.deploy) glows on the plane; pick an army
+   group (or a fleet outside any group) and click inside the zone to put it there. 作戦開始 lets the clock run */
+let deploying=false; const DEPLOY_R=60;   // 仮
+const deployEl=document.getElementById('deploy');
+const deployZone=new THREE.Group(); deployZone.visible=false; scene.add(deployZone);
+function zoneOf(){ const Z=op.deployZone||{pos:op.deploy||[0,112],r:DEPLOY_R}; return {c:new THREE.Vector3(Z.pos[0],0,Z.pos[1]),r:Z.r}; }
+function startOp(){ deploying=false; deployZone.visible=false; deployEl.hidden=true; startTalk(talkFor(op.talk&&op.talk.before),startDeploy); }
+function startDeploy(){
+  if(!(lastCfg&&(lastCfg.groups||lastCfg.group))||op.forces==='fixed'||over) return;
+  deploying=true; const Z=zoneOf();
+  deployZone.clear();
+  const ring=new THREE.Mesh(new THREE.RingGeometry(Z.r-.5,Z.r,128),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(Z.r,96),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.07,depthWrite:false,side:THREE.DoubleSide}));
+  [ring,disc].forEach(m=>{ m.rotation.x=-Math.PI/2; deployZone.add(m); }); deployZone.position.set(Z.c.x,.15,Z.c.z); deployZone.visible=true;
+  deployEl.hidden=false; hideHint();
+  const g=groups.find(x=>groupAlive(x).length); if(g) setSel(groupAlive(g),g);
+}
+function endDeploy(){ if(!deploying) return; deploying=false; deployZone.visible=false; deployEl.hidden=true; }
+document.getElementById('deployGo').addEventListener('click',endDeploy);
+/* put the selected army group (or fleet) with its flagship at p, kept inside the zone; the others keep their places around it */
+function placeAt(p){
+  const t=orderTargets(); if(!t.length) return false;
+  const lead=selGroup?groupFlag(selGroup):t[0], Z=zoneOf(), d=new THREE.Vector3(p.x-Z.c.x,0,p.z-Z.c.z);
+  if(d.length()>Z.r-4) d.setLength(Z.r-4);
+  const mv=new THREE.Vector3(Z.c.x+d.x-lead.pos.x,0,Z.c.z+d.z-lead.pos.z);
+  t.forEach(f=>{ f.pos.add(mv); f.post.copy(f.pos); f.order=null; f.queue=[]; f.ships.forEach(s=>s.pos.add(mv)); });
+  return true;
 }
 /* the point under the screen position, at the altitude set on the altitude bar */
 function groundAt(x,y){
@@ -252,7 +284,7 @@ function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; se
 pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const a=b.dataset.pm;
   if(a==='resume') closePause();
-  if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startTalk(talkFor(op.talk&&op.talk.before)); }
+  if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startOp(); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
   if(a==='dwin'||a==='dlose'){ closePause(); talkDone=null; endTalk(); end(a==='dwin'); }
   if(a==='keys'){ const k=document.getElementById('keys'); k.hidden=!k.hidden; b.setAttribute('aria-pressed',String(!k.hidden)); }
@@ -271,13 +303,13 @@ addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='KeyG'){ cycleGroup(); return; }
   const m=/^Digit([1-9])$/.exec(e.code); if(m){ const f=fleets.filter(x=>x.team===0&&!x.ward)[+m[1]-1]; if(f&&f.alive) select(f); }
 });
-document.getElementById('again').addEventListener('click',()=>{ reset(); startTalk(talkFor(op.talk&&op.talk.before)); });
+document.getElementById('again').addEventListener('click',()=>{ reset(); startOp(); });
 document.getElementById('toMenu').addEventListener('click',()=>{ document.getElementById('result').hidden=true; openMenu(); });
 function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
 /* entry point used by the preparation screens (prep.js) */
 window.WOS={ start(cfg){
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
-  reset(cfg||null); setSpeed(1); startTalk(talkFor(op.talk&&op.talk.before));
+  reset(cfg||null); setSpeed(1); startOp();
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */
   const V=op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);

@@ -127,9 +127,9 @@ const RATED=['atk','def','eva','rng','aa','vis','stl','spd'];
 /* a ship class can be put in a new battle group once its branch is open (or with the debug switch) */
 const typeOpen=t=>dbg.free||!branchOfType(t)||branchOpen(branchOfType(t));
 function shipNow(t){ const s={...SHIP[t]}, b=branchOfType(t); RATED.forEach(k=>s[k]=SHIP[t][k]*statRate(b,k)); return s; }
-/* ships per branch in an army group, against the limits */
-function groupLoad(g){
-  const n={}; g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count));
+/* ships per branch in the army groups going out together, against the limits */
+function groupLoad(gs){
+  const n={}; gs.forEach(g=>g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count)));
   return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
 }
 /* a one-time grant on the first clear of an operation (o.aid), remembered in the story flags */
@@ -184,7 +184,7 @@ function armyToFleet(a){
 
 /* ---------- screens ---------- */
 const menu=document.getElementById('menu');
-let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroup=null, sortieOp=OPS[0].id, confirmDel=null;
+let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=OPS[0].id, confirmDel=null;
 
 function show(s){ screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
@@ -410,37 +410,46 @@ function renderSortie(){
   ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の軍集団で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
-  if(!save.groups.find(g=>g.id===sortieGroup)) sortieGroup=save.groups[0]?.id||null;
+  /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
+     Two groups that share an army cannot go out together: once one is chosen, the other is dimmed */
+  sortieGroups=sortieGroups.filter(id=>save.groups.some(g=>g.id===id)); if(!sortieGroups.length&&save.groups[0]) sortieGroups=[save.groups[0].id];
   const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
   /* a story operation is fought with the fleets the story gives; army groups are not used */
   if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
     const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
-  el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0);
-    return `<button class="sgcard ${g.id===sortieGroup?'sel':''}" data-sg="${g.id}" aria-pressed="${g.id===sortieGroup}"><b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'軍が未配置'}</span><em>${arms.length}個軍・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
+  const chosen=sortieGroups.map(id=>save.groups.find(g=>g.id===id)), clashes=g=>!sortieGroups.includes(g.id)&&chosen.some(h=>shareArmy(g,h));
+  el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0), on=sortieGroups.includes(g.id), cl=clashes(g);
+    return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一戦闘団を含みます</i>':''}<b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'軍が未配置'}</span><em>${arms.length}個軍・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
     :'<p class="empty">軍集団がありません。艦隊編集で作成してください。</p>';
-  el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ sortieGroup=b.dataset.sg; renderSortie(); });
-  const g=save.groups.find(x=>x.id===sortieGroup);
-  /* the sortie limit per branch (tech tree) */
-  const rows=g?groupLoad(g):[], over=rows.some(r=>r.used>r.cap);
-  if(g) load.innerHTML=`<h3>出撃上限（技術ツリー）</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}</tbody></table>${
+  el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ const id=b.dataset.sg; sortieGroups=sortieGroups.includes(id)?sortieGroups.filter(x=>x!==id):[...sortieGroups,id]; renderSortie(); });
+  /* the sortie limit per branch (tech tree), for all the chosen groups together */
+  const rows=chosen.length?groupLoad(chosen):[], over=rows.some(r=>r.used>r.cap);
+  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個軍集団の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
-  const btn=document.getElementById('goBattle'); btn.disabled=!g||!groupSummary(g).some(a=>armyStats(a).ships>0)||over&&!dbg.free;
-  btn.onclick=()=>{ running={op:sortieOp}; startBattle(g); };
+  const btn=document.getElementById('goBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
+  btn.onclick=()=>{ running={op:sortieOp}; startBattle(chosen); };
 }
+/* whether two army groups have an army in common */
+function shareArmy(g,h){ return g.members.some(m=>h.members.some(n=>n.army===m.army)); }
 /* the flagship of an army group: the army chosen with ☆, or the first one */
 function flagIndex(g){ const i=g.members.findIndex(m=>m.army===g.flag); return i<0?0:i; }
-/* the cube is laid out around the flagship: it takes the deploy point, the others keep their places in the cube relative to it
-   (1 cell = 16 across, 10 up) */
-function startBattle(g){
+/* each cube is laid out around its flagship: the army groups stand side by side across the deploy point (GROUP_SPREAD apart),
+   the armies keep their places in the cube relative to the flagship (1 cell = 16 across, 10 up). They can be moved before the
+   battle starts (battle/hud.js, the deploy step) */
+const GROUP_SPREAD=56;
+function startBattle(gs){
   if(!window.WOS) return;
-  if(!g){ window.WOS.start(null); return; }
+  if(!gs||!gs.length){ window.WOS.start(null); return; }
   const op=OPS.find(o=>o.id===sortieOp)||OPS[0], [cx,cz]=op.deploy||[0,112];
-  const ok=g.members.filter(m=>{ const a=armyById(m.army); return a&&armyStats(a).ships; }); if(!ok.length) return;
-  const fm=ok.includes(g.members[flagIndex(g)])?g.members[flagIndex(g)]:ok[0];
-  const fleets=[], members=[], offsets=[];
-  ok.forEach(m=>{ const a=armyById(m.army), d=[(m.x-fm.x)*16,(m.y-fm.y)*10,(m.z-fm.z)*16];
-    const f=armyToFleet(a); f.pos=[cx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
-  window.WOS.start({op:op.id, fleets, group:{name:g.name, sync:g.sync, members, flag:ok.indexOf(fm), offsets}, flags:storyFlags()});
+  const fleets=[], groups=[], live=gs.filter(g=>g.members.some(m=>{ const a=armyById(m.army); return a&&armyStats(a).ships; }));
+  live.forEach((g,i)=>{ const ok=g.members.filter(m=>{ const a=armyById(m.army); return a&&armyStats(a).ships; });
+    const fm=ok.includes(g.members[flagIndex(g)])?g.members[flagIndex(g)]:ok[0], gx=cx+(i-(live.length-1)/2)*GROUP_SPREAD;
+    const members=[], offsets=[];
+    ok.forEach(m=>{ const a=armyById(m.army), d=[(m.x-fm.x)*16,(m.y-fm.y)*10,(m.z-fm.z)*16];
+      const f=armyToFleet(a); f.pos=[gx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
+    groups.push({name:g.name, sync:g.sync, members, flag:members[ok.indexOf(fm)], offsets}); });
+  if(!fleets.length) return;
+  window.WOS.start({op:op.id, fleets, groups, flags:storyFlags()});
 }
 
 /* ---------- organization ---------- */

@@ -117,6 +117,8 @@ function check(ok, label, detail = '') {
     check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 軍集団の旗艦を選べる', flag);
     await page.click('#orgDetail [data-flag="0"]');
     await shot('03-org-group');
+    /* a second army group holding an army of the first: the two cannot sortie together */
+    await page.click('#orgList [data-new]'); await page.selectOption('#addArmy', 'a1');
     await page.click('[data-s="org"] .back');
 
     /* sortie with the first army group */
@@ -124,9 +126,27 @@ function check(ok, label, detail = '') {
     check(await page.locator('#opList [data-op]').count() === data.ops, '出撃: 作戦の一覧', `${data.ops}作戦`);
     await page.click('[data-op="charybdis"]');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
+    const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一戦闘団を含みます') })));
+    check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ軍を含む軍集団は一緒に選べず、暗くなって「同一戦闘団を含みます」と出る', JSON.stringify(clash));
     await shot('04-sortie');
     await page.click('#goBattle');
     await page.waitForTimeout(1500);
+    /* the deploy step: the clock waits; an army group can be put anywhere inside the zone, then 作戦開始 */
+    const dep = await page.evaluate(() => {
+      const r = { deploying, zone: deployZone.visible, panel: !document.getElementById('deploy').hidden, t0: gameSec };
+      const g = groups[0], fl = groupFlag(g), m = groupAlive(g), rel0 = m.map(f => f.pos.clone().sub(fl.pos));
+      selectGroup(g); const Z = zoneOf(); placeAt(new THREE.Vector3(Z.c.x + 500, 0, Z.c.z));
+      r.inside = Math.hypot(fl.pos.x - Z.c.x, fl.pos.z - Z.c.z) <= Z.r - 3.9;
+      r.kept = m.every((f, i) => f.pos.clone().sub(fl.pos).distanceTo(rel0[i]) < .01);
+      /* two army groups at once (the battle side of a sortie with several) */
+      const c = lastCfg; reset({ ...c, group: null, groups: [{ name: 'A', sync: true, members: [0, 1], flag: 0 }, { name: 'B', sync: true, members: [2, 3, 4], flag: 2 }] });
+      r.groups = groups.length; r.buttons = document.querySelectorAll('#roster .grpBtn').length; reset(c); startDeploy(); select(null);
+      return r; });
+    check(dep.deploying && dep.zone && dep.panel && dep.t0 === 0, '配置: 軍集団で出撃すると、始まる前に配置の段階になる（時間は止まっている）', JSON.stringify(dep));
+    check(dep.inside && dep.kept, '配置: 選んだ軍集団を範囲の中へ置ける（範囲の外を押しても中に収まり、軍の並びは崩れない）', JSON.stringify(dep));
+    check(dep.groups === 2 && dep.buttons === 2, '出撃: 軍集団を複数まとめて出撃できる', JSON.stringify(dep));
+    await page.click('#deployGo');
+    check(!(await page.evaluate(() => deploying)) && await page.isHidden('#deploy'), '配置: 「作戦開始」で時間が動き出す');
     const opName = await page.evaluate(() => op.name);
     check(await page.textContent('#bh') === opName, '出撃: 作戦概要', opName);
     check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 軍集団の全軍ボタン');
@@ -586,6 +606,8 @@ function check(ok, label, detail = '') {
     const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[0]));
     check(nTalk.includes('ベケレ機関士'), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の会話にベケレ機関士が出る', nTalk.join(','));
     await page.click('#talkSkip').catch(() => {});
+    check(await page.evaluate(() => deploying), 'ナイル防衛線: 軍集団で出撃するので、始まる前に配置できる');
+    await page.click('#deployGo');
     const n1 = await page.evaluate(() => {
       const al = fleets.filter(f => f.ally), mine = fleets.filter(f => f.team === 0 && !f.ward);
       const r = { op: op.id, station: !!(fortress.defend && fortress.team === 0 && fortress.alive), allies: al.length, mine: mine.length, group: groups[0] && groups[0].name,

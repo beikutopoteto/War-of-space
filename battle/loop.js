@@ -30,7 +30,7 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 let last=performance.now(), time=0, rosterTick=0;
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
-  const dt=(over||menuOpen||talking)?0:rdt*speed; controls.autoRotate=menuOpen;
+  const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
   for(const t of [0,1,2]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
