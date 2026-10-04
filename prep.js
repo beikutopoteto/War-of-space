@@ -38,13 +38,13 @@ function defaults(){
       {id:'bg4', name:'第24 駆逐突撃 支隊', type:'dd', count:6},
       {id:'bg5', name:'第19 護送護衛 支隊', type:'ff', count:6},
     ],
-    /* each army holds one battle group and keeps its name, as in the story (第一章第1・2節) */
+    /* each army holds one battle group and so goes by its name, as in the story (第一章第1・2節) */
     armies: [
-      {id:'a1', name:'第9 前衛巡洋 支隊', bgs:['bg1']},
-      {id:'a2', name:'第12 沿岸哨戒 支隊', bgs:['bg2']},
-      {id:'a3', name:'第18 護送護衛 支隊', bgs:['bg3']},
-      {id:'a4', name:'第24 駆逐突撃 支隊', bgs:['bg4']},
-      {id:'a5', name:'第19 護送護衛 支隊', bgs:['bg5']},
+      {id:'a1', name:'第9 前衛巡洋 支隊', bgs:['bg1'], auto:'bg:bg1'},
+      {id:'a2', name:'第12 沿岸哨戒 支隊', bgs:['bg2'], auto:'bg:bg2'},
+      {id:'a3', name:'第18 護送護衛 支隊', bgs:['bg3'], auto:'bg:bg3'},
+      {id:'a4', name:'第24 駆逐突撃 支隊', bgs:['bg4'], auto:'bg:bg4'},
+      {id:'a5', name:'第19 護送護衛 支隊', bgs:['bg5'], auto:'bg:bg5'},
     ],
     groups: [
       {id:'g1', name:'第2 ネオ信濃駐屯 戦区軍', sync:true, members:[
@@ -68,6 +68,8 @@ function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.
     const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
   /* the starting fleet's names before the naming rule of 2026-10-04 */
   const rn=x=>{ if(OLD_NAMES[x.name]) x.name=OLD_NAMES[x.name]; }; s.bgs.forEach(rn); s.armies.forEach(rn); s.groups.forEach(rn);
+  /* an army of one battle group named after it follows the battle group's name (user decision 2026-10-04) */
+  s.armies.forEach(a=>{ const b=a.bgs.length===1&&s.bgs.find(x=>x.id===a.bgs[0]); if(a.auto===undefined&&b&&b.name===a.name) a.auto='bg:'+b.id; });
   s.bgs.forEach(b=>{ if(b.auto&&/戦隊$/.test(b.name)) b.name=unitName('bg',b.type,new Set(s.bgs.filter(y=>y!==b).map(y=>unitNo(y.name)))); });
   /* saves from before the campaign progress start at the beginning */
   s.prog=Object.assign(newProg(),s.prog||{});
@@ -516,15 +518,20 @@ function wireDel(detail,key,fn){ const b=detail.querySelector('[data-del]'); if(
    class's number and moves on to the next free one (user decision 2026-10-04). self is left out when renaming an existing one */
 function nextBgName(type,self){ return unitName('bg',type,new Set(save.bgs.filter(b=>b!==self).map(b=>unitNo(b.name)))); }
 /* armies and army groups whose name was given here (auto: the main class it was named after, '' for none) follow a change of
-   their main class: most ships, a tie goes to the flagship (an army's first battle group, an army group's ☆) */
+   their main class: most ships, a tie goes to the flagship (an army's first battle group, an army group's ☆).
+   An army of one battle group goes by that battle group's name (auto 'bg:id'); with two or more it becomes 第N 役割 打撃群
+   (user decision 2026-10-04) */
 function armyMain(a){ const by={}, bgs=a.bgs.map(bgById).filter(Boolean); bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count); return mainType(by,bgs[0]&&bgs[0].type)||''; }
 function groupMain(g){ const by={}, ar=g.members.map(m=>armyById(m.army)).filter(Boolean);
   ar.forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>by[b.type]=(by[b.type]||0)+b.count));
   const fl=armyById((g.members[flagIndex(g)]||{}).army); return mainType(by,fl&&armyMain(fl))||''; }
+function armyKey(a){ const b=a.bgs.length===1&&bgById(a.bgs[0]); return b?'bg:'+b.id:armyMain(a); }
 function refreshAutoNames(){ let ch=false;
-  const run=(list,level,main)=>list.forEach(x=>{ if(x.auto===undefined) return; const t=main(x); if(t===x.auto) return;
+  const run=(list,level,main)=>list.forEach(x=>{ if(x.auto===undefined) return; const t=main(x);
+    if(t.startsWith('bg:')){ const n=bgById(t.slice(3)).name; if(x.auto!==t||x.name!==n){ x.auto=t; x.name=n; ch=true; } return; }
+    if(t===x.auto) return;
     x.auto=t; x.name=unitName(level,t,new Set(list.filter(y=>y!==x).map(y=>unitNo(y.name)))); ch=true; });
-  run(save.armies,'army',armyMain); run(save.groups,'group',groupMain); if(ch) persist(); }
+  run(save.armies,'army',armyKey); run(save.groups,'group',groupMain); if(ch) persist(); }
 function renderBgTab(){
   if(!bgById(selBg)) selBg=save.bgs[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
