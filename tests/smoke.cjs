@@ -668,7 +668,7 @@ function check(ok, label, detail = '') {
       return r; });
     check(n1.op === 'nile' && n1.station && n1.allies === 4 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
       'ナイル防衛線: 守るステーションと友軍4隊（ドナウは前衛と主力）が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
-    check(n1.rate === .8, 'ナイル防衛線: ステーションの耐久が削られた割合の半分だけ避難が遅れる', JSON.stringify(n1));
+    check(n1.rate === .72, 'ナイル防衛線: 避難の速さは0.9倍で、ステーションの耐久が削られた割合の半分だけさらに遅れる', JSON.stringify(n1));
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
     check(n1.stationFtr, 'ナイル防衛線: ステーションは艦載機を持ち、近づいた敵へ出す', JSON.stringify(n1));
