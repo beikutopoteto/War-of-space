@@ -444,8 +444,9 @@ function renderSortie(){
      Two groups that share an army cannot go out together: once one is chosen, the other is dimmed */
   sortieGroups=sortieGroups.filter(id=>save.groups.some(g=>g.id===id)); if(!sortieGroups.length&&save.groups[0]) sortieGroups=[save.groups[0].id];
   const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
-  /* an exercise with prepared fleets (op.quick): クイック出撃 fights with them, not counted for progress or reward (user decision 2026-10-04) */
-  const qOp=!fixedOp&&OPS.find(o=>o.id===sortieOp&&o.quick), qb=document.getElementById('goQuick'); qb.hidden=!qOp;
+  /* an exercise (no chapter) with prepared fleets (op.quick): クイック出撃 fights with them, not counted for progress or reward
+     (user decision 2026-10-04). Campaign operations never show it, even with quick fleets (user decision 2026-10-05) */
+  const qOp=!fixedOp&&OPS.find(o=>o.id===sortieOp&&!o.chapter&&o.quick), qb=document.getElementById('goQuick'); qb.hidden=!qOp;
   if(qOp) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:qOp.id}); } };
   /* a story operation is fought with the fleets the story gives; army groups are not used */
   if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;

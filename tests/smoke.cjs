@@ -528,6 +528,10 @@ function check(ok, label, detail = '') {
     await page.click('[data-go="sortie"]'); await page.click('[data-op="charybdis"]');
     const over = { rows: await page.locator('#sgLoad tr.over').count(), warn: await page.textContent('#sgLoad').catch(() => ''), go: !(await page.isDisabled('#goBattle')) };
     check(over.rows > 0 && over.warn.includes('デバッグ') && over.go, 'デバッグ: 自由に選ぶと、出撃上限を超えても出撃できる', JSON.stringify(over));
+    /* a campaign operation fought with the player's army groups (ナイル防衛線) has no クイック出撃: only the exercise does (user decision 2026-10-05) */
+    await page.click('[data-op="nile"]');
+    const nileQ = { quick: await page.isVisible('#goQuick'), go: await page.isVisible('#goBattle'), hasQuick: await page.evaluate(() => !!WOS_DATA.operations.find(o => o.id === 'nile').quick) };
+    check(!nileQ.quick && nileQ.go && nileQ.hasQuick, '出撃: キャンペーンの作戦（ナイル防衛線）にはクイック出撃がない', JSON.stringify(nileQ));
     await page.click('[data-s="sortie"] .back');
     await setBgCount(bgN);
     await page.uncheck('#dbgB [data-dbg="free"]');
