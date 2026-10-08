@@ -349,7 +349,7 @@ function updateGoal(){
 }
 
 /* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
-   Click or Enter for the next line, Esc or とばす to skip */
+   Click or Enter for the next line, hold Ctrl to fast-forward, とばす to skip */
 const talkEl=document.getElementById('talk'), talkWho=document.getElementById('talkWho'), talkText=document.getElementById('talkText');
 let talkQ=[], talkDone=null, talking=false;
 /* a line may carry a condition as its third element: 'rescued' / '!rescued' (the distress call was answered or not in this battle),
@@ -357,11 +357,19 @@ let talkQ=[], talkDone=null, talking=false;
 function talkFor(lines){ const flags={...(lastCfg&&lastCfg.flags||{}),rescued};
   for(const f of fleets||[]) if(f.ally) flags['ally:'+f.name]=f.alive;   // 'ally:<name>': that allied fleet is still afloat
   return (lines||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]])); }
-function startTalk(lines,done){ talkQ=(lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
+/* the story option (prep.js WOS_OPT, off by default) turns the conversations off; without the menu they show */
+const storyOn=()=>!window.WOS_OPT||!!window.WOS_OPT.story;
+function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
 /* a line with no speaker is narration */
 function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=l[1]; }
 function endTalk(){ talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); }
 talkEl.addEventListener('click',e=>{ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); });
+/* holding Ctrl fast-forwards: one line every 0.1 s until it is let go */
+let talkFast=false;
+addEventListener('keydown',e=>{ if(e.key==='Control') talkFast=true; });
+addEventListener('keyup',e=>{ if(e.key==='Control') talkFast=false; });
+addEventListener('blur',()=>{ talkFast=false; });
+setInterval(()=>{ if(talking&&talkFast&&!paused) nextTalk(); },100);
 
 /* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open */
 const briefEl=document.getElementById('brief'); let briefTimer=0;

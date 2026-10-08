@@ -18,14 +18,14 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
   7. `sim.js` 索敵・戦闘・小型機・出来事・敵 AI・`step()`
   8. `loop.js` 描画ループと起動
-- `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、デバッグ欄。`battle/` の後に読む。
+- `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
 
 ## ライブラリ
 Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdelivr の `three@0.128.0/examples/js`）。r128 なので新しい API（`BufferGeometry.applyQuaternion` など）はない。
 
 ## 保存
-localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `migrate()` で古いデータを直す。デバッグの切り替えは別のキー `wos.debug`。
+localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `migrate()` で古いデータを直す。デバッグの切り替えは別のキー `wos.debug`、オプションは `wos.opt`（prep.js が `window.WOS_OPT` に置き、battle/hud.js が会話を出すか決める）。
 
 ## 画面のつながり
 `prep.js` → `window.WOS.start({op, fleets, groups, flags})`（`hud.js`）。`fleets` を渡さなければ作戦の `quick` の艦隊で戦う（決まった艦隊の作戦とクイック出撃）。戦闘後は `window.WOS_MENU.open()`（`prep.js`）。

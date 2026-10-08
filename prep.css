@@ -226,6 +226,8 @@
 
 /* ship data */
 .tblwrap{overflow-x:auto}
+.optlist{display:grid;gap:6px;max-width:560px;padding:12px 14px;background:var(--panel);border:1px solid var(--line)}
+.optlist p{margin:0 0 0 24px}
 .ships{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
 .ships th,.ships td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .ships thead th{color:var(--brass);font-size:12px;font-weight:700;white-space:nowrap}
