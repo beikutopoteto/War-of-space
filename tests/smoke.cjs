@@ -35,6 +35,13 @@ function check(ok, label, detail = '') {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
+    /* options: the story (conversations) is off by default; the rest of this test plays with it on */
+    await page.click('#mainNav [data-go="opt"]');
+    const opt0 = await page.evaluate(() => ({ box: document.querySelector('[data-opt="story"]').checked, story: WOS_OPT.story }));
+    check(!opt0.box && !opt0.story, 'オプション: ストーリーはデフォルトでオフ', JSON.stringify(opt0));
+    await page.click('[data-opt="story"]');
+    check(JSON.parse(await page.evaluate(() => localStorage.getItem('wos.opt'))).story === true, 'オプション: ストーリーをオンにすると保存される');
+    await page.click('[data-s="opt"] .back');
     const data = await page.evaluate(() => ({ ships: WOS_DATA.ships.length, bonuses: WOS_DATA.bonuses.length, ops: WOS_DATA.operations.length }));
     /* before 第一章 第2節 is cleared: 艦隊編集 and 技術ツリー are locked; only the first campaign operation is open */
     const lock0 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, tech: document.querySelector('#mainNav [data-go="tech"]').disabled,
@@ -697,6 +704,21 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const n3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(n3.cleared.includes('nile') && n3.funds === 1700 + 500, 'ナイル防衛線: クリアが記録され、報酬が入る', JSON.stringify(n3));
+    /* holding Ctrl fast-forwards the conversation */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
+    await page.click('#goBattle'); await page.waitForTimeout(1200);
+    const ff0 = await page.evaluate(() => talkQ.length);
+    await page.keyboard.down('Control'); await page.waitForTimeout(800); await page.keyboard.up('Control');
+    const ff1 = await page.evaluate(() => ({ left: talkQ.length, talking }));
+    check(ff0 >= 2 && (ff0 - ff1.left >= 2 || !ff1.talking), '会話: Ctrl 長押しで早送り', JSON.stringify([ff0, ff1]));
+    await page.click('#talkSkip').catch(() => {});
+    /* with the story off, the battle starts without the conversation */
+    await page.evaluate(() => openMenu());
+    await page.click('#mainNav [data-go="opt"]'); await page.click('[data-opt="story"]'); await page.click('[data-s="opt"] .back');
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
+    await page.click('#goBattle'); await page.waitForTimeout(1200);
+    const off = await page.evaluate(() => ({ talking, hidden: document.getElementById('talk').hidden, story: WOS_OPT.story }));
+    check(!off.talking && off.hidden && !off.story, 'オプション: ストーリーをオフにすると会話を出さない', JSON.stringify(off));
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

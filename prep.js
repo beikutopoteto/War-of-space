@@ -93,6 +93,13 @@ try{ Object.assign(dbg,JSON.parse(localStorage.getItem(DKEY)||'{}')); }catch(e){
 function persistDbg(){ try{ localStorage.setItem(DKEY,JSON.stringify(dbg)); }catch(e){} document.body.classList.toggle('dbg-battle',!!dbg.battle); }
 document.body.classList.toggle('dbg-battle',!!dbg.battle);
 
+/* ---------- options (the settings screen; kept apart from the save like the debug switches) ----------
+   story: the conversations before and after an operation (off by default, user decision 2026-10-08). battle/hud.js reads window.WOS_OPT */
+const OKEY='wos.opt';
+const opt=window.WOS_OPT={story:false};
+try{ Object.assign(opt,JSON.parse(localStorage.getItem(OKEY)||'{}')); }catch(e){}
+function persistOpt(){ try{ localStorage.setItem(OKEY,JSON.stringify(opt)); }catch(e){} }
+
 /* ---------- progress ---------- */
 const cleared=id=>prog().cleared.includes(id);
 /* a menu screen opens when its operation is cleared (data/tech.js unlocks) */
@@ -202,6 +209,7 @@ function render(){
   if(screen==='data') renderData();
   if(screen==='title') renderTitle();
   if(screen==='tech') renderTech();
+  if(screen==='opt') renderOpt();
   preview.active=(screen==='org'&&tab==='group');
 }
 
@@ -266,6 +274,10 @@ menu.innerHTML=`
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
   <h3 class="sub">編成ボーナス（打撃群単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
+</section>
+<section class="scr" data-s="opt" hidden>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>オプション</h2></header>
+  <div class="optlist" id="optList"></div>
 </section>`;
 
 menu.addEventListener('click',e=>{
@@ -283,8 +295,16 @@ function renderTitle(){
     `<button data-go="sortie" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
     item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
-    item(null,'data','艦艇データ','8艦種の能力と編成ボーナス');
+    item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+
+    item(null,'opt','オプション','ストーリーの表示などの設定');
   renderDebug();
+}
+/* ---------- options ---------- */
+function renderOpt(){
+  const box=document.getElementById('optList');
+  box.innerHTML=`<label class="toggle"><input type="checkbox" data-opt="story" ${opt.story?'checked':''}> ストーリー</label>
+    <p class="dim small">作戦の前後の会話を出します。オフにすると会話をとばして、すぐ配置や結果へ進みます。会話はクリック・Enter で次へ、Ctrl 長押しで早送り、「とばす」で最後までとばせます。</p>`;
+  box.querySelectorAll('[data-opt]').forEach(x=>x.onchange=()=>{ opt[x.dataset.opt]=x.checked; persistOpt(); });
 }
 /* the debug panel (bottom right of the title, folded at first) */
 let dbgOpen=false, dbgConfirm=false;
