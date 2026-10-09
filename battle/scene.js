@@ -9,12 +9,14 @@ const EMB = [
 ];
 document.getElementById('lg0').innerHTML = EMB[0];
 document.getElementById('lg1').innerHTML = EMB[1];
-/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03) */
-const ALLY_HEX = 0x8fe8c0;
-const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX)];
-EMB[2] = EMB[0];
-/* the colour slot of a unit: allies are drawn in their own colour */
-const colOf = u => u.ally ? 2 : u.team;
+/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03),
+   3: an enemy ace unit (op fleet ace:true, Alvarez's in 第4節): a more vivid red than the other enemies (user decision 2026-10-09; the shade is 仮
+   until the user picks it from samples) */
+const ALLY_HEX = 0x8fe8c0, ACE_HEX = 0xff1838;
+const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX), new THREE.Color(ACE_HEX)];
+EMB[2] = EMB[0]; EMB[3] = EMB[1];
+/* the colour slot of a unit: allies and aces are drawn in their own colour; small craft take their carrier's */
+const colOf = u => { const c=u.carrier||u; return c.ally ? 2 : c.ace ? 3 : u.team; };
 const TEAM_NAME = ['地球連合','惑星共和国'];
 
 /* ---------- renderer / scene ---------- */
@@ -188,4 +190,56 @@ function buildClouds(list){
     const s=.3+Math.random()*Math.random()*2.4; o.scale.set(s,s*.8,s*1.1); o.updateMatrix(); m.setMatrixAt(i,o.matrix);
   }
   scene.add(m);
+}
+
+/* a large body in the middle of the field (op.body: 第4節 the resource satellite Denali): a big asteroid with lit habitat blocks,
+   a docking frame by the spaceport and a ring where the carrier lands. The civilian zone around each block is a faint amber shell
+   (op.civil.r). Data: {r, blocks:[{pos:[x,z], alt}], port:{pos, alt, r}} */
+const bodyObj=new THREE.Group(); bodyObj.visible=false; scene.add(bodyObj);
+const ZONE_HEX=0xffb347;   // 仮: the civilian zone colour (shown to the user as a sample before it is fixed)
+/* the body's rock and the belt's rocks: darker than the fortress so a large lit face does not glare */
+const bodyMat=new THREE.MeshStandardMaterial({color:0x2f2b28, roughness:1, metalness:0, flatShading:true}), beltMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
+function zoneMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  uniforms:{uTime:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying vec3 vN;varying vec3 vV;uniform float uTime;void main(){float f=pow(1.-abs(dot(vN,vV)),2.2);gl_FragColor=vec4(vec3(1.,.7,.28),f*(.22+.04*sin(uTime*1.3))+.012);}'}); }
+let bodyZoneMats=[], bodyCore=null;
+/* how far the rock's surface is from the body's centre in the direction of p (a ray from outside toward the centre) */
+const _bray=new THREE.Raycaster(), _bd=new THREE.Vector3();
+function bodySurface(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
+  _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0]; return h?h.point.length():R; }
+function buildBody(B,zoneR){
+  for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
+  bodyZoneMats=[]; bodyCore=null; bodyObj.visible=!!B; if(!B) return;
+  const core=new THREE.Mesh(rock(B.r,5,3.3,[1.08,.78,1]),bodyMat); bodyObj.add(core); core.updateMatrixWorld(); bodyCore=core;
+  const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
+  const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
+  (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
+    /* a cluster of habitat modules set into the rock, facing outward, with warm window lights */
+    for(let k=0;k<7;k++){ const w=1.6+((k*37)%5)*.5, h=1.2+((k*53)%4)*.6, m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*1.4),k%3?hull:dark);
+      m.position.set(((k*29)%7-3)*1.6,((k*13)%5-2)*1.1,((k*17)%5-2)*1.3); g.add(m); }
+    const n=50,p=new Float32Array(n*3); for(let k=0;k<n;k++) p.set([(Math.random()-.5)*11,(Math.random()-.5)*6,(Math.random()-.5)*8],k*3);
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+    g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.6,transparent:true,blending:THREE.AdditiveBlending})));
+    const on=at.clone().setY((b.alt||0)*.4); g.position.copy(on.normalize().multiplyScalar(bodySurface(on,B.r)-.6)); g.lookAt(g.position.clone().add(out)); bodyObj.add(g);
+    if(zoneR){ const mat=zoneMat(), z=new THREE.Mesh(new THREE.SphereGeometry(zoneR,40,24),mat); z.position.copy(at); bodyObj.add(z); bodyZoneMats.push(mat);
+      const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
+  if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
+    /* the spaceport: a docking frame reaching out of the rock toward the landing ring */
+    const toward=at.clone().setY(0).normalize(), base=toward.clone().multiplyScalar(bodySurface(toward,B.r)-1);
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
+    const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
+    const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
+}
+/* asteroid belts (op.belts, 第4節): a band of drifting rocks that no line of sight passes through. Data: [{from:[x,z], to:[x,z], w}] */
+const beltObj=new THREE.Group(); scene.add(beltObj);
+function buildBelts(list){
+  for(const m of [...beltObj.children]){ beltObj.remove(m); m.geometry.dispose(); }
+  (list||[]).forEach((b,i)=>{ const A=new THREE.Vector2(...b.from), Bv=new THREE.Vector2(...b.to), L=A.distanceTo(Bv), n=Math.round(L*5);
+    const d=Bv.clone().sub(A).normalize(), nrm=new THREE.Vector2(-d.y,d.x);
+    const m=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),beltMat,n), o=new THREE.Object3D();
+    for(let k=0;k<n;k++){ const t=Math.random(), s=(Math.random()+Math.random()-1)*b.w, p=A.clone().addScaledVector(d,t*L).addScaledVector(nrm,s);
+      o.position.set(p.x,(Math.random()+Math.random()-1)*16,p.y); o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
+      const z=.4+Math.pow(Math.random(),2.2)*3.2; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix(); m.setMatrixAt(k,o.matrix); }
+    beltObj.add(m); });
 }

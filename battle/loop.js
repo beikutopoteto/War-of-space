@@ -33,7 +33,7 @@ function frame(now){
   const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
   // ships
-  for(const t of [0,1,2]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
+  for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
@@ -55,22 +55,23 @@ function frame(now){
         if(orbit&&d>1e-4) s.hd.lerp(_v.multiplyScalar(1/d),Math.min(1,dt*10)).normalize(); else if(!orbit) s.hd.lerp(w.heading,Math.min(1,dt*4)).normalize(); }
       if(!s.tr){ s.tr=[]; s.trT=0; }
       if(dt>0){ s.trT+=dt; if(s.trT>=TRAIL_DT){ s.trT=0; s.tr.unshift(s.pos.clone()); if(s.tr.length>TRAIL_N) s.tr.pop(); }
-        if(w.type==='was'&&!hide&&Math.random()<dt*.5) sparks.burst(_v.copy(s.hd).multiplyScalar(-.3).add(s.pos),TEAM_COL[w.team],3,2,.3); }
+        if(w.type==='was'&&!hide&&Math.random()<dt*.5) sparks.burst(_v.copy(s.hd).multiplyScalar(-.3).add(s.pos),TEAM_COL[colOf(w)],3,2,.3); }
       if(hide) continue;
-      if(trV+TRAIL_N*2<=trPos.length/3){ const c=trailCol[w.team][w.type]||trailCol[w.team].ftr; let p=s.pos;
+      if(trV+TRAIL_N*2<=trPos.length/3){ const c=trailCol[colOf(w)][w.type]||trailCol[colOf(w)].ftr; let p=s.pos;
         for(let j=0;j<s.tr.length;j++){ const q=s.tr[j], k0=1-j/TRAIL_N, k1=1-(j+1)/TRAIL_N;
           trPos.set([p.x,p.y,p.z,q.x,q.y,q.z],trV*3); trCol.set([c.r*k0,c.g*k0,c.b*k0,c.r*k1,c.g*k1,c.b*k1],trV*3); trV+=2; p=q; } }
-      const m=craftMeshes[w.team][w.type]||craftMeshes[w.team].ftr; if(m.count>=CRAFT_MAX) continue;
+      const m=craftMeshes[colOf(w)][w.type]||craftMeshes[colOf(w)].ftr; if(m.count>=CRAFT_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(s.hd)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
-  for(const t of [0,1,2]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
+  for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0);
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */
   grid.position.set(fieldC.x,0,fieldC.z); gridMat.uniforms.uC.value.set(fieldC.x,-fieldC.z);
+  for(const m of bodyZoneMats) m.uniforms.uTime.value=time;
   for(const c of clouds){ c.mat.uniforms.uTime.value=time; c.mat.uniforms.uOp.value=camera.position.distanceTo(c.c)<c.r*1.1?.25:1; }
   for(const ar of [...arrows]){
     ar.mat.uniforms.uTime.value=time;

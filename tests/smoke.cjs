@@ -704,6 +704,52 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const n3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(n3.cleared.includes('nile') && n3.funds === 1700 + 500, 'ナイル防衛線: クリアが記録され、報酬が入る', JSON.stringify(n3));
+    /* 第4節 デナリの盾 (a battle the story loses): the carrier given for this section joins at the end of our list; an asteroid belt
+       hides what is behind it; our fire on a ship in a civilian zone costs lives, the allies hold theirs; the carrier lands in the
+       spaceport ring, the W.A.S. unit comes back, the boarding takes 5 hours, and getting the carrier to the exit ends it */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="denali"]');
+    check(!(await page.isDisabled('#goBattle')), 'デナリの盾: 第3節のクリアで開き、自分の戦区軍で出撃する');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const d1 = await page.evaluate(() => {
+      const mine = fleets.filter(f => f.team === 0 && !f.ward);
+      const r = { op: op.id, last: mine[mine.length - 1] === opCarrier && opCarrier.name === 'ユーコン', free: !groupOf(opCarrier), noCraft: !opCarrier.craft,
+        allies: fleets.filter(f => f.ally).length, aa: fleets.filter(f => f.fixed).length, blocks: blocks.length, belt: belts.length };
+      /* behind the belt: not seen, however close; on the same side: seen */
+      const B = belts[0], mid = new THREE.Vector3((B.a.x + B.b.x) / 2, 0, (B.a.y + B.b.y) / 2);
+      const o = { pos: mid.clone().add(new THREE.Vector3(-40, 0, 0)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(40, 0, 0)), stl: 1 }, t2 = { pos: o.pos.clone().add(new THREE.Vector3(0, 0, 30)), stl: 1 };
+      r.beltHides = !canSee(o, t) && canSee(o, t2);
+      /* a battery stands in a civilian zone: hitting it costs lives; a garrison out in the open does not */
+      const e = fleets.find(f => f.fixed && f.alive), me = mine[0], c0 = casualties; damage(e, 5, me); r.zoneCost = +(casualties - c0).toFixed(1);
+      const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), c1 = casualties; damage(g, 5, me); r.openFree = casualties === c1;
+      /* the allies do not fire on a ship in a zone */
+      const a = fleets.find(f => f.ally); e.seen = true; a.pos.copy(e.pos).add(new THREE.Vector3(0, 0, 14)); r.allyHold = fireTargetOf(a) !== e; a.pos.copy(a.post);
+      /* stopped in the port ring, the carrier lands: the boarding begins and the W.A.S. unit (Alvarez, vivid red) comes back */
+      const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
+      r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '収容';
+      const ace = fleets.find(f => f.ace && f.alive); r.ace = !!ace && colOf(ace) === 3;
+      r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
+      /* landed, it takes no move order */
+      select(opCarrier); groupOrder({ type: 'move', dest: new THREE.Vector3(0, 0, 100) }); r.stays = !opCarrier.order; select(null);
+      /* 5 hours (300 minutes) later the boarding is done; it lifts off and the exit wins */
+      fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
+      const t0 = gameSec; let n = 0; while (!opCarrier.cs.done && n++ < 3000) step(.05);
+      r.board = Math.round((gameSec - t0) * CLOCK_RATE); r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
+      opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
+      return r; });
+    check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 3 && d1.aa === 6 && d1.blocks === 3 && d1.belt === 1,
+      'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍3隊・対空砲台6基・居住区3つ・隕石帯がある', JSON.stringify(d1));
+    check(d1.beltHides, 'デナリの盾: 隕石帯の向こうは見えない', JSON.stringify(d1));
+    check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
+    check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
+    check(d1.board >= 299 && d1.board <= 302 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は5時間で終わり、撤退に変わる。ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    await page.waitForTimeout(2200);
+    await page.click('#talkSkip').catch(() => {});
+    await page.waitForTimeout(300);
+    await page.click('#toMenu');
+    const d3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(d3.cleared.includes('denali') && d3.funds === 2200 + 600, 'デナリの盾: クリアが記録され、報酬が入る', JSON.stringify(d3));
     /* holding Ctrl fast-forwards the conversation */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);

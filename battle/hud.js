@@ -339,6 +339,13 @@ function updateGoal(){
     subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<(W.speed||1)-.001?`　避難の速さ ${Math.round(evacRate/(W.speed||1)*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
+  else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
+    if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}`; mode='board'; }
+    else if(!S.done){ p=S.board/C.board; text=C.boardText; label=`収容 ${Math.floor(p*100)}%　発進 ${clockStr(S.landMin+C.board)} 予定`; mode='board'; }
+    else { p=Math.max(0,Math.min(1,1-(opCarrier.pos.distanceTo(S.exit)-(C.exit.r||12))/Math.max(1,S.from||(S.from=opCarrier.pos.distanceTo(S.exit))))); text=C.exitText; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
+    subT=`${opCarrier.name} 耐久 ${Math.ceil(hp*100)}%`;
+    if(op.civil) subT+=`　民間の被害 ${Math.round(casualties).toLocaleString()} / ${op.civil.cap.toLocaleString()}人`;
+    const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n本軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:f.left?'離脱':0}${f.left?'':'/'+f.n}`).join('・'); }
   else if(chase&&!over){ const C=op.chase, g=chase.fleet;
     p=Math.max(0,Math.min(1,1-(g.pos.distanceTo(chase.exit)-(C.reach||10))/Math.max(1,chase.from-(C.reach||10))));
     text=C.text||`${g.name}の撤退を阻止せよ`; label=`近衛の離脱 ${Math.floor(p*100)}%`; mode='chase';
@@ -355,6 +362,7 @@ let talkQ=[], talkDone=null, talking=false;
 /* a line may carry a condition as its third element: 'rescued' / '!rescued' (the distress call was answered or not in this battle),
    a flag the menu passes in (cfg.flags, e.g. 'kawasemi': the Kawasemi was rescued in 第2節), or 'ally:<name>' */
 function talkFor(lines){ const flags={...(lastCfg&&lastCfg.flags||{}),rescued};
+  if(over&&!outcome) flags['lost:'+(loseWhy||'army')]=true;   // 'lost:carrier' / 'lost:civil' / 'lost:army': why the battle was lost (第4節)
   for(const f of fleets||[]) if(f.ally) flags['ally:'+f.name]=f.alive;   // 'ally:<name>': that allied fleet is still afloat
   return (lines||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]])); }
 /* the story option (prep.js WOS_OPT, off by default) turns the conversations off; without the menu they show */

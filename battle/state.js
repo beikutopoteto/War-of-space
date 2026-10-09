@@ -17,6 +17,12 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 let evac=0, evacRate=1, evacShips=0;
 /* chase: after the fortress falls, its guard runs for the exit (op.chase) {fleet, exit, from, escaped}; perfect: the battle ended in a complete victory */
 let chase=null, perfect=false;
+/* 第4節 (op.body / op.civil / op.belts / op.carrier):
+   blocks: the habitat blocks of the body {name, pos, radius, alive, seen, ships}; only raiders shoot them (sim.js)
+   casualties: civilians lost in the blocks (op.civil.cap loses the operation); civMarks: the warnings already given
+   belts: asteroid belts {a, b (Vector2), w}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
+   {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', or null) */
+let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, belts=[], opCarrier=null, loseWhy=null, shieldSaid=false;
 /* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
    N starts at the main class's number and moves on past the numbers in used (a Set); with no class, there is no role */
 const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
@@ -250,7 +256,7 @@ function undo(){
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
-  const t=orderTargets(); if(!t.length) return;
+  const t=orderTargets().filter(f=>!f.locked); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   saveUndo(t);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
@@ -301,12 +307,23 @@ function reset(cfg=lastCfg){
   fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
+  /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the asteroid belts (op.belts) */
+  const BD=op.body, CV=op.civil;
+  buildBody(BD,CV&&CV.r); buildBelts(op.belts);
+  blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[]}));
+  belts=(op.belts||[]).map(b=>({a:new THREE.Vector2(...b.from),b:new THREE.Vector2(...b.to),w:b.w}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
+  /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
+     army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
+  if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;
+    opCarrier.cs={landed:false,landMin:0,board:0,done:false,exit:new THREE.Vector3(C.exit.pos[0],C.exit.alt||0,C.exit.pos[1]),logs:new Set()};
+    fleets.splice(spec.length,0,opCarrier); }
   /* allied fleets (op.allies): on our side but run by the AI (sim.js allyAI); not in the roster and not ours to select */
-  for(const a of op.allies||[]){ const f=makeFleet(0,{ai:'guard',leash:40,...a,ally:true}); f.ward=true; f.home=f.post.clone();
+  for(const a of op.allies||[]){ const f=makeFleet(0,{ai:'guard',leash:40,...a,ally:true}); f.ward=true; f.home=f.post.clone(); f.mode=a.ai||'guard';
     if(a.retreat) f.fallTo=new THREE.Vector3(a.retreat.to[0],a.retreat.alt||f.post.y,a.retreat.to[1]); fleets.push(f); }
   selGroup=null; selMulti=[];
   /* the army groups: the ones chosen at sortie (several may go out together), or for an operation fought with its own fleets,
@@ -339,11 +356,17 @@ function reset(cfg=lastCfg){
   fortressObj.visible=!!F; zoneLines.visible=!!F; gridMat.uniforms.uZone.value=F?1:0;
   stationObj.visible=op.center==='station'||!!S;
   exitObj.visible=!!op.exit; if(op.exit) exitObj.position.set(op.exit.pos[0],(op.exit.alt||0)+.2,op.exit.pos[1]);
+  /* the enemy names the shield fleets guard (their block); kept for the AI */
+  for(const f of fleets) if(f.team===1&&f.block!=null) f.blockAt=blocks[f.block]||null;
+  /* fixed units (the batteries) stand on the body's surface, in the direction they are placed */
+  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.normalize().multiplyScalar(R); f.post.copy(f.pos); f.ships.forEach(s=>s.pos.copy(f.pos).add(s.off)); }
   setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
-  buildSectors(op.sectors);
+  /* the body and its blocks are named on the plane like the sectors */
+  buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:[0,0]},...BD.blocks.map(b=>({name:b.name,sub:`${b.sub}　民間区画`,pos:b.pos})),
+    ...(BD.port?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }
