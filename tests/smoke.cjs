@@ -715,11 +715,12 @@ function check(ok, label, detail = '') {
     const d1 = await page.evaluate(() => {
       const mine = fleets.filter(f => f.team === 0 && !f.ward);
       const r = { op: op.id, last: mine[mine.length - 1] === opCarrier && opCarrier.name === 'ユーコン', free: !groupOf(opCarrier), noCraft: !opCarrier.craft,
-        allies: fleets.filter(f => f.ally).length, aa: fleets.filter(f => f.fixed).length, blocks: blocks.length, belt: belts.length };
-      /* behind the belt: not seen, however close; on the same side: seen */
-      const B = belts[0], mid = new THREE.Vector3((B.a.x + B.b.x) / 2, 0, (B.a.y + B.b.y) / 2);
-      const o = { pos: mid.clone().add(new THREE.Vector3(-40, 0, 0)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(40, 0, 0)), stl: 1 }, t2 = { pos: o.pos.clone().add(new THREE.Vector3(0, 0, 30)), stl: 1 };
-      r.beltHides = !canSee(o, t) && canSee(o, t2);
+        allies: fleets.filter(f => f.ally).length, aa: fleets.filter(f => f.fixed).length, blocks: blocks.length, debris: debris.length, masc: fleets.some(f => f.ships.some(x => x.type === 'masc')) || (op.carrier.landEvents || []).some(e => e.fleet && (e.fleet.comp && e.fleet.comp.masc || e.fleet.type === 'masc')) };
+      /* behind a debris cloud: not seen, however close; inside one: not seen from outside; in the open: seen */
+      const c = debris[0], mid = new THREE.Vector3(c.x, 0, c.z);
+      const o = { pos: mid.clone().add(new THREE.Vector3(0, 0, c.r + 25)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(0, 0, -c.r - 25)), stl: 1 },
+        tin = { pos: mid.clone(), stl: 1 }, t2 = { pos: o.pos.clone().add(new THREE.Vector3(-30, 0, 10)), stl: 1 };
+      r.beltHides = !canSee(o, t) && !canSee(o, tin) && canSee(o, t2);
       /* a battery stands in a civilian zone: hitting it costs lives; a garrison out in the open does not */
       const e = fleets.find(f => f.fixed && f.alive), me = mine[0], c0 = casualties; damage(e, 5, me); r.zoneCost = +(casualties - c0).toFixed(1);
       const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), c1 = casualties; damage(g, 5, me); r.openFree = casualties === c1;
@@ -738,9 +739,9 @@ function check(ok, label, detail = '') {
       r.board = Math.round((gameSec - t0) * CLOCK_RATE); r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
-    check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 3 && d1.aa === 6 && d1.blocks === 3 && d1.belt === 1,
-      'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍3隊・対空砲台6基・居住区3つ・隕石帯がある', JSON.stringify(d1));
-    check(d1.beltHides, 'デナリの盾: 隕石帯の向こうは見えない', JSON.stringify(d1));
+    check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 3 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
+      'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍3隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
+    check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
     check(d1.board >= 299 && d1.board <= 302 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は5時間で終わり、撤退に変わる。ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));

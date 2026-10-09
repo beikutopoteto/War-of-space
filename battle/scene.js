@@ -197,8 +197,8 @@ function buildClouds(list){
    (op.civil.r). Data: {r, blocks:[{pos:[x,z], alt}], port:{pos, alt, r}} */
 const bodyObj=new THREE.Group(); bodyObj.visible=false; scene.add(bodyObj);
 const ZONE_HEX=0xffb347;   // 仮: the civilian zone colour (shown to the user as a sample before it is fixed)
-/* the body's rock and the belt's rocks: darker than the fortress so a large lit face does not glare */
-const bodyMat=new THREE.MeshStandardMaterial({color:0x2f2b28, roughness:1, metalness:0, flatShading:true}), beltMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
+/* the body's rock: darker than the fortress so a large lit face does not glare */
+const bodyMat=new THREE.MeshStandardMaterial({color:0x2f2b28, roughness:1, metalness:0, flatShading:true});
 function zoneMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
   uniforms:{uTime:{value:0}},
   vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
@@ -231,15 +231,27 @@ function buildBody(B,zoneR){
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
 }
-/* asteroid belts (op.belts, 第4節): a band of drifting rocks that no line of sight passes through. Data: [{from:[x,z], to:[x,z], w}] */
-const beltObj=new THREE.Group(); scene.add(beltObj);
-function buildBelts(list){
-  for(const m of [...beltObj.children]){ beltObj.remove(m); m.geometry.dispose(); }
-  (list||[]).forEach((b,i)=>{ const A=new THREE.Vector2(...b.from), Bv=new THREE.Vector2(...b.to), L=A.distanceTo(Bv), n=Math.round(L*5);
-    const d=Bv.clone().sub(A).normalize(), nrm=new THREE.Vector2(-d.y,d.x);
-    const m=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),beltMat,n), o=new THREE.Object3D();
-    for(let k=0;k<n;k++){ const t=Math.random(), s=(Math.random()+Math.random()-1)*b.w, p=A.clone().addScaledVector(d,t*L).addScaledVector(nrm,s);
-      o.position.set(p.x,(Math.random()+Math.random()-1)*16,p.y); o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
-      const z=.4+Math.pow(Math.random(),2.2)*3.2; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix(); m.setMatrixAt(k,o.matrix); }
-    beltObj.add(m); });
+/* mining debris (op.debris, 第4節): gravel and slag from Denali's mines trailing behind it along its orbit, a curved arc of
+   overlapping clouds that no line of sight passes through (user decision 2026-10-09). Each cloud {pos:[x,z], r}: a faint dusty
+   haze and many small tumbling rocks, denser toward the middle */
+const debrisObj=new THREE.Group(); scene.add(debrisObj);
+const debrisMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
+function dustMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  uniforms:{uOp:{value:1},uTime:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;void main(){vN=normalize(normalMatrix*normal);vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mv=viewMatrix*w;vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform float uOp,uTime;void main(){float f=pow(abs(dot(vN,vV)),1.5);float n=.7+.3*sin(vW.x*.17+uTime*.08)*sin(vW.z*.13-uTime*.06);gl_FragColor=vec4(vec3(.55,.5,.44),f*n*.22*uOp);}'}); }
+let debrisMats=[];
+function buildDebris(list){
+  for(const m of [...debrisObj.children]){ debrisObj.remove(m); if(m.geometry!==cloudGeo) m.geometry.dispose(); }
+  debrisMats=[]; if(!list||!list.length) return;
+  const rnd=(i,k)=>{ const x=Math.sin((i+1)*127.1+k*311.7)*43758.5453; return x-Math.floor(x); };
+  let n=0; list.forEach(c=>n+=Math.round(c.r*c.r*.9));
+  const m=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),debrisMat,n), o=new THREE.Object3D(); let k=0;
+  list.forEach((c,i)=>{ const mat=dustMat(); debrisMats.push(mat);
+    const d=new THREE.Mesh(cloudGeo,mat); d.position.set(c.pos[0],0,c.pos[1]); d.scale.set(c.r*1.05,c.r*.55,c.r*1.05); debrisObj.add(d);
+    for(let j=Math.round(c.r*c.r*.9);j>0;j--){ const a=Math.random()*Math.PI*2, r=c.r*Math.pow(Math.random(),.7);
+      o.position.set(c.pos[0]+Math.cos(a)*r,(Math.random()+Math.random()-1)*c.r*.45,c.pos[1]+Math.sin(a)*r);
+      o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
+      const z=.15+Math.pow(Math.random(),3)*1.6; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix(); m.setMatrixAt(k++,o.matrix); } });
+  m.count=k; debrisObj.add(m);
 }

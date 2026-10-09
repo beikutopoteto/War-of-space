@@ -16,31 +16,27 @@ const CLOUD_SIGHT=.5, CLOUD_SPEED=1.1;
 const CLOUD_HOLD=6, CLOUD_BLIND=15;
 /* whether o can see t now: within its sight (clouds halve it), and not lost in a cloud it has watched too long */
 function canSee(o,t){ if(t.inCloud&&!o.inCloud&&o.blindT>gameSec) return false;
-  const d=o.pos.distanceTo(t.pos); if(belts.length&&d>BELT_NEAR&&beltBlocks(o.pos,t.pos)) return false;
+  const d=o.pos.distanceTo(t.pos); if(debris.length&&d>DEBRIS_NEAR&&debrisBlocks(o.pos,t.pos)) return false;
   return d<=sightOf(o)*concealOf(t)*(o.inCloud?CLOUD_SIGHT:1)*(t.inCloud?CLOUD_SIGHT:1); }
-/* asteroid belts (op.belts, 第4節; user decision 2026-10-09): no line of sight passes through one, however close the two are, unless
-   they are within BELT_NEAR of each other. A fleet inside moves at BELT_SPEED (仮). The test is on the plane: the sight line between
-   the two against the belt's middle line, widened by its half width w */
-const BELT_NEAR=20, BELT_SPEED=.75;
+/* mining debris (op.debris, 第4節; user decision 2026-10-09): no line of sight passes through a debris cloud, however close the two
+   are, unless they are within DEBRIS_NEAR of each other. A fleet inside moves at DEBRIS_SPEED (仮). The test is on the plane:
+   the sight line between the two against each cloud's circle */
+const DEBRIS_NEAR=20, DEBRIS_SPEED=.75;
 function ptSeg(px,pz,ax,az,bx,bz){ const dx=bx-ax,dz=bz-az,l=dx*dx+dz*dz; const t=l?Math.max(0,Math.min(1,((px-ax)*dx+(pz-az)*dz)/l)):0; return Math.hypot(ax+t*dx-px,az+t*dz-pz); }
-function segCross(ax,az,bx,bz,cx,cz,dx,dz){ const o=(px,pz,qx,qz,rx,rz)=>Math.sign((qx-px)*(rz-pz)-(qz-pz)*(rx-px));
-  return o(ax,az,bx,bz,cx,cz)!==o(ax,az,bx,bz,dx,dz)&&o(cx,cz,dx,dz,ax,az)!==o(cx,cz,dx,dz,bx,bz); }
-function beltBlocks(p,q){ for(const B of belts){ if(segCross(p.x,p.z,q.x,q.z,B.a.x,B.a.y,B.b.x,B.b.y)) return true;
-    if(Math.min(ptSeg(p.x,p.z,B.a.x,B.a.y,B.b.x,B.b.y),ptSeg(q.x,q.z,B.a.x,B.a.y,B.b.x,B.b.y),ptSeg(B.a.x,B.a.y,p.x,p.z,q.x,q.z),ptSeg(B.b.x,B.b.y,p.x,p.z,q.x,q.z))<B.w) return true; }
-  return false; }
-function inBelt(u){ for(const B of belts) if(ptSeg(u.pos.x,u.pos.z,B.a.x,B.a.y,B.b.x,B.b.y)<B.w) return true; return false; }
+function debrisBlocks(p,q){ for(const c of debris) if(ptSeg(c.x,c.z,p.x,p.z,q.x,q.z)<c.r) return true; return false; }
+function inDebris(u){ for(const c of debris) if(Math.hypot(u.pos.x-c.x,u.pos.z-c.z)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function shown(u){ return u.team===0||u.seen; }
 let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
   const all=units();
   if(clouds.length) for(const u of all) u.inCloud=u.alive&&u.kind!=='fortress'&&inCloud(u);
-  if(belts.length) for(const u of all) u.inBelt=u.alive&&u.kind==='fleet'&&inBelt(u);
+  if(debris.length) for(const u of all) u.inDebris=u.alive&&u.kind==='fleet'&&inDebris(u);
   let spotted=null;
   for(const t of all){ if(!t.alive) continue;
     let by=null;
-    /* a unit that opens fire gives itself away, but not through an asteroid belt */
-    if(t.kind==='fortress'||t.revealT>0&&(!belts.length||all.some(o=>o.alive&&o.team!==t.team&&!beltBlocks(o.pos,t.pos)))) by=t;
+    /* a unit that opens fire gives itself away, but not through the mining debris */
+    if(t.kind==='fortress'||t.revealT>0&&(!debris.length||all.some(o=>o.alive&&o.team!==t.team&&!debrisBlocks(o.pos,t.pos)))) by=t;
     else for(const o of all){ if(!o.alive||o.team===t.team||!canSee(o,t)) continue;
       /* every observer watching a unit inside a cloud tires of it (CLOUD_HOLD); one in the open is simply seen */
       if(t.inCloud&&!o.inCloud){ if(gameSec-(o.holdT??-1e9)>1) o.cloudHold=0; o.holdT=gameSec;
@@ -207,7 +203,7 @@ function dock(w){
 }
 /* craft pin what they attack: a fleet under fighter or W.A.S. fire moves at 40% speed (SLOW_BY) for a moment (user decision 2026-10-04) */
 const SLOW_BY=.4;
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inBelt?BELT_SPEED:1); }
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1); }
 function stepWings(dt){
   for(const w of wings){ if(!w.alive) continue;
     const c=w.carrier;

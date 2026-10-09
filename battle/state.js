@@ -17,12 +17,12 @@ let clouds=[], lastSpot=null, spotNow=false, spotLogT=-1e9, rescue=null, rescued
 let evac=0, evacRate=1, evacShips=0;
 /* chase: after the fortress falls, its guard runs for the exit (op.chase) {fleet, exit, from, escaped}; perfect: the battle ended in a complete victory */
 let chase=null, perfect=false;
-/* 第4節 (op.body / op.civil / op.belts / op.carrier):
+/* 第4節 (op.body / op.civil / op.debris / op.carrier):
    blocks: the habitat blocks of the body {name, pos, radius, alive, seen, ships}; only raiders shoot them (sim.js)
    casualties: civilians lost in the blocks (op.civil.cap loses the operation); civMarks: the warnings already given
-   belts: asteroid belts {a, b (Vector2), w}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
+   debris: the mining debris clouds {x, z, r}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
    {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', or null) */
-let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, belts=[], opCarrier=null, loseWhy=null, shieldSaid=false;
+let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
 /* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
    N starts at the main class's number and moves on past the numbers in used (a Set); with no class, there is no role */
 const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
@@ -308,11 +308,11 @@ function reset(cfg=lastCfg){
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
-  /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the asteroid belts (op.belts) */
+  /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;
-  buildBody(BD,CV&&CV.r); buildBelts(op.belts);
+  buildBody(BD,CV&&CV.r); buildDebris(op.debris);
   blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[]}));
-  belts=(op.belts||[]).map(b=>({a:new THREE.Vector2(...b.from),b:new THREE.Vector2(...b.to),w:b.w}));
+  debris=(op.debris||[]).map(c=>({x:c.pos[0],z:c.pos[1],r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
