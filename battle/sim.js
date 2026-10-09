@@ -19,12 +19,12 @@ function canSee(o,t){ if(t.inCloud&&!o.inCloud&&o.blindT>gameSec) return false;
   const d=o.pos.distanceTo(t.pos); if(debris.length&&d>DEBRIS_NEAR&&debrisBlocks(o.pos,t.pos)) return false;
   return d<=sightOf(o)*concealOf(t)*(o.inCloud?CLOUD_SIGHT:1)*(t.inCloud?CLOUD_SIGHT:1); }
 /* mining debris (op.debris, 第4節; user decision 2026-10-09): no line of sight passes through a debris cloud, however close the two
-   are, unless they are within DEBRIS_NEAR of each other. A fleet inside moves at DEBRIS_SPEED (仮). The test is on the plane:
-   the sight line between the two against each cloud's circle */
+   are, unless they are within DEBRIS_NEAR of each other. A fleet inside moves at DEBRIS_SPEED (仮). The test is in space:
+   the sight line between the two against each cloud's sphere */
 const DEBRIS_NEAR=20, DEBRIS_SPEED=.75;
-function ptSeg(px,pz,ax,az,bx,bz){ const dx=bx-ax,dz=bz-az,l=dx*dx+dz*dz; const t=l?Math.max(0,Math.min(1,((px-ax)*dx+(pz-az)*dz)/l)):0; return Math.hypot(ax+t*dx-px,az+t*dz-pz); }
-function debrisBlocks(p,q){ for(const c of debris) if(ptSeg(c.x,c.z,p.x,p.z,q.x,q.z)<c.r) return true; return false; }
-function inDebris(u){ for(const c of debris) if(Math.hypot(u.pos.x-c.x,u.pos.z-c.z)<c.r) return true; return false; }
+const _sg=new THREE.Line3(), _sp=new THREE.Vector3();
+function debrisBlocks(p,q){ _sg.set(p,q); for(const c of debris){ _sg.closestPointToPoint(c.c,true,_sp); if(_sp.distanceTo(c.c)<c.r) return true; } return false; }
+function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function shown(u){ return u.team===0||u.seen; }
 let fogTimer=0; const FOG_DT=.25;

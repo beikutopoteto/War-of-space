@@ -20,7 +20,7 @@ let chase=null, perfect=false;
 /* 第4節 (op.body / op.civil / op.debris / op.carrier):
    blocks: the habitat blocks of the body {name, pos, radius, alive, seen, ships}; only raiders shoot them (sim.js)
    casualties: civilians lost in the blocks (op.civil.cap loses the operation); civMarks: the warnings already given
-   debris: the mining debris clouds {x, z, r}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
+   debris: the mining debris clouds {c (centre, Vector3), r}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
    {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', or null) */
 let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
 /* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
@@ -310,9 +310,9 @@ function reset(cfg=lastCfg){
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;
-  buildBody(BD,CV&&CV.r); buildDebris(op.debris);
+  buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt);
   blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[]}));
-  debris=(op.debris||[]).map(c=>({x:c.pos[0],z:c.pos[1],r:c.r}));
+  debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
@@ -359,7 +359,9 @@ function reset(cfg=lastCfg){
   /* the enemy names the shield fleets guard (their block); kept for the AI */
   for(const f of fleets) if(f.team===1&&f.block!=null) f.blockAt=blocks[f.block]||null;
   /* fixed units (the batteries) stand on the body's surface, in the direction they are placed */
-  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.normalize().multiplyScalar(R); f.post.copy(f.pos); f.ships.forEach(s=>s.pos.copy(f.pos).add(s.off)); }
+  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.normalize().multiplyScalar(R); f.post.copy(f.pos);
+    /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
+    f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=h.normal; s.base=h.point.clone().addScaledVector(h.normal,.34*f.scale); s.pos.copy(s.base); }); }
   setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';

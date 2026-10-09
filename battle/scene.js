@@ -10,9 +10,8 @@ const EMB = [
 document.getElementById('lg0').innerHTML = EMB[0];
 document.getElementById('lg1').innerHTML = EMB[1];
 /* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03),
-   3: an enemy ace unit (op fleet ace:true, Alvarez's in 第4節): a more vivid red than the other enemies (user decision 2026-10-09; the shade is 仮
-   until the user picks it from samples) */
-const ALLY_HEX = 0x8fe8c0, ACE_HEX = 0xff1838;
+   3: an enemy ace unit (op fleet ace:true, Alvarez's in 第4節): a deep vivid crimson, more vivid than the other enemies (案 C, user decision 2026-10-09) */
+const ALLY_HEX = 0x8fe8c0, ACE_HEX = 0xe8001c;
 const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX), new THREE.Color(ACE_HEX)];
 EMB[2] = EMB[0]; EMB[3] = EMB[1];
 /* the colour slot of a unit: allies and aces are drawn in their own colour; small craft take their carrier's */
@@ -204,10 +203,12 @@ function zoneMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite
   vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'varying vec3 vN;varying vec3 vV;uniform float uTime;void main(){float f=pow(1.-abs(dot(vN,vV)),2.2);gl_FragColor=vec4(vec3(1.,.7,.28),f*(.22+.04*sin(uTime*1.3))+.012);}'}); }
 let bodyZoneMats=[], bodyCore=null;
-/* how far the rock's surface is from the body's centre in the direction of p (a ray from outside toward the centre) */
+/* the rock's surface in the direction of p from the body's centre (a ray from outside toward the centre): {point, normal, d} (d: its distance from the centre) */
 const _bray=new THREE.Raycaster(), _bd=new THREE.Vector3();
-function bodySurface(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
-  _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0]; return h?h.point.length():R; }
+function bodyHit(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
+  _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0];
+  return h?{point:h.point,normal:h.face.normal.clone(),d:h.point.length()}:{point:_bd.clone().multiplyScalar(R),normal:_bd.clone(),d:R}; }
+function bodySurface(p,R){ return bodyHit(p,R).d; }
 function buildBody(B,zoneR){
   for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
   bodyZoneMats=[]; bodyCore=null; bodyObj.visible=!!B; if(!B) return;
@@ -216,9 +217,9 @@ function buildBody(B,zoneR){
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
   (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
     /* a cluster of habitat modules set into the rock, facing outward, with warm window lights */
-    for(let k=0;k<7;k++){ const w=1.6+((k*37)%5)*.5, h=1.2+((k*53)%4)*.6, m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*1.4),k%3?hull:dark);
-      m.position.set(((k*29)%7-3)*1.6,((k*13)%5-2)*1.1,((k*17)%5-2)*1.3); g.add(m); }
-    const n=50,p=new Float32Array(n*3); for(let k=0;k<n;k++) p.set([(Math.random()-.5)*11,(Math.random()-.5)*6,(Math.random()-.5)*8],k*3);
+    for(let k=0;k<7;k++){ const w=1.1+((k*37)%5)*.35, h=.85+((k*53)%4)*.42, m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*1.4),k%3?hull:dark);
+      m.position.set(((k*29)%7-3)*1.1,((k*13)%5-2)*.8,((k*17)%5-2)*.9); g.add(m); }
+    const n=40,p=new Float32Array(n*3); for(let k=0;k<n;k++) p.set([(Math.random()-.5)*8,(Math.random()-.5)*4.4,(Math.random()-.5)*6],k*3);
     const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
     g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.6,transparent:true,blending:THREE.AdditiveBlending})));
     const on=at.clone().setY((b.alt||0)*.4); g.position.copy(on.normalize().multiplyScalar(bodySurface(on,B.r)-.6)); g.lookAt(g.position.clone().add(out)); bodyObj.add(g);
@@ -231,27 +232,31 @@ function buildBody(B,zoneR){
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
 }
-/* mining debris (op.debris, 第4節): gravel and slag from Denali's mines trailing behind it along its orbit, a curved arc of
-   overlapping clouds that no line of sight passes through (user decision 2026-10-09). Each cloud {pos:[x,z], r}: a faint dusty
-   haze and many small tumbling rocks, denser toward the middle */
+/* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
+   overlapping clouds that no line of sight passes through (user decision 2026-10-09). The orbit is tilted from the battle plane
+   (op.debrisTilt degrees, about the north-south axis), so each cloud is flattened along that tilted plane. Each cloud {pos:[x,z], alt, r}:
+   a faint dusty haze and many small, irregular tumbling rocks */
 const debrisObj=new THREE.Group(); scene.add(debrisObj);
 const debrisMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
+/* a few lumpy rock shapes, squashed and stretched differently, so no two pieces look alike */
+const debrisGeos=[[1.3,.7,.9],[.8,.6,1.5],[1.1,1,.7],[1.6,.55,.8]].map((sq,i)=>rock(1,1,2.1+i*1.7,sq));
 function dustMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
   uniforms:{uOp:{value:1},uTime:{value:0}},
   vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;void main(){vN=normalize(normalMatrix*normal);vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mv=viewMatrix*w;vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
-  fragmentShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform float uOp,uTime;void main(){float f=pow(abs(dot(vN,vV)),1.5);float n=.7+.3*sin(vW.x*.17+uTime*.08)*sin(vW.z*.13-uTime*.06);gl_FragColor=vec4(vec3(.55,.5,.44),f*n*.22*uOp);}'}); }
+  fragmentShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform float uOp,uTime;void main(){float f=pow(abs(dot(vN,vV)),1.5);float n=.7+.3*sin(vW.x*.17+uTime*.08)*sin(vW.z*.13-uTime*.06);gl_FragColor=vec4(vec3(.55,.5,.44),f*n*.2*uOp);}'}); }
 let debrisMats=[];
-function buildDebris(list){
-  for(const m of [...debrisObj.children]){ debrisObj.remove(m); if(m.geometry!==cloudGeo) m.geometry.dispose(); }
+function buildDebris(list,tiltDeg=0){
+  for(const m of [...debrisObj.children]){ debrisObj.remove(m); if(m.geometry!==cloudGeo&&!debrisGeos.includes(m.geometry)) m.geometry.dispose(); }
   debrisMats=[]; if(!list||!list.length) return;
-  const rnd=(i,k)=>{ const x=Math.sin((i+1)*127.1+k*311.7)*43758.5453; return x-Math.floor(x); };
+  const tilt=tiltDeg*Math.PI/180, q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),tilt);
   let n=0; list.forEach(c=>n+=Math.round(c.r*c.r*.9));
-  const m=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),debrisMat,n), o=new THREE.Object3D(); let k=0;
-  list.forEach((c,i)=>{ const mat=dustMat(); debrisMats.push(mat);
-    const d=new THREE.Mesh(cloudGeo,mat); d.position.set(c.pos[0],0,c.pos[1]); d.scale.set(c.r*1.05,c.r*.55,c.r*1.05); debrisObj.add(d);
+  const per=Math.ceil(n/debrisGeos.length)+1, meshes=debrisGeos.map(g=>{ const m=new THREE.InstancedMesh(g,debrisMat,per); m.count=0; return m; }), o=new THREE.Object3D(), v=new THREE.Vector3();
+  list.forEach((c,i)=>{ const at=new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]), mat=dustMat(); debrisMats.push(mat);
+    const d=new THREE.Mesh(cloudGeo,mat); d.position.copy(at); d.quaternion.copy(q); d.scale.set(c.r*1.05,c.r*.7,c.r*1.05); debrisObj.add(d);
     for(let j=Math.round(c.r*c.r*.9);j>0;j--){ const a=Math.random()*Math.PI*2, r=c.r*Math.pow(Math.random(),.7);
-      o.position.set(c.pos[0]+Math.cos(a)*r,(Math.random()+Math.random()-1)*c.r*.45,c.pos[1]+Math.sin(a)*r);
-      o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
-      const z=.15+Math.pow(Math.random(),3)*1.6; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix(); m.setMatrixAt(k++,o.matrix); } });
-  m.count=k; debrisObj.add(m);
+      v.set(Math.cos(a)*r,(Math.random()+Math.random()-1)*c.r*.55,Math.sin(a)*r).applyQuaternion(q).add(at);
+      o.position.copy(v); o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
+      const z=.15+Math.pow(Math.random(),3)*1.7; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix();
+      const m=meshes[(Math.random()*meshes.length)|0]; if(m.count<per) m.setMatrixAt(m.count++,o.matrix); } });
+  meshes.forEach(m=>debrisObj.add(m));
 }

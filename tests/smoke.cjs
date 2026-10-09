@@ -717,7 +717,7 @@ function check(ok, label, detail = '') {
       const r = { op: op.id, last: mine[mine.length - 1] === opCarrier && opCarrier.name === 'ユーコン', free: !groupOf(opCarrier), noCraft: !opCarrier.craft,
         allies: fleets.filter(f => f.ally).length, aa: fleets.filter(f => f.fixed).length, blocks: blocks.length, debris: debris.length, masc: fleets.some(f => f.ships.some(x => x.type === 'masc')) || (op.carrier.landEvents || []).some(e => e.fleet && (e.fleet.comp && e.fleet.comp.masc || e.fleet.type === 'masc')) };
       /* behind a debris cloud: not seen, however close; inside one: not seen from outside; in the open: seen */
-      const c = debris[0], mid = new THREE.Vector3(c.x, 0, c.z);
+      const c = debris[0], mid = c.c.clone();
       const o = { pos: mid.clone().add(new THREE.Vector3(0, 0, c.r + 25)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(0, 0, -c.r - 25)), stl: 1 },
         tin = { pos: mid.clone(), stl: 1 }, t2 = { pos: o.pos.clone().add(new THREE.Vector3(-30, 0, 10)), stl: 1 };
       r.beltHides = !canSee(o, t) && !canSee(o, tin) && canSee(o, t2);
