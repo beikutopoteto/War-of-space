@@ -59,7 +59,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    events の ai:{fleets:[名前], ai, ...} は、その名前の艦隊の ai を変える（敵も友軍も）
    ai:'shield' は損害が below（割合）を超えると持ち場の居住区（block の番号）のそばへ下がる。ai:'raid' は居住区を撃ちに行き、
      間にいる艦を先に撃つ。友軍の ai:'cover' は居住区と敵の間に出て盾になる。ai:'leave' は離脱点へ向かい、着くと戦場から抜ける
-   spare:['carrier'] の艦隊（とその小型機）は carrier を狙わない。居住区は ai:'raid' の艦隊しか撃たない
+   spare:['carrier'] の艦隊（とその小型機）は carrier を狙わない。prey:'ally' の艦隊（と小型機）は友軍を先に狙う。居住区は ai:'raid' の艦隊しか撃たない
    ace:true の艦隊は別の色（TEAM_COL の 3、アルバレスの隊）で描く。craft:{was:{dmg, hp, eva}} は小型機の強さの倍率 */
 WOS_DATA.operations=[
   {
@@ -411,7 +411,7 @@ WOS_DATA.operations=[
     sectors:[
       {name:'火星側', sub:'共和国の守備隊', pos:[0,-170]},
       {name:'地球側', sub:'月軌道（本軍が来た方向）', pos:[0,175]},
-      {name:'岩くずの雲', sub:'採掘の砂利と鉱滓。見通せない', pos:[150,48]},
+      {name:'岩くずの雲', sub:'採掘の砂利と鉱滓。見通せない', pos:[70,-95]},
     ],
     /* 資源衛星デナリ（ユーザー決定 2026-10-09: 大きめ。半径30、仮）。居住区3つと宇宙港 */
     body:{name:'デナリ', sub:'資源衛星　住民 約2万人', r:30,
@@ -425,14 +425,15 @@ WOS_DATA.operations=[
     civil:{pop:20000, cap:2000, r:18, perDmg:2, perCraft:.5, perSink:60, perRaid:1,
       firstLog:['ハッダード曹長', '「居住区の外壁に被弾。……民間の被害、出ました」'],
       logs:[[.5, 'ハッダード曹長', '「被害が上限の半分を越えました。これ以上は……」'], [.8, 'ハッダード曹長', '「被害が8割です。居住区の近くで撃たないでください！」']]},
-    /* 採掘の岩くずの雲（ユーザー決定 2026-10-09: 視界が通らない）。デナリの採掘で出た砂利と鉱滓が、デナリの円軌道に沿ってデナリの後ろ（東）に
-       たまった、曲がった太い塊（ユーザー決定: 上から見ると曲がった太い塊）。地球（南のずっと先の軌道の中心）のまわりを回るので
-       離れるほど地球側へ曲がる（曲がりは見えるように強めてある）。軌道は戦場の平面から35度傾いている（ユーザー決定: 30〜40度）ので、東へ行くほど高い。太さは仮 */
+    /* 採掘の岩くずの雲（ユーザー決定 2026-10-09: 視界が通らない）。デナリの採掘で出た砂利と鉱滓が、デナリを中心に巻いている。
+       半周ほどの渦で、内側は太く、外へ行くほど細い（ユーザー決定）。東から北を回って西へ。巻く面は戦場の平面から35度傾いていて
+       （ユーザー決定: 30〜40度。南北の軸のまわりに傾ける）、東は高く、西は平面の下へ抜ける（下に出てよい、ユーザー決定）。大きさとでこぼこは仮 */
     debrisTilt:35,
-    debris:(()=>{ const out=[], R=640, t=35*Math.PI/180;
-      for(let i=0;i<12;i++){ const a=.075+i*.025, x=R*Math.sin(a), z=R-R*Math.cos(a), r=Math.round(17+6*Math.sin(i*1.9+.5)+4*Math.sin(i*.7)+(i>8?6:0)), side=Math.round(12*Math.sin(i*.8)+(i%3===1?4:i%3===2?-4:0));
-        out.push({pos:[Math.round(x*Math.cos(t)), Math.round(z+side)], alt:Math.round(x*Math.sin(t)), r});
-        if(i%4===2) out.push({pos:[Math.round((x+8)*Math.cos(t)), Math.round(z-14)], alt:Math.round((x+8)*Math.sin(t))-4, r:Math.round(r*.6)}); }
+    debris:(()=>{ const out=[], t=35*Math.PI/180, N=16;
+      for(let i=0;i<N;i++){ const u=i/(N-1), th=(10+160*u)*Math.PI/180, R=58+62*u+(i%3===1?5:i%3===2?-4:0), r=Math.round((30-21*u)*(1+.14*Math.sin(i*2.3)));
+        const px=R*Math.cos(th), pz=-R*Math.sin(th);
+        out.push({pos:[Math.round(px*Math.cos(t)), Math.round(pz)], alt:Math.round(px*Math.sin(t)), r});
+        if(i%4===1){ const R2=R+r*.6; out.push({pos:[Math.round(R2*Math.cos(th+.08)*Math.cos(t)), Math.round(-R2*Math.sin(th+.08))], alt:Math.round(R2*Math.cos(th+.08)*Math.sin(t))+3, r:Math.round(r*.55)}); } }
       return out; })(),
     /* 戦闘母艦ユーコン（ユーザー決定 2026-10-09: 出撃すると自動で一覧の最後に出る。この節だけの艦。収容は5時間で5,000人） */
     carrier:{
@@ -457,8 +458,8 @@ WOS_DATA.operations=[
         {after:0, phase:'収容', ai:{fleets:['第11 巡洋阻止 戦闘隊','第12 巡洋阻止 戦闘隊','第14 巡洋阻止 戦闘隊'], ai:'raid'}},
         /* 強襲母艦は第一章ではまだ出さない（ユーザー決定 2026-10-09: 敵も味方も開発していない）。アルバレスの隊は突撃揚陸艦だけ */
         {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:110}, craft:{was:{dmg:2, hp:1.5, eva:1}}, ace:true, spare:['carrier'], pos:[78,15], alt:55, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:9}},
-        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:8, scale:1.25, pos:[91,13], alt:64, ai:'raid', vis:6, stl:4}},
+          hangar:{was:100}, craft:{was:{dmg:1.8, hp:1.4, eva:1}}, ace:true, spare:['carrier'], prey:'ally', pos:[51,-24], alt:36, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:9}},
+        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:8, scale:1.25, pos:[43,-47], alt:30, ai:'raid', vis:6, stl:4}},
         {after:15, log:['ハッダード曹長', '「岩くずの雲の陰から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         {after:30, log:['傍受', 'アルバレス大尉「デナリの守備隊、よく持たせた。……ここからは俺たちの番だ。居住区には当てるなよ。狙うのは軍艦だけだ」']},
         {after:45, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊が去らない限り、居住区への砲撃を続ける」']},
@@ -487,7 +488,7 @@ WOS_DATA.operations=[
     /* 守備隊（盾）: 損害が半分を超えると持ち場の居住区のそばへ下がる。着陸すると居住区を撃ちに行く（ai:'raid'）。
        対空砲台: デナリの表面に置く動かない敵（ユーザー決定 2026-10-09）。艦載機をよく落とす */
     enemies:[
-      {name:'第11 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, hp:15, dmg:1.3, eva:.16, range:18, speed:8, scale:1.1, pos:[-20,-80], alt:4, ai:'shield', block:0, below:.5, leash:50, vis:6, stl:5},
+      {name:'第11 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, hp:15, dmg:1.3, eva:.16, range:18, speed:8, scale:1.1, pos:[-24,-62], alt:4, ai:'shield', block:0, below:.5, leash:50, vis:6, stl:5},
       {name:'第12 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, hp:15, dmg:1.3, eva:.16, range:18, speed:8, scale:1.1, pos:[-88,12], alt:-2, ai:'shield', block:1, below:.5, leash:50, vis:6, stl:5},
       {name:'第14 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, hp:15, dmg:1.3, eva:.16, range:18, speed:8, scale:1.1, pos:[46,72], alt:2, ai:'shield', block:2, below:.5, leash:50, vis:6, stl:5},
       ...[[0,[-22,-25],4],[0,[2,-33],4],[1,[-32,-8],-2],[1,[-28,18],-2],[2,[5,33],2],[2,[26,20],2]].map(([b,pos,alt],i)=>(

@@ -216,13 +216,22 @@ function buildBody(B,zoneR){
   const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
   (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
-    /* a cluster of habitat modules set into the rock, facing outward, with warm window lights */
-    for(let k=0;k<7;k++){ const w=1.1+((k*37)%5)*.35, h=.85+((k*53)%4)*.42, m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*1.4),k%3?hull:dark);
-      m.position.set(((k*29)%7-3)*1.1,((k*13)%5-2)*.8,((k*17)%5-2)*.9); g.add(m); }
-    const n=40,p=new Float32Array(n*3); for(let k=0;k<n;k++) p.set([(Math.random()-.5)*8,(Math.random()-.5)*4.4,(Math.random()-.5)*6],k*3);
+    /* a town of small habitat modules set into the rock, facing outward: blocks of different heights on a loose grid, joined by
+       round tubes low down and by bridges across their tops only, with warm window lights (user decision 2026-10-09) */
+    const mods=[], tube=(a,b,r)=>{ const d=b.clone().sub(a), m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),10),hull);
+      m.position.copy(a).add(b).multiplyScalar(.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()); g.add(m); };
+    for(let gx=0;gx<5;gx++) for(let gz=0;gz<4;gz++){ const k=gx*4+gz+i*7; if((k*7)%11===3||(gx===0||gx===4)&&(gz===0||gz===3)) continue;
+      const w=.5+((k*37)%5)*.12, h=.5+((k*53)%6)*.32, x=(gx-2)*1.45+((k*13)%3-1)*.18, z=(gz-1.5)*1.5+((k*17)%3-1)*.18;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*(1+((k*29)%3)*.25)),k%4?hull:dark); m.position.set(x,h/2-.3,z); g.add(m); mods.push({x,z,h}); }
+    mods.forEach((a,p)=>mods.forEach((b,q)=>{ if(q<=p) return; const d=Math.hypot(a.x-b.x,a.z-b.z); if(d>1.75) return;
+      if((p+q)%2) tube(new THREE.Vector3(a.x,.05,a.z),new THREE.Vector3(b.x,.05,b.z),.12);   // a round tube low between neighbours
+      else { const y=Math.min(a.h,b.h)-.3+.06; const br=new THREE.Mesh(new THREE.BoxGeometry(.16,.1,d),dark); br.position.set((a.x+b.x)/2,y,(a.z+b.z)/2);   // a bridge across the tops
+        br.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); g.add(br); } }));
+    const n=46,p=new Float32Array(n*3); for(let k=0;k<n;k++){ const m=mods[k%mods.length]; p.set([m.x+(Math.random()-.5)*.6,Math.random()*m.h-.25,m.z+(Math.random()-.5)*.6],k*3); }
     const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
-    g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.6,transparent:true,blending:THREE.AdditiveBlending})));
-    const on=at.clone().setY((b.alt||0)*.4); g.position.copy(on.normalize().multiplyScalar(bodySurface(on,B.r)-.6)); g.lookAt(g.position.clone().add(out)); bodyObj.add(g);
+    g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.42,transparent:true,blending:THREE.AdditiveBlending})));
+    const on=at.clone().setY((b.alt||0)*.4), hit=bodyHit(on,B.r); g.position.copy(hit.point).addScaledVector(hit.normal,-.15);
+    g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),hit.normal.clone().lerp(on.clone().normalize(),.4).normalize()); bodyObj.add(g);
     if(zoneR){ const mat=zoneMat(), z=new THREE.Mesh(new THREE.SphereGeometry(zoneR,40,24),mat); z.position.copy(at); bodyObj.add(z); bodyZoneMats.push(mat);
       const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
   if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);

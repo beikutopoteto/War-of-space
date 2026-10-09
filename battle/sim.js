@@ -174,6 +174,8 @@ function craftTarget(u,type,maxD){
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
   if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
+  /* prey:'ally' (第4節 Alvarez): the allied main fleet's warships first */
+  if((u.carrier||u).prey==='ally'){ const a=nearestFoe(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
   return nearestFoe(u,maxD,t=>craftMayHit(u,t));
 }
 let enemyWASSeen=false;
@@ -403,7 +405,8 @@ function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
-    const foes=f.spare?all.filter(x=>!spares(f,x)):all;
+    let foes=f.spare?all.filter(x=>!spares(f,x)):all;
+    if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
     if(f.ai==='raid'){ raidAI(f); continue; }
     if(f.ai==='shield') shieldAI(f);
