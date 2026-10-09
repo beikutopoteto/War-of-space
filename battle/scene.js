@@ -208,11 +208,43 @@ const _bray=new THREE.Raycaster(), _bd=new THREE.Vector3();
 function bodyHit(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
   _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0];
   return h?{point:h.point,normal:h.face.normal.clone(),d:h.point.length()}:{point:_bd.clone().multiplyScalar(R),normal:_bd.clone(),d:R}; }
-function bodySurface(p,R){ return bodyHit(p,R).d; }
+function bodySurface(p,R){ if(bodyShape){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); return bodyShape.R(_bd.normalize()); } return bodyHit(p,R).d; }
+/* the body's shape (op.body; 第4節 Denali, user decision 2026-10-09): a lumpy squashed rock with a lobe bulging out of it (B.lobe {c:[x,y,z], r}),
+   a crater for each town (B.craterA, radians), one big open-pit mine cut in terraces (B.mine {dir:[x,y,z], a, depth, steps}), and trenches
+   joining the towns to each other and to the mine (the towns' railway, B.groove {w, depth}). It is a radius for each direction from the
+   centre, so the surface is known anywhere without a ray (bodyShape.R) */
+let bodyShape=null;
+function makeBodyShape(B){
+  const R0=B.r, sq=[1.08,.78,1], seed=3.3;
+  const dir=a=>new THREE.Vector3(...a).normalize(), towns=(B.blocks||[]).map(b=>new THREE.Vector3(b.pos[0],(b.alt||0)*.4,b.pos[1]).normalize());
+  const L=B.lobe&&{c:new THREE.Vector3(...B.lobe.c),r:B.lobe.r};
+  const craters=towns.map(d=>({d,a:B.craterA||.3,depth:2.6,rim:.7,steps:0}));
+  const M=B.mine&&{d:dir(B.mine.dir),a:B.mine.a,depth:B.mine.depth,rim:1,steps:B.mine.steps||0}; if(M) craters.push(M);
+  const G=B.groove||{w:.045,depth:1.3}, grooves=[];
+  towns.forEach((a,i)=>{ towns.forEach((b,j)=>{ if(j>i) grooves.push([a,b]); }); if(M) grooves.push([a,M.d]); });
+  const _n=new THREE.Vector3();
+  function R(d){
+    let r=R0/Math.sqrt((d.x/sq[0])**2+(d.y/sq[1])**2+(d.z/sq[2])**2);
+    r*=1+.12*Math.sin(3.1*d.x+seed)*Math.sin(2.7*d.y+1.3*seed)*Math.cos(2.2*d.z)+.07*Math.sin(7*d.x+2*d.z+seed)*Math.sin(6*d.y)+.02*Math.sin(13*d.x+5*d.y+1.7)*Math.sin(11*d.z-4*d.x+.4)*Math.sin(9*d.y+3*d.z);
+    if(L){ const b=d.dot(L.c), disc=b*b-L.c.lengthSq()+L.r*L.r; if(disc>0) r=Math.max(r,b+Math.sqrt(disc)); }
+    let inCrater=false;
+    for(const c of craters){ const t=Math.acos(Math.min(1,d.dot(c.d)));
+      if(t<c.a){ inCrater=true; const k=1-t/c.a; r-=c.steps?c.depth*Math.min(1,Math.ceil(k*c.steps*1.3)/c.steps):c.depth*Math.min(1,k*2.2); }
+      else if(t<c.a*1.3) r+=c.rim*Math.sin(Math.PI*(t-c.a)/(c.a*.3)); }
+    /* the trenches run between the craters, not through their floors */
+    if(!inCrater) for(const [a,b] of grooves){ _n.crossVectors(a,b).normalize(); const off=Math.asin(Math.min(1,Math.abs(d.dot(_n))));
+      if(off<G.w&&Math.acos(Math.min(1,d.dot(a)))+Math.acos(Math.min(1,d.dot(b)))<Math.acos(Math.min(1,a.dot(b)))+.02) r-=G.depth*Math.min(1,2*(1-off/G.w)); }
+    return r; }
+  const g=new THREE.IcosahedronGeometry(1,56), pos=g.attributes.position, v=new THREE.Vector3();   // fine enough for the trenches (about 63,000 faces)
+  for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize(); v.multiplyScalar(R(v)); pos.setXYZ(i,v.x,v.y,v.z); }
+  g.computeVertexNormals();
+  return {R,geo:g,towns,craters,grooves,mine:M};
+}
 function buildBody(B,zoneR){
   for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
-  bodyZoneMats=[]; bodyCore=null; bodyObj.visible=!!B; if(!B) return;
-  const core=new THREE.Mesh(rock(B.r,5,3.3,[1.08,.78,1]),bodyMat); bodyObj.add(core); core.updateMatrixWorld(); bodyCore=core;
+  bodyZoneMats=[]; bodyCore=null; bodyShape=null; bodyObj.visible=!!B; if(!B) return;
+  bodyShape=makeBodyShape(B);
+  const core=new THREE.Mesh(bodyShape.geo,bodyMat); bodyObj.add(core); core.updateMatrixWorld(); bodyCore=core;
   const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
   (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
@@ -230,10 +262,23 @@ function buildBody(B,zoneR){
     const n=46,p=new Float32Array(n*3); for(let k=0;k<n;k++){ const m=mods[k%mods.length]; p.set([m.x+(Math.random()-.5)*.6,Math.random()*m.h-.25,m.z+(Math.random()-.5)*.6],k*3); }
     const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
     g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.42,transparent:true,blending:THREE.AdditiveBlending})));
-    const on=at.clone().setY((b.alt||0)*.4), hit=bodyHit(on,B.r); g.position.copy(hit.point).addScaledVector(hit.normal,-.15);
-    g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),hit.normal.clone().lerp(on.clone().normalize(),.4).normalize()); bodyObj.add(g);
+    /* the town sits on the floor of its crater, facing out from the centre */
+    const on=bodyShape.towns[i]; g.position.copy(on).multiplyScalar(bodyShape.R(on)-.25); g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),on); bodyObj.add(g);
+    /* where the railway trenches leave the crater, a dark tunnel mouth in the crater wall */
+    bodyShape.grooves.forEach(([a,b])=>{ const from=a===on?a:b===on?b:null; if(!from) return; const to=from===a?b:a;
+      const ax=new THREE.Vector3().crossVectors(from,to).normalize(), d=from.clone().applyAxisAngle(ax,(B.craterA||.3)*.82);
+      const m=new THREE.Mesh(new THREE.BoxGeometry(1.1,.9,1.6),dark); m.position.copy(d).multiplyScalar(bodyShape.R(d)-.2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d); bodyObj.add(m); });
     if(zoneR){ const mat=zoneMat(), z=new THREE.Mesh(new THREE.SphereGeometry(zoneR,40,24),mat); z.position.copy(at); bodyObj.add(z); bodyZoneMats.push(mat);
       const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
+  /* the open-pit mine: work lights on its terraces and a few machines on the floor */
+  if(bodyShape.mine){ const M=bodyShape.mine, n=70, p=new Float32Array(n*3), q=new THREE.Quaternion(), v=new THREE.Vector3();
+    const ax=new THREE.Vector3().crossVectors(M.d,new THREE.Vector3(0,1,0)).normalize();
+    for(let k=0;k<n;k++){ q.setFromAxisAngle(M.d,Math.random()*Math.PI*2); v.copy(M.d).applyAxisAngle(ax,Math.random()*M.a*.95).applyQuaternion(q); v.multiplyScalar(bodyShape.R(v)+.3); p.set([v.x,v.y,v.z],k*3); }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+    bodyObj.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd27a,size:.45,transparent:true,blending:THREE.AdditiveBlending})));
+    for(let k=0;k<5;k++){ q.setFromAxisAngle(M.d,k*1.3); v.copy(M.d).applyAxisAngle(ax,M.a*(.15+.12*k)).applyQuaternion(q);
+      const m=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,1.5),k%2?hull:dark); m.position.copy(v).multiplyScalar(bodyShape.R(v)+.3); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v); bodyObj.add(m); } }
   if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
     /* the spaceport: a docking frame reaching out of the rock toward the landing ring */
     const toward=at.clone().setY(0).normalize(), base=toward.clone().multiplyScalar(bodySurface(toward,B.r)-1);

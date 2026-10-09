@@ -414,7 +414,10 @@ WOS_DATA.operations=[
       {name:'岩くずの雲', sub:'採掘の砂利と鉱滓。見通せない', pos:[150,-40]},
     ],
     /* 資源衛星デナリ（ユーザー決定 2026-10-09: 大きめ。半径30、仮）。居住区3つと宇宙港 */
-    body:{name:'デナリ', sub:'資源衛星　住民 約2万人', r:30,
+    /* 形（ユーザー決定 2026-10-09）: 東の下へふくらんだこぶのある岩。町はそれぞれクレーターの中にあり、町どうしと露天掘りの鉱山は溝（鉄道）でつながる。
+       一か所の大きなクレーターは露天掘りの鉱山（段々に掘ってある）。大きさと位置は仮 */
+    body:{name:'デナリ', sub:'資源衛星　住民 約2万人', r:30, lobe:{c:[18,-14,12], r:19}, craterA:.3,
+      mine:{dir:[-.45,.45,.75], a:.48, depth:6, steps:4}, groove:{w:.045, depth:1.3},
       blocks:[
         {name:'居住区A', sub:'北港', pos:[-12,-36], alt:4},
         {name:'居住区B', sub:'採掘区画', pos:[-36,6], alt:-2},
@@ -426,12 +429,12 @@ WOS_DATA.operations=[
       firstLog:['ハッダード曹長', '「居住区の外壁に被弾。……民間の被害、出ました」'],
       logs:[[.5, 'ハッダード曹長', '「被害が上限の半分を越えました。これ以上は……」'], [.8, 'ハッダード曹長', '「被害が8割です。居住区の近くで撃たないでください！」']]},
     /* 採掘の岩くずの雲（ユーザー決定 2026-10-09: 視界が通らない）。デナリの採掘で出た砂利と鉱滓が、デナリを中心に大きく巻いている。
-       ユーザーが図に描いた線のとおり、上から見て東（デナリから約160）から北を回って北西（約140）まで、およそ125度の弧。
+       ユーザーが図に描いた線のとおり、上から見て東（デナリから約185）から北を回って北西（約167）まで、およそ125度の弧（ユーザー決定: 中心から少し離す）。
        始まりの東は太く、北西へ行くほど細い（ユーザー決定）。巻く面は戦場の平面から35度傾く（ユーザー決定: 30〜40度。東西の軸のまわりに傾け、
        北ほど高い。平面の下に出てもよい）。でこぼこは仮 */
     debrisTilt:35,
     debris:(()=>{ const out=[], tt=Math.tan(35*Math.PI/180), N=18;
-      for(let i=0;i<N;i++){ const u=i/(N-1), th=(-3+125*u)*Math.PI/180, R=158-18*u+(i%3===1?6:i%3===2?-5:0), r=Math.round((30-20*u)*(1+.14*Math.sin(i*2.3)));
+      for(let i=0;i<N;i++){ const u=i/(N-1), th=(-3+125*u)*Math.PI/180, R=185-18*u+(i%3===1?6:i%3===2?-5:0), r=Math.round((30-20*u)*(1+.14*Math.sin(i*2.3)));
         const x=Math.round(R*Math.cos(th)), z=Math.round(-R*Math.sin(th));
         out.push({pos:[x,z], alt:Math.round(-z*tt), r});
         if(i%4===1){ const R2=R+r*.6, x2=Math.round(R2*Math.cos(th+.05)), z2=Math.round(-R2*Math.sin(th+.05)); out.push({pos:[x2,z2], alt:Math.round(-z2*tt)+3, r:Math.round(r*.55)}); } }
@@ -459,8 +462,8 @@ WOS_DATA.operations=[
         {after:0, phase:'収容', ai:{fleets:['第11 巡洋阻止 戦闘隊','第12 巡洋阻止 戦闘隊','第14 巡洋阻止 戦闘隊'], ai:'raid'}},
         /* 強襲母艦は第一章ではまだ出さない（ユーザー決定 2026-10-09: 敵も味方も開発していない）。アルバレスの隊は突撃揚陸艦だけ */
         {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:80}, craft:{was:{dmg:1.4, hp:1.3, eva:1}}, ace:true, spare:['carrier'], prey:'ally', pos:[160,-12], alt:8, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:11}},
-        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:10, scale:1.25, pos:[146,-51], alt:36, ai:'raid', vis:6, stl:4}},
+          hangar:{was:80}, craft:{was:{dmg:1.4, hp:1.3, eva:1}}, ace:true, spare:['carrier'], prey:'ally', pos:[187,-12], alt:10, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
+        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[172,-59], alt:41, ai:'raid', vis:6, stl:4}},
         {after:15, log:['ハッダード曹長', '「岩くずの雲の陰から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         {after:30, log:['傍受', 'アルバレス大尉「デナリの守備隊、よく持たせた。……ここからは俺たちの番だ。居住区には当てるなよ。狙うのは軍艦だけだ」']},
         {after:45, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊が去らない限り、居住区への砲撃を続ける」']},
