@@ -124,7 +124,8 @@ function destroyFleet(f,src){
   logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
   if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
   if(f===opCarrier&&!over){ loseWhy='carrier'; end(false); }
-  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward&&!x.isCarrier)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
+  /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on) */
+  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
   updateRoster();
 }
 let outcome=null;
@@ -488,7 +489,9 @@ function stepCarrier(dt){
     if(S.board>=C.board){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       (C.doneLogs||[]).forEach(l=>logEvent(...l));
-      for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; } }
+      for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
+      /* the ace unit lets us go (第4節: Alvarez does not pursue); it only answers what comes near */
+      for(const f of fleets) if(f.ace&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; } }
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }

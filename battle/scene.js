@@ -242,8 +242,8 @@ function buildBody(B,zoneR){
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
 }
 /* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
-   overlapping clouds that no line of sight passes through (user decision 2026-10-09). The orbit is tilted from the battle plane
-   (op.debrisTilt degrees, about the north-south axis), so each cloud is flattened along that tilted plane. Each cloud {pos:[x,z], alt, r}:
+   overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane
+   (op.debrisTilt degrees, about the east-west axis), so each cloud is flattened along that tilted plane. Each cloud {pos:[x,z], alt, r}:
    a faint dusty haze and many small, irregular tumbling rocks */
 const debrisObj=new THREE.Group(); scene.add(debrisObj);
 const debrisMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
@@ -257,7 +257,7 @@ let debrisMats=[];
 function buildDebris(list,tiltDeg=0){
   for(const m of [...debrisObj.children]){ debrisObj.remove(m); if(m.geometry!==cloudGeo&&!debrisGeos.includes(m.geometry)) m.geometry.dispose(); }
   debrisMats=[]; if(!list||!list.length) return;
-  const tilt=tiltDeg*Math.PI/180, q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),tilt);
+  const tilt=tiltDeg*Math.PI/180, q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),tilt);   // tilted about the east-west axis: the north side is higher
   let n=0; list.forEach(c=>n+=Math.round(c.r*c.r*.9));
   const per=Math.ceil(n/debrisGeos.length)+1, meshes=debrisGeos.map(g=>{ const m=new THREE.InstancedMesh(g,debrisMat,per); m.count=0; return m; }), o=new THREE.Object3D(), v=new THREE.Vector3();
   list.forEach((c,i)=>{ const at=new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]), mat=dustMat(); debrisMats.push(mat);
