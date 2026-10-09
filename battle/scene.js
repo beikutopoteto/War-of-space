@@ -9,12 +9,13 @@ const EMB = [
 ];
 document.getElementById('lg0').innerHTML = EMB[0];
 document.getElementById('lg1').innerHTML = EMB[1];
-/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03) */
-const ALLY_HEX = 0x8fe8c0;
-const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX)];
-EMB[2] = EMB[0];
-/* the colour slot of a unit: allies are drawn in their own colour */
-const colOf = u => u.ally ? 2 : u.team;
+/* 0: ours, 1: the enemy, 2: allied fleets that fight beside us but take no orders (green-tinted blue, 案 B, user decision 2026-10-03),
+   3: an enemy ace unit (op fleet ace:true, Alvarez's in 第4節): a deep vivid crimson, more vivid than the other enemies (案 C, user decision 2026-10-09) */
+const ALLY_HEX = 0x8fe8c0, ACE_HEX = 0xe8001c;
+const TEAM_COL = [new THREE.Color(0x7fc8ff), new THREE.Color(0xff6a45), new THREE.Color(ALLY_HEX), new THREE.Color(ACE_HEX)];
+EMB[2] = EMB[0]; EMB[3] = EMB[1];
+/* the colour slot of a unit: allies and aces are drawn in their own colour; small craft take their carrier's */
+const colOf = u => { const c=u.carrier||u; return c.ally ? 2 : c.ace ? 3 : u.team; };
 const TEAM_NAME = ['地球連合','惑星共和国'];
 
 /* ---------- renderer / scene ---------- */
@@ -188,4 +189,128 @@ function buildClouds(list){
     const s=.3+Math.random()*Math.random()*2.4; o.scale.set(s,s*.8,s*1.1); o.updateMatrix(); m.setMatrixAt(i,o.matrix);
   }
   scene.add(m);
+}
+
+/* a large body in the middle of the field (op.body: 第4節 the resource satellite Denali): a big asteroid with lit habitat blocks,
+   a docking frame by the spaceport and a ring where the carrier lands. The civilian zone around each block is a faint amber shell
+   (op.civil.r). Data: {r, blocks:[{pos:[x,z], alt}], port:{pos, alt, r}} */
+const bodyObj=new THREE.Group(); bodyObj.visible=false; scene.add(bodyObj);
+const ZONE_HEX=0xffb347;   // 仮: the civilian zone colour (shown to the user as a sample before it is fixed)
+/* the body's rock: darker than the fortress so a large lit face does not glare */
+const bodyMat=new THREE.MeshStandardMaterial({color:0x2f2b28, roughness:1, metalness:0, flatShading:true});
+function zoneMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  uniforms:{uTime:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying vec3 vN;varying vec3 vV;uniform float uTime;void main(){float f=pow(1.-abs(dot(vN,vV)),2.2);gl_FragColor=vec4(vec3(1.,.7,.28),f*(.22+.04*sin(uTime*1.3))+.012);}'}); }
+let bodyZoneMats=[], bodyCore=null;
+/* the rock's surface in the direction of p from the body's centre (a ray from outside toward the centre): {point, normal, d} (d: its distance from the centre) */
+const _bray=new THREE.Raycaster(), _bd=new THREE.Vector3();
+function bodyHit(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
+  _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0];
+  return h?{point:h.point,normal:h.face.normal.clone(),d:h.point.length()}:{point:_bd.clone().multiplyScalar(R),normal:_bd.clone(),d:R}; }
+function bodySurface(p,R){ if(bodyShape){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); return bodyShape.R(_bd.normalize()); } return bodyHit(p,R).d; }
+/* the body's shape (op.body; 第4節 Denali, user decision 2026-10-09): a lumpy squashed rock with a lobe bulging out of it (B.lobe {c:[x,y,z], r}),
+   a crater for each town (B.craterA, radians), one big open-pit mine cut in terraces (B.mine {dir:[x,y,z], a, depth, steps}), and trenches
+   joining the towns to each other and to the mine (the towns' railway, B.groove {w, depth}). It is a radius for each direction from the
+   centre, so the surface is known anywhere without a ray (bodyShape.R) */
+let bodyShape=null;
+function makeBodyShape(B){
+  const R0=B.r, sq=[1.08,.78,1], seed=3.3;
+  const dir=a=>new THREE.Vector3(...a).normalize(), towns=(B.blocks||[]).map(b=>new THREE.Vector3(b.pos[0],(b.alt||0)*.4,b.pos[1]).normalize());
+  const L=B.lobe&&{c:new THREE.Vector3(...B.lobe.c),r:B.lobe.r};
+  const craters=towns.map(d=>({d,a:B.craterA||.3,depth:2.6,rim:.7,steps:0}));
+  const M=B.mine&&{d:dir(B.mine.dir),a:B.mine.a,depth:B.mine.depth,rim:1,steps:B.mine.steps||0}; if(M) craters.push(M);
+  const G=B.groove||{w:.045,depth:1.3}, grooves=[];
+  towns.forEach((a,i)=>{ towns.forEach((b,j)=>{ if(j>i) grooves.push([a,b]); }); if(M) grooves.push([a,M.d]); });
+  const _n=new THREE.Vector3();
+  function R(d){
+    let r=R0/Math.sqrt((d.x/sq[0])**2+(d.y/sq[1])**2+(d.z/sq[2])**2);
+    r*=1+.12*Math.sin(3.1*d.x+seed)*Math.sin(2.7*d.y+1.3*seed)*Math.cos(2.2*d.z)+.07*Math.sin(7*d.x+2*d.z+seed)*Math.sin(6*d.y)+.02*Math.sin(13*d.x+5*d.y+1.7)*Math.sin(11*d.z-4*d.x+.4)*Math.sin(9*d.y+3*d.z);
+    if(L){ const b=d.dot(L.c), disc=b*b-L.c.lengthSq()+L.r*L.r; if(disc>0) r=Math.max(r,b+Math.sqrt(disc)); }
+    let inCrater=false;
+    for(const c of craters){ const t=Math.acos(Math.min(1,d.dot(c.d)));
+      if(t<c.a){ inCrater=true; const k=1-t/c.a; r-=c.steps?c.depth*Math.min(1,Math.ceil(k*c.steps*1.3)/c.steps):c.depth*Math.min(1,k*2.2); }
+      else if(t<c.a*1.3) r+=c.rim*Math.sin(Math.PI*(t-c.a)/(c.a*.3)); }
+    /* the trenches run between the craters, not through their floors */
+    if(!inCrater) for(const [a,b] of grooves){ _n.crossVectors(a,b).normalize(); const off=Math.asin(Math.min(1,Math.abs(d.dot(_n))));
+      if(off<G.w&&Math.acos(Math.min(1,d.dot(a)))+Math.acos(Math.min(1,d.dot(b)))<Math.acos(Math.min(1,a.dot(b)))+.02) r-=G.depth*Math.min(1,2*(1-off/G.w)); }
+    return r; }
+  const g=new THREE.IcosahedronGeometry(1,56), pos=g.attributes.position, v=new THREE.Vector3();   // fine enough for the trenches (about 63,000 faces)
+  for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize(); v.multiplyScalar(R(v)); pos.setXYZ(i,v.x,v.y,v.z); }
+  g.computeVertexNormals();
+  return {R,geo:g,towns,craters,grooves,mine:M};
+}
+function buildBody(B,zoneR){
+  for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
+  bodyZoneMats=[]; bodyCore=null; bodyShape=null; bodyObj.visible=!!B; if(!B) return;
+  bodyShape=makeBodyShape(B);
+  const core=new THREE.Mesh(bodyShape.geo,bodyMat); bodyObj.add(core); core.updateMatrixWorld(); bodyCore=core;
+  const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
+  const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
+  (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
+    /* a town of small habitat modules set into the rock, facing outward: blocks of different heights on a loose grid, joined by
+       round tubes low down and by bridges across their tops only, with warm window lights (user decision 2026-10-09) */
+    const mods=[], tube=(a,b,r)=>{ const d=b.clone().sub(a), m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),10),hull);
+      m.position.copy(a).add(b).multiplyScalar(.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()); g.add(m); };
+    for(let gx=0;gx<5;gx++) for(let gz=0;gz<4;gz++){ const k=gx*4+gz+i*7; if((k*7)%11===3||(gx===0||gx===4)&&(gz===0||gz===3)) continue;
+      const w=.5+((k*37)%5)*.12, h=.5+((k*53)%6)*.32, x=(gx-2)*1.45+((k*13)%3-1)*.18, z=(gz-1.5)*1.5+((k*17)%3-1)*.18;
+      const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,w*(1+((k*29)%3)*.25)),k%4?hull:dark); m.position.set(x,h/2-.3,z); g.add(m); mods.push({x,z,h}); }
+    mods.forEach((a,p)=>mods.forEach((b,q)=>{ if(q<=p) return; const d=Math.hypot(a.x-b.x,a.z-b.z); if(d>1.75) return;
+      if((p+q)%2) tube(new THREE.Vector3(a.x,.05,a.z),new THREE.Vector3(b.x,.05,b.z),.12);   // a round tube low between neighbours
+      else { const y=Math.min(a.h,b.h)-.3+.06; const br=new THREE.Mesh(new THREE.BoxGeometry(.16,.1,d),dark); br.position.set((a.x+b.x)/2,y,(a.z+b.z)/2);   // a bridge across the tops
+        br.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); g.add(br); } }));
+    const n=46,p=new Float32Array(n*3); for(let k=0;k<n;k++){ const m=mods[k%mods.length]; p.set([m.x+(Math.random()-.5)*.6,Math.random()*m.h-.25,m.z+(Math.random()-.5)*.6],k*3); }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+    g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.42,transparent:true,blending:THREE.AdditiveBlending})));
+    /* the town sits on the floor of its crater, facing out from the centre */
+    const on=bodyShape.towns[i]; g.position.copy(on).multiplyScalar(bodyShape.R(on)-.25); g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),on); bodyObj.add(g);
+    /* where the railway trenches leave the crater, a dark tunnel mouth in the crater wall */
+    bodyShape.grooves.forEach(([a,b])=>{ const from=a===on?a:b===on?b:null; if(!from) return; const to=from===a?b:a;
+      const ax=new THREE.Vector3().crossVectors(from,to).normalize(), d=from.clone().applyAxisAngle(ax,(B.craterA||.3)*.82);
+      const m=new THREE.Mesh(new THREE.BoxGeometry(1.1,.9,1.6),dark); m.position.copy(d).multiplyScalar(bodyShape.R(d)-.2);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d); bodyObj.add(m); });
+    if(zoneR){ const mat=zoneMat(), z=new THREE.Mesh(new THREE.SphereGeometry(zoneR,40,24),mat); z.position.copy(at); bodyObj.add(z); bodyZoneMats.push(mat);
+      const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
+  /* the open-pit mine: work lights on its terraces and a few machines on the floor */
+  if(bodyShape.mine){ const M=bodyShape.mine, n=70, p=new Float32Array(n*3), q=new THREE.Quaternion(), v=new THREE.Vector3();
+    const ax=new THREE.Vector3().crossVectors(M.d,new THREE.Vector3(0,1,0)).normalize();
+    for(let k=0;k<n;k++){ q.setFromAxisAngle(M.d,Math.random()*Math.PI*2); v.copy(M.d).applyAxisAngle(ax,Math.random()*M.a*.95).applyQuaternion(q); v.multiplyScalar(bodyShape.R(v)+.3); p.set([v.x,v.y,v.z],k*3); }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+    bodyObj.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd27a,size:.45,transparent:true,blending:THREE.AdditiveBlending})));
+    for(let k=0;k<5;k++){ q.setFromAxisAngle(M.d,k*1.3); v.copy(M.d).applyAxisAngle(ax,M.a*(.15+.12*k)).applyQuaternion(q);
+      const m=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,1.5),k%2?hull:dark); m.position.copy(v).multiplyScalar(bodyShape.R(v)+.3); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v); bodyObj.add(m); } }
+  if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
+    /* the spaceport: a docking frame reaching out of the rock toward the landing ring */
+    const toward=at.clone().setY(0).normalize(), base=toward.clone().multiplyScalar(bodySurface(toward,B.r)-1);
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
+    const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
+    const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
+}
+/* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
+   overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane
+   (op.debrisTilt degrees, about the east-west axis), so each cloud is flattened along that tilted plane. Each cloud {pos:[x,z], alt, r}:
+   a faint dusty haze and many small, irregular tumbling rocks */
+const debrisObj=new THREE.Group(); scene.add(debrisObj);
+const debrisMat=new THREE.MeshStandardMaterial({color:0x3a342e, roughness:1, metalness:0, flatShading:true});
+/* a few lumpy rock shapes, squashed and stretched differently, so no two pieces look alike */
+const debrisGeos=[[1.3,.7,.9],[.8,.6,1.5],[1.1,1,.7],[1.6,.55,.8]].map((sq,i)=>rock(1,1,2.1+i*1.7,sq));
+function dustMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,
+  uniforms:{uOp:{value:1},uTime:{value:0}},
+  vertexShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;void main(){vN=normalize(normalMatrix*normal);vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mv=viewMatrix*w;vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
+  fragmentShader:'varying vec3 vN;varying vec3 vV;varying vec3 vW;uniform float uOp,uTime;void main(){float f=pow(abs(dot(vN,vV)),1.5);float n=.7+.3*sin(vW.x*.17+uTime*.08)*sin(vW.z*.13-uTime*.06);gl_FragColor=vec4(vec3(.55,.5,.44),f*n*.2*uOp);}'}); }
+let debrisMats=[];
+function buildDebris(list,tiltDeg=0){
+  for(const m of [...debrisObj.children]){ debrisObj.remove(m); if(m.geometry!==cloudGeo&&!debrisGeos.includes(m.geometry)) m.geometry.dispose(); }
+  debrisMats=[]; if(!list||!list.length) return;
+  const tilt=tiltDeg*Math.PI/180, q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),tilt);   // tilted about the east-west axis: the north side is higher
+  let n=0; list.forEach(c=>n+=Math.round(c.r*c.r*.9));
+  const per=Math.ceil(n/debrisGeos.length)+1, meshes=debrisGeos.map(g=>{ const m=new THREE.InstancedMesh(g,debrisMat,per); m.count=0; return m; }), o=new THREE.Object3D(), v=new THREE.Vector3();
+  list.forEach((c,i)=>{ const at=new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]), mat=dustMat(); debrisMats.push(mat);
+    const d=new THREE.Mesh(cloudGeo,mat); d.position.copy(at); d.quaternion.copy(q); d.scale.set(c.r*1.05,c.r*.7,c.r*1.05); debrisObj.add(d);
+    for(let j=Math.round(c.r*c.r*.9);j>0;j--){ const a=Math.random()*Math.PI*2, r=c.r*Math.pow(Math.random(),.7);
+      v.set(Math.cos(a)*r,(Math.random()+Math.random()-1)*c.r*.55,Math.sin(a)*r).applyQuaternion(q).add(at);
+      o.position.copy(v); o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
+      const z=.15+Math.pow(Math.random(),3)*1.7; o.scale.set(z,z*(.6+Math.random()*.5),z*(.8+Math.random()*.6)); o.updateMatrix();
+      const m=meshes[(Math.random()*meshes.length)|0]; if(m.count<per) m.setMatrixAt(m.count++,o.matrix); } });
+  meshes.forEach(m=>debrisObj.add(m));
 }

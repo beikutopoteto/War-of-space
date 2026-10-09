@@ -77,6 +77,8 @@ const SHAPES={
     at(loft([[-.6,.08,.07],[-.35,.09,.15,.06],[-.05,0,0,.03]]),0,.15,0), ...engines([.33,-.33],0,-1.2,.08)],
   /* 輸送船: a long cargo spine with containers and a tank, the civilian ship of escort operations */
   tr:()=>[at(box(.5,.5,1.9),0,0,0), at(box(.7,.42,.5),0,.05,.45), at(box(.7,.42,.5),0,.05,-.15), at(tube(.3,.7,10),0,0,-.85), at(box(.36,.3,.32),0,.36,.8)],
+  /* 対空砲台 (第4節): a fixed anti-air battery on the surface of a body — a hexagonal base, a mount and twin long barrels */
+  aa:()=>[at(new THREE.CylinderGeometry(.55,.72,.28,6),0,-.22,0), at(box(.62,.34,.66),0,.08,-.05), ...pair(at(tube(.06,1.25,6),.16,.14,.62))],
   /* fleets without a class (the old cone) */
   gen:()=>[at(new THREE.ConeGeometry(.45,2,5),0,0,0,Math.PI/2)],
 };

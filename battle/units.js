@@ -22,18 +22,18 @@ function buildSectors(list){
 const SHIP_MAX=600, CRAFT_MAX=1500;
 const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
 function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
-const shipMeshes=[0,1,2].map(t=>{ const c=TEAM_COL[t];
+const shipMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t];
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5});
   return Object.fromEntries(Object.keys(SHAPES).map(k=>[k,instanced(shapeGeo(k),mat,SHIP_MAX)])); });
 /* small craft (fighters and W.A.S.) launched from carriers */
-const craftMeshes=[0,1,2].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
+const craftMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});
   return Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)])); });
 
 /* faint trails behind small craft: the last TRAIL_N positions, one every TRAIL_DT game seconds (about 0.6 s in all), fading
    toward the tail. W.A.S. trails are a slightly deeper shade than fighters' */
 const TRAIL_N=8, TRAIL_DT=.075;
-const trailCol=[0,1,2].map(t=>({ftr:TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.4),
+const trailCol=[0,1,2,3].map(t=>({ftr:TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35).multiplyScalar(.4),
   was:TEAM_COL[t].clone().offsetHSL(0,.15,-.12).multiplyScalar(.4)}));
 const trPos=new Float32Array(CRAFT_MAX*2*TRAIL_N*2*3), trCol=new Float32Array(trPos.length);
 const trGeo=new THREE.BufferGeometry();
