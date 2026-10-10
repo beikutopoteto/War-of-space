@@ -63,7 +63,7 @@ function spotEarly(){
 }
 function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||spares(f,u)||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
 /* a fleet with spare:['carrier'] (and its craft) leaves the carrier of the operation alone (第4節 Alvarez's unit, user decision 2026-10-09) */
-function spares(f,t){ const c=f.carrier||f; return !!(c.spare&&t.isCarrier&&c.spare.includes('carrier')); }
+function spares(f,t){ const c=f.carrier||f; return !!(c.spare&&t.isCarrier&&c.spare.includes('carrier'))||!!(c.letGone&&t.mode==='leave'); }
 /* the civilian zones (op.civil): within r of a habitat block. Our guns hitting an enemy ship in one cost lives, an enemy ship sunk in one
    costs more, and the raiders' fire on a block costs lives too (sim.js damage). Over op.civil.cap the operation is lost */
 function inZone(u){ const C=op.civil; if(!C) return false; for(const b of blocks) if(u.pos.distanceTo(b.pos)<C.r) return true; return false; }
@@ -490,8 +490,9 @@ function stepCarrier(dt){
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       (C.doneLogs||[]).forEach(l=>logEvent(...l));
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
-      /* the ace unit lets us go (第4節: Alvarez does not pursue); it only answers what comes near */
-      for(const f of fleets) if(f.ace&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; } }
+      /* the ace unit and the units under him (letGo) let us go (第4節: Alvarez does not pursue); they only answer what comes near */
+      for(const f of fleets) if((f.ace||f.letGo)&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.letGone=true; }
+      for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }   // their craft come home and leave the retreating allies alone
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }

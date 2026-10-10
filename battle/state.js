@@ -306,7 +306,7 @@ function reset(cfg=lastCfg){
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
   fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
-  op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0]; CLOCK_RATE=CLOCK_BASE*(op.clockScale||1);
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;

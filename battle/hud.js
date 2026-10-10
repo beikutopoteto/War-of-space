@@ -1,8 +1,9 @@
 /* War of Space battle: HUD text, selection and orders, altitude bar, camera, input.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- HUD ---------- */
-/* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second */
-const CLOCK_RATE=15;   // 戦闘の1秒で作戦の時計が15分進む（ユーザー決定: 2026-10-02 に前の10倍、2026-10-03 にさらに3倍）
+/* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second; an operation may slow it (op.clockScale) */
+const CLOCK_BASE=15;   // 戦闘の1秒で作戦の時計が15分進む（ユーザー決定: 2026-10-02 に前の10倍、2026-10-03 にさらに3倍）
+let CLOCK_RATE=CLOCK_BASE;
 /* minutes since midnight of the operation's first day, at `min` minutes after the start */
 function clockMin(min){ const [h0,m0]=(op.start||'08:00').split(':').map(Number); return h0*60+m0+Math.floor(min); }
 /* the operation clock at `min` minutes after the start (now, by default) */
