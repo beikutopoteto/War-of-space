@@ -721,11 +721,17 @@ function check(ok, label, detail = '') {
       const o = { pos: mid.clone().add(new THREE.Vector3(0, 0, c.r + 25)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(0, 0, -c.r - 25)), stl: 1 },
         tin = { pos: mid.clone(), stl: 1 }, t2 = { pos: o.pos.clone().add(new THREE.Vector3(-30, 0, 10)), stl: 1 };
       r.beltHides = !canSee(o, t) && !canSee(o, tin) && canSee(o, t2);
-      /* a battery stands in a civilian zone: hitting it costs lives; a garrison out in the open does not */
-      const e = fleets.find(f => f.fixed && f.alive), me = mine[0], c0 = casualties; damage(e, 5, me); r.zoneCost = +(casualties - c0).toFixed(1);
-      const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), c1 = casualties; damage(g, 5, me); r.openFree = casualties === c1;
-      /* the allies do not fire on a ship in a zone */
-      const a = fleets.find(f => f.ally); e.seen = true; a.pos.copy(e.pos).add(new THREE.Vector3(0, 0, 14)); r.allyHold = fireTargetOf(a) !== e; a.pos.copy(a.post);
+      /* a ship in a civilian zone: hitting it costs lives; out in the open, or a gun battery on the rock, it does not */
+      const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), gp = g.pos.clone(), me = mine[0];
+      g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); const c0 = casualties; damage(g, 5, me); r.zoneCost = +(casualties - c0).toFixed(1);
+      g.pos.copy(gp); const c1 = casualties; damage(g, 5, me); const e = fleets.find(f => f.fixed && f.alive); damage(e, 5, me); r.openFree = casualties === c1;
+      /* the allies do not fire on a ship in a zone, but do on a battery */
+      const a = fleets.find(f => f.ally); g.seen = true; g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); a.pos.copy(g.pos).add(new THREE.Vector3(0, 0, 14));
+      r.allyHold = fireTargetOf(a) !== g; g.pos.copy(gp);
+      e.seen = true; a.pos.copy(e.pos).add(new THREE.Vector3(0, 0, 14)); r.allyBattery = fireTargetOf(a) === e; a.pos.copy(a.post);
+      /* with no garrison left to fight, an allied unit goes for a battery */
+      const gs = fleets.filter(f => f.team === 1 && f.alive && !f.fixed); gs.forEach(f => f.alive = false); a.order = null; allyAI();
+      r.toBattery = !!a.order && (a.order.type === 'attack' ? a.order.target.fixed : fleets.some(f => f.fixed && f.alive && f.pos.distanceTo(a.order.dest) < 1)); gs.forEach(f => f.alive = true); a.order = null;
       /* stopped in the port ring, the carrier lands to take the port (占領), and the W.A.S. unit (Alvarez, vivid red) comes back */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
       r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '占領' && !opCarrier.cs.evac;
@@ -769,7 +775,7 @@ function check(ok, label, detail = '') {
     check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 6 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
       'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍6隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
-    check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
+    check(d1.zoneCost === 8.4 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まり、30分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
     check(d1.holds && d1.cut && d1.boarded === 2400 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,200人。本軍の戦艦の7割が沈むと切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));

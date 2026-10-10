@@ -80,7 +80,8 @@ function damage(t,amt,src){
   if(t.eva) amt*=1-t.eva;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
-  if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg),true);
+  /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */
+  if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg),true);
   t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
@@ -276,7 +277,7 @@ function fireTargetOf(f){
   if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
     return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.ally&&op.civil?(t=>t.kind==='wing'||!inZone(t)):null;
+  const ok=f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
@@ -478,7 +479,7 @@ function protectAI(f){
   moveTo(f,_w.x,P.pos.y,_w.z); return true;
 }
 function allyAI(){
-  const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&inZone(f)));
+  const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&!f.fixed&&inZone(f)));
   for(const f of fleets){
     if(!f.ally||!f.alive) continue;
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
@@ -494,7 +495,11 @@ function allyAI(){
         f.post.copy(f.home).lerp(f.fallTo,Math.min(1,(R.below-k)/(R.below/2))); }
       else if(R.heldLog&&!f.heldSaid&&R.heldIf&&fleets.some(e=>e.team===1&&e.name===R.heldIf&&!e.alive)){ f.heldSaid=true; logEvent(...R.heldLog); } }
     let threat=null,bd=f.leash;
-    for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
+    for(const p of foes){ if(p.fixed) continue; const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
+    /* with no ship left to fight, it goes for the nearest gun battery on the rock (第4節; user decision 2026-10-10: after the garrison,
+       the anti-aircraft batteries). Their places are known: it closes on one it cannot see yet, and attacks it once seen */
+    if(!threat&&f.hold) for(const p of fleets) if(p.team===1&&p.alive&&p.fixed){ const d=p.pos.distanceTo(f.pos); if(d<bd){bd=d;threat=p;} }
+    if(threat&&!threat.seen){ moveTo(f,threat.pos.x,threat.pos.y,threat.pos.z); continue; }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
     /* hold:true (第4節): with nothing left to fight, it stops where it is instead of going back to its post (user decision 2026-10-10) */
     else if(f.hold){ if(f.order&&f.order.type==='attack') f.order=null; if(!f.order) f.post.copy(f.pos); }
