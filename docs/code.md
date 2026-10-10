@@ -20,6 +20,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   8. `loop.js` 描画ループと起動
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
+- `tools/`: 確認用の道具（ゲームは使わない）。`tools/body-shots.cjs` は天体の見本の画像、`tools/denali-sim.cjs` は第4節の早送り。使い方は `docs/maps.md`。
 
 ## ライブラリ
 Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdelivr の `three@0.128.0/examples/js`）。r128 なので新しい API（`BufferGeometry.applyQuaternion` など）はない。
