@@ -395,14 +395,15 @@ function stepSorties(){
 let aiTimer=0;
 /* pincer (user decision 2026-10-10): a fleet fired on from directions at least 90 degrees apart (up and down count too) fires back
    weaker: two such directions ×0.8, three or more ×0.7 (仮). Only fleets that are firing on it count (guns on the rock too); small
-   craft do not, as they always swarm round their target. Counted every half second (f.pinch, f.pinchN) */
+   craft do not, as they always swarm round their target. Counted every half second (f.pinch, f.pinchN, f.pinchBy: one fleet for each
+   direction, for the marks round the emblem in loop.js) */
 const PINCH=[1,1,.8,.7];
 function pincers(){
-  for(const f of fleets){ if(!f.alive) continue; const dirs=[];
+  for(const f of fleets){ if(!f.alive) continue; const dirs=[], by=[];
     for(const x of fleets){ if(!x.alive||x.team===f.team||x.fireTarget!==f||gap(x,f)>x.range*1.08||bodyBlocks(x.pos,f.pos)) continue;
       const v=new THREE.Vector3().subVectors(x.pos,f.pos); if(v.lengthSq()<1e-6) continue; v.normalize();
-      if(dirs.every(d=>d.dot(v)<=0)) dirs.push(v); }
-    f.pinchN=dirs.length; f.pinch=PINCH[Math.min(dirs.length,3)]; }
+      if(dirs.every(d=>d.dot(v)<=0)){ dirs.push(v); by.push(x); } }
+    f.pinchN=dirs.length; f.pinch=PINCH[Math.min(dirs.length,3)]; f.pinchBy=by; }
 }
 /* how far off an attacker stands: an enemy fleet that outranges its target keeps near the edge of its own guns (92%), out of
    the target's reach, instead of closing to 75% (2026-10-10, 仮) */

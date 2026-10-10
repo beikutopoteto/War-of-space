@@ -113,11 +113,26 @@ function frame(now){
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
     const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
+    if(u.kind==='fleet') pinchMarks(u,s,lost);
   }
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
   document.getElementById('date').textContent=dateStr()+'　'+clockStr();
   rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster(); updateGoal();}
   requestAnimationFrame(frame);
+}
+/* pincer marks (案 C, user decision 2026-10-10): while a fleet is pinned (sim.js pincers), a thin amber arrowhead on the side of its
+   emblem each direction of fire comes from, pointing in, and its guns' multiplier (×0.8 / ×0.7) at the emblem's lower right */
+const PZ_R=24, PZ_SVG='<svg viewBox="-7 -7 14 14" aria-hidden="true"><path d="M-5 -5 L5 0 L-5 5 L-2.5 0 Z"/></svg>';
+function pinchMarks(u,s,lost){
+  const by=!lost&&u.pinchN>=2?u.pinchBy.filter(x=>x.alive):[];
+  if(!by.length){ if(u.pzEl) u.pzEl.hidden=true; return; }
+  if(!u.pzEl){ u.pzEl=document.createElement('div'); u.pzEl.className='pz'; u.pzEl.innerHTML='<b class="pz-x"></b>'; u.el.appendChild(u.pzEl); }
+  const P=u.pzEl; P.hidden=false;
+  while(P.children.length-1<by.length){ const c=document.createElement('i'); c.className='pz-v'; c.innerHTML=PZ_SVG; P.appendChild(c); }
+  for(let i=1;i<P.children.length;i++){ const c=P.children[i], x=by[i-1]; c.hidden=!x; if(!x) continue;
+    const q=proj(_v.copy(x.pos).add(_w.set(0,4,0))), a=Math.atan2(q.y-s.y,q.x-s.x);
+    c.style.transform=`translate(${Math.cos(a)*PZ_R}px,${Math.sin(a)*PZ_R}px) rotate(${a+Math.PI}rad)`; }
+  const t='×'+u.pinch.toFixed(1); if(P.firstChild.textContent!==t) P.firstChild.textContent=t;
 }
 reset();
 requestAnimationFrame(frame);

@@ -716,6 +716,16 @@ function check(ok, label, detail = '') {
       const mine = fleets.filter(f => f.team === 0 && !f.ward);
       const r = { op: op.id, last: mine[mine.length - 1] === opCarrier && opCarrier.name === 'ユーコン', free: !groupOf(opCarrier), noCraft: !opCarrier.craft,
         allies: fleets.filter(f => f.ally).length, aa: fleets.filter(f => f.fixed).length, blocks: blocks.length, debris: debris.length, masc: fleets.some(f => f.ships.some(x => x.type === 'masc')) || (op.carrier.landEvents || []).some(e => e.fleet && (e.fleet.comp && e.fleet.comp.masc || e.fleet.type === 'masc')) };
+      /* the rock stops sight and fire, a move across it goes round it, and a fleet fired on from two sides fires back weaker, with marks */
+      r.rockHides = bodyBlocks(new THREE.Vector3(0, 0, 60), new THREE.Vector3(0, 0, -60)) && !bodyBlocks(new THREE.Vector3(0, 0, 60), new THREE.Vector3(30, 0, 60));
+      { const pa = makePath(new THREE.Vector3(0, 0, 70), [new THREE.Vector3(0, 0, -70)]); let clear = 1e9;
+        for (let i = 0; i <= 100; i++) { const q = pa.curve.getPointAt(i / 100); clear = Math.min(clear, q.length() - bodySurface(q, op.body.r)); }
+        r.roundRock = clear > 2 && pa.pts.length === 1; }
+      { const E = fleets.find(f => f.name.includes('第14')), A = mine.find(f => !f.isCarrier), B = mine.find(f => !f.isCarrier && f !== A), keep = [E, A, B].map(f => [f.pos.clone(), f.fireTarget]);
+        E.pos.set(60, 0, 95); A.pos.set(60 - A.range * .6, 0, 95); B.pos.set(60 + B.range * .5, B.range * .3, 95); A.fireTarget = E; B.fireTarget = E; pincers();
+        r.pinch = E.pinchN === 2 && E.pinch === .8; pinchMarks(E, proj(E.pos), false); r.pinchMarks = !!E.pzEl && !E.pzEl.hidden && E.pzEl.textContent === '×0.8' && E.pzEl.querySelectorAll('.pz-v').length === 2;
+        B.fireTarget = null; pincers(); pinchMarks(E, proj(E.pos), false); r.pinchOff = E.pinch === 1 && !!E.pzEl && E.pzEl.hidden;
+        [E, A, B].forEach((f, i) => { f.pos.copy(keep[i][0]); f.fireTarget = keep[i][1]; }); pincers(); }
       /* behind a debris cloud: not seen, however close; inside one: not seen from outside; in the open: seen */
       const c = debris[0], mid = c.c.clone();
       const o = { pos: mid.clone().add(new THREE.Vector3(0, 0, c.r + 25)), vis: 9 }, t = { pos: mid.clone().add(new THREE.Vector3(0, 0, -c.r - 25)), stl: 1 },
@@ -775,6 +785,8 @@ function check(ok, label, detail = '') {
     check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 6 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
       'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍6隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
+    check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
+    check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
     check(d1.zoneCost === 8.4 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まり、30分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
