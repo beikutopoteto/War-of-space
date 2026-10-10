@@ -207,7 +207,9 @@ function dock(w){
 }
 /* craft pin what they attack: a fleet under fighter or W.A.S. fire moves at 40% speed (SLOW_BY) for a moment (user decision 2026-10-04) */
 const SLOW_BY=.4;
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1); }
+/* the carrier slows with the people aboard (op.carrier.slowFull, 第4節; user decision 2026-10-10: down by 70% when full), in proportion */
+function loadSlow(f){ const C=op.carrier; return f.isCarrier&&C&&C.slowFull&&f.cs?1-C.slowFull*Math.min(1,(f.cs.boarded||0)/C.people):1; }
+function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1)*loadSlow(f); }
 function stepWings(dt){
   for(const w of wings){ if(!w.alive) continue;
     const c=w.carrier;
@@ -448,7 +450,7 @@ function enemyAI(){
 /* 第4節: protect — when the enemy comes back, each allied fleet takes the nearest of the carrier and the habitat blocks and stands
    between it and the nearest enemy, just outside the block's civilian zone (beside the carrier), firing on what comes
    (user decision 2026-10-10: the main fleet guards what is near it; the enemy goes for our ships, not the blocks).
-   leave — make for the exit and leave the field there */
+   leave — escort the carrier to the exit (2026-10-10, now that the laden carrier is slow) and leave the field there */
 const PROTECT_GAP=6, PROTECT_SIDE=7;
 function protectAI(f){
   /* a fixed point to hold (protect:[x,z]), e.g. the way out */
@@ -479,7 +481,12 @@ function allyAI(){
   const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&inZone(f)));
   for(const f of fleets){
     if(!f.ally||!f.alive) continue;
-    if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; } moveTo(f,x.x,x.y,x.z); continue; }
+    if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
+      /* the retreat: it escorts the (slow, laden) carrier, a little ahead of it toward the exit and to one side, until the carrier is out */
+      if(opCarrier.alive){ const mates=fleets.filter(a=>a.ally&&a.alive&&a.mode==='leave'), k=mates.indexOf(f);
+        _w.subVectors(x,opCarrier.pos).setY(0); if(_w.lengthSq()<1e-6) _w.set(0,0,1); _w.normalize(); _v.set(-_w.z,0,_w.x).multiplyScalar((k%2?-1:1)*(6+Math.floor(k/2)*7));
+        _w.multiplyScalar(6).add(opCarrier.pos).add(_v); moveTo(f,_w.x,opCarrier.pos.y,_w.z); continue; }
+      moveTo(f,x.x,x.y,x.z); continue; }
     if(f.mode==='protect'&&protectAI(f)) continue;
     const R=f.retreat;
     if(R){ const k=f.ships.length/f.n;

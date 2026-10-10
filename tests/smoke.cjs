@@ -761,6 +761,8 @@ function check(ok, label, detail = '') {
       r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 2400;
       fleets.filter(f => op.carrier.line.includes(f.name)).forEach(f => f.ships.splice(0, Math.ceil(f.ships.length * .75)));
       step(.05); r.cut = opCarrier.cs.done; r.boarded = opCarrier.cs.boarded; endTalk();
+      /* the more aboard, the slower Yukon goes: 30% of its speed when full (8,000) */
+      const b0 = opCarrier.cs.boarded; r.slow = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = 8000; r.slowFull = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = b0;
       r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
@@ -771,6 +773,7 @@ function check(ok, label, detail = '') {
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まり、30分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
     check(d1.holds && d1.cut && d1.boarded === 2400 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,200人。本軍の戦艦の7割が沈むと切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.slow === .79 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
     check(d1.hold, 'デナリの盾: 本軍は戦う相手がいなくなると、持ち場へ戻らずその場で止まる', JSON.stringify(d1));
     check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
     check(d1.clock === 7.5 && d1.boardSec === 16 && d1.back === 5, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（2時間の収容に戦闘の16秒）、着陸すると5隊が戻ってくる', JSON.stringify(d1));
