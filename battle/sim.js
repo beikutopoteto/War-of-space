@@ -138,7 +138,7 @@ function end(win,quit=false,full=false){
   /* a lost carrier or too many civilian dead (第4節) have their own words */
   const why=!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
-    opCarrier?`${opCarrier.name}に乗せた住民 ${op.carrier.people.toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
+    opCarrier?`${opCarrier.name}に乗せた住民 ${(opCarrier.cs.boarded||0).toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
   /* the menu records the progress and the reward (prep.js) and tells what was gained */
   if(window.WOS_MENU&&WOS_MENU.onEnd) document.getElementById('rp').textContent+=WOS_MENU.onEnd(op.id,win,{rescued});
@@ -422,7 +422,7 @@ function enemyAI(){
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
-    if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
+    if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
     if(f.ai==='raid'){ raidAI(f); continue; }
@@ -478,6 +478,8 @@ function allyAI(){
     let threat=null,bd=f.leash;
     for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    /* hold:true (第4節): with nothing left to fight, it stops where it is instead of going back to its post (user decision 2026-10-10) */
+    else if(f.hold){ if(f.order&&f.order.type==='attack') f.order=null; if(!f.order) f.post.copy(f.pos); }
     else if(f.pos.distanceTo(f.post)>2){ if(!f.order||f.order.type!=='move'||f.order.dest.distanceTo(f.post)>3) f.order={type:'move',dest:f.post.clone()}; }
     else f.order=null;
   }
@@ -508,19 +510,26 @@ function stepCarrier(dt){
   const C=op.carrier; if(!C||!opCarrier||over) return; const S=opCarrier.cs, P=op.body&&op.body.port;
   if(!S.landed){ if(!opCarrier.alive||!P) return;
     if(opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))<=P.r&&(!opCarrier.order||opCarrier.order.type!=='move')) landCarrier(); return; }
-  if(!S.done){ S.board=Math.min(C.board,S.board+dt*CLOCK_RATE);
+  if(!S.done){ S.board=Math.min(C.board,S.board+dt*CLOCK_RATE); S.boarded=Math.floor(C.people*S.board/C.board/100)*100;
     for(const L of C.boardLogs||[]) if(S.board>=L[0]*C.board&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
-    if(S.board>=C.board){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
+    if(S.board>=C.board||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       (C.doneLogs||[]).forEach(l=>logEvent(...l));
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
       /* the ace unit, the units under him (letGo) and every unit told to spare the carrier let us go (第4節: Alvarez does not pursue);
          they only answer what comes near. Only the unit going for the carrier keeps after it */
-      for(const f of fleets) if((f.ace||f.letGo||f.spare&&f.spare.includes('carrier'))&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.letGone=true; }
+      for(const f of fleets) if((f.ace||f.letGo||f.spare&&f.spare.includes('carrier'))&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
       for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }   // their craft come home and leave the retreating allies alone
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }
+}
+/* the boarding is cut short (op.carrier.cut, 第4節; user decision 2026-10-10: never all of the plan): once `min` minutes are done, when the
+   main fleet's battle line (cut.fleets) has lost `sunk` of its ships or the carrier is down to `carrier` of its armour, or at `max` minutes */
+function cutBoarding(C,S){
+  const K=C.cut; if(!K||S.board<K.min) return false; if(S.board>=K.max) return true;
+  const line=fleets.filter(f=>f.ally&&K.fleets.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0), alive=line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0);
+  return n>0&&1-alive/n>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
 }
 function landCarrier(){
   const C=op.carrier, S=opCarrier.cs; S.landed=true; S.landMin=gameSec*CLOCK_RATE; opCarrier.locked=true; opCarrier.order=null; opCarrier.queue=[]; dropArrow(opCarrier.arrow); opCarrier.arrow=null;

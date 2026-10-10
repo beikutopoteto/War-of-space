@@ -744,10 +744,16 @@ function check(ok, label, detail = '') {
       r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
       /* landed, it takes no move order */
       select(opCarrier); groupOrder({ type: 'move', dest: new THREE.Vector3(0, 0, 100) }); r.stays = !opCarrier.order; select(null);
-      /* 5 hours (300 minutes) later the boarding is done; it lifts off and the exit wins */
+      /* with nothing left to fight, an allied unit (hold) stops where it is rather than going back to its post */
       fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
-      const t0 = gameSec; let n = 0; while (!opCarrier.cs.done && n++ < 3000) step(.05);
-      r.board = Math.round((gameSec - t0) * CLOCK_RATE); r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
+      const h = fleets.find(f => f.ally && f.alive && f.hold); h.pos.set(-20, 0, 60); h.order = null; allyAI(); r.hold = !h.order && h.post.distanceTo(h.pos) < 1;
+      /* the boarding is never all of the plan: after 5 hours (5,000 people) it goes on while the main fleet holds, and is cut short
+         once 70% of the battle line is sunk; then it lifts off and the exit wins */
+      const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 300 && n++ < 3000) step(.05);
+      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 5000;
+      fleets.filter(f => op.carrier.cut.fleets.includes(f.name)).forEach(f => f.ships.splice(0, Math.ceil(f.ships.length * .75)));
+      step(.05); r.cut = opCarrier.cs.done; r.boarded = opCarrier.cs.boarded;
+      r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
     check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 6 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
@@ -755,7 +761,8 @@ function check(ok, label, detail = '') {
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
-    check(d1.board >= 299 && d1.board <= 302 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は5時間で終わり、撤退に変わる。ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.holds && d1.cut && d1.boarded === 5000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は計画の途中で切り上げる（5時間を過ぎ、本軍の戦艦の7割が沈んだとき）。撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.hold, 'デナリの盾: 本軍は戦う相手がいなくなると、持ち場へ戻らずその場で止まる', JSON.stringify(d1));
     check(d1.far >= 140 && d1.noRaid && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、居住区ではなくこちらの艦を狙う（ユーコンを狙うのは1隊）。本軍は後ろに残らず、近くのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
     check(d1.clock === 7.5 && d1.boardSec === 40 && d1.back === 6, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（5時間の収容に戦闘の40秒）、着陸すると6隊が戻ってくる', JSON.stringify(d1));
     await page.waitForTimeout(2200);
