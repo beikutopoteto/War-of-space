@@ -88,6 +88,12 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .unit.sel .emb{box-shadow:0 0 0 4px rgba(255,255,255,.18),0 0 18px currentColor;border-color:#fff}
 /* an enemy that slipped out of sight: a faint marker at its last known position */
 .unit.lost{opacity:.42}
+/* pincer marks (loop.js pinchMarks; 案 C, user decision 2026-10-10) */
+.pz{position:absolute;left:0;top:0;pointer-events:none;--pz:#ffd27a}
+.pz-v{position:absolute;left:0;top:0;width:14px;height:14px;margin:-7px 0 0 -7px}
+.pz-v svg{width:14px;height:14px;display:block;overflow:visible}
+.pz-v path{fill:color-mix(in srgb,var(--pz) 25%,transparent);stroke:var(--pz);stroke-width:1;stroke-linejoin:miter}
+.pz-x{position:absolute;left:13px;top:6px;font:700 10px/1 var(--f-num),sans-serif;color:var(--pz);letter-spacing:.04em;text-shadow:0 0 4px #000}
 .unit.ghost{opacity:.5}   /* background evacuation ships (第3節): not targets, only scenery */
 .unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
 .unit.lost .flag span{display:block}
