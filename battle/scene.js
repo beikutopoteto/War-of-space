@@ -222,11 +222,30 @@ function makeBodyShape(B){
   const M=B.mine&&{d:dir(B.mine.dir),a:B.mine.a,depth:B.mine.depth,rim:1,steps:B.mine.steps||0}; if(M) craters.push(M);
   const G=B.groove||{w:.045,depth:1.3}, grooves=[];
   towns.forEach((a,i)=>{ towns.forEach((b,j)=>{ if(j>i) grooves.push([a,b]); }); if(M) grooves.push([a,M.d]); });
+  /* small impact craters and boulders all over the rock, so it looks rough rather than smooth (user decision 2026-10-10; number and sizes 仮).
+     None on a town or the mine */
+  const pits=[], hs=k=>{ const x=Math.sin(k*91.7+17.3)*43758.5453; return x-Math.floor(x); };
+  for(let k=0;pits.length<48&&k<300;k++){ const z=hs(k)*2-1, a=hs(k+.5)*Math.PI*2, s=Math.sqrt(1-z*z), d=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a));
+    const a0=.05+hs(k+.25)*.11; if(craters.some(c=>d.angleTo(c.d)<c.a*1.3+a0*1.3)) continue;
+    pits.push({d,a:a0,depth:a0*R0*.22,rim:a0*R0*.07,bump:k%3===0}); }
   const _n=new THREE.Vector3();
-  function R(d){
+  function base(d){
     let r=R0/Math.sqrt((d.x/sq[0])**2+(d.y/sq[1])**2+(d.z/sq[2])**2);
     r*=1+.12*Math.sin(3.1*d.x+seed)*Math.sin(2.7*d.y+1.3*seed)*Math.cos(2.2*d.z)+.07*Math.sin(7*d.x+2*d.z+seed)*Math.sin(6*d.y)+.02*Math.sin(13*d.x+5*d.y+1.7)*Math.sin(11*d.z-4*d.x+.4)*Math.sin(9*d.y+3*d.z);
     if(L){ const b=d.dot(L.c), disc=b*b-L.c.lengthSq()+L.r*L.r; if(disc>0) r=Math.max(r,b+Math.sqrt(disc)); }
+    return r; }
+  /* the fracture faces: planes at random directions, each cutting a little off the rock (number and depth 仮) */
+  const facets=[]; for(let k=0;k<70;k++){ const z=hs(k+300)*2-1, a=hs(k+300.5)*Math.PI*2, s=Math.sqrt(1-z*z), n=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a));
+    facets.push({n,h:base(n)*(.93+.05*hs(k+300.25))}); }
+  function R(d){
+    let r=base(d);
+    /* flat fracture faces sliced off the rock, and a little sharp-crested noise: the ゴツゴツ */
+    for(const f of facets){ const c=d.dot(f.n); if(c>.25) r=Math.min(r,f.h/c); }
+    const rg=(f,o)=>1-Math.abs(Math.sin(f*d.x+o)*Math.sin(f*.9*d.y+2*o)*Math.sin(f*1.1*d.z-o)*1.6+Math.sin(f*1.3*(d.x+d.z)+.5*o)*.5);
+    r+=R0*(.025*rg(7,1.2)+.012*rg(13,4.1)-.02);
+    for(const c of pits){ const t=Math.acos(Math.min(1,d.dot(c.d)));
+      if(c.bump){ if(t<c.a) r+=c.depth*.7*Math.cos(Math.PI/2*t/c.a); continue; }   // a boulder
+      if(t<c.a) r-=c.depth*(1-(t/c.a)**2); else if(t<c.a*1.4) r+=c.rim*Math.sin(Math.PI*(t-c.a)/(c.a*.4)); }
     let inCrater=false;
     for(const c of craters){ const t=Math.acos(Math.min(1,d.dot(c.d)));
       if(t<c.a){ inCrater=true; const k=1-t/c.a; r-=c.steps?c.depth*Math.min(1,Math.ceil(k*c.steps*1.3)/c.steps):c.depth*Math.min(1,k*2.2); }
@@ -271,6 +290,18 @@ function buildBody(B,zoneR){
       m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d); bodyObj.add(m); });
     if(zoneR){ const mat=zoneMat(), z=new THREE.Mesh(new THREE.SphereGeometry(zoneR,40,24),mat); z.position.copy(at); bodyObj.add(z); bodyZoneMats.push(mat);
       const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
+  /* thin pipes laid over the rock from town to town, beside the railway trenches (user decision 2026-10-10; thickness and spacing 仮).
+     Two pipes side by side on one side of the trench, following the surface a little above it, on small posts */
+  const T=bodyShape.towns, ca=B.craterA||.3;
+  T.forEach((a,i)=>T.forEach((b,j)=>{ if(j<=i) return;
+    const n=new THREE.Vector3().crossVectors(a,b).normalize(), ang=a.angleTo(b);
+    [[.075,.1],[.092,.08]].forEach(([off,rad],w)=>{ const pts=[];
+      const ds=[], rs=[]; for(let k=0;k<=48;k++){ const th=ca*.55+(ang-ca*1.1)*k/48, d=a.clone().applyAxisAngle(n,th).addScaledVector(n,off).normalize(); ds.push(d); rs.push(bodyShape.R(d)); }
+      /* the pipe runs level over small pits: the highest ground nearby, never below the rock */
+      ds.forEach((d,k)=>{ let h=0; for(let q=Math.max(0,k-2);q<=Math.min(48,k+2);q++) h=Math.max(h,rs[q]); pts.push(d.clone().multiplyScalar(h+.45)); });
+      bodyObj.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),96,rad,6,false),w?dark:hull));
+      for(let k=4;k<48;k+=6){ const p=pts[k], up=p.clone().normalize(), post=new THREE.Mesh(new THREE.BoxGeometry(.14,.6,.14),dark);
+        post.scale.y=(p.length()-bodyShape.R(up)+.3)/.6; post.position.copy(up).multiplyScalar((p.length()+bodyShape.R(up)-.3)/2); post.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),up); bodyObj.add(post); } }); }));
   /* the open-pit mine: work lights on its terraces and a few machines on the floor */
   if(bodyShape.mine){ const M=bodyShape.mine, n=70, p=new Float32Array(n*3), q=new THREE.Quaternion(), v=new THREE.Vector3();
     const ax=new THREE.Vector3().crossVectors(M.d,new THREE.Vector3(0,1,0)).normalize();
