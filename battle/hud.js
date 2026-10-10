@@ -345,9 +345,12 @@ function updateGoal(){
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
     if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}`; mode='board'; }
-    else if(!S.done){ p=S.board/C.board; text=C.boardText; label=`収容 ${(S.boarded||0).toLocaleString()}人（計画 ${C.people.toLocaleString()}人）`; mode='board'; }
+    else if(!S.evac){ p=0; text=C.occupyText||C.boardText; label=C.occupyLabel||'宇宙港を確保中'; mode='board'; }
+    else if(!S.done){ p=(S.boarded||0)/C.people; text=C.boardText; label=`収容 ${(S.boarded||0).toLocaleString()}人（上限 ${C.people.toLocaleString()}人）`; mode='board'; }
     else { p=Math.max(0,Math.min(1,1-(opCarrier.pos.distanceTo(S.exit)-(C.exit.r||12))/Math.max(1,S.from||(S.from=opCarrier.pos.distanceTo(S.exit))))); text=C.exitText; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
     subT=`${opCarrier.name} 耐久 ${Math.ceil(hp*100)}%`;
+    /* the battle line still afloat: the longer it holds, the more people get aboard (第4節) */
+    if(C.line){ const line=fleets.filter(f=>f.ally&&C.line.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0); subT+=`　本軍の戦艦 残り ${line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)}/${n}`; }
     if(op.civil) subT+=`　民間の被害 ${Math.round(casualties).toLocaleString()} / ${op.civil.cap.toLocaleString()}人`;
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n本軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:f.left?'離脱':0}${f.left?'':'/'+f.n}`).join('・'); }
   else if(chase&&!over){ const C=op.chase, g=chase.fleet;

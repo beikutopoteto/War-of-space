@@ -726,20 +726,21 @@ function check(ok, label, detail = '') {
       const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), c1 = casualties; damage(g, 5, me); r.openFree = casualties === c1;
       /* the allies do not fire on a ship in a zone */
       const a = fleets.find(f => f.ally); e.seen = true; a.pos.copy(e.pos).add(new THREE.Vector3(0, 0, 14)); r.allyHold = fireTargetOf(a) !== e; a.pos.copy(a.post);
-      /* stopped in the port ring, the carrier lands: the boarding begins and the W.A.S. unit (Alvarez, vivid red) comes back */
+      /* stopped in the port ring, the carrier lands to take the port (占領), and the W.A.S. unit (Alvarez, vivid red) comes back */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
-      r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '収容';
+      r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '占領' && !opCarrier.cs.evac;
       const back = fleets.filter(f => f.team === 1 && f.alive && !f.fixed && !/巡洋阻止/.test(f.name)); r.back = back.length;
       /* they come from the far (north-west) end of the debris cloud, well away from the port */
       r.far = Math.round(Math.min(...back.map(f => f.pos.distanceTo(new THREE.Vector3(P.pos[0], P.alt || 0, P.pos[1])))));
-      /* no one shoots the blocks: the enemy goes for our ships; one cruiser unit goes for Yukon, the others spare it */
-      r.noRaid = !fleets.some(f => f.team === 1 && f.alive && f.ai === 'raid') && back.filter(f => f.prey === 'carrier').length === 1
-        && fleets.filter(f => f.team === 1 && f.alive && !f.fixed && f.prey !== 'carrier').every(f => spares(f, opCarrier));
-      /* no allied unit is left behind in the rear; told to protect, an allied unit takes a spot outside every civilian zone */
+      /* they go for our ships, spare Yukon, and keep out of the civilian zones (so the allies can answer them) */
+      r.noRaid = !fleets.some(f => f.team === 1 && f.alive && f.ai === 'raid') && fleets.filter(f => f.team === 1 && f.alive && !f.fixed).every(f => spares(f, opCarrier) && f.keepOut);
+      const kz = back[0], kp = kz.pos.clone(); kz.pos.copy(blocks[1].pos).add(new THREE.Vector3(4, 0, 0)); keepOutOfZones(kz); r.keptOut = !inZone(kz); kz.pos.copy(kp);
+      /* no allied unit is left behind in the rear; told to protect, each takes what it is given (Wong's on Yukon), outside every zone */
       r.noRear = fleets.filter(f => f.ally).every(f => f.leash >= 300);
-      const pa = fleets.find(f => f.ally && f.alive); pa.mode = 'protect'; protectAI(pa);
-      r.protectOut = !!pa.order && blocks.every(b => Math.hypot(pa.order.dest.x - b.pos.x, pa.order.dest.z - b.pos.z) >= op.civil.r) && !!pa.protects;
-      pa.mode = 'guard'; pa.order = null;
+      const pa = fleets.find(f => f.ally && f.alive), pb = fleets.find(f => f.name === '第4 砲戦突破 支隊');
+      [pa, pb].forEach(f => { f.mode = 'protect'; protectAI(f); });
+      r.protectOut = !!pa.order && blocks.every(b => Math.hypot(pa.order.dest.x - b.pos.x, pa.order.dest.z - b.pos.z) >= op.civil.r) && pa.protects === opCarrier && pb.protects === blocks[0];
+      [pa, pb].forEach(f => { f.mode = 'guard'; f.order = null; });
       const ace = fleets.find(f => f.ace && f.alive); r.ace = !!ace && colOf(ace) === 3;
       r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
       /* landed, it takes no move order */
@@ -747,12 +748,19 @@ function check(ok, label, detail = '') {
       /* with nothing left to fight, an allied unit (hold) stops where it is rather than going back to its post */
       fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
       const h = fleets.find(f => f.ally && f.alive && f.hold); h.pos.set(-20, 0, 60); h.order = null; allyAI(); r.hold = !h.order && h.post.distanceTo(h.pos) < 1;
-      /* the boarding is never all of the plan: after 5 hours (5,000 people) it goes on while the main fleet holds, and is cut short
-         once 70% of the battle line is sunk; then it lifts off and the exit wins */
-      const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 300 && n++ < 3000) step(.05);
-      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 5000;
-      fleets.filter(f => op.carrier.cut.fleets.includes(f.name)).forEach(f => f.ships.splice(0, Math.ceil(f.ships.length * .75)));
-      step(.05); r.cut = opCarrier.cs.done; r.boarded = opCarrier.cs.boarded;
+      /* the main fleet holds: still taking the port. An allied unit wiped out: the plan changes to the evacuation */
+      step(.05); r.holdsPort = !opCarrier.cs.evac;
+      const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.alive = false; am.el.remove(); step(.05);
+      r.evac = opCarrier.cs.evac && phaseName === '収容'; endTalk();
+      /* half an hour later the second wave comes for Yukon from the north-east */
+      const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 31 && n++ < 3000) step(.05);
+      const w2 = fleets.find(f => f.team === 1 && f.alive && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
+      if (w2) { w2.alive = false; w2.el.remove(); }
+      /* 1,200 people an hour while the main fleet holds; cut short once 70% of the battle line is sunk */
+      while (opCarrier.cs.board < 120 && n++ < 3000) step(.05);
+      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 2400;
+      fleets.filter(f => op.carrier.line.includes(f.name)).forEach(f => f.ships.splice(0, Math.ceil(f.ships.length * .75)));
+      step(.05); r.cut = opCarrier.cs.done; r.boarded = opCarrier.cs.boarded; endTalk();
       r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
@@ -760,11 +768,12 @@ function check(ok, label, detail = '') {
       'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍6隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
-    check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
-    check(d1.holds && d1.cut && d1.boarded === 5000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は計画の途中で切り上げる（5時間を過ぎ、本軍の戦艦の7割が沈んだとき）。撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
+    check(d1.holdsPort && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まり、30分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
+    check(d1.holds && d1.cut && d1.boarded === 2400 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,200人。本軍の戦艦の7割が沈むと切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     check(d1.hold, 'デナリの盾: 本軍は戦う相手がいなくなると、持ち場へ戻らずその場で止まる', JSON.stringify(d1));
-    check(d1.far >= 140 && d1.noRaid && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、居住区ではなくこちらの艦を狙う（ユーコンを狙うのは1隊）。本軍は後ろに残らず、近くのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
-    check(d1.clock === 7.5 && d1.boardSec === 40 && d1.back === 6, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（5時間の収容に戦闘の40秒）、着陸すると6隊が戻ってくる', JSON.stringify(d1));
+    check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
+    check(d1.clock === 7.5 && d1.boardSec === 16 && d1.back === 5, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（2時間の収容に戦闘の16秒）、着陸すると5隊が戻ってくる', JSON.stringify(d1));
     await page.waitForTimeout(2200);
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);

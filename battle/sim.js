@@ -177,7 +177,8 @@ function craftTarget(u,type,maxD){
   if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
   /* prey:'ally' (第4節 Alvarez): the allied main fleet's warships first */
   if((u.carrier||u).prey==='ally'){ const a=nearestFoe(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
-  return nearestFoe(u,maxD,t=>craftMayHit(u,t));
+  /* our craft left to themselves do not go for a ship in a civilian zone (第4節); an attack order still sends them */
+  return nearestFoe(u,maxD,t=>craftMayHit(u,t)&&!(u.team===0&&op.civil&&t.kind==='fleet'&&inZone(t)));
 }
 let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut (h.out) at once */
@@ -268,10 +269,10 @@ function fireTargetOf(f){
   const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
-  /* one going for the carrier (prey:'carrier') puts about a third of its fire on it (one second in three) and the rest on a ship
+  /* one going for the carrier (prey:'carrier') puts about a quarter of its fire on it (one second in four) and the rest on a ship
      standing nearer in its way (the main fleet as the shield) */
   if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
-    return at&&gameSec%3<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
+    return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.ally&&op.civil?(t=>t.kind==='wing'||!inZone(t)):null;
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok); }
@@ -450,12 +451,22 @@ function enemyAI(){
    leave — make for the exit and leave the field there */
 const PROTECT_GAP=6, PROTECT_SIDE=7;
 function protectAI(f){
+  /* a fixed point to hold (protect:[x,z]), e.g. the way out */
+  if(Array.isArray(f.protect)){ moveTo(f,f.protect[0],f.protect[2]||0,f.protect[1]); return true; }
+  /* what it guards: given (protect:'carrier' / 'block:N'), or else the nearest of the carrier and the blocks */
   if(!(f.protects&&f.protects.alive)){ const c=[...(opCarrier&&opCarrier.alive?[opCarrier]:[]),...blocks.filter(b=>b.alive)];
-    f.protects=nearestOf(f,c); }
+    const k=f.protect==='carrier'?opCarrier:/^block:\d+$/.test(f.protect||'')?blocks[+f.protect.slice(6)]:null;
+    f.protects=k&&k.alive?k:nearestOf(f,c); }
   const P=f.protects; if(!P) return false;
-  let e=null,bd=1e9; for(const x of fleets) if(x.team===1&&x.alive&&x.seen&&!x.fixed){ const d=x.pos.distanceTo(P.pos); if(d<bd){bd=d;e=x;} }
-  if(e) _w.subVectors(e.pos,P.pos).setY(0); else _w.copy(P.pos).setY(0);
+  /* it faces an enemy going for what it guards (prey:'carrier' / a raid on the block), or else the centre of the enemy within 90 of it
+     (or the nearest enemy), turning slowly so it does not swing about */
+  const foe=x=>x.team===1&&x.alive&&x.seen&&!x.fixed, after=fleets.filter(x=>foe(x)&&(P===opCarrier?x.prey==='carrier':x.raidBlock===P&&x.ai==='raid'));
+  const near=after.length?after:fleets.filter(x=>foe(x)&&x.pos.distanceTo(P.pos)<90);
+  if(near.length){ _w.set(0,0,0); near.forEach(x=>_w.add(x.pos)); _w.multiplyScalar(1/near.length).sub(P.pos).setY(0); }
+  else { let e=null,bd=1e9; for(const x of fleets) if(x.team===1&&x.alive&&x.seen&&!x.fixed){ const d=x.pos.distanceTo(P.pos); if(d<bd){bd=d;e=x;} }
+    if(e) _w.subVectors(e.pos,P.pos).setY(0); else _w.copy(P.pos).setY(0); }
   if(_w.lengthSq()<1e-6) _w.set(0,0,1); _w.normalize();
+  if(!f.protectDir) f.protectDir=_w.clone(); else f.protectDir.lerp(_w,.08).normalize(); _w.copy(f.protectDir);
   const mates=fleets.filter(x=>x.ally&&x.alive&&x.mode==='protect'&&x.protects===P), k=mates.indexOf(f);
   const side=_v.set(-_w.z,0,_w.x).multiplyScalar((k%2?-1:1)*Math.ceil(k/2)*PROTECT_SIDE);
   _w.multiplyScalar(P.kind==='block'?op.civil.r+PROTECT_GAP:(P.radius||0)+PROTECT_GAP+4).add(P.pos).add(side);
@@ -510,11 +521,14 @@ function stepCarrier(dt){
   const C=op.carrier; if(!C||!opCarrier||over) return; const S=opCarrier.cs, P=op.body&&op.body.port;
   if(!S.landed){ if(!opCarrier.alive||!P) return;
     if(opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))<=P.r&&(!opCarrier.order||opCarrier.order.type!=='move')) landCarrier(); return; }
-  if(!S.done){ S.board=Math.min(C.board,S.board+dt*CLOCK_RATE); S.boarded=Math.floor(C.people*S.board/C.board/100)*100;
-    for(const L of C.boardLogs||[]) if(S.board>=L[0]*C.board&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
-    if(S.board>=C.board||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
+  /* landed: the port is being taken (占領) until the main fleet is pushed back; then the plan changes to taking the people off */
+  if(!S.evac){ if(evacDue(C,S)) startEvac(C,S); return; }
+  if(!S.done){ S.board+=dt*CLOCK_RATE; S.boarded=Math.min(C.people,Math.floor(C.rate*S.board/60/100)*100);
+    for(const L of C.boardLogs||[]) if(S.boarded>=L[0]&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
+    const full=S.boarded>=C.people;
+    if(full||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
-      (C.doneLogs||[]).forEach(l=>logEvent(...l));
+      playScene(full&&C.fullLogs||C.doneLogs);
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
       /* the ace unit, the units under him (letGo) and every unit told to spare the carrier let us go (第4節: Alvarez does not pursue);
          they only answer what comes near. Only the unit going for the carrier keeps after it */
@@ -524,16 +538,35 @@ function stepCarrier(dt){
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }
 }
-/* the boarding is cut short (op.carrier.cut, 第4節; user decision 2026-10-10: never all of the plan): once `min` minutes are done, when the
-   main fleet's battle line (cut.fleets) has lost `sunk` of its ships or the carrier is down to `carrier` of its armour, or at `max` minutes */
-function cutBoarding(C,S){
-  const K=C.cut; if(!K||S.board<K.min) return false; if(S.board>=K.max) return true;
-  const line=fleets.filter(f=>f.ally&&K.fleets.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0), alive=line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0);
-  return n>0&&1-alive/n>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
+/* the share of the main fleet's battle line (op.carrier.line, fleet names) that is sunk */
+function lineLost(){ const L=op.carrier.line||[], line=fleets.filter(f=>f.ally&&L.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0);
+  return n?1-line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n:0; }
+/* 第4節: the plan changes from taking the port to taking the people off (op.carrier.evac; user decision 2026-10-10: when the main fleet
+   is pushed back): when an allied unit is wiped out, or the battle line has lost `lost` of its ships, or `max` minutes after the landing */
+function evacDue(C,S){ const E=C.evac; if(!E) return true;
+  return fleets.some(f=>f.ally&&!f.alive&&!f.left)||lineLost()>=E.lost||gameSec*CLOCK_RATE-S.landMin>=E.max; }
+function startEvac(C,S){
+  S.evac=true; S.evacMin=gameSec*CLOCK_RATE; S.board=0; S.boarded=0; setPhase('収容'); opCarrier.sub='戦闘母艦　住民を収容中';
+  playScene(C.evacLogs);
+  /* the evacuation's own events, timed from now */
+  const add=(C.evacEvents||[]).map(e=>({...e,after:S.evacMin+e.after})), rest=opEvents.splice(nextEvent);
+  opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
 }
+/* the boarding is cut short (op.carrier.cut, 第4節; user decision 2026-10-10): after `min` minutes of it, when the battle line has lost
+   `sunk` of its ships or the carrier is down to `carrier` of its armour. The more the main fleet holds, the more people get aboard */
+function cutBoarding(C,S){
+  const K=C.cut; if(!K||S.board<K.min) return false;
+  return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
+}
+/* a scene of lines: a conversation that pauses the battle (story on), always kept in the log too */
+function playScene(lines){ if(!lines||!lines.length) return; lines.forEach(l=>logEvent(...l)); if(storyOn()) startTalk(lines); }
+/* keepOut (第4節): the enemy does not hide among the people once the main fleet is here; pushed out to the edge of every civilian zone,
+   so the allies, who never fire into a zone, can answer it */
+function keepOutOfZones(f){ const R=op.civil.r+.5;
+  for(const b of blocks){ _w.subVectors(f.pos,b.pos); const d=_w.length(); if(d>=R) continue; if(d<1e-6) _w.set(0,0,1); f.pos.copy(b.pos).addScaledVector(_w.normalize(),R); } }
 function landCarrier(){
   const C=op.carrier, S=opCarrier.cs; S.landed=true; S.landMin=gameSec*CLOCK_RATE; opCarrier.locked=true; opCarrier.order=null; opCarrier.queue=[]; dropArrow(opCarrier.arrow); opCarrier.arrow=null;
-  opCarrier.sub='戦闘母艦　住民を収容中'; if(C.landLog) logEvent(...C.landLog);
+  opCarrier.sub=C.landSub||'戦闘母艦　宇宙港を確保中'; if(C.landLog) logEvent(...C.landLog); if(C.landPhase) setPhase(C.landPhase);
   /* the landing's own events, timed from now */
   const add=(C.landEvents||[]).map(e=>({...e,after:S.landMin+e.after})), rest=opEvents.splice(nextEvent);
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
@@ -548,7 +581,7 @@ function step(dt){
       if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
-    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally) f.mode=E.ai.ai; else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; } f.order=null; }
+    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally) f.mode=E.ai.ai; else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
   }
@@ -589,6 +622,7 @@ function step(dt){
     }
   }
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
+  if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
   stepField();   // after the convoy has moved this step
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
