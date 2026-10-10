@@ -59,7 +59,7 @@ window.WOS_DATA=window.WOS_DATA||{};
      収容は1時間に rate 人で、people 人（上限）で満員（fullLogs）。cut:{min, sunk, carrier} があると、収容を min 分したあと、
      line が sunk の割合だけ沈むか、carrier の耐久が carrier の割合を切ると切り上げる（doneLogs）。evacLogs・doneLogs・fullLogs は
      戦闘を止めて見せる会話（ログにも残る）。そのあと exit に着けば勝ち、沈めば負け。会話と通知の {boarded} は乗せた人数、
-     {remain} は残った住民（civil.pop − 乗せた人数）。landEvents は着陸から、evacEvents は作戦変更から何分後かの出来事（events と同じ形）。
+     {remain} は残った住民（civil.pop − 乗せた人数）。slowFull は満員のときに遅くなる割合（乗せた人数に比例）。landEvents は着陸から、evacEvents は作戦変更から何分後かの出来事（events と同じ形）。
      友軍の hold:true は、戦う相手がいなくなるとその場で止まる（持ち場へ戻らない）。友軍の protect は ai:'protect' で守るもの（'carrier' か 'block:N'）。
    keepOut:true の艦隊（events の ai でも付けられる）は民間区画の中に入らない（区画の縁へ押し出す）
    events の ai:{fleets:[名前], ai, ...} は、その名前の艦隊の ai を変える（敵も友軍も）
@@ -466,6 +466,8 @@ WOS_DATA.operations=[
          切り上げ（cut。ユーザー決定: 本軍が持たなくなったら）: 収容を始めて60分（仮）が過ぎたあと、戦艦の隊が7割沈むか、ユーコンの耐久が半分を切ったとき。
          本軍が長く持つほど多く乗せられる（ユーザー決定 2026-10-10: 守り方しだいで変わる。ふつうに遊ぶと約5,000人） */
       people:8000, rate:1200, cut:{min:60, sunk:.7, carrier:.5},
+      /* 乗せた人数に比例して遅くなる。満員で70%遅い（ユーザー決定 2026-10-10） */
+      slowFull:.7,
       exit:{pos:[-100,100], alt:0, r:12},
       landText:'ユーコンを宇宙港（居住区C のそば）の輪へ降ろせ',
       boardText:'本軍が持つあいだに、一人でも多く乗せろ。ユーコンを守れ',
