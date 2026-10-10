@@ -268,6 +268,10 @@ function fireTargetOf(f){
   const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
+  /* one going for the carrier (prey:'carrier') puts about a third of its fire on it (one second in three) and the rest on a ship
+     standing nearer in its way (the main fleet as the shield) */
+  if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
+    return at&&gameSec%3<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.ally&&op.civil?(t=>t.kind==='wing'||!inZone(t)):null;
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok); }
@@ -402,12 +406,24 @@ function raidAI(f){
   if(gap(f,b)>f.range*.65){ _w.subVectors(f.pos,b.pos).setY(0); if(_w.lengthSq()<1e-6) _w.set(0,0,1); _w.setLength(b.radius+f.range*.5).add(b.pos); moveTo(f,_w.x,b.pos.y,_w.z); }
   else if(f.order&&f.order.type==='move') f.order=null;
 }
+/* 第4節: the unit going for the carrier (prey:'carrier') stands off outside the civilian zones within reach of it, so it can be fired on.
+   It puts only a third of its fire on the carrier (fireTargetOf; user decision 2026-10-10: Yukon is targeted a little) */
+function carrierRaidAI(f){
+  /* the nearest of 16 spots around the carrier at 0.8 of its reach that is outside every zone and clear of the rock */
+  const c=opCarrier, R=f.range*.8, Z=op.civil.r+2; let best=null,bd=1e9;
+  for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; _v.set(c.pos.x+Math.cos(a)*R,c.pos.y+4,c.pos.z+Math.sin(a)*R);
+    if(blocks.some(b=>Math.hypot(_v.x-b.pos.x,_v.z-b.pos.z)<Z)||_v.length()<bodySurface(_v,op.body.r)+4) continue;
+    const d=_v.distanceTo(f.pos); if(d<bd){bd=d;best=_v.clone();} }
+  if(!best) return;
+  if(f.pos.distanceTo(best)>2) moveTo(f,best.x,best.y,best.z); else if(f.order&&f.order.type==='move') f.order=null;
+}
 function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
+    if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
     if(f.ai==='raid'){ raidAI(f); continue; }
     if(f.ai==='shield') shieldAI(f);
@@ -428,24 +444,32 @@ function enemyAI(){
    under `below` of its strength starts to give ground: the fewer it has left, the closer its post moves to `to`
    (all the way there at half of `below`). It never fights to the last ship there; it falls back instead (user decision 2026-10-03).
    heldLog: said once if the fleet named in heldIf is destroyed while this one still holds its post */
-/* 第4節: cover — stand between the habitat block under the heaviest raid and its raider, and take the fire meant for the block
-   (user decision 2026-10-09: the main fleet becomes the shield). leave — make for the exit and leave the field there */
-const COVER_GAP=5;
-function coverAI(f){
-  const raiders=fleets.filter(e=>e.team===1&&e.alive&&e.ai==='raid'&&e.raidBlock);
-  let r=null,bd=1e9; for(const e of raiders){ const d=gap(e,e.raidBlock); if(d<bd){bd=d;r=e;} }
-  if(!r) return false;
-  const b=r.raidBlock, k=fleets.filter(x=>x.ally&&x.alive&&x.mode==='cover').indexOf(f);
-  _w.subVectors(r.pos,b.pos).setY(0); if(_w.lengthSq()<1e-6) _w.set(0,0,1); _w.normalize();
-  const side=_v.set(-_w.z,0,_w.x).multiplyScalar((k%2?-1:1)*Math.ceil(k/2)*6);
-  _w.multiplyScalar(b.radius+COVER_GAP).add(b.pos).add(side); moveTo(f,_w.x,b.pos.y,_w.z); return true;
+/* 第4節: protect — when the enemy comes back, each allied fleet takes the nearest of the carrier and the habitat blocks and stands
+   between it and the nearest enemy, just outside the block's civilian zone (beside the carrier), firing on what comes
+   (user decision 2026-10-10: the main fleet guards what is near it; the enemy goes for our ships, not the blocks).
+   leave — make for the exit and leave the field there */
+const PROTECT_GAP=6, PROTECT_SIDE=7;
+function protectAI(f){
+  if(!(f.protects&&f.protects.alive)){ const c=[...(opCarrier&&opCarrier.alive?[opCarrier]:[]),...blocks.filter(b=>b.alive)];
+    f.protects=nearestOf(f,c); }
+  const P=f.protects; if(!P) return false;
+  let e=null,bd=1e9; for(const x of fleets) if(x.team===1&&x.alive&&x.seen&&!x.fixed){ const d=x.pos.distanceTo(P.pos); if(d<bd){bd=d;e=x;} }
+  if(e) _w.subVectors(e.pos,P.pos).setY(0); else _w.copy(P.pos).setY(0);
+  if(_w.lengthSq()<1e-6) _w.set(0,0,1); _w.normalize();
+  const mates=fleets.filter(x=>x.ally&&x.alive&&x.mode==='protect'&&x.protects===P), k=mates.indexOf(f);
+  const side=_v.set(-_w.z,0,_w.x).multiplyScalar((k%2?-1:1)*Math.ceil(k/2)*PROTECT_SIDE);
+  _w.multiplyScalar(P.kind==='block'?op.civil.r+PROTECT_GAP:(P.radius||0)+PROTECT_GAP+4).add(P.pos).add(side);
+  /* the spot stays outside every civilian zone, so the enemy that comes for it is outside too and can be fired on */
+  for(const b of blocks){ _v.subVectors(_w,b.pos).setY(0); const d=_v.length(), R=op.civil.r+PROTECT_GAP;
+    if(d<R){ if(d<1e-6) _v.set(0,0,1); _v.setLength(R); _w.x=b.pos.x+_v.x; _w.z=b.pos.z+_v.z; } }
+  moveTo(f,_w.x,P.pos.y,_w.z); return true;
 }
 function allyAI(){
   const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&inZone(f)));
   for(const f of fleets){
     if(!f.ally||!f.alive) continue;
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; } moveTo(f,x.x,x.y,x.z); continue; }
-    if(f.mode==='cover'&&coverAI(f)) continue;
+    if(f.mode==='protect'&&protectAI(f)) continue;
     const R=f.retreat;
     if(R){ const k=f.ships.length/f.n;
       if(k<R.below){ if(!f.falling){ f.falling=true; if(R.log) logEvent(...R.log); }
@@ -490,8 +514,9 @@ function stepCarrier(dt){
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       (C.doneLogs||[]).forEach(l=>logEvent(...l));
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
-      /* the ace unit and the units under him (letGo) let us go (第4節: Alvarez does not pursue); they only answer what comes near */
-      for(const f of fleets) if((f.ace||f.letGo)&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.letGone=true; }
+      /* the ace unit, the units under him (letGo) and every unit told to spare the carrier let us go (第4節: Alvarez does not pursue);
+         they only answer what comes near. Only the unit going for the carrier keeps after it */
+      for(const f of fleets) if((f.ace||f.letGo||f.spare&&f.spare.includes('carrier'))&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.letGone=true; }
       for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }   // their craft come home and leave the retreating allies alone
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
@@ -514,7 +539,7 @@ function step(dt){
       if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
-    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally) f.mode=E.ai.ai; else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; } f.order=null; }
+    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally) f.mode=E.ai.ai; else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
   }
