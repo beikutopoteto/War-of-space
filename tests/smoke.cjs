@@ -729,6 +729,7 @@ function check(ok, label, detail = '') {
       /* stopped in the port ring, the carrier lands: the boarding begins and the W.A.S. unit (Alvarez, vivid red) comes back */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
       r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '収容';
+      r.back = fleets.filter(f => f.team === 1 && f.alive && !f.fixed && !/巡洋阻止/.test(f.name)).length;
       const ace = fleets.find(f => f.ace && f.alive); r.ace = !!ace && colOf(ace) === 3;
       r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
       /* landed, it takes no move order */
@@ -736,15 +737,16 @@ function check(ok, label, detail = '') {
       /* 5 hours (300 minutes) later the boarding is done; it lifts off and the exit wins */
       fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
       const t0 = gameSec; let n = 0; while (!opCarrier.cs.done && n++ < 3000) step(.05);
-      r.board = Math.round((gameSec - t0) * CLOCK_RATE); r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
+      r.board = Math.round((gameSec - t0) * CLOCK_RATE); r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
-    check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 3 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
-      'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍3隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
+    check(d1.op === 'denali' && d1.last && d1.free && d1.noCraft && d1.allies === 6 && d1.aa === 6 && d1.blocks === 3 && d1.debris > 3 && !d1.masc,
+      'デナリの盾: ユーコンが自軍の一覧の最後に出て（戦区軍の外、研究は効かない）、本軍6隊・対空砲台6基・居住区3つ・採掘の岩くずの雲がある（強襲母艦は出ない）', JSON.stringify(d1));
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
     check(d1.board >= 299 && d1.board <= 302 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は5時間で終わり、撤退に変わる。ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.clock === 7.5 && d1.boardSec === 40 && d1.back === 6, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（5時間の収容に戦闘の40秒）、着陸すると6隊が戻ってくる', JSON.stringify(d1));
     await page.waitForTimeout(2200);
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
