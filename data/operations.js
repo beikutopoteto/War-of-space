@@ -543,7 +543,7 @@ WOS_DATA.operations=[
        ウォン中将の第1 とアマゾン残存隊がユーコン、第2 と巡洋護衛が居住区C、第3 が居住区B、第4 が居住区A。2026-10-10、偏りを直すため。仮）。
        戦艦の7割が沈む（ユーザー決定 2026-10-09。数値は早送りで合わせる）。撤退で離脱点へ下がる */
     allies:[
-      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:110, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier'},
+      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:110, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
       {name:'第3 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:110, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
       {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:22, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier'},
       /* 本軍の隊の数は2倍（ユーザー決定 2026-10-10）。足した3隊の位置は仮 */
