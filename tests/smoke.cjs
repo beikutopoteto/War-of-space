@@ -729,7 +729,17 @@ function check(ok, label, detail = '') {
       /* stopped in the port ring, the carrier lands: the boarding begins and the W.A.S. unit (Alvarez, vivid red) comes back */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
       r.landed = opCarrier.cs.landed && opCarrier.locked && phaseName === '収容';
-      r.back = fleets.filter(f => f.team === 1 && f.alive && !f.fixed && !/巡洋阻止/.test(f.name)).length;
+      const back = fleets.filter(f => f.team === 1 && f.alive && !f.fixed && !/巡洋阻止/.test(f.name)); r.back = back.length;
+      /* they come from the far (north-west) end of the debris cloud, well away from the port */
+      r.far = Math.round(Math.min(...back.map(f => f.pos.distanceTo(new THREE.Vector3(P.pos[0], P.alt || 0, P.pos[1])))));
+      /* no one shoots the blocks: the enemy goes for our ships; one cruiser unit goes for Yukon, the others spare it */
+      r.noRaid = !fleets.some(f => f.team === 1 && f.alive && f.ai === 'raid') && back.filter(f => f.prey === 'carrier').length === 1
+        && fleets.filter(f => f.team === 1 && f.alive && !f.fixed && f.prey !== 'carrier').every(f => spares(f, opCarrier));
+      /* no allied unit is left behind in the rear; told to protect, an allied unit takes a spot outside every civilian zone */
+      r.noRear = fleets.filter(f => f.ally).every(f => f.leash >= 300);
+      const pa = fleets.find(f => f.ally && f.alive); pa.mode = 'protect'; protectAI(pa);
+      r.protectOut = !!pa.order && blocks.every(b => Math.hypot(pa.order.dest.x - b.pos.x, pa.order.dest.z - b.pos.z) >= op.civil.r) && !!pa.protects;
+      pa.mode = 'guard'; pa.order = null;
       const ace = fleets.find(f => f.ace && f.alive); r.ace = !!ace && colOf(ace) === 3;
       r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
       /* landed, it takes no move order */
@@ -746,6 +756,7 @@ function check(ok, label, detail = '') {
     check(d1.zoneCost === 10 && d1.openFree && d1.allyHold, 'デナリの盾: 民間区画の中の敵を撃つと住民に被害が出る（区画の外なら出ない）。本軍は区画の中を撃たない', JSON.stringify(d1));
     check(d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港の輪で止まると着陸し、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、収容中のユーコンは動かない', JSON.stringify(d1));
     check(d1.board >= 299 && d1.board <= 302 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は5時間で終わり、撤退に変わる。ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.far >= 140 && d1.noRaid && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、居住区ではなくこちらの艦を狙う（ユーコンを狙うのは1隊）。本軍は後ろに残らず、近くのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
     check(d1.clock === 7.5 && d1.boardSec === 40 && d1.back === 6, 'デナリの盾: 時計はほかの作戦の半分の速さで進み（5時間の収容に戦闘の40秒）、着陸すると6隊が戻ってくる', JSON.stringify(d1));
     await page.waitForTimeout(2200);
     await page.click('#talkSkip').catch(() => {});
