@@ -12,8 +12,11 @@ function clockStr(min=gameSec*CLOCK_RATE){ const m=clockMin(min); return String(
 function dateStr(){ const d=Math.floor(clockMin(gameSec*CLOCK_RATE)/1440); return d?op.date.replace(/(\d+)$/,x=>String(+x+d).padStart(x.length,'0')):op.date; }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
+/* numbers filled into a line when it is shown (第4節): {boarded} the people aboard the carrier, {remain} those left behind */
+function fillText(s){ if(!s||!opCarrier||!opCarrier.cs||s.indexOf('{')<0) return s; const b=opCarrier.cs.boarded||0;
+  return s.replace(/\{boarded\}/g,b.toLocaleString()).replace(/\{remain\}/g,Math.max(0,(op.civil&&op.civil.pop||0)-b).toLocaleString()); }
 function logEvent(title,desc){
-  const t=clockStr();
+  desc=fillText(desc); const t=clockStr();
   const prev=document.getElementById('bh').textContent, prevT=document.getElementById('bt').textContent;
   if(prevT!=='作戦概要'){ const li=document.createElement('li'); li.innerHTML=`<b>${prevT}</b>`; li.append(prev); const log=document.getElementById('log'); log.prepend(li); while(log.children.length>3) log.lastChild.remove(); }
   showBrief(t,title,desc); flashBrief();
@@ -342,7 +345,7 @@ function updateGoal(){
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
     if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}`; mode='board'; }
-    else if(!S.done){ p=S.board/C.board; text=C.boardText; label=`収容 ${Math.floor(p*100)}%　発進 ${clockStr(S.landMin+C.board)} 予定`; mode='board'; }
+    else if(!S.done){ p=S.board/C.board; text=C.boardText; label=`収容 ${(S.boarded||0).toLocaleString()}人（計画 ${C.people.toLocaleString()}人）`; mode='board'; }
     else { p=Math.max(0,Math.min(1,1-(opCarrier.pos.distanceTo(S.exit)-(C.exit.r||12))/Math.max(1,S.from||(S.from=opCarrier.pos.distanceTo(S.exit))))); text=C.exitText; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
     subT=`${opCarrier.name} 耐久 ${Math.ceil(hp*100)}%`;
     if(op.civil) subT+=`　民間の被害 ${Math.round(casualties).toLocaleString()} / ${op.civil.cap.toLocaleString()}人`;
@@ -370,7 +373,7 @@ function talkFor(lines){ const flags={...(lastCfg&&lastCfg.flags||{}),rescued};
 const storyOn=()=>!window.WOS_OPT||!!window.WOS_OPT.story;
 function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
 /* a line with no speaker is narration */
-function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=l[1]; }
+function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=fillText(l[1]); }
 function endTalk(){ talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); }
 talkEl.addEventListener('click',e=>{ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); });
 /* holding Ctrl fast-forwards: one line every 0.1 s until it is let go */
