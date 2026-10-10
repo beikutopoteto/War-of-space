@@ -17,6 +17,7 @@ const CLOUD_HOLD=6, CLOUD_BLIND=15;
 /* whether o can see t now: within its sight (clouds halve it), and not lost in a cloud it has watched too long */
 function canSee(o,t){ if(t.inCloud&&!o.inCloud&&o.blindT>gameSec) return false;
   const d=o.pos.distanceTo(t.pos); if(debris.length&&d>DEBRIS_NEAR&&debrisBlocks(o.pos,t.pos)) return false;
+  if(bodyBlocks(o.pos,t.pos)) return false;
   return d<=sightOf(o)*concealOf(t)*(o.inCloud?CLOUD_SIGHT:1)*(t.inCloud?CLOUD_SIGHT:1); }
 /* mining debris (op.debris, 第4節; user decision 2026-10-09): no line of sight passes through a debris cloud, however close the two
    are, unless they are within DEBRIS_NEAR of each other. A fleet inside moves at DEBRIS_SPEED (仮). The test is in space:
@@ -24,6 +25,27 @@ function canSee(o,t){ if(t.inCloud&&!o.inCloud&&o.blindT>gameSec) return false;
 const DEBRIS_NEAR=20, DEBRIS_SPEED=.75;
 const _sg=new THREE.Line3(), _sp=new THREE.Vector3();
 function debrisBlocks(p,q){ _sg.set(p,q); for(const c of debris){ _sg.closestPointToPoint(c.c,true,_sp); if(_sp.distanceTo(c.c)<c.r) return true; } return false; }
+/* the body in the middle (op.body, 第4節 Denali) stops sight and fire (user decision 2026-10-10): the line between the two passes inside
+   its surface. An end on the surface (a battery, a habitat block) does not count, only a pass through the rock. The surface is taken
+   a little inside (BODY_LOS) so a shot grazing the rough rock is not stopped */
+const BODY_LOS=.92, BODY_OUT=1.35, _o0=new THREE.Vector3();
+function bodyBlocks(p,q){ if(!op.body) return false; _sg.set(p,q); const t=_sg.closestPointToPointParameter(_o0,true);
+  if(t<=.02||t>=.98) return false; _sg.at(t,_sp); const d=_sp.length(); return d<op.body.r*BODY_OUT&&d<bodySurface(_sp,op.body.r)*BODY_LOS; }
+function losBlocked(p,q){ return debris.length&&debrisBlocks(p,q)||bodyBlocks(p,q); }
+/* a way round the body (2026-10-10, user decision: for every move, ours included): when the straight way from p to q runs into the rock,
+   the nearest of three turning points clear of it — out past the side it passes, over the top, under the bottom — with a little chance
+   in it so the AI does not always pick the same (key: a fleet's own fixed lean, for a way worked out again every step). Up to two in a row (detours) */
+const BODY_CLEAR=7, _up0=new THREE.Vector3(0,1,0);
+function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.closestPointToPointParameter(_o0,true); _sg.at(t,_sp);
+  const d=_sp.length(); if(d>=op.body.r*BODY_OUT||d>=bodySurface(_sp,op.body.r)+BODY_CLEAR*.4) return null;
+  const a=new THREE.Vector3().subVectors(q,p); if(a.lengthSq()<1e-6) return null; a.normalize();
+  const up=_up0.clone().addScaledVector(a,-a.y); if(up.lengthSq()<1e-4) up.set(1,0,0); up.normalize();
+  const cand=[up,up.clone().negate()]; if(d>1) cand.push(_sp.clone().normalize());
+  let best=null,bc=1e9; for(const n of cand){ const w=n.clone().multiplyScalar(bodySurface(n,op.body.r)+BODY_CLEAR);
+    w.y=Math.max(-58,Math.min(58,w.y)); const r=key==null?Math.random():(x=>x-Math.floor(x))(Math.sin((key+1)*12.9898+cand.indexOf(n)*78.233)*43758.5453);
+    const c=(p.distanceTo(w)+w.distanceTo(q))*(.95+r*.1); if(c<bc){ bc=c; best=w; } }
+  return best; }
+function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
 function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function shown(u){ return u.team===0||u.seen; }
@@ -35,8 +57,8 @@ function updateFog(){
   let spotted=null;
   for(const t of all){ if(!t.alive) continue;
     let by=null;
-    /* a unit that opens fire gives itself away, but not through the mining debris */
-    if(t.kind==='fortress'||t.revealT>0&&(!debris.length||all.some(o=>o.alive&&o.team!==t.team&&!debrisBlocks(o.pos,t.pos)))) by=t;
+    /* a unit that opens fire gives itself away, but not through the mining debris or the rock */
+    if(t.kind==='fortress'||t.revealT>0&&(!debris.length&&!op.body||all.some(o=>o.alive&&o.team!==t.team&&!losBlocked(o.pos,t.pos)))) by=t;
     else for(const o of all){ if(!o.alive||o.team===t.team||!canSee(o,t)) continue;
       /* every observer watching a unit inside a cloud tires of it (CLOUD_HOLD); one in the open is simply seen */
       if(t.inCloud&&!o.inCloud){ if(gameSec-(o.holdT??-1e9)>1) o.cloudHold=0; o.holdT=gameSec;
@@ -61,7 +83,7 @@ function spotEarly(){
     E.early=true; const at=Math.max(E.onSpot.min||0,now+(E.onSpot.delay||0)); if(at<E.after){ E.after=at; moved=true; } }
   if(moved){ const rest=opEvents.splice(nextEvent).sort((a,b)=>a.after-b.after); opEvents.push(...rest); }
 }
-function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||spares(f,u)||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd){bd=d;best=u;} } return best; }
+function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||spares(f,u)||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd&&!(f.kind!=='wing'&&bodyBlocks(f.pos,u.pos))){bd=d;best=u;} } return best; }
 /* a fleet with spare:['carrier'] (and its craft) leaves the carrier of the operation alone (第4節 Alvarez's unit, user decision 2026-10-09) */
 function spares(f,t){ const c=f.carrier||f; return !!(c.spare&&t.isCarrier&&c.spare.includes('carrier'))||!!(c.letGone&&t.mode==='leave'); }
 /* the civilian zones (op.civil): within r of a habitat block. Our guns hitting an enemy ship in one cost lives, an enemy ship sunk in one
@@ -245,11 +267,12 @@ function stepWings(dt){
    The arrow is drawn from the same curve, so the fleet goes exactly where the arrow shows. */
 const MAX_WAYPOINTS=8, PATH_DIV=40;
 function makePath(from,pts){
-  const all=[from.clone(),...pts.map(p=>p.clone())];
+  /* the turning points round the body (detours) shape the curve but are not waypoints: pts / at hold only the ones given */
+  const all=[from.clone()], ix=[]; for(const p of pts){ all.push(...detours(all[all.length-1],p),p.clone()); ix.push(all.length-1); }
   const curve=all.length>2?new THREE.CatmullRomCurve3(all,false,'centripetal'):new THREE.LineCurve3(all[0],all[1]);
   curve.arcLengthDivisions=(all.length-1)*PATH_DIV;
   const lens=curve.getLengths();
-  return {curve, L:Math.max(lens[lens.length-1],1e-3), s:0, pts:all.slice(1), at:all.slice(1).map((_,i)=>lens[(i+1)*PATH_DIV])};
+  return {curve, L:Math.max(lens[lens.length-1],1e-3), s:0, pts:ix.map(i=>all[i]), at:ix.map(i=>lens[i*PATH_DIV])};
 }
 /* when an order is done, the next queued one starts (an attack on a target already gone is skipped) */
 function nextOrder(f){ while(f.queue&&f.queue.length){ const o=f.queue.shift(); if(o.type==='attack'&&!o.target.alive) continue; order(f,o); return; } }
@@ -269,7 +292,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range?t:null;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)?t:null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
   /* one going for the carrier (prey:'carrier') puts about a quarter of its fire on it (one second in four) and the rest on a ship
@@ -370,20 +393,45 @@ function stepSorties(){
   }
 }
 let aiTimer=0;
+/* pincer (user decision 2026-10-10): a fleet fired on from directions at least 90 degrees apart (up and down count too) fires back
+   weaker: two such directions ×0.8, three or more ×0.7 (仮). Only fleets that are firing on it count (guns on the rock too); small
+   craft do not, as they always swarm round their target. Counted every half second (f.pinch, f.pinchN) */
+const PINCH=[1,1,.8,.7];
+function pincers(){
+  for(const f of fleets){ if(!f.alive) continue; const dirs=[];
+    for(const x of fleets){ if(!x.alive||x.team===f.team||x.fireTarget!==f||gap(x,f)>x.range*1.08||bodyBlocks(x.pos,f.pos)) continue;
+      const v=new THREE.Vector3().subVectors(x.pos,f.pos); if(v.lengthSq()<1e-6) continue; v.normalize();
+      if(dirs.every(d=>d.dot(v)<=0)) dirs.push(v); }
+    f.pinchN=dirs.length; f.pinch=PINCH[Math.min(dirs.length,3)]; }
+}
 /* how far off an attacker stands: an enemy fleet that outranges its target keeps near the edge of its own guns (92%), out of
    the target's reach, instead of closing to 75% (2026-10-10, 仮) */
 function standOff(f,t){ if(f.carrierOnly) return f.launchMin*.8+(t.radius||0);
   const outranges=f.team===1&&t.kind==='fleet'&&t.range&&f.range>t.range*1.05; return f.range*(outranges?.92:.75)+(t.radius||0); }
-/* the side of its target an enemy fleet takes: the way it came in, turned by 0 / ±55 / ±100 degrees for the 1st / 2nd / 3rd
-   unit on the same target, give or take 15. Every 25–45 s it shifts 10–25 degrees around, so it does not sit still (2026-10-10, 仮) */
-const SLOT_TURN=[0,55,-55,100,-100];
+/* the side of its target an enemy fleet takes: the way it came in, turned by 0 / ±105 / 180 degrees for the 1st / 2nd, 3rd / 4th
+   unit on the same target, give or take 15, and for the 2nd and 3rd 30 degrees above or below it (one over, one under: a pincer
+   from above and below, user decision 2026-10-10). The 2nd and 3rd stand more than 90 degrees off the 1st, so they pin it (pincers).
+   Every 25–45 s it shifts 10–25 degrees around and up to 10 up or down, so it does not sit still. A spot the rock hides from the target swings round (approach in step). 数値は仮 */
+const SLOT_TURN=[0,105,-105,180,50], SLOT_TILT=[0,30,-30,0,0], SLOT_ALT=55;
 function slotOf(f,t,dt){
   if(f.slotOn!==t){ f.slotOn=t; f.slotT=25+Math.random()*20;
-    f.slot=new THREE.Vector3().subVectors(f.pos,t.pos); if(f.slot.lengthSq()<1e-6) f.slot.set(0,0,1); f.slot.normalize();
-    const a=SLOT_TURN[Math.min(claimsOn(t,f),SLOT_TURN.length-1)]+(Math.random()-.5)*30;
-    f.slot.applyAxisAngle(_up,a*Math.PI/180); }
-  else if((f.slotT-=dt)<=0){ f.slotT=25+Math.random()*20; f.slot.applyAxisAngle(_up,(Math.random()<.5?-1:1)*(10+Math.random()*15)*Math.PI/180); }
-  return f.slot;
+    const v=new THREE.Vector3().subVectors(f.pos,t.pos); if(v.lengthSq()<1e-6) v.set(0,0,1);
+    f.slotH=v.clone().setY(0); if(f.slotH.lengthSq()<1e-6) f.slotH.set(0,0,1); f.slotH.normalize();
+    const k=Math.min(claimsOn(t,f),SLOT_TURN.length-1), flip=Math.random()<.3?-1:1;
+    f.slotH.applyAxisAngle(_up,(SLOT_TURN[k]+(Math.random()-.5)*30)*Math.PI/180);
+    f.slotP=SLOT_TILT[k]?flip*SLOT_TILT[k]*Math.PI/180:Math.max(-.5,Math.min(.5,Math.asin(v.normalize().y))); }
+  else if((f.slotT-=dt)<=0){ f.slotT=25+Math.random()*20; f.slotH.applyAxisAngle(_up,(Math.random()<.5?-1:1)*(10+Math.random()*15)*Math.PI/180);
+    f.slotP=Math.max(-.8,Math.min(.8,f.slotP+(Math.random()-.5)*.35)); }
+  /* not above or below the field's height limit */
+  const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT) f.slotP=-f.slotP;
+  if(!f.slot) f.slot=new THREE.Vector3();
+  return f.slot.copy(f.slotH).multiplyScalar(Math.cos(f.slotP)).setY(Math.sin(f.slotP));
+}
+/* one step toward a point, round the body if it is in the way; it stops `stop` short of the point (detour: a fleet's own fixed lean) */
+function stepToward(f,to,stop,dt){
+  const d=f.pos.distanceTo(to); if(d<=(stop||1.2)) return;
+  const w=detour(f.pos,to,f.id); _v.subVectors(w||to,f.pos); const n=_v.length(); if(n<1e-6) return; _v.multiplyScalar(1/n);
+  f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,w?n:d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt);
 }
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 const SCOUT_KEEP=.7;
@@ -437,7 +485,7 @@ function carrierRaidAI(f){
   if(f.pos.distanceTo(best)>2) moveTo(f,best.x,best.y,best.z); else if(f.order&&f.order.type==='move') f.order=null;
 }
 /* which foe to go for (2026-10-10, so that not every unit goes for the same one): near the fleet itself, weakened, and not already
-   taken by two others of its side. Each fleet weighs each foe a little differently (jit, 0.85–1.15), and it keeps its target
+   taken by two others of its side (a second is welcome: two from both sides pin it, pincers). Each fleet weighs each foe a little differently (jit, 0.85–1.15), and it keeps its target
    unless another is clearly better (PICK_KEEP). A fleet marked preyLast is gone for last (第4節: ウォン中将's own, who lives on in the
    story). Guard fleets still answer only foes within their leash of their post. 数値は仮 */
 const PICK_MAX=2, PICK_KEEP=.75;
@@ -446,7 +494,7 @@ function jitOf(f,t){ if(!f.jit) f.jit=new Map(); let j=f.jit.get(t.id); if(j==nu
 function pickFoe(f,foes,hunt){
   const cur=f.order&&f.order.type==='attack'?f.order.target:null; let best=null,bs=1e9,cs=1e9;
   for(const p of foes){ if(!hunt&&p.pos.distanceTo(f.post)>=f.leash) continue;
-    const c=claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(f.pos)*(c>=PICK_MAX?3:1+c*.35)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
+    const c=claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(f.pos)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
     if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
   return cur&&cs*PICK_KEEP<=bs?cur:best;
 }
@@ -504,7 +552,9 @@ function protectAI(f){
   /* the spot stays outside every civilian zone, so the enemy that comes for it is outside too and can be fired on */
   for(const b of blocks){ _v.subVectors(_w,b.pos).setY(0); const d=_v.length(), R=op.civil.r+PROTECT_GAP;
     if(d<R){ if(d<1e-6) _v.set(0,0,1); _v.setLength(R); _w.x=b.pos.x+_v.x; _w.z=b.pos.z+_v.z; } }
-  moveTo(f,_w.x,P.pos.y,_w.z); return true;
+  /* and clear of the rock, so it does not stand pressed against it */
+  _w.y=P.pos.y; if(op.body){ const R=bodySurface(_w,op.body.r)+4; if(_w.length()<R) _w.setLength(R); }
+  moveTo(f,_w.x,_w.y,_w.z); return true;
 }
 function allyAI(){
   const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&!f.fixed&&inZone(f)));
@@ -630,7 +680,7 @@ function step(dt){
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
-  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI();}
+  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers();}
   stepDefend(dt);
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
@@ -651,16 +701,17 @@ function step(dt){
     /* an attack closes until the target is well inside the guns (75% of range); a fleet of carriers only stops sooner,
        once the target is inside 80% (1:4 from the edge) of its shortest launch distance. An enemy fleet going for one of ours
        takes its own side of it (slotOf), so units on the same target close from different sides and do not stack */
+    /* the rock in the way of the shot: it keeps closing (round the rock) until it has a clear line */
     if(goal){ const stop=standOff(f,goal);
-      if(f.team===1&&goal.kind==='fleet'){ _w.copy(slotOf(f,goal,dt)).multiplyScalar(stop).add(goal.pos); _v.subVectors(_w,f.pos); const d=_v.length();
-        if(d>1.2){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); } }
-      else { _v.subVectors(goal.pos,f.pos); const d=_v.length();
-        if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); } }
+      if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
+        if(bodyBlocks(_w,goal.pos)||op.body&&_w.length()<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
+        stepToward(f,_w,0,dt); }
+      else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
     const ft=f.fireTarget;
-    if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
+    if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
-      damage(ft,f.ships.length*f.dmg*dt,f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
+      damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
