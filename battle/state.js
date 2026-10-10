@@ -40,7 +40,7 @@ function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 const AA=window.WOS_DATA.aa;
 function makeFleet(team,o){
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
-  const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
+  const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).

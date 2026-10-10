@@ -188,7 +188,7 @@ function launchCheck(f){
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
-    h.next=gameSec+W.cd*h.slow; sq.state='out';
+    h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
       pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1),hpPool:sq.n*W.hp*(C.hp??1),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),range:W.range,
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
@@ -370,6 +370,21 @@ function stepSorties(){
   }
 }
 let aiTimer=0;
+/* how far off an attacker stands: an enemy fleet that outranges its target keeps near the edge of its own guns (92%), out of
+   the target's reach, instead of closing to 75% (2026-10-10, 仮) */
+function standOff(f,t){ if(f.carrierOnly) return f.launchMin*.8+(t.radius||0);
+  const outranges=f.team===1&&t.kind==='fleet'&&t.range&&f.range>t.range*1.05; return f.range*(outranges?.92:.75)+(t.radius||0); }
+/* the side of its target an enemy fleet takes: the way it came in, turned by 0 / ±55 / ±100 degrees for the 1st / 2nd / 3rd
+   unit on the same target, give or take 15. Every 25–45 s it shifts 10–25 degrees around, so it does not sit still (2026-10-10, 仮) */
+const SLOT_TURN=[0,55,-55,100,-100];
+function slotOf(f,t,dt){
+  if(f.slotOn!==t){ f.slotOn=t; f.slotT=25+Math.random()*20;
+    f.slot=new THREE.Vector3().subVectors(f.pos,t.pos); if(f.slot.lengthSq()<1e-6) f.slot.set(0,0,1); f.slot.normalize();
+    const a=SLOT_TURN[Math.min(claimsOn(t,f),SLOT_TURN.length-1)]+(Math.random()-.5)*30;
+    f.slot.applyAxisAngle(_up,a*Math.PI/180); }
+  else if((f.slotT-=dt)<=0){ f.slotT=25+Math.random()*20; f.slot.applyAxisAngle(_up,(Math.random()<.5?-1:1)*(10+Math.random()*15)*Math.PI/180); }
+  return f.slot;
+}
 /* guard fleets answer only foes near their post; hunt fleets chase any foe in sight and otherwise wait at their watch point */
 const SCOUT_KEEP=.7;
 function nearestOf(f,list){ let b=null,bd=1e9; for(const p of list){ const d=p.pos.distanceTo(f.pos); if(d<bd){bd=d;b=p;} } return b; }
@@ -421,6 +436,20 @@ function carrierRaidAI(f){
   if(!best) return;
   if(f.pos.distanceTo(best)>2) moveTo(f,best.x,best.y,best.z); else if(f.order&&f.order.type==='move') f.order=null;
 }
+/* which foe to go for (2026-10-10, so that not every unit goes for the same one): near the fleet itself, weakened, and not already
+   taken by two others of its side. Each fleet weighs each foe a little differently (jit, 0.85–1.15), and it keeps its target
+   unless another is clearly better (PICK_KEEP). A fleet marked preyLast is gone for last (第4節: ウォン中将's own, who lives on in the
+   story). Guard fleets still answer only foes within their leash of their post. 数値は仮 */
+const PICK_MAX=2, PICK_KEEP=.75;
+function claimsOn(t,f){ let n=0; for(const x of fleets) if(x!==f&&x.team===f.team&&x.alive&&x.order&&x.order.target===t) n++; return n; }
+function jitOf(f,t){ if(!f.jit) f.jit=new Map(); let j=f.jit.get(t.id); if(j==null){ j=.85+Math.random()*.3; f.jit.set(t.id,j); } return j; }
+function pickFoe(f,foes,hunt){
+  const cur=f.order&&f.order.type==='attack'?f.order.target:null; let best=null,bs=1e9,cs=1e9;
+  for(const p of foes){ if(!hunt&&p.pos.distanceTo(f.post)>=f.leash) continue;
+    const c=claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(f.pos)*(c>=PICK_MAX?3:1+c*.35)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
+    if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
+  return cur&&cs*PICK_KEEP<=bs?cur:best;
+}
 function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   for(const f of fleets){
@@ -435,8 +464,7 @@ function enemyAI(){
     if(f.ai==='siege'&&fortress.alive&&fortress.defend){ if(!(f.order&&f.order.target===fortress)) order(f,{type:'attack',target:fortress}); continue; }
     if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
-    let threat=null,bd=f.ai==='hunt'?1e9:f.leash;
-    for(const p of foes){ const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
+    const threat=pickFoe(f,foes,f.ai==='hunt');
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
     else if(f.cover&&chase&&chase.fleet.alive){ const p=chase.fleet.pos; if(f.pos.distanceTo(p)>12) moveTo(f,p.x,p.y,p.z); }   // nothing in sight: stay by the guard
     else if(f.ai==='hunt'){ const w=f.watchPos||f.post; if(f.pos.distanceTo(w)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:w.clone()}; }
@@ -543,8 +571,9 @@ function stepCarrier(dt){
       playScene(full&&C.fullLogs||C.doneLogs);
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
       /* the ace unit, the units under him (letGo) and every unit told to spare the carrier let us go (第4節: Alvarez does not pursue);
-         they only answer what comes near. Only the unit going for the carrier keeps after it */
-      for(const f of fleets) if((f.ace||f.letGo||f.spare&&f.spare.includes('carrier'))&&f.alive){ f.ai='guard'; f.post.copy(f.pos); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
+         they draw back to where they came from (the cloud for the returning units, 2026-10-10) and only answer what comes near.
+         Only the unit going for the carrier keeps after it */
+      for(const f of fleets) if((f.ace||f.letGo||f.spare&&f.spare.includes('carrier'))&&f.alive){ f.ai='guard'; f.post.copy(f.home); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
       for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }   // their craft come home and leave the retreating allies alone
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
@@ -589,7 +618,8 @@ function step(dt){
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   while(nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
-    if(E.fleet){ const r=makeFleet(1,{leash:0,...E.fleet,...(E.rel?{pos:relPos(E.fleet.pos)}:{})}); fleets.push(r);
+    /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
+    if(E.fleet){ const jp=[E.fleet.pos[0]+(Math.random()-.5)*6,E.fleet.pos[1]+(Math.random()-.5)*6], r=makeFleet(1,{leash:0,...E.fleet,pos:E.rel?relPos(jp):jp}); fleets.push(r);
       if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
@@ -619,10 +649,13 @@ function step(dt){
     }
     if(f.slowT>0) f.slowT-=dt;
     /* an attack closes until the target is well inside the guns (75% of range); a fleet of carriers only stops sooner,
-       once the target is inside 80% (1:4 from the edge) of its shortest launch distance */
-    if(goal){ const stop=(f.carrierOnly?f.launchMin*.8:f.range*.75)+(goal.radius||0);
-      _v.subVectors(goal.pos,f.pos); const d=_v.length();
-      if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); }
+       once the target is inside 80% (1:4 from the edge) of its shortest launch distance. An enemy fleet going for one of ours
+       takes its own side of it (slotOf), so units on the same target close from different sides and do not stack */
+    if(goal){ const stop=standOff(f,goal);
+      if(f.team===1&&goal.kind==='fleet'){ _w.copy(slotOf(f,goal,dt)).multiplyScalar(stop).add(goal.pos); _v.subVectors(_w,f.pos); const d=_v.length();
+        if(d>1.2){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); } }
+      else { _v.subVectors(goal.pos,f.pos); const d=_v.length();
+        if(d>stop){ _v.normalize(); f.pos.addScaledVector(_v,Math.min(speedOf(f)*dt,d-stop)); f.heading.lerp(_v,Math.min(1,dt*3)).normalize(); turnMarch(f,_v,dt); } }
     }
     const ft=f.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08){
