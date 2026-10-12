@@ -75,7 +75,7 @@ const farPlanet=new THREE.Group(); scene.add(farPlanet);
 /* the sky of an operation (op.sky, user decision 2026-10-11: 案2, the Earth, Moon and Mars four times their true apparent size,
    docs/maps.md 6.5): {sun:[x,y,z] (the sunlight's direction), earth / moon / mars:{pos:[x,y,z], r}}. Positions are from the camera,
    so their apparent size does not change as the view zooms (the group follows the camera, loop.js). Each is lit by the sun only
-   (a dark night side; the Earth has city lights there), drawn by a small noise shader: no textures */
+   (a dark night side; the Earth has city lights there), drawn by a small noise shader: no textures. februaria: the base seen from afar (第4節), a grey point like the Moon */
 const skyObj=new THREE.Group(); scene.add(skyObj);
 const SUN0=new THREE.Vector3(120,80,40);
 const skyNoise=`
@@ -115,7 +115,7 @@ function buildSky(S){
   for(const m of [...skyObj.children]){ skyObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
   farPlanet.visible=!S; sun.position.copy(S&&S.sun?new THREE.Vector3(...S.sun):SUN0); if(!S) return;
   const sd=sun.position.clone().normalize();
-  [['earth',0,96],['moon',1,48],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
+  [['earth',0,96],['moon',1,48],['februaria',1,16],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
     const m=new THREE.Mesh(new THREE.SphereGeometry(b.r,seg,seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
     if(kind===0){ const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); } });
 }
@@ -277,7 +277,7 @@ function makeBodyShape(B){
   /* small impact craters and boulders all over the rock, so it looks rough rather than smooth (user decision 2026-10-10; number and sizes 仮).
      None on a town or the mine */
   const pits=[], hs=k=>{ const x=Math.sin(k*91.7+17.3)*43758.5453; return x-Math.floor(x); };
-  const nPit=B.pits||48, pitA=B.pitA||1;
+  const nPit=B.pits||48, pitA=B.pitA||1, crag=B.crag||1;
   for(let k=0;pits.length<nPit&&k<nPit*6;k++){ const z=hs(k)*2-1, a=hs(k+.5)*Math.PI*2, s=Math.sqrt(1-z*z), d=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a));
     const a0=(.05+hs(k+.25)*.11)*pitA; if(craters.some(c=>d.angleTo(c.d)<c.a*1.3+a0*1.3)) continue;
     pits.push({d,a:a0,depth:a0*R0*.22,rim:a0*R0*.07,bump:k%3===0}); }
@@ -298,7 +298,7 @@ function makeBodyShape(B){
     r+=R0*(.025*rg(7,1.2)+.012*rg(13,4.1)-.02);
     if(B.fine) r+=B.fine*(rg(60,2.3)+.5*rg(140,.7)-.8);   // a large body: finer sharp-crested roughness (in field units)
     for(const c of pits){ const t=Math.acos(Math.min(1,d.dot(c.d)));
-      if(c.bump){ if(t<c.a) r+=c.depth*.7*Math.cos(Math.PI/2*t/c.a); continue; }   // a boulder
+      if(c.bump){ if(t<c.a) r+=c.depth*.7*crag*Math.pow(Math.cos(Math.PI/2*t/c.a),crag>1?2.2:1); continue; }   // a boulder (B.crag: taller and sharper crags)
       if(t<c.a) r-=c.depth*(1-(t/c.a)**2); else if(t<c.a*1.4) r+=c.rim*Math.sin(Math.PI*(t-c.a)/(c.a*.4)); }
     let inCrater=false;
     for(const c of craters){ const t=Math.acos(Math.min(1,d.dot(c.d)));
@@ -376,6 +376,15 @@ function buildBody(B,zoneR){
     const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
+}
+/* the drop points on the body (op.landing, 第5節): a ring over each where the enemy's assault ships stop to put their W.A.S. down.
+   Blue while ours, amber while a ship is landing in it, red once taken */
+const dropObj=new THREE.Group(); scene.add(dropObj);
+const DROP_HEX={ours:0x6fb8ff, landing:0xffb347, taken:0xff5a4a};
+function buildDrops(list){
+  for(const m of [...dropObj.children]){ dropObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  return (list||[]).map(d=>{ const m=new THREE.Mesh(new THREE.RingGeometry(d.r-.6,d.r,64),new THREE.MeshBasicMaterial({color:DROP_HEX.ours,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
+    m.rotation.x=-Math.PI/2; m.position.copy(d.pos); dropObj.add(m); return m; });
 }
 /* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
    overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane

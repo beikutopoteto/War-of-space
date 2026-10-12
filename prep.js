@@ -160,8 +160,10 @@ function onEnd(opId,win,res={}){
   if(o.rescue) prog().flags['rescued:'+opId]=!!res.rescued;
   const gain=Math.round((o.reward||0)*(first?1:D.reward.replay));
   prog().funds+=gain; if(first) prog().cleared.push(opId);
+  /* branches the story opens on a clear (o.opens: flag names, data/tech.js branches need; 第5節 opens the battleship) */
+  const newBr=BRANCHES.filter(b=>b.need&&(o.opens||[]).includes(b.need)&&!prog().flags[b.need]); newBr.forEach(b=>{ prog().flags[b.need]=true; });
   const aid=first?grantAid(o):0; persist();
-  const opened=[['fleet','艦隊編集'],['tech','技術ツリー']].filter(([k])=>!before[k]&&unlocked(k)).map(([,n])=>`「${n}」`);
+  const opened=[...[['fleet','艦隊編集'],['tech','技術ツリー']].filter(([k])=>!before[k]&&unlocked(k)).map(([,n])=>`「${n}」`),...newBr.map(b=>`「${b.name}」`)];
   return `${gain?`　報酬：資金 +${gain}${first?'':'（再戦）'}。`:''}${aid?`　${o.aid.name}：資金 +${aid}。`:''}${opened.length?`　${opened.join('と')}が使えるようになった。`:''}`;
 }
 

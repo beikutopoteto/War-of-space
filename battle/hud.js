@@ -343,6 +343,13 @@ function updateGoal(){
     subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<(W.speed||1)-.001?`　避難の速さ ${Math.round(evacRate/(W.speed||1)*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
+  else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=gameSec*CLOCK_RATE;
+    /* 第5節: sink half the enemy's main force or hold until the time; the drop points and the batteries on the base */
+    p=Math.max(Math.min(1,k/W.share),Math.min(1,now/W.until)); text=W.text; mode='defend';
+    label=`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`;
+    subT='降下点 '+drops.map(d=>`${d.name}：${d.taken?'占拠':d.state==='landing'?`揚陸中 残り${Math.max(0,Math.ceil(op.landing.hold-d.prog))}分`:'無事'}`).join('・');
+    const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT+=`\n地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
+    const al=fleets.filter(f=>f.ally&&!f.fixed); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:0}/${f.n}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
     if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}`; mode='board'; }
     else if(!S.evac){ p=0; text=C.occupyText||C.boardText; label=C.occupyLabel||'宇宙港を確保中'; mode='board'; }

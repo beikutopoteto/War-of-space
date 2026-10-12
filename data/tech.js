@@ -85,7 +85,7 @@ WOS_DATA.branches=[
   {id:'escort',  name:'護衛艦艇',   gun:'速射レーザー砲', costMul:1, types:['cv','ff'], steps:[{cap:24},{cap:36,cost:200},{cap:48,cost:400},{cap:64,cost:800}]},
   {id:'dd',      name:'駆逐艦',     gun:'誘導魚雷',       costMul:1, types:['dd'],      steps:[{cap:16},{cap:24,cost:200},{cap:32,cost:400},{cap:48,cost:800}]},
   {id:'cruiser', name:'巡洋艦',     gun:'荷電粒子砲',     costMul:1.5, types:['cl'],      steps:[{cap:6},{cap:10,cost:300},{cap:14,cost:600},{cap:20,cost:1000}]},
-  {id:'bb',      name:'戦艦',       gun:'大口径主砲',     costMul:2, need:'bb', needText:'物語で解放（時期は未定）', types:['bb'],      steps:[{cap:4},{cap:6,cost:400},{cap:8,cost:800},{cap:12,cost:1200}]},
+  {id:'bb',      name:'戦艦',       gun:'大口径主砲',     costMul:2, need:'bb', needText:'第一章 第5節をクリアで解放', types:['bb'],      steps:[{cap:4},{cap:6,cost:400},{cap:8,cost:800},{cap:12,cost:1200}]},
   {id:'carrier', name:'母艦',       gun:'艦載機兵装',     costMul:2, need:'carrier', needText:'物語で解放（時期は未定）', types:['cvb'],     steps:[{cap:2},{cap:3,cost:400},{cap:4,cost:800},{cap:6,cost:1200}]},
   {id:'was',     name:'W.A.S. 部隊', gun:'W.A.S.兵装',   costMul:2, types:['mas','masc'], need:'was', needText:'物語で解放（第二章後半〜第三章の予定）',
                  steps:[{cap:8},{cap:12,cost:500},{cap:16,cost:1000},{cap:24,cost:1500}]},

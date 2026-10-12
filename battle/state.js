@@ -43,6 +43,7 @@ function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hpPool:o.n*o.hp,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
+  if(o.postAt) f.post.set(o.postAt[0],o.alt||0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節 the vanguard)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
      In a fleet that mixes carriers with other classes, the carriers keep to the rear */
   const types=shipClasses(o), nc=types.filter(t=>CARRIERS.has(t)).length, mixed=nc>0&&nc<o.n;
@@ -325,6 +326,18 @@ function reset(cfg=lastCfg){
   /* allied fleets (op.allies): on our side but run by the AI (sim.js allyAI); not in the roster and not ours to select */
   for(const a of op.allies||[]){ const f=makeFleet(0,{ai:'guard',leash:40,...a,ally:true}); f.ward=true; f.home=f.post.clone(); f.mode=a.ai||'guard';
     if(a.retreat) f.fallTo=new THREE.Vector3(a.retreat.to[0],a.retreat.alt||f.post.y,a.retreat.to[1]); fleets.push(f); }
+  /* ships lent for this operation (op.given, 第5節: a battleship from the base's yard): ours to command, after our own fleets,
+     outside any army group, and untouched by research (like the carrier) */
+  fleets.splice(spec.length+(opCarrier?1:0),0,...(op.given||[]).map(o=>makeFleet(0,o)));
+  /* 第5節: the drop points (op.landing) over the base's buildings, and the enemy's main force to sink (op.win type 'repel') */
+  const LD=op.landing;
+  /* each point is `up` above the surface over its building (block), or at pos / alt */
+  drops=(LD&&LD.points||[]).map(d=>{ const b=d.block!=null&&BD.blocks[d.block], at=b?new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]):new THREE.Vector3(d.pos[0],d.alt||0,d.pos[1]);
+    if(b){ at.sub(bodyC).normalize(); at.multiplyScalar(bodyShape.R(at)+(d.up||8)).add(bodyC); }
+    return {...d,pos:at,prog:0,taken:false,state:'ours'}; });
+  dropRings=buildDrops(drops);
+  surged=false; repelBy=null;
+  mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   selGroup=null; selMulti=[];
   /* the army groups: the ones chosen at sortie (several may go out together), or for an operation fought with its own fleets,
      op.group around all of them. More army groups can be formed during the battle (＋ in the roster) */
@@ -359,7 +372,7 @@ function reset(cfg=lastCfg){
   /* the enemy names the shield fleets guard (their block); kept for the AI */
   for(const f of fleets) if(f.team===1&&f.block!=null) f.blockAt=blocks[f.block]||null;
   /* fixed units (the batteries) stand on the body's surface, in the direction they are placed */
-  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.normalize().multiplyScalar(R); f.post.copy(f.pos);
+  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
     /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
     f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=h.normal; s.base=h.point.clone().addScaledVector(h.normal,.34*f.scale); s.pos.copy(s.base); }); }
   setPhase(op.phase||'布陣');
@@ -367,7 +380,7 @@ function reset(cfg=lastCfg){
   document.getElementById('log').innerHTML='';
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
   /* the body and its blocks are named on the plane like the sectors */
-  buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:[0,0]},...BD.blocks.map(b=>({name:b.name,sub:`${b.sub}　民間区画`,pos:b.pos})),
+  buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.pos})),
     ...(BD.port?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();

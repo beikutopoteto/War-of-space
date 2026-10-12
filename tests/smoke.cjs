@@ -801,6 +801,46 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const d3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(d3.cleared.includes('denali') && d3.funds === 2200 + 600, 'デナリの盾: クリアが記録され、報酬が入る', JSON.stringify(d3));
+    /* 第5節 フェブルアーリア防衛戦: a body far larger than the field to the south, the Earth behind it, a battleship lent from the yard,
+       friendly batteries on the rock; an assault ship that stays in a drop ring takes the point (2 points, or the HQ, lose it);
+       holding until 18:00 wins, and the battleship branch opens */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
+    check(!(await page.isDisabled('#goBattle')), 'フェブルアーリア防衛戦: 第4節のクリアで開き、自分の戦区軍で出撃する');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const f1 = await page.evaluate(() => {
+      const mine = fleets.filter(f => f.team === 0 && !f.ward), bb = mine[mine.length - 1], bt = fleets.filter(f => f.ally && f.fixed);
+      const r = { op: op.id, bb: bb.type === 'bb' && !groupOf(bb), allies: fleets.filter(f => f.ally && !f.fixed).length, bt: bt.length,
+        onRock: bt.every(f => Math.abs(f.pos.distanceTo(bodyC) - bodySurface(f.pos, op.body.r) - 1.2) < .1), centre: bodyC.z > 200,
+        sky: skyObj.children.length >= 3 && !farPlanet.visible, drops: drops.length, dropsUp: drops.every(d => d.pos.distanceTo(bodyC) > bodySurface(d.pos, op.body.r) + 5) };
+      /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
+      const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
+      /* an assault ship stays in the arsenal's ring for an hour: the point is taken and the batteries near it fall silent */
+      const D = drops[0], mk = (name, d) => { const f = makeFleet(1, { name, sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [d.pos.x, d.pos.z], alt: d.pos.y, ai: 'land', drop: d.name, main: true, vis: 1, stl: 9 }); fleets.push(f); return f; };
+      const L1 = mk('試験 揚陸艦', D); let n = 0; while (!D.taken && n++ < 400) step(.05);
+      r.hold = Math.round(n * .05 * CLOCK_RATE); r.taken = D.taken && !over && L1.landed;
+      r.silent = bt.filter(f => f.silent).length > 0 && bt.filter(f => f.silent).every(f => f.pos.distanceTo(D.pos) <= op.landing.silence);
+      updateGoal(); r.goal = goalSub.textContent.includes('工廠：占拠');
+      /* the HQ taken: the operation is lost */
+      const H = drops.find(d => d.hq); mk('試験 揚陸艦2', H); n = 0; while (!over && n++ < 400) step(.05);
+      r.lost = over && !outcome && loseWhy === 'drop';
+      return r; });
+    check(f1.op === 'februaria' && f1.bb && f1.allies === 6 && f1.bt === 7 && f1.onRock && f1.centre && f1.sky && f1.drops === 3 && f1.dropsUp && f1.pushed,
+      'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍6隊と地表の砲台7基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
+    check(f1.hold === 60 && f1.taken && f1.silent && f1.goal && f1.lost, 'フェブルアーリア防衛戦: 揚陸艦が降下点の輪で60分止まると占拠され、まわりの砲台が沈黙する。司令部が占拠されると負け', JSON.stringify(f1));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
+    await page.click('#toMenu');
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const f2 = await page.evaluate(() => { gameSec = op.win.until / CLOCK_RATE; step(.05); return { over, outcome, by: repelBy }; });
+    check(f2.over && f2.outcome && f2.by === 'time', 'フェブルアーリア防衛戦: 18:00 まで持たせると勝利', JSON.stringify(f2));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
+    await page.click('#toMenu');
+    const f3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(f3.cleared.includes('februaria') && f3.flags.bb === true, 'フェブルアーリア防衛戦: クリアが記録され、戦艦の兵科が開く', JSON.stringify({ cleared: f3.cleared, flags: f3.flags }));
     /* holding Ctrl fast-forwards the conversation */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);
