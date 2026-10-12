@@ -701,6 +701,32 @@ function takeDrop(d,ships){
   logEvent(...(d.takenLog||[`${d.name} 占拠`,`${d.name}の降下点に W.A.S. が降りた。まわりの砲台が沈黙した。`]));
   if(d.hq||drops.filter(x=>x.taken).length>=L.need){ loseWhy='drop'; end(false); }
 }
+/* 第5節: the operation in stages (op.phases; user decision 2026-10-12: move to the place given and fight there, the enemy coming
+   from many sides, the centre of the field moving each stage). Each stage {at (minutes), name, centre:[x,z], text, slide?, log?, scene?,
+   events?} begins at its time: the field's centre slides to its place over `slide` seconds (the view goes along), a ring marks the place,
+   an arrow points our fleets there and its events (after: minutes from the stage's start) follow. Our fleets left outside the moved
+   field may stay where they are but cannot go further out (keepInFieldSoft) */
+let stageAt=0, stageText='', slideFrom=null, slideTo=null, slideT=0, slideDur=1;
+function startStage(S){
+  setPhase(S.name); stageText=S.text||''; slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(S.centre[0],0,S.centre[1]); slideT=0; slideDur=S.slide||4;
+  spotObj.visible=true; spotObj.position.set(S.centre[0],.3,S.centre[1]);
+  const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
+  const now=gameSec*CLOCK_RATE, add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
+  opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
+  if(S.log) logEvent(...S.log); if(S.scene) playScene(S.scene);
+}
+function keepInFieldSoft(f,sliding){
+  /* while the field slides away, a fleet left behind is not dragged along: its own edge grows with the distance */
+  const r=Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z); f.outR=sliding?Math.max(f.outR??FIELD_R,r):Math.max(FIELD_R,Math.min(f.outR??r,r));
+  if(r>f.outR){ const k=f.outR/r; f.pos.x=fieldC.x+(f.pos.x-fieldC.x)*k; f.pos.z=fieldC.z+(f.pos.z-fieldC.z)*k; }
+}
+function stepPhases(dt){
+  const P=op.phases; if(!P||over) return;
+  while(stageAt<P.length&&gameSec*CLOCK_RATE>=P[stageAt].at) startStage(P[stageAt++]);
+  if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=k*k*(3-2*k);
+    _fd.copy(slideFrom).lerp(slideTo,e).sub(fieldC); _fd.y=0; fieldC.add(_fd); shiftView(_fd); if(slideT>=slideDur) slideTo=null; }
+  for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInFieldSoft(f,!!slideTo);
+}
 /* 第5節: hold the base (op.win {type:'repel', share, until, surge}): won when `share` of the enemy's main force (fleets marked main)
    is sunk, or at `until` minutes. surge {share, at, events}: the all-out attack, when `share` of it is sunk or at `at` minutes,
    whichever comes first; its events (the form of op.events, after: minutes from then) follow. 数値は仮 */
@@ -735,7 +761,7 @@ function step(dt){
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers();}
-  stepDefend(dt); stepLanding(dt); stepRepel();
+  stepDefend(dt); stepLanding(dt); stepRepel(); stepPhases(dt);
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();

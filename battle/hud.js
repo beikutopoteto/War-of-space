@@ -345,7 +345,7 @@ function updateGoal(){
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=gameSec*CLOCK_RATE;
     /* 第5節: sink half the enemy's main force or hold until the time; the drop points and the batteries on the base */
-    p=Math.max(Math.min(1,k/W.share),Math.min(1,now/W.until)); text=W.text; mode='defend';
+    p=Math.max(Math.min(1,k/W.share),Math.min(1,now/W.until)); text=stageText||W.text; mode='defend';
     label=`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`;
     subT='降下点 '+drops.map(d=>`${d.name}：${d.taken?'占拠':d.state==='landing'?`揚陸中 残り${Math.max(0,Math.ceil(op.landing.hold-d.prog))}分`:'無事'}`).join('・');
     const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT+=`\n地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
