@@ -1,7 +1,7 @@
 /* War of Space battle: HUD text, selection and orders, altitude bar, camera, input.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- HUD ---------- */
-/* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second; an operation may slow it (op.clockScale) */
+/* the operation clock starts at op.start and runs CLOCK_RATE minutes per game second; an operation fits it to its scale (op.span) or slows it (op.clockScale) */
 const CLOCK_BASE=15;   // 戦闘の1秒で作戦の時計が15分進む（ユーザー決定: 2026-10-02 に前の10倍、2026-10-03 にさらに3倍）
 let CLOCK_RATE=CLOCK_BASE;
 /* minutes since midnight of the operation's first day, at `min` minutes after the start */
@@ -12,9 +12,11 @@ function clockStr(min=gameSec*CLOCK_RATE){ const m=clockMin(min); return String(
 function dateStr(){ const d=Math.floor(clockMin(gameSec*CLOCK_RATE)/1440); return d?op.date.replace(/(\d+)$/,x=>String(+x+d).padStart(x.length,'0')):op.date; }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
-/* numbers filled into a line when it is shown (第4節): {boarded} the people aboard the carrier, {remain} those left behind */
+/* numbers filled into a line when it is shown (第4節): {boarded} the people aboard the carrier, {remain} those left behind,
+   {lost} the share of the main fleet's battle line that did not come back, in tenths (「7割」; all of it 「すべて」) */
+function lostText(){ const k=Math.round(lineLost()*10); return k>=10?'すべて':`${Math.max(1,k)}割`; }
 function fillText(s){ if(!s||!opCarrier||!opCarrier.cs||s.indexOf('{')<0) return s; const b=opCarrier.cs.boarded||0;
-  return s.replace(/\{boarded\}/g,b.toLocaleString()).replace(/\{remain\}/g,Math.max(0,(op.civil&&op.civil.pop||0)-b).toLocaleString()); }
+  return s.replace(/\{boarded\}/g,b.toLocaleString()).replace(/\{remain\}/g,Math.max(0,(op.civil&&op.civil.pop||0)-b).toLocaleString()).replace(/\{lost\}/g,lostText); }
 function logEvent(title,desc){
   desc=fillText(desc); const t=clockStr();
   const prev=document.getElementById('bh').textContent, prevT=document.getElementById('bt').textContent;
@@ -351,13 +353,13 @@ function updateGoal(){
     const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT+=`\n地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
     const al=fleets.filter(f=>f.ally&&!f.fixed); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:0}/${f.n}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
-    if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}`; mode='board'; }
+    if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}${portOpen()?'':'　管制 閉鎖中'}`; mode='board'; }
     else if(!S.evac){ p=0; text=C.occupyText||C.boardText; label=C.occupyLabel||'宇宙港を確保中'; mode='board'; }
     else if(!S.done){ p=(S.boarded||0)/C.people; text=C.boardText; label=`収容 ${(S.boarded||0).toLocaleString()}人（上限 ${C.people.toLocaleString()}人）`; mode='board'; }
     else { p=Math.max(0,Math.min(1,1-(opCarrier.pos.distanceTo(S.exit)-(C.exit.r||12))/Math.max(1,S.from||(S.from=opCarrier.pos.distanceTo(S.exit))))); text=C.exitText; label=`離脱点まで ${Math.floor(p*100)}%`; mode='escort'; }
     subT=`${opCarrier.name} 耐久 ${Math.ceil(hp*100)}%`;
     /* the battle line still afloat: the longer it holds, the more people get aboard (第4節) */
-    if(C.line){ const line=fleets.filter(f=>f.ally&&C.line.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0); subT+=`　本軍の戦艦 残り ${line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)}/${n}`; }
+    if(C.line){ const line=fleets.filter(f=>f.ally&&C.line.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0); subT+=`　本軍の戦艦 残り ${line.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0)}/${n}`; }
     if(op.civil) subT+=`　民間の被害 ${Math.round(casualties).toLocaleString()} / ${op.civil.cap.toLocaleString()}人`;
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n本軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:f.left?'離脱':0}${f.left?'':'/'+f.n}`).join('・'); }
   else if(chase&&!over){ const C=op.chase, g=chase.fleet;

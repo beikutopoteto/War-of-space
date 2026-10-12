@@ -1,6 +1,7 @@
 /* 第5節「フェブルアーリア防衛戦」を最後まで早送りして、時刻ごとの様子を出す（釣り合わせの確かめ）。1〜2分かかる。
-   node tools/februaria-sim.cjs <a|b|c|d> [tech]（tech: 全研究のあとで）
+   node tools/februaria-sim.cjs <a|b|c|d|g> [tech]（tech: 全研究のあとで）
    a: 駐屯隊が揚陸艦を優先して叩く  d: 駐屯隊を段階ごとの持ち場（作戦フィールドの中心）へ動かし、近づく揚陸艦と持ち場の近くの敵を叩く（ふつうの遊び方）  b: 駐屯隊は何もしない（友軍と砲台だけで持つか）  c: 駐屯隊が見えた敵をどこまでも追う
+   g: 持ち場にいて、近づいた突撃揚陸艦からは下がり（揚陸艦は砲台に任せる）、持ち場の近くの護衛を叩く（第5節の案内どおりの遊び方。2026-10-12）
    行の読み方: 時刻 段階 sunk=主力の撃沈の割合 drop=降下点（o 無事 / L 揚陸中 / X 占拠） bt=鳴っている砲台 al=友軍の隻数 me=駐屯隊 en=敵。
    最後に勝ち負け「over outcome loseWhy repelBy」 */
 const { openGame } = require('./browser.cjs');
@@ -24,6 +25,10 @@ const { openGame } = require('./browser.cjs');
         if(e&&!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); }
       if(strat==='d') mine().forEach((f,i)=>{ const spot=fieldC.clone();
         const e=land.filter(e=>e.pos.distanceTo(spot)<150).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]||en.filter(e=>e.pos.distanceTo(spot)<90).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
+        if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); });
+      if(strat==='g') mine().forEach(f=>{ const spot=fieldC.clone(), back=spot.clone().add(new THREE.Vector3(0,0,25));
+        if(en.some(e=>e.type==='mas'&&e.pos.distanceTo(f.pos)<36)){ if(!(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(back)<3)) order(f,{type:'move',dest:back}); return; }
+        const e=en.filter(e=>e.type!=='mas'&&e.pos.distanceTo(spot)<60).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
         if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); });
       if(strat==='c') for(const f of mine()) if(!f.order){ const e=en.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]; if(e) order(f,{type:'attack',target:e}); }
       if(n%100===0) L();
