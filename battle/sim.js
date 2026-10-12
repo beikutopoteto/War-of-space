@@ -467,6 +467,16 @@ function pursueAI(f,foes){
   if(!c){ moveTo(f,fieldC.x,f.pos.y,fieldC.z); return; }
   if(bd<c.r*.5) f.searched.add(c); else moveTo(f,c.c.x,c.c.y,c.c.z);
 }
+/* withdraw (第2節: the main force, out of deuterium, turns back; user decision 2026-10-12): it stops fighting (holds its fire, launches
+   nothing, calls its craft home), makes north out of the field and leaves the battle once WITHDRAW_OUT beyond the edge. Set by events の ai */
+const WITHDRAW_OUT=20;
+function withdrawAI(f){
+  if(!f.withdrawing){ f.withdrawing=true; f.stance='evade'; f.order=null; f.queue=[]; f.strike=null;
+    for(const w of wings) if(w.alive&&w.carrier===f&&w.state==='attack'){ w.state='return'; w.target=null; }
+    f.outPos=new THREE.Vector3(f.pos.x,f.pos.y,fieldC.z-FIELD_R-WITHDRAW_OUT*3); }
+  if(Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z)>FIELD_R+WITHDRAW_OUT){ f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); updateRoster(); return; }
+  if(!f.order){ if(f.pos.distanceTo(f.outPos)<4) f.outPos.z-=FIELD_R; f.order={type:'move',dest:f.outPos.clone()}; }   // still inside (the field came along): further north
+}
 /* 第4節: shield fleets fall back beside their habitat block once hurt (the people there are their cover); raiders go for a block and
    shoot it (sim.js fireTargetOf: a ship in the way first) */
 function shieldAI(f){
@@ -518,6 +528,7 @@ function enemyAI(){
     /* siege: makes for the station we defend and shoots it, answering only what blocks the way (fireTargetOf) */
     if(f.ai==='siege'&&fortress.alive&&fortress.defend){ if(!(f.order&&f.order.target===fortress)) order(f,{type:'attack',target:fortress}); continue; }
     if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
+    if(f.ai==='withdraw'){ withdrawAI(f); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
     const threat=pickFoe(f,foes,f.ai==='hunt');
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
@@ -764,6 +775,7 @@ function step(dt){
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
     /* shift [dx, dz]: an allied fleet's post moves forward (第5節: ウォン中将 brings the battleships up) */
+    if(E.ai&&E.ai.log&&fleets.some(f=>f.alive&&E.ai.fleets.includes(f.name))) logEvent(...E.ai.log);   // said only if one of them is still there
     if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; } } else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
