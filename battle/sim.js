@@ -616,7 +616,7 @@ function keepOffBody(f){ const d=f.pos.distanceTo(bodyC); if(d>op.body.r*1.35||d
    Then it lifts off and must reach the exit: that wins; losing it loses (destroyFleet) */
 function stepCarrier(dt){
   const C=op.carrier; if(!C||!opCarrier||over) return; const S=opCarrier.cs, P=op.body&&op.body.port;
-  if(!S.landed){ if(!opCarrier.alive||!P) return;
+  if(!S.landed){ if(!opCarrier.alive||!P||!portOpen()) return;
     if(opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))<=P.r&&(!opCarrier.order||opCarrier.order.type!=='move')) landCarrier(); return; }
   /* landed: the port is being taken (占領) until the main fleet is pushed back; then the plan changes to taking the people off */
   if(!S.evac){ if(evacDue(C,S)) startEvac(C,S); return; }
@@ -626,6 +626,9 @@ function stepCarrier(dt){
     if(full||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       playScene(full&&C.fullLogs||C.doneLogs);
+      /* the waves of the boarding not yet come (wave:true) are dropped; the retreat's own events (doneEvents) follow, timed from now */
+      const now=gameSec*CLOCK_RATE, add=(C.doneEvents||[]).map(e=>({...e,after:now+e.after})), rest=opEvents.splice(nextEvent).filter(e=>!e.wave);
+      opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
       for(const f of fleets) if(f.ally&&f.alive){ f.mode='leave'; f.order=null; }
       /* the ace unit, the units under him (letGo) and every unit told to spare the carrier let us go (第4節: Alvarez does not pursue);
          they draw back to where they came from (the cloud for the returning units, 2026-10-10) and only answer what comes near.
@@ -636,12 +639,16 @@ function stepCarrier(dt){
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }
 }
-/* the share of the main fleet's battle line (op.carrier.line, fleet names) that is sunk */
+/* the share of the main fleet's battle line (op.carrier.line, fleet names) that is sunk (a unit that left at the exit is not) */
 function lineLost(){ const L=op.carrier.line||[], line=fleets.filter(f=>f.ally&&L.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0);
-  return n?1-line.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n:0; }
+  return n?1-line.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0)/n:0; }
+/* 第4節: the spaceport takes the carrier only from body.port.openAt (minutes; the port's control is opened by the people inside, 2026-10-12) */
+function portOpen(){ const P=op.body&&op.body.port; return !(P&&P.openAt)||gameSec*CLOCK_RATE>=P.openAt; }
 /* 第4節: the plan changes from taking the port to taking the people off (op.carrier.evac; user decision 2026-10-10: when the main fleet
-   is pushed back): when an allied unit is wiped out, or the battle line has lost `lost` of its ships, or `max` minutes after the landing */
+   is pushed back): when an allied unit is wiped out, or the battle line has lost `lost` of its ships, or `max` minutes after the landing.
+   Never before `min` minutes after the landing (2026-10-12: the port is held a while first) */
 function evacDue(C,S){ const E=C.evac; if(!E) return true;
+  if(gameSec*CLOCK_RATE-S.landMin<(E.min||0)) return false;
   return fleets.some(f=>f.ally&&!f.alive&&!f.left)||lineLost()>=E.lost||gameSec*CLOCK_RATE-S.landMin>=E.max; }
 function startEvac(C,S){
   S.evac=true; S.evacMin=gameSec*CLOCK_RATE; S.board=0; S.boarded=0; setPhase('収容'); opCarrier.sub='戦闘母艦　住民を収容中';
@@ -651,9 +658,11 @@ function startEvac(C,S){
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
 }
 /* the boarding is cut short (op.carrier.cut, 第4節; user decision 2026-10-10): after `min` minutes of it, when the battle line has lost
-   `sunk` of its ships or the carrier is down to `carrier` of its armour. The more the main fleet holds, the more people get aboard */
+   `sunk` of its ships or the carrier is down to `carrier` of its armour, and always after `max` minutes of it (2026-10-12).
+   The more the main fleet holds, the more people get aboard */
 function cutBoarding(C,S){
   const K=C.cut; if(!K||S.board<K.min) return false;
+  if(K.max&&S.board>=K.max) return true;
   return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
 }
 /* a scene of lines: a conversation that pauses the battle (story on), always kept in the log too */
@@ -703,7 +712,7 @@ function takeDrop(d,ships){
 }
 /* 第5節: the operation in stages (op.phases; user decision 2026-10-12: move to the place given and fight there, the enemy coming
    from many sides, the centre of the field moving each stage). Each stage {at (minutes), name, centre:[x,z], text, slide?, log?, scene?,
-   events?} begins at its time: the field's centre slides to its place over `slide` seconds (the view goes along), a ring marks the place,
+   events?, given?} begins at its time: the field's centre slides to its place over `slide` seconds (the view goes along), a ring marks the place,
    an arrow points our fleets there and its events (after: minutes from the stage's start) follow. Our fleets left outside the moved
    field may stay where they are but cannot go further out (keepInFieldSoft) */
 let stageAt=0, stageText='', slideFrom=null, slideTo=null, slideT=0, slideDur=1;
@@ -713,6 +722,9 @@ function startStage(S){
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
   const now=gameSec*CLOCK_RATE, add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
+  /* ships lent from this stage on (S.given, like op.given: ours to command, after our own fleets, outside any army group, no research) */
+  if(S.given&&S.given.length){ const mine=fleets.filter(f=>f.team===0&&!f.ward), k=mine.length?fleets.indexOf(mine[mine.length-1])+1:fleets.length;
+    fleets.splice(k,0,...S.given.map(o=>makeFleet(0,o))); buildRoster(); updateRoster(); }
   if(S.log) logEvent(...S.log); if(S.scene) playScene(S.scene);
 }
 function keepInFieldSoft(f,sliding){
