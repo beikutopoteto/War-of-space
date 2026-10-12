@@ -48,7 +48,8 @@ try {
   composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512,512), 0.85, 0.45, 0.55));
 } catch(e){ composer = null; }
 
-/* stars */
+/* stars: they follow the camera with the sky (loop.js), so they always lie behind the Earth and the planets */
+const starField=new THREE.Group(); scene.add(starField);
 {
   const n=3500, p=new Float32Array(n*3), c=new Float32Array(n*3);
   for(let i=0;i<n;i++){
@@ -57,18 +58,66 @@ try {
     const b=.35+Math.random()*.65, w=Math.random(); c.set([b*(.85+.15*w),b*.9,b*(1-.1*w)+.1],i*3);
   }
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(p,3)); g.setAttribute('color',new THREE.BufferAttribute(c,3));
-  scene.add(new THREE.Points(g,new THREE.PointsMaterial({size:1.6,sizeAttenuation:false,vertexColors:true})));
+  starField.add(new THREE.Points(g,new THREE.PointsMaterial({size:1.6,sizeAttenuation:false,vertexColors:true})));
 }
-/* distant planet */
+/* distant planet (the operations without op.sky) */
+const farPlanet=new THREE.Group(); scene.add(farPlanet);
 {
   const pl=new THREE.Mesh(new THREE.SphereGeometry(260,64,48), new THREE.MeshStandardMaterial({color:0x2c5d8f,roughness:.9,emissive:0x0b1830}));
-  pl.position.set(520,-120,-900); scene.add(pl);
+  pl.position.set(520,-120,-900); farPlanet.add(pl);
   const halo=new THREE.Mesh(new THREE.SphereGeometry(272,64,48), new THREE.ShaderMaterial({
     transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.BackSide,
     vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
     fragmentShader:'varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.-abs(dot(vN,vV)),3.);gl_FragColor=vec4(vec3(.45,.75,1.)*f*1.2,f);}'
   }));
-  halo.position.copy(pl.position); scene.add(halo);
+  halo.position.copy(pl.position); farPlanet.add(halo);
+}
+/* the sky of an operation (op.sky, user decision 2026-10-11: 案2, the Earth, Moon and Mars four times their true apparent size,
+   docs/maps.md 6.5): {sun:[x,y,z] (the sunlight's direction), earth / moon / mars:{pos:[x,y,z], r}}. Positions are from the camera,
+   so their apparent size does not change as the view zooms (the group follows the camera, loop.js). Each is lit by the sun only
+   (a dark night side; the Earth has city lights there), drawn by a small noise shader: no textures. februaria: the base seen from afar (第4節), a grey point like the Moon */
+const skyObj=new THREE.Group(); scene.add(skyObj);
+const SUN0=new THREE.Vector3(120,80,40);
+const skyNoise=`
+float h3(vec3 p){ p=fract(p*.3183099+.1); p*=17.; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+float n3(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.-2.*f);
+  return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+             mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z); }
+float fbm(vec3 p){ float v=0., a=.5; for(int i=0;i<6;i++){ v+=a*n3(p); p=p*2.03+vec3(1.7,9.2,3.1); a*=.5; } return v; }`;
+function skyMat(kind){ return new THREE.ShaderMaterial({uniforms:{uSun:{value:new THREE.Vector3(1,0,0)},uKind:{value:kind}},
+  vertexShader:'varying vec3 vN;varying vec3 vP;varying vec3 vV;void main(){vP=position;vN=normalize(mat3(modelMatrix)*normal);vec4 w=modelMatrix*vec4(position,1.);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}',
+  fragmentShader:skyNoise+`
+uniform vec3 uSun; uniform float uKind; varying vec3 vN; varying vec3 vP; varying vec3 vV;
+void main(){ vec3 n=normalize(vN), p=normalize(vP); float l=dot(n,uSun), day=smoothstep(-.04,.18,l), lit=max(l,0.)*.9+.1*day;
+  vec3 c;
+  if(uKind<.5){   // the Earth: oceans, land, ice, clouds; city lights on the night side
+    float lan=fbm(p*2.3+vec3(3.,1.,7.)), land=smoothstep(.53,.56,lan), ice=smoothstep(.78,.86,abs(p.y)+.06*n3(p*9.));
+    vec3 sea=mix(vec3(.02,.07,.2),vec3(.04,.17,.36),smoothstep(.35,.53,lan));
+    vec3 grd=mix(vec3(.36,.31,.2),vec3(.13,.24,.1),smoothstep(.4,.7,fbm(p*5.+2.)));
+    c=mix(mix(sea,grd,land),vec3(.85,.9,.95),ice);
+    float cl=smoothstep(.5,.78,fbm(p*3.4+vec3(fbm(p*1.5)*2.,0.,0.)));
+    c=mix(c,vec3(.95),cl*.85)*lit;
+    float city=land*(1.-ice)*smoothstep(.66,.74,fbm(p*14.))*(1.-cl)*(1.-smoothstep(-.12,.02,l));
+    c+=vec3(1.,.72,.38)*city*.4;
+    float f=pow(1.-max(dot(n,normalize(vV)),0.),2.5); c+=vec3(.35,.6,1.)*f*smoothstep(-.25,.35,l)*1.1;   // the thin bright air at the limb
+  } else if(uKind<1.5){   // the Moon: grey highlands and dark seas
+    float m=fbm(p*2.6+5.), cr=fbm(p*11.);
+    c=mix(vec3(.55,.54,.52),vec3(.25,.25,.26),smoothstep(.48,.6,m))*(0.8+.35*cr)*lit;
+  } else {   // Mars: rust, with darker ground and a white cap
+    float m=fbm(p*3.+1.); c=mix(vec3(.72,.33,.16),vec3(.42,.2,.12),smoothstep(.45,.65,m)); c=mix(c,vec3(.95,.92,.88),smoothstep(.86,.92,p.y))*lit;
+  }
+  gl_FragColor=vec4(c,1.); }`}); }
+function skyHalo(r){ return new THREE.Mesh(new THREE.SphereGeometry(r*1.046,64,32),new THREE.ShaderMaterial({uniforms:{uSun:{value:new THREE.Vector3(1,0,0)}},
+  transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.BackSide,
+  vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(mat3(modelMatrix)*normal);vec4 w=modelMatrix*vec4(position,1.);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}',
+  fragmentShader:'uniform vec3 uSun;varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),3.);float l=smoothstep(-.3,.4,dot(normalize(vN),uSun));gl_FragColor=vec4(vec3(.4,.7,1.)*f*l*1.3,f*l);}'})); }
+function buildSky(S){
+  for(const m of [...skyObj.children]){ skyObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  farPlanet.visible=!S; sun.position.copy(S&&S.sun?new THREE.Vector3(...S.sun):SUN0); if(!S) return;
+  const sd=sun.position.clone().normalize();
+  [['earth',0,96],['moon',1,48],['februaria',1,16],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(b.r,seg,seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
+    if(kind===0){ const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); } });
 }
 
 /* tactical grid plane */
@@ -203,20 +252,23 @@ function zoneMat(){ return new THREE.ShaderMaterial({transparent:true,depthWrite
   vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(normalMatrix*normal);vec4 mv=modelViewMatrix*vec4(position,1.);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}',
   fragmentShader:'varying vec3 vN;varying vec3 vV;uniform float uTime;void main(){float f=pow(1.-abs(dot(vN,vV)),2.2);gl_FragColor=vec4(vec3(1.,.7,.28),f*(.22+.04*sin(uTime*1.3))+.012);}'}); }
 let bodyZoneMats=[], bodyCore=null;
+/* the body's centre (op.body.c [x,y,z]; 第5節 Februaria lies outside the field to the south). Shape and buildings are made around it */
+const bodyC=new THREE.Vector3();
 /* the rock's surface in the direction of p from the body's centre (a ray from outside toward the centre): {point, normal, d} (d: its distance from the centre) */
 const _bray=new THREE.Raycaster(), _bd=new THREE.Vector3();
-function bodyHit(p,R){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
-  _bray.set(_bd.clone().multiplyScalar(R*3),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0];
-  return h?{point:h.point,normal:h.face.normal.clone(),d:h.point.length()}:{point:_bd.clone().multiplyScalar(R),normal:_bd.clone(),d:R}; }
-function bodySurface(p,R){ if(bodyShape){ _bd.copy(p); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); return bodyShape.R(_bd.normalize()); } return bodyHit(p,R).d; }
+function bodyHit(p,R){ _bd.copy(p).sub(bodyC); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); _bd.normalize();
+  _bray.set(_bd.clone().multiplyScalar(R*3).add(bodyC),_bd.clone().negate()); const h=bodyCore&&_bray.intersectObject(bodyCore)[0];
+  return h?{point:h.point,normal:h.face.normal.clone(),d:h.point.distanceTo(bodyC)}:{point:_bd.clone().multiplyScalar(R).add(bodyC),normal:_bd.clone(),d:R}; }
+/* the distance of the surface from the body's centre in the direction of p (p in world coordinates) */
+function bodySurface(p,R){ if(bodyShape){ _bd.copy(p).sub(bodyC); if(_bd.lengthSq()<1e-6) _bd.set(0,0,1); return bodyShape.R(_bd.normalize()); } return bodyHit(p,R).d; }
 /* the body's shape (op.body; 第4節 Denali, user decision 2026-10-09): a lumpy squashed rock with a lobe bulging out of it (B.lobe {c:[x,y,z], r}),
    a crater for each town (B.craterA, radians), one big open-pit mine cut in terraces (B.mine {dir:[x,y,z], a, depth, steps}), and trenches
    joining the towns to each other and to the mine (the towns' railway, B.groove {w, depth}). It is a radius for each direction from the
    centre, so the surface is known anywhere without a ray (bodyShape.R) */
 let bodyShape=null;
 function makeBodyShape(B){
-  const R0=B.r, sq=[1.08,.78,1], seed=3.3;
-  const dir=a=>new THREE.Vector3(...a).normalize(), towns=(B.blocks||[]).map(b=>new THREE.Vector3(b.pos[0],(b.alt||0)*.4,b.pos[1]).normalize());
+  const R0=B.r, sq=B.sq||[1.08,.78,1], seed=B.seed??3.3, C=new THREE.Vector3(...(B.c||[0,0,0]));
+  const dir=a=>new THREE.Vector3(...a).normalize(), towns=(B.blocks||[]).map(b=>B.c?new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]).sub(C).normalize():new THREE.Vector3(b.pos[0],(b.alt||0)*.4,b.pos[1]).normalize());
   const L=B.lobe&&{c:new THREE.Vector3(...B.lobe.c),r:B.lobe.r};
   const craters=towns.map(d=>({d,a:B.craterA||.3,depth:2.6,rim:.7,steps:0}));
   const M=B.mine&&{d:dir(B.mine.dir),a:B.mine.a,depth:B.mine.depth,rim:1,steps:B.mine.steps||0}; if(M) craters.push(M);
@@ -225,8 +277,9 @@ function makeBodyShape(B){
   /* small impact craters and boulders all over the rock, so it looks rough rather than smooth (user decision 2026-10-10; number and sizes 仮).
      None on a town or the mine */
   const pits=[], hs=k=>{ const x=Math.sin(k*91.7+17.3)*43758.5453; return x-Math.floor(x); };
-  for(let k=0;pits.length<48&&k<300;k++){ const z=hs(k)*2-1, a=hs(k+.5)*Math.PI*2, s=Math.sqrt(1-z*z), d=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a));
-    const a0=.05+hs(k+.25)*.11; if(craters.some(c=>d.angleTo(c.d)<c.a*1.3+a0*1.3)) continue;
+  const nPit=B.pits||48, pitA=B.pitA||1, crag=B.crag||1;
+  for(let k=0;pits.length<nPit&&k<nPit*6;k++){ const z=hs(k)*2-1, a=hs(k+.5)*Math.PI*2, s=Math.sqrt(1-z*z), d=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a));
+    const a0=(.05+hs(k+.25)*.11)*pitA; if(craters.some(c=>d.angleTo(c.d)<c.a*1.3+a0*1.3)) continue;
     pits.push({d,a:a0,depth:a0*R0*.22,rim:a0*R0*.07,bump:k%3===0}); }
   const _n=new THREE.Vector3();
   function base(d){
@@ -243,8 +296,9 @@ function makeBodyShape(B){
     for(const f of facets){ const c=d.dot(f.n); if(c>.25) r=Math.min(r,f.h/c); }
     const rg=(f,o)=>1-Math.abs(Math.sin(f*d.x+o)*Math.sin(f*.9*d.y+2*o)*Math.sin(f*1.1*d.z-o)*1.6+Math.sin(f*1.3*(d.x+d.z)+.5*o)*.5);
     r+=R0*(.025*rg(7,1.2)+.012*rg(13,4.1)-.02);
+    if(B.fine) r+=B.fine*(rg(60,2.3)+.5*rg(140,.7)-.8);   // a large body: finer sharp-crested roughness (in field units)
     for(const c of pits){ const t=Math.acos(Math.min(1,d.dot(c.d)));
-      if(c.bump){ if(t<c.a) r+=c.depth*.7*Math.cos(Math.PI/2*t/c.a); continue; }   // a boulder
+      if(c.bump){ if(t<c.a) r+=c.depth*.7*crag*Math.pow(Math.cos(Math.PI/2*t/c.a),crag>1?2.2:1); continue; }   // a boulder (B.crag: taller and sharper crags)
       if(t<c.a) r-=c.depth*(1-(t/c.a)**2); else if(t<c.a*1.4) r+=c.rim*Math.sin(Math.PI*(t-c.a)/(c.a*.4)); }
     let inCrater=false;
     for(const c of craters){ const t=Math.acos(Math.min(1,d.dot(c.d)));
@@ -254,19 +308,25 @@ function makeBodyShape(B){
     if(!inCrater) for(const [a,b] of grooves){ _n.crossVectors(a,b).normalize(); const off=Math.asin(Math.min(1,Math.abs(d.dot(_n))));
       if(off<G.w&&Math.acos(Math.min(1,d.dot(a)))+Math.acos(Math.min(1,d.dot(b)))<Math.acos(Math.min(1,a.dot(b)))+.02) r-=G.depth*Math.min(1,2*(1-off/G.w)); }
     return r; }
-  const g=new THREE.IcosahedronGeometry(1,56), pos=g.attributes.position, v=new THREE.Vector3();   // fine enough for the trenches (about 63,000 faces)
+  /* a body much larger than the field (B.face): only the side facing the field is made, finely (a cap around B.face, B.faceA radians) */
+  let g;
+  if(B.face){ g=new THREE.SphereGeometry(1,B.seg?B.seg[0]:360,B.seg?B.seg[1]:120,0,Math.PI*2,0,B.faceA||.9);
+    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir(B.face)))); }
+  else g=new THREE.IcosahedronGeometry(1,56);   // fine enough for the trenches (about 63,000 faces)
+  const pos=g.attributes.position, v=new THREE.Vector3();
   for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize(); v.multiplyScalar(R(v)); pos.setXYZ(i,v.x,v.y,v.z); }
   g.computeVertexNormals();
   return {R,geo:g,towns,craters,grooves,mine:M};
 }
 function buildBody(B,zoneR){
   for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
-  bodyZoneMats=[]; bodyCore=null; bodyShape=null; bodyObj.visible=!!B; if(!B) return;
+  bodyZoneMats=[]; bodyCore=null; bodyShape=null; bodyObj.visible=!!B; bodyC.set(0,0,0); bodyObj.position.set(0,0,0); if(!B) return;
+  if(B.c){ bodyC.set(...B.c); bodyObj.position.copy(bodyC); }
   bodyShape=makeBodyShape(B);
-  const core=new THREE.Mesh(bodyShape.geo,bodyMat); bodyObj.add(core); core.updateMatrixWorld(); bodyCore=core;
+  const core=new THREE.Mesh(bodyShape.geo,bodyMat); bodyObj.add(core); bodyObj.updateMatrixWorld(true); bodyCore=core;
   const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
-  (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]), out=at.clone().setY(0).normalize(), g=new THREE.Group();
+  (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]).sub(bodyC), g=new THREE.Group();
     /* a town of small habitat modules set into the rock, facing outward: blocks of different heights on a loose grid, joined by
        round tubes low down and by bridges across their tops only, with warm window lights (user decision 2026-10-09) */
     const mods=[], tube=(a,b,r)=>{ const d=b.clone().sub(a), m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),10),hull);
@@ -295,7 +355,7 @@ function buildBody(B,zoneR){
   const T=bodyShape.towns, ca=B.craterA||.3;
   T.forEach((a,i)=>T.forEach((b,j)=>{ if(j<=i) return;
     const n=new THREE.Vector3().crossVectors(a,b).normalize(), ang=a.angleTo(b);
-    [[.075,.1],[.092,.08]].forEach(([off,rad],w)=>{ const pts=[];
+    [[ca*.25,.1],[ca*.31,.08]].forEach(([off,rad],w)=>{ const pts=[];
       const ds=[], rs=[]; for(let k=0;k<=48;k++){ const th=ca*.55+(ang-ca*1.1)*k/48, d=a.clone().applyAxisAngle(n,th).addScaledVector(n,off).normalize(); ds.push(d); rs.push(bodyShape.R(d)); }
       /* the pipe runs level over small pits: the highest ground nearby, never below the rock */
       ds.forEach((d,k)=>{ let h=0; for(let q=Math.max(0,k-2);q<=Math.min(48,k+2);q++) h=Math.max(h,rs[q]); pts.push(d.clone().multiplyScalar(h+.45)); });
@@ -310,12 +370,21 @@ function buildBody(B,zoneR){
     bodyObj.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd27a,size:.45,transparent:true,blending:THREE.AdditiveBlending})));
     for(let k=0;k<5;k++){ q.setFromAxisAngle(M.d,k*1.3); v.copy(M.d).applyAxisAngle(ax,M.a*(.15+.12*k)).applyQuaternion(q);
       const m=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,1.5),k%2?hull:dark); m.position.copy(v).multiplyScalar(bodyShape.R(v)+.3); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v); bodyObj.add(m); } }
-  if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
+  if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]).sub(bodyC);
     /* the spaceport: a docking frame reaching out of the rock toward the landing ring */
-    const toward=at.clone().setY(0).normalize(), base=toward.clone().multiplyScalar(bodySurface(toward,B.r)-1);
+    const toward=(B.c?at.clone():at.clone().setY(0)).normalize(), base=toward.clone().multiplyScalar(bodyShape.R(toward)-1);
     const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
+}
+/* the drop points on the body (op.landing, 第5節): a ring over each where the enemy's assault ships stop to put their W.A.S. down.
+   Blue while ours, amber while a ship is landing in it, red once taken */
+const dropObj=new THREE.Group(); scene.add(dropObj);
+const DROP_HEX={ours:0x6fb8ff, landing:0xffb347, taken:0xff5a4a};
+function buildDrops(list){
+  for(const m of [...dropObj.children]){ dropObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  return (list||[]).map(d=>{ const m=new THREE.Mesh(new THREE.RingGeometry(d.r-.6,d.r,64),new THREE.MeshBasicMaterial({color:DROP_HEX.ours,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
+    m.rotation.x=-Math.PI/2; m.position.copy(d.pos); dropObj.add(m); return m; });
 }
 /* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
    overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane

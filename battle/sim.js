@@ -28,21 +28,22 @@ function debrisBlocks(p,q){ _sg.set(p,q); for(const c of debris){ _sg.closestPoi
 /* the body in the middle (op.body, 第4節 Denali) stops sight and fire (user decision 2026-10-10): the line between the two passes inside
    its surface. An end on the surface (a battery, a habitat block) does not count, only a pass through the rock. The surface is taken
    a little inside (BODY_LOS) so a shot grazing the rough rock is not stopped */
-const BODY_LOS=.92, BODY_OUT=1.35, _o0=new THREE.Vector3();
-function bodyBlocks(p,q){ if(!op.body) return false; _sg.set(p,q); const t=_sg.closestPointToPointParameter(_o0,true);
-  if(t<=.02||t>=.98) return false; _sg.at(t,_sp); const d=_sp.length(); return d<op.body.r*BODY_OUT&&d<bodySurface(_sp,op.body.r)*BODY_LOS; }
+const BODY_LOS=.92, BODY_OUT=1.35;
+function bodyBlocks(p,q){ if(!op.body) return false; _sg.set(p,q); const t=_sg.closestPointToPointParameter(bodyC,true);
+  if(t<=.02||t>=.98) return false; _sg.at(t,_sp); const d=_sp.distanceTo(bodyC); return d<op.body.r*BODY_OUT&&d<bodySurface(_sp,op.body.r)*BODY_LOS; }
 function losBlocked(p,q){ return debris.length&&debrisBlocks(p,q)||bodyBlocks(p,q); }
 /* a way round the body (2026-10-10, user decision: for every move, ours included): when the straight way from p to q runs into the rock,
    the nearest of three turning points clear of it — out past the side it passes, over the top, under the bottom — with a little chance
    in it so the AI does not always pick the same (key: a fleet's own fixed lean, for a way worked out again every step). Up to two in a row (detours) */
 const BODY_CLEAR=7, _up0=new THREE.Vector3(0,1,0);
-function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.closestPointToPointParameter(_o0,true); _sg.at(t,_sp);
-  const d=_sp.length(); if(d>=op.body.r*BODY_OUT||d>=bodySurface(_sp,op.body.r)+BODY_CLEAR*.4) return null;
+function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.closestPointToPointParameter(bodyC,true); _sg.at(t,_sp);
+  const d=_sp.distanceTo(bodyC); if(d>=op.body.r*BODY_OUT||d>=bodySurface(_sp,op.body.r)+BODY_CLEAR*.4) return null;
   const a=new THREE.Vector3().subVectors(q,p); if(a.lengthSq()<1e-6) return null; a.normalize();
   const up=_up0.clone().addScaledVector(a,-a.y); if(up.lengthSq()<1e-4) up.set(1,0,0); up.normalize();
-  const cand=[up,up.clone().negate()]; if(d>1) cand.push(_sp.clone().normalize());
-  let best=null,bc=1e9; for(const n of cand){ const w=n.clone().multiplyScalar(bodySurface(n,op.body.r)+BODY_CLEAR);
-    w.y=Math.max(-58,Math.min(58,w.y)); const r=key==null?Math.random():(x=>x-Math.floor(x))(Math.sin((key+1)*12.9898+cand.indexOf(n)*78.233)*43758.5453);
+  const cand=[up,up.clone().negate()]; if(d>1) cand.push(_sp.clone().sub(bodyC).normalize());
+  let best=null,bc=1e9; for(const n of cand){ const w=n.clone().multiplyScalar(bodySurface(n.clone().add(bodyC),op.body.r)+BODY_CLEAR).add(bodyC);
+    w.y=Math.max(-58,Math.min(58,w.y)); if(w.distanceTo(bodyC)<bodySurface(w,op.body.r)+BODY_CLEAR*.5) continue;   // under a body far larger than the field: no way
+    const r=key==null?Math.random():(x=>x-Math.floor(x))(Math.sin((key+1)*12.9898+cand.indexOf(n)*78.233)*43758.5453);
     const c=(p.distanceTo(w)+w.distanceTo(q))*(.95+r*.1); if(c<bc){ bc=c; best=w; } }
   return best; }
 function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
@@ -159,8 +160,10 @@ function end(win,quit=false,full=false){
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
-  const why=!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}:{};
+  const why=!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
+    :!win&&loseWhy==='drop'&&op.result.loseDrop?{lose:op.result.loseDrop,loseLog:op.result.loseDropLog}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
+    op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。占拠された降下点 ${drops.filter(d=>d.taken).length}/${drops.length}。残存艦 ${left}隻。`:
     opCarrier?`${opCarrier.name}に乗せた住民 ${(opCarrier.cs.boarded||0).toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
   /* the menu records the progress and the reward (prep.js) and tells what was gained */
@@ -299,6 +302,8 @@ function fireTargetOf(f){
      standing nearer in its way (the main fleet as the shield) */
   if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
     return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
+  /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else */
+  if(f.fixed&&f.team===0&&op.landing){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&e.ai==='land'&&e.seen&&!e.landed){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok); }
@@ -480,7 +485,7 @@ function carrierRaidAI(f){
   /* the nearest of 16 spots around the carrier at 0.8 of its reach that is outside every zone and clear of the rock */
   const c=opCarrier, R=f.range*.8, Z=op.civil.r+2; let best=null,bd=1e9;
   for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; _v.set(c.pos.x+Math.cos(a)*R,c.pos.y+4,c.pos.z+Math.sin(a)*R);
-    if(blocks.some(b=>Math.hypot(_v.x-b.pos.x,_v.z-b.pos.z)<Z)||_v.length()<bodySurface(_v,op.body.r)+4) continue;
+    if(blocks.some(b=>Math.hypot(_v.x-b.pos.x,_v.z-b.pos.z)<Z)||_v.distanceTo(bodyC)<bodySurface(_v,op.body.r)+4) continue;
     const d=_v.distanceTo(f.pos); if(d<bd){bd=d;best=_v.clone();} }
   if(!best) return;
   if(f.pos.distanceTo(best)>2) moveTo(f,best.x,best.y,best.z); else if(f.order&&f.order.type==='move') f.order=null;
@@ -506,6 +511,7 @@ function enemyAI(){
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
+    if(f.ai==='land'){ landAI(f); continue; }   // 第5節: the assault ships make for the drop points
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
     if(f.ai==='raid'){ raidAI(f); continue; }
     if(f.ai==='shield') shieldAI(f);
@@ -554,13 +560,13 @@ function protectAI(f){
   for(const b of blocks){ _v.subVectors(_w,b.pos).setY(0); const d=_v.length(), R=op.civil.r+PROTECT_GAP;
     if(d<R){ if(d<1e-6) _v.set(0,0,1); _v.setLength(R); _w.x=b.pos.x+_v.x; _w.z=b.pos.z+_v.z; } }
   /* and clear of the rock, so it does not stand pressed against it */
-  _w.y=P.pos.y; if(op.body){ const R=bodySurface(_w,op.body.r)+4; if(_w.length()<R) _w.setLength(R); }
+  _w.y=P.pos.y; if(op.body){ const R=bodySurface(_w,op.body.r)+4; if(_w.distanceTo(bodyC)<R) _w.sub(bodyC).setLength(R).add(bodyC); }
   moveTo(f,_w.x,_w.y,_w.z); return true;
 }
 function allyAI(){
   const foes=fleets.filter(f=>f.team===1&&f.alive&&f.seen&&!(op.civil&&!f.fixed&&inZone(f)));
   for(const f of fleets){
-    if(!f.ally||!f.alive) continue;
+    if(!f.ally||!f.alive||f.fixed) continue;   // a battery on the rock (第5節) only shoots
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
       /* the retreat: it escorts the (slow, laden) carrier, a little ahead of it toward the exit and to one side, until the carrier is out */
       if(opCarrier.alive){ const mates=fleets.filter(a=>a.ally&&a.alive&&a.mode==='leave'), k=mates.indexOf(f);
@@ -604,7 +610,7 @@ function stepDefend(dt){
 }
 
 /* the body in the middle (op.body) is solid: a fleet that runs into it is put back just outside its surface */
-function keepOffBody(f){ const d=f.pos.length(); if(d>op.body.r*1.35||d<1e-6) return; const R=bodySurface(f.pos,op.body.r)+2.5; if(d<R) f.pos.multiplyScalar(R/d); }
+function keepOffBody(f){ const d=f.pos.distanceTo(bodyC); if(d>op.body.r*1.35||d<1e-6) return; const R=bodySurface(f.pos,op.body.r)+2.5; if(d<R) f.pos.sub(bodyC).multiplyScalar(R/d).add(bodyC); }
 /* the carrier of the operation (op.carrier, 第4節; user decision 2026-10-09): stopped inside the spaceport ring it lands; the enemy's
    W.A.S. come back (carrier.landEvents, timed from the landing) and the boarding runs `board` minutes, during which it cannot move.
    Then it lifts off and must reach the exit: that wins; losing it loses (destroyFleet) */
@@ -664,6 +670,51 @@ function landCarrier(){
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
 }
 
+/* 第5節: the enemy's landing (op.landing; user decision 2026-10-12). Assault ships (ai:'land') make for a drop point (op.landing.points,
+   over the base's buildings) and do not seek the gunfight on the way. One that stays `hold` minutes inside a ring puts its W.A.S. down:
+   the point is taken, our batteries within `silence` of it fall silent and the ship goes back north. `need` points taken, or the one
+   marked hq, loses the operation. A ring's count starts again once no assault ship is in it. 数値は仮 */
+let drops=[], dropRings=[];
+function dropFor(f){ const open=drops.filter(d=>!d.taken); if(!open.length) return null;
+  if(f.dropAt&&!f.dropAt.taken) return f.dropAt;
+  return f.dropAt=f.drop&&open.find(d=>d.name===f.drop)||nearestOf(f,open); }
+function landAI(f){
+  const d=!f.landed&&dropFor(f);
+  if(!d){ moveTo(f,f.pos.x,f.pos.y,-FIELD_R-30); return; }   // done, or nothing left to take: back north
+  if(f.pos.distanceTo(d.pos)>d.r*.5) moveTo(f,d.pos.x,d.pos.y,d.pos.z); else if(f.order&&f.order.type==='move') f.order=null;
+}
+function stepLanding(dt){
+  const L=op.landing; if(!L||over) return;
+  for(const d of drops){ if(d.taken) continue;
+    const at=fleets.filter(f=>f.alive&&f.team===1&&f.ai==='land'&&!f.landed&&f.pos.distanceTo(d.pos)<=d.r);
+    if(!at.length){ d.prog=0; d.state='ours'; continue; }
+    if(!d.prog&&L.warnLog) logEvent(L.warnLog[0],L.warnLog[1].replace('{name}',d.name));
+    d.prog+=dt*CLOCK_RATE; d.state='landing';
+    if(d.prog>=L.hold) takeDrop(d,at); }
+  /* an assault ship that has landed (or has nothing left to take) leaves the field to the north */
+  for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='land'&&(f.landed||!drops.some(d=>!d.taken))&&f.pos.z<-FIELD_R-20){ f.alive=false; f.left=true; f.el.remove(); }
+  dropRings.forEach((m,i)=>m.material.color.setHex(DROP_HEX[drops[i].state]));
+}
+function takeDrop(d,ships){
+  const L=op.landing; d.taken=true; d.state='taken'; ships.forEach(f=>{ f.landed=true; f.order=null; });
+  for(const f of fleets) if(f.alive&&f.team===0&&f.fixed&&!f.silent&&f.pos.distanceTo(d.pos)<=L.silence){ f.silent=true; f.fireTarget=null; f.sub=`${f.sub}（沈黙）`; f.el.classList.add('ghost'); }
+  logEvent(...(d.takenLog||[`${d.name} 占拠`,`${d.name}の降下点に W.A.S. が降りた。まわりの砲台が沈黙した。`]));
+  if(d.hq||drops.filter(x=>x.taken).length>=L.need){ loseWhy='drop'; end(false); }
+}
+/* 第5節: hold the base (op.win {type:'repel', share, until, surge}): won when `share` of the enemy's main force (fleets marked main)
+   is sunk, or at `until` minutes. surge {share, at, events}: the all-out attack, when `share` of it is sunk or at `at` minutes,
+   whichever comes first; its events (the form of op.events, after: minutes from then) follow. 数値は仮 */
+let mainTotal=0, surged=false, repelBy=null;
+function mainSunk(){ let s=0; for(const f of fleets) if(f.team===1&&f.main) s+=f.n-f.ships.length; return mainTotal?s/mainTotal:0; }
+function stepRepel(){
+  const W=op.win; if(!W||W.type!=='repel'||over) return;
+  const k=mainSunk(), now=gameSec*CLOCK_RATE, S=W.surge;
+  if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true;
+    const add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
+    opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
+  if(k>=W.share||now>=W.until){ repelBy=k>=W.share?'sunk':'time'; end(true); }
+}
+
 function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
@@ -674,15 +725,17 @@ function step(dt){
       if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
-    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally) f.mode=E.ai.ai; else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
+    /* shift [dx, dz]: an allied fleet's post moves forward (第5節: ウォン中将 brings the battleships up) */
+    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; } } else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
+    if(E.scene) playScene(E.scene);   // lines that pause the battle (story on)
   }
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers();}
-  stepDefend(dt);
+  stepDefend(dt); stepLanding(dt); stepRepel();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
@@ -705,12 +758,12 @@ function step(dt){
     /* the rock in the way of the shot: it keeps closing (round the rock) until it has a clear line */
     if(goal){ const stop=standOff(f,goal);
       if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
-        if(bodyBlocks(_w,goal.pos)||op.body&&_w.length()<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
+        if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
         stepToward(f,_w,0,dt); }
       else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
     const ft=f.fireTarget;
-    if(ft&&ft.alive&&ft.seen&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
+    if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6;
