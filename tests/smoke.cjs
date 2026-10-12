@@ -816,18 +816,27 @@ function check(ok, label, detail = '') {
         sky: skyObj.children.length >= 3 && !farPlanet.visible, drops: drops.length, dropsUp: drops.every(d => d.pos.distanceTo(bodyC) > bodySurface(d.pos, op.body.r) + 5) };
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
+      /* the stages: the field starts at the first place; at the next stage's time it slides to the next place in a few seconds, a ring
+         marks it, and a fleet left outside may stay but cannot go further out */
+      r.stage0 = fieldC.z === -60 && phaseName === '前衛';
+      const far = mine[1]; far.pos.set(0, 0, -250); gameSec = op.phases[1].at / CLOCK_RATE; step(.05);
+      r.stage1 = phaseName === '港の正面' && spotObj.visible && stageText.startsWith('港の正面');
+      for (let i = 0; i < 120; i++) step(.05);
+      const out0 = Math.hypot(far.pos.x - fieldC.x, far.pos.z - fieldC.z); far.order = null; far.pos.z -= 20; step(.05);
+      r.slid = Math.abs(fieldC.z - 120) < .5 && Math.abs(Math.hypot(far.pos.x - fieldC.x, far.pos.z - fieldC.z) - out0) < .5 && out0 > FIELD_R;
       /* an assault ship stays in the arsenal's ring for an hour: the point is taken and the batteries near it fall silent */
       const D = drops[0], mk = (name, d) => { const f = makeFleet(1, { name, sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [d.pos.x, d.pos.z], alt: d.pos.y, ai: 'land', drop: d.name, main: true, vis: 1, stl: 9 }); fleets.push(f); return f; };
       const L1 = mk('試験 揚陸艦', D); let n = 0; while (!D.taken && n++ < 400) step(.05);
       r.hold = Math.round(n * .05 * CLOCK_RATE); r.taken = D.taken && !over && L1.landed;
       r.silent = bt.filter(f => f.silent).length > 0 && bt.filter(f => f.silent).every(f => f.pos.distanceTo(D.pos) <= op.landing.silence);
-      updateGoal(); r.goal = goalSub.textContent.includes('工廠：占拠');
+      updateGoal(); r.goal = goalSub.textContent.includes(`${D.name}：占拠`);
       /* the HQ taken: the operation is lost */
       const H = drops.find(d => d.hq); mk('試験 揚陸艦2', H); n = 0; while (!over && n++ < 400) step(.05);
       r.lost = over && !outcome && loseWhy === 'drop';
       return r; });
-    check(f1.op === 'februaria' && f1.bb && f1.allies === 6 && f1.bt === 7 && f1.onRock && f1.centre && f1.sky && f1.drops === 3 && f1.dropsUp && f1.pushed,
-      'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍6隊と地表の砲台7基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
+    check(f1.stage0 && f1.stage1 && f1.slid, 'フェブルアーリア防衛戦: 4つの段階。時刻になると次の持ち場が輪で示され、作戦フィールドの中心がそこへ滑る。外に残った艦はそれより外へは出られない', JSON.stringify(f1));
+    check(f1.op === 'februaria' && f1.bb && f1.allies === 6 && f1.bt === 8 && f1.onRock && f1.centre && f1.sky && f1.drops === 3 && f1.dropsUp && f1.pushed,
+      'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍6隊と地表の砲台8基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.hold === 60 && f1.taken && f1.silent && f1.goal && f1.lost, 'フェブルアーリア防衛戦: 揚陸艦が降下点の輪で60分止まると占拠され、まわりの砲台が沈黙する。司令部が占拠されると負け', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');

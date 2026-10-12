@@ -207,6 +207,14 @@ const exitObj=new THREE.Group();
   for(let i=0;i<4;i++){ const t=new THREE.Mesh(new THREE.PlaneGeometry(2.4,.5),m); t.rotation.x=-Math.PI/2; t.rotation.z=i*Math.PI/2; t.position.set(Math.cos(i*Math.PI/2)*11,0,Math.sin(i*Math.PI/2)*11); exitObj.add(t); }
 }
 exitObj.visible=false; scene.add(exitObj);
+/* the place of the current stage (op.phases, 第5節): a larger blue ring our fleets are told to go to */
+const spotObj=new THREE.Group();
+{
+  const m=new THREE.MeshBasicMaterial({color:0x6fb8ff,transparent:true,opacity:.5,depthWrite:false,side:THREE.DoubleSide});
+  const r=new THREE.Mesh(new THREE.RingGeometry(16,16.8,72),m); r.rotation.x=-Math.PI/2; spotObj.add(r);
+  for(let i=0;i<4;i++){ const t=new THREE.Mesh(new THREE.PlaneGeometry(3.2,.6),m); t.rotation.x=-Math.PI/2; t.rotation.z=i*Math.PI/2; t.position.set(Math.cos(i*Math.PI/2)*19,0,Math.sin(i*Math.PI/2)*19); spotObj.add(t); }
+}
+spotObj.visible=false; scene.add(spotObj);
 
 /* plasma clouds (プラズマ雲): left by D-RAMS exhaust. A soft pale glow, a few overlapping puffs each;
    the battle uses one sphere per cloud (data: {pos:[x,z], alt, r}). A cloud the camera is inside fades (loop.js) */

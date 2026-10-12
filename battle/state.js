@@ -337,7 +337,10 @@ function reset(cfg=lastCfg){
     return {...d,pos:at,prog:0,taken:false,state:'ours'}; });
   dropRings=buildDrops(drops);
   surged=false; repelBy=null;
-  mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
+  mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
+  /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
+  stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
+  if(op.phases){ const S=op.phases[0]; fieldC.set(S.centre[0],0,S.centre[1]); stageAt=1; stageText=S.text||''; if(S.events) opEvents.push(...S.events.map(e=>({...e}))); opEvents.sort((a,b)=>a.after-b.after); }
   selGroup=null; selMulti=[];
   /* the army groups: the ones chosen at sortie (several may go out together), or for an operation fought with its own fleets,
      op.group around all of them. More army groups can be formed during the battle (＋ in the roster) */
@@ -352,7 +355,7 @@ function reset(cfg=lastCfg){
     if(!(op.convoy.depart>0)) departConvoy(); }
   /* a field that moves with the convoy: the grid, the camera and the edge go along with it (sim.js stepField) */
   fieldMoves=op.field==='convoy'&&!!convoy;
-  gridMat.uniforms.uFrame.value=fieldMoves?1:0;
+  gridMat.uniforms.uFrame.value=fieldMoves||op.phases?1:0;
   clouds=buildClouds(op.clouds);
   /* the object in the middle of the field: the enemy fortress (a target), a relay station we defend (op.station: it has armour and
      batteries, and the enemy shoots at it), or a relay station as scenery. The defended station uses the fortress slot with team 0 */
