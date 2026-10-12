@@ -310,7 +310,7 @@ function reset(cfg=lastCfg){
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;
-  buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt);
+  buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt); buildSky(op.sky);
   blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[]}));
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;

@@ -36,6 +36,7 @@ function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
   const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
   if(dt>0) step(dt);
+  skyObj.position.copy(camera.position); starField.position.copy(camera.position);   // the far sky does not grow or shrink with the zoom
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
