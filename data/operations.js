@@ -335,13 +335,13 @@ WOS_DATA.operations=[
         arrow:{pos:[10,0], alt:50}, log:['ハッダード曹長', '「真上に偵察。高度を上げないと届きません」']},
       {after:450, rel:true, fleet:{name:'第14 偵察 戦闘隊', sub:'自治軍 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[-20,10], alt:-80, ai:'scout', stance:'evade', patrol:[[40,-60],[-40,40]], watch:{pos:[0,0], alt:-45}, vis:8, stl:8},
         arrow:{pos:[-10,0], alt:-50}, log:['ハッダード曹長', '「下方にも偵察。上下も見張られています」']},
-      /* 本隊と揚陸隊は、2026-10-12 に時計を遅くして戦う時間が長くなったぶん弱めた（戦艦2・巡洋艦6、耐久40、火力3.6、W.A.S.20 から。
+      /* 本隊と揚陸隊は、2026-10-12 に時計を遅くして戦う時間が長くなったぶん弱めた（戦艦2・巡洋艦6、耐久40、火力3.6、W.A.S.20 から。案の第21 の W.A.S.16 も6に。
          研究なしの駐屯隊が船団のそばで戦えば勝てるように、node tools/retreat-sim.cjs a で合わせた。数値は仮） */
       {after:540, rel:true, phase:'追撃', onSpot:{min:450, delay:90},
-        fleet:{name:'第1 主力砲撃 エスカドラ', sub:'追撃艦隊', comp:{bb:1, cl:5}, n:6, hp:30, dmg:2.6, eva:.14, range:21, speed:9, scale:1.5, pos:[0,-215], alt:10, ai:'pursue', vis:6, stl:3},
+        fleet:{name:'第1 主力砲撃 エスカドラ', sub:'追撃艦隊', comp:{bb:1, cl:5}, n:6, hp:26, dmg:1.8, eva:.14, range:21, speed:9, scale:1.5, pos:[0,-215], alt:10, ai:'pursue', vis:6, stl:3},
         arrow:{pos:[0,-140], alt:10}, log:['ハッダード曹長', '「後方に大型艦の光。本隊です。見つかった隊へ向かってきます」']},
       {after:555, rel:true, onSpot:{min:465, delay:105},
-        fleet:{name:'第20 追撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[-30,-215], alt:-30, ai:'pursue', vis:5, stl:7, hangar:{was:12}},
+        fleet:{name:'第20 追撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[-30,-215], alt:-30, ai:'pursue', vis:5, stl:7, hangar:{was:8}},
         arrow:{pos:[-20,-140], alt:-25}},
       /* 2026-10-12: 時計を遅くして空いた時間に、追撃の波と出来事を足した（時刻と方向はストラテジーの専門家の案、ユーザー採用。数値は仮） */
       {after:330, rel:true, onSpot:{min:150, delay:30},
@@ -354,19 +354,19 @@ WOS_DATA.operations=[
         fleet:{name:'第17 左舷 追撃 戦闘隊', sub:'自治軍 追撃', comp:{ff:4, dd:2}, n:6, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[-170,30], alt:10, ai:'pursue', vis:6, stl:6},
         arrow:{pos:[-140,30], alt:10}, log:['ハッダード曹長', '「左舷に追撃分隊。本隊とは別の隊です」']},
       {after:1050, rel:true,
-        fleet:{name:'第21 追撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[120,-120], alt:-40, ai:'pursue', vis:5, stl:7, hangar:{was:10}},
+        fleet:{name:'第21 追撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[120,-120], alt:-40, ai:'pursue', vis:5, stl:7, hangar:{was:6}},
         arrow:{pos:[80,-80], alt:-30}, log:['ハッダード曹長', '「右後方の下に揚陸艦。また人型です」']},
       {after:1150, rel:true,
         fleet:{name:'第18 偵察 戦闘隊', sub:'自治軍 偵察', type:'cv', n:4, hp:11, dmg:1.2, eva:.36, range:14, speed:11, scale:.73, pos:[60,-60], alt:30, ai:'scout', stance:'evade', patrol:[[60,40],[-60,-40]], watch:{pos:[0,0], alt:20}, vis:8, stl:8},
         arrow:{pos:[30,-20], alt:20}, log:['ハッダード曹長', '「右上にまた偵察。雲の切れ目を見張っています」']},
       {after:1260, log:['ハッダード曹長', '「この先、雲が切れます。ナイルまで隠れる場所はありません」']},
       /* 最後の区間（雲のない 2,800〜3,250）: 追撃隊が3方向から。右（第15）、左上（第22）、後ろの下から追ってくる第21 追撃揚陸（ユーザー採用 2026-10-12）。
-         第15 はフリゲート6・駆逐艦4から減らした（数値は仮） */
+         第15 はフリゲート6・駆逐艦4から、第22 はフリゲート4・駆逐艦2の案から減らした（数値は仮） */
       {after:1380, rel:true, phase:'最後の区間',
-        fleet:{name:'第15 追撃 戦闘隊', sub:'自治軍 駆逐隊', comp:{ff:5, dd:3}, n:8, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[215,-40], alt:20, ai:'pursue', vis:6, stl:6},
+        fleet:{name:'第15 追撃 戦闘隊', sub:'自治軍 駆逐隊', comp:{ff:4, dd:2}, n:6, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[215,-40], alt:20, ai:'pursue', vis:6, stl:6},
         arrow:{pos:[140,-20], alt:20}, log:['ハッダード曹長', '「ナイルの手前は雲が切れています。右から追撃分隊。高度で船団の上下を固めて、一気に抜けてください」']},
       {after:1425, rel:true,
-        fleet:{name:'第22 追撃 戦闘隊', sub:'自治軍 追撃', comp:{ff:4, dd:2}, n:6, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[-215,-20], alt:40, ai:'pursue', vis:6, stl:6},
+        fleet:{name:'第22 追撃 戦闘隊', sub:'自治軍 追撃', comp:{ff:3, dd:1}, n:4, hp:18, dmg:2.1, eva:.26, range:17, speed:9, scale:.9, pos:[-215,-20], alt:40, ai:'pursue', vis:6, stl:6},
         arrow:{pos:[-140,-10], alt:30}, log:['ハッダード曹長', '「左上からも。挟む気です」']},
       {after:1500, log:['マンスール准将', '「こちらジャディード・ナイル。灯は見えているか。あと少しだ」']},
     ],

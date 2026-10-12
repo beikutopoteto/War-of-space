@@ -264,10 +264,10 @@ function check(ok, label, detail = '') {
 
     /* views change only the vertical angle */
     await page.evaluate(() => setAngles(60, 40));
-    await page.click('#cv1'); await page.waitForTimeout(1200);
+    await page.click('#cv1'); await page.waitForFunction(() => !camAnim, null, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(200);
     const view = await page.evaluate(() => getAngles());
     check(Math.round(view.az) === 60 && view.el > 80, '視点: 真上にしても横の角度が変わらない', `横${Math.round(view.az)}° 縦${Math.round(view.el)}°`);
-    await page.click('#cv0'); await page.waitForTimeout(1200);
+    await page.click('#cv0'); await page.waitForFunction(() => !camAnim, null, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(200);
     /* formation shapes put the light ships ahead and around, the heavy ones at the rear and the centre (flagship included) */
     const cls = await page.evaluate(() => {
       const by = n => fleets.find(f => f.team === 0 && f.name === n), cv = by('第3 突撃艇 打撃群'), cl = by('第2 巡洋 打撃群'), cvb = by('第4 空母航空 打撃群');
@@ -632,7 +632,8 @@ function check(ok, label, detail = '') {
       while (!fleets.some(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive) && gameSec * CLOCK_RATE < at + 10 && !over) step(.05);
       const main = fleets.find(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive), us = fleets.find(f => f.name === '第18 護送護衛 支隊');
       if (!main) return { main: false };
-      us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.blindT = 0; updateFog(); enemyAI();
+      /* above the clouds (the lane is full of them since 2026-10-12), so neither is hidden */
+      main.pos.y = 120; us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.inCloud = inCloud(main); us.inCloud = inCloud(us); main.blindT = 0; updateFog(); enemyAI();
       const t = main.order && main.order.target;
       return { main: true, seen: us.seen, chase: !!(t && main.order.type === 'attack' && t.team === 0 && t.seen), target: t && t.name, spot: spotNow }; });
     check(rsp.main && rsp.seen && rsp.chase && rsp.spot, '後退: 見つかった部隊へ共和国の本隊が向かう', JSON.stringify(rsp));
