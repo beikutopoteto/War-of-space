@@ -244,8 +244,8 @@ function check(ok, label, detail = '') {
     });
     check(ng.multi && ng.made && ng.gone && ng.named, '戦区軍: Shift でまとめて選び、＋で新しい戦区軍（第N 役割 戦区軍）を作り、解散できる', ng.names);
     const before = await page.evaluate(() => fleets.length);
-    await advance(90);
-    const after = await page.evaluate(() => ({ n: fleets.length, reinf: (op.reinforcements || []).filter(r => r.after <= 90 * CLOCK_RATE).length }));
+    await advance(160);
+    const after = await page.evaluate(() => ({ n: fleets.length, reinf: (op.reinforcements || []).filter(r => r.after <= 160 * CLOCK_RATE).length }));
     check(after.n === before + after.reinf, '出撃: 増援が時刻どおり現れる', `${after.reinf}隊`);
     await page.waitForTimeout(500);
     await shot('05-sortie-battle');
@@ -257,6 +257,9 @@ function check(ok, label, detail = '') {
     const legend = await page.textContent('#legend');
     check(legend.includes('地球連合') && legend.includes('惑星共和国'), 'クイック戦闘: 凡例の陣営名');
     check(await page.locator('#roster button[id^="fl"]').count() === await page.evaluate(() => op.quick.length), 'クイック戦闘: 自軍の一覧');
+    /* the prepared fleets are outside the scale's cap (user decision 2026-10-12) */
+    const qcap = await page.evaluate(() => ({ ships: fleets.filter(f => f.team === 0 && !f.ward).reduce((s, f) => s + f.ships.length, 0), cap: WOS_DATA.scales[op.scale].cap }));
+    check(qcap.ships > qcap.cap, 'クイック戦闘: 用意された艦隊は規模の上限の外（全艦で出る）', JSON.stringify(qcap));
     await shot('06-quick');
 
     /* views change only the vertical angle */
@@ -618,22 +621,36 @@ function check(ok, label, detail = '') {
       us.pos.set(c.c.x, 300, c.c.z); sc.pos.copy(us.pos).add(off); us.inCloud = inCloud(us); sc.inCloud = inCloud(sc); const open = canSee(sc, us);
       return { hidden, open, fast: speedOf({ speed: 10, inCloud: true }) > speedOf({ speed: 10 }) }; });
     check(rcl.hidden && rcl.open && rcl.fast, '後退: プラズマ雲の中の艦は外から見つかりにくく、雲の中では少し速い', JSON.stringify(rcl));
-    const rsp = await page.evaluate(() => { while (gameSec < 40 && !over) step(.05);
+    /* the distress call comes at 10:00 (the clock is slower since 2026-10-12, so it comes before the main force) */
+    const rs = await page.evaluate(() => { while (!rescue && gameSec * CLOCK_RATE < op.rescue.after + 30 && !over) step(.05);
+      const s = rescue && rescue.ship; if (!s) return { spawned: false };
+      s.hpPool = 1e9; const us = fleets.find(f => f.name === '第24 駆逐突撃 支隊');
+      for (let i = 0; i < 440 && !rescue.done && !over; i++) { us.order = null; us.pos.copy(s.pos).add(new THREE.Vector3(4, 0, 0)); step(.05); }
+      return { spawned: true, done: rescue.done, rescued, gone: !s.alive }; });
+    check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに10秒付くと救助できる', JSON.stringify(rs));
+    const rsp = await page.evaluate(() => { const at = op.events.find(e => e.fleet && e.fleet.name === '第1 主力砲撃 エスカドラ').after;
+      while (!fleets.some(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive) && gameSec * CLOCK_RATE < at + 10 && !over) step(.05);
       const main = fleets.find(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive), us = fleets.find(f => f.name === '第18 護送護衛 支隊');
       if (!main) return { main: false };
       us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.blindT = 0; updateFog(); enemyAI();
       const t = main.order && main.order.target;
       return { main: true, seen: us.seen, chase: !!(t && main.order.type === 'attack' && t.team === 0 && t.seen), target: t && t.name, spot: spotNow }; });
     check(rsp.main && rsp.seen && rsp.chase && rsp.spot, '後退: 見つかった部隊へ共和国の本隊が向かう', JSON.stringify(rsp));
-    const rs = await page.evaluate(() => { const s = rescue && rescue.ship; if (!s) return { spawned: false };
-      s.hpPool = 1e9; const us = fleets.find(f => f.name === '第24 駆逐突撃 支隊');
-      for (let i = 0; i < 440 && !rescue.done && !over; i++) { us.order = null; us.pos.copy(s.pos).add(new THREE.Vector3(4, 0, 0)); step(.05); }
-      return { spawned: true, done: rescue.done, rescued, gone: !s.alive }; });
-    check(rs.spawned && rs.done && rs.rescued && rs.gone, '後退: 救難信号の船のそばに10秒付くと救助できる', JSON.stringify(rs));
+    /* 19:00: the main force runs out of deuterium and turns back (events の ai:'withdraw'): it holds its fire, goes north out of the field
+       and leaves the battle (not sunk) */
+    const rwd = await page.evaluate(() => { const main = fleets.find(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive); if (!main) return { main: false };
+      main.hpPool = 1e9; const E = op.events.find(e => e.ai && e.ai.ai === 'withdraw'), logs = [], _l = logEvent; logEvent = (a, b) => { logs.push(a + ' ' + b); return _l(a, b); };
+      gameSec = E.after / CLOCK_RATE; step(.05); const r = { main: true, ai: main.ai, clock: clockStr(), z0: main.pos.z - fieldC.z };
+      main.order = null; enemyAI(); r.quiet = main.stance === 'evade' && !fireTargetOf(main);
+      let n = 0; while (main.alive && n++ < 1200) step(.05);
+      logEvent = _l; r.left = !main.alive && main.left; r.north = main.pos.z - fieldC.z < -FIELD_R; r.sec = Math.round(n * .05);
+      r.said = logs.some(l => l.includes('引き返して')); r.sunk = logs.some(l => l.includes('第1 主力砲撃 エスカドラ 全滅')); return r; });
+    check(rwd.main && rwd.ai === 'withdraw' && rwd.clock === '19:00' && rwd.quiet && rwd.left && rwd.north && rwd.said && !rwd.sunk,
+      '後退: 19:00 に本隊は重水素が尽きて撃つのをやめ、北の枠の外へ引き返して戦場から消える', JSON.stringify(rwd));
     await page.waitForTimeout(400);
     await shot('10-retreat');
     const rw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = [];
-      let n = 0; while (!over && n++ < 8000) step(.05); return { over, outcome, saved: convoy.escaped }; });
+      let n = 0; while (!over && n++ < 24000) step(.05); return { over, outcome, saved: convoy.escaped, clock: clockStr() }; });
     await page.waitForTimeout(2200);
     const rwTalk = await page.evaluate(() => [...document.querySelectorAll('#talkText')].map(e => e.textContent).join(''));
     check(rw.over && rw.outcome && rw.saved, '後退: 船団が撤退地点に着くと勝利', JSON.stringify(rw) + rwTalk);
@@ -696,7 +713,7 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(500);
     await shot('12-nile');
     const nw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
-      let n = 0; while (!over && n++ < 6000) step(.05); return { over, outcome, evac: Math.round(evac), clock: clockStr() }; });
+      let n = 0; while (!over && n++ < 18000) step(.05); return { over, outcome, evac: Math.round(evac), clock: clockStr() }; });
     await page.waitForTimeout(2200);
     check(nw.over && nw.outcome, 'ナイル防衛線: 避難が終わると勝利', JSON.stringify(nw));
     await page.click('#talkSkip').catch(() => {});
