@@ -458,7 +458,7 @@ function renderSortie(){
   const ol=document.getElementById('opList');
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlockText('fleet');
-    return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
+    return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${scaleText(o)}${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
   ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
@@ -482,12 +482,18 @@ function renderSortie(){
     :'<p class="empty">戦区軍がありません。艦隊編集で作成してください。</p>';
   el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ const id=b.dataset.sg; sortieGroups=sortieGroups.includes(id)?sortieGroups.filter(x=>x!==id):[...sortieGroups,id]; renderSortie(); });
   /* the sortie limit per branch (tech tree), for all the chosen groups together */
-  const rows=chosen.length?groupLoad(chosen):[], over=rows.some(r=>r.used>r.cap);
-  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}</tbody></table>${
-    over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
+  const rows=chosen.length?groupLoad(chosen):[], branchOver=rows.some(r=>r.used>r.cap);
+  /* and the battle's scale caps all the ships together (user decision 2026-10-12) */
+  const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.used,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
+  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
+    S?`<tr class="scale ${scaleOver?'over':''}"><th>戦闘の規模（${esc(S.name)}）</th><td>${total} / ${S.cap}隻</td><td class="note">${scaleOver?'規模の上限を超えています':'全兵科の合計'}</td></tr>`:''}</tbody></table>${
+    over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':scaleOver&&!branchOver?`この作戦は${esc(S.name)}です。出撃できる艦は合計${S.cap}隻まで。戦区軍を減らすか、艦隊編集で艦を減らしてください。`:'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
   const btn=document.getElementById('goBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
   btn.onclick=()=>{ running={op:sortieOp}; startBattle(chosen); };
 }
+/* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1× */
+const scaleOf=o=>D.scales&&D.scales[o.scale];
+function scaleText(o){ const S=scaleOf(o); return S?`${S.name}（目安 ${S.min}${S.max?`〜${S.max}`:''}分${S.max?'':'〜'}）　`:''; }
 /* whether two army groups have an army in common */
 function shareArmy(g,h){ return g.members.some(m=>h.members.some(n=>n.army===m.army)); }
 /* the flagship of an army group: the army chosen with ☆, or the first one */

@@ -27,7 +27,7 @@ description: War of Space の資料（CLAUDE.md、docs/*.md、サブエージェ
 - ファイルを足したり消したりしたら、CLAUDE.md の「資料」の表と「ファイルと動かし方」、`docs/code.md` を直す。コードの細かい構成は `docs/code.md` に置き、CLAUDE.md には要点だけ。
 
 ## 4. ほかの .md をそろえる
-- `.claude/agents/*.md`（`wos-dev`、`wos-story`）と `.claude/skills/*/SKILL.md` が、今のファイル構成と手順に合っているか確かめる。
+- `.claude/agents/*.md`（`wos-dev`、`wos-story`、`wos-strategy`）と `.claude/skills/*/SKILL.md` が、今のファイル構成と手順に合っているか確かめる。
 - `ship` の試遊ページの `files` の表が、`battle/` と `data/` のファイルと合っているか確かめる（`ls battle data`）。
 - `README.md` のファイル一覧が古くないか確かめる。
 

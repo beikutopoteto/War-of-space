@@ -806,6 +806,11 @@ function check(ok, label, detail = '') {
        holding until 18:00 wins, and the battleship branch opens */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
     check(!(await page.isDisabled('#goBattle')), 'フェブルアーリア防衛戦: 第4節のクリアで開き、自分の戦区軍で出撃する');
+    /* the battle's scale: its name and length on the card, and a cap on all the ships together */
+    const scl = await page.evaluate(() => ({ card: document.querySelector('[data-op="februaria"] em').textContent, row: (document.querySelector('#sgLoad tr.scale') || {}).textContent || '',
+      small: document.querySelector('[data-op="charybdis"] em') && document.querySelector('[data-op="charybdis"] em').textContent }));
+    check(scl.card.startsWith('大規模（目安 15〜20分）') && /戦闘の規模（大規模）\d+ \/ 100隻/.test(scl.row) && scl.small.startsWith('小規模（目安 5〜10分）'),
+      '戦闘の規模: 出撃画面に規模と目安の長さが出て、出撃できる艦の合計に規模の上限が付く', JSON.stringify(scl));
     await page.click('#goBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
