@@ -436,10 +436,12 @@ function slotOf(f,t,dt){
 /* the side of its target an allied fleet takes (user decision 2026-10-13: allies pincer too, and use up and down). Allies on one foe
    share one base side (the side facing the post of the first to come; before, each closed straight in from its own post and they
    stood in one heap, then all on their own side of it, under 90 degrees apart). The k-th of them (the lowest place not taken) turns
-   from it by ALLY_TURN[k] (give or take 10) and tilts ALLY_TILT[k] up or down (one over, one under; the first a little either way): the 2nd and
+   from it by ALLY_TURN[k] (give or take 10; which way round is the group's: the 2nd takes the side whose spot is in reach of fewer of
+   the other enemies (ALLY_EXPOSED each) and nearer its post (ALLY_POST_W a unit), so it does not go round into the next enemy unit)
+   and tilts ALLY_TILT[k] up or down (one over, one under; the first a little either way): the 2nd and
    3rd stand over 105 degrees off the 1st and off each other, so two pin the foe and three pin it from three sides (pincers),
    like the enemy's slotOf. Within ±SLOT_ALT of the field's plane. A spot the rock hides swings round (approach in step). 数値は仮 */
-const ALLY_TURN=[0,115,-115,180,55,-55], ALLY_TILT=[0,25,-25,0,-30,30];
+const ALLY_TURN=[0,115,-115,180,55,-55], ALLY_TILT=[0,25,-25,0,-30,30], ALLY_EXPOSED=40, ALLY_POST_W=.3;
 function allyBase(f,t,v){ v.subVectors(f.post,t.pos).setY(0); if(v.lengthSq()<1){ v.subVectors(f.pos,t.pos).setY(0); if(v.lengthSq()<1e-6) v.set(0,0,1); } return v.normalize(); }
 function allySlot(f,t){
   if(!f.slot) f.slot=new THREE.Vector3();
@@ -448,7 +450,13 @@ function allySlot(f,t){
     f.slotBase=lead?lead.slotBase.clone():allyBase(f,t,new THREE.Vector3());
     f.slotFlip=lead?lead.slotFlip:Math.random()<.5?-1:1;
     const taken=new Set(mates.map(x=>x.slotK)); let k=0; while(taken.has(k)&&k<ALLY_TURN.length-1) k++; f.slotK=k;
-    f.slotA=(ALLY_TURN[k]+(Math.random()-.5)*20)*Math.PI/180;
+    /* which way round: the group's side, chosen by the first to go round (the side less in reach of the other enemies, and nearer its post) */
+    let side=(mates.find(x=>x.slotSide)||{}).slotSide;
+    if(!side&&ALLY_TURN[k]%180){ const R=standOff(f,t), cost=g=>{ const q=f.slotBase.clone().applyAxisAngle(_up,g*ALLY_TURN[k]*Math.PI/180).multiplyScalar(R).add(t.pos);
+        let c=q.distanceTo(f.post)*ALLY_POST_W; for(const e of fleets) if(e.team===1&&e.alive&&e.seen&&e!==t&&q.distanceTo(e.pos)<(e.range||0)+4) c+=ALLY_EXPOSED; return c; };
+      side=cost(1)<=cost(-1)?1:-1; mates.forEach(x=>{ x.slotSide=side; }); }
+    f.slotSide=side||0;
+    f.slotA=((side||1)*ALLY_TURN[k]+(Math.random()-.5)*20)*Math.PI/180;
     f.slotP=(k?f.slotFlip*ALLY_TILT[k]:(Math.random()-.5)*16)*Math.PI/180; }
   const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT) f.slotP=-f.slotP;
   return f.slot.copy(f.slotBase).applyAxisAngle(_up,f.slotA).multiplyScalar(Math.cos(f.slotP)).setY(Math.sin(f.slotP));
