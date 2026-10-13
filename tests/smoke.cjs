@@ -703,6 +703,21 @@ function check(ok, label, detail = '') {
       const w0 = wings.length, e = makeFleet(1, { name: '試験2', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 0, scale: 1, pos: [0, -30], alt: 0, vis: 5, stl: 5 });
       fleets.push(e); e.seen = true; launchCheck(fortress); r.stationFtr = fortress.hangars.length === 1 && wings.length > w0 && wings[wings.length - 1].carrier === fortress;
       wings.filter(w => w.carrier === fortress).forEach(w => { w.alive = false; }); wings = wings.filter(w => w.alive); e.alive = false; e.el.remove();
+      /* three allies side by side with two foes before them: a foe more than 30% of the allied force is already going for is passed
+         over, so they do not all go for the nearer one (pickFoe, ALLY_SHARE_MAX). With one foe left, all go for it (no other in reach),
+         each from its own side of it, with room between them, within their leash (allySlot) */
+      const A = al.slice(0, 3), keep = A.map(f => ({ pos: f.pos.clone(), post: f.post.clone(), leash: f.leash })), ne = nextEvent, gs = gameSec; nextEvent = opEvents.length;
+      A.forEach((f, i) => { f.pos.set(-15 + i * 15, 0, -60); f.post.copy(f.pos); f.leash = 60; f.order = null; });
+      const foe = (name, z) => { const x = makeFleet(1, { name, sub: '', type: 'cl', n: 6, hp: 1e6, dmg: 0, range: 16, speed: 0, scale: 1.1, pos: [0, z], alt: 0, vis: 5, stl: 5, ai: 'guard', leash: 0 }); x.seen = true; fleets.push(x); return x; };
+      const e1 = foe('試験A', -85), e2 = foe('試験B', -88); allyAI();
+      const on = t => A.filter(f => f.order && f.order.type === 'attack' && f.order.target === t).length;
+      r.split = { e1: on(e1), e2: on(e2) };
+      e2.alive = false; e2.el.remove(); A.forEach(f => f.order = null); allyAI();
+      for (let i = 0; i < 400; i++) step(.05);
+      const dR = f => Math.sqrt(f.n) * 1.35 * f.scale; let room = 1e9;
+      for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) room = Math.min(room, A[i].pos.distanceTo(A[j].pos) - dR(A[i]) - dR(A[j]));
+      r.spread = { all: on(e1) === 3, room: +room.toFixed(1), leash: A.every(f => f.pos.distanceTo(f.post) < f.leash) };
+      e1.alive = false; e1.el.remove(); A.forEach((f, i) => { f.pos.copy(keep[i].pos); f.post.copy(keep[i].post); f.leash = keep[i].leash; f.order = null; }); nextEvent = ne; gameSec = gs;
       return r; });
     check(n1.op === 'nile' && n1.station && n1.allies === 4 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
       'ナイル防衛線: 守るステーションと友軍4隊（ドナウは前衛と主力）が出て、友軍は艦隊一覧に入らない', JSON.stringify(n1));
@@ -710,6 +725,8 @@ function check(ok, label, detail = '') {
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
     check(n1.stationFtr, 'ナイル防衛線: ステーションは艦載機を持ち、近づいた敵へ出す', JSON.stringify(n1));
+    check(n1.split.e1 + n1.split.e2 === 3 && Math.max(n1.split.e1, n1.split.e2) <= 2 && n1.spread.all && n1.spread.room > 0 && n1.spread.leash,
+      '友軍: 並んだ3隊は、味方の3割より多くがもう狙っている敵を避けて2つの敵に分かれる。敵が1つなら全隊でそれを狙い、別々の側から間を空けて寄る（持ち場の leash の中）', JSON.stringify(n1.split) + JSON.stringify(n1.spread));
     await page.evaluate(() => { while (gameSec < 22 && !over) step(.05); });
     await page.waitForTimeout(500);
     await shot('12-nile');
