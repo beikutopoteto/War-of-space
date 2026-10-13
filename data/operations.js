@@ -897,9 +897,9 @@ WOS_DATA.operations=[
         log:['ウォン中将', '「駐屯隊、港の正面へ下がれ。砲台の射程の中で受ける」'],
         events:[
           {after:0, ai:{fleets:['第5 巡洋 打撃群'], ai:'guard', shift:[0,165]}},
-          {after:10, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-90], alt:5, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:10, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-90], alt:5, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[0,120]}, log:['ハッダード曹長', '「本隊が来ます。正面です！」']},
-          {after:31, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[215,60], alt:15, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:31, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[215,60], alt:15, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[40,120]}, log:['ハッダード曹長', '「東から重巡洋艦。基地の縁を回ってきます」']},
           {after:55, fleet:{name:'第3 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:4, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-200,40], alt:-30, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:6},
             arrow:{pos:[-20,120]}, log:['ハッダード曹長', '「西の下からも！　岩の陰を這ってきます」']},
@@ -907,14 +907,14 @@ WOS_DATA.operations=[
           {after:79, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:20}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'港', main:true, pos:[60,-150], alt:30, vis:7, stl:6, speed:10},
             arrow:{pos:[0,130]}, log:['ハッダード曹長', '「揚陸艦が1隊、港の降下点へ！　揚陸艦は砲台が撃ちます。W.A.S. には近づかないで」']},
-          {after:82, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[190,-90], alt:35, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:82, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[190,-90], alt:35, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[30,110]}},
           {after:127, fleet:{name:'第24 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[230,150], alt:-30, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:6},
             arrow:{pos:[40,135]}, log:['ハッダード曹長', '「東の下、地平線の陰から駆逐艦」']},
           {after:147, log:['ウォン中将', '「工廠の北に、雲が寄ってきた。中尉、次は工廠だ」']},
         ]},
       /* 揚陸の段階の案内（2026-10-12、wos-strategy の案）: 揚陸艦は地表の砲台が先に撃つ。研究なしの駐屯隊が W.A.S. に近づくと10数秒で沈むので、護衛を叩かせる */
-      /* 2026-10-13（ユーザー決定: 何もしないと確実に負ける）: 揚陸と総攻撃の護衛の重巡洋艦は地表の砲台を先に狙う（prey:'battery'）。
+      /* 2026-10-13（ユーザー決定: 何もしないと確実に負ける）: 港の正面・揚陸・総攻撃の重巡洋艦は地表の砲台を先に狙う（prey:'battery'）。
          放っておくと砲台が沈み、揚陸艦を止めるものがなくなって降下点を取られる */
       {at:285, name:'揚陸', centre:[-160,135], text:'工廠の上へ移れ。揚陸艦は砲台が撃つ。W.A.S. に近づかず、護衛の重巡洋艦を叩け',
         log:['ハッダード曹長', '「雲の陰から突撃揚陸艦！　工廠の降下点へ向かっています。中尉、工廠へ。揚陸艦は砲台が撃ちます。W.A.S. に近づかず、護衛の重巡洋艦を」'],

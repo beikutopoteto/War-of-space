@@ -601,7 +601,10 @@ function enemyAI(){
     if(f.team!==1||!f.alive||f.fixed) continue;
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
-    if(f.prey==='battery'){ const gs=all.filter(x=>x.fixed&&!x.silent); if(gs.length) foes=gs; }   // 第5節: the escorts go for the guns on the base first (2026-10-13)
+    /* 第5節: the escorts go for the guns on the base first (2026-10-13). The guns stand where the enemy knows them (not only the ones
+       in sight, or they came for the ships in sight first and the guns were never touched): one not in sight yet, it closes on */
+    if(f.prey==='battery'){ const gs=fleets.filter(x=>x.team===0&&x.alive&&x.fixed&&!x.silent);
+      if(gs.length){ const g=pickFoe(f,gs,true); if(g&&!g.seen){ moveTo(f,g.pos.x,g.pos.y,g.pos.z); continue; } foes=gs; } }
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
     if(f.ai==='land'){ landAI(f); continue; }   // 第5節: the assault ships make for the drop points
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
