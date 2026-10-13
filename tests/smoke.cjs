@@ -676,6 +676,11 @@ function check(ok, label, detail = '') {
 
     /* 第3節 ナイル防衛線: fought with the player's army group; we defend the station, allied fleets (AI) hold the line */
     check(open2.prog.flags['rescued:retreat'] === true, '後退: カワセミを助けたかどうかが保存される', JSON.stringify(open2.prog.flags));
+    /* the exercise with the player's own army groups opens once something has been researched (user decision 2026-10-13); クイック出撃 is always there */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="charybdis"]');
+    const exLock = { own: await page.isDisabled('#goBattle'), quick: await page.isVisible('#goQuick'), note: await page.textContent('#sgList') };
+    check(exLock.own && exLock.quick && exLock.note.includes('研究'), '出撃: 自分の戦区軍での演習は、技術ツリーで研究を1つ終えるまで鍵付き（クイック出撃はできる）', JSON.stringify(exLock));
+    await page.click('[data-s="sortie"] .back');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="nile"]');
     const nSortie = { fixed: (await page.textContent('#sgList')).includes('決まった艦隊'), go: !(await page.isDisabled('#goBattle')) };
     check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の戦区軍で出撃する', JSON.stringify(nSortie));
@@ -734,9 +739,11 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(500);
     await shot('12-nile');
     const nw = await page.evaluate(() => { fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
-      let n = 0; while (!over && n++ < 18000) step(.05); return { over, outcome, evac: Math.round(evac), clock: clockStr() }; });
+      let n = 0, wave = false; while (!over && n++ < 18000) { step(.05); wave = wave || fleets.some(f => f.team === 1 && f.name === op.evacEvents[0].fleet.name); }
+      return { over, outcome, evac: Math.round(evac), clock: clockStr(), wave }; });
     await page.waitForTimeout(2200);
     check(nw.over && nw.outcome, 'ナイル防衛線: 避難が終わると勝利', JSON.stringify(nw));
+    check(nw.wave, 'ナイル防衛線: 避難が90%を越えると小さな敵の波が1つ来る（2026-10-13）', JSON.stringify(nw));
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -851,7 +858,8 @@ function check(ok, label, detail = '') {
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
     check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
-    check(d1.zoneCost === 8.4 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）', JSON.stringify(d1));
+    /* 5 × (1 − eva .16) × perDmg 2 ÷ the hit points multiplier 2 (2026-10-13: the same lives for twice the fire) */
+    check(d1.zoneCost === 4.2 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evacWait && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まる（着陸から evac.min 分までは待つ）。24分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 2000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,000人。本軍の戦艦の7割が沈むか、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
@@ -888,6 +896,19 @@ function check(ok, label, detail = '') {
         sky: skyObj.children.length >= 3 && !farPlanet.visible, drops: drops.length, dropsUp: drops.every(d => d.pos.distanceTo(bodyC) > bodySurface(d.pos, op.body.r) + 5) };
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
+      /* 2026-10-13: the escorts of the landing stages (prey:'battery') go for a gun on the base first; the first gun lost is told.
+         Craft leave a fleet marked preyLast for when nothing else is in reach */
+      r.preyOps = op.phases.slice(2).flatMap(S => S.events).filter(e => e.fleet && e.fleet.type === 'cl').every(e => e.fleet.prey === 'battery');
+      const esc = makeFleet(1, { name: '試験 護衛', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 20, speed: 0, scale: 1, pos: [0, 60], alt: 0, ai: 'hunt', prey: 'battery', vis: 6, stl: 4 });
+      fleets.push(esc); bt.forEach(f => { f.seen = true; }); me.seen = true; me.pos.set(0, 0, 55); enemyAI(); r.battery = !!(esc.order && esc.order.target && esc.order.target.fixed); me.pos.copy(p0);
+      const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
+      const g0 = bt[0]; damage(g0, g0.hpPool + 1, esc); logEvent = logE; r.gunLog = said.some(t => t.includes('砲台がやられました'));
+      esc.alive = false; esc.el.remove();
+      const ally = (name, z, last) => { const a = makeFleet(0, { name, sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, z], alt: 0, ally: true, preyLast: last, vis: 6, stl: 4 }); a.seen = true; fleets.push(a); return a; };
+      const near = ally('試験 最後', -100, true), farA = ally('試験 先', -112, false);
+      const cv = makeFleet(1, { name: '試験 揚陸', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -90], alt: 0, hangar: { was: 10 }, vis: 6, stl: 4 });
+      r.craftPick = craftTarget(cv, 'was', 30) === farA; farA.alive = false; r.craftOnly = craftTarget(cv, 'was', 30) === near;
+      [near, farA].forEach(a => { a.alive = false; a.el.remove(); }); cv.el.remove();
       /* the stages: the field starts at the first place; at the next stage's time it slides to the next place in a few seconds, a ring
          marks it, and a fleet left outside may stay but cannot go further out */
       r.stage0 = fieldC.z === -60 && phaseName === '前衛';
@@ -909,6 +930,8 @@ function check(ok, label, detail = '') {
     check(f1.stage0 && f1.stage1 && f1.slid, 'フェブルアーリア防衛戦: 4つの段階。時刻になると次の持ち場が輪で示され、作戦フィールドの中心がそこへ滑る。外に残った艦はそれより外へは出られない', JSON.stringify(f1));
     check(f1.op === 'februaria' && f1.bb && f1.allies === 6 && f1.bt === 8 && f1.onRock && f1.centre && f1.sky && f1.drops === 3 && f1.dropsUp && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍6隊と地表の砲台8基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
+    check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 揚陸と総攻撃の護衛の重巡洋艦は地表の砲台を先に狙い、砲台が沈むと通信が入る（2026-10-13）', JSON.stringify(f1));
+    check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.hold === 12 && f1.taken && f1.silent && f1.goal && f1.lost, 'フェブルアーリア防衛戦: 揚陸艦が降下点の輪で12分止まると占拠され、まわりの砲台が沈黙する。司令部が占拠されると負け', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -932,6 +955,46 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const f3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(f3.cleared.includes('februaria') && f3.flags.bb === true, 'フェブルアーリア防衛戦: クリアが記録され、戦艦の兵科が開く', JSON.stringify({ cleared: f3.cleared, flags: f3.flags }));
+    /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing
+       nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */
+    await page.click('[data-go="sortie"]');
+    const mScale = await page.evaluate(() => document.querySelector('[data-op="nile"] em').textContent);
+    check(mScale.startsWith('中規模（目安 9〜15分）'), '戦闘の規模: 中規模の目安は9〜15分（2026-10-13）', mScale);
+    await page.click('[data-op="charybdis"]'); await page.click('#goQuick'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    const tu = await page.evaluate(() => {
+      const F = op.fortress, q = op.quick[0], f = fleets[0], cv = fleets.find(x => x.team === 0 && x.hangars.length);
+      const r = { k: HP_K, fort: fortress.max === F.hp * 2 && fortress.max === 9600 && F.dps === 9 && F.hangar.ftr === 60, fleet: f.hp === q.hp * 2 && f.hpPool === q.n * q.hp * 2,
+        retreat: WOS_DATA.operations.find(o => o.id === 'retreat').hpScale === 1.5, craftData: WOS_DATA.crafts.ftr.hp === 5 };
+      const e = makeFleet(1, { name: '試験', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 0, scale: 1, pos: [cv.pos.x, cv.pos.z - 20], alt: cv.pos.y, vis: 5, stl: 5 });
+      fleets.push(e); e.seen = true; const w0 = wings.length; launchCheck(cv); const w = wings[wings.length - 1];
+      r.wing = wings.length > w0 && w.hp === WING[w.type].hp * 2; wings.forEach(x => { x.alive = false; }); wings = []; e.alive = false; e.el.remove();
+      fleets.filter(x => x.team === 0).forEach(x => { x.hpPool = 1e9; });
+      const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
+      gameSec = (op.timeUp.at - 1) / CLOCK_RATE; step(.05); logEvent = logE; r.warned = said.some(t => t.includes('残り30分')); r.early = !over;
+      let n = 0; while (!over && n++ < 400) step(.05);
+      return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
+    check(tu.k === 2 && tu.fort && tu.fleet && tu.wing && tu.retreat && tu.craftData, '釣り合い: 戦闘の生成で艦隊・小型機・要塞の耐久が2倍になる（データは元の値。第2節は1.5倍）。要塞は基準4,800（2倍で9,600）、火力9、艦載機60', JSON.stringify(tu));
+    check(tu.warned && tu.early && tu.over && !tu.outcome && tu.why === 'time' && tu.clock === '17:00' && tu.rp.includes('時間切れ'), '演習: 17:00 までに要塞を落とせなければ時間切れで負け（警告の通信が先に入る）', JSON.stringify(tu));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
+    await page.click('#toMenu');
+    /* 第4節: the data of the main fleet's battleships is halved (275) so that with ×2 they fight as before; Yukon not landed by 12:00 loses */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="denali"]');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const dl = await page.evaluate(() => {
+      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: w.hp === 550 && op.allies[0].hp === 275 };
+      fleets.filter(x => x.team === 0).forEach(x => { x.hpPool = 1e9; });
+      const T = op.timeUp; gameSec = (T.at + 1) / CLOCK_RATE; opCarrier.cs.landed = true; stepTimeUp(); r.landedOk = !over; opCarrier.cs.landed = false;
+      gameSec = (T.warn.at - 1) / CLOCK_RATE; step(.05); r.quiet = !over && !timeWarned;
+      gameSec = (T.at - 1) / CLOCK_RATE; step(.05); r.warned = timeWarned && !over;
+      let n = 0; while (!over && n++ < 400) step(.05);
+      return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
+    check(dl.main && dl.landedOk && dl.quiet && dl.warned && dl.over && !dl.outcome && dl.why === 'time' && dl.clock === '12:00' && dl.rp.includes('降りられなかった'),
+      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦のデータは275で、戦闘では2倍の550', JSON.stringify(dl));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
+    await page.click('#toMenu');
     /* holding Ctrl fast-forwards the conversation */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);

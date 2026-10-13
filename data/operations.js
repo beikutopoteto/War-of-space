@@ -92,16 +92,28 @@ window.WOS_DATA=window.WOS_DATA||{};
    carrier.doneEvents: 切り上げ（か満員）から何分後かの出来事（events と同じ形）。evacEvents などの wave:true の出来事は、そのときまだ来ていなければ捨てる
    talk の {lost}: 本軍の戦艦の隊（carrier.line）のうち帰らなかった割合（「7割」。離脱点から抜けた艦は帰ったと数える。全部なら「すべて」）
    phases の given: その段階の始めに預かる艦 [艦隊]（op.given と同じ。自軍の一覧の最後に足す）
-   （第3節からある仕組み）友軍の retreat:{below, to:[x,z], alt?, log?}: 隻数が below（割合）を切ると持ち場を to へ下げる（半分の below で to まで。log は下がり始めたときの通知） */
+   （第3節からある仕組み）友軍の retreat:{below, to:[x,z], alt?, log?}: 隻数が below（割合）を切ると持ち場を to へ下げる（半分の below で to まで。log は下がり始めたときの通知）
+   ここから下は 2026-10-13 のバランスの変更で足したもの（ユーザー決定。数値は仮）:
+   hpScale: この作戦の耐久の倍率（書かなければ WOS_DATA.balance.hp）
+   timeUp: 時間切れの負け {at（分）, until:'fortress'|'land', warn?:{at, log}, lose, loseLog}。at 分になっても until が済んでいなければ負け
+     （'fortress' は要塞を壊す、'land' は carrier が着陸する）。warn.at 分に警告の通知
+   prey:'battery' の敵は、沈黙していない地表の砲台（友軍の fixed）を先に狙う（第5節の護衛の重巡洋艦）。landing.gunLostLog は砲台が初めて沈んだときの通知
+   evacEvents: 避難（win の type 'defend'）が at（割合）を越えたときの出来事 [{at, ...events と同じ形}]
+   艦載機と W.A.S. も、preyLast の艦隊はほかに狙えるものがないときだけ狙う */
 /* 戦闘の規模（ユーザー決定 2026-10-12: 4つ。1倍速での長さの目安）。作戦の scale に書く。
    min / max: 1倍速の長さ（分）　sec: 作戦の時計を合わせる目標の秒数（span ÷ sec で時計の速さが決まる。仮）
    cap: 自分の戦区軍で出撃できる艦の合計（全兵科、選んだ戦区軍すべて。ユーザー決定 2026-10-12: 規模で出撃の上限を制限する。数は仮） */
 WOS_DATA.scales={
   S: {name:'小規模',   min:5,  max:10, sec:450,  cap:45},
-  M: {name:'中規模',   min:10, max:15, sec:750,  cap:70},
+  M: {name:'中規模',   min:9,  max:15, sec:750,  cap:70},   // 目安の短いほうを9分に（ユーザー決定 2026-10-13）
   L: {name:'大規模',   min:15, max:20, sec:1050, cap:100},
   XL:{name:'特大規模', min:20,           sec:1500, cap:140},
 };
+/* 全体の釣り合い（ユーザー決定 2026-10-13: 敵味方とも耐久2倍。2 は仮）。
+   hp: 耐久の倍率。戦闘の生成のとき（battle/state.js の reset）に、すべての艦隊（敵・友軍・自軍・船団・ユーコン・砲台）、艦載機と W.A.S.、
+   要塞とステーションの耐久に掛ける（データと艦隊編集の表示は倍率をかける前の値）。民間の被害（civil.perDmg / perCraft）は倍率で割る。
+   作戦の hpScale があればそちらを使う */
+WOS_DATA.balance={hp:2};
 
 WOS_DATA.operations=[
   {
@@ -112,9 +124,9 @@ WOS_DATA.operations=[
     span:450,
     reward:200,
     name:'要塞カリュブディス攻略戦',
-    summary:'二つの小惑星を接合した敵要塞。防空4隊と近衛艦隊が守り、開戦2時間半後から北と東に増援が来る。16:00 には本国の主力が着く。要塞が落ちると近衛艦隊は撤退する。',
+    summary:'二つの小惑星を接合した敵要塞。防空4隊と近衛艦隊が守り、開戦2時間半後から北と東に増援が来る。16:00 には本国の主力が着く。17:00 までに要塞を落とせなければ失敗。要塞が落ちると近衛艦隊は撤退する。',
     threat:'敵戦力：艦隊5・要塞1／難易度：標準',
-    brief:'二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。要塞が落ちると近衛艦隊は北の本国航路へ撤退を始める。逃がさず撃破すれば完全勝利。敵艦隊は味方の視界に入るまで見えない。',
+    brief:'二つの小惑星を接合した敵要塞。周囲の防空圏は東西南北の4隊と近衛艦隊が守る。艦隊を分けて防空隊を各個撃破し、要塞の装甲を0にすれば勝利。17:00 までに落とせなければ作戦は失敗。要塞が落ちると近衛艦隊は北の本国航路へ撤退を始める。逃がさず撃破すれば完全勝利。敵艦隊は味方の視界に入るまで見えない。',
     date:'宙暦0412.07.18', start:'08:00',
     deploy:[0,112],
     sectors:[
@@ -123,13 +135,17 @@ WOS_DATA.operations=[
       {name:'南宙域', sub:'連合艦隊の進入方向', pos:[-20,92]},
       {name:'西宙域', sub:'哨戒線のみ', pos:[-92,-12]},
     ],
-    fortress:{name:'要塞カリュブディス', hp:3200, dps:18, range:46, radius:11, vis:8, hangar:{ftr:120}, launchR:70,
+    /* 2026-10-13（ユーザー決定）: 耐久を3倍（耐久2倍の倍率込みで9,600。基準は4,800）、火力を半分、艦載機を120から60に。数値は仮 */
+    fortress:{name:'要塞カリュブディス', hp:4800, dps:9, range:46, radius:11, vis:8, hangar:{ftr:60}, launchR:70,
       sortie:[
         {below:.75, fleets:['第5 要塞近衛 エスカドラ'], log:['第5 要塞近衛 エスカドラ 出撃', '要塞の装甲が75%を切った。直掩の近衛艦隊が持ち場を離れ、迎撃に出てきた。']},
         /* 50%を切ると防空隊が全隊一斉に迎撃に来る（ユーザー決定 2026-10-04。前は近い隊から20秒ごと） */
         {below:.5, fleets:['第14 北方防空 戦闘隊','第15 南方防空 戦闘隊','第16 東方防空 戦闘隊','第17 西方防空 戦闘隊'], log:['防空隊 迎撃', '要塞の装甲が50%を切った。四方の防空隊がすべて持ち場を離れ、一斉に迎撃に向かってくる。']},
       ]},
     /* 要塞を壊すと近衛艦隊が北の本国航路へ撤退し、ほかの艦隊はそれを援護して攻めてくる。近衛を沈めれば完全勝利、逃げられたら普通の勝利（ユーザー決定 2026-10-04） */
+    /* 時間切れ（ユーザー決定 2026-10-13: 何もしないと確実に負ける）: 17:00（540分）までに要塞を落とせなければ負け。警告は 16:30（仮） */
+    timeUp:{at:540, until:'fortress', warn:{at:510, log:['残り30分', '17:00 までに要塞の装甲を0にできなければ、作戦は失敗する。']},
+      lose:'要塞を落とせないまま、時間切れになった。', loseLog:['時間切れ', '要塞カリュブディスは落ちなかった。本国艦隊が要塞の守りについた。']},
     chase:{fleet:'第5 要塞近衛 エスカドラ', exit:{pos:[10,-195], alt:30}, reach:10, phase:'追撃', text:'近衛艦隊の撤退を阻止せよ',
       log:['近衛艦隊 撤退開始', '要塞を失った第5 要塞近衛 エスカドラが、北の本国航路へ撤退を始めた。残る敵艦隊は撤退を援護しようと向かってくる。近衛を逃がすな。'],
       escapeLog:['近衛艦隊 離脱', '第5 要塞近衛 エスカドラは本国航路へ逃れた。']},
@@ -279,6 +295,7 @@ WOS_DATA.operations=[
   {
     id:'retreat',
     scale:'M',   // 戦闘の規模（ユーザー決定 2026-10-12）
+    hpScale:1.5,   // 耐久の倍率（ユーザー決定 2026-10-13: この節だけ1.5倍。仮）
     /* 作戦の時計で1620分（04:00〜翌07:00）を1倍速の約12分半に合わせる（時計は戦闘の1秒で2.16分）。船団の速さはそのままで航路を約3,250に延ばし、
        雲を35個並べた（ストラテジーの専門家の案、ユーザー採用 2026-10-12） */
     span:1620,
@@ -356,7 +373,8 @@ WOS_DATA.operations=[
         fleet:{name:'第20 追撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:22, dmg:1.8, eva:.2, range:13, speed:9, scale:1, pos:[-30,-215], alt:-30, ai:'pursue', vis:5, stl:7, hangar:{was:8}},
         arrow:{pos:[-20,-140], alt:-25}},
       /* 2026-10-12: 時計を遅くして空いた時間に、追撃の波と出来事を足した（時刻と方向はストラテジーの専門家の案、ユーザー採用。数値は仮） */
-      {after:330, rel:true, onSpot:{min:150, delay:30},
+      /* 第16 は 07:00 ごろに出す（ユーザー決定 2026-10-13: 早める。前は 09:30。仮） */
+      {after:180, rel:true, onSpot:{min:150, delay:30},
         fleet:{name:'第16 追跡 戦闘隊', sub:'自治軍 追撃', comp:{ff:5}, n:5, hp:18, dmg:2.1, eva:.26, range:17, speed:10, scale:.9, pos:[-215,-60], alt:0, ai:'pursue', vis:6, stl:6},
         arrow:{pos:[-140,-40], alt:0}, log:['ハッダード曹長', '「左後方から足の速い隊。偵察が呼んだ猟犬です」']},
       /* 19:00: 本隊は重水素が尽きて北へ引き返し、枠の外で戦場から消える（ai:'withdraw'。ユーザー決定 2026-10-12） */
@@ -448,6 +466,11 @@ WOS_DATA.operations=[
       [.5, 'ハッダード曹長', '「避難、半分を越えました」'],
       [.9, 'ハッダード曹長', '「病院船に長官の移送が始まりました。最後の船です」'],
     ],
+    /* 避難が90%を越えたとき、小さな敵の波を1つ（ユーザー決定 2026-10-13。隊の中身と位置は仮） */
+    evacEvents:[
+      {at:.9, fleet:{name:'第26 最終 強襲 戦闘隊', sub:'自治軍 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, hp:15, dmg:1.3, eva:.2, range:18, speed:9, scale:1.1, pos:[-60,-160], alt:20, ai:'siege', vis:6, stl:6},
+        arrow:{pos:[-20,-50], alt:10}, log:['ハッダード曹長', '「北から1隊、ステーションへまっすぐ。病院船の出港を嗅ぎつけたようです」']},
+    ],
     /* 決まった艦隊で始めるとき（戦区軍がないとき・テスト）の代わり。ふだんは戦区軍で出撃する */
     quick:[
       {name:'第9 前衛巡洋 支隊', sub:'巡洋艦', type:'cl', n:6, hp:13, dmg:1.2, eva:.05, range:16, speed:5, scale:1.2, pos:[0,42], alt:0, vis:6, stl:4},
@@ -494,10 +517,11 @@ WOS_DATA.operations=[
         arrow:{pos:[-40,-60], alt:-35}, log:['ハッダード曹長', '「左下から駆逐艦。ステーションの腹へ潜り込む気です」']},
       {after:420, phase:'右翼の突破', log:['ハッダード曹長', '「右から巡洋艦。ドナウ残存隊が押されています」'],
         fleet:{name:'第15 右翼突破 戦闘隊', sub:'自治軍 重巡洋艦・突撃揚陸艦', comp:{cl:5, mas:3}, n:8, hp:20, dmg:1.7, eva:.15, range:19, speed:8, scale:1.2, hangar:{was:9}, pos:[150,-70], alt:0, ai:'hunt', watch:{pos:[8,-6], alt:0}, vis:6, stl:5}, arrow:{pos:[80,-50]}},
-      /* 右翼の突破と同時に、ドナウ残存隊へ突撃揚陸艦の2隊が上と下から突っ込む（ユーザー決定 2026-10-04。数値は仮） */
-      {after:420, fleet:{name:'第20 突撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:9, scale:1, hangar:{was:15}, pos:[165,-30], alt:12, ai:'hunt', watch:{pos:[66,-46], alt:0}, vis:5, stl:7}, arrow:{pos:[105,-36], alt:8}},
-      {after:420, log:['ハッダード曹長', '「揚陸艦が2隻……いえ、2隊。ドナウ残存隊に取り付く気です」'],
-        fleet:{name:'第21 突撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:9, scale:1, hangar:{was:15}, pos:[155,-105], alt:-14, ai:'hunt', watch:{pos:[66,-46], alt:0}, vis:5, stl:7}, arrow:{pos:[100,-78], alt:-10}},
+      /* 右翼の突破に続いて、ドナウ残存隊へ突撃揚陸艦の2隊が上と下から突っ込む（ユーザー決定 2026-10-04。数値は仮）。
+         2026-10-13（ユーザー決定）: 右翼の突破と同時だったのを、第20 は40分、第21 は80分遅らせ、W.A.S. を15から10に（数値は仮） */
+      {after:460, log:['ハッダード曹長', '「右の上から揚陸艦。ドナウ残存隊に取り付く気です」'], fleet:{name:'第20 突撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:9, scale:1, hangar:{was:10}, pos:[165,-30], alt:12, ai:'hunt', watch:{pos:[66,-46], alt:0}, vis:5, stl:7}, arrow:{pos:[105,-36], alt:8}},
+      {after:500, log:['ハッダード曹長', '「揚陸艦がもう1隊。こちらもドナウ残存隊に取り付く気です」'],
+        fleet:{name:'第21 突撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:20, dmg:1.4, eva:.2, range:13, speed:9, scale:1, hangar:{was:10}, pos:[155,-105], alt:-14, ai:'hunt', watch:{pos:[66,-46], alt:0}, vis:5, stl:7}, arrow:{pos:[100,-78], alt:-10}},
       {after:480, log:['オリヴェイラ少佐', '「こっちは心配いらないよ、中尉。うちの連中、逃げ足より踏ん張りのほうが得意でね」']},
       {after:540, fleet:{name:'第22 上方 再強襲 戦闘隊', sub:'自治軍 重巡洋艦・突撃揚陸艦', comp:{cl:3, mas:2}, n:5, hp:15, dmg:1.3, eva:.2, range:18, speed:9, scale:1.1, hangar:{was:6}, pos:[80,-120], alt:55, ai:'siege', vis:6, stl:6},
         arrow:{pos:[30,-40], alt:30}, log:['ハッダード曹長', '「上からまた来ます。今度は右寄りです」']},
@@ -558,7 +582,7 @@ WOS_DATA.operations=[
     name:'デナリの盾',
     summary:'臨時部隊として本軍に入り、共和国に占拠された資源衛星デナリの奪還へ向かう。預かった戦闘母艦ユーコンを宇宙港に降ろし、住民を乗せて逃がす。',
     threat:'敵戦力：守備隊・対空砲台・帰ってくる W.A.S. 部隊／目標：住民を乗せたユーコンを離脱点へ（撤退）',
-    brief:'本軍の戦艦（友軍）と守備隊を押し返し、戦闘母艦ユーコン（一覧のいちばん下）をデナリの宇宙港へ降ろせ。宇宙港は、デナリの管制が開けるまで降りられない。着陸して宇宙港を押さえる。奇襲を受けて本軍が押されると、作戦は住民の避難に変わり、収容が始まる（上限8,000人）。本軍が持つほど多く乗せられ、持たなくなると切り上げて発進する。そのあとユーコンを離脱点まで逃がせば作戦は終わる。居住区のまわりの民間区画の中で撃つと住民に被害が出る。被害が上限を超えるか、ユーコンが沈めば失敗。',
+    brief:'本軍の戦艦（友軍）と守備隊を押し返し、戦闘母艦ユーコン（一覧のいちばん下）をデナリの宇宙港へ降ろせ。宇宙港は、デナリの管制が開けるまで降りられない。12:00 までに着陸して宇宙港を押さえる（降りられなければ失敗）。奇襲を受けて本軍が押されると、作戦は住民の避難に変わり、収容が始まる（上限8,000人）。本軍が持つほど多く乗せられ、持たなくなると切り上げて発進する。そのあとユーコンを離脱点まで逃がせば作戦は終わる。居住区のまわりの民間区画の中で撃つと住民に被害が出る。被害が上限を超えるか、ユーコンが沈めば失敗。',
     phase:'奪還', view:{target:[0,40], dist:230, dir:[.15,.6,.79]},
     date:'A.E. 45.04.24', start:'08:00',
     /* 作戦の時計（ユーザー決定 2026-10-12: 大規模の長さに合わせ、時計だけ遅くする）。08:00〜18:30 の10時間半を1倍速の17.5分に合わせる
@@ -598,6 +622,9 @@ WOS_DATA.operations=[
         out.push({pos:[x,z], alt:Math.round(-z*tt), r});
         if(i%4===1){ const R2=R+r*.6, x2=Math.round(R2*Math.cos(th+.05)), z2=Math.round(-R2*Math.sin(th+.05)); out.push({pos:[x2,z2], alt:Math.round(-z2*tt)+3, r:Math.round(r*.55)}); } }
       return out; })(),
+    /* 時間切れ（ユーザー決定 2026-10-13: 何もしないと確実に負ける）: 12:00（240分）までにユーコンが宇宙港に着陸していなければ負け。警告は 11:00（仮） */
+    timeUp:{at:240, until:'land', warn:{at:180, log:['ウォン中将', '「中尉、ユーコンはまだ降りないのか。正午までに降ろせなければ、住民を乗せる時間がなくなる」']},
+      lose:'ユーコンは宇宙港に降りられなかった。正午を過ぎ、住民を乗せる時間がなくなった。', loseLog:['時間切れ', 'ユーコンは宇宙港に降りられなかった。住民を乗せる時間は、もう残っていない。']},
     /* 戦闘母艦ユーコン（ユーザー決定 2026-10-09: 出撃すると自動で一覧の最後に出る。この節だけの艦）。
        収容は途中で切り上げる（ユーザー決定 2026-10-10: 100% にはしない）。計画は8時間で8,000人（仮）。5時間（5,000人）が過ぎたあと、
        本軍の戦艦の7割が沈むか、ユーコンの耐久が半分を切ると、ウォン中将が切り上げを命じる（cut。ユーザー決定: 本軍が持たなくなったら。乗せられたのは約5,000人）。
@@ -729,15 +756,16 @@ WOS_DATA.operations=[
        ウォン中将の第1 とアマゾン残存隊がユーコン、第2 と巡洋護衛が居住区C、第3 が居住区B、第4 が居住区A。2026-10-10、偏りを直すため。仮）。
        戦艦の7割が沈む（ユーザー決定 2026-10-09。数値は早送りで合わせる）。撤退で離脱点へ下がる。
        大規模の長さにしたとき（2026-10-12、wos-strategy の案）、戦艦の4隊の耐久を5倍（110→550）、巡洋艦の2隊を3倍（22→66）にした（仮。収容のあいだ持つように）。
-       アマゾン残存隊もウォン中将の隊と同じく最後に狙われる（preyLast、仮） */
+       アマゾン残存隊もウォン中将の隊と同じく最後に狙われる（preyLast、仮）。
+       2026-10-13（ユーザー決定）: 耐久2倍の倍率がかかるので、データは戦艦550→275、巡洋艦66→33（戦闘では前と同じ値）。物語では、第5節の艦は修理中で装甲が十分でない */
     allies:[
-      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:550, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
-      {name:'第3 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:550, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
-      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:66, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier', preyLast:true},
+      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
+      {name:'第3 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
+      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier', preyLast:true},
       /* 本軍の隊の数は2倍（ユーザー決定 2026-10-10）。足した3隊の位置は仮 */
-      {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, hp:550, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
-      {name:'第4 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:550, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
-      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:66, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
+      {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
+      {name:'第4 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
+      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
     ],
     /* 守備隊（盾）: 損害が半分を超えると持ち場の居住区のそばへ下がる。着陸すると、こちらの艦を狙いに出る（ai:'hunt'。ユーザー決定 2026-10-10: 居住区は撃たない）。
        対空砲台: デナリの表面に置く動かない敵（ユーザー決定 2026-10-09）。艦載機をよく落とす。撃っても住民に被害は出ない（岩の上。ユーザー決定 2026-10-10）。
@@ -801,6 +829,7 @@ WOS_DATA.operations=[
         ['', 'ユーコンは、デナリの宙域から戻らなかった。乗っていた人々も。', 'lost:carrier'],
         ['', '居住区の灯が、一つずつ消えていった。', 'lost:civil'],
         ['', '駐屯隊は帰ってこなかった。デナリの宙域には、地球連合の艦の残骸だけが残った。', 'lost:army'],
+        ['', 'ユーコンは宇宙港に降りられないまま、デナリを離れた。港に集まった住民は、それを見送るしかなかった。', 'lost:time'],
       ],
     },
     result:{
@@ -822,7 +851,7 @@ WOS_DATA.operations=[
     name:'フェブルアーリア防衛戦',
     summary:'地球に残る最後の資源惑星フェブルアーリア。地球連合宇宙軍の総基地を、共和国の主力から守る。初めて戦艦を預かる。',
     threat:'敵戦力：共和国の主力（重巡洋艦・駆逐艦）・突撃揚陸艦／目標：主力の8割を沈めるか、18:00 まで総基地を守る（防衛）',
-    brief:'戦いは4つの段階で進む。時刻になると次の持ち場が青い輪で示され、作戦フィールドがそこへ移る。駐屯隊を持ち場へ動かし、そこで戦え。敵はいろいろな方向から来る。突撃揚陸艦は降下点（港・工廠・司令部）の輪で止まると W.A.S. を降ろし、その降下点を占拠する。降下点を2つ、または司令部を取られれば失敗。共和国の主力の8割を沈めるか、18:00 まで持たせれば勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
+    brief:'戦いは4つの段階で進む。時刻になると次の持ち場が青い輪で示され、作戦フィールドがそこへ移る。駐屯隊を持ち場へ動かし、そこで戦え。敵はいろいろな方向から来る。突撃揚陸艦は降下点（港・工廠・司令部）の輪で止まると W.A.S. を降ろし、その降下点を占拠する。降下点を2つ、または司令部を取られれば失敗。揚陸艦の護衛の重巡洋艦は地表の砲台を先に狙う。共和国の主力の8割を沈めるか、18:00 まで持たせれば勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
     phase:'前衛', view:{target:[0,-30], dist:300, dir:[0,.78,.62]},
     date:'A.E. 45.04.26', start:'06:00',
     /* 作戦の時計（ユーザー決定 2026-10-12: 大規模の長さに合わせ、時計だけ遅くする）。06:00〜18:00 の12時間を1倍速の17.5分に合わせる
@@ -868,9 +897,9 @@ WOS_DATA.operations=[
         log:['ウォン中将', '「駐屯隊、港の正面へ下がれ。砲台の射程の中で受ける」'],
         events:[
           {after:0, ai:{fleets:['第5 巡洋 打撃群'], ai:'guard', shift:[0,165]}},
-          {after:10, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-90], alt:5, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:10, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-90], alt:5, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[0,120]}, log:['ハッダード曹長', '「本隊が来ます。正面です！」']},
-          {after:31, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[215,60], alt:15, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:31, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[215,60], alt:15, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[40,120]}, log:['ハッダード曹長', '「東から重巡洋艦。基地の縁を回ってきます」']},
           {after:55, fleet:{name:'第3 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:4, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-200,40], alt:-30, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:6},
             arrow:{pos:[-20,120]}, log:['ハッダード曹長', '「西の下からも！　岩の陰を這ってきます」']},
@@ -878,20 +907,22 @@ WOS_DATA.operations=[
           {after:79, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:20}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'港', main:true, pos:[60,-150], alt:30, vis:7, stl:6, speed:10},
             arrow:{pos:[0,130]}, log:['ハッダード曹長', '「揚陸艦が1隊、港の降下点へ！　揚陸艦は砲台が撃ちます。W.A.S. には近づかないで」']},
-          {after:82, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[190,-90], alt:35, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
+          {after:82, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[190,-90], alt:35, ai:'hunt', prey:'battery', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[30,110]}},
           {after:127, fleet:{name:'第24 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[230,150], alt:-30, ai:'hunt', watch:{pos:[0,120], alt:0}, main:true, vis:6, stl:6},
             arrow:{pos:[40,135]}, log:['ハッダード曹長', '「東の下、地平線の陰から駆逐艦」']},
           {after:147, log:['ウォン中将', '「工廠の北に、雲が寄ってきた。中尉、次は工廠だ」']},
         ]},
       /* 揚陸の段階の案内（2026-10-12、wos-strategy の案）: 揚陸艦は地表の砲台が先に撃つ。研究なしの駐屯隊が W.A.S. に近づくと10数秒で沈むので、護衛を叩かせる */
+      /* 2026-10-13（ユーザー決定: 何もしないと確実に負ける）: 港の正面・揚陸・総攻撃の重巡洋艦は地表の砲台を先に狙う（prey:'battery'）。
+         放っておくと砲台が沈み、揚陸艦を止めるものがなくなって降下点を取られる */
       {at:285, name:'揚陸', centre:[-160,135], text:'工廠の上へ移れ。揚陸艦は砲台が撃つ。W.A.S. に近づかず、護衛の重巡洋艦を叩け',
         log:['ハッダード曹長', '「雲の陰から突撃揚陸艦！　工廠の降下点へ向かっています。中尉、工廠へ。揚陸艦は砲台が撃ちます。W.A.S. に近づかず、護衛の重巡洋艦を」'],
         events:[
           /* 揚陸の1回目: アルバレスの隊（ace）が先頭。西から工廠へ */
           {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:4, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:40}, craft:{was:{dmg:1.4, hp:1.3, eva:1}}, ace:true, ai:'land', drop:'工廠', main:true, pos:[-340,75], alt:30, vis:7, stl:6, speed:10}, arrow:{pos:[-160,130]}},
-          {after:10, fleet:{name:'第17 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-160,-70], alt:10, ai:'hunt', watch:{pos:[-160,135], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-160,135]}},
+          {after:10, fleet:{name:'第17 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-160,-70], alt:10, ai:'hunt', prey:'battery', watch:{pos:[-160,135], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-160,135]}},
           {after:27, log:['傍受', 'アルバレス大尉「ここは軍の基地だ。遠慮はいらない。全機、降ろせ」']},
           {after:41, fleet:{name:'第8 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:30}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'工廠', main:true, pos:[-300,-40], alt:-20, vis:7, stl:6, speed:10},
@@ -906,7 +937,7 @@ WOS_DATA.operations=[
           {after:103, fleet:{name:'第12 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:20}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'工廠', main:true, pos:[-200,-150], alt:45, vis:7, stl:6, speed:10},
             arrow:{pos:[-160,130]}, log:['ハッダード曹長', '「工廠へ3度目の揚陸！　北の上から」']},
-          {after:147, fleet:{name:'第25 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-400,120], alt:0, ai:'hunt', watch:{pos:[-160,135], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-180,130]}},
+          {after:147, fleet:{name:'第25 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-400,120], alt:0, ai:'hunt', prey:'battery', watch:{pos:[-160,135], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-180,130]}},
         ]},
       {at:465, name:'総攻撃', centre:[-300,150], text:'司令部の上へ移れ。総攻撃を受け止め、司令部の降下点を守れ',
         scene:[
@@ -923,13 +954,13 @@ WOS_DATA.operations=[
           {after:0, ai:{fleets:['第1 主力戦艦 打撃群'], ai:'guard', shift:[-280,-5]}},
           {after:0, ai:{fleets:['第2 主力戦艦 打撃群'], ai:'guard', shift:[-325,-20]}},
           {after:1, log:['ハッダード曹長', '「工廠から、修理の済んだフリゲートが8隻。駐屯隊に入ります。一覧のいちばん下です」']},
-          {after:3, fleet:{name:'第18 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-470,110], alt:10, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-300,150]}},
+          {after:3, fleet:{name:'第18 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-470,110], alt:10, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-300,150]}},
           {after:17, fleet:{name:'第4 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:4, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-430,-20], alt:-25, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:6}, arrow:{pos:[-300,150]}},
           {after:38, fleet:{name:'第10 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:30}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'司令部', main:true, pos:[-300,-60], alt:35, vis:7, stl:6, speed:10},
             arrow:{pos:[-310,140]}, log:['ハッダード曹長', '「司令部へ揚陸艦！　砲台に任せて、護衛を叩いてください」']},
-          {after:48, fleet:{name:'第19 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-180,-40], alt:-15, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-280,150]}},
-          {after:75, fleet:{name:'第22 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-520,20], alt:20, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4},
+          {after:48, fleet:{name:'第19 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-180,-40], alt:-15, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-280,150]}},
+          {after:75, fleet:{name:'第22 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-520,20], alt:20, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4},
             arrow:{pos:[-330,130]}, log:['ハッダード曹長', '「西の遠くから重巡洋艦！　岩の端を回ってきます」']},
           {after:82, fleet:{name:'第13 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:20}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'司令部', main:true, pos:[-470,-60], alt:35, vis:7, stl:6, speed:10}, arrow:{pos:[-310,140]}},
@@ -938,19 +969,20 @@ WOS_DATA.operations=[
           {after:117, fleet:{name:'第14 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:30}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'港', main:true, pos:[120,-200], alt:30, vis:7, stl:6, speed:10}, arrow:{pos:[0,130]}},
           {after:144, log:['ソコロワ参謀大佐', '（傍受）「予備も出せ。今日で終わらせる」']},
-          {after:147, fleet:{name:'第1 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:5, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-330,-290], alt:15, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-300,110]}},
-          {after:151, fleet:{name:'第2 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:5, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-130,-280], alt:-10, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-260,120]}},
+          {after:147, fleet:{name:'第1 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:5, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-330,-290], alt:15, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-300,110]}},
+          {after:151, fleet:{name:'第2 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:5, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-130,-280], alt:-10, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-260,120]}},
           {after:185, fleet:{name:'第6 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:4, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-560,200], alt:-30, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:6},
             arrow:{pos:[-340,160]}, log:['ハッダード曹長', '「西の下、岩の陰からも……！」']},
           {after:206, fleet:{name:'第26 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, scale:1.1,
               hangar:{was:30}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, ai:'land', drop:'工廠', main:true, pos:[-160,-200], alt:40, vis:7, stl:6, speed:10}, arrow:{pos:[-160,130]}},
           {after:219, log:['オリヴェイラ少佐', '「工廠、まだ持ってる！　冗談を言う余裕は、もうないけどな」']},
-          {after:233, fleet:{name:'第27 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-450,-200], alt:20, ai:'hunt', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-320,130]}},
+          {after:233, fleet:{name:'第27 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:4, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-450,-200], alt:20, ai:'hunt', prey:'battery', watch:{pos:[-300,150], alt:0}, main:true, vis:6, stl:4}, arrow:{pos:[-320,130]}},
         ]},
     ],
     /* 揚陸の阻止（ユーザー決定 2026-10-12。数値は仮）: 突撃揚陸艦（ai:'land'）が降下点の輪の中で hold 分（作戦の時計で12分＝戦闘の約17秒。仮。時計を遅くしたとき60分から直し、手ごたえは前と同じ）止まると
        W.A.S. を降ろし、その降下点を占拠する。まわり silence 以内の味方の砲台は沈黙する。need 個占拠されるか、司令部（hq）が占拠されると負け。輪は施設の真上 up の高さ */
     landing:{hold:12, need:2, silence:45,
+      gunLostLog:['ハッダード曹長', '「砲台がやられました！　護衛の重巡洋艦が砲台を狙っています。叩かないと、揚陸艦を止めるものがなくなります」'],
       warnLog:['ハッダード曹長', '「揚陸艦が{name}の降下点に入りました！　輪の中で止まっています」'],
       points:[
         {name:'港', block:0, r:10, up:10, takenLog:['ハッダード曹長', '「港の降下点が取られました！　まわりの砲台が黙りました」']},

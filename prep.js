@@ -104,8 +104,11 @@ function persistOpt(){ try{ localStorage.setItem(OKEY,JSON.stringify(opt)); }cat
 const cleared=id=>prog().cleared.includes(id);
 /* a menu screen opens when its operation is cleared (data/tech.js unlocks) */
 const unlocked=key=>cleared(D.unlocks[key]);
+/* the exercise with the player's own army groups opens once something has been researched (user decision 2026-10-13) */
+const researched=()=>Object.values(prog().tech).some(t=>t&&t.length);
+const ownExercise=()=>unlocked('fleet')&&researched();
 function opOpen(o){ if(dbg.free) return true;
-  const i=CAMP.indexOf(o); if(i<0) return !!o.quick||unlocked('fleet');   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens
+  const i=CAMP.indexOf(o); if(i<0) return !!o.quick||ownExercise();   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens and a research is done
   return i===0||cleared(CAMP[i-1].id); }
 /* a thin line lock in the text colour (no emoji) */
 const LOCK='<svg class="lock" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="1"/><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/></svg>';
@@ -457,7 +460,7 @@ function renderSortie(){
   if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(CAMP.find(o=>!cleared(o.id)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
-    const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlockText('fleet');
+    const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${scaleText(o)}${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
   ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
@@ -473,8 +476,9 @@ function renderSortie(){
   /* a story operation is fought with the fleets the story gives; army groups are not used */
   if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
     const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
-  /* before 艦隊編集 opens, an exercise is fought only with クイック出撃 */
-  if(!unlocked('fleet')&&!dbg.free){ el.innerHTML=`<p class="empty">自分の戦区軍での出撃は、${esc(unlockText('fleet'))}。今はクイック出撃（用意された艦隊）で戦えます。</p>`;
+  /* before 艦隊編集 opens and something is researched, an exercise is fought only with クイック出撃 (user decision 2026-10-13: own army groups after a research) */
+  const exOp=OPS.some(o=>o.id===sortieOp&&!o.chapter);
+  if(!(exOp?ownExercise():unlocked('fleet'))&&!dbg.free){ el.innerHTML=`<p class="empty">自分の戦区軍での出撃は、${unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':esc(unlockText('fleet'))}。今はクイック出撃（用意された艦隊）で戦えます。</p>`;
     const btn=document.getElementById('goBattle'); btn.disabled=true; btn.onclick=null; return; }
   const chosen=sortieGroups.map(id=>save.groups.find(g=>g.id===id)), clashes=g=>!sortieGroups.includes(g.id)&&chosen.some(h=>shareArmy(g,h));
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0), on=sortieGroups.includes(g.id), cl=clashes(g);
