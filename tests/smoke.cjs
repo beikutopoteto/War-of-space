@@ -705,7 +705,8 @@ function check(ok, label, detail = '') {
       wings.filter(w => w.carrier === fortress).forEach(w => { w.alive = false; }); wings = wings.filter(w => w.alive); e.alive = false; e.el.remove();
       /* three allies side by side with two foes before them: a foe more than 30% of the allied force is already going for is passed
          over, so they do not all go for the nearer one (pickFoe, ALLY_SHARE_MAX). With one foe left, all go for it (no other in reach),
-         each from its own side of it, with room between them, within their leash (allySlot) */
+         each from its own side of it, with room between them, within their leash (allySlot): from directions over 90 degrees apart
+         (a pincer, user decision 2026-10-13) and at different heights */
       const A = al.slice(0, 3), keep = A.map(f => ({ pos: f.pos.clone(), post: f.post.clone(), leash: f.leash })), ne = nextEvent, gs = gameSec; nextEvent = opEvents.length;
       A.forEach((f, i) => { f.pos.set(-15 + i * 15, 0, -60); f.post.copy(f.pos); f.leash = 60; f.order = null; });
       const foe = (name, z) => { const x = makeFleet(1, { name, sub: '', type: 'cl', n: 6, hp: 1e6, dmg: 0, range: 16, speed: 0, scale: 1.1, pos: [0, z], alt: 0, vis: 5, stl: 5, ai: 'guard', leash: 0 }); x.seen = true; fleets.push(x); return x; };
@@ -716,7 +717,9 @@ function check(ok, label, detail = '') {
       for (let i = 0; i < 400; i++) step(.05);
       const dR = f => Math.sqrt(f.n) * 1.35 * f.scale; let room = 1e9;
       for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) room = Math.min(room, A[i].pos.distanceTo(A[j].pos) - dR(A[i]) - dR(A[j]));
-      r.spread = { all: on(e1) === 3, room: +room.toFixed(1), leash: A.every(f => f.pos.distanceTo(f.post) < f.leash) };
+      const dirs = []; A.forEach(f => { const v = f.pos.clone().sub(e1.pos).normalize(); if (dirs.every(d => d.dot(v) <= 0)) dirs.push(v); });
+      r.spread = { all: on(e1) === 3, room: +room.toFixed(1), leash: A.every(f => f.pos.distanceTo(f.post) < f.leash), pincer: dirs.length,
+        height: +(Math.max(...A.map(f => f.pos.y)) - Math.min(...A.map(f => f.pos.y))).toFixed(1) };
       e1.alive = false; e1.el.remove(); A.forEach((f, i) => { f.pos.copy(keep[i].pos); f.post.copy(keep[i].post); f.leash = keep[i].leash; f.order = null; }); nextEvent = ne; gameSec = gs;
       return r; });
     check(n1.op === 'nile' && n1.station && n1.allies === 4 && n1.mine === 5 && n1.group === '第2 ネオ信濃駐屯 戦区軍' && n1.notInRoster,
@@ -725,8 +728,8 @@ function check(ok, label, detail = '') {
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
     check(n1.stationFtr, 'ナイル防衛線: ステーションは艦載機を持ち、近づいた敵へ出す', JSON.stringify(n1));
-    check(n1.split.e1 + n1.split.e2 === 3 && Math.max(n1.split.e1, n1.split.e2) <= 2 && n1.spread.all && n1.spread.room > 0 && n1.spread.leash,
-      '友軍: 並んだ3隊は、味方の3割より多くがもう狙っている敵を避けて2つの敵に分かれる。敵が1つなら全隊でそれを狙い、別々の側から間を空けて寄る（持ち場の leash の中）', JSON.stringify(n1.split) + JSON.stringify(n1.spread));
+    check(n1.split.e1 + n1.split.e2 === 3 && Math.max(n1.split.e1, n1.split.e2) <= 2 && n1.spread.all && n1.spread.room > 0 && n1.spread.leash && n1.spread.pincer === 3 && n1.spread.height > 6,
+      '友軍: 並んだ3隊は、味方の3割より多くがもう狙っている敵を避けて2つの敵に分かれる。敵が1つなら全隊でそれを狙い、90度より離れた3つの向きから、高さを変え、間を空けて挟む（持ち場の leash の中）', JSON.stringify(n1.split) + JSON.stringify(n1.spread));
     await page.evaluate(() => { while (gameSec < 22 && !over) step(.05); });
     await page.waitForTimeout(500);
     await shot('12-nile');
@@ -774,9 +777,13 @@ function check(ok, label, detail = '') {
       const a = fleets.find(f => f.ally); g.seen = true; g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); a.pos.copy(g.pos).add(new THREE.Vector3(0, 0, 14));
       r.allyHold = fireTargetOf(a) !== g; g.pos.copy(gp);
       e.seen = true; a.pos.copy(e.pos).add(new THREE.Vector3(0, 0, 14)); r.allyBattery = fireTargetOf(a) === e; a.pos.copy(a.post);
-      /* with no garrison left to fight, an allied unit goes for a battery */
+      /* with no garrison left to fight, an allied unit goes for a battery (the batteries are foes too, user decision 2026-10-13), and the
+         six share them out like ships: no battery has more than two of them (ALLY_SHARE_MAX) */
       const gs = fleets.filter(f => f.team === 1 && f.alive && !f.fixed); gs.forEach(f => f.alive = false); a.order = null; allyAI();
-      r.toBattery = !!a.order && (a.order.type === 'attack' ? a.order.target.fixed : fleets.some(f => f.fixed && f.alive && f.pos.distanceTo(a.order.dest) < 1)); gs.forEach(f => f.alive = true); a.order = null;
+      r.toBattery = !!a.order && (a.order.type === 'attack' ? a.order.target.fixed : fleets.some(f => f.fixed && f.alive && f.pos.distanceTo(a.order.dest) < 1));
+      { const al = fleets.filter(f => f.ally && f.alive), aims = new Map(); al.forEach(f => aims.set(f.aim, (aims.get(f.aim) || 0) + 1));
+        r.batteryShare = al.every(f => f.aim && f.aim.fixed) && Math.max(...aims.values()) <= 2; al.forEach(f => { f.order = null; f.aim = null; }); }
+      gs.forEach(f => f.alive = true); a.order = null;
       /* the port is shut until its control is opened from inside (body.port.openAt): stopped in the ring, the carrier waits */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
       updateGoal(); r.shut = P.openAt > 0 && !opCarrier.cs.landed && goalLabel.textContent.includes('管制 閉鎖中');
@@ -800,9 +807,15 @@ function check(ok, label, detail = '') {
       r.spare = !!ace && !craftMayHit({ team: 1, type: 'was', carrier: ace }, opCarrier) && !nearestFoe(ace, 1e9, u => u === opCarrier);
       /* landed, it takes no move order */
       select(opCarrier); groupOrder({ type: 'move', dest: new THREE.Vector3(0, 0, 100) }); r.stays = !opCarrier.order; select(null);
-      /* with nothing left to fight, an allied unit (hold) stops where it is rather than going back to its post */
+      /* with every foe down (ships and batteries), the allied units (hold) do not go back to their posts: they spread out and wait near
+         the habitat blocks, outside the civilian zones, two to a block, apart from each other and at different heights (user decision 2026-10-13) */
       fleets.filter(f => f.team === 1).forEach(f => { f.alive = false; f.el.remove(); }); wings = []; opEvents.length = nextEvent;
-      const h = fleets.find(f => f.ally && f.alive && f.hold); h.pos.set(-20, 0, 60); h.order = null; allyAI(); r.hold = !h.order && h.post.distanceTo(h.pos) < 1;
+      const h = fleets.find(f => f.ally && f.alive && f.hold); h.pos.set(-20, 0, 60); fleets.forEach(f => { if (f.ally) { f.order = null; f.waitAt = null; } }); allyAI();
+      { const W = fleets.filter(f => f.ally && f.alive && f.hold), near = p => Math.min(...blocks.map(b => p.distanceTo(b.pos))), by = new Map(); let sep = 1e9;
+        W.forEach(f => by.set(f.waitBlock, (by.get(f.waitBlock) || 0) + 1));
+        W.forEach((f, i) => W.slice(i + 1).forEach(g => { sep = Math.min(sep, f.waitAt.distanceTo(g.waitAt)); }));
+        r.wait = { all: W.every(f => f.waitAt && near(f.waitAt) >= op.civil.r && near(f.waitAt) < op.civil.r + 12), blocks: by.size, most: Math.max(...by.values()), sep: Math.round(sep),
+          heights: new Set(W.map(f => Math.round(f.waitAt.y))).size, notHome: h.post.distanceTo(h.home) > 5, goes: !!h.order && h.order.type === 'move' && h.order.dest.distanceTo(h.waitAt) < 1 }; }
       /* the main fleet holds: still taking the port. An allied unit wiped out: the plan changes to the evacuation, but not before
          evac.min minutes after the landing */
       step(.05); r.holdsPort = !opCarrier.cs.evac;
@@ -838,14 +851,15 @@ function check(ok, label, detail = '') {
     check(d1.beltHides, 'デナリの盾: 岩くずの雲の向こうと中は見えない', JSON.stringify(d1));
     check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
     check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
-    check(d1.zoneCost === 8.4 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く', JSON.stringify(d1));
+    check(d1.zoneCost === 8.4 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evacWait && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まる（着陸から evac.min 分までは待つ）。24分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 2000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,000人。本軍の戦艦の7割が沈むか、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     check(d1.wavesGone && d1.doneEv, 'デナリの盾: 切り上げのとき、まだ来ていない波（wave:true）は捨て、撤退の出来事（doneEvents）が切り上げから始まる', JSON.stringify(d1));
     check(d1.lost === '8割' && d1.lostLeft, 'デナリの盾: 勝ちの会話の {lost} に、本軍の戦艦の帰らなかった割合が入る（離脱点から抜けた隊は帰ったと数える）', JSON.stringify(d1));
     check(d1.slow === .82 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
-    check(d1.hold, 'デナリの盾: 本軍は戦う相手がいなくなると、持ち場へ戻らずその場で止まる', JSON.stringify(d1));
+    check(d1.wait.all && d1.wait.blocks === 3 && d1.wait.most === 2 && d1.wait.sep >= 14 && d1.wait.heights >= 3 && d1.wait.notHome && d1.wait.goes,
+      'デナリの盾: 本軍は敵（砲台も）を倒し終えると、持ち場へ戻らず、ばらけて居住区の近く（民間区画の縁の外）で待つ。3つの居住区に2隊ずつ、離れて、高さを変えて', JSON.stringify(d1.wait));
     check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
     check(d1.clock === .6 && d1.boardSec === 200 && d1.back === 2, 'デナリの盾: 時計は大規模の長さに合わせて進み（span 630分を1,050秒。2時間の収容に戦闘の200秒）、着陸するとまず2隊が戻ってくる', JSON.stringify(d1));
     await page.waitForTimeout(2200);
