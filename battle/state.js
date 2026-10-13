@@ -315,7 +315,7 @@ function reset(cfg=lastCfg){
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
      (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */
-  const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/SC.sec:CLOCK_BASE*(op.clockScale||1);
+  const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)
   HP_K=op.hpScale??(WOS_DATA.balance&&WOS_DATA.balance.hp)??1;
   timeWarned=false; gunLostSaid=false;
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
