@@ -433,6 +433,38 @@ function slotOf(f,t,dt){
   if(!f.slot) f.slot=new THREE.Vector3();
   return f.slot.copy(f.slotH).multiplyScalar(Math.cos(f.slotP)).setY(Math.sin(f.slotP));
 }
+/* the side of its target an allied fleet takes (2026-10-13; before, every ally closed straight in, so those on one foe stood in one
+   heap): the side facing its own post, turned by 0, ±30 or ±60 degrees (give or take 10), whichever is furthest round from the other
+   allies already on that foe. It stays on its post's side (it does not go round behind the foe); under 90 degrees apart, two allies do
+   not make a pincer (pincers). A spot the rock hides swings round (approach in step). 数値は仮 */
+const ALLY_TURN=[0,30,-30,60,-60];
+function allyBase(f,t,v){ v.subVectors(f.post,t.pos).setY(0); if(v.lengthSq()<1){ v.subVectors(f.pos,t.pos).setY(0); if(v.lengthSq()<1e-6) v.set(0,0,1); } return v.normalize(); }
+function allySlot(f,t){
+  if(!f.slot) f.slot=new THREE.Vector3();
+  if(f.slotOn!==t){ f.slotOn=t; const base=allyBase(f,t,new THREE.Vector3()), others=[];
+    for(const x of fleets) if(x!==f&&x.ally&&x.alive&&x.order&&x.order.target===t) others.push(new THREE.Vector3().subVectors(x.pos,t.pos).setY(0).normalize());
+    let bestA=0,bestS=-2;
+    for(const a of ALLY_TURN){ const d=base.clone().applyAxisAngle(_up,a*Math.PI/180); let s=2; for(const o of others) s=Math.min(s,1-d.dot(o)); if(!others.length) s=-Math.abs(a);
+      if(s>bestS+1e-6){ bestS=s; bestA=a; } }
+    f.slotA=(bestA+(Math.random()-.5)*20)*Math.PI/180; }
+  const s=allyBase(f,t,f.slot).applyAxisAngle(_up,f.slotA);
+  return s;
+}
+/* a help to the above, not the main rule (user decision 2026-10-13: spread the targets first; spacing only helps where all must go
+   for one foe, e.g. 第4節 when one garrison unit is all there is). Allied fleets in a fight keep a little room between them: two attacking allies closer than their ship discs plus
+   ALLY_GAP push apart (at up to half their speed), and one pressed against another fleet of ours steps aside (ours are not moved).
+   Only while attacking: not on the way to a point or waiting at the post, nor for the batteries, the escorts on the way out (leave)
+   or the guards beside what they protect (protect: their own spacing). 数値は仮 */
+const ALLY_GAP=2, ALLY_PUSH=.5;
+const discR=f=>Math.sqrt(f.n)*1.35*(f.scale||1);
+function spreadAllies(dt){
+  const al=fleets.filter(f=>f.ally&&f.alive&&!f.fixed&&f.mode==='guard'&&f.order&&f.order.type==='attack');
+  al.forEach((f,i)=>{ for(const g of fleets){ const j=al.indexOf(g), both=j>=0; if(g===f||both&&j<i||!g.alive||g.team!==0||g.fixed||g.ghost) continue;   // each pair of allies once
+    _v.subVectors(f.pos,g.pos); const d=_v.length(), want=discR(f)+discR(g)+ALLY_GAP; if(d>=want) continue;
+    if(d<1e-6) _v.set(f.id%2?1:-1,0,0); else _v.multiplyScalar(1/d); _v.y*=.5;
+    const m=Math.min((want-d)/(both?2:1),speedOf(f)*ALLY_PUSH*dt);
+    f.pos.addScaledVector(_v,m); if(both) g.pos.addScaledVector(_v,-m); } });
+}
 /* one step toward a point, round the body if it is in the way; it stops `stop` short of the point (detour: a fleet's own fixed lean) */
 function stepToward(f,to,stop,dt){
   const d=f.pos.distanceTo(to); if(d<=(stop||1.2)) return;
@@ -503,14 +535,26 @@ function carrierRaidAI(f){
 /* which foe to go for (2026-10-10, so that not every unit goes for the same one): near the fleet itself, weakened, and not already
    taken by two others of its side (a second is welcome: two from both sides pin it, pincers). Each fleet weighs each foe a little differently (jit, 0.85–1.15), and it keeps its target
    unless another is clearly better (PICK_KEEP). A fleet marked preyLast is gone for last (第4節: ウォン中将's own, who lives on in the
-   story). Guard fleets still answer only foes within their leash of their post. 数値は仮 */
-const PICK_MAX=2, PICK_KEEP=.75;
-function claimsOn(t,f){ let n=0; for(const x of fleets) if(x!==f&&x.team===f.team&&x.alive&&x.order&&x.order.target===t) n++; return n; }
+   story). Guard fleets still answer only foes within their leash of their post.
+   Allied fleets (allyAI) choose the same way, measured from their post (each keeps to its own part of the field), with one rule
+   of their own (user decision 2026-10-13, after they all went for the same nearest foe and bunched up: spread the targets): a foe
+   that more than ALLY_SHARE_MAX of the allied force is already going for is passed over for another in reach; with no other, that one
+   (with several, all over it: the one fewest go for).
+   The force is counted in units, not ships (2026-10-13: in the runs both gave the same; units is what the player sees). 数値は仮 */
+const PICK_MAX=2, PICK_KEEP=.75, ALLY_SHARE_MAX=.3;
+function claimsOn(t,f){ let n=0; for(const x of fleets) if(x!==f&&x.team===f.team&&!x.ally===!f.ally&&x.alive&&x.order&&x.order.target===t) n++; return n; }
+/* the share of the allied force (alive, able to move, not on its way out) other than f that is going for t */
+function allyForce(){ return fleets.filter(x=>x.ally&&x.alive&&!x.fixed&&x.mode!=='leave'); }
+function shareOn(t,f,force){ let on=0; for(const x of force) if(x!==f&&x.order&&x.order.target===t) on++; return force.length?on/force.length:0; }
 function jitOf(f,t){ if(!f.jit) f.jit=new Map(); let j=f.jit.get(t.id); if(j==null){ j=.85+Math.random()*.3; f.jit.set(t.id,j); } return j; }
 function pickFoe(f,foes,hunt){
-  const cur=f.order&&f.order.type==='attack'?f.order.target:null; let best=null,bs=1e9,cs=1e9;
-  for(const p of foes){ if(!hunt&&p.pos.distanceTo(f.post)>=f.leash) continue;
-    const c=claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(f.pos)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
+  const cur=f.order&&f.order.type==='attack'?f.order.target:null, from=f.ally?f.post:f.pos; let best=null,bs=1e9,cs=1e9;
+  if(!hunt) foes=foes.filter(p=>p.pos.distanceTo(f.post)<f.leash);
+  /* allies: only foes not over ALLY_SHARE_MAX; if every one is, those with the smallest share (so six on two foes go three and three) */
+  if(f.ally&&foes.length>1){ const force=allyForce(), sh=new Map(foes.map(p=>[p,shareOn(p,f,force)])), lo=Math.min(...sh.values());
+    foes=foes.filter(p=>sh.get(p)<=Math.max(ALLY_SHARE_MAX,lo+1e-9)); }
+  for(const p of foes){
+    const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
     if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
   return cur&&cs*PICK_KEEP<=bs?cur:best;
 }
@@ -590,8 +634,8 @@ function allyAI(){
       if(k<R.below){ if(!f.falling){ f.falling=true; if(R.log) logEvent(...R.log); }
         f.post.copy(f.home).lerp(f.fallTo,Math.min(1,(R.below-k)/(R.below/2))); }
       else if(R.heldLog&&!f.heldSaid&&R.heldIf&&fleets.some(e=>e.team===1&&e.name===R.heldIf&&!e.alive)){ f.heldSaid=true; logEvent(...R.heldLog); } }
-    let threat=null,bd=f.leash;
-    for(const p of foes){ if(p.fixed) continue; const d=p.pos.distanceTo(f.post); if(d<bd){bd=d;threat=p;} }
+    /* which foe: shared out among the allies like the enemy does it (pickFoe), within its leash of its post */
+    let threat=pickFoe(f,foes.filter(p=>!p.fixed),false), bd=f.leash;
     /* with no ship left to fight, it goes for the nearest gun battery on the rock (第4節; user decision 2026-10-10: after the garrison,
        the anti-aircraft batteries). Their places are known: it closes on one it cannot see yet, and attacks it once seen */
     if(!threat&&f.hold) for(const p of fleets) if(p.team===1&&p.alive&&p.fixed){ const d=p.pos.distanceTo(f.pos); if(d<bd){bd=d;threat=p;} }
@@ -810,6 +854,9 @@ function step(dt){
       if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
         stepToward(f,_w,0,dt); }
+      else if(f.ally&&goal.kind==='fleet'&&!goal.fixed){ const sl=allySlot(f,goal); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
+        if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotA+=dt*.8;
+        stepToward(f,_w,0,dt); }
       else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
     const ft=f.fireTarget;
@@ -821,6 +868,7 @@ function step(dt){
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
+  spreadAllies(dt);
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
   if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
   stepField();   // after the convoy has moved this step
