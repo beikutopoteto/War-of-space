@@ -104,7 +104,7 @@ function damage(t,amt,src){
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
   /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */
-  if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg),true);
+  if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg)/HP_K,true);   // twice the hit points take twice the fire: the same lives (2026-10-13)
   t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
@@ -147,6 +147,8 @@ function destroyFleet(f,src){
   if(f.team===1&&op.civil&&inZone(f)) civHit(op.civil.perSink,true);   // the wreck falls on the blocks
   logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
   if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
+  /* 第5節: the first gun on the base lost to the enemy (the escorts go for them, prey:'battery'): say what it means */
+  if(f.fixed&&f.team===0&&op.landing&&op.landing.gunLostLog&&!gunLostSaid){ gunLostSaid=true; logEvent(...op.landing.gunLostLog); }
   if(f===opCarrier&&!over){ loseWhy='carrier'; end(false); }
   /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on) */
   if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
@@ -160,7 +162,7 @@ function end(win,quit=false,full=false){
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
-  const why=!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
+  const why=!win&&loseWhy==='time'&&op.timeUp?{lose:op.timeUp.lose,loseLog:op.timeUp.loseLog}:!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
     :!win&&loseWhy==='drop'&&op.result.loseDrop?{lose:op.result.loseDrop,loseLog:op.result.loseDropLog}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
     op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。占拠された降下点 ${drops.filter(d=>d.taken).length}/${drops.length}。残存艦 ${left}隻。`:
@@ -202,10 +204,13 @@ function craftTarget(u,type,maxD){
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
   if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
   /* prey:'ally' (第4節 Alvarez): the allied main fleet's warships first */
-  if((u.carrier||u).prey==='ally'){ const a=nearestFoe(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
+  if((u.carrier||u).prey==='ally'){ const a=preyNearest(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
   /* our craft left to themselves do not go for a ship in a civilian zone (第4節); an attack order still sends them */
-  return nearestFoe(u,maxD,t=>craftMayHit(u,t)&&!(u.team===0&&op.civil&&t.kind==='fleet'&&inZone(t)));
+  return preyNearest(u,maxD,t=>craftMayHit(u,t)&&!(u.team===0&&op.civil&&t.kind==='fleet'&&inZone(t)));
 }
+/* the nearest foe for craft, leaving a fleet marked preyLast for when there is nothing else in reach (2026-10-13: as the ships do in pickFoe;
+   第5節 the Amazon remnant went down first under the W.A.S.) */
+function preyNearest(u,maxD,ok){ return nearestFoe(u,maxD,t=>!t.preyLast&&ok(t))||nearestFoe(u,maxD,ok); }
 let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut (h.out) at once */
 function launchCheck(f){
@@ -215,7 +220,7 @@ function launchCheck(f){
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
-      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1),hpPool:sq.n*W.hp*(C.hp??1),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),range:W.range,
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*HP_K,hpPool:sq.n*W.hp*(C.hp??1)*HP_K,eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),range:W.range,
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
@@ -564,6 +569,7 @@ function enemyAI(){
     if(f.team!==1||!f.alive||f.fixed) continue;
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
+    if(f.prey==='battery'){ const gs=all.filter(x=>x.fixed&&!x.silent); if(gs.length) foes=gs; }   // 第5節: the escorts go for the guns on the base first (2026-10-13)
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
     if(f.ai==='land'){ landAI(f); continue; }   // 第5節: the assault ships make for the drop points
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
@@ -656,6 +662,9 @@ function stepDefend(dt){
   evacRate=fortress.alive?(W.speed||1)*(1-(1-Math.max(0,fortress.hpPool/fortress.max))/2):0;
   const was=evac; evac=Math.min(W.need,evac+dt*CLOCK_RATE*evacRate);
   for(const L of op.evacLogs||[]) if(was<L[0]*W.need&&evac>=L[0]*W.need) logEvent(L[1],L[2]);
+  /* evacEvents [{at, ...an event}]: what happens once the evacuation passes `at` (2026-10-13, 第3節: one more small wave at 90%) */
+  const add=(op.evacEvents||[]).filter(E=>was<E.at*W.need&&evac>=E.at*W.need).map(E=>({...E,after:gameSec*CLOCK_RATE}));
+  if(add.length){ const rest=opEvents.splice(nextEvent); opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
   const k=Math.floor(10*evac/W.need+1e-9);
   while(evacShips<k){ evacShips++; const last=evacShips>=10, S=last&&op.evacLast||op.evacShip;
     if(S){ const g=makeFleet(0,{dmg:0,range:0,eva:0,hp:1,n:1,speed:6,scale:1.3,alt:-4,vis:2,stl:2,type:'tr',...S,name:last?S.name:`${S.name} 第${evacShips}便`,pos:[(Math.random()-.5)*10,8]});
@@ -808,6 +817,16 @@ function stepRepel(){
   if(k>=W.share||now>=W.until){ repelBy=k>=W.share?'sunk':'time'; end(true); }
 }
 
+/* timeUp {at, until, warn, lose, loseLog} (user decision 2026-10-13: doing nothing must lose): at `at` minutes, if what it waits for
+   has not happened (until 'fortress': the fortress destroyed; 'land': the carrier landed), the operation is lost. warn {at, log}: said once before */
+function stepTimeUp(){
+  const T=op.timeUp; if(!T||over) return;
+  if(T.until==='fortress'?!fortress.alive:T.until==='land'?!!(opCarrier&&opCarrier.cs.landed):false) return;
+  const now=gameSec*CLOCK_RATE;
+  if(T.warn&&!timeWarned&&now>=T.warn.at){ timeWarned=true; logEvent(...T.warn.log); }
+  if(now>=T.at){ loseWhy='time'; end(false); }
+}
+
 function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
@@ -829,7 +848,7 @@ function step(dt){
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers();}
-  stepDefend(dt); stepLanding(dt); stepRepel(); stepPhases(dt);
+  stepDefend(dt); stepLanding(dt); stepRepel(); stepPhases(dt); stepTimeUp();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
