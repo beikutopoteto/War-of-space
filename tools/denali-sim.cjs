@@ -1,12 +1,13 @@
 /* 第4節「デナリの盾」を最後まで早送りして、時刻ごとの様子を出す（釣り合わせの確かめ）。3〜4分かかる。
    node tools/denali-sim.cjs <a|b>
-   a: 駐屯隊が奇襲部隊を叩きに行く  b: 着陸したら駐屯隊をすぐ離脱点へ逃がす
+   a: 駐屯隊が奇襲部隊を叩きに行く  b: 着陸したら駐屯隊をすぐ離脱点へ逃がす。PATCH=ファイル.js を付けると、始める前にそのスクリプトをページで実行する（WOS_DATA を書き換えて数値を試す）
    行の読み方: 時刻 段階 cas=民間の被害 yk=ユーコンの耐久 al=本軍6隊の隻数（L=離脱） me=駐屯隊 en=敵 aa=残りの砲台。
    最後に乗せた人数と、駐屯隊に打撃を与えた敵の内訳。勝ち負けは「over outcome loseWhy」 */
 const { openGame } = require('./browser.cjs');
 (async () => {
   const { browser, page, errors } = await openGame();
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
+  if (process.env.PATCH) await page.evaluate(require('fs').readFileSync(process.env.PATCH, 'utf8'));
   await page.click('[data-go="sortie"]'); await page.click('[data-op="denali"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
@@ -36,8 +37,8 @@ const { openGame } = require('./browser.cjs');
       if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); }
       if(n%160===0) L(`A1=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.find(x=>x.ally))} A3=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.filter(x=>x.ally)[1])} ALV=${(f=>f?f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+(f.seen?"":"?"):"dead":"-")(fleets.find(x=>x.ace))} W=${wings.filter(w=>w.team===1).reduce((s,w)=>s+w.n,0)}`);
     }
-    L('boarded='+(opCarrier.cs.boarded)+' end '+JSON.stringify(Object.fromEntries(Object.entries(dmgBy).map(([k,v])=>[k,Math.round(v)])))); return {log, over, outcome, loseWhy};
+    L('boarded='+(opCarrier.cs.boarded)+' end '+JSON.stringify(Object.fromEntries(Object.entries(dmgBy).map(([k,v])=>[k,Math.round(v)])))); return {log, over, outcome, loseWhy, sec:gameSec};
   }, strat);
-  console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, errors.slice(0, 3));
+  console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, errors.slice(0, 3)); console.log(`実時間 ${Math.round(r.sec)}秒`);
   await browser.close();
 })();

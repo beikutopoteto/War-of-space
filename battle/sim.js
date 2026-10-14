@@ -578,7 +578,10 @@ function carrierRaidAI(f){
    that more than ALLY_SHARE_MAX of the allied force is already going for is passed over for another in reach; with no other, that one
    (with several, all over it: the one fewest go for). The enemy's batteries on the rock are foes like the ships and count the same
    (user decision 2026-10-13); what an ally is on its way to (f.aim) counts as well as its attack order.
-   The force is counted in units, not ships (2026-10-13: in the runs both gave the same; units is what the player sees). 数値は仮 */
+   The force is counted in units, not ships (2026-10-13: in the runs both gave the same; units is what the player sees).
+   op.allySplit (第4節, user decision 2026-10-14: not all of them on one foe; split those who hold their posts from those who attack,
+   the same way as the targets are shared out): no fallback, even with one foe; a foe over ALLY_SHARE_MAX is left to those on it, and
+   an ally with nothing left to go for holds its post (allyAI). 数値は仮 */
 const PICK_MAX=2, PICK_KEEP=.75, ALLY_SHARE_MAX=.3;
 function claimsOn(t,f){ let n=0; for(const x of fleets) if(x!==f&&x.team===f.team&&!x.ally===!f.ally&&x.alive&&x.order&&x.order.target===t) n++; return n; }
 /* the share of the allied force (alive, able to move, not on its way out) other than f that is going for t */
@@ -589,7 +592,8 @@ function pickFoe(f,foes,hunt){
   const cur=f.ally&&f.aim&&f.aim.alive?f.aim:f.order&&f.order.type==='attack'?f.order.target:null, from=f.ally?f.post:f.pos; let best=null,bs=1e9,cs=1e9;
   if(!hunt) foes=foes.filter(p=>p.pos.distanceTo(f.post)<f.leash);
   /* allies: only foes not over ALLY_SHARE_MAX; if every one is, those with the smallest share (so six on two foes go three and three) */
-  if(f.ally&&foes.length>1){ const force=allyForce(), sh=new Map(foes.map(p=>[p,shareOn(p,f,force)])), lo=Math.min(...sh.values());
+  if(f.ally&&op.allySplit){ const force=allyForce(); foes=foes.filter(p=>p===cur&&shareOn(p,f,force)<=ALLY_SHARE_MAX+1e-9||shareOn(p,f,force)<ALLY_SHARE_MAX-1e-9); }
+  else if(f.ally&&foes.length>1){ const force=allyForce(), sh=new Map(foes.map(p=>[p,shareOn(p,f,force)])), lo=Math.min(...sh.values());
     foes=foes.filter(p=>sh.get(p)<=Math.max(ALLY_SHARE_MAX,lo+1e-9)); }
   for(const p of foes){
     const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
@@ -692,6 +696,9 @@ function allyAI(){
     /* hold:true (第4節): with every foe down (ships and batteries), it does not go back to its post (user decision 2026-10-10) but waits
        near a habitat block, outside the civilian zone, spread from the others (waitSpot; user decision 2026-10-13). That spot is its post
        till it fights again. With no blocks, it stops where it is */
+    /* op.allySplit (第4節, 2026-10-14): foes in reach but each already has its share of allies: this one holds its post */
+    else if(op.allySplit&&foes.some(p=>p.pos.distanceTo(f.post)<f.leash)){ if(f.order&&f.order.type==='attack') f.order=null;
+      if(f.pos.distanceTo(f.post)>2){ if(!f.order||f.order.type!=='move'||f.order.dest.distanceTo(f.post)>3) f.order={type:'move',dest:f.post.clone()}; } else f.order=null; }
     else if(f.hold){ if(f.order&&f.order.type==='attack') f.order=null;
       const w=op.civil&&blocks.length?waitSpot(f):null;
       if(w){ f.post.copy(w); if(f.pos.distanceTo(w)>2) moveTo(f,w.x,w.y,w.z); else if(f.order&&f.order.type==='move') f.order=null; }
