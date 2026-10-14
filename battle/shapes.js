@@ -93,7 +93,8 @@ const CRAFT_SHAPES={
      facing +Z, its right is -X. Long arms from a point above the shoulder to below the hip, round (a spindle along each arm's axis,
      as thick as the icon's arm is wide); a small faceted head; a wide chest stepping in to a narrow belly; short legs with a thruster
      pod alongside each; thin rods for the joints. The body and the legs are diamonds seen from the side too. It flies leaning
-     forward; the arms do not bend at the elbow but swing forward at the shoulder, so the rifle on the right arm's axis and the
+     forward; the arms do not bend at the elbow: each turns as a whole at its joint with the body, about its middle at chest
+     height (user decision 2026-10-14: below the shoulder seen from the side), so the rifle on the right arm's axis and the
      cannon over the left shoulder point straight ahead. 0.9 the width (user decision); the size matches the old model */
   was:()=>{ const K=.1, P=([x,y])=>[(x-12)*K,(11.2-y)*K], V=(x,y,z=0)=>new THREE.Vector3(x,y,z), M=()=>new THREE.Matrix4();
     const rotAt=(axis,ang,p)=>M().makeTranslation(p.x,p.y,p.z).multiply(M().makeRotationAxis(axis,ang)).multiply(M().makeTranslation(-p.x,-p.y,-p.z));
@@ -106,9 +107,10 @@ const CRAFT_SHAPES={
       up(loft([[-.05,.012,.012],[0,.055,.06],[.145,.095,.1],[.17,.135,.11],[.3,.17,.07],[.335,.14,.035]],HEX)),
       /* backpack and its two thrusters */
       at(box(.18,.16,.09),0,.2,-.14), ...pair(at(new THREE.CylinderGeometry(.035,.025,.08,8),.06,.09,-.16))], right=[];
-    /* the right arm: from the point above the shoulder (TOP) to the end of the forearm (TIP), swung at the shoulder (SH) to point ahead */
-    const TOP=V(...P([8.2,2.8])), TIP=V(...P([7.32,15])), EL=TOP.clone().lerp(TIP,6.9/12.2), SH=V(...P([7.55,5.8])), dir=TIP.clone().sub(EL).normalize();
-    const armM=M().makeTranslation(SH.x,SH.y,SH.z).multiply(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(TIP.clone().sub(TOP).normalize(),V(0,Math.sin(L),Math.cos(L))))).multiply(M().makeTranslation(-SH.x,-SH.y,-SH.z));
+    /* the right arm: from the point above the shoulder (TOP) to the end of the forearm (TIP), turned at its joint (PV, 0.59 of the way
+       down, at chest height) to point ahead: the front part reaches forward, the pointed rear part runs back past the body */
+    const TOP=V(...P([8.2,2.8])), TIP=V(...P([7.32,15])), EL=TOP.clone().lerp(TIP,6.9/12.2), PV=TOP.clone().lerp(TIP,.59), dir=TIP.clone().sub(EL).normalize();
+    const armM=M().makeTranslation(PV.x,PV.y,PV.z).multiply(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(TIP.clone().sub(TOP).normalize(),V(0,Math.sin(L),Math.cos(L))))).multiply(M().makeTranslation(-PV.x,-PV.y,-PV.z));
     right.push(along(loft([[0,.004,.004],[.27,.075,.075],[.5,.115,.115],[TOP.distanceTo(EL),.128,.128]],ROUND),TOP,EL),
       along(loft([[.46,.118,.118],[.5,.12,.12]],ROUND),TOP,EL),   // a ring where the icon has its panel line
       along(loft([[0,.128,.128],[.26,.13,.13],[.42,.08,.08],[EL.distanceTo(TIP),.03,.03]],ROUND),EL,TIP));
