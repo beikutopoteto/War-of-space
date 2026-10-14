@@ -89,32 +89,55 @@ const CRAFT_SHAPES={
     at(loft([[.12,.035,.02],[.32,.045,.045,.01],[.55,0,0]]),0,.06,0), ...pair(at(box(.06,.06,.2),.15,-.01,.12,0,.12,0)),
     ...pair(at(plate([[0,-.06],[0,-.3],[.2,-.36],[.2,-.22]],.02),.12,.04,0,0,0,Math.PI/2-.45)), ...pair(at(box(.09,.035,.08),.07,0,-.44))];
     p.forEach(g=>g.scale(.62,.62,.62)); return p; },
-  /* W.A.S.: a small, rounded powered exoskeleton a size larger than a person, leaning into its flight with the elbows and knees bent.
-     Large arms: a rifle in the right hand and a cannon above the left shoulder. Flight thrusters on the backpack and at the waist */
-  was:()=>{ const lean=.7, c=Math.cos(lean), s=Math.sin(lean), L=(x,y,z)=>[x,y*c-z*s,y*s+z*c], add=(p,q)=>p.map((v,i)=>v+q[i]);
-    /* the body, standing and facing +Z (its right is -X) */
-    const body=[ell(0,0,0,.095,.06,.07), ell(0,.12,0,.075,.08,.065), ell(0,.25,0,.12,.1,.085), limb([0,.32,0],[0,.37,.01],.03,.026),
-      ell(0,.41,.02,.055,.065,.065), ell(0,.415,.065,.045,.022,.025), loft([[-.21,.11,.09,.25],[-.17,.13,.11,.25],[-.09,.12,.1,.25]],SQR)];
-    for(const [x,gun] of [[-1,true],[1,false]]){
-      const sh=[.16*x,.32,0], el=gun?[.2*x,.15,.08]:[.21*x,.16,.07], hd=gun?[.2*x,.13,.24]:[.2*x,.04,.17];
-      body.push(ell(.17*x,.345,0,.075,.045,.085), limb(sh,el,.03,.026), ell(...el,.03,.03,.03), limb(el,hd,.038,.03), ell(...hd,.028,.028,.028));
-      const hip=[.08*x,-.04,0], kn=gun?[.09*x,-.27,.08]:[.09*x,-.25,.1], an=gun?[.09*x,-.48,-.02]:[.09*x,-.45,0];
-      body.push(limb(hip,kn,.04,.033), ell(...add(kn,[0,0,.02]),.04,.04,.04), limb(kn,an,.045,.032), ell(...add(an,[0,-.02,.035]),.035,.028,.065));
-    }
-    body.forEach(g=>g.rotateX(lean));
-    /* gear, placed level in flight */
-    const [, py, pz]=L(0,.3,-.2), [, wy, wz]=L(0,-.01,-.03), [, cy, cz]=L(.15,.42,-.04), [, hy, hz]=L(-.2,.13,.24), gear=[];
-    for(const x of [1,-1]) gear.push(
-      at(loft([[-.3,.042,.042],[-.22,.055,.055],[.05,.055,.055],[.16,.03,.03],[.2,0,0]],ROUND),.12*x,py,pz), at(taper(.065,.045,.1,12),.12*x,py,pz-.35),
-      at(loft([[-.2,.03,.03],[-.14,.038,.038],[.04,.035,.035],[.1,0,0]],ROUND),.14*x,wy,wz), at(taper(.045,.032,.07,12),.14*x,wy,wz-.235));
-    gear.push(...pair(at(plate([[.15,-.1],[.3,-.22],[.32,-.28],[.15,-.24]],.02),0,py,pz)),
-      /* shoulder cannon */
-      limb(L(.13,.36,-.1),[.15,cy+.04,cz+.05],.022,.018), at(loft([[-.16,.045,.05],[.1,.045,.05],[.16,.03,.035]],SQR),.15,cy+.07,cz+.08),
-      at(tube(.022,.5,10),.15,cy+.07,cz+.49), at(taper(.022,.03,.05,10),.15,cy+.07,cz+.76),
-      /* rifle */
-      at(loft([[-.2,.022,.035],[-.12,.03,.045],[.12,.035,.05],[.18,.025,.03]],SQR),-.2,hy+.03,hz+.02),
-      at(tube(.018,.4,10),-.2,hy+.035,hz+.4), at(taper(.018,.026,.05,10),-.2,hy+.035,hz+.62), at(box(.028,.09,.05),-.2,hy-.04,hz+.08));
-    const p=[...body, ...gear]; p.forEach(g=>g.scale(.55,.55,.55)); return p; },
+  /* W.A.S. (user decision 2026-10-14: rebuilt from the icon, B-1, with its proportions). Drawn in icon units × 0.1 with the waist at 0,
+     facing +Z, its right is -X. Long arms from a point above the shoulder to below the hip, round (a spindle along each arm's axis,
+     as thick as the icon's arm is wide); a small faceted head; a wide chest stepping in to a narrow belly; short legs with a thruster
+     pod alongside each; thin rods for the joints. The body and the legs are diamonds seen from the side too. It flies leaning
+     forward; the arms do not bend at the elbow: each turns as a whole at its joint with the body, about its middle at chest
+     height (user decision 2026-10-14: below the shoulder seen from the side), so the rifle on the right arm's axis and the
+     cannon over the left shoulder point straight ahead. 0.9 the width (user decision); the size matches the old model */
+  was:()=>{ const K=.1, P=([x,y])=>[(x-12)*K,(11.2-y)*K], V=(x,y,z=0)=>new THREE.Vector3(x,y,z), M=()=>new THREE.Matrix4();
+    const rotAt=(axis,ang,p)=>M().makeTranslation(p.x,p.y,p.z).multiply(M().makeRotationAxis(axis,ang)).multiply(M().makeTranslation(-p.x,-p.y,-p.z));
+    const X=V(1,0,0), Z=V(0,0,1), L=.45;   // lean of the body in flight
+    const up=g=>{ g.rotateX(-Math.PI/2); return g; };   // a loft along Z stood up along +Y (its half-height becomes depth)
+    const along=(g,a,b)=>{ g.applyMatrix4(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(Z,b.clone().sub(a).normalize()))); g.translate(a.x,a.y,a.z); return g; };
+    const head=new THREE.IcosahedronGeometry(.085,0); head.scale(1,1.08,1.05);
+    const parts=[at(head,0,.415,.01), at(box(.1,.022,.03),0,.42,.085), limb([0,.32,0],[0,.36,0],.025,.022),
+      /* torso: deepest at the step of the chest */
+      up(loft([[-.05,.012,.012],[0,.055,.06],[.145,.095,.1],[.17,.135,.11],[.3,.17,.07],[.335,.14,.035]],HEX)),
+      /* backpack and its two thrusters */
+      at(box(.18,.16,.09),0,.2,-.14), ...pair(at(new THREE.CylinderGeometry(.035,.025,.08,8),.06,.09,-.16))], right=[];
+    /* the right arm: from the point above the shoulder (TOP) to the end of the forearm (TIP), turned at its joint (PV, 0.59 of the way
+       down, at chest height) to point ahead: the front part reaches forward, the pointed rear part runs back past the body */
+    const TOP=V(...P([8.2,2.8])), TIP=V(...P([7.32,15])), EL=TOP.clone().lerp(TIP,6.9/12.2), PV=TOP.clone().lerp(TIP,.59), dir=TIP.clone().sub(EL).normalize();
+    const armM=M().makeTranslation(PV.x,PV.y,PV.z).multiply(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(TIP.clone().sub(TOP).normalize(),V(0,Math.sin(L),Math.cos(L))))).multiply(M().makeTranslation(-PV.x,-PV.y,-PV.z));
+    right.push(along(loft([[0,.004,.004],[.27,.075,.075],[.5,.115,.115],[TOP.distanceTo(EL),.128,.128]],ROUND),TOP,EL),
+      along(loft([[.46,.118,.118],[.5,.12,.12]],ROUND),TOP,EL),   // a ring where the icon has its panel line
+      along(loft([[0,.128,.128],[.26,.13,.13],[.42,.08,.08],[EL.distanceTo(TIP),.03,.03]],ROUND),EL,TIP));
+    for(const g of right) g.applyMatrix4(armM);
+    for(const [a,b] of [[[10.5,8.7],[8.6,7.6]],[[10.75,9.4],[8.4,9.3]]]) right.push(limb([...P(a),0],V(...P(b)).applyMatrix4(armM).toArray(),.011,.011));
+    /* the right leg: thigh and shin (a ^ knee), each a diamond seen from the side, deepest at the knee; a thruster pod alongside */
+    const LX=-.105, HIP=V(LX,-.01), KN=V(LX,-.271), thM=rotAt(X,-.35,HIP), knee=KN.clone().applyMatrix4(thM);
+    const shM=M().makeTranslation(knee.x-KN.x,knee.y-KN.y,knee.z-KN.z).multiply(rotAt(X,.4,KN));
+    const thigh=up(loft([[KN.y,.063,.1],[-.17,.06,.075],[-.073,.057,.05],[HIP.y,.021,.03]],HEX)), shin=up(loft([[-.505,.078,.035],[-.39,.07,.075],[KN.y,.063,.1]],HEX));
+    thigh.translate(LX,0,0); shin.translate(LX,0,0); shin.applyMatrix4(shM);
+    const kneeCap=new THREE.ConeGeometry(.04,.05,4); kneeCap.rotateX(Math.PI/2); kneeCap.rotateZ(Math.PI/4);
+    const pod=up(loft([[-.33,.02,.02],[-.28,.042,.042],[-.1,.04,.04],[-.02,.035,.035],[0,.02,.02]],HEX)); pod.translate(...P([9.62,11.8]),0);
+    const noz=new THREE.CylinderGeometry(.03,.045,.05,8); noz.translate(...P([9.62,15.35]),0);
+    for(const g of [thigh,pod,noz]) g.applyMatrix4(thM);
+    right.push(thigh, shin, pod, noz, at(kneeCap,knee.x,knee.y,knee.z+.1), limb([...P([10.6,11.3]),0],V(...P([10.1,12])).applyMatrix4(thM).toArray(),.01,.01));
+    for(const [a,b] of [[[11.3,10.6],[10.92,11.3]],[[11.5,11.05],[11.26,11.35]]]) right.push(limb([...P(a),0],V(...P(b)).applyMatrix4(thM).toArray(),.01,.01));
+    /* the rifle in the right hand, on the arm's axis past its end: a grip block and a barrel */
+    const on=t=>TIP.clone().addScaledVector(dir,t), rifle=[along(loft([[-.06,.055,.04],[.1,.055,.04]],RECT),on(0),on(1)),
+      along(loft([[.1,.018,.018],[.4,.018,.018]],ROUND),on(0),on(1)), along(loft([[.4,.024,.024],[.44,.018,.018]],ROUND),on(0),on(1))];
+    for(const g of rifle) g.applyMatrix4(armM);
+    /* the left side mirrors the right, without the rifle */
+    for(let g of right){ g=g.index?g.toNonIndexed():g; parts.push(g,mirror(g)); }
+    parts.push(...rifle);
+    /* the cannon over the left shoulder: a mount, a breech block, a long barrel and a muzzle brake, pointing ahead */
+    const cm=rotAt(X,Math.PI/2-L,V(.245,.38,-.07));
+    parts.push(limb([.15,.3,-.06],[.245,.38,-.07],.02,.018), ...[at(box(.11,.2,.1),.245,.48,-.07), at(up(tube(.022,.52,10)),.245,.84,-.07), at(box(.1,.012,.03),.245,1.1,-.07)].map(g=>g.applyMatrix4(cm)));
+    const p=parts.map(g=>g.index?g.toNonIndexed():g); p.forEach(g=>{ g.rotateX(L); g.scale(.38,.42,.42); }); return p; },
 };
 function shapeGeo(type){ return joinParts((SHAPES[type]||SHAPES.gen)()); }
 function craftGeo(type){ return joinParts((CRAFT_SHAPES[type]||CRAFT_SHAPES.ftr)()); }
