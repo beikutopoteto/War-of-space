@@ -97,7 +97,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    hpScale: この作戦の耐久の倍率（書かなければ WOS_DATA.balance.hp）
    timeUp: 時間切れの負け {at（分）, until:'fortress'|'land', warn?:{at, log}, lose, loseLog}。at 分になっても until が済んでいなければ負け
      （'fortress' は要塞を壊す、'land' は carrier が着陸する）。warn.at 分に警告の通知
-   prey:'battery' の敵は、沈黙していない地表の砲台（友軍の fixed）を先に狙う（第5節の護衛の重巡洋艦）。landing.gunLostLog は砲台が初めて沈んだときの通知
+   prey:'battery' の敵は、沈黙していない地表の砲台（友軍の fixed）を先に狙う（第5節の護衛の重巡洋艦）。landing.gunLostLog は砲台が初めて沈んだときの通知（任意。第5節では使わない。ユーザー決定 2026-10-14 で消した）
    evacEvents: 避難（win の type 'defend'）が at（割合）を越えたときの出来事 [{at, ...events と同じ形}]
    艦載機と W.A.S. も、preyLast の艦隊はほかに狙えるものがないときだけ狙う
    ここから下は第5節を共和国のドクトリン「隊は小さく、一撃は大きく＋雲の中の予備」に作り直したときに足したもの（2026-10-14、ユーザー決定。数値は仮）:
@@ -647,7 +647,7 @@ WOS_DATA.operations=[
       landPhase:'占領', landSub:'戦闘母艦　宇宙港を確保中', occupyText:'宇宙港を押さえるあいだ、ユーコンを守れ', occupyLabel:'宇宙港を確保中',
       evac:{lost:.2, min:78, max:96},
       /* 本軍の戦艦の隊（任務欄の「本軍の戦艦 残り」と、切り上げの判定） */
-      line:['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群','第3 砲戦突破 支隊','第4 砲戦突破 支隊'],
+      line:['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群','第13 ドナウ主力 支隊','第20 ドナウ前衛 支隊'],
       /* 収容: ユーコンに乗せられるのは8,000人まで（ユーザー決定 2026-10-10: 収容限界）。1時間に1,000人（仮。計画の「8時間で8,000人」と同じ）。
          切り上げ（cut。ユーザー決定: 本軍が持たなくなったら）: 収容を始めて48分（仮）が過ぎたあと、戦艦の隊が7割沈むか、ユーコンの耐久が半分を切ったとき。
          収容は330分（5.5時間、5,500人。max、仮）で必ず切り上げる（2026-10-12、wos-strategy の案: 研究ありで満員になるのを防ぐ）。
@@ -704,7 +704,7 @@ WOS_DATA.operations=[
         {after:7, log:['ハッダード曹長', '「岩くずの雲の北西の端から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         /* 敵が来たら、本軍の各隊は受け持ちのユーコンか居住区の前へ出て守る（ユーザー決定 2026-10-10。ai:'protect'。受け持ちは本軍の protect） */
         {after:12, log:['ウォン中将', '「全艦、受け持ちの居住区とユーコンの前へ。戦艦は硬い。居住区より硬い。それが理由だ」'],
-          ai:{fleets:['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群','第3 砲戦突破 支隊','第4 砲戦突破 支隊','第10 アマゾン残存 支隊','第6 巡洋護衛 支隊'], ai:'protect'}},
+          ai:{fleets:['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群','第13 ドナウ主力 支隊','第20 ドナウ前衛 支隊','第10 アマゾン残存 支隊','第6 巡洋護衛 支隊'], ai:'protect'}},
         {after:21, log:['傍受', 'アルバレス大尉「デナリの守備隊、よく持たせた。……ここからは俺たちの番だ。居住区には当てるなよ。狙うのは軍艦だけだ」']},
         /* 第2波: アルバレスの指揮の下の第8（色はふつうの赤。居住区とユーコンは狙わず、撤退も追わない letGo。W.A.S. は第7 の半分の40、仮）と第4 重巡洋艦 */
         {after:27, fleet:{name:'第8 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
@@ -769,11 +769,11 @@ WOS_DATA.operations=[
        2026-10-13（ユーザー決定）: 耐久2倍の倍率がかかるので、データは戦艦550→275、巡洋艦66→33（戦闘では前と同じ値）。物語では、第5節の艦は修理中で装甲が十分でない */
     allies:[
       {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
-      {name:'第3 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
+      {name:'第13 ドナウ主力 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
       {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier', preyLast:true},
       /* 本軍の隊の数は2倍（ユーザー決定 2026-10-10）。足した3隊の位置は仮 */
       {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
-      {name:'第4 砲戦突破 支隊', sub:'本軍 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
+      {name:'第20 ドナウ前衛 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
       {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
     ],
     /* 守備隊（盾）: 損害が半分を超えると持ち場の居住区のそばへ下がる。着陸すると、こちらの艦を狙いに出る（ai:'hunt'。ユーザー決定 2026-10-10: 居住区は撃たない）。
@@ -990,7 +990,6 @@ WOS_DATA.operations=[
     /* 揚陸の阻止（ユーザー決定 2026-10-12。数値は仮）: 突撃揚陸艦（ai:'land'）が降下点の輪の中で hold 分（作戦の時計で12分＝戦闘の約17秒。仮。時計を遅くしたとき60分から直し、手ごたえは前と同じ）止まると
        W.A.S. を降ろし、その降下点を占拠する。まわり silence 以内の味方の砲台は沈黙する。need 個占拠されるか、司令部（hq）が占拠されると負け。輪は施設の真上 up の高さ */
     landing:{hold:12, need:2, silence:45,
-      gunLostLog:['ハッダード曹長', '「砲台がやられました！　護衛の重巡洋艦が砲台を狙っています。叩かないと、揚陸艦を止めるものがなくなります」'],
       warnLog:['ハッダード曹長', '「揚陸艦が{name}の降下点に入りました！　輪の中で止まっています」'],
       points:[
         {name:'港', block:0, r:10, up:10, takenLog:['ハッダード曹長', '「港の降下点が取られました！　まわりの砲台が黙りました」']},
