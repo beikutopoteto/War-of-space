@@ -898,7 +898,7 @@ function check(ok, label, detail = '') {
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
       /* 2026-10-13: the escorts of the landing stages (prey:'battery') go for a gun on the base first; the first gun lost is told.
          Craft leave a fleet marked preyLast for when nothing else is in reach */
-      r.preyOps = op.phases.slice(2).flatMap(S => S.events).filter(e => e.fleet && e.fleet.type === 'cl').every(e => e.fleet.prey === 'battery');
+      r.preyOps = op.phases.slice(2).every(S => S.events.some(e => e.fleet && e.fleet.type === 'cl' && e.fleet.prey === 'battery'));
       const esc = makeFleet(1, { name: '試験 護衛', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 20, speed: 0, scale: 1, pos: [0, 60], alt: 0, ai: 'hunt', prey: 'battery', vis: 6, stl: 4 });
       fleets.push(esc); bt.forEach(f => { f.seen = true; }); me.seen = true; me.pos.set(0, 0, 55); enemyAI(); r.battery = !!(esc.order && esc.order.target && esc.order.target.fixed); me.pos.copy(p0);
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
@@ -945,16 +945,60 @@ function check(ok, label, detail = '') {
       const n0 = fleets.filter(f => f.team === 0 && !f.ward).length; gameSec = op.phases[3].at / CLOCK_RATE; step(.05); step(.05);
       const mine = fleets.filter(f => f.team === 0 && !f.ward), ff = mine[mine.length - 1], w = fleets.find(f => f.name === '第1 主力戦艦 打撃群');
       const r = { given: phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === op.phases[3].given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
-        wong: Math.hypot(w.post.x + 300, w.post.z - 120) < 1 };
+        wong: Math.hypot(w.post.x + 265, w.post.z - 145) < 1 };
       /* Oliveira's unit, badly hurt, gives ground (retreat) */
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.ships.splice(0, am.ships.length - 1); allyAI(); r.amzBack = !!am.falling && am.post.distanceTo(am.fallTo) < 1;
+      /* 2026-10-14: a unit hurt below fallBack (7割) of its ships withdraws into the clouds; its ships left are not counted as sunk, and a later
+         event does not send it back in */
+      const k0 = mainSunk(), hurt = makeFleet(1, { name: '試験 本隊', sub: '', type: 'cl', n: 5, hp: 30, dmg: 0, eva: 0, range: 20, speed: 9, scale: 1, pos: [-300, -40], alt: 0, ai: 'hunt', main: true, fallBack: .7, vis: 6, stl: 4 });
+      fleets.push(hurt); enemyAI(); r.fbKeep = hurt.ai === 'hunt'; hurt.ships.splice(0, 2); enemyAI();
+      opEvents.splice(nextEvent, 0, { after: 0, ai: { fleets: ['試験 本隊'], ai: 'hunt' } }); step(.05);
+      r.fbBack = hurt.ai === 'withdraw' && hurt.fellBack && Math.abs(mainSunk() - k0 - 2 / mainTotal) < 1e-9;
+      hurt.alive = false; hurt.el.remove();
+      /* the reserve goes where the defence is thinnest (drops): the open point among the candidates with the fewest of our ships and the
+         allies' within 60 */
+      const ours = fleets.filter(f => f.team === 0 && f.alive && !f.fixed), P0 = drops.find(d => d.name === '港'), P1 = drops.find(d => d.name === '工廠'), keep = ours.map(f => f.pos.clone());
+      ours.forEach(f => f.pos.set(P0.pos.x, 0, P0.pos.z + 10)); r.weak1 = weakDrop(['港', '工廠']) === P1;
+      ours.forEach(f => f.pos.set(P1.pos.x, 0, P1.pos.z + 10)); r.weak2 = weakDrop(['港', '工廠']) === P0;
+      const rs = makeFleet(1, { name: '試験 予備', sub: '', type: 'mas', n: 2, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [-150, -300], alt: 0, ai: 'guard', drop: '工廠', vis: 1, stl: 9 }); fleets.push(rs);
+      const said = [], logE = logEvent; logEvent = (a, b) => { said.push(b); logE(a, b); };
+      opEvents.splice(nextEvent, 0, { after: 0, ai: { fleets: ['試験 予備'], ai: 'land', drops: ['港', '工廠'], log: ['試験', '{drop}へ'] } }); step(.05); logEvent = logE;
+      r.weakGo = rs.ai === 'land' && rs.drop === '港' && said.includes('港へ');
+      ours.forEach((f, i) => f.pos.copy(keep[i])); rs.alive = false; rs.el.remove();
       gameSec = op.win.until / CLOCK_RATE; step(.05); return { ...r, over, outcome, by: repelBy, share: op.win.share }; });
     check(f2.given && f2.wong && f2.amzBack, 'フェブルアーリア防衛戦: 総攻撃の始めに工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が司令部の前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
-    check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .8, 'フェブルアーリア防衛戦: 主力の8割を沈めるか、18:00 まで持たせると勝利', JSON.stringify(f2));
+    check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
+    check(f2.weak1 && f2.weak2 && f2.weakGo, 'フェブルアーリア防衛戦: 予備は候補の降下点のうち、まわりの自軍と友軍がいちばん少ないところへ向かう（drops。2026-10-14）', JSON.stringify(f2));
+    check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .5, 'フェブルアーリア防衛戦: 本隊の5割を沈めるか、18:00 まで持たせると勝利', JSON.stringify(f2));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     const f3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(f3.cleared.includes('februaria') && f3.flags.bb === true, 'フェブルアーリア防衛戦: クリアが記録され、戦艦の兵科が開く', JSON.stringify({ cleared: f3.cleared, flags: f3.flags }));
+    /* 2026-10-14: half the main force sunk, the Republic falls back: every enemy withdraws (an assault ship in a ring puts nothing down),
+       nothing more comes, and after about 20 s the victory follows */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const f4 = await page.evaluate(() => {
+      gameSec = op.phases[2].at / CLOCK_RATE + 30; for (let i = 0; i < 4; i++) step(.05);
+      const D = drops.find(d => d.name === '工廠'), lander = makeFleet(1, { name: '試験 揚陸艦', sub: '', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [D.pos.x, D.pos.z], alt: D.pos.y, ai: 'land', drop: D.name, vis: 1, stl: 9 }); fleets.push(lander);
+      for (let i = 0; i < 20; i++) step(.05);
+      const r = { landing: D.state === 'landing' };
+      const big = makeFleet(1, { name: '試験 本隊', sub: '', type: 'dd', n: Math.ceil(mainTotal * op.win.share) + 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -200], alt: 0, ai: 'hunt', main: true, vis: 1, stl: 9 });
+      big.ships.splice(1); fleets.push(big);
+      const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); }; const ev0 = nextEvent;
+      step(.05); logEvent = logE;
+      r.retreat = !over && repelBy === 'sunk' && fleets.filter(f => f.team === 1 && f.alive && !f.fixed).every(f => f.ai === 'withdraw') && said.some(t => t.includes('追うな'));
+      for (let i = 0; i < 40; i++) step(.05);
+      r.noLand = D.state !== 'landing' && !D.taken && nextEvent === ev0 && stageText === op.win.retreat.text;
+      let n = 0; while (!over && n++ < 2000) step(.05);
+      r.won = over && outcome && repelBy === 'sunk'; r.secs = Math.round(n * .05 + 2.05);
+      return r; });
+    check(f4.landing && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: 本隊の5割を沈めると共和国が退き（全部の敵が撃たずに北へ。輪の中の揚陸艦も降ろさない）、約20秒あとに勝利（2026-10-14）', JSON.stringify(f4));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
+    await page.screenshot({ path: 'test-results/februaria-retreat.png' }).catch(() => {});
+    await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing
        nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */
     await page.click('[data-go="sortie"]');

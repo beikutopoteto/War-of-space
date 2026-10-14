@@ -158,7 +158,8 @@ let outcome=null;
 /* the end of the battle. quit: the player gave up from the in-battle menu; a defeat with no closing scene.
    full: a complete victory (op.chase: the fortress's guard was sunk too) */
 function end(win,quit=false,full=false){
-  if(over) return; over=true; outcome=win; perfect=win&&full; setPhase('戦闘終結');
+  /* 第5節: no defeat while the enemy is already falling back (stepRepel) */
+  if(over||!win&&!quit&&repelT!=null) return; over=true; outcome=win; perfect=win&&full; setPhase('戦闘終結');
   const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
@@ -599,11 +600,15 @@ function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
+    /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
+       Ships that leave are not counted as sunk (mainSunk counts only the ships lost) */
+    if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
     /* 第5節: the escorts go for the guns on the base first (2026-10-13). The guns stand where the enemy knows them (not only the ones
-       in sight, or they came for the ships in sight first and the guns were never touched): one not in sight yet, it closes on */
-    if(f.prey==='battery'){ const gs=fleets.filter(x=>x.team===0&&x.alive&&x.fixed&&!x.silent);
+       in sight, or they came for the ships in sight first and the guns were never touched): one not in sight yet, it closes on.
+       A reserve still held back (ai:'guard') waits in the clouds until it is let go (2026-10-14) */
+    if(f.prey==='battery'&&f.ai!=='guard'){ const gs=fleets.filter(x=>x.team===0&&x.alive&&x.fixed&&!x.silent);
       if(gs.length){ const g=pickFoe(f,gs,true); if(g&&!g.seen){ moveTo(f,g.pos.x,g.pos.y,g.pos.z); continue; } foes=gs; } }
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
     if(f.ai==='land'){ landAI(f); continue; }   // 第5節: the assault ships make for the drop points
@@ -793,13 +798,17 @@ let drops=[], dropRings=[];
 function dropFor(f){ const open=drops.filter(d=>!d.taken); if(!open.length) return null;
   if(f.dropAt&&!f.dropAt.taken) return f.dropAt;
   return f.dropAt=f.drop&&open.find(d=>d.name===f.drop)||nearestOf(f,open); }
+const DROP_WEAK_R=60;   // 仮
+function weakDrop(names){ const c=names.map(n=>drops.find(d=>d.name===n&&!d.taken)).filter(Boolean); if(!c.length) return null;
+  const held=d=>fleets.reduce((s,f)=>s+(f.alive&&f.team===0&&!f.fixed&&Math.hypot(f.pos.x-d.pos.x,f.pos.z-d.pos.z)<DROP_WEAK_R?f.ships.length:0),0);
+  return c.reduce((a,d)=>held(d)<held(a)?d:a); }
 function landAI(f){
   const d=!f.landed&&dropFor(f);
   if(!d){ moveTo(f,f.pos.x,f.pos.y,-FIELD_R-30); return; }   // done, or nothing left to take: back north
   if(f.pos.distanceTo(d.pos)>d.r*.5) moveTo(f,d.pos.x,d.pos.y,d.pos.z); else if(f.order&&f.order.type==='move') f.order=null;
 }
 function stepLanding(dt){
-  const L=op.landing; if(!L||over) return;
+  const L=op.landing; if(!L||over||repelT!=null) return;
   for(const d of drops){ if(d.taken) continue;
     const at=fleets.filter(f=>f.alive&&f.team===1&&f.ai==='land'&&!f.landed&&f.pos.distanceTo(d.pos)<=d.r);
     if(!at.length){ d.prog=0; d.state='ours'; continue; }
@@ -839,7 +848,7 @@ function keepInFieldSoft(f,sliding){
   if(r>f.outR){ const k=f.outR/r; f.pos.x=fieldC.x+(f.pos.x-fieldC.x)*k; f.pos.z=fieldC.z+(f.pos.z-fieldC.z)*k; }
 }
 function stepPhases(dt){
-  const P=op.phases; if(!P||over) return;
+  const P=op.phases; if(!P||over||repelT!=null) return;
   while(stageAt<P.length&&gameSec*CLOCK_RATE>=P[stageAt].at) startStage(P[stageAt++]);
   if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=k*k*(3-2*k);
     _fd.copy(slideFrom).lerp(slideTo,e).sub(fieldC); _fd.y=0; fieldC.add(_fd); shiftView(_fd); if(slideT>=slideDur) slideTo=null; }
@@ -847,8 +856,11 @@ function stepPhases(dt){
 }
 /* 第5節: hold the base (op.win {type:'repel', share, until, surge}): won when `share` of the enemy's main force (fleets marked main)
    is sunk, or at `until` minutes. surge {share, at, events}: the all-out attack, when `share` of it is sunk or at `at` minutes,
-   whichever comes first; its events (the form of op.events, after: minutes from then) follow. 数値は仮 */
-let mainTotal=0, surged=false, repelBy=null;
+   whichever comes first; its events (the form of op.events, after: minutes from then) follow. 数値は仮
+   retreat {sec, text, log} (user decision 2026-10-14): once `share` is sunk the enemy falls back first: every enemy fleet withdraws
+   (no fire, its craft called back, north; an assault ship in a ring puts nothing down), nothing more comes, and after `sec` seconds
+   of the battle the result follows. text goes in the goal panel meanwhile */
+let mainTotal=0, surged=false, repelBy=null, repelT=null;
 function mainSunk(){ let s=0; for(const f of fleets) if(f.team===1&&f.main) s+=f.n-f.ships.length; return mainTotal?s/mainTotal:0; }
 function stepRepel(){
   const W=op.win; if(!W||W.type!=='repel'||over) return;
@@ -856,6 +868,10 @@ function stepRepel(){
   if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true;
     const add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
     opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
+  if(repelT!=null){ if(gameSec-repelT>=W.retreat.sec) end(true); return; }
+  if(k>=W.share&&W.retreat){ repelBy='sunk'; repelT=gameSec; stageText=W.retreat.text||stageText;
+    for(const f of fleets) if(f.team===1&&f.alive&&!f.fixed){ f.ai='withdraw'; f.order=null; }
+    if(W.retreat.log) logEvent(...W.retreat.log); return; }
   if(k>=W.share||now>=W.until){ repelBy=k>=W.share?'sunk':'time'; end(true); }
 }
 
@@ -872,7 +888,8 @@ function stepTimeUp(){
 function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
-  while(nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
+  /* nothing more comes once the enemy falls back (stepRepel) */
+  while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
     /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
     if(E.fleet){ const jp=[E.fleet.pos[0]+(Math.random()-.5)*6,E.fleet.pos[1]+(Math.random()-.5)*6], r=makeFleet(1,{leash:0,...E.fleet,pos:E.rel?relPos(jp):jp}); fleets.push(r);
@@ -880,8 +897,12 @@ function step(dt){
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
     /* shift [dx, dz]: an allied fleet's post moves forward (第5節: ウォン中将 brings the battleships up) */
-    if(E.ai&&E.ai.log&&fleets.some(f=>f.alive&&E.ai.fleets.includes(f.name))) logEvent(...E.ai.log);   // said only if one of them is still there
-    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)){ if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; } } else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
+    /* drops:[名前…] (第5節: the reserve goes where the defence is thinnest): the open drop point among these with the fewest of our ships
+       and the allies' near it. Assault ships make for it (drop), the others wait there (watch). {drop} in the log is its name */
+    const dp=E.ai&&E.ai.drops?weakDrop(E.ai.drops):null;
+    if(E.ai&&E.ai.log&&fleets.some(f=>f.alive&&E.ai.fleets.includes(f.name))) logEvent(E.ai.log[0],E.ai.log[1].replace('{drop}',dp?dp.name:''));   // said only if one of them is still there
+    if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)&&!(f.fellBack&&E.ai.ai!=='withdraw')){ if(dp){ if(E.ai.ai==='land'){ f.drop=dp.name; f.dropAt=null; } else f.watchPos=new THREE.Vector3(dp.pos.x,0,dp.pos.z); }
+      if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; } } else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.log) logEvent(...E.log);
     if(E.scene) playScene(E.scene);   // lines that pause the battle (story on)
