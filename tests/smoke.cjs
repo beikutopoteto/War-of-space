@@ -632,7 +632,7 @@ function check(ok, label, detail = '') {
       while (!fleets.some(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive) && gameSec * CLOCK_RATE < at + 10 && !over) step(.05);
       const main = fleets.find(f => f.name === '第1 主力砲撃 エスカドラ' && f.alive), us = fleets.find(f => f.name === '第18 護送護衛 支隊');
       if (!main) return { main: false };
-      /* above the clouds (the lane is full of them since 2026-10-12), so neither is hidden */
+      /* above the clouds (they are scattered over the whole field since 2026-10-14), so neither is hidden */
       main.pos.y = 120; us.pos.copy(main.pos).add(new THREE.Vector3(0, 0, 40)); main.inCloud = inCloud(main); us.inCloud = inCloud(us); main.blindT = 0; updateFog(); enemyAI();
       const t = main.order && main.order.target;
       return { main: true, seen: us.seen, chase: !!(t && main.order.type === 'attack' && t.team === 0 && t.seen), target: t && t.name, spot: spotNow }; });
