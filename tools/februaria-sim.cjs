@@ -3,7 +3,7 @@
    a: 駐屯隊が揚陸艦を優先して叩く  d: 駐屯隊を段階ごとの持ち場（作戦フィールドの中心）へ動かし、近づく揚陸艦と持ち場の近くの敵を叩く（ふつうの遊び方）  b: 駐屯隊は何もしない（友軍と砲台だけで持つか）  c: 駐屯隊が見えた敵をどこまでも追う
    g: 持ち場にいて、近づいた突撃揚陸艦からは下がり（揚陸艦は砲台に任せる）、持ち場の近くの護衛を叩く（第5節の案内どおりの遊び方。2026-10-12）
    行の読み方: 時刻 段階 sunk=主力の撃沈の割合 drop=降下点（o 無事 / L 揚陸中 / X 占拠） bt=鳴っている砲台 al=友軍の隻数 me=駐屯隊 en=敵。
-   最後に勝ち負け「over outcome loseWhy repelBy」 */
+   最後に勝ち負け「over outcome loseWhy repelBy」と、敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台。艦載機はその母艦に数える。2026-10-14） */
 const { openGame } = require('./browser.cjs');
 (async () => {
   const { browser, page, errors } = await openGame();
@@ -14,6 +14,11 @@ const { openGame } = require('./browser.cjs');
   await page.click('#deployGo').catch(()=>{});
   const strat=process.argv[2]||'a';
   const r = await page.evaluate((strat) => {
+    const cat=s=>s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;
+    window.damage=function(t,amt,src){ const o=src.kind==='wing'&&src.carrier?src.carrier:src, hit=t.team===1&&t.main&&t.kind==='fleet'&&t.alive, had=hit?t.ships.length:0;
+      if(hit) dmgBy[cat(o)]=(dmgBy[cat(o)]||0)+Math.min(amt,t.hpPool);
+      _d(t,amt,src);
+      if(hit){ const k=had-(t.alive?t.ships.length:0); if(k>0) sinkBy[cat(o)]=(sinkBy[cat(o)]||0)+k; } };
     const log=[]; const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&f.alive);
     const L=(t='')=>log.push(`${clockStr()} ${phaseName} sunk=${Math.round(mainSunk()*100)}% drop=${drops.map(d=>d.taken?'X':d.state==='landing'?'L'+Math.round(d.prog):'o').join('')} bt=${fleets.filter(f=>f.fixed&&f.alive&&!f.silent).length} al=${fleets.filter(f=>f.ally&&!f.fixed).map(f=>f.alive?f.ships.length:'-').join('/')} me=${fleets.filter(f=>f.team===0&&!f.ward).map(f=>f.alive?f.ships.length:'-').join('/')} en=${fleets.filter(f=>f.team===1&&f.alive).map(f=>f.name.replace(/ エスカドラ/,'').replace(/ /,'').slice(0,5)+f.ships.length+(f.seen?'':'?')+(f.ai==='land'?`@${Math.round(f.pos.x)},${Math.round(f.pos.z)}`:'')).join(',')} ${t}`);
     L('start '+mine().map(f=>`${f.name.slice(0,5)}:${f.n}x${f.hp.toFixed(1)} d${f.dmg.toFixed(2)} r${f.range.toFixed(0)} s${f.speed}`).join(' '));
@@ -33,8 +38,10 @@ const { openGame } = require('./browser.cjs');
       if(strat==='c') for(const f of mine()) if(!f.order){ const e=en.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]; if(e) order(f,{type:'attack',target:e}); }
       if(n%100===0) L();
     }
-    L('end'); return {log, over, outcome, loseWhy, repelBy};
+    L('end'); const tot=Object.values(dmgBy).reduce((a,b)=>a+b,0)||1;
+    return {log, over, outcome, loseWhy, repelBy, sec:Math.round(gameSec), share:Object.entries(dmgBy).map(([k,v])=>`${k}:${Math.round(v/tot*100)}%`).join(' '), sinkBy:JSON.stringify(sinkBy)};
   }, strat);
   console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, r.repelBy, errors.slice(0, 3));
+  console.log(`${r.sec}秒 打撃 ${r.share} 撃沈 ${r.sinkBy}`);
   await browser.close();
 })();
