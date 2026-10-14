@@ -808,7 +808,7 @@ function landAI(f){
   if(f.pos.distanceTo(d.pos)>d.r*.5) moveTo(f,d.pos.x,d.pos.y,d.pos.z); else if(f.order&&f.order.type==='move') f.order=null;
 }
 function stepLanding(dt){
-  const L=op.landing; if(!L||over||repelT!=null) return;
+  const L=op.landing; if(!L||over) return;   // once the enemy falls back (stepRepel) no ship is ai:'land', so the rings clear
   for(const d of drops){ if(d.taken) continue;
     const at=fleets.filter(f=>f.alive&&f.team===1&&f.ai==='land'&&!f.landed&&f.pos.distanceTo(d.pos)<=d.r);
     if(!at.length){ d.prog=0; d.state='ours'; continue; }
