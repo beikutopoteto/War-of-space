@@ -790,6 +790,12 @@ function check(ok, label, detail = '') {
       r.toBattery = !!a.order && (a.order.type === 'attack' ? a.order.target.fixed : fleets.some(f => f.fixed && f.alive && f.pos.distanceTo(a.order.dest) < 1));
       { const al = fleets.filter(f => f.ally && f.alive), aims = new Map(); al.forEach(f => aims.set(f.aim, (aims.get(f.aim) || 0) + 1));
         r.batteryShare = al.every(f => f.aim && f.aim.fixed) && Math.max(...aims.values()) <= 2; al.forEach(f => { f.order = null; f.aim = null; }); }
+      /* one foe left in reach (user decision 2026-10-14, op.allySplit): no more than two of the six go for it, the rest hold their posts */
+      { const bs = fleets.filter(f => f.fixed && f.team === 1 && f.alive), one = gs[0], al = fleets.filter(f => f.ally && f.alive);
+        bs.forEach(f => f.alive = false); one.alive = true; one.seen = true; al.forEach(f => { f.order = null; f.aim = null; f.pos.copy(f.post); });
+        allyAI(); allyAI(); const on = al.filter(f => f.aim === one).length, rest = al.filter(f => f.aim !== one);
+        r.split = op.allySplit && on >= 1 && on <= 2 && rest.length >= 4 && rest.every(f => !f.aim && !(f.order && f.order.type === 'attack'));
+        r.splitOn = on; bs.forEach(f => f.alive = true); al.forEach(f => { f.order = null; f.aim = null; }); }
       gs.forEach(f => f.alive = true); a.order = null;
       /* the port is shut until its control is opened from inside (body.port.openAt): stopped in the ring, the carrier waits */
       const P = op.body.port; opCarrier.pos.set(P.pos[0], P.alt || 0, P.pos[1]); opCarrier.order = null; step(.05); step(.05);
@@ -859,7 +865,7 @@ function check(ok, label, detail = '') {
     check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
     check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
     /* 5 × (1 − eva .16) × perDmg 2 ÷ the hit points multiplier 2 (2026-10-13: the same lives for twice the fire) */
-    check(d1.zoneCost === 4.2 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）', JSON.stringify(d1));
+    check(d1.zoneCost === 4.2 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る（2026-10-14）', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evacWait && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まる（着陸から evac.min 分までは待つ）。24分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 2000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,000人。本軍の戦艦の7割が沈むか、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
@@ -869,7 +875,7 @@ function check(ok, label, detail = '') {
     check(d1.wait.all && d1.wait.blocks === 3 && d1.wait.most === 2 && d1.wait.sep >= 14 && d1.wait.heights >= 3 && d1.wait.notHome && d1.wait.goes,
       'デナリの盾: 本軍は敵（砲台も）を倒し終えると、持ち場へ戻らず、ばらけて居住区の近く（民間区画の縁の外）で待つ。3つの居住区に2隊ずつ、離れて、高さを変えて', JSON.stringify(d1.wait));
     check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
-    check(d1.clock === .6 && d1.boardSec === 200 && d1.back === 2, 'デナリの盾: 時計は大規模の長さに合わせて進み（span 630分を1,050秒。2時間の収容に戦闘の200秒）、着陸するとまず2隊が戻ってくる', JSON.stringify(d1));
+    check(Math.abs(d1.clock - 630 / (1050 * .85)) < 1e-9 && d1.boardSec === 170 && d1.back === 4, 'デナリの盾: 時計は大規模の長さに合わせて進み（span 630分を1,050秒の85%。2時間の収容に戦闘の170秒）、着陸すると4隊が同時に戻ってくる（2026-10-14）', JSON.stringify(d1));
     await page.waitForTimeout(2200);
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
