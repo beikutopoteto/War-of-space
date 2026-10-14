@@ -806,7 +806,7 @@ function check(ok, label, detail = '') {
       const kz = back[0], kp = kz.pos.clone(); kz.pos.copy(blocks[1].pos).add(new THREE.Vector3(4, 0, 0)); keepOutOfZones(kz); r.keptOut = !inZone(kz); kz.pos.copy(kp);
       /* no allied unit is left behind in the rear; told to protect, each takes what it is given (Wong's on Yukon), outside every zone */
       r.noRear = fleets.filter(f => f.ally).every(f => f.leash >= 300);
-      const pa = fleets.find(f => f.ally && f.alive), pb = fleets.find(f => f.name === '第4 砲戦突破 支隊');
+      const pa = fleets.find(f => f.ally && f.alive), pb = fleets.find(f => f.name === '第20 ドナウ前衛 支隊');
       [pa, pb].forEach(f => { f.mode = 'protect'; protectAI(f); });
       r.protectOut = !!pa.order && blocks.every(b => Math.hypot(pa.order.dest.x - b.pos.x, pa.order.dest.z - b.pos.z) >= op.civil.r) && pa.protects === opCarrier && pb.protects === blocks[0];
       [pa, pb].forEach(f => { f.mode = 'guard'; f.order = null; });
@@ -902,7 +902,7 @@ function check(ok, label, detail = '') {
       const esc = makeFleet(1, { name: '試験 護衛', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 20, speed: 0, scale: 1, pos: [0, 60], alt: 0, ai: 'hunt', prey: 'battery', vis: 6, stl: 4 });
       fleets.push(esc); bt.forEach(f => { f.seen = true; }); me.seen = true; me.pos.set(0, 0, 55); enemyAI(); r.battery = !!(esc.order && esc.order.target && esc.order.target.fixed); me.pos.copy(p0);
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
-      const g0 = bt[0]; damage(g0, g0.hpPool + 1, esc); logEvent = logE; r.gunLog = said.some(t => t.includes('砲台がやられました'));
+      const g0 = bt[0]; damage(g0, g0.hpPool + 1, esc); logEvent = logE; r.gunLog = !said.some(t => t.includes('砲台がやられました'));   // the line was removed (user decision 2026-10-14)
       esc.alive = false; esc.el.remove();
       const ally = (name, z, last) => { const a = makeFleet(0, { name, sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, z], alt: 0, ally: true, preyLast: last, vis: 6, stl: 4 }); a.seen = true; fleets.push(a); return a; };
       const near = ally('試験 最後', -100, true), farA = ally('試験 先', -112, false);
@@ -930,7 +930,7 @@ function check(ok, label, detail = '') {
     check(f1.stage0 && f1.stage1 && f1.slid, 'フェブルアーリア防衛戦: 4つの段階。時刻になると次の持ち場が輪で示され、作戦フィールドの中心がそこへ滑る。外に残った艦はそれより外へは出られない', JSON.stringify(f1));
     check(f1.op === 'februaria' && f1.bb && f1.allies === 13 && f1.bt === 8 && f1.onRock && f1.centre && f1.sky && f1.drops === 3 && f1.dropsUp && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍13隊（2026-10-14 の兵力の見直し）と地表の砲台8基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
-    check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 揚陸と総攻撃の護衛の重巡洋艦は地表の砲台を先に狙い、砲台が沈むと通信が入る（2026-10-13）', JSON.stringify(f1));
+    check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 揚陸と総攻撃の護衛の重巡洋艦は地表の砲台を先に狙う（2026-10-13）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.hold === 12 && f1.taken && f1.silent && f1.goal && f1.lost, 'フェブルアーリア防衛戦: 揚陸艦が降下点の輪で12分止まると占拠され、まわりの砲台が沈黙する。司令部が占拠されると負け', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
