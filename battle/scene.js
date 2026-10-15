@@ -321,10 +321,19 @@ function makeBodyShape(B){
   if(B.face){ g=new THREE.SphereGeometry(1,B.seg?B.seg[0]:360,B.seg?B.seg[1]:120,0,Math.PI*2,0,B.faceA||.9);
     g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir(B.face)))); }
   else g=new THREE.IcosahedronGeometry(1,56);   // fine enough for the trenches (about 63,000 faces)
-  const pos=g.attributes.position, v=new THREE.Vector3();
-  for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize(); v.multiplyScalar(R(v)); pos.setXYZ(i,v.x,v.y,v.z); }
-  g.computeVertexNormals();
-  return {R,geo:g,towns,craters,grooves,mine:M};
+  /* the rest of it, the side away from the field (2026-10-15, user decision: make the back too), coarser. It starts on the cap's edge with
+     as many points around, so the two meet without a gap, and the normals along the seam are shared so no line shows. It is only seen,
+     not hit (the rays and the push-out use the cap and R) */
+  let back=null;
+  if(B.face){ const W=B.seg?B.seg[0]:360, A=B.faceA||.9, rows=Math.max(12,Math.round((B.seg?B.seg[1]:120)*(Math.PI-A)/A/1.5));
+    back=new THREE.SphereGeometry(1,W,rows,0,Math.PI*2,A,Math.PI-A); back.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir(B.face)))); }
+  const v=new THREE.Vector3();
+  for(const geo of back?[g,back]:[g]){ const pos=geo.attributes.position;
+    for(let i=0;i<pos.count;i++){ v.fromBufferAttribute(pos,i).normalize(); v.multiplyScalar(R(v)); pos.setXYZ(i,v.x,v.y,v.z); }
+    geo.computeVertexNormals(); }
+  if(back){ const W=B.seg?B.seg[0]:360, H=B.seg?B.seg[1]:120, gn=g.attributes.normal, bn=back.attributes.normal;
+    for(let ix=0;ix<=W;ix++){ const i=H*(W+1)+ix; v.fromBufferAttribute(gn,i).add(_bd.fromBufferAttribute(bn,ix)).normalize(); gn.setXYZ(i,v.x,v.y,v.z); bn.setXYZ(ix,v.x,v.y,v.z); } }
+  return {R,geo:g,back,towns,craters,grooves,mine:M};
 }
 function buildBody(B,zoneR){
   for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
@@ -332,6 +341,7 @@ function buildBody(B,zoneR){
   if(B.c){ bodyC.set(...B.c); bodyObj.position.copy(bodyC); }
   bodyShape=makeBodyShape(B);
   const core=new THREE.Mesh(bodyShape.geo,bodyMat); bodyObj.add(core); bodyObj.updateMatrixWorld(true); bodyCore=core;
+  if(bodyShape.back) bodyObj.add(new THREE.Mesh(bodyShape.back,bodyMat));   // the far side (seen only)
   const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
   (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]).sub(bodyC), g=new THREE.Group();
