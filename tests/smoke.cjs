@@ -886,6 +886,9 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     const d3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(d3.cleared.includes('denali') && d3.funds === 2200 + 600, 'デナリの盾: クリアが記録され、報酬が入る', JSON.stringify(d3));
+    /* where the player has to take a ship (the carrier's exit) lies inside the clickable field, ring and all (2026-10-15: it was at 212) */
+    const ex = await page.evaluate(() => WOS_DATA.operations.filter(o => o.carrier).map(o => { const E = o.carrier.exit; return { id: o.id, out: Math.hypot(E.pos[0], E.pos[1]) + (E.r || 12) }; }));
+    check(ex.length && ex.every(e => e.out <= 200), '撤退の離脱点は、輪ごと作戦フィールドの中心から200以内（クリックできる範囲）', JSON.stringify(ex));
     /* 第5節 フェブルアーリア防衛戦: a body far larger than the field to the south, the Earth behind it, a battleship lent from the yard,
        friendly batteries on the rock; an assault ship that stays in a drop ring takes the point (2 points, or the HQ, lose it);
        holding until 18:00 wins, and the battleship branch opens */
