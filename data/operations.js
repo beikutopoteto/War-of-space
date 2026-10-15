@@ -90,6 +90,11 @@ window.WOS_DATA=window.WOS_DATA||{};
    body.port.openAt: その時刻（分）まで宇宙港に着陸できない（輪の中で止まっていても待つ。任務欄に「管制 閉鎖中」）
    carrier.evac.min: 着陸から min 分たつまでは作戦変更にしない。carrier.cut.max: 収容を max 分したら必ず切り上げる
    carrier.doneEvents: 切り上げ（か満員）から何分後かの出来事（events と同じ形）。evacEvents などの wave:true の出来事は、そのときまだ来ていなければ捨てる
+   events の mass:{plus, own:[艦隊], types:[{n, was?, nums, fleet}], at:[[x,z,alt],…]}（2026-10-15、第4節の後半）: 敵を一度に出す。隊の数は、そのとき残っている
+     自軍と友軍の隊の数＋plus。own はそのまま出る隊（数に入る）。残りの隊に、types の艦種ごとの隻数 n（と W.A.S. の was）を隻数の割合で分ける（艦種ごとに1隊以上）。
+     fleet は形の見本で、名前の {n} に nums の番号が順に入る。at の場所に順に出る。log の {units} に出た隊の数が入る
+   ai:'detail'（各個撃破。2026-10-15）: この隊どうしで動きを合わせ、いちばん孤立したこちらの隊（まわり45以内のこちらの隻数が少ない。preyLast は最後）に
+     2隊以上で当たり、ほかの隊にはその近くから1隊ずつ当てて足止めする
    talk の {lost}: 本軍の戦艦の隊（carrier.line）のうち帰らなかった割合（「7割」。離脱点から抜けた艦は帰ったと数える。全部なら「すべて」）
    phases の given: その段階の始めに預かる艦 [艦隊]（op.given と同じ。自軍の一覧の最後に足す）
    （第3節からある仕組み）友軍の retreat:{below, to:[x,z], alt?, log?}: 隻数が below（割合）を切ると持ち場を to へ下げる（半分の below で to まで。log は下がり始めたときの通知）
@@ -731,33 +736,23 @@ WOS_DATA.operations=[
         {after:40, log:['ハッダード曹長', '「砲撃が止みました。……今のは、見せしめです」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'hunt'}},
         {after:66, log:['ハッダード曹長', '「赤い W.A.S. ……ほかのとは色が違います。あれが隊長機です」']},
       ],
-      /* 作戦変更から何分後かの出来事。2波目: ユーコンを狙う重巡洋艦が、本軍のいない北東から来る（ユーザー決定 2026-10-10: ユーコンも少し狙う。prey:'carrier'）。
-         そのあとは約42分（実時間の約70秒）ごとに方向を変えて、主力の先頭が戻ってくる（2026-10-12、wos-strategy の案: 圧力を絶やさない。波が途切れると本軍が敵を
-         片付けて満員になる。時刻・位置・隻数は仮）。wave:true の出来事は、切り上げ（か満員）のときにまだ来ていなければ捨てる */
+      /* 作戦変更から何分後かの出来事。
+         2026-10-15（ユーザー決定）: 後半の敵は、総数を変えずに一度に襲わせる。隊の数は、そのとき残っている自軍と本軍の隊の数＋1。
+         敵は各個撃破を狙う（ai:'detail'。孤立した隊に2隊以上で当たり、ほかの隊は1隊ずつで足止めする）。前は、下の重巡洋艦と突撃揚陸艦の
+         8隊（50隻、W.A.S. 220）が約42分（実時間の約70秒）ごとに方向を変えて1隊ずつ来た（2026-10-12、wos-strategy の案）。
+         ユーコンを狙う第6 重巡洋艦（ユーザー決定 2026-10-10: ユーコンも少し狙う。prey:'carrier'）はそのまま1隊で来て、数に入る。
+         残りの44隻を、重巡洋艦18隻・突撃揚陸艦26隻（W.A.S. 220）として隊に分け直す。来る場所は前の7隊の場所（時刻は前の第6 と同じ24分。仮） */
       evacEvents:[
-        {after:24, fleet:{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:45, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
-          log:['ハッダード曹長', '「北東から重巡洋艦の1隊！　ユーコンへ向かっています。区画の外で叩いてください」']},
-        /* 第3波: アルバレスの指揮の下の第9（第8 と同じ） */
-        {after:53, wave:true, fleet:{name:'第9 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:40}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[-118,-25], alt:-45, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12},
-          arrow:{pos:[-50,10]}, log:['ハッダード曹長', '「西の下、居住区B の陰から揚陸艦！　第3波です」']},
-        /* 主力の先頭（月面から戻る）。重巡洋艦はユーコンを狙わない。突撃揚陸艦（W.A.S.60）は友軍を先に狙い、撤退は追わない */
-        {after:95, wave:true, fleet:{name:'第3 重巡洋 エスカドラ', sub:'共和国主力の先頭 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[-30,-200], alt:35, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
-          arrow:{pos:[-10,-60]}, log:['ハッダード曹長', '「北の遠く、新しい艦影。……月面へ向かった主力の先頭です」']},
-        {after:98, wave:true, log:['ウォン中将', '「主力が戻る。盾の残りで、どれだけ持たせられるかだ」']},
-        {after:137, wave:true, fleet:{name:'第10 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:6, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:60}, craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[130,-20], alt:-25, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12},
-          arrow:{pos:[40,0]}, log:['ハッダード曹長', '「東の下、雲の端から揚陸艦！　主力の W.A.S. です」']},
-        {after:179, wave:true, fleet:{name:'第2 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[-110,-120], alt:70, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
-          arrow:{pos:[-40,-30]}, log:['ハッダード曹長', '「北西の上、重巡洋艦！　居住区B の上へ」']},
-        {after:221, wave:true, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:6, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:60}, craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[20,-190], alt:50, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12},
-          arrow:{pos:[0,-50]}, log:['ハッダード曹長', '「北からまた揚陸艦！　……終わりが見えません」']},
-        {after:263, wave:true, fleet:{name:'第1 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[140,60], alt:10, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
-          arrow:{pos:[50,40]}, log:['ハッダード曹長', '「東から重巡洋艦！　宇宙港の上へ」']},
-        {after:305, wave:true, fleet:{name:'第12 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:6, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
-          hangar:{was:60}, craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[-150,-60], alt:-30, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12},
-          arrow:{pos:[-50,0]}},
+        {after:24, wave:true, mass:{plus:1,
+          own:[{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:45, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
+          types:[
+            {n:18, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+            {n:26, was:220, nums:[9,10,11,12,13,14,15,16,17,18,19], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
+              craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
+          ],
+          at:[[-118,-25,-45],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[140,60,10],[-150,-60,-30]]},
+          log:['ハッダード曹長', '「全方位から艦影、{units}隊！　月面へ向かった主力が、一度に戻ってきました」']},
+        {after:26, wave:true, log:['ウォン中将', '「主力が戻る。盾の残りで、どれだけ持たせられるかだ。……離れるな。はぐれた隊から食われるぞ」']},
       ],
       /* 切り上げ（か満員）から何分後かの出来事（2026-10-12、wos-strategy の案。時刻・位置・隻数は仮）: 西の下から駆逐艦が離脱点へ回り込み、ユーコンを狙う */
       doneEvents:[

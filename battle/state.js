@@ -348,7 +348,7 @@ function reset(cfg=lastCfg){
     if(b){ at.sub(bodyC).normalize(); at.multiplyScalar(bodyShape.R(at)+(d.up||8)).add(bodyC); }
     return {...d,pos:at,prog:0,taken:false,state:'ours'}; });
   dropRings=buildDrops(drops);
-  surged=false; repelBy=null; repelT=null;
+  surged=false; repelBy=null; repelT=null; detailFocus=null;
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
