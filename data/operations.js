@@ -776,15 +776,16 @@ WOS_DATA.operations=[
        戦艦の7割が沈む（ユーザー決定 2026-10-09。数値は早送りで合わせる）。撤退で離脱点へ下がる。
        大規模の長さにしたとき（2026-10-12、wos-strategy の案）、戦艦の4隊の耐久を5倍（110→550）、巡洋艦の2隊を3倍（22→66）にした（仮。収容のあいだ持つように）。
        アマゾン残存隊もウォン中将の隊と同じく最後に狙われる（preyLast、仮）。
-       2026-10-13（ユーザー決定）: 耐久2倍の倍率がかかるので、データは戦艦550→275、巡洋艦66→33（戦闘では前と同じ値）。物語では、第5節の艦は修理中で装甲が十分でない */
+       2026-10-13（ユーザー決定）: 耐久2倍の倍率がかかるので、データは戦艦550→275、巡洋艦66→33（戦闘では前と同じ値）。物語では、第5節の艦は修理中で装甲が十分でない
+       2026-10-15（ユーザー決定）: 後半を一度に出したあと持たないので、6隊とも1.2倍（戦艦275→330、巡洋艦33→40。40は39.6を丸めた） */
     allies:[
-      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
-      {name:'第13 ドナウ主力 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
-      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier', preyLast:true},
+      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:4, cl:4}, n:8, hp:330, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[-32,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'carrier', preyLast:true},
+      {name:'第13 ドナウ主力 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:330, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[38,90], alt:0, vis:6, stl:3, leash:300, hold:true, protect:'block:1'},
+      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:40, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[-60,92], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'carrier', preyLast:true},
       /* 本軍の隊の数は2倍（ユーザー決定 2026-10-10）。足した3隊の位置は仮 */
-      {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
-      {name:'第20 ドナウ前衛 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:275, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
-      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:33, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
+      {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, hp:330, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
+      {name:'第20 ドナウ前衛 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, hp:330, dmg:2.4, eva:.06, range:23, speed:5.5, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
+      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, hp:40, dmg:2, eva:.14, range:19, speed:5.5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
     ],
     /* 守備隊（盾）: 損害が半分を超えると持ち場の居住区のそばへ下がる。着陸すると、こちらの艦を狙いに出る（ai:'hunt'。ユーザー決定 2026-10-10: 居住区は撃たない）。
        対空砲台: デナリの表面に置く動かない敵（ユーザー決定 2026-10-09）。艦載機をよく落とす。撃っても住民に被害は出ない（岩の上。ユーザー決定 2026-10-10）。
