@@ -215,6 +215,7 @@ function startDeploy(){
   [ring,disc].forEach(m=>{ m.rotation.x=-Math.PI/2; deployZone.add(m); }); deployZone.position.set(Z.c.x,.15,Z.c.z); deployZone.visible=true;
   deployEl.hidden=false; hideHint();
   const g=groups.find(x=>groupAlive(x).length); if(g) setSel(groupAlive(g),g);
+  if(autoMode) endDeploy();   // the debug auto mode starts with the fleets where they stand
 }
 function endDeploy(){ if(!deploying) return; deploying=false; deployZone.visible=false; deployEl.hidden=true; }
 document.getElementById('deployGo').addEventListener('click',endDeploy);
@@ -314,6 +315,7 @@ document.getElementById('toMenu').addEventListener('click',()=>{ document.getEle
 function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
 /* entry point used by the preparation screens (prep.js) */
 window.WOS={ start(cfg){
+  autoMode=document.body.classList.contains('dbg-auto');   // the debug auto mode (prep.js; sim.js autoAI)
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startOp();
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */

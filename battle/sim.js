@@ -892,6 +892,56 @@ function stepTimeUp(){
   if(now>=T.at){ loseWhy='time'; end(false); }
 }
 
+/* debug auto mode (user decision 2026-10-15: a switch in the title's debug panel). Our own fleets fight and do the operation's goal by
+   themselves, built on how the fast-forward tools play (tools/*-sim.cjs); the talk and the deploy step go on by themselves (hud.js, loop.js).
+   Each fleet goes for the nearest enemy in sight around what it guards (enemies in a civilian zone are left alone), else waits around it:
+   escort: the convoy (an enemy far stronger than all of us is not taken on: we keep out of its way), and one fleet goes for the distress
+   call; defend: the station; carrier (第4節): first the enemies nearest the spaceport, the carrier goes in once the port is open and
+   clear, then the fleets keep round the carrier, which leaves for the exit when the boarding ends; drop points (第5節): the assault ship
+   nearest an open drop point first, then what comes near the field's centre; fortress: its guard when it runs, else the nearest fleet,
+   then the fortress. Distances are 仮 */
+let autoMode=false;
+const AUTO_R={escort:45, defend:60, port:45, carrier:50, drop:150, field:90}, AUTO_WAIT=12;
+function autoAI(){
+  if(!autoMode||over) return;
+  const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.convoy&&!f.isCarrier&&!f.fixed&&!f.rescue);
+  const seen=fleets.filter(e=>e.team===1&&e.alive&&e.seen&&!(op.civil&&inZone(e)));
+  const ships=seen.filter(e=>!e.fixed), near=(p,R,list=ships)=>list.filter(e=>e.pos.distanceTo(p)<R);
+  const by=(f,list,key)=>list.slice().sort((a,b)=>key(a,f)-key(b,f))[0];
+  const dist=(a,f)=>a.pos.distanceTo(f.pos), craftFirst=(a,f)=>(a.hangars&&a.hangars.length?0:100)+a.pos.distanceTo(f.pos);
+  const attack=(f,e)=>{ if(!(f.order&&f.order.type==='attack'&&f.order.target===e)) order(f,{type:'attack',target:e}); };
+  /* wait round p, each fleet on its own spot of a ring */
+  const wait=(f,p,i)=>{ const a=i*2.4, d=new THREE.Vector3(p.x+Math.cos(a)*AUTO_WAIT,p.y||0,p.z+Math.sin(a)*AUTO_WAIT);
+    if(f.order&&f.order.type==='attack') f.order=null;
+    if(f.pos.distanceTo(d)>6&&!(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(d)<4)) order(f,{type:'move',dest:d}); };
+  const guard=(p,R,key=dist,list=ships)=>mine.forEach((f,i)=>{ const e=by(f,near(p,R,list),key); if(e) attack(f,e); else wait(f,p,i); });
+  /* escort */
+  if(op.convoy&&convoy){ if(!convoy.alive) return; const c=convoy.pos, power=u=>u.hpPool*u.dmg, ours=mine.reduce((s,f)=>s+power(f),0);
+    const strong=ships.filter(e=>power(e)>ours), tame=ships.filter(e=>!strong.includes(e));
+    mine.forEach(f=>{ f.stance=strong.some(e=>e.pos.distanceTo(c)<AUTO_R.escort+30)?'evade':'engage'; });
+    let rest=mine;
+    if(rescue&&!rescue.done&&!rescue.lost&&rescue.ship.alive&&mine.length>1){ const r=by(rescue.ship,mine,dist); rest=mine.filter(f=>f!==r);
+      if(r.pos.distanceTo(rescue.ship.pos)>8&&!(r.order&&r.order.type==='move'&&r.order.dest.distanceTo(rescue.ship.pos)<4)) order(r,{type:'move',dest:rescue.ship.pos.clone()}); }
+    rest.forEach((f,i)=>{ const e=by(f,near(c,AUTO_R.escort,tame),craftFirst); if(e) attack(f,e); else wait(f,c,i); }); return; }
+  /* defend the station */
+  if(op.win&&op.win.type==='defend'&&fortress&&fortress.alive){ guard(fortress.pos,AUTO_R.defend,craftFirst); return; }
+  /* 第4節: the carrier */
+  if(op.carrier&&opCarrier&&opCarrier.alive){ const S=opCarrier.cs, P=op.body&&op.body.port, port=P&&new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
+    if(!S.landed&&port){ const threats=near(port,AUTO_R.port,seen);
+      mine.forEach((f,i)=>{ const e=by(f,threats,(a)=>a.pos.distanceTo(port))||by(f,ships,dist); if(e) attack(f,e); else wait(f,port,i); });
+      if(portOpen()&&(!threats.length||gameSec*CLOCK_RATE>=(P.openAt||0)+40)&&opCarrier.pos.distanceTo(port)>2&&!(opCarrier.order&&opCarrier.order.type==='move'))
+        order(opCarrier,{type:'move',dest:port.clone()});
+      return; }
+    if(S.done&&!(opCarrier.order&&opCarrier.order.type==='move')) order(opCarrier,{type:'move',dest:S.exit.clone()});
+    guard(opCarrier.pos,AUTO_R.carrier,craftFirst); return; }
+  /* 第5節: the drop points */
+  if(op.landing&&drops.length){ const open=drops.filter(d=>!d.taken), toDrop=e=>Math.min(...open.map(d=>d.pos.distanceTo(e.pos)));
+    const landing=ships.filter(e=>e.ai==='land'&&!e.landed&&e.pos.distanceTo(fieldC)<AUTO_R.drop&&open.length).sort((a,b)=>toDrop(a)-toDrop(b));
+    mine.forEach((f,i)=>{ const e=landing[0]||by(f,near(fieldC,AUTO_R.field),dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
+  /* the exercise: the fortress */
+  if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
+  mine.forEach((f,i)=>{ const e=by(f,ships,dist)||(fortress&&fortress.alive&&fortress.team===1?fortress:null); if(e) attack(f,e); else wait(f,fieldC,i); });
+}
 function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
@@ -917,7 +967,7 @@ function step(dt){
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
-  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers();}
+  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI();}
   stepDefend(dt); stepLanding(dt); stepRepel(); stepPhases(dt); stepTimeUp();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
