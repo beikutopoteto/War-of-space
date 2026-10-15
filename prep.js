@@ -88,10 +88,10 @@ const prog=()=>save.prog;
 
 /* ---------- debug switches (kept apart from the save, so resetting the progress keeps them) ---------- */
 const DKEY='wos.debug';
-let dbg={free:false, battle:false};
+let dbg={free:false, battle:false, auto:false};
 try{ Object.assign(dbg,JSON.parse(localStorage.getItem(DKEY)||'{}')); }catch(e){}
-function persistDbg(){ try{ localStorage.setItem(DKEY,JSON.stringify(dbg)); }catch(e){} document.body.classList.toggle('dbg-battle',!!dbg.battle); }
-document.body.classList.toggle('dbg-battle',!!dbg.battle);
+function persistDbg(){ try{ localStorage.setItem(DKEY,JSON.stringify(dbg)); }catch(e){} document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classList.toggle('dbg-auto',!!dbg.auto); }
+document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classList.toggle('dbg-auto',!!dbg.auto);
 
 /* ---------- options (the settings screen; kept apart from the save like the debug switches) ----------
    story: the conversations before and after an operation (off by default, user decision 2026-10-08). battle/hud.js reads window.WOS_OPT */
@@ -319,6 +319,7 @@ function renderDebug(){
   b.innerHTML=`
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
+    <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（自軍が自動で戦い、作戦の目標もこなす。会話と配置も自動で進む）</label>
     <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });

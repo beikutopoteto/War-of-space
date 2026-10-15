@@ -1067,6 +1067,19 @@ function check(ok, label, detail = '') {
     await page.click('#goBattle'); await page.waitForTimeout(1200);
     const off = await page.evaluate(() => ({ talking, hidden: document.getElementById('talk').hidden, story: WOS_OPT.story }));
     check(!off.talking && off.hidden && !off.story, 'オプション: ストーリーをオフにすると会話を出さない', JSON.stringify(off));
+    /* the debug auto mode (user decision 2026-10-15): a switch in the title's debug panel; the talk reads on by itself, the deploy step
+       ends by itself and our fleets get orders of their own (sim.js autoAI) */
+    await page.evaluate(() => openMenu());
+    await page.click('#mainNav [data-go="opt"]'); await page.click('[data-opt="story"]'); await page.click('[data-s="opt"] .back');
+    if (!(await page.isVisible('#dbgB [data-dbg="auto"]'))) await page.click('#dbgT');
+    await page.click('#dbgB [data-dbg="auto"]');
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="nile"]'); await page.click('#goBattle'); await page.waitForTimeout(400);
+    const au0 = await page.evaluate(() => ({ auto: autoMode, left: talkQ.length, talking }));
+    await page.waitForTimeout(2200);
+    const au = await page.evaluate(() => { const r = { left: talkQ.length }; while (talking) nextTalk(); r.deploying = deploying;
+      for (let i = 0; i < 40; i++) step(.05); r.orders = fleets.filter(f => f.team === 0 && !f.ward && f.alive && f.order).length; return r; });
+    check(au0.auto && au0.talking && au.left < au0.left && !au.deploying && au.orders > 0, 'デバッグ: オートモードでは会話が自動で進み、配置もそのまま始まり、自軍が自分で動く', JSON.stringify([au0, au]));
+    await page.evaluate(() => openMenu()); await page.click('#dbgB [data-dbg="auto"]');
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

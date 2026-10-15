@@ -31,10 +31,13 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 const _gm=new THREE.Matrix4(), _gx=new THREE.Vector3(), _gz=new THREE.Vector3();
 function groundGun(s,f){ _gz.copy(f.heading).addScaledVector(s.up,-f.heading.dot(s.up)); if(_gz.lengthSq()<1e-4) _gz.set(1,0,0).addScaledVector(s.up,-s.up.x); _gz.normalize();
   _gx.crossVectors(s.up,_gz).normalize(); _gm.makeBasis(_gx,s.up,_gz); o3.position.copy(s.base); o3.quaternion.setFromRotationMatrix(_gm); o3.scale.setScalar(f.scale); o3.updateMatrix(); }
-let last=performance.now(), time=0, rosterTick=0;
+let last=performance.now(), time=0, rosterTick=0, autoTalkAt=0;
+const AUTO_TALK=1.6;
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
   const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
+  /* the debug auto mode reads the talk on by itself, a line every AUTO_TALK seconds of real time (仮) */
+  if(autoMode&&talking&&!menuOpen){ if(!autoTalkAt) autoTalkAt=now; else if(now-autoTalkAt>=AUTO_TALK*1000){ autoTalkAt=now; nextTalk(); } } else autoTalkAt=0;
   if(dt>0) step(dt);
   skyObj.position.copy(camera.position); starField.position.copy(camera.position);   // the far sky does not grow or shrink with the zoom
   // ships
