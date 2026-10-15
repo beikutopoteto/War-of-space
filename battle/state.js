@@ -25,6 +25,8 @@ let chase=null, perfect=false;
 /* the hit points multiplier (user decision 2026-10-13: both sides twice as hard): op.hpScale or WOS_DATA.balance.hp, set in reset().
    Every fleet, craft, fortress and station gets it when the battle is built; the data and the fleet editor keep the base values */
 let HP_K=1;
+/* op.enemyHp (user decision 2026-10-15, 第1・2節 0.9): the enemy's ships and craft only, on top of HP_K */
+const hpK=team=>HP_K*(team===1&&op&&op.enemyHp||1);
 /* timeWarned: the time-up warning was said (sim.js stepTimeUp); gunLostSaid: the first lost gun on the base was told (第5節) */
 let timeWarned=false, gunLostSaid=false;
 let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
@@ -46,7 +48,7 @@ const AA=window.WOS_DATA.aa;
 function makeFleet(team,o){
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*HP_K,hpPool:o.n*o.hp*HP_K,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*hpK(team),hpPool:o.n*o.hp*hpK(team),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   if(o.postAt) f.post.set(o.postAt[0],o.alt||0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節 the vanguard)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).

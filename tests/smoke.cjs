@@ -577,6 +577,10 @@ function check(ok, label, detail = '') {
       const end = (op.convoy.depart + 10) / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
+    /* the enemy's hit points ×0.9 on this operation only (op.enemyHp, user decision 2026-10-15), ships and craft; ours as before */
+    const ehp = await page.evaluate(() => { const q = op.enemies[0], e = fleets.find(f => f.name === q.name), m = fleets.find(f => f.team === 0 && !f.convoy);
+      return { k: op.enemyHp, enemy: Math.abs(hpK(1) - HP_K * .9) < 1e-9 && Math.abs(e.hp - q.hp * HP_K * .9) < 1e-9, mine: hpK(0) === HP_K && m.hp === op.quick.find(x => x.name === m.name).hp * HP_K }; });
+    check(ehp.k === .9 && ehp.enemy && ehp.mine, 'ネオ信濃奇襲: 敵の耐久だけ0.9倍（自軍はそのまま）', JSON.stringify(ehp));
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
     const grp = await page.textContent('#roster .grpBtn').catch(() => '');
     check(grp.includes('第2 ネオ信濃駐屯 戦区軍'), 'ネオ信濃奇襲: 4隊が戦区軍「第2 ネオ信濃駐屯 戦区軍」にまとまる', grp);
@@ -1009,7 +1013,7 @@ function check(ok, label, detail = '') {
        nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */
     await page.click('[data-go="sortie"]');
     const mScale = await page.evaluate(() => document.querySelector('[data-op="nile"] em').textContent);
-    check(mScale.startsWith('中規模（目安 9〜15分）'), '戦闘の規模: 中規模の目安は9〜15分（2026-10-13）', mScale);
+    check(mScale.startsWith('中規模（目安 5〜8分）'), '戦闘の規模: 目安の長さは pace で縮めた実際の長さ（第3節は中規模の9〜15分 × 0.5 で5〜8分。2026-10-15）', mScale);
     await page.click('[data-op="charybdis"]'); await page.click('#goQuick'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     const tu = await page.evaluate(() => {
