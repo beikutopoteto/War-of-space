@@ -602,6 +602,7 @@ function pickFoe(f,foes,hunt){
 }
 function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
+  let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
     /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
@@ -615,6 +616,10 @@ function enemyAI(){
     if(f.prey==='battery'&&f.ai!=='guard'){ const gs=fleets.filter(x=>x.team===0&&x.alive&&x.fixed&&!x.silent);
       if(gs.length){ const g=pickFoe(f,gs,true); if(g&&!g.seen){ moveTo(f,g.pos.x,g.pos.y,g.pos.z); continue; } foes=gs; } }
     if(f.prey==='carrier'&&opCarrier&&opCarrier.alive&&opCarrier.seen&&op.civil){ carrierRaidAI(f); continue; }   // 第4節: one cruiser unit goes for Yukon
+    if(f.ai==='detail'){ if(dplan===undefined) dplan=detailPlan(all); const t=dplan&&dplan.get(f);   // 第4節の後半: 各個撃破
+      if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); }
+      else { const w=f.watchPos||f.post; if(f.pos.distanceTo(w)>2&&(!f.order||f.order.type!=='move')) f.order={type:'move',dest:w.clone()}; }
+      continue; }
     if(f.ai==='land'){ landAI(f); continue; }   // 第5節: the assault ships make for the drop points
     if(f.ai==='scout'){ scoutAI(f,foes); continue; }
     if(f.ai==='raid'){ raidAI(f); continue; }
@@ -942,6 +947,62 @@ function autoAI(){
   if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
   mine.forEach((f,i)=>{ const e=by(f,ships,dist)||(fortress&&fortress.alive&&fortress.team===1?fortress:null); if(e) attack(f,e); else wait(f,fieldC,i); });
 }
+/* an enemy fleet that comes in (events' fleet). It appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮).
+   rel: its pos and its arrow are relative to the field centre (a field that moves with the convoy) */
+function spawnEnemy(o,arrow,rel){
+  const jp=[o.pos[0]+(Math.random()-.5)*6,o.pos[1]+(Math.random()-.5)*6], r=makeFleet(1,{leash:0,...o,pos:rel?relPos(jp):jp}); fleets.push(r);
+  if(arrow){ const [ax,az]=rel?relPos(arrow.pos):arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,arrow.alt||0,az),TEAM_COL[1],{life:6}); }
+  return r;
+}
+/* mass (第4節の後半; user decision 2026-10-15): the enemy comes all at once, as many units as ours still in the battle (our own and
+   the allies') plus `plus` (1), and they break us one by one (ai:'detail'). own: units that come as they are (they count among them).
+   types: [{n, was?, fleet}] the rest by class: n ships (and was W.A.S.) shared out into the units left over, by each class's share of
+   the ships, at least one unit a class (so with few of ours left there may be one more). fleet is the template; {n} in its name is
+   the unit's number, taken in turn from nums. at: [[x, z, alt], …] where they come in, in turn (a second on the same spot comes
+   in 15 aside). The total of ships and W.A.S. stays what the data says. Returns how many units came. 数値は仮 */
+function spawnMass(M){
+  const ours=fleets.filter(f=>f.team===0&&f.alive&&!f.fixed&&!f.convoy&&!f.ghost&&!f.isCarrier).length;   // our own and the allies' (ward), not the convoy
+  const own=M.own||[], types=M.types||[], m=Math.max(types.length,ours+(M.plus==null?1:M.plus)-own.length), tot=types.reduce((s,t)=>s+t.n,0)||1;
+  /* units a class: largest remainder, at least one each */
+  const ideal=types.map(t=>m*t.n/tot), u=ideal.map(x=>Math.max(1,Math.floor(x))), sum=()=>u.reduce((a,b)=>a+b,0);
+  while(sum()>m){ const i=u.indexOf(Math.max(...u)); if(u[i]<=1) break; u[i]--; }
+  while(sum()<m){ let i=0; ideal.forEach((x,j)=>{ if(x-u[j]>ideal[i]-u[i]) i=j; }); u[i]++; }
+  const used=new Map(), spot=k=>{ const a=M.at[k%M.at.length], c=used.get(a)||0; used.set(a,c+1);
+    const s=Math.hypot(a[0],a[1])||1, side=c*15*(c%2?1:-1);   // a second and third on one spot stand to either side of it
+    return {pos:[a[0]-a[1]/s*side,a[1]+a[0]/s*side],alt:a[2]||0}; };
+  const toward=p=>({pos:[p.pos[0]*.4,p.pos[1]*.4],alt:p.alt*.4});   // the arrow points in toward the middle
+  let k=0;
+  for(const o of own){ spawnEnemy(o,toward({pos:o.pos,alt:o.alt||0})); k++; }
+  types.forEach((t,i)=>{ const nu=u[i], nums=t.nums||[]; let c=0;   // c: ships given out so far (the W.A.S. go with the ships)
+    for(let j=0;j<nu;j++){ const n=Math.floor(t.n/nu)+(j<t.n%nu?1:0), w=t.was?Math.round(t.was*(c+n)/t.n)-Math.round(t.was*c/t.n):0; c+=n;
+      const p=spot(k++), num=nums[j]!=null?nums[j]:90+i*10+j;
+      spawnEnemy({...t.fleet,name:t.fleet.name.replace('{n}',num),n,...(t.was?{hangar:{was:w}}:{}),pos:p.pos,alt:p.alt},toward(p)); } });
+  return k;
+}
+/* ai:'detail' (各個撃破; user decision 2026-10-15, 第4節の後半): the units on it work as one. They go for the one of ours that stands
+   most alone (the fewest of our ships within DETAIL_ISO_R of it; then the smaller and the nearer; a preyLast unit last) and hold each
+   of the others with one unit apiece, the ones nearest it first (pin), so none can come to its help; all the rest, two at least, go
+   for the lone one. As many of theirs as ours plus one makes two on it. When it is gone (or out of sight) they move to the next.
+   Each keeps what it was on while that still holds, so they do not swap about. 数値は仮 */
+const DETAIL_ISO_R=45;
+let detailFocus=null;
+function detailPlan(all){
+  const G=fleets.filter(f=>f.team===1&&f.alive&&f.ai==='detail'), T=all.filter(x=>!x.isCarrier&&!x.fixed);
+  if(!G.length||!T.length){ detailFocus=null; return null; }
+  const cx=new THREE.Vector3(); G.forEach(f=>cx.add(f.pos)); cx.multiplyScalar(1/G.length);
+  const sup=t=>T.reduce((s,x)=>s+(x!==t&&x.pos.distanceTo(t.pos)<DETAIL_ISO_R?x.ships.length:0),0);
+  if(!(detailFocus&&T.includes(detailFocus))){ let bs=1e9; detailFocus=null;
+    for(const t of T){ const s=sup(t)+t.ships.length*.5+t.pos.distanceTo(cx)*.05+(t.preyLast?1e3:0); if(s<bs){ bs=s; detailFocus=t; } } }
+  const F=detailFocus, near=p=>(a,b)=>a.pos.distanceTo(p.pos)-b.pos.distanceTo(p.pos);
+  const others=T.filter(t=>t!==F).sort(near(F)), nF=Math.min(G.length,Math.max(2,G.length-others.length)), plan=new Map();
+  for(const f of [...G.filter(f=>f.detailT===F).sort(near(F)),...G.filter(f=>f.detailT!==F).sort(near(F))].slice(0,nF)) plan.set(f,F);
+  const free=G.filter(f=>!plan.has(f));
+  for(const t of others){ if(!free.length) break; let i=free.findIndex(f=>f.detailT===t); if(i<0){ free.sort(near(t)); i=0; } plan.set(free[i],t); free.splice(i,1); }
+  for(const f of free) plan.set(f,F);
+  for(const [f,t] of plan) f.detailT=t;
+  return plan;
+}
+
 function step(dt){
   gameSec+=dt;
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
@@ -949,8 +1010,8 @@ function step(dt){
   while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
     /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
-    if(E.fleet){ const jp=[E.fleet.pos[0]+(Math.random()-.5)*6,E.fleet.pos[1]+(Math.random()-.5)*6], r=makeFleet(1,{leash:0,...E.fleet,pos:E.rel?relPos(jp):jp}); fleets.push(r);
-      if(E.arrow){ const [ax,az]=E.rel?relPos(E.arrow.pos):E.arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,E.arrow.alt||0,az),TEAM_COL[1],{life:6}); } }
+    if(E.fleet) spawnEnemy(E.fleet,E.arrow,E.rel);
+    const massN=E.mass?spawnMass(E.mass):null;
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
     /* shift [dx, dz]: an allied fleet's post moves forward (第5節: ウォン中将 brings the battleships up) */
@@ -961,7 +1022,7 @@ function step(dt){
     if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)&&!(f.fellBack&&E.ai.ai!=='withdraw')){ if(dp){ if(E.ai.ai==='land'){ f.drop=dp.name; f.dropAt=null; } else f.watchPos=new THREE.Vector3(dp.pos.x,0,dp.pos.z); }
       if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; } } else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; } f.order=null; }
     if(E.phase) setPhase(E.phase);
-    if(E.log) logEvent(...E.log);
+    if(E.log) logEvent(...(massN!=null?[E.log[0],E.log[1].replace('{units}',massN),...E.log.slice(2)]:E.log));   // {units}: how many came (mass)
     if(E.scene) playScene(E.scene);   // lines that pause the battle (story on)
   }
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
