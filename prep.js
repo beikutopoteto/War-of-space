@@ -497,9 +497,10 @@ function renderSortie(){
   const btn=document.getElementById('goBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
   btn.onclick=()=>{ running={op:sortieOp}; startBattle(chosen); };
 }
-/* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1× */
+/* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1×, shortened by op.pace like the
+   clock (user decision 2026-10-15: show the real length) */
 const scaleOf=o=>D.scales&&D.scales[o.scale];
-function scaleText(o){ const S=scaleOf(o); return S?`${S.name}（目安 ${S.min}${S.max?`〜${S.max}`:''}分${S.max?'':'〜'}）　`:''; }
+function scaleText(o){ const S=scaleOf(o), m=v=>Math.max(1,Math.round(v*(o.pace||1))); return S?`${S.name}（目安 ${m(S.min)}${S.max?`〜${m(S.max)}`:''}分${S.max?'':'〜'}）　`:''; }
 /* whether two army groups have an army in common */
 function shareArmy(g,h){ return g.members.some(m=>h.members.some(n=>n.army===m.army)); }
 /* the flagship of an army group: the army chosen with ☆, or the first one */
