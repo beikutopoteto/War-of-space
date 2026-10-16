@@ -790,6 +790,7 @@ function stepCarrier(dt){
   /* landed: the port is being taken (占領) until the main fleet is pushed back; then the plan changes to taking the people off */
   if(!S.evac){ if(evacDue(C,S)) startEvac(C,S); return; }
   if(!S.done){ S.board+=dt*CLOCK_RATE; S.boarded=Math.min(C.people,Math.floor(C.rate*S.board/60/100)*100);
+    stepLastWave(C,S);
     for(const L of C.boardLogs||[]) if(S.boarded>=L[0]&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
     const full=S.boarded>=C.people;
     if(full||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
@@ -838,8 +839,17 @@ function startEvac(C,S){
 function cutBoarding(C,S){
   const K=C.cut; if(!K||S.board<(K.min||0)) return false;
   if(K.max&&S.board>=K.max) return true;
+  if(S.lastCame) return true;   // the last wave has come (carrier.lastWave)
   if(K.allies!=null) return alliesLost()>=K.allies;
   return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
+}
+/* the last wave (op.carrier.lastWave {of, lost, mass, log}; user decision 2026-10-17): while the people board, once the units of the wave
+   tagged `of` (mass.tag) have lost `lost` of their ships, the last wave comes (mass, like an event's), and with it the retreat begins */
+function stepLastWave(C,S){
+  const L=C.lastWave; if(!L||S.lastCame) return;
+  const U=fleets.filter(f=>f.team===1&&f.tag===L.of), n=U.reduce((s,f)=>s+f.n,0); if(!n) return;
+  if(1-U.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n<L.lost) return;
+  S.lastCame=true; const k=spawnMass(L.mass); if(L.log) logEvent(L.log[0],L.log[1].replace('{units}',k));
 }
 /* the share of the allied units' ships (not the guns on a rock) that is sunk (a unit that left at the exit is not) */
 function alliesLost(){ const A=fleets.filter(f=>f.ally&&!f.fixed), n=A.reduce((s,f)=>s+f.n,0);
@@ -1131,11 +1141,12 @@ function spawnMass(M){
     return {pos:[a[0]-a[1]/s*side,a[1]+a[0]/s*side],alt:a[2]||0}; };
   const toward=p=>({pos:[p.pos[0]*.4,p.pos[1]*.4],alt:p.alt*.4});   // the arrow points in toward the middle
   let k=0;
-  for(const o of own){ spawnEnemy(o,toward({pos:o.pos,alt:o.alt||0})); k++; }
+  const tag=M.tag?{tag:M.tag}:{};   // tag: the units of this wave, counted by carrier.lastWave (2026-10-17)
+  for(const o of own){ spawnEnemy({...o,...tag},toward({pos:o.pos,alt:o.alt||0})); k++; }
   types.forEach((t,i)=>{ const nu=u[i], nums=t.nums||[]; let c=0;   // c: ships given out so far (the W.A.S. go with the ships)
     for(let j=0;j<nu;j++){ const n=Math.floor(t.n/nu)+(j<t.n%nu?1:0), w=t.was?Math.round(t.was*(c+n)/t.n)-Math.round(t.was*c/t.n):0; c+=n;
       const p=spot(k++), num=nums[j]!=null?nums[j]:90+i*10+j;
-      spawnEnemy({...t.fleet,name:t.fleet.name.replace('{n}',num),n,...(t.was?{hangar:{was:w}}:{}),pos:p.pos,alt:p.alt},toward(p)); } });
+      spawnEnemy({...t.fleet,name:t.fleet.name.replace('{n}',num),n,...(t.was?{hangar:{was:w}}:{}),pos:p.pos,alt:p.alt,...tag},toward(p)); } });
   return k;
 }
 /* ai:'detail' (各個撃破; user decision 2026-10-15, 第4節の後半): the units on it work as one. They go for the one of ours that stands

@@ -72,6 +72,7 @@ window.WOS_DATA=window.WOS_DATA||{};
      ほかの敵は撤退になると ai:'chase'（まわり45のこちらの艦を先に叩き、いなければユーコンを追って撃つ。spare は外れる。2026-10-17）。
      carrier.cut.allies: 本軍（友軍の隊）の隻数がその割合だけ沈むと切り上げ（sunk と carrier の代わり）。撤退ではユーコンにいちばん近い友軍の1隊がつき（leave）、
      残りは mode 'rear'（残ってユーコンに近い敵から叩く）。doneLogs・fullLogs の {escort} はつく隊の名前。evac を書かなければ着陸と同時に作戦変更（2026-10-17）
+     events の mass.tag: その波の隊に付ける印。carrier.lastWave:{of, lost, mass, log}: 収容中、印 of の隊の隻数の lost が沈むと mass の波が来て、撤退が始まる（log の {units} は隊の数。2026-10-17）
    clockScale: 作戦の時計の進み方の倍率（書かなければ 1。0.5 なら戦闘の1秒で7.5分。span を書いた作戦では使わない）
    ここから下は第5節「フェブルアーリア防衛戦」で足したもの（数値はすべて仮）:
    sky: 背景の天体 {sun:[x,y,z]（太陽光の向き）, earth / moon / mars / februaria:{pos:[x,y,z], r}}。位置はカメラからの相対（寄り引きで大きさが変わらない）。
@@ -764,19 +765,31 @@ WOS_DATA.operations=[
          敵は各個撃破を狙う（ai:'detail'。孤立した隊に2隊以上で当たり、ほかの隊は1隊ずつで足止めする）。前は、下の重巡洋艦と突撃揚陸艦の
          8隊（50隻、W.A.S. 220）が約42分（実時間の約70秒）ごとに方向を変えて1隊ずつ来た（2026-10-12、wos-strategy の案）。
          ユーコンを狙う第6 重巡洋艦（ユーザー決定 2026-10-10: ユーコンも少し狙う。prey:'carrier'）はそのまま1隊で来て、数に入る。
-         残りの44隻を、重巡洋艦18隻・突撃揚陸艦26隻（W.A.S. 220）として隊に分け直す。来る場所は前の7隊の場所（時刻は前の第6 と同じ24分。仮） */
+         残りの44隻を、重巡洋艦18隻・突撃揚陸艦26隻（W.A.S. 220）として隊に分け直す。来る場所は前の7隊の場所（時刻は前の第6 と同じ24分。仮）
+         2026-10-17（ユーザー決定）: 最後の波を2つに分ける。1つ目（第6 を入れて20隻、4割）は24分に、2つ目（30隻、6割）は1つ目の隻数の6割が沈んだときに来て、
+         2つ目が来たら撤退を始める（carrier.lastWave。本軍の5割での撤退も残す）。どちらも隊の数は来たときのこちら＋1。1つ目は tag:'w1' */
       evacEvents:[
-        {after:24, wave:true, mass:{plus:1,
+        {after:24, wave:true, mass:{plus:1, tag:'w1',
           own:[{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:45, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
-            {n:18, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
-            {n:26, was:220, nums:[9,10,11,12,13,14,15,16,17,18,19], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
+            {n:5, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+            {n:9, was:76, nums:[9,10,11,12,13,14,15,16,17,18,19], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
               craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
           ],
           at:[[-118,-25,-45],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[140,60,10],[-150,-60,-30]]},
           log:['ハッダード曹長', '「全方位から艦影、{units}隊！　月面へ向かった主力が、一度に戻ってきました」']},
         {after:26, wave:true, log:['ウォン中将', '「主力が戻る。盾の残りで、どれだけ持たせられるかだ。……離れるな。はぐれた隊から食われるぞ」']},
       ],
+      /* 最後の波の2つ目（2026-10-17、ユーザー決定）: 1つ目の波（tag:'w1'）の隻数の6割が沈むと来て、撤退が始まる。重巡洋艦13隻・突撃揚陸艦17隻（W.A.S. 144）。場所は1つ目と同じ（仮） */
+      lastWave:{of:'w1', lost:.6,
+        log:['ハッダード曹長', '「また全方位から、{units}隊！　主力の残りが、全部来ます！」'],
+        mass:{plus:1,
+          types:[
+            {n:13, nums:[15,16,17,18,19,20,21,22,23,24,25], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+            {n:17, was:144, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
+              craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
+          ],
+          at:[[-118,-25,-45],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[140,60,10],[-150,-60,-30]]}},
       /* 切り上げ（か満員）から何分後かの出来事（2026-10-12、wos-strategy の案。時刻・位置・隻数は仮）: 西の下から駆逐艦が離脱点へ回り込み、ユーコンを狙う */
       doneEvents:[
         {after:2, fleet:{name:'第18 機動駆逐 戦闘隊', sub:'自治軍 駆逐艦', type:'dd', n:6, hp:9, dmg:1, eva:.18, range:15, speed:11, scale:.95, pos:[-205,60], alt:-30, ai:'hunt', prey:'carrier', watch:{pos:[-127,127], alt:0}, vis:6, stl:6},
