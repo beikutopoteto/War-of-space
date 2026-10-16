@@ -844,10 +844,10 @@ function check(ok, label, detail = '') {
       const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 31 && n++ < 6000) step(.05);
       const w2 = fleets.find(f => f.team === 1 && f.alive && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
       if (w2) { w2.alive = false; w2.el.remove(); }
-      /* 1,000 people an hour while the main fleet holds (the later waves are taken off as they come); cut short once 70% of the
+      /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come); cut short once 60% of the
          battle line is sunk, and always after cut.max minutes */
       while (opCarrier.cs.board < 120 && n++ < 6000) { step(.05); fleets.forEach(f => { if (f.team === 1 && f.alive && !f.fixed) { f.alive = false; f.el.remove(); } }); }
-      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 3000;
+      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 6000;
       { const S = opCarrier.cs, b = S.board; r.noCut = !cutBoarding(op.carrier, S); S.board = op.carrier.cut.max; r.cutMax = cutBoarding(op.carrier, S); S.board = b; }
       /* the later half (user decision 2026-10-15): the enemy comes all at once, as many units as ours still in the battle plus one,
          the same ships and W.A.S. as before; they break us one by one: two on the one that stands most alone, one on each of the
@@ -885,7 +885,7 @@ function check(ok, label, detail = '') {
     check(d1.zoneCost === 4.2 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る（2026-10-14）', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.holdsPort && d1.evacWait && d1.evac && d1.wave2, 'デナリの盾: 本軍が持つあいだは占領のまま。本軍の隊が全滅すると作戦変更で収容が始まる（着陸から evac.min 分までは待つ）。24分後にユーコンを狙う2波目が来る', JSON.stringify(d1));
-    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 3000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に1,500人（2026-10-15）。本軍の戦艦の7割が沈むか、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。本軍の戦艦の6割が沈むか、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     { const M = d1.mass || {};
       check(M.ours >= 2 && M.k === M.ours + 1 && M.n === 50 && M.was === 220 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
         'デナリの盾: 後半の敵は一度に、残っている自軍と本軍の隊の数＋1隊で来る（50隻・W.A.S. 220 は変えない）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
