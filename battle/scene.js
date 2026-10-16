@@ -123,10 +123,10 @@ function buildSky(S){
 /* tactical grid plane */
 const gridMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, extensions:{derivatives:true},
-  uniforms:{uTime:{value:0},uZone:{value:1},uC:{value:new THREE.Vector2()},uFrame:{value:0}},
+  uniforms:{uTime:{value:0},uZone:{value:1},uC:{value:new THREE.Vector2()},uFrame:{value:0},uR:{value:215}},
   vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader:`
-    varying vec2 vP; uniform float uTime, uZone, uFrame; uniform vec2 uC;
+    varying vec2 vP; uniform float uTime, uZone, uFrame, uR; uniform vec2 uC;
     float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
     void main(){
       float r=length(vP);
@@ -143,14 +143,14 @@ const gridMat = new THREE.ShaderMaterial({
       col=mix(col,vec3(1.,.42,.3),zone*.85);
       a=max(a,zone*.13);
       a+=edge*(.9+.1*sin(uTime*2.));
-      float frame=ln(r/215.,1.6)*step(200.,r)*step(r,230.)*uFrame;   /* the edge of a field that moves with the convoy */
+      float frame=ln(r/uR,1.6)*step(uR-15.,r)*step(r,uR+15.)*uFrame;   /* the edge of a field that moves with the convoy (or of a stage's field) */
       a=max(a,frame*.55);
       col=mix(col,vec3(1.,.45,.32),edge);
       gl_FragColor=vec4(col*1.15,a*.95);
     }`
 });
 gridMat.side=THREE.DoubleSide;
-const grid = new THREE.Mesh(new THREE.PlaneGeometry(560,560), gridMat);
+const grid = new THREE.Mesh(new THREE.PlaneGeometry(900,900), gridMat);   // wide enough for the edge of a larger field (op.fieldR up to about 430)
 grid.rotation.x = -Math.PI/2; scene.add(grid);
 
 /* fortress asteroid */

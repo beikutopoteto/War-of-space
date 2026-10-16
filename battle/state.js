@@ -6,8 +6,9 @@ let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, even
 const OPS=WOS_DATA.operations;
 /* opEvents: reinforcements and timed events of the operation, in order; convoy: the transports of an escort operation */
 let op=OPS[0], opEvents=[], nextEvent=0, convoy=null;
-/* the field: its centre (fieldC) and radius. It stays at the origin, or moves with the convoy (op.field:'convoy') */
-const FIELD_R=215, fieldC=new THREE.Vector3();
+/* the field: its centre (fieldC) and radius. It stays at the origin, or moves with the convoy (op.field:'convoy').
+   op.fieldR (第5節, 2026-10-16: one field over the whole base) makes it larger; REACH is how far from the centre a move order may be clicked (op.reach) */
+let FIELD_R=215, REACH=200; const fieldC=new THREE.Vector3();
 let fieldMoves=false;
 /* clouds: plasma clouds {c, r, mat}; lastSpot: where the enemy last saw one of ours {pos, t};
    rescue: the optional distress call (op.rescue) {ship, prog, done, lost}; rescued: it was answered */
@@ -312,7 +313,9 @@ function reset(cfg=lastCfg){
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
-  fieldC.set(0,0,0); lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
+  /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
+  fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200;
+  controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R; lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
@@ -368,7 +371,7 @@ function reset(cfg=lastCfg){
     if(!(op.convoy.depart>0)) departConvoy(); }
   /* a field that moves with the convoy: the grid, the camera and the edge go along with it (sim.js stepField) */
   fieldMoves=op.field==='convoy'&&!!convoy;
-  gridMat.uniforms.uFrame.value=fieldMoves||op.phases?1:0;
+  gridMat.uniforms.uFrame.value=fieldMoves||op.phases||op.fieldR?1:0;
   clouds=buildClouds(op.clouds);
   /* the object in the middle of the field: the enemy fortress (a target), a relay station we defend (op.station: it has armour and
      batteries, and the enemy shoots at it), or a relay station as scenery. The defended station uses the fortress slot with team 0 */

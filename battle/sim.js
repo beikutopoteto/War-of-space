@@ -355,6 +355,7 @@ function keepInField(f){
 }
 const _fd=new THREE.Vector3();
 function stepField(){
+  if(op.fieldR&&!fieldMoves&&!op.phases){ for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInField(f); return; }   // a larger field that stays put (第5節)
   if(!fieldMoves||!convoy.alive) return;
   _fd.set(convoy.pos.x-fieldC.x,0,convoy.pos.z-fieldC.z); if(_fd.lengthSq()<1e-8) return;
   fieldC.add(_fd); shiftView(_fd);
@@ -1074,7 +1075,9 @@ function step(dt){
   while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
     /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
-    if(E.fleet) spawnEnemy(E.fleet,E.arrow,E.rel);
+    /* fleet.drops (第5節, 2026-10-16): an assault ship picks, as it comes in, the open gate among these held thinnest (weakDrop); {drop} in the log */
+    const nf=E.fleet?spawnEnemy(E.fleet,E.arrow,E.rel):null, fd=nf&&E.fleet.drops?weakDrop(E.fleet.drops):null;
+    if(fd){ if(nf.ai==='land'){ nf.drop=fd.name; nf.dropAt=null; } else nf.watchPos=new THREE.Vector3(fd.pos.x,0,fd.pos.z); }
     const massN=E.mass?spawnMass(E.mass):null;
     if(E.blast) blast(E.blast);
     /* ai: change how the named fleets behave (enemies: f.ai; allies: f.mode) */
@@ -1087,7 +1090,7 @@ function step(dt){
       if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); } }
       else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; if(gates.length) watchOffSealed(f); } f.order=null; }
     if(E.phase) setPhase(E.phase);
-    if(E.log) logEvent(...(massN!=null?[E.log[0],E.log[1].replace('{units}',massN),...E.log.slice(2)]:E.log));   // {units}: how many came (mass)
+    if(E.log) logEvent(...(massN!=null?[E.log[0],E.log[1].replace('{units}',massN),...E.log.slice(2)]:fd?[E.log[0],E.log[1].replace('{drop}',fd.name),...E.log.slice(2)]:E.log));   // {units}: how many came (mass)
     if(E.scene) playScene(E.scene);   // lines that pause the battle (story on)
   }
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
