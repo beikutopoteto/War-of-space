@@ -72,7 +72,7 @@ window.WOS_DATA=window.WOS_DATA||{};
      ほかの敵は撤退になると ai:'chase'（まわり45のこちらの艦を先に叩き、いなければユーコンを追って撃つ。spare は外れる。2026-10-17）。
      carrier.cut.allies: 本軍（友軍の隊）の隻数がその割合だけ沈むと切り上げ（sunk と carrier の代わり）。撤退ではユーコンにいちばん近い友軍の1隊がつき（leave）、
      残りは mode 'rear'（残ってユーコンに近い敵から叩く）。doneLogs・fullLogs の {escort} はつく隊の名前。evac を書かなければ着陸と同時に作戦変更（2026-10-17）
-     events の mass.tag: その波の隊に付ける印。carrier.lastWave:{of, lost, gap, mass, log}: 収容中、印 of の隊の隻数の lost が沈み、その波から gap 分たつと mass の波が来て、撤退が始まる（log の {units} は隊の数。2026-10-17）
+     events の mass.units: 隊の数を決める（書けば plus の代わり。own も数に入る）。events の mass.tag: その波の隊に付ける印。carrier.lastWave:{of, lost, gap, mass, log}: 収容中、印 of の隊の隻数の lost が沈み、その波から gap 分たつと mass の波が来て、撤退が始まる（log の {units} は隊の数。2026-10-17）
    clockScale: 作戦の時計の進み方の倍率（書かなければ 1。0.5 なら戦闘の1秒で7.5分。span を書いた作戦では使わない）
    ここから下は第5節「フェブルアーリア防衛戦」で足したもの（数値はすべて仮）:
    sky: 背景の天体 {sun:[x,y,z]（太陽光の向き）, earth / moon / mars / februaria:{pos:[x,y,z], r}}。位置はカメラからの相対（寄り引きで大きさが変わらない）。
@@ -742,7 +742,8 @@ WOS_DATA.operations=[
         {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
           hangar:{was:80}, craft:{was:{dmg:1.4, hp:1.3, eva:1}}, ace:true, spare:['carrier'], prey:'ally', keepOut:true, pos:[-16,-89], alt:62, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
         /* 重巡洋艦はこちらの艦を狙う（ユーザー決定 2026-10-10）。居住区を撃つのは「初撃」だけ（ユーザー決定 2026-10-10: 脅しだけで初撃だけ） */
-        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+        /* 2026-10-17（ユーザー決定: 着陸から後の波には、ユーコンを狙う隊を1隊ずつ）: 第5 重巡洋艦がユーコンを狙う（prey:'carrier'） */
+        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:7, log:['ハッダード曹長', '「岩くずの雲の北西の端から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         {after:9, log:['ハッダード曹長', '「雲の中ほど、北の上からも！　同時です。居住区A の上へ」']},
         /* 敵が来たら、本軍の各隊は受け持ちのユーコンか居住区の前へ出て守る（ユーザー決定 2026-10-10。ai:'protect'。受け持ちは本軍の protect） */
@@ -767,9 +768,10 @@ WOS_DATA.operations=[
          ユーコンを狙う第6 重巡洋艦（ユーザー決定 2026-10-10: ユーコンも少し狙う。prey:'carrier'）はそのまま1隊で来て、数に入る。
          残りの44隻を、重巡洋艦18隻・突撃揚陸艦26隻（W.A.S. 220）として隊に分け直す。来る場所は前の7隊の場所（時刻は前の第6 と同じ24分。仮）
          2026-10-17（ユーザー決定）: 最後の波を2つに分ける。1つ目（第6 を入れて20隻、4割）は40分に（後半の間をあける。前は24分）、2つ目（30隻、6割）は1つ目の隻数の6割が沈んだときに来て、
-         2つ目が来たら撤退を始める（carrier.lastWave。本軍の5割での撤退も残す）。どちらも隊の数は来たときのこちら＋1。1つ目は tag:'w1' */
+         2つ目が来たら撤退を始める（carrier.lastWave。本軍の5割での撤退も残す）。1つ目は tag:'w1'。
+         2026-10-17（ユーザー決定: 1〜3隻の小さな隊が並んで多く見えた）: 隊の数を「こちら＋1」から決まった数（units）に。1つ目は第6 を入れて4隊 */
       evacEvents:[
-        {after:40, wave:true, mass:{plus:1, tag:'w1',
+        {after:40, wave:true, mass:{units:4, tag:'w1',
           own:[{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, hp:45, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
             {n:5, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
@@ -781,12 +783,13 @@ WOS_DATA.operations=[
         {after:42, wave:true, log:['ウォン中将', '「主力が戻る。盾の残りで、どれだけ持たせられるかだ。……離れるな。はぐれた隊から食われるぞ」']},
       ],
       /* 最後の波の2つ目（2026-10-17、ユーザー決定）: 1つ目の波（tag:'w1'）の隻数の6割が沈むと来て、撤退が始まる。ただし1つ目から30分（gap）はあける（ユーザー決定: 後半の間をあける）。
-         重巡洋艦4隻・突撃揚陸艦17隻（W.A.S. 144）。重巡洋艦の残り9隻は前半の隙間（34・70・104分）に回した（events）。場所は1つ目と同じ（仮） */
+         重巡洋艦4隻・突撃揚陸艦17隻（W.A.S. 144）。重巡洋艦の残り9隻は前半の隙間（34・70・104分）に回した（events）。場所は1つ目と同じ（仮）
+         2026-10-17（ユーザー決定）: 隊はまとまった5隊（units）。重巡洋艦4隻は1隊でユーコンを狙う（own、prey:'carrier'）。揚陸艦17隻は4隊 */
       lastWave:{of:'w1', lost:.6, gap:30,
         log:['ハッダード曹長', '「また全方位から、{units}隊！　主力の残りが、全部来ます！」'],
-        mass:{plus:1,
+        mass:{units:5,
+          own:[{name:'第18 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:4, hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, pos:[130,-20], alt:-25, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
-            {n:4, nums:[18,19,20,21,22,23,24,25,26,27,28], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', hp:24, dmg:2, eva:.12, range:20, speed:11, scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
             {n:17, was:144, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', hp:26, dmg:1.3, eva:.16, range:13, scale:1.1,
               craft:{was:{dmg:1.2, hp:1.1, eva:1}}, spare:['carrier'], prey:'ally', keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, speed:12}},
           ],
