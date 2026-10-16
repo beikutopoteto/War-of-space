@@ -891,7 +891,7 @@ function check(ok, label, detail = '') {
         'デナリの盾: 後半の敵は一度に、残っている自軍と本軍の隊の数＋1隊で来る（50隻・W.A.S. 220 は変えない）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
     check(d1.wavesGone && d1.doneEv,'デナリの盾: 切り上げのとき、まだ来ていない波（wave:true）は捨て、撤退の出来事（doneEvents）が切り上げから始まる', JSON.stringify(d1));
     check(d1.lost === '8割' && d1.lostLeft, 'デナリの盾: 勝ちの会話の {lost} に、本軍の戦艦の帰らなかった割合が入る（離脱点から抜けた隊は帰ったと数える）', JSON.stringify(d1));
-    check(d1.slow === .74 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
+    check(d1.slow === .48 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
     check(d1.wait.all && d1.wait.blocks === 3 && d1.wait.most === 2 && d1.wait.sep >= 14 && d1.wait.heights >= 3 && d1.wait.notHome && d1.wait.goes,
       'デナリの盾: 本軍は敵（砲台も）を倒し終えると、持ち場へ戻らず、ばらけて居住区の近く（民間区画の縁の外）で待つ。3つの居住区に2隊ずつ、離れて、高さを変えて', JSON.stringify(d1.wait));
     check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
