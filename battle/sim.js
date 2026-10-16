@@ -1134,7 +1134,7 @@ function spawnEnemy(o,arrow,rel){
    in 15 aside). The total of ships and W.A.S. stays what the data says. Returns how many units came. 数値は仮 */
 function spawnMass(M){
   const ours=fleets.filter(f=>f.team===0&&f.alive&&!f.fixed&&!f.convoy&&!f.ghost&&!f.isCarrier).length;   // our own and the allies' (ward), not the convoy
-  const own=M.own||[], types=M.types||[], m=Math.max(types.length,ours+(M.plus==null?1:M.plus)-own.length), tot=types.reduce((s,t)=>s+t.n,0)||1;
+  const own=M.own||[], types=M.types||[], m=Math.max(types.length,(M.units!=null?M.units:ours+(M.plus==null?1:M.plus))-own.length), tot=types.reduce((s,t)=>s+t.n,0)||1;   // units: a set number of units (2026-10-17)
   /* units a class: largest remainder, at least one each */
   const ideal=types.map(t=>m*t.n/tot), u=ideal.map(x=>Math.max(1,Math.floor(x))), sum=()=>u.reduce((a,b)=>a+b,0);
   while(sum()>m){ const i=u.indexOf(Math.max(...u)); if(u[i]<=1) break; u[i]--; }
