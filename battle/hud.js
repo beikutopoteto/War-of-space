@@ -104,7 +104,7 @@ renderer.domElement.addEventListener('pointermove',e=>{
   if(e.pointerType!=='mouse'||!selected||!selected.alive||over||e.buttons){ hideGhost(); return; }
   ray.setFromCamera({x:e.clientX/W*2-1,y:-(e.clientY/H)*2+1},camera); plane.constant=-selAlt;
   const hit=new THREE.Vector3();
-  if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)>200){ hideGhost(); return; }
+  if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)>REACH){ hideGhost(); return; }
   ghost.position.copy(hit); ghostFoot.position.set(hit.x,.05,hit.z);
   ghostStalkGeo.setFromPoints([hit,new THREE.Vector3(hit.x,0,hit.z)]); ghostStalk.computeLineDistances();
   ghost.visible=true; ghostFoot.visible=ghostStalk.visible=Math.abs(selAlt)>.5;
@@ -231,7 +231,7 @@ function placeAt(p){
 /* the point under the screen position, at the altitude set on the altitude bar */
 function groundAt(x,y){
   ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3(); plane.constant=-selAlt;
-  return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)<200?hit:null;
+  return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)<REACH?hit:null;
 }
 const pickEl=document.getElementById('pick'); let pickCtx=null;
 function openPick(x,y,target,dest,queue){

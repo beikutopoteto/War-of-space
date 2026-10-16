@@ -1,61 +1,80 @@
 /* 第5節「フェブルアーリア防衛戦」を最後まで早送りして、時刻ごとの様子を出す（釣り合わせの確かめ）。1〜2分かかる。
-   node tools/februaria-sim.cjs <a|b|c|d|g|h> [tech]（tech: 全研究のあとで）
-   a: 駐屯隊が揚陸艦を優先して叩く  d: 駐屯隊を段階ごとの持ち場（作戦フィールドの中心）へ動かし、近づく揚陸艦と持ち場の近くの敵を叩く（ふつうの遊び方）  b: 駐屯隊は何もしない（友軍と砲台だけで持つか）  c: 駐屯隊が見えた敵をどこまでも追う
-   g: 持ち場にいて、近づいた突撃揚陸艦からは下がり（揚陸艦は砲台に任せる）、持ち場の近くの護衛を叩く（2026-10-12 の古い案内どおりの遊び方。負けてよい）
-   h: 持ち場にいて、ゲートの輪にいちばん近い揚陸艦から叩き、いなければ持ち場の近くの護衛を叩く（新しい案内「揚陸艦を輪に入れるな。護衛より揚陸艦が先」どおり。2026-10-14）
-   2026-10-14: 本隊の5割で共和国が退く（win.retreat）。退き始めた時刻を「退却」に、下がった隊（fallBack）の数と残りの隻数を「下がった」に出す
-   2026-10-16: 降下点を3つのゲートに置き換えた。行の読み方: 時刻 段階 sunk=主力の撃沈の割合 gate=西/中央/東のシールドの残り%（S 塞いだ / B 最後のゲートが破られた）
-   gar=基地守備隊の耐久 bt=鳴っている砲台 al=友軍の隻数 me=駐屯隊 en=敵（@ は揚陸艦の位置）。
-   最後に勝ち負け「over outcome loseWhy repelBy」、ゲートが破られた時刻、守備隊の耐久と削られ始めた時刻、
-   敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台 / inf 強化歩兵。艦載機はその母艦に数える。2026-10-14） */
+   node tools/februaria-sim.cjs <b|s|q> [tech] [army=N]（tech: 全研究のあとで。army: 駐屯隊を約 N 隻にする。同じ隊を写して足す。預かる艦は数えない）
+   b: 駐屯隊は何もしない（友軍と砲台だけで持つか。負けてよい）
+   s: 駐屯隊は基地の真ん中の前に居続け、近づく揚陸艦と近くの敵を叩く
+   q: 即応（2026-10-16 の案内どおりの遊び方）。ゲートの輪に近い揚陸艦から叩き、いなければ通信で押されている方面（いちばん段階の高い方面）の敵を叩き、
+      どこも押されていなければ真ん中の前で待つ
+   2026-10-16: 三方面の押し合いに作り直した。行の読み方: 時刻 段階 sunk=主力の撃沈の割合 gate=西/中央/東のシールドの残り%（S 塞いだ / B 最後のゲートが破られた）
+   gar=基地守備隊の耐久 bt=鳴っている砲台（西/真ん中/東） pr=列の進み%（西/真上/東。h はこちらが数で勝って止まっている） fr=押されている段階（西/真上/東。x は閉じた方面）
+   en=敵の隻数（西/真上/東/北） al=友軍の隻数（西/真上/東） me=駐屯隊の隻数（西/真上/東/北）。
+   最後に勝ち負け「over outcome loseWhy repelBy」、ゲートが破られた時刻、守備隊の耐久、総攻撃と退却の時刻、
+   敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台 / inf 強化歩兵。艦載機はその母艦に数える。2026-10-14）、
+   敵がいない（撃っていない）時間の割合、場にいる敵の平均と最多、揚陸艦の行き先、押されている知らせの通信 */
 const { openGame } = require('./browser.cjs');
+const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).map(a=>a.split('=')));
 (async () => {
   const { browser, page, errors } = await openGame();
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
-  if(process.argv[3]==='tech') await page.click('#dbgB [data-dbga="tech"]');   // 全研究: the upper bound of our strength
+  if(process.argv.includes('tech')) await page.click('#dbgB [data-dbga="tech"]');   // 全研究: the upper bound of our strength
   await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
-  const strat=process.argv[2]||'a';
-  const r = await page.evaluate((strat) => {
+  const strat=process.argv[2]||'q';
+  const r = await page.evaluate(({strat,army}) => {
+    /* army=N: copies of our own fleets (not the lent ones) until about N ships */
+    const lent=f=>(op.given||[]).some(g=>g.name===f.name), own=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.ally&&f.alive&&!lent(f));
+    if(army){ const base=own(); let total=base.reduce((s,f)=>s+f.n,0), k=0;
+      while(base.length&&total+base[k%base.length].n<=army){
+        const f=base[k%base.length], o={}; for(const key of ['sub','type','comp','n','dmg','eva','range','speed','scale','vis','stl','hangar','craft','aa']) if(f[key]!=null) o[key]=f[key];
+        o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/hpK(0); o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
+        fleets.push(makeFleet(0,o)); total+=f.n; k++; }
+      buildRoster(); updateRoster(); }
     const cat=s=>s.inf?'inf':s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;
     window.damage=function(t,amt,src){ const o=src.kind==='wing'&&src.carrier?src.carrier:src, hit=t.team===1&&t.main&&t.kind==='fleet'&&t.alive, had=hit?t.ships.length:0;
       if(hit) dmgBy[cat(o)]=(dmgBy[cat(o)]||0)+Math.min(amt,t.hpPool);
       _d(t,amt,src);
       if(hit){ const k=had-(t.alive?t.ships.length:0); if(k>0) sinkBy[cat(o)]=(sinkBy[cat(o)]||0)+k; } };
-    const log=[]; const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&f.alive);
+    const said=[], _l=window.logEvent; window.logEvent=function(a,b){ if(fronts.some(L=>b&&(b.includes(L.name)||L.press===b||L.fall===b))) said.push(`${clockStr()} ${a}${b}`); return _l.apply(this,arguments); };
+    const reg=p=>p.z<-60?'N':p.x<-90?'W':p.x>90?'E':'C', R3=['W','C','E'];
+    const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.ally&&f.alive);
     const gateStr=()=>gates.map(g=>g.sealed?'S':g.breached?'B':Math.round(100*g.hp/g.max)).join('/');
-    const L=(t='')=>log.push(`${clockStr()} ${phaseName} sunk=${Math.round(mainSunk()*100)}% gate=${gateStr()} gar=${garrison?Math.round(garrison.hp):'-'} bt=${fleets.filter(f=>f.fixed&&f.alive&&!f.silent).length} al=${fleets.filter(f=>f.ally&&!f.fixed).map(f=>f.alive?f.ships.length:'-').join('/')} me=${fleets.filter(f=>f.team===0&&!f.ward).map(f=>f.alive?f.ships.length:'-').join('/')} en=${fleets.filter(f=>f.team===1&&f.alive).map(f=>f.name.replace(/ エスカドラ/,'').replace(/ /,'').slice(0,5)+f.ships.length+(f.seen?'':'?')+(f.ai==='land'?`@${Math.round(f.pos.x)},${Math.round(f.pos.z)}`:'')).join(',')} ${t}`);
-    L('start '+mine().map(f=>`${f.name.slice(0,5)}:${f.n}x${f.hp.toFixed(1)} d${f.dmg.toFixed(2)} r${f.range.toFixed(0)} s${f.speed}`).join(' '));
-    let n=0, retreatAt='', drainAt=''; const gateAt={};
-    while(!over&&n++<40000){ step(.05);
+    const sum=(list,key)=>{ const o={W:0,C:0,E:0,N:0}; list.forEach(f=>o[reg(key?key(f):f.pos)]+=f.ships.length); return o; };
+    const log=[]; let idle=0, samples=0, maxOn=0, onSum=0;
+    const L=(t='')=>{ const en=sum(fleets.filter(f=>f.team===1&&f.alive)), al=sum(fleets.filter(f=>f.ally&&!f.fixed&&f.alive)), me=sum(mine());
+      const bt=R3.map(R=>fleets.filter(f=>f.fixed&&f.alive&&reg(f.home)===R).length).join('/');
+      const pr=R3.map(R=>{ const u=fleets.filter(f=>f.alive&&f.team===1&&f.press&&f.ai==='guard'&&f.pressGoal&&reg(f.pressGoal)===R); return u.length?Math.round(100*u.reduce((s,f)=>s+pressShare(f),0)/u.length)+(u.some(f=>f.pressHeld)?'h':''):'-'; }).join('/');
+      const fr=fronts.map(F=>F.closed?'x':F.level).join('/');
+      log.push(`${clockStr()} ${phaseName} sunk=${Math.round(mainSunk()*100)}% gate=${gateStr()} gar=${garrison?Math.round(garrison.hp):'-'} bt=${bt} pr=${pr} fr=${fr} en=${en.W}/${en.C}/${en.E}/${en.N} al=${al.W}/${al.C}/${al.E} me=${me.W}/${me.C}/${me.E}/${me.N} ${t}`); };
+    L('start '+mine().length+'隊 '+mine().reduce((s,f)=>s+f.ships.length,0)+'隻');
+    const anchor=new THREE.Vector3(0,0,125);
+    let n=0, retreatAt='', surgeAt=''; const gateAt={};
+    while(!over&&n++<60000){ step(.05);
       for(const g of gates) if((g.sealed||g.breached)&&!gateAt[g.name]){ gateAt[g.name]=`${clockStr()}${g.sealed?'塞いだ':'破られた（最後）'}`; L(`${g.name} ${g.sealed?'sealed':'breached'}`); }
-      if(garrison&&garrison.hp<garrison.max&&!drainAt) drainAt=clockStr();
+      if(surged&&!surgeAt){ surgeAt=clockStr(); L('総攻撃'); }
+      if(repelT!=null&&!retreatAt) retreatAt=clockStr();
       if(n%20) continue;
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen), land=en.filter(e=>e.ai==='land');
-      if(strat==='a') for(const f of mine()){ const pool=land.length?land:en.filter(e=>e.pos.z>-40); const e=pool.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
-        if(e&&!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); }
-      if(strat==='d') mine().forEach((f,i)=>{ const spot=fieldC.clone();
-        const e=land.filter(e=>e.pos.distanceTo(spot)<150).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]||en.filter(e=>e.pos.distanceTo(spot)<90).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
-        if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); });
-      if(strat==='g') mine().forEach(f=>{ const spot=fieldC.clone(), back=spot.clone().add(new THREE.Vector3(0,0,25));
-        if(en.some(e=>e.type==='mas'&&e.pos.distanceTo(f.pos)<36)){ if(!(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(back)<3)) order(f,{type:'move',dest:back}); return; }
-        const e=en.filter(e=>e.type!=='mas'&&e.pos.distanceTo(spot)<60).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
-        if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); });
-      if(strat==='h'){ const urgent=land.filter(e=>e.pos.distanceTo(fieldC)<150).map(e=>({e,d:Math.min(...openGates().map(g=>g.ring.distanceTo(e.pos)))})).sort((a,b)=>a.d-b.d).map(x=>x.e);
-        mine().forEach(f=>{ const spot=fieldC.clone(), e=urgent[0]||en.filter(e=>e.pos.distanceTo(spot)<90).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
-          if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); }); }
-      if(repelT!=null&&!retreatAt) retreatAt=clockStr()+'('+Math.round(gameSec)+'s)';
-      if(strat==='c') for(const f of mine()) if(!f.order){ const e=en.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]; if(e) order(f,{type:'attack',target:e}); }
-      if(n%100===0) L();
+      const onField=fleets.filter(x=>x.team===1&&x.alive&&x.pos.z>-60).reduce((s,f)=>s+f.ships.length,0);
+      samples++; onSum+=onField; maxOn=Math.max(maxOn,onField); if(!fleets.some(x=>x.team===1&&x.alive&&x.pos.z>-60&&x.fireTarget)) idle++;
+      const near=(f,list)=>list.slice().sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
+      const attack=(f,e)=>{ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); };
+      const wait=f=>{ if(f.pos.distanceTo(anchor)>10&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:anchor.clone()}); };
+      if(strat==='s') mine().forEach(f=>{ const e=near(f,land.filter(e=>e.pos.distanceTo(anchor)<130))||near(f,en.filter(e=>e.pos.distanceTo(anchor)<100)); e?attack(f,e):wait(f); });
+      if(strat==='q'){ const urgent=land.map(e=>({e,d:Math.min(...openGates().map(g=>g.ring.distanceTo(e.pos)))})).filter(x=>x.d<140).sort((a,b)=>a.d-b.d).map(x=>x.e);
+        const hot=fronts.filter(F=>!F.closed&&F.level>0).sort((a,b)=>b.level-a.level||b.prog-a.prog)[0], inHot=e=>hot&&e.pos.z>-60&&e.pos.x>=hot.x[0]&&e.pos.x<hot.x[1];
+        mine().forEach(f=>{ const e=urgent[0]||near(f,en.filter(inHot))||near(f,en.filter(e=>e.pos.distanceTo(f.pos)<70&&e.pos.z>-60)); e?attack(f,e):wait(f); }); }
+      if(n%200===0) L();
     }
     L('end'); const tot=Object.values(dmgBy).reduce((a,b)=>a+b,0)||1;
-    const fb=fleets.filter(f=>f.team===1&&f.fellBack);
-    return {retreatAt, fell:`${fb.length}隊 ${fb.reduce((s,f)=>s+f.ships.length,0)}隻 予備2→${(fleets.find(f=>f.name==='第26 局地強襲 エスカドラ')||{}).drop||'-'}`, log, over, outcome, loseWhy, repelBy, sec:Math.round(gameSec), share:Object.entries(dmgBy).map(([k,v])=>`${k}:${Math.round(v/tot*100)}%`).join(' '), sinkBy:JSON.stringify(sinkBy),
-      gates:gates.map(g=>`${g.name} ${gateAt[g.name]||Math.round(100*g.hp/g.max)+'%'}`).join('・'), gar:garrison?`${Math.ceil(garrison.hp)}/${garrison.max}（削られ始め ${drainAt||'-'}）`:'-', clock:clockStr()};
-  }, strat);
+    return {retreatAt, surgeAt, log, said, over, outcome, loseWhy, repelBy, sec:Math.round(gameSec), share:Object.entries(dmgBy).map(([k,v])=>`${k}:${Math.round(v/tot*100)}%`).join(' '), sinkBy:JSON.stringify(sinkBy),
+      gates:gates.map(g=>`${g.name} ${gateAt[g.name]||Math.round(100*g.hp/g.max)+'%'}`).join('・'), gar:garrison?`${Math.ceil(garrison.hp)}/${garrison.max}`:'-', clock:clockStr(),
+      idle:Math.round(100*idle/Math.max(1,samples)), avgOn:Math.round(onSum/Math.max(1,samples)), maxOn,
+      drops:fleets.filter(f=>f.team===1&&f.type==='mas').map(f=>`${f.name.replace(/ 局地強襲 エスカドラ/,'')}→${(f.drop||'?').replace('ゲート','')}${f.alive?'':'x'}`).join(' ')};
+  }, {strat, army:+(opt.army||0)});
   console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, r.repelBy, r.clock, errors.slice(0, 3));
-  console.log(`ゲート ${r.gates}　基地守備隊 ${r.gar}`);
-  console.log(`退却 ${r.retreatAt||'-'} 下がった ${r.fell}`); console.log(`${r.sec}秒 打撃 ${r.share} 撃沈 ${r.sinkBy}`);
+  console.log(`ゲート ${r.gates}　基地守備隊 ${r.gar}　総攻撃 ${r.surgeAt||'-'}　退却 ${r.retreatAt||'-'}`);
+  console.log(`${r.sec}秒 打撃 ${r.share} 撃沈 ${r.sinkBy}`);
+  console.log(`敵がいない（撃っていない）時間 ${r.idle}%　場の敵 平均 ${r.avgOn}隻 最多 ${r.maxOn}隻`); console.log(`揚陸艦 ${r.drops}`);
+  console.log('押されている知らせ:\n'+r.said.join('\n'));
   await browser.close();
 })();
