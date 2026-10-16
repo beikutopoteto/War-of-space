@@ -935,9 +935,10 @@ function check(ok, label, detail = '') {
       r.btRange = bt.every(f => f.range === 90 && f.every === 4);
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
-      /* 2026-10-13: the escorts of the landing stages (prey:'battery') go for a gun on the base first; the first gun lost is told.
-         Craft leave a fleet marked preyLast for when nothing else is in reach */
-      r.preyOps = op.phases.slice(2).every(S => S.events.some(e => e.fleet && e.fleet.type === 'cl' && e.fleet.prey === 'battery'));
+      /* 2026-10-13: the gun hunters (prey:'battery', 2026-10-16: one on each side, let go in turn) go for a gun on the base first; the first gun
+         lost is not told. Craft leave a fleet marked preyLast for when nothing else is in reach */
+      const hunters = op.events.filter(e => e.fleet && e.fleet.prey === 'battery').map(e => e.fleet);
+      r.preyOps = hunters.length >= 5 && hunters.every(f => f.type === 'cl' && f.ai === 'guard' && op.events.some(e => e.ai && e.ai.ai === 'hunt' && e.ai.fleets.includes(f.name)));
       const esc = makeFleet(1, { name: '試験 護衛', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 20, speed: 0, scale: 1, pos: [0, 60], alt: 0, ai: 'hunt', prey: 'battery', vis: 6, stl: 4 });
       fleets.push(esc); bt.forEach(f => { f.seen = true; }); me.seen = true; me.pos.set(0, 0, 55); enemyAI(); r.battery = !!(esc.order && esc.order.target && esc.order.target.fixed); me.pos.copy(p0);
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
@@ -955,14 +956,34 @@ function check(ok, label, detail = '') {
       for (; i < 180; i++) { gun.fireTarget = tgt; gun.retarget = 99; step(.05); }
       damage = dmg0; r.shots = hits.length; r.shotGap = hits.length > 1 ? (hits[1][0] - hits[0][0]) * .05 : 0; r.shotK = hits.length ? hits[0][1] / (gun.ships.length * gun.dmg * 4) : 0;
       tgt.alive = false; tgt.el.remove();
-      /* the stages: the field starts at the first place; at the next stage's time it slides to the next place in a few seconds, a ring
-         marks it, and a fleet left outside may stay but cannot go further out */
-      r.stage0 = fieldC.z === -60 && phaseName === '前衛';
-      const far = mine[1]; far.pos.set(0, 0, -250); gameSec = op.phases[1].at / CLOCK_RATE; step(.05);
-      r.stage1 = phaseName === '中央ゲートの正面' && spotObj.visible && stageText.startsWith('中央ゲートの正面');
-      for (let i = 0; i < 120; i++) step(.05);
-      const out0 = Math.hypot(far.pos.x - fieldC.x, far.pos.z - fieldC.z); far.order = null; far.pos.z -= 20; step(.05);
-      r.slid = Math.abs(fieldC.z - 120) < .5 && Math.abs(Math.hypot(far.pos.x - fieldC.x, far.pos.z - fieldC.z) - out0) < .5 && out0 > FIELD_R;
+      /* one field over the whole base (2026-10-16): it does not move, it is larger, the move orders reach further, and a fleet cannot leave it.
+         No stages: 前衛 → 全線 (at 100 minutes, with the goal panel's line) → 総攻撃. Deployed in front of the middle only */
+      r.field = !op.phases && fieldC.x === 0 && fieldC.z === 120 && FIELD_R === 360 && REACH === 345 && controls.maxDistance === 560 && gridMat.uniforms.uR.value === 360 && phaseName === '前衛'
+        && op.deployZone.r === 60 && !op.events.some(e => e.fleet && e.fleet.fallBack);
+      const far = mine[1], fp = far.pos.clone(); far.pos.set(0, 0, 120 - 400); step(.05); r.kept = Math.abs(Math.hypot(far.pos.x, far.pos.z - 120) - 360) < .5; far.pos.copy(fp);
+      const said0 = said.length; gameSec = 100.01 / CLOCK_RATE; step(.05);
+      r.allLine = phaseName === '全線' && stageText.startsWith('押されている方面へ') && said.slice(said0).some(t => t.includes('本隊、東の端から'));
+      /* a line (press) holds its post at the edge and moves it on toward its goal: slowly under a gun, fast where none covers it, not at all
+         while our ships round it are 1.5 times its own */
+      const ln = fleets.find(f => f.name === '第15 重巡洋 エスカドラ'), G0 = ln.post.clone();
+      r.pressAt = ln.ai === 'guard' && Math.hypot(G0.x - 300, G0.z - 95) < 1 && G0.y === 5;
+      const others = fleets.filter(f => f.team === 0 && !f.fixed && f.alive), keepY = others.map(f => f.pos.y); others.forEach(f => { f.pos.y += 600; });   // nobody of ours near
+      const gunE = bt[6], P = gunE.pos.clone().add(new THREE.Vector3(0, 70, -30)), goalP = new THREE.Vector3(180, -25, 145);
+      ln.post.copy(P); enemyAI(); const v1 = P.distanceTo(ln.post);   // under the gun
+      const gunsOff = bt.map(f => f.alive); bt.forEach(f => { f.alive = false; }); ln.post.copy(P); enemyAI(); const v2 = P.distanceTo(ln.post);   // no gun left
+      r.press = v1 > 0 && v2 > v1 * 3 && ln.post.distanceTo(goalP) < P.distanceTo(goalP);
+      const wall = makeFleet(0, { name: '試験 壁', sub: '', type: 'cl', n: 12, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ln.post.x, ln.post.z], alt: ln.post.y, vis: 1, stl: 9 }); fleets.push(wall);
+      const G2 = ln.post.clone(); enemyAI(); r.held = ln.pressHeld && ln.post.equals(G2); wall.alive = false; wall.el.remove();
+      bt.forEach((f, i) => { f.alive = gunsOff[i]; }); others.forEach((f, i) => { f.pos.y = keepY[i]; }); ln.post.copy(G0);
+      /* the fronts (2026-10-16): the east end pressed (the lines there have come far) is told by its commander and summed up by Haddad;
+         not again soon, unless it gets worse */
+      const Fe = fronts.find(F => F.name === '東の端'), lines = fleets.filter(f => f.alive && f.team === 1 && f.press && f.ai === 'guard' && f.pressGoal && f.pressGoal.x > 90);
+      Object.assign(Fe, { level: 0, pend: 0, lastLv: 0, saidLv: 0, said: -1e9, calmT: null });
+      const keepP = lines.map(f => f.post.clone()); lines.forEach(f => f.post.lerp(f.pressGoal, .5)); frontSaidT = -1e9; const s1 = said.length; stepFronts();
+      r.front = Fe.level === 1 && Fe.cause === 'line' && said.slice(s1).some(t => t.startsWith('第4 主力戦艦 打撃群 大佐')) && said.slice(s1).some(t => t === 'ハッダード曹長「東の端が押されています。敵の列がゲートへ寄ってきます」');
+      frontSaidT = -1e9; Fe.level = 0; const s2 = said.length; stepFronts(); r.frontQuiet = Fe.level === 1 && said.length === s2;
+      lines.forEach(f => f.post.lerp(f.pressGoal, .9)); frontSaidT = -1e9; stepFronts(); r.frontWorse = Fe.level === 2 && said.slice(s2).some(t => t.includes('東ゲートが持ちません'));
+      lines.forEach((f, i) => f.post.copy(keepP[i]));
       /* an enemy with nothing else in reach fires on the nearest gate's shield; the W.A.S. with nothing else go for it too; fewer infantry
          as it goes down. A hunting unit with nothing in sight closes on the gate by its watch point */
       const sh = makeFleet(1, { name: '試験 削る', sub: '', type: 'cl', n: 3, hp: 999, dmg: 1, eva: 0, range: 20, speed: 0, scale: 1, pos: [W.pos.x, W.pos.z], alt: W.pos.y + 14, ai: 'hunt', vis: 1, stl: 9 }); fleets.push(sh);
@@ -984,8 +1005,7 @@ function check(ok, label, detail = '') {
       r.sealed = W.sealed && !W.alive && !over && W.inf === 0 && said.some(t => t.includes('西ゲートが破られた')) && W.look.state === 'sealed';
       r.drawOff = Math.abs(am.post.x - amPost.x - (C.pos.x - W.pos.x)) < 1 && dropFor(ld) === C && Math.abs(wt.watchPos.x - (-170 + C.pos.x - W.pos.x)) < 1;
       r.notShot = fireTargetOf(sh) !== W; ours.forEach((f, k) => { f.seen = seenK[k]; });
-      /* a stage on a sealed gate takes the gate left */
-      const S2 = op.phases[2]; startStage(S2); r.stageMoved = stageGate === C && stageText.includes('中央ゲート') && Math.abs(slideTo.x - (S2.centre[0] + C.pos.x - W.pos.x)) < 1;
+      stepFronts(); r.frontShut = fronts[0].closed;   // the west gate sealed closes the west end's front
       /* the middle gate breached too: the east gate is the last; its shield gone, it stays open, and the assault ships by it wear the garrison down */
       damage(C, C.hp + 1, sh); damage(E, E.hp + 1, sh); stepBase(.05);
       r.last = C.sealed && !E.sealed && E.breached && !over && said.some(t => t.includes('最後のゲート、東ゲート'));
@@ -1000,16 +1020,18 @@ function check(ok, label, detail = '') {
       let n = 0; while (!over && n++ < 4000) stepBase(.05);
       r.lost = over && !outcome && loseWhy === 'garrison' && document.getElementById('rp').textContent.includes('基地守備隊が力尽きた');
       sh.el.remove(); return r; });
-    check(f1.stage0 && f1.stage1 && f1.slid, 'フェブルアーリア防衛戦: 4つの段階。時刻になると次の持ち場が輪で示され、作戦フィールドの中心がそこへ滑る。外に残った艦はそれより外へは出られない', JSON.stringify(f1));
+    check(f1.field && f1.kept && f1.allLine, 'フェブルアーリア防衛戦: 作戦フィールドは基地全体を覆う1つ（中心 [0,120]、半径360、クリックは345まで）で動かず、艦はその外へ出られない。段階はなく、100分に「全線」（2026-10-16）', JSON.stringify(f1));
+    check(f1.pressAt && f1.press && f1.held, 'フェブルアーリア防衛戦: 敵の列は傘の縁の持ち場からゲートの前へ寄る。砲台の届かない所では速く、こちらが数で勝つ所では止まる（押し込み。2026-10-16）', JSON.stringify(f1));
+    check(f1.front && f1.frontQuiet && f1.frontWorse && f1.frontShut, 'フェブルアーリア防衛戦: 押されている方面を、方面の指揮官とハッダード曹長が知らせる。すぐには繰り返さず、崩れかけたら言う。塞いだゲートの方面は閉じる（2026-10-16）', JSON.stringify(f1));
     check(f1.op === 'februaria' && f1.bb && f1.allies === 13 && f1.bt === 8 && f1.onRock && f1.centre && f1.sky && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍13隊（2026-10-14 の兵力の見直し）と地表の砲台8基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,
       'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が36ずつ。砲台は左右対称（2026-10-16）', JSON.stringify(f1));
-    check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 揚陸と総攻撃の護衛の重巡洋艦は地表の砲台を先に狙う（2026-10-13）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
+    check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 砲台狩りの重巡洋艦は縁で待ち、時刻で放たれて地表の砲台を先に狙う（2026-10-13・16）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
     check(f1.btRange && f1.shots >= 2 && Math.abs(f1.shotGap - 4) < .11 && Math.abs(f1.shotK - 1.15) < .02, 'フェブルアーリア防衛戦: 地表の砲台は射程90、4秒ごとに1発（撃ち続けた4秒分の1.15倍。2026-10-16）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
-    check(f1.sealed && f1.drawOff && f1.notShot && f1.stageMoved, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先・段階の持ち場が残りのゲートへ移る（2026-10-16）', JSON.stringify(f1));
+    check(f1.sealed && f1.drawOff && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先が残りのゲートへ移る（2026-10-16）', JSON.stringify(f1));
     check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦の数に比べて基地守備隊が減り、0で負け。任務欄に3つのゲートと守備隊（2026-10-16）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -1018,12 +1040,22 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const f2 = await page.evaluate(() => {
-      /* the all-out attack: repaired frigates from the yard join at the end of our list (outside any army group), and Wong's
-         battleships move up in front of the west gate (in front of the HQ until 2026-10-16) */
-      const n0 = fleets.filter(f => f.team === 0 && !f.ward).length; gameSec = op.phases[3].at / CLOCK_RATE; step(.05); step(.05);
+      /* the all-out attack (13:30, or 3割 of the main force sunk first): the lines all come on (hunt), Alvarez's unit comes down from above on the
+         middle gate (its W.A.S. 1.5 times the others', the reach as it is: 2026-10-16), repaired frigates from the yard join at the end of our list
+         (outside any army group, an event's given), and Wong's battleships move up in front of the middle */
+      const n0 = fleets.filter(f => f.team === 0 && !f.ward).length, SG = op.win.surge; gameSec = (SG.at - .01) / CLOCK_RATE; step(.05); const early = !surged;
+      gameSec = SG.at / CLOCK_RATE; step(.05); gameSec = (SG.at + 1.02) / CLOCK_RATE; step(.05);
       const mine = fleets.filter(f => f.team === 0 && !f.ward), ff = mine[mine.length - 1], w = fleets.find(f => f.name === '第1 主力戦艦 打撃群');
-      const r = { given: phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === op.phases[3].given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
-        wong: Math.hypot(w.post.x + 115, w.post.z - 145) < 1 };
+      const r = { given: early && surged && phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === SG.events.find(e => e.given).given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
+        wong: Math.hypot(w.post.x + 30, w.post.z - 120) < 1, surgeAt: SG.share === .3 && SG.at === 450,
+        lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
+      const ace = fleets.filter(f => f.ace && f.alive), other = op.events.find(e => e.fleet && e.fleet.type === 'mas').fleet.craft.was, AC = ace.length && ace[0].craft.was;
+      r.ace = ace.length === 2 && ace.every(f => f.drop === '中央ゲート' && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)
+        && ['dmg', 'hp', 'eva'].every(k => Math.abs(AC[k] - (other[k] || 1) * 1.5) < 1e-9) && AC.speed === 1.5 && !AC.range;
+      const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
+      const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
+      ace[0].hangars[0].next = 0; ace[0].hangars[0].squads.forEach(q => { q.ready = 0; }); const w0 = wings.length; launchCheck(ace[0]); const aw = wings[wings.length - 1];
+      r.aceWas = wings.length > w0 && aw.speed === WING.was.speed * 1.5 && aw.range === WING.was.range; t0.alive = false; t0.el.remove(); e1.el.remove();
       /* Oliveira's unit, badly hurt, gives ground (retreat) */
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.ships.splice(0, am.ships.length - 1); allyAI(); r.amzBack = !!am.falling && am.post.distanceTo(am.fallTo) < 1;
       /* 2026-10-14: a unit hurt below fallBack (7割) of its ships withdraws into the clouds; its ships left are not counted as sunk, and a later
@@ -1042,11 +1074,16 @@ function check(ok, label, detail = '') {
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(b); logE(a, b); };
       opEvents.splice(nextEvent, 0, { after: 0, ai: { fleets: ['試験 予備'], ai: 'land', drops: ['中央ゲート', '西ゲート'], log: ['試験', '{drop}へ'] } }); step(.05); logEvent = logE;
       r.weakGo = rs.ai === 'land' && rs.drop === '中央ゲート' && said.includes('中央ゲートへ');
+      /* an assault ship that comes in with drops picks the thinnest gate then (2026-10-16) */
+      logEvent = (a, b) => { said.push(b); logE(a, b); };
+      opEvents.splice(nextEvent, 0, { after: 0, fleet: { name: '試験 揚陸', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -300], alt: 0, ai: 'land', drops: ['中央ゲート', '西ゲート'], vis: 1, stl: 9 }, log: ['試験', '揚陸艦{drop}'] }); step(.05); logEvent = logE;
+      const sl = fleets.find(f => f.name === '試験 揚陸'); r.spawnDrop = sl.drop === '中央ゲート' && said.includes('揚陸艦中央ゲート'); sl.alive = false; sl.el.remove();
       ours.forEach((f, i) => f.pos.copy(keep[i])); rs.alive = false; rs.el.remove();
       gameSec = op.win.until / CLOCK_RATE; step(.05); return { ...r, over, outcome, by: repelBy, share: op.win.share }; });
-    check(f2.given && f2.wong && f2.amzBack, 'フェブルアーリア防衛戦: 総攻撃の始めに工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が西ゲートの前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
+    check(f2.given && f2.wong && f2.amzBack && f2.surgeAt && f2.lines, 'フェブルアーリア防衛戦: 総攻撃（13:30 か本隊の3割）で列が全部前へ出る。工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が中央の前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
+    check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から中央ゲートへ。W.A.S. の打撃・耐久・回避・速さは、ほかの共和国の W.A.S. の1.5倍で、射程はそのまま（2026-10-16）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
-    check(f2.weak1 && f2.weak2 && f2.weakGo, 'フェブルアーリア防衛戦: 予備は候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（drops。2026-10-14）', JSON.stringify(f2));
+    check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
     check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .5, 'フェブルアーリア防衛戦: 本隊の5割を沈めるか、18:00 まで持たせると勝利', JSON.stringify(f2));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -1059,7 +1096,7 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const f4 = await page.evaluate(() => {
-      gameSec = op.phases[2].at / CLOCK_RATE + 30; for (let i = 0; i < 4; i++) step(.05);
+      gameSec = 300 / CLOCK_RATE; for (let i = 0; i < 4; i++) step(.05);
       const [W, C, E] = gates; gateHit(W, W.hp + 1); gateHit(C, C.hp + 1); gateHit(E, E.hp + 1);
       const lander = makeFleet(1, { name: '試験 揚陸艦', sub: '', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', drop: E.name, vis: 1, stl: 9 }); fleets.push(lander);
       lander.pos.copy(E.ring); for (let i = 0; i < 20; i++) step(.05);

@@ -18,11 +18,11 @@ function craftOrbit(w,s,t,out){
   if(t.kind==='gate') _on.copy(t.up);   // a gate on the rock (第5節): they circle over it, not through the rock
   if(w.type==='was'){
     _ou.set(0,1,0).cross(_on); if(_ou.lengthSq()<1e-4) _ou.set(1,0,0); _ou.normalize(); _ov.crossVectors(_on,_ou);
-    const th=o.ph+o.dir*T*w.W.speed*.6/R;
+    const th=o.ph+o.dir*T*w.speed*.6/R;
     out.copy(t.pos).addScaledVector(_ou,Math.cos(th)*R).addScaledVector(_ov,Math.sin(th)*R).addScaledVector(_on,Math.sin(th*2+o.ph)*R*.3);
     if(t.kind==='gate') out.addScaledVector(t.up,4+R*.3);
   } else {
-    const D=2*R/(w.W.speed*.8), x=T/D+o.ph, i=Math.floor(x), f=x-i;
+    const D=2*R/(w.speed*.8), x=T/D+o.ph, i=Math.floor(x), f=x-i;
     const end=(j,v)=>v.set(hash(o.seed,j,1),hash(o.seed,j,2),hash(o.seed,j,3)).multiplyScalar(.7).addScaledVector(_on,j%2?-1:1).normalize().multiplyScalar(R);
     end(i,_oa); end(i+1,_ob); out.copy(t.pos).add(_oa.lerp(_ob,f));
   }

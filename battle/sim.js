@@ -224,7 +224,7 @@ function launchCheck(f){
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
-      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),range:W.range,
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range,
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
@@ -262,7 +262,7 @@ function stepWings(dt){
       const stop=w.state==='attack'?w.range*.6+(w.target.radius||0):1;
       _v.subVectors(goal,w.pos); const d=_v.length();
       if(w.state==='return'&&d<=stop+.5){ dock(w); continue; }
-      if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.W.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
+      if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
     }
     if(w.state!=='attack') continue;
     w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range?t:nearestFoe(w,w.range); }
@@ -612,6 +612,23 @@ function pickFoe(f,foes,hunt){
     if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
   return cur&&cs*PICK_KEEP<=bs?cur:best;
 }
+/* press (第5節, user decision 2026-10-16: the lines push in on the base): a line unit (ai:'guard' with press {goal:[x,z,alt], slow, fast, hold})
+   holds its post at the edge and moves it on toward its goal by the gates, `slow` a clock hour (operation minutes) while a gun on the base
+   covers the post (within its range + PRESS_COVER), `fast` where none does any more, and not at all while our ships round the post
+   (PRESS_R; a gun counts PRESS_GUN) are `hold` times its side's. How far it has come (0 at the edge, 1 at the goal) tells which side of
+   the base is pressed (stepFronts). An event's ai (the all-out attack's 'hunt') ends it. 数値は仮 */
+const PRESS_R=40, PRESS_COVER=8, PRESS_GUN=2;
+function pressPost(f){
+  const P=f.press; if(!f.pressGoal){ f.pressGoal=new THREE.Vector3(P.goal[0],P.goal[2]||0,P.goal[1]); f.pressFrom=f.post.clone(); }
+  const d=f.post.distanceTo(f.pressGoal); if(d<1) return;
+  let ours=0, theirs=f.ships.length;   // itself, even before it is there
+  for(const g of fleets){ if(g===f||!g.alive||g.ghost||g.kind!=='fleet'||g.pos.distanceTo(f.post)>PRESS_R) continue;
+    if(g.team===1) theirs+=g.ships.length; else ours+=g.fixed?PRESS_GUN:g.ships.length; }
+  f.pressHeld=ours>=(P.hold||1.5)*theirs; if(f.pressHeld) return;
+  const covered=fleets.some(b=>b.fixed&&b.alive&&b.team===0&&b.pos.distanceTo(f.post)<b.range+PRESS_COVER);
+  f.post.lerp(f.pressGoal,Math.min(1,(covered?P.slow??20:P.fast??80)/60*CLOCK_RATE*.5/d));   // enemyAI runs every half second
+}
+function pressShare(f){ return f.pressGoal?1-f.post.distanceTo(f.pressGoal)/Math.max(1,f.pressFrom.distanceTo(f.pressGoal)):0; }
 function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
@@ -641,6 +658,7 @@ function enemyAI(){
     if(f.ai==='pursue'){ pursueAI(f,foes); continue; }
     if(f.ai==='withdraw'){ withdrawAI(f); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
+    if(f.press&&f.ai==='guard') pressPost(f);   // 第5節: a line creeping toward the gates
     const threat=pickFoe(f,foes,f.ai==='hunt');
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
     else if(f.cover&&chase&&chase.fleet.alive){ const p=chase.fleet.pos; if(f.pos.distanceTo(p)>12) moveTo(f,p.x,p.y,p.z); }   // nothing in sight: stay by the guard
@@ -913,10 +931,14 @@ function startStage(S){
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
   const now=gameSec*CLOCK_RATE, add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
-  /* ships lent from this stage on (S.given, like op.given: ours to command, after our own fleets, outside any army group, no research) */
-  if(S.given&&S.given.length){ const mine=fleets.filter(f=>f.team===0&&!f.ward), k=mine.length?fleets.indexOf(mine[mine.length-1])+1:fleets.length;
-    fleets.splice(k,0,...S.given.map(o=>makeFleet(0,o))); buildRoster(); updateRoster(); }
+  lendShips(S.given);
   if(S.log) logEvent(...S.log); if(S.scene) playScene(S.scene);
+}
+/* ships lent from a stage or an event on (given, like op.given: ours to command, after our own fleets, outside any army group, no research) */
+function lendShips(list){
+  if(!list||!list.length) return;
+  const mine=fleets.filter(f=>f.team===0&&!f.ward), k=mine.length?fleets.indexOf(mine[mine.length-1])+1:fleets.length;
+  fleets.splice(k,0,...list.map(o=>makeFleet(0,o))); buildRoster(); updateRoster();
 }
 function keepInFieldSoft(f,sliding){
   /* while the field slides away, a fleet left behind is not dragged along: its own edge grows with the distance */
@@ -929,6 +951,53 @@ function stepPhases(dt){
   if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=k*k*(3-2*k);
     _fd.copy(slideFrom).lerp(slideTo,e).sub(fieldC); _fd.y=0; fieldC.add(_fd); shiftView(_fd); if(slideT>=slideDur) slideTo=null; }
   for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInFieldSoft(f,!!slideTo);
+}
+/* 第5節: which side of the base is pressed (op.fronts; user decision 2026-10-16: the allies hold the three sides, we go where it is
+   thin, told by the radio and a small mark). Each front {name, gate, x:[from, to], voice:[speaker, fleet], press, fall} covers the field
+   between those x (south of FRONT_N). Every half second from `from` minutes on, its level: 1 pressed (the lines there have come
+   FRONT_PROG[0] of their way, or the enemy's ships there are FRONT_RATIO[0] times ours with each live gun counting FRONT_GUN (when they
+   are FRONT_MIN or more), or its gate's shield lost FRONT_DROP in the last FRONT_WIN minutes), 2 falling (FRONT_PROG[1], FRONT_RATIO[1],
+   the shield down to FRONT_LOW, or every gun there gone). It rises at once and drops a level only after FRONT_CALM seconds below.
+   When it rises, the front's commander says press / fall (if that fleet is still there) and `who` (say.press / say.fall, {front},
+   {gate}, {cause} from causes) sums it up; back to 0, who says say.ok. Not said while most of our own ships are there already,
+   at most once in `gap` seconds over all, and a front again only after `again` minutes (unless it gets worse). A sealed gate closes
+   its front. 数値は仮 */
+const FRONT_N=-60, FRONT_PROG=[.35,.7], FRONT_RATIO=[1.3,2.2], FRONT_GUN=2, FRONT_MIN=8, FRONT_DROP=.06, FRONT_WIN=20, FRONT_LOW=.35, FRONT_CALM=10;
+let fronts=[], frontSaidT=-1e9;
+function initFronts(){ fronts=op.fronts?op.fronts.list.map(L=>({...L,level:0,calmT:null,pend:0,said:-1e9,saidLv:0,lastLv:0,cause:'',prog:0,hist:[],closed:false})):[]; frontSaidT=-1e9; }
+function stepFronts(){
+  const F=op.fronts; if(!F||over||repelT!=null||gameSec*CLOCK_RATE<(F.from||0)) return;
+  const now=gameSec*CLOCK_RATE, inZ=(L,p)=>p.z>FRONT_N&&p.x>=L.x[0]&&p.x<L.x[1]&&Math.hypot(p.x-fieldC.x,p.z-fieldC.z)<=FIELD_R;   // in the field only
+  const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.fixed), mineN=mine.reduce((s,f)=>s+f.ships.length,0);
+  for(const L of fronts){ if(L.closed) continue;
+    const g=gates.find(x=>x.name===L.gate); if(g&&g.sealed){ L.closed=true; L.level=L.pend=0; continue; }
+    let foe=0, ours=0, guns=0, gunsAll=0;
+    for(const f of fleets){ if(f.kind!=='fleet'||f.ghost) continue;
+      if(f.fixed&&f.team===0){ if(inZ(L,f.home)){ gunsAll++; if(f.alive) guns++; } continue; }
+      if(!f.alive||!inZ(L,f.pos)) continue;
+      if(f.team===1){ if(f.ai!=='withdraw') foe+=f.ships.length; } else if(!f.convoy) ours+=f.ships.length; }
+    const lines=fleets.filter(f=>f.alive&&f.team===1&&f.press&&f.ai==='guard'&&f.pressGoal&&f.pressGoal.x>=L.x[0]&&f.pressGoal.x<L.x[1]);
+    const prog=L.prog=lines.length?lines.reduce((s,f)=>s+pressShare(f),0)/lines.length:0;
+    const ratio=foe>=FRONT_MIN?foe/Math.max(1,ours+FRONT_GUN*guns):0;
+    const sh=g?g.hp/g.max:1; L.hist.push([now,sh]); while(L.hist.length>1&&L.hist[0][0]<now-FRONT_WIN) L.hist.shift();
+    const drop=L.hist[0][1]-sh, gunsOut=gunsAll>0&&!guns;
+    const lv=prog>=FRONT_PROG[1]||ratio>=FRONT_RATIO[1]||sh<=FRONT_LOW||gunsOut?2:prog>=FRONT_PROG[0]||ratio>=FRONT_RATIO[0]||drop>=FRONT_DROP?1:0;
+    if(lv>L.level){ L.level=L.pend=lv; L.calmT=null;
+      L.cause=gunsOut?'guns':sh<=FRONT_LOW||drop>=FRONT_DROP?'shield':prog>=FRONT_PROG[0]?'line':'few'; }
+    else if(lv<L.level){ if(L.calmT==null) L.calmT=gameSec; else if(gameSec-L.calmT>=FRONT_CALM){ L.level=lv; L.calmT=null; if(L.pend>lv) L.pend=lv; if(!lv&&L.saidLv) L.pend=-1; } }
+    else L.calmT=null;
+    /* say it, if it is time */
+    if(!L.pend||gameSec-frontSaidT<(F.gap||20)) continue;
+    const there=mine.reduce((s,f)=>s+(inZ(L,f.pos)?f.ships.length:0),0)>mineN/2;
+    const fill=t=>t.replace('{front}',L.name).replace('{gate}',L.gate||'').replace('{cause}',(F.causes&&F.causes[L.cause]||'').replace('{gate}',L.gate||''));
+    if(L.pend<0){ logEvent(F.who,fill(F.say.ok)); L.saidLv=0; L.pend=0; frontSaidT=gameSec; continue; }
+    if(L.pend<=L.lastLv&&now-L.said<(F.again||40)){ L.pend=0; continue; }   // said not long ago, and no worse
+    if(there){ L.pend=0; continue; }   // we are there already
+    const V=L.voice, vf=V&&fleets.find(f=>f.name===V[1]&&f.alive), line=L.pend>1?L.fall:L.press;
+    if(vf&&line) logEvent(V[0],line);
+    logEvent(F.who,fill(L.pend>1?F.say.fall:F.say.press));
+    L.said=now; L.saidLv=L.lastLv=L.pend; L.pend=0; frontSaidT=gameSec;
+  }
 }
 /* 第5節: hold the base (op.win {type:'repel', share, until, surge}): won when `share` of the enemy's main force (fleets marked main)
    is sunk, or at `until` minutes. surge {share, at, events}: the all-out attack, when `share` of it is sunk or at `at` minutes,
@@ -1090,13 +1159,15 @@ function step(dt){
       if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); } }
       else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; if(gates.length) watchOffSealed(f); } f.order=null; }
     if(E.phase) setPhase(E.phase);
+    if(E.text!=null) stageText=E.text;   // the goal panel's line (第5節: an operation without stages)
+    lendShips(E.given);
     if(E.log) logEvent(...(massN!=null?[E.log[0],E.log[1].replace('{units}',massN),...E.log.slice(2)]:fd?[E.log[0],E.log[1].replace('{drop}',fd.name),...E.log.slice(2)]:E.log));   // {units}: how many came (mass)
     if(E.scene) playScene(E.scene);   // lines that pause the battle (story on)
   }
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
-  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI();}
+  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts();}
   stepDefend(dt); stepBase(dt); stepRepel(); stepPhases(dt); stepTimeUp();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);

@@ -51,7 +51,7 @@ function makeFleet(team,o){
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
     heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*hpK(team),hpPool:o.n*o.hp*hpK(team),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
-  if(o.postAt) f.post.set(o.postAt[0],o.alt||0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節 the vanguard)
+  if(o.postAt) f.post.set(o.postAt[0],o.postAlt??o.alt??0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節; postAlt its height)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
      In a fleet that mixes carriers with other classes, the carriers keep to the rear */
   const types=shipClasses(o), nc=types.filter(t=>CARRIERS.has(t)).length, mixed=nc>0&&nc<o.n;
@@ -313,11 +313,12 @@ function reset(cfg=lastCfg){
   [...arrows].forEach(dropArrow); wings=[];
   document.getElementById('alt').hidden=true;
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
-  /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
-  fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200;
-  controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R; lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
+  lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
+  fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200;
+  controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R;
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
      (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */
   const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)
@@ -352,7 +353,7 @@ function reset(cfg=lastCfg){
     hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||36,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
   garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null;
-  surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null;
+  surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts();
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
