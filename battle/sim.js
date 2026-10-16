@@ -843,10 +843,13 @@ function cutBoarding(C,S){
   if(K.allies!=null) return alliesLost()>=K.allies;
   return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
 }
-/* the last wave (op.carrier.lastWave {of, lost, mass, log}; user decision 2026-10-17): while the people board, once the units of the wave
-   tagged `of` (mass.tag) have lost `lost` of their ships, the last wave comes (mass, like an event's), and with it the retreat begins */
+/* the last wave (op.carrier.lastWave {of, lost, gap, mass, log}; user decision 2026-10-17): while the people board, once the units of the wave
+   tagged `of` (mass.tag) have lost `lost` of their ships, and not before `gap` minutes after that wave came, the last wave comes (mass,
+   like an event's), and with it the retreat begins */
+let massAt={};
 function stepLastWave(C,S){
   const L=C.lastWave; if(!L||S.lastCame) return;
+  if(L.gap&&(massAt[L.of]==null||gameSec*CLOCK_RATE-massAt[L.of]<L.gap)) return;
   const U=fleets.filter(f=>f.team===1&&f.tag===L.of), n=U.reduce((s,f)=>s+f.n,0); if(!n) return;
   if(1-U.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n<L.lost) return;
   S.lastCame=true; const k=spawnMass(L.mass); if(L.log) logEvent(L.log[0],L.log[1].replace('{units}',k));
@@ -1141,7 +1144,8 @@ function spawnMass(M){
     return {pos:[a[0]-a[1]/s*side,a[1]+a[0]/s*side],alt:a[2]||0}; };
   const toward=p=>({pos:[p.pos[0]*.4,p.pos[1]*.4],alt:p.alt*.4});   // the arrow points in toward the middle
   let k=0;
-  const tag=M.tag?{tag:M.tag}:{};   // tag: the units of this wave, counted by carrier.lastWave (2026-10-17)
+  const tag=M.tag?{tag:M.tag}:{};   // tag: the units of this wave, counted by carrier.lastWave (2026-10-17); massAt: when it came (minutes)
+  if(M.tag) massAt[M.tag]=gameSec*CLOCK_RATE;
   for(const o of own){ spawnEnemy({...o,...tag},toward({pos:o.pos,alt:o.alt||0})); k++; }
   types.forEach((t,i)=>{ const nu=u[i], nums=t.nums||[]; let c=0;   // c: ships given out so far (the W.A.S. go with the ships)
     for(let j=0;j<nu;j++){ const n=Math.floor(t.n/nu)+(j<t.n%nu?1:0), w=t.was?Math.round(t.was*(c+n)/t.n)-Math.round(t.was*c/t.n):0; c+=n;
