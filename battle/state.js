@@ -21,7 +21,7 @@ let chase=null, perfect=false;
    blocks: the habitat blocks of the body {name, pos, radius, alive, seen, ships}; only raiders shoot them (sim.js)
    casualties: civilians lost in the blocks (op.civil.cap loses the operation); civMarks: the warnings already given
    debris: the mining debris clouds {c (centre, Vector3), r}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
-   {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', 'drop', 'time', or null) */
+   {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', 'garrison', 'time', or null) */
 /* the hit points multiplier (user decision 2026-10-13: both sides twice as hard): op.hpScale or WOS_DATA.balance.hp, set in reset().
    Every fleet, craft, fortress and station gets it when the battle is built; the data and the fleet editor keep the base values */
 let HP_K=1;
@@ -324,7 +324,7 @@ function reset(cfg=lastCfg){
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;
   buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt); buildSky(op.sky);
-  blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[]}));
+  blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[],gate:!!b.gate})).filter(b=>!b.gate);   // the gates of the base (第5節) are not habitat blocks
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
@@ -341,14 +341,15 @@ function reset(cfg=lastCfg){
   /* ships lent for this operation (op.given, 第5節: a battleship from the base's yard): ours to command, after our own fleets,
      outside any army group, and untouched by research (like the carrier) */
   fleets.splice(spec.length+(opCarrier?1:0),0,...(op.given||[]).map(o=>makeFleet(0,o)));
-  /* 第5節: the drop points (op.landing) over the base's buildings, and the enemy's main force to sink (op.win type 'repel') */
-  const LD=op.landing;
-  /* each point is `up` above the surface over its building (block), or at pos / alt */
-  drops=(LD&&LD.points||[]).map(d=>{ const b=d.block!=null&&BD.blocks[d.block], at=b?new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]):new THREE.Vector3(d.pos[0],d.alt||0,d.pos[1]);
-    if(b){ at.sub(bodyC).normalize(); at.multiplyScalar(bodyShape.R(at)+(d.up||8)).add(bodyC); }
-    return {...d,pos:at,prog:0,taken:false,state:'ours'}; });
-  dropRings=buildDrops(drops);
-  surged=false; repelBy=null; repelT=null; detailFocus=null;
+  /* 第5節: the base's gates (the body's blocks with gate:true, op.base; sim.js) on the floors of their craters, their shields, the infantry
+     round them and the garrison inside; and the enemy's main force to sink (op.win type 'repel'). A gate's ring (where the assault ships
+     stop) is `up` over the lid along the rock's face; pos is the lid's middle, what the enemy fires on (radius for the reach) */
+  const GB=op.base, looks=GB?buildBase(BD):buildBase(null);
+  gates=looks.map((L,i)=>({kind:'gate',team:0,id:-100-i,i,name:L.name,sub:L.sub,look:L,pos:L.at.clone(),up:L.up.clone(),ring:L.at.clone().addScaledVector(L.up,GB.up||10),r:GB.r||10,radius:GB.radius||7,
+    hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||36,
+    infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
+  garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null;
+  surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null;
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
@@ -395,7 +396,9 @@ function reset(cfg=lastCfg){
   document.getElementById('log').innerHTML='';
   showBrief('作戦概要',op.name,op.brief); flashBrief(8000);
   /* the body and its blocks are named on the plane like the sectors */
-  buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.pos})),
+  /* a gate's name stands just north of the gate itself (its block's pos is only the way to its crater) */
+  const gateLabel=b=>{ const g=gates.find(x=>x.name===b.name); return g?[g.pos.x,g.pos.z-6]:b.pos; };
+  buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.gate?gateLabel(b):b.pos})),
     ...(BD.port?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();

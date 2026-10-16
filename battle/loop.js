@@ -15,10 +15,12 @@ function craftOrbit(w,s,t,out){
     rad:(t.radius||3)+w.range*(w.type==='was'?.7+r()*.6:.9+r()*.5), ph:r()*Math.PI*2, dir:r()<.5?-1:1}; }
   const o=s.orb, R=o.rad, T=gameSec;
   _on.copy(o.ax).applyQuaternion(_oq.setFromAxisAngle(o.tilt,T*.25+o.ph));   // the orbit's axis turns slowly
+  if(t.kind==='gate') _on.copy(t.up);   // a gate on the rock (第5節): they circle over it, not through the rock
   if(w.type==='was'){
     _ou.set(0,1,0).cross(_on); if(_ou.lengthSq()<1e-4) _ou.set(1,0,0); _ou.normalize(); _ov.crossVectors(_on,_ou);
     const th=o.ph+o.dir*T*w.W.speed*.6/R;
     out.copy(t.pos).addScaledVector(_ou,Math.cos(th)*R).addScaledVector(_ov,Math.sin(th)*R).addScaledVector(_on,Math.sin(th*2+o.ph)*R*.3);
+    if(t.kind==='gate') out.addScaledVector(t.up,4+R*.3);
   } else {
     const D=2*R/(w.W.speed*.8), x=T/D+o.ph, i=Math.floor(x), f=x-i;
     const end=(j,v)=>v.set(hash(o.seed,j,1),hash(o.seed,j,2),hash(o.seed,j,3)).multiplyScalar(.7).addScaledVector(_on,j%2?-1:1).normalize().multiplyScalar(R);
@@ -75,7 +77,8 @@ function frame(now){
   }
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
-  stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0);
+  stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
+  for(const g of gates) drawGate(g);   // 第5節: the gates' bands, lids and infantry (base.js)
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */

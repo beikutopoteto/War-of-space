@@ -318,8 +318,9 @@ function makeBodyShape(B){
     return r; }
   /* a body much larger than the field (B.face): only the side facing the field is made, finely (a cap around B.face, B.faceA radians) */
   let g;
-  if(B.face){ g=new THREE.SphereGeometry(1,B.seg?B.seg[0]:360,B.seg?B.seg[1]:120,0,Math.PI*2,0,B.faceA||.9);
-    g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir(B.face)))); }
+  let cap=null;   // the cap's grid (widthSegments W, heightSegments H, its angle A, the turn q from +y to B.face): base.js finds the rendered surface from it
+  if(B.face){ cap={W:B.seg?B.seg[0]:360,H:B.seg?B.seg[1]:120,A:B.faceA||.9,q:new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir(B.face))};
+    g=new THREE.SphereGeometry(1,cap.W,cap.H,0,Math.PI*2,0,cap.A); g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(cap.q)); }
   else g=new THREE.IcosahedronGeometry(1,56);   // fine enough for the trenches (about 63,000 faces)
   /* the rest of it, the side away from the field (2026-10-15, user decision: make the back too), coarser. It starts on the cap's edge with
      as many points around, so the two meet without a gap, and the normals along the seam are shared so no line shows. It is only seen,
@@ -333,7 +334,7 @@ function makeBodyShape(B){
     geo.computeVertexNormals(); }
   if(back){ const W=B.seg?B.seg[0]:360, H=B.seg?B.seg[1]:120, gn=g.attributes.normal, bn=back.attributes.normal;
     for(let ix=0;ix<=W;ix++){ const i=H*(W+1)+ix; v.fromBufferAttribute(gn,i).add(_bd.fromBufferAttribute(bn,ix)).normalize(); gn.setXYZ(i,v.x,v.y,v.z); bn.setXYZ(ix,v.x,v.y,v.z); } }
-  return {R,geo:g,back,towns,craters,grooves,mine:M};
+  return {R,geo:g,back,cap,towns,craters,grooves,mine:M};
 }
 function buildBody(B,zoneR){
   for(const m of [...bodyObj.children]){ bodyObj.remove(m); m.traverse(x=>{ if(x.geometry&&x.geometry!==cloudGeo) x.geometry.dispose(); }); }
@@ -344,7 +345,8 @@ function buildBody(B,zoneR){
   if(bodyShape.back) bodyObj.add(new THREE.Mesh(bodyShape.back,bodyMat));   // the far side (seen only)
   const hull=new THREE.MeshStandardMaterial({color:0x8a8f99,metalness:.5,roughness:.5}), dark=new THREE.MeshStandardMaterial({color:0x3b4250,metalness:.4,roughness:.7});
   const ring=(r0,r1,col,op)=>{ const m=new THREE.Mesh(new THREE.RingGeometry(r0,r1,64),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false,side:THREE.DoubleSide})); m.rotation.x=-Math.PI/2; return m; };
-  (B.blocks||[]).forEach((b,i)=>{ const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]).sub(bodyC), g=new THREE.Group();
+  (B.blocks||[]).forEach((b,i)=>{ if(b.gate) return;   // a gate of the base (第5節): no town on its crater floor; the gate is built in base.js
+    const at=new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]).sub(bodyC), g=new THREE.Group();
     /* a town of small habitat modules set into the rock, facing outward: blocks of different heights on a loose grid, joined by
        round tubes low down and by bridges across their tops only, with warm window lights (user decision 2026-10-09) */
     const mods=[], tube=(a,b,r)=>{ const d=b.clone().sub(a), m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),10),hull);
@@ -370,11 +372,15 @@ function buildBody(B,zoneR){
       const r=ring(zoneR-.35,zoneR,ZONE_HEX,.5); r.position.set(at.x,at.y,at.z); bodyObj.add(r); } });
   /* thin pipes laid over the rock from town to town, beside the railway trenches (user decision 2026-10-10; thickness and spacing 仮).
      Two pipes side by side on one side of the trench, following the surface a little above it, on small posts */
-  const T=bodyShape.towns, ca=B.craterA||.3;
+  /* by a gate of the base (第5節, 2026-10-16) the pipes start clear of it (GATE_PIPE craters out), and none runs past a third crater
+     (the pipes from the west gate to the east one would cross the middle gate) */
+  const T=bodyShape.towns, ca=B.craterA||.3, GATE_PIPE=1.6, isGate=i=>!!(B.blocks[i]&&B.blocks[i].gate);
   T.forEach((a,i)=>T.forEach((b,j)=>{ if(j<=i) return;
     const n=new THREE.Vector3().crossVectors(a,b).normalize(), ang=a.angleTo(b);
+    if((isGate(i)||isGate(j))&&T.some((c,k)=>k!==i&&k!==j&&Math.abs(Math.asin(Math.min(1,Math.abs(c.dot(n)))))<ca*3&&c.angleTo(a)<ang&&c.angleTo(b)<ang)) return;
+    const s0=isGate(i)?GATE_PIPE:.55, s1=isGate(j)?GATE_PIPE:.55;
     [[ca*.25,.1],[ca*.31,.08]].forEach(([off,rad],w)=>{ const pts=[];
-      const ds=[], rs=[]; for(let k=0;k<=48;k++){ const th=ca*.55+(ang-ca*1.1)*k/48, d=a.clone().applyAxisAngle(n,th).addScaledVector(n,off).normalize(); ds.push(d); rs.push(bodyShape.R(d)); }
+      const ds=[], rs=[]; for(let k=0;k<=48;k++){ const th=ca*s0+(ang-ca*(s0+s1))*k/48, d=a.clone().applyAxisAngle(n,th).addScaledVector(n,off).normalize(); ds.push(d); rs.push(bodyShape.R(d)); }
       /* the pipe runs level over small pits: the highest ground nearby, never below the rock */
       ds.forEach((d,k)=>{ let h=0; for(let q=Math.max(0,k-2);q<=Math.min(48,k+2);q++) h=Math.max(h,rs[q]); pts.push(d.clone().multiplyScalar(h+.45)); });
       bodyObj.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),96,rad,6,false),w?dark:hull));
@@ -394,15 +400,6 @@ function buildBody(B,zoneR){
     const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
     const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
-}
-/* the drop points on the body (op.landing, 第5節): a ring over each where the enemy's assault ships stop to put their W.A.S. down.
-   Blue while ours, amber while a ship is landing in it, red once taken */
-const dropObj=new THREE.Group(); scene.add(dropObj);
-const DROP_HEX={ours:0x6fb8ff, landing:0xffb347, taken:0xff5a4a};
-function buildDrops(list){
-  for(const m of [...dropObj.children]){ dropObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  return (list||[]).map(d=>{ const m=new THREE.Mesh(new THREE.RingGeometry(d.r-.6,d.r,64),new THREE.MeshBasicMaterial({color:DROP_HEX.ours,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
-    m.rotation.x=-Math.PI/2; m.position.copy(d.pos); dropObj.add(m); return m; });
 }
 /* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
    overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane

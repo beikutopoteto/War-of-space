@@ -327,7 +327,18 @@ window.WOS={ start(cfg){
 /* mission panel (top right, under the legend): what to do now, with a gauge.
    Escort: boarding % until the convoy sails, then how far along its route it is. Fortress: the armor left. Click to fold it */
 const goalEl=document.getElementById('goal'), goalText=document.getElementById('goalText'), goalBar=document.getElementById('goalBar'),
-  goalLabel=document.getElementById('goalLabel'), goalSub=document.getElementById('goalSub');
+  goalLabel=document.getElementById('goalLabel'), goalSub=document.getElementById('goalSub'), goalGates=document.getElementById('goalGates');
+/* 第5節: the gates as small long octagons like the gates themselves (north up), filled from below to the shield left; the garrison's gauge */
+const GOAL_OCT='9.9,2.4 14.1,2.4 18,7.2 18,16.8 14.1,21.6 9.9,21.6 6,16.8 6,7.2';
+function gatesHtml(){
+  const icon=(g,i)=>{ const k=Math.max(0,g.hp/g.max), c=g.sealed?'#93a3b8':k<=GATE_AMBER?'#ffb347':'#7fc8ff', top=(21.6-19.2*k).toFixed(2);
+    return `<svg viewBox="0 0 24 24" aria-hidden="true"><defs><clipPath id="gk${i}"><rect x="0" y="${top}" width="24" height="24"/></clipPath></defs>`+
+      (g.sealed?`<polygon points="${GOAL_OCT}" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="2 1.6"/><path d="M8.5 7.5L15.5 16.5M15.5 7.5L8.5 16.5" stroke="${c}" stroke-width="1"/>`:
+      `<polygon points="${GOAL_OCT}" fill="${c}" fill-opacity=".38" clip-path="url(#gk${i})"/><polygon points="${GOAL_OCT}" fill="none" stroke="${c}" stroke-width="1"/>`)+'</svg>'; };
+  const cls=g=>g.sealed?'shut':g.hp/g.max<=GATE_AMBER?'warn':'ok', pct=g=>g.sealed?'閉鎖':Math.ceil(100*Math.max(0,g.hp/g.max))+'%';
+  const gar=garrison?Math.max(0,garrison.hp/garrison.max):0;
+  return `<div class="gr">${gates.map((g,i)=>`<div class="gc ${cls(g)}" title="${g.name}のシールド">${icon(g,i)}<span>${g.name.replace(/ゲート$/,'')}</span><span class="v">${pct(g)}</span></div>`).join('')}</div>`+
+    (garrison?`<div class="gar" title="基地の中の守備隊。最後のゲートのシールドが尽きると、そばの揚陸艦に削られる。0で失敗"><span>基地守備隊</span><span class="g"><i style="width:${(gar*100).toFixed(1)}%"></i></span><span class="v">${Math.ceil(gar*100)}%</span></div>`:''); }
 goalEl.addEventListener('click',()=>goalEl.classList.toggle('fold'));
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
@@ -348,11 +359,10 @@ function updateGoal(){
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=gameSec*CLOCK_RATE;
-    /* 第5節: sink half the enemy's main force or hold until the time; the drop points and the batteries on the base */
+    /* 第5節: sink half the enemy's main force or hold until the time; the gates and the garrison (goalGates), the batteries on the base */
     p=Math.max(Math.min(1,k/W.share),Math.min(1,now/W.until)); text=stageText||W.text; mode='defend';
     label=`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`;
-    subT='降下点 '+drops.map(d=>`${d.name}：${d.taken?'占拠':d.state==='landing'?`揚陸中 残り${Math.max(0,Math.ceil(op.landing.hold-d.prog))}分`:'無事'}`).join('・');
-    const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT+=`\n地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
+    const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT=`地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
     const al=fleets.filter(f=>f.ally&&!f.fixed); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:0}/${f.n}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
     if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}${portOpen()?'':'　管制 閉鎖中'}`; mode='board'; }
@@ -371,6 +381,7 @@ function updateGoal(){
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?(perfect?'完全勝利':'任務達成'):'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
+  const gh=gates.length?gatesHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
 }
 
 /* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
