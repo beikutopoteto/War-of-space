@@ -1057,7 +1057,7 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const dl = await page.evaluate(() => {
-      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: w.hp === 550 && op.allies[0].hp === 275 };
+      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: w.hp === 660 && op.allies[0].hp === 330 };
       fleets.filter(x => x.team === 0).forEach(x => { x.hpPool = 1e9; });
       const T = op.timeUp; gameSec = (T.at + 1) / CLOCK_RATE; opCarrier.cs.landed = true; stepTimeUp(); r.landedOk = !over; opCarrier.cs.landed = false;
       gameSec = (T.warn.at - 1) / CLOCK_RATE; step(.05); r.quiet = !over && !timeWarned;
@@ -1065,7 +1065,7 @@ function check(ok, label, detail = '') {
       let n = 0; while (!over && n++ < 400) step(.05);
       return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
     check(dl.main && dl.landedOk && dl.quiet && dl.warned && dl.over && !dl.outcome && dl.why === 'time' && dl.clock === '12:00' && dl.rp.includes('降りられなかった'),
-      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦のデータは275で、戦闘では2倍の550', JSON.stringify(dl));
+      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦のデータは330で、戦闘では2倍の660（2026-10-15 に1.2倍）', JSON.stringify(dl));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* holding Ctrl fast-forwards the conversation */
