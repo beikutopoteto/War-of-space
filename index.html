@@ -11,7 +11,7 @@
 <div id="tl" class="hud">
   <div id="clock"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
   <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧">メニュー Esc</button></div>
-  <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gs" id="goalSub"></div></div>
+  <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gx" id="goalGates" hidden></div><div class="gs" id="goalSub"></div></div>
   <div id="alt" hidden aria-label="高度">
     <span class="cap">高度</span>
     <button id="altUp" aria-label="高度を上げる">▲</button>
@@ -101,6 +101,7 @@
 <script src="data/tech.js"></script>
 <script src="battle/scene.js"></script>
 <script src="battle/effects.js"></script>
+<script src="battle/base.js"></script>
 <script src="battle/shapes.js"></script>
 <script src="battle/units.js"></script>
 <script src="battle/state.js"></script>
