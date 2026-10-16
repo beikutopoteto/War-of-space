@@ -840,6 +840,7 @@ function check(ok, label, detail = '') {
       const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 31 && n++ < 6000) step(.05);
       const w2 = fleets.find(f => f.team === 1 && f.alive && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
       if (w2) { w2.alive = false; w2.el.remove(); }
+      r.noLastYet = !opCarrier.cs.lastCame; fleets.forEach(f => { f.tag = null; });   // the loop below takes every enemy off: not the first wave's losses
       /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come); cut short once 60% of the
          battle line is sunk, and always after cut.max minutes */
       while (opCarrier.cs.board < 120 && n++ < 6000) { step(.05); fleets.forEach(f => { if (f.team === 1 && f.alive && !f.fixed) { f.alive = false; f.el.remove(); } }); }
@@ -855,7 +856,18 @@ function check(ok, label, detail = '') {
         const others = ours.filter(t => t !== detailFocus);
         r.mass = { k, ours: ours.length, n: add.reduce((s, f) => s + f.n, 0), was: add.reduce((s, f) => s + (f.hangar && f.hangar.was || 0), 0), detail: G.length,
           focus: on(detailFocus), pinned: others.filter(t => on(t) === 1).length, lone: !detailFocus.preyLast };
-        add.forEach(f => { f.alive = false; f.el.remove(); }); detailFocus = null; }
+        add.forEach(f => { f.alive = false; f.el.remove(); f.tag = null; }); detailFocus = null; }
+      /* the last wave in two (user decision 2026-10-17): the second comes once the first has lost 60% of its ships, and the retreat begins with it */
+      { const S = opCarrier.cs, before = fleets.length; spawnMass(op.carrier.evacEvents.find(e => e.mass).mass);
+        const W1 = fleets.slice(before).filter(f => f.tag === 'w1'), n1 = W1.reduce((s, f) => s + f.n, 0); let lost = 0;
+        for (const f of W1) while (f.ships.length && lost < n1 * .55) { f.ships.pop(); lost++; }
+        const b2 = fleets.length; stepLastWave(op.carrier, S); const early = fleets.length === b2 && !S.lastCame && !cutBoarding(op.carrier, S);
+        for (const f of W1) while (f.ships.length && lost < n1 * .6) { f.ships.pop(); lost++; }
+        W1.forEach(f => { if (!f.ships.length) f.alive = false; });
+        const said = [], logE = logEvent; logEvent = (a, b) => { said.push(b); logE(a, b); }; stepLastWave(op.carrier, S); logEvent = logE; const W2 = fleets.slice(b2);
+        r.lastWave = { n1, was1: W1.reduce((s, f) => s + (f.hangar && f.hangar.was || 0), 0), early, came: S.lastCame && W2.length >= 2 && said.some(t => t.includes(W2.length + '隊')),
+          n2: W2.reduce((s, f) => s + f.n, 0), was2: W2.reduce((s, f) => s + (f.hangar && f.hangar.was || 0), 0), cut: cutBoarding(op.carrier, S) };
+        [...W1, ...W2].forEach(f => { f.alive = false; f.el.remove(); f.tag = null; }); S.lastCame = false; }
       /* at the cut, the waves not yet come (wave:true) are dropped and the retreat's own events (doneEvents) follow from then
          (none of the boarding's own are left by now: one is put in to see it go) */
       opEvents.splice(nextEvent, 0, { after: gameSec * CLOCK_RATE + 500, wave: true, log: ['試し', '来ない波'] });
@@ -897,8 +909,10 @@ function check(ok, label, detail = '') {
     check(d1.notYet && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 本軍の隻数の5割が沈むと撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う（2026-10-17）', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。本軍の隻数の5割が沈むか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     { const M = d1.mass || {};
-      check(M.ours >= 2 && M.k === M.ours + 1 && M.n === 50 && M.was === 220 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
-        'デナリの盾: 後半の敵は一度に、残っている自軍と本軍の隊の数＋1隊で来る（50隻・W.A.S. 220 は変えない）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
+      check(M.ours >= 2 && M.k === M.ours + 1 && M.n === 20 && M.was === 76 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
+        'デナリの盾: 後半の敵は一度に、残っている自軍と本軍の隊の数＋1隊で来る（1つ目の波は20隻・W.A.S. 76。2026-10-17）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
+    { const L = d1.lastWave || {};
+      check(d1.noLastYet && L.n1 === 20 && L.was1 === 76 && L.early && L.came && L.n2 === 30 && L.was2 === 144 && L.cut, 'デナリの盾: 最後の波は2つ。1つ目（20隻）の6割が沈むと2つ目（30隻・W.A.S. 144）が来て、撤退が始まる（2026-10-17）', JSON.stringify(L)); }
     check(d1.wavesGone && d1.doneEv,'デナリの盾: 切り上げのとき、まだ来ていない波（wave:true）は捨て、撤退の出来事（doneEvents）が切り上げから始まる', JSON.stringify(d1));
     check(d1.lost === '5割' && d1.lostLeft, 'デナリの盾: 勝ちの会話の {lost} に、本軍の戦艦の帰らなかった割合が入る（離脱点から抜けた隊は帰ったと数える）', JSON.stringify(d1));
     check(d1.slow === .48 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
