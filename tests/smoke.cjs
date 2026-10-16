@@ -974,7 +974,7 @@ function check(ok, label, detail = '') {
       r.press = v1 > 0 && v2 > v1 * 3 && ln.post.distanceTo(goalP) < P.distanceTo(goalP);
       const wall = makeFleet(0, { name: '試験 壁', sub: '', type: 'cl', n: 12, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ln.post.x, ln.post.z], alt: ln.post.y, vis: 1, stl: 9 }); fleets.push(wall);
       const G2 = ln.post.clone(); enemyAI(); r.held = ln.pressHeld && ln.post.equals(G2); wall.alive = false; wall.el.remove();
-      bt.forEach((f, i) => { f.alive = gunsOff[i]; }); others.forEach((f, i) => { f.pos.y = keepY[i]; }); ln.post.copy(G0);
+      bt.forEach((f, i) => { f.alive = gunsOff[i]; }); others.forEach((f, i) => { f.pos.y = keepY[i]; }); ln.post.copy(G0); ln.pressFrom.copy(G0);
       /* the fronts (2026-10-16): the east end pressed (the lines there have come far) is told by its commander and summed up by Haddad;
          not again soon, unless it gets worse */
       const Fe = fronts.find(F => F.name === '東の端'), lines = fleets.filter(f => f.alive && f.team === 1 && f.press && f.ai === 'guard' && f.pressGoal && f.pressGoal.x > 90);
@@ -1043,7 +1043,7 @@ function check(ok, label, detail = '') {
       /* the all-out attack (13:30, or 3割 of the main force sunk first): the lines all come on (hunt), Alvarez's unit comes down from above on the
          middle gate (its W.A.S. 1.5 times the others', the reach as it is: 2026-10-16), repaired frigates from the yard join at the end of our list
          (outside any army group, an event's given), and Wong's battleships move up in front of the middle */
-      const n0 = fleets.filter(f => f.team === 0 && !f.ward).length, SG = op.win.surge; gameSec = (SG.at - .01) / CLOCK_RATE; step(.05); const early = !surged;
+      const n0 = fleets.filter(f => f.team === 0 && !f.ward).length, SG = op.win.surge; gameSec = (SG.at - .2) / CLOCK_RATE; step(.05); const early = !surged;   // one step is about .03 minutes
       gameSec = SG.at / CLOCK_RATE; step(.05); gameSec = (SG.at + 1.02) / CLOCK_RATE; step(.05);
       const mine = fleets.filter(f => f.team === 0 && !f.ward), ff = mine[mine.length - 1], w = fleets.find(f => f.name === '第1 主力戦艦 打撃群');
       const r = { given: early && surged && phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === SG.events.find(e => e.given).given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),

@@ -122,7 +122,17 @@ window.WOS_DATA=window.WOS_DATA||{};
      infantry はゲートのまわりの強化歩兵（点 n。シールドの残りに合わせて減り、塞ぐと消える）。近くの W.A.S. と突撃揚陸艦だけを、1人 dmg の弱い打撃で撃つ（line と rocket は撃つ見た目の多さ）。
      halfLog はシールドが半分になったとき。radius は射程に足すゲートの大きさ
    phases の gate: その段階の持ち場のゲートの名前。始まるときに塞がれていれば、残りのゲートへ同じだけずらす（中心と任務欄の文の名前）
-   every / shotK（地表の砲台）: 撃ち続ける代わりに every 秒（戦闘の秒）ごとに1発、撃ち続けたその秒数分の shotK 倍をまとめて当てる（装填が済んでいれば、目標が入るとすぐ撃つ） */
+   every / shotK（地表の砲台）: 撃ち続ける代わりに every 秒（戦闘の秒）ごとに1発、撃ち続けたその秒数分の shotK 倍をまとめて当てる（装填が済んでいれば、目標が入るとすぐ撃つ）
+   ここから下は第5節の敵の流れの作り直し（三方面の押し合い）で足したもの（2026-10-16、ユーザー決定。数値は仮）:
+   fieldC:[x,z] / fieldR / reach: 作戦フィールドの中心と半径（書かなければ原点と215）、移動の指示をクリックできる中心からの距離（書かなければ200）。自軍は枠の外へ出られない。view.max は引ける距離（書かなければ330）
+   ai:'guard' の press:{goal:[x,z,alt], slow, fast, hold}（敵の列）: 持ち場（postAt、高さは postAlt）を goal へ少しずつ寄せる。地表の砲台の届く所は作戦の1時間に slow（20）、
+     届かなくなった所は fast（80）。まわりのこちらの隻数（砲台は2）が自分たちの hold（1.5）倍以上なら止まる。events の ai で hunt にすると終わる
+   events の text: 任務欄の指示を変える（段階のない作戦）。events の given: その時刻に預かる艦（phases の given と同じ）
+   events の fleet の drops:[ゲートの名前…]: 出るときに、候補のうち守りのいちばん薄いゲートを選ぶ（events の ai の drops と同じ）。log の {drop} はその名前
+   craft の speed: 小型機の速さの倍率（dmg / hp / eva と同じ。射程と行動範囲は変えない）
+   fronts:{from, gap, again, who, say:{press, fall, ok}, causes, list:[{name, gate, x:[西, 東], voice:[話し手, 隊の名前], press, fall}]}: 押されている方面の知らせ。
+     from 分から、方面（x の範囲、作戦フィールドの中）ごとに「押されている」「崩れかけ」を決め、上がったときに方面の指揮官（voice の隊が残っていれば press / fall）と who（say）が言う。
+     持ち直すと say.ok。全体で gap 秒、同じ方面は again 分あける（悪くなったときは除く）。駐屯隊の過半がその方面にいれば言わない。ゲートが塞がれるとその方面は閉じる。判定は battle/sim.js の stepFronts */
 /* 戦闘の規模（ユーザー決定 2026-10-12: 4つ。1倍速での長さの目安）。作戦の scale に書く。
    min / max: 1倍速の長さ（分）　sec: 作戦の時計を合わせる目標の秒数（span ÷ sec で時計の速さが決まる。仮）
    cap: 自分の戦区軍で出撃できる艦の合計（全兵科、選んだ戦区軍すべて。ユーザー決定 2026-10-12: 規模で出撃の上限を制限する。数は仮） */
@@ -1025,7 +1035,7 @@ WOS_DATA.operations=[
     clouds:[{pos:[-150,-300], alt:5, r:42}, {pos:[0,-320], alt:-5, r:46}, {pos:[150,-300], alt:5, r:42}],
     /* 総基地の工廠から預かる戦艦（ユーザー決定 2026-10-12: この節から1隻。数値は仮） */
     given:[
-      {name:'第7 砲戦突破 支隊', sub:'戦艦（総基地の工廠から）', type:'bb', n:1, hp:70, dmg:3.2, eva:.03, range:24, speed:4.5, scale:1.7, pos:[0,20], alt:0, vis:5, stl:2},
+      {name:'第7 砲戦突破 支隊', sub:'戦艦（総基地の工廠から）', type:'bb', n:1, hp:70, dmg:3.2, eva:.03, range:24, speed:4.5, scale:1.7, pos:[0,90], alt:0, vis:5, stl:2},
     ],
     quick:[
       {name:'第9 前衛巡洋 支隊', sub:'巡洋艦', type:'cl', n:6, hp:13, dmg:1.2, eva:.05, range:16, speed:5, scale:1.2, pos:[0,0], alt:0, vis:6, stl:4},
