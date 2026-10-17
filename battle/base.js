@@ -178,16 +178,17 @@ function infDots(x,z,I=INF_LOOK){ const teams=[];
   const m=new THREE.Points(geo,new THREE.PointsMaterial({color:ALLY_HEX,size:I.size*pxK(),sizeAttenuation:false,transparent:true,depthWrite:false,map:infRimTex(),alphaTest:.05}));
   m.renderOrder=3; baseObj.add(m); return {m,pts}; }
 
-/* ---- the base's guns (第5節; user decision 2026-10-17, 案G of the samples): a round hole in the rock, ringed by an octagonal berm and a
-   round collar. The gun house (stood up; seen from its side, the user's sketch: a long trapezoid, a rectangle, a short trapezoid) hangs under
-   the ground on a stabilizer (a gimbal at the mouth), and only the twin barrels stand out. The gimbal turns and raises them toward the target
-   (PIT_EL, PIT_TURN a second). The hole is seen into: a disc at the mouth marks the stencil where nothing nearer is drawn, the bowl is drawn
-   there over the rock (depth always), then the house, the rings and the lights inside with the usual depth test. Sizes are the sample's
-   units × PIT_S (twice the old battery, as the user chose). A few infantry (data inf) stand round each gun (PIT_INF). 数値は仮 ---- */
-const PIT_S=1.3, PIT_MOUTH=.52, PIT_BOWL=1.7, PIT_EL=[.26,1.48], PIT_REST=.52, PIT_TURN=1.2;
+/* ---- the base's guns (第5節; user decision 2026-10-17, 案H from the user's sketch): a round shaft straight down into the rock, ringed by an
+   octagonal berm and a round collar, with a floor. The gun house (stood up: a long trapezoid, a rectangle, a short trapezoid) hangs wholly
+   under the ground; a ring round its upper part turns all the way round (traverse) and a bar across the ring is the axis it swings on
+   (elevation, PIT_EL); only the twin barrels stand out of the mouth. They turn and rise toward the target, PIT_TURN a second; a target lower
+   than PIT_EL[0] the gun cannot reach (sim.js pitCan). The shaft is seen into: a disc at the mouth marks the stencil where nothing nearer
+   is drawn, the shaft is drawn there over the rock (depth always), then the house, the ring, the bar and the lamps with the usual depth test.
+   Sizes are the sample's units × PIT_S (twice the old battery, as the user chose). A few infantry (data inf) stand round each gun (PIT_INF). 数値は仮 ---- */
+const PIT_S=1.3, PIT_R=.62, PIT_AXIS=.42, PIT_DEEP=1.9, PIT_EL=[.79,1.57], PIT_REST=1.4, PIT_TURN=1.2;
 const PIT_INF={teams:2, per:4, rMin:3.6, rMax:5.5, flat:1, spread:1.3, size:5, lift:.3};
 const PM={dead:new THREE.MeshStandardMaterial({color:0x2a2e33,metalness:.3,roughness:.9}),
-  bowl:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
+  shaft:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
     stencilWrite:true,stencilRef:1,stencilFunc:THREE.EqualStencilFunc}),
   mask:new THREE.MeshBasicMaterial({colorWrite:false,depthWrite:false,stencilWrite:true,stencilRef:1,stencilFunc:THREE.AlwaysStencilFunc,stencilZPass:THREE.ReplaceStencilOp}),
   lamp:new THREE.MeshBasicMaterial({color:0x9fd8ff})};
@@ -195,28 +196,30 @@ let pitMat=null;
 function pitRing(ro,ri,h,y){ const sh=new THREE.Shape(); sh.absarc(0,0,ro,0,Math.PI*2,false); const hp=new THREE.Path(); hp.absarc(0,0,ri,0,Math.PI*2,true); sh.holes.push(hp);
   return at(new THREE.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false,curveSegments:32}),0,y,0,-Math.PI/2); }
 let pitGeo=null;
-function pitGeos(){ if(pitGeo) return pitGeo; const M=PIT_MOUTH, fix=[], gun=[];
-  for(let i=0;i<8;i++){ const a=i*Math.PI/4; fix.push(at(box(.78,.26,.2),Math.sin(a)*.95,.13,Math.cos(a)*.95,0,a,0)); }
-  fix.push(pitRing(.72,M,.16,0), pitRing(.9,.72,.06,0), at(new THREE.TorusGeometry(M-.05,.04,8,40),0,.02,0,Math.PI/2),
-    ...pair(at(box(.12,.07,.07),M-.04,.02,0)), ...pair(at(box(.07,.07,.12),0,.02,M-.04)));
-  /* the gun, in the gimbal's frame (+z along the barrels): the inner ring round their roots, the barrels, and the house hanging under them */
-  gun.push(at(new THREE.TorusGeometry(.3,.035,8,32),0,0,.04), ...pair(at(box(.2,.05,.05),.38,0,.04)));
-  for(const x of [.09,-.09]) gun.push(at(taper(.075,.055,1.7,10),x,0,.75), at(tube(.08,.14,10),x,0,1.68), at(box(.11,.11,.2),x,0,.02));
-  gun.push(at(loft([[-1.55,.245,.17],[-1.214,.5,.17],[-.701,.5,.17],[-.05,.29,.17]],RECT),0,-.24,0), at(box(.16,.2,.14),0,-.1,-.02));
-  const lamps=[]; for(let i=0;i<20;i++){ const a=i*Math.PI/5+(i>=10?Math.PI/10:0), ph=i<10?.95:1.2, R=PIT_BOWL*.97;
-    lamps.push(at(box(.05,.05,.05),Math.cos(a)*R*Math.cos(ph),-.06-R*Math.sin(ph),Math.sin(a)*R*Math.cos(ph))); }
-  const mask=new THREE.CircleGeometry(M,32); mask.rotateX(-Math.PI/2); mask.translate(0,.005,0);
-  const bowl=new THREE.SphereGeometry(PIT_BOWL,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2); bowl.translate(0,-.06,0);
-  return pitGeo={fix:joinParts(fix), gun:joinParts(gun), lamps:joinParts(lamps), mask, bowl}; }
+function pitGeos(){ if(pitGeo) return pitGeo; const R=PIT_R, A=PIT_AXIS, fix=[], turn=[], gun=[];
+  for(let i=0;i<8;i++){ const a=i*Math.PI/4; fix.push(at(box(.78,.26,.2),Math.sin(a)*1.02,.13,Math.cos(a)*1.02,0,a,0)); }
+  fix.push(pitRing(.8,R,.14,0), pitRing(.96,.8,.05,0));
+  /* the traverse ring with its rollers, and the bar across it (the elevation axis): they turn together */
+  turn.push(at(new THREE.TorusGeometry(R-.06,.045,8,40),0,-A,0,Math.PI/2), at(box(2*(R-.08),.07,.09),0,-A,0));
+  for(let i=0;i<4;i++){ const a=i*Math.PI/2+Math.PI/4; turn.push(at(box(.1,.06,.06),Math.sin(a)*(R-.01),-A,Math.cos(a)*(R-.01),0,a,0)); }
+  /* the gun, on the bar (+z along the barrels): the house hanging under it, its long trapezoid toward the barrels, and the barrels */
+  gun.push(loft([[-1.0,.2,.17],[-.75,.28,.17],[-.1,.28,.17],[.38,.17,.17]],RECT));
+  for(const x of [.09,-.09]) gun.push(at(taper(.075,.055,1.9,10),x,0,1.3), at(tube(.08,.14,10),x,0,2.3), at(box(.11,.11,.16),x,0,.42));
+  const lamps=[]; for(let i=0;i<12;i++){ const a=i*Math.PI/6; lamps.push(at(box(.05,.05,.05),Math.cos(a)*R*.97,i%2?-.9:-1.5,Math.sin(a)*R*.97)); }
+  const mask=new THREE.CircleGeometry(R,40); mask.rotateX(-Math.PI/2); mask.translate(0,.005,0);
+  const wall=new THREE.CylinderGeometry(R,R,PIT_DEEP,40,1,true); wall.translate(0,-PIT_DEEP/2,0);
+  const floor=new THREE.CircleGeometry(R,40); floor.rotateX(-Math.PI/2); floor.translate(0,-PIT_DEEP,0);
+  return pitGeo={fix:joinParts(fix), turn:joinParts(turn), gun:joinParts(gun), lamps:joinParts(lamps), mask, shaft:joinParts([wall.toNonIndexed(),floor.toNonIndexed()])}; }
 /* a gun of the base (a fixed fleet with pit): set on the rock at its [x, z], its ships (the two barrels) at the muzzles */
 function pitBuild(f){
   if(!pitMat){ const c=TEAM_COL[2]; pitMat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.4),emissive:c,emissiveIntensity:.176,metalness:.35,roughness:.5}); }   // 80% of the ships' light (user decision 2026-10-17: it shone too much to see)
   const G=pitGeos(), F=gateFrame(f.pos.x,f.pos.z,PIT_S*1.2), root=new THREE.Group(); root.position.copy(F.pos); root.quaternion.copy(F.quat); root.scale.setScalar(PIT_S); baseObj.add(root);
-  const fix=new THREE.Mesh(G.fix,pitMat), mask=new THREE.Mesh(G.mask,PM.mask), bowl=new THREE.Mesh(G.bowl,PM.bowl), lamps=new THREE.Mesh(G.lamps,PM.lamp);
-  mask.renderOrder=4; bowl.renderOrder=5; lamps.renderOrder=6; for(const m of [fix,mask,bowl,lamps]) m.userData.keep=true;
-  const yaw=new THREE.Group(), pitch=new THREE.Group(), gun=new THREE.Mesh(G.gun,pitMat); gun.renderOrder=6; gun.userData.keep=true; pitch.add(gun); yaw.add(pitch); root.add(fix,mask,bowl,lamps,yaw);
-  /* resting: toward the north (local -z), at PIT_REST */
-  const P={root,fix,gun,yaw,pitch,lamps,az:Math.PI,el:PIT_REST,dead:false,inf:(gSeed=71+Math.abs(Math.round(F.pos.x*3+F.pos.z)),infDots(F.pos.x,F.pos.z,PIT_INF))};
+  const fix=new THREE.Mesh(G.fix,pitMat), mask=new THREE.Mesh(G.mask,PM.mask), shaft=new THREE.Mesh(G.shaft,PM.shaft), lamps=new THREE.Mesh(G.lamps,PM.lamp);
+  const yaw=new THREE.Group(), pitch=new THREE.Group(), turn=new THREE.Mesh(G.turn,pitMat), gun=new THREE.Mesh(G.gun,pitMat);
+  mask.renderOrder=4; shaft.renderOrder=5; lamps.renderOrder=turn.renderOrder=gun.renderOrder=6; for(const m of [fix,mask,shaft,lamps,turn,gun]) m.userData.keep=true;
+  pitch.position.y=-PIT_AXIS; pitch.add(gun); yaw.add(turn,pitch); root.add(fix,mask,shaft,lamps,yaw);
+  /* resting: toward the north (local -z), nearly straight up */
+  const P={root,fix,turn,gun,yaw,pitch,lamps,up:F.up.clone(),az:Math.PI,el:PIT_REST,dead:false,inf:(gSeed=71+Math.abs(Math.round(F.pos.x*3+F.pos.z)),infDots(F.pos.x,F.pos.z,PIT_INF))};
   yaw.rotation.y=P.az; pitch.rotation.x=-P.el; f.pit=P; f.infN=P.inf.pts.length; f.inf=f.infN;
   f.pos.copy(F.pos).addScaledVector(F.up,.6); f.post.copy(f.pos); f.home.copy(f.pos);
   f.ships.forEach(s=>{ s.up=F.up.clone(); s.base=f.pos.clone(); s.pos.copy(s.base); s.muzzle=f.pos.clone(); });
@@ -224,14 +227,14 @@ function pitBuild(f){
 /* every frame (loop.js): the gimbal turns and raises the barrels toward what the gun fires on; a lost gun lies dark with its barrels down */
 const _pl=new THREE.Vector3();
 function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
-  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=.12; P.pitch.rotation.x=-P.el; burst(f.pos,HOT,30,10,1.2); }
+  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_EL[0]; P.pitch.rotation.x=-P.el; burst(f.pos,HOT,30,10,1.2); }
     P.inf.m.geometry.setDrawRange(0,0); return; }
   let az=P.az, el=PIT_REST; const t=f.fireTarget;
   if(t&&t.alive){ _pl.copy(t.pos); P.root.worldToLocal(_pl); az=Math.atan2(_pl.x,_pl.z); el=Math.min(PIT_EL[1],Math.max(PIT_EL[0],Math.atan2(_pl.y,Math.hypot(_pl.x,_pl.z)))); }
   const k=Math.min(1,dt*PIT_TURN*2), da=Math.atan2(Math.sin(az-P.az),Math.cos(az-P.az));
   P.az+=Math.sign(da)*Math.min(Math.abs(da),PIT_TURN*dt+Math.abs(da)*k*.2); P.el+=(el-P.el)*k;
   P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.root.updateMatrixWorld(true);
-  f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.09:.09,0,1.75); P.pitch.localToWorld(s.muzzle); });
+  f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.09:.09,0,2.37); P.pitch.localToWorld(s.muzzle); });
   P.inf.m.geometry.setDrawRange(0,f.inf); }
 
 /* ---- building and changing the gates ---- */

@@ -316,15 +316,18 @@ function fireTargetOf(f){
      standing nearer in its way (the main fleet as the shield) */
   if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
     return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
-  /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else */
-  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&e.ai==='land'&&e.seen){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
+  /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else; the guns in their shafts reach
+     nothing lower than PIT_EL[0] (pitCan) */
+  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&e.ai==='land'&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok)||(f.team===1&&gates.length?gateInReach(f):null); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
+/* a gun in its shaft (第5節, base.js) reaches only what is at least PIT_EL[0] over the rock's face */
+function pitCan(f,t){ const P=f.pit; if(!P||P===true) return true; _gs.subVectors(t.pos,f.pos); const d=_gs.length(); return d<1e-6||_gs.dot(P.up)/d>=Math.sin(PIT_EL[0]); }
 /* one heavy shot of a battery (f.every): each gun throws a short, bright, thick bolt (three tracers side by side), a flash at the muzzle and one on the target */
 const _gs=new THREE.Vector3();
 function gunShot(f,t){ const c=TEAM_COL[0];
