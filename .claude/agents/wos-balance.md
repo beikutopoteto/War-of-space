@@ -27,7 +27,7 @@ tools: Read, Grep, Glob, Bash
 
 ## 確かめかた
 
-- 早送りの道具（`node tools/februaria-sim.cjs d [tech]`、`node tools/denali-sim.cjs a|b`、`node tools/retreat-sim.cjs a` など）で測る。乱数があるので、条件ごとに数回ずつ走らせ、平均と幅で話す。
+- 早送りの道具（`node tools/februaria-sim.cjs q tech army=100`、`node tools/denali-sim.cjs a|b`、`node tools/retreat-sim.cjs a` など）で測る。乱数があるので、条件ごとに数回ずつ走らせ、平均と幅で話す。
 - 数値を変えた場合の結果は、ページの中で `WOS_DATA` を書き換える短いパッチ（スクラッチパッドに置く）で試す。リポジトリのファイルは書き換えない。git も使わない。
 - 1本の早送りは1〜4分かかる。並べて走らせてよいが、同時に多すぎると遅くなる。
 
