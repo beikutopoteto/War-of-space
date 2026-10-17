@@ -18,13 +18,17 @@ const { openGame } = require('./browser.cjs');
     const log=[]; const L=(t='')=>log.push(`${clockStr()} ${phaseName} cas=${Math.round(casualties)} yk=${opCarrier.alive?Math.round(opCarrier.hpPool):'x'} al=${fleets.filter(f=>f.ally).map(f=>f.alive?f.ships.length:(f.left?'L':'-')).join('/')} me=${fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier).map(f=>f.alive?f.ships.length:'-').join('/')} en=${fleets.filter(f=>f.team===1&&f.alive&&!f.fixed).map(f=>f.name.slice(0,5)+f.ships.length).join(',')} aa=${fleets.filter(f=>f.fixed&&f.alive).length} ${t}`);
     const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier&&f.alive);
     L('start '+mine().map(f=>`${f.name.slice(0,6)}:${f.n}x${f.hp.toFixed(1)} d${f.dmg.toFixed(2)} r${f.range.toFixed(0)} s${f.speed}`).join(' '));
-    const dmgBy={}; const _d=damage; damage=function(t,amt,src){ if(t.team===0&&t.kind==='fleet'&&!t.ally&&!t.isCarrier){ const k=(src.kind==='wing'?'W:':'')+(src.carrier?src.carrier.name:src.name); dmgBy[k]=(dmgBy[k]||0)+amt; } return _d(t,amt,src); };
+    const dmgBy={}, hold={}; const _d=damage; damage=function(t,amt,src){ const k=(src.kind==='wing'?'W:':'')+(src.carrier?src.carrier.name:src.name);
+      if(t.team===0&&t.kind==='fleet'&&!t.ally&&!t.isCarrier) dmgBy[k]=(dmgBy[k]||0)+amt;
+      if(t.team===0&&t.kind==='fleet'&&!t.isCarrier&&opCarrier.cs.lastCame&&!opCarrier.cs.done) hold[k]=(hold[k]||0)+amt;   // the last wave's wait: all of ours but Yukon
+      return _d(t,amt,src); };
     const ours=fleets.filter(f=>f.team===0&&!f.isCarrier&&!f.fixed), lost=()=>{ const g=a=>{ const n=a.reduce((s,f)=>s+f.n,0), k=a.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0); return `${n-k}/${n}`; };
       const a=ours.filter(f=>f.ally), m=ours.filter(f=>!f.ally), t=g(ours).split('/'); return `lost 本軍${g(a)} 駐屯隊${g(m)} 計${g(ours)}(${Math.round(100*t[0]/t[1])}%)`; };
     const P=op.body.port, port=new THREE.Vector3(P.pos[0],0,P.pos[1]);
     let n=0, sent=false, flee=false; if(strat==='auto') autoMode=true;
     while(!over&&n++<40000){ step(.05);
       if(n%20) continue;
+      if(opCarrier.cs.lastCame&&!window._lw){ window._lw=1; L('LAST '+lost()); }
       if(strat==='auto'){ if(phaseName==='撤退'&&!window._rt){ window._rt=1; L('RETREAT '+lost()); } if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); } continue; }
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen);
       if(phaseName==='奪還'||phaseName==='交戦'){
@@ -43,6 +47,7 @@ const { openGame } = require('./browser.cjs');
       if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); }
       if(n%160===0) L(`A1=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.find(x=>x.ally))} A3=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.filter(x=>x.ally)[1])} ALV=${(f=>f?f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+(f.seen?"":"?"):"dead":"-")(fleets.find(x=>x.ace))} W=${wings.filter(w=>w.team===1).reduce((s,w)=>s+w.n,0)}`);
     }
+    L('hold '+JSON.stringify(Object.fromEntries(Object.entries(hold).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,Math.round(v)]))));
     L('boarded='+(opCarrier.cs.boarded)+' '+lost()+' end '+JSON.stringify(Object.fromEntries(Object.entries(dmgBy).map(([k,v])=>[k,Math.round(v)])))); return {log, over, outcome, loseWhy, sec:gameSec};
   }, strat);
   console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, errors.slice(0, 3)); console.log(`実時間 ${Math.round(r.sec)}秒`);
