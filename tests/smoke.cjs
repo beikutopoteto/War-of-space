@@ -1054,7 +1054,7 @@ function check(ok, label, detail = '') {
       const ld2 = makeFleet(1, { name: '試験 揚陸艦2', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, hangar: { was: 300 }, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', vis: 1, stl: 9 }); fleets.push(ld2);
       ld2.pos.copy(E.ring); ld.putAcc = 0; const g1h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d2 = g1h - garrison.hp;
       const want = Math.floor(4 * CLOCK_RATE / GA.every);   // one battle second
-      r.drain = garrison.max === 500 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
+      r.drain = garrison.max === 1000 && Math.abs(gates[0].max - 6700) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
       r.goalFold = (() => { goalEl.classList.add('fold'); const h = getComputedStyle(gx).display === 'none'; goalEl.classList.remove('fold'); return h; })();
       logEvent = logE;
@@ -1074,7 +1074,7 @@ function check(ok, label, detail = '') {
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先が残りのゲートへ移る（2026-10-16）', JSON.stringify(f1));
-    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久500、1機で5）を削る。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
+    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲート6700。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
