@@ -922,8 +922,8 @@ function landCarrier(){
    shield (fireTargetOf, craftTarget); a hunting unit with nothing in sight closes on the gate nearest its watch point (enemyAI).
    A shield worn to nothing: if it is not the last gate, the section behind it is blown and the gate sealed (no more use to either side),
    and both sides draw off from it to the gates left (our allies' posts, the enemy's watch points, the stage's place). The last gate stays
-   open: while assault ships (ai:'land') stay by it (within r of its ring), the garrison inside (op.base.garrison) is worn down, the faster
-   the more of them; at 0 the operation is lost. The infantry round each gate (op.base.infantry) fire on the W.A.S. and the assault ships
+   open: while assault ships (ai:'land') stay by it (within r of its ring), they put their W.A.S. in one by one and each wears the garrison
+   inside (op.base.garrison) down; at 0 the operation is lost. The infantry round each gate (op.base.infantry) fire on the W.A.S. and the assault ships
    near it, weakly; fewer of them as the shield goes down, none once it is sealed. 数値は仮 */
 let gates=[], garrison=null;
 /* GATE_AREA: a post or a watch point within this of a sealed gate moves to the gate left (farther off, like the reserve in the clouds, stays) */
@@ -999,12 +999,19 @@ function stepBase(dt){
     if(!t) continue;
     if(!f.infSrc) f.infSrc={kind:'wing',inf:true,team:0,id:-300-f.id,name:`${f.name}の強化歩兵`};
     const at=randShip(t); damage(t,f.inf*(I.dmg||.03)*dt,f.infSrc); infFire(f.pit,f.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
-  /* the garrison: worn down while assault ships stay by the last gate, once its shield is gone (not while the enemy falls back) */
+  /* the garrison: once the last gate's shield is gone (not while the enemy falls back), the assault ships by it put their W.A.S. in, one
+     from each ship every G.every minutes of the operation clock, out of what they carry (spare craft first, then docked squadrons), and
+     only the W.A.S. wear the garrison down, G.was each (user decision 2026-10-17 夜: they storm in and fight it out inside) */
   const last=gates.find(g=>g.breached); if(!last||!garrison||repelT!=null) return;
-  let n=0; for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='land'&&f.pos.distanceTo(last.ring)<=last.r) n+=f.ships.length;
-  if(!n) return;
-  if(!garrison.said&&B.garrison.log){ garrison.said=true; logEvent(B.garrison.log[0],B.garrison.log[1].replace('{name}',last.name)); }
-  garrison.hp=Math.max(0,garrison.hp-n*(B.garrison.per||.5)*dt*CLOCK_RATE);
+  const G=B.garrison; let put=0;
+  for(const f of fleets){ if(!f.alive||f.team!==1||f.ai!=='land'||f.pos.distanceTo(last.ring)>last.r) continue;
+    const h=f.hangars.find(x=>x.type==='was'); if(!h) continue;
+    f.putAcc=(f.putAcc||0)+f.ships.length*dt*CLOCK_RATE/(G.every||2);
+    while(f.putAcc>=1){ const q=h.reserve>0?null:h.squads.find(x=>x.state==='docked'&&x.n>0); if(h.reserve<=0&&!q){ f.putAcc=0; break; }
+      if(q) q.n--; else h.reserve--; f.putAcc--; put++; } }
+  if(!put) return;
+  if(!garrison.said&&G.log){ garrison.said=true; logEvent(G.log[0],G.log[1].replace('{name}',last.name)); }
+  garrison.hp=Math.max(0,garrison.hp-put*(G.was||5));
   for(const L of B.garrison.logs||[]) if(garrison.hp<=L[0]*garrison.max&&!garrison.marks.has(L[0])){ garrison.marks.add(L[0]); logEvent(L[1],L[2]); }
   if(garrison.hp<=0){ loseWhy='garrison'; end(false); }
 }

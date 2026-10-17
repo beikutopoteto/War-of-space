@@ -1046,10 +1046,15 @@ function check(ok, label, detail = '') {
       /* the middle gate breached too: the east gate is the last; its shield gone, it stays open, and the assault ships by it wear the garrison down */
       damage(C, C.hp + 1, sh); damage(E, E.hp + 1, sh); stepBase(.05);
       r.last = C.sealed && !E.sealed && E.breached && !over && said.some(t => t.includes('最後のゲート、東ゲート'));
-      ld.dropAt = null; ld.pos.copy(E.ring); const g0h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d1 = g0h - garrison.hp;
-      const ld2 = makeFleet(1, { name: '試験 揚陸艦2', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', vis: 1, stl: 9 }); fleets.push(ld2);
-      ld2.pos.copy(E.ring); const g1h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d2 = g1h - garrison.hp;
-      r.drain = d1 > 0 && Math.abs(d2 / d1 - 2) < .05 && Math.abs(d1 - 4 * op.base.garrison.per * 1 * CLOCK_RATE) < .01;
+      /* only the W.A.S. wear it down (user decision 2026-10-17 夜): the assault ships by it put theirs in, one from each ship every G.every minutes,
+         G.was each; a ship with none aboard does nothing */
+      const GA = op.base.garrison, aboard = f => f.hangars.reduce((s, h) => s + h.reserve + h.squads.reduce((t, q) => t + (q.state === 'docked' ? q.n : 0), 0), 0);
+      ld.dropAt = null; ld.pos.copy(E.ring); const g00 = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d0 = g00 - garrison.hp;   // no W.A.S. aboard
+      ld.hangars = makeHangars({ was: 300 }); ld.putAcc = 0; const a0 = aboard(ld), g0h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d1 = g0h - garrison.hp, put1 = a0 - aboard(ld);
+      const ld2 = makeFleet(1, { name: '試験 揚陸艦2', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, hangar: { was: 300 }, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', vis: 1, stl: 9 }); fleets.push(ld2);
+      ld2.pos.copy(E.ring); ld.putAcc = 0; const g1h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d2 = g1h - garrison.hp;
+      const want = Math.floor(4 * CLOCK_RATE / GA.every);   // one battle second
+      r.drain = garrison.max === 500 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
       r.goalFold = (() => { goalEl.classList.add('fold'); const h = getComputedStyle(gx).display === 'none'; goalEl.classList.remove('fold'); return h; })();
       logEvent = logE;
@@ -1069,7 +1074,7 @@ function check(ok, label, detail = '') {
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先が残りのゲートへ移る（2026-10-16）', JSON.stringify(f1));
-    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦の数に比べて基地守備隊が減り、0で負け。任務欄に3つのゲートと守備隊（2026-10-16）', JSON.stringify(f1));
+    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久500、1機で5）を削る。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
@@ -1155,7 +1160,7 @@ function check(ok, label, detail = '') {
     const f4 = await page.evaluate(() => {
       gameSec = 300 / CLOCK_RATE; for (let i = 0; i < 4; i++) step(.05);
       const [W, C, E] = gates; gateHit(W, W.hp + 1); gateHit(C, C.hp + 1); gateHit(E, E.hp + 1);
-      const lander = makeFleet(1, { name: '試験 揚陸艦', sub: '', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', drop: E.name, vis: 1, stl: 9 }); fleets.push(lander);
+      const lander = makeFleet(1, { name: '試験 揚陸艦', sub: '', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, hangar: { was: 300 }, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', drop: E.name, vis: 1, stl: 9 }); fleets.push(lander);
       lander.pos.copy(E.ring); for (let i = 0; i < 20; i++) step(.05);
       const r = { drain: W.sealed && C.sealed && E.breached && garrison.hp < garrison.max };
       const big = makeFleet(1, { name: '試験 本隊', sub: '', type: 'dd', n: Math.ceil(mainTotal * op.win.share) + 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -200], alt: 0, ai: 'hunt', main: true, vis: 1, stl: 9 });
