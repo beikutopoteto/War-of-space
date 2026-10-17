@@ -338,7 +338,7 @@ function gatesHtml(){
   const cls=g=>g.sealed?'shut':g.hp/g.max<=GATE_AMBER?'warn':'ok', pct=g=>g.sealed?'閉鎖':Math.ceil(100*Math.max(0,g.hp/g.max))+'%';
   const gar=garrison?Math.max(0,garrison.hp/garrison.max):0;
   return `<div class="gr">${gates.map((g,i)=>`<div class="gc ${cls(g)}" title="${g.name}のシールド">${icon(g,i)}<span>${g.name.replace(/ゲート$/,'')}</span><span class="v">${pct(g)}</span></div>`).join('')}</div>`+
-    (garrison?`<div class="gar" title="基地の中の守備隊。最後のゲートのシールドが尽きると、そばの揚陸艦に削られる。0で失敗"><span>基地守備隊</span><span class="g"><i style="width:${(gar*100).toFixed(1)}%"></i></span><span class="v">${Math.ceil(gar*100)}%</span></div>`:''); }
+    (garrison?`<div class="gar" title="基地の中の守備隊。最後のゲートのシールドが尽きると、そばの揚陸艦が降ろす W.A.S. に削られる。0で失敗"><span>基地守備隊</span><span class="g"><i style="width:${(gar*100).toFixed(1)}%"></i></span><span class="v">${Math.ceil(gar*100)}%</span></div>`:''); }
 goalEl.addEventListener('click',()=>goalEl.classList.toggle('fold'));
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
