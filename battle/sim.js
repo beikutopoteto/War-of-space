@@ -962,7 +962,11 @@ function sealGate(g){ const B=op.base; g.sealed=true; g.inf=0; g.boomT=2.2; draw
   const open=openGates(), to=p=>gateNear(p,open), near=p=>p&&Math.hypot(p.x-g.pos.x,p.z-g.pos.z)<GATE_AREA&&gateNear(p)===g;
   const move=(p,t)=>{ p.x+=t.pos.x-g.pos.x; p.z+=t.pos.z-g.pos.z; };
   for(const f of fleets){ if(!f.alive) continue;
-    if(f.team===1){ if(f.dropAt===g) f.dropAt=null; if(near(f.watchPos)){ move(f.watchPos,to(f.watchPos)); if(f.order&&f.order.type==='move') f.order=null; } continue; }
+    if(f.team===1){ if(f.dropAt===g) f.dropAt=null; if(near(f.watchPos)){ move(f.watchPos,to(f.watchPos)); if(f.order&&f.order.type==='move') f.order=null; }
+      /* a line pressing on this gate (press) or a post by it goes on to the gate left, like ours (it sat at the sealed gate before, 2026-10-17 夜) */
+      if(near(f.pressGoal)){ const t=to(f.pressGoal); move(f.pressGoal,t); move(f.post,t); if(f.order&&f.order.type==='move') f.order=null; }
+      else if(f.post&&near(f.post)){ move(f.post,to(f.post)); if(f.order&&f.order.type==='move') f.order=null; }
+      continue; }
     if(f.ally&&!f.fixed&&near(f.home||f.post)){ const t=to(f.post); move(f.post,t); if(f.home) move(f.home,t); if(f.fallTo) move(f.fallTo,t); f.aim=null; f.order=null; } }
   /* the stage's place on this gate (第5節 in stages): the field slides to the gate left */
   if(stageGate===g){ const t=to(fieldC); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(fieldC.x+t.pos.x-g.pos.x,0,fieldC.z+t.pos.z-g.pos.z); slideT=0; slideDur=4;
