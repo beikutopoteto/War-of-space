@@ -47,7 +47,7 @@ function frame(now){
   for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
-      if(s.base){ s.pos.copy(s.base); if(hide) continue; const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
+      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
       _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35;
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
@@ -79,6 +79,7 @@ function frame(now){
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
   for(const g of gates) drawGate(g);   // 第5節: the gates' bands, lids and infantry (base.js)
+  for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */

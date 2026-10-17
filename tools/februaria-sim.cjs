@@ -29,7 +29,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
         o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/hpK(0); o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
         fleets.push(makeFleet(0,o)); total+=f.n; k++; }
       buildRoster(); updateRoster(); }
-    const cat=s=>s.inf?'inf':s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;
+    const cat=s=>s.inf===true?'inf':s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;
     window.damage=function(t,amt,src){ const o=src.kind==='wing'&&src.carrier?src.carrier:src, hit=t.team===1&&t.main&&t.kind==='fleet'&&t.alive, had=hit?t.ships.length:0;
       if(hit) dmgBy[cat(o)]=(dmgBy[cat(o)]||0)+Math.min(amt,t.hpPool);
       _d(t,amt,src);

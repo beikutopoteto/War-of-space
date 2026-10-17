@@ -202,6 +202,11 @@ function enemyCraft(u,maxD){
 function craftTarget(u,type,maxD){
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
   if((u.carrier||u).stance==='evade') return null;
+  /* 第5節 (2026-10-17, the enemy's priorities; 数値は仮): Alvarez's W.A.S. (prey:'mine') go for our own army's ships first, the rival;
+     every other W.A.S. first for what is firing on its own ship (the assault ships come in with their W.A.S. as their guard) */
+  if(u.team===1&&type==='was'&&gates.length){ const c=u.carrier;
+    if(c&&c.prey==='mine'){ const m=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.ally&&!t.fixed&&craftMayHit(u,t)); if(m) return m; }
+    if(c&&c.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===c&&craftMayHit(u,t)); if(a) return a; } }
   const ec=enemyCraft(u,maxD); if(ec) return ec;
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
@@ -311,19 +316,22 @@ function fireTargetOf(f){
      standing nearer in its way (the main fleet as the shield) */
   if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
     return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
-  /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else */
-  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&e.ai==='land'&&e.seen){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
+  /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else; the guns in their shafts reach
+     nothing lower than PIT_EL[0] (pitCan) */
+  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&e.ai==='land'&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok)||(f.team===1&&gates.length?gateInReach(f):null); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
+/* a gun in its shaft (第5節, base.js) reaches only what is at least PIT_EL[0] over the rock's face */
+function pitCan(f,t){ const P=f.pit; if(!P||P===true) return true; _gs.subVectors(t.pos,f.pos); const d=_gs.length(); return d<1e-6||_gs.dot(P.up)/d>=Math.sin(PIT_EL[0]); }
 /* one heavy shot of a battery (f.every): each gun throws a short, bright, thick bolt (three tracers side by side), a flash at the muzzle and one on the target */
 const _gs=new THREE.Vector3();
 function gunShot(f,t){ const c=TEAM_COL[0];
-  for(const s of f.ships){ const a=(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
+  for(const s of f.ships){ const a=s.muzzle?s.muzzle.clone():(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
     _gs.subVectors(b,a).cross(_up); if(_gs.lengthSq()<1e-6) _gs.set(1,0,0); _gs.setLength(.16);
     for(const k of [-1,0,1]) shoot(a.clone().addScaledVector(_gs,k),b.clone().addScaledVector(_gs,k),c,.2);
     burst(a,c,5,3,.3); burst(b,HOT,6,4,.4); } }
@@ -957,6 +965,15 @@ function stepBase(dt){
     for(const e of fleets) if(e.alive&&e.team===1&&(e.type==='mas'||e.comp&&e.comp.mas)&&e.seen){ const d=gap(e,{pos:g.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
     if(!t) continue;
     const at=randShip(t); damage(t,g.inf*(I.dmg||.03)*dt,g.infSrc); infFire(g.look,g.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
+  /* the few infantry round each gun on the rock (2026-10-17, data inf): fewer as the gun is worn down, none once it is lost; the same fire */
+  for(const f of fleets){ if(!f.pit||f.pit===true) continue;
+    f.inf=f.alive?Math.round(f.infN*Math.max(0,f.hpPool/(f.n*f.hp))):0; if(!f.inf||repelT!=null) continue;
+    let t=null, bd=INF_R;
+    for(const w of wings) if(w.alive&&w.team===1&&w.type==='was'&&w.seen){ const d=w.pos.distanceTo(f.pos); if(d<bd){ bd=d; t=w; } }
+    for(const e of fleets) if(e.alive&&e.team===1&&(e.type==='mas'||e.comp&&e.comp.mas)&&e.seen){ const d=gap(e,{pos:f.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
+    if(!t) continue;
+    if(!f.infSrc) f.infSrc={kind:'wing',inf:true,team:0,id:-300-f.id,name:`${f.name}の強化歩兵`};
+    const at=randShip(t); damage(t,f.inf*(I.dmg||.03)*dt,f.infSrc); infFire(f.pit,f.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
   /* the garrison: worn down while assault ships stay by the last gate, once its shield is gone (not while the enemy falls back) */
   const last=gates.find(g=>g.breached); if(!last||!garrison||repelT!=null) return;
   let n=0; for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='land'&&f.pos.distanceTo(last.ring)<=last.r) n+=f.ships.length;
@@ -1252,11 +1269,12 @@ function step(dt){
     }
     const ft=f.fireTarget;
     /* a gun that fires one heavy shot every `every` seconds (第5節 the batteries on the base, user decision 2026-10-16): the fire of those
-       seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target) */
+       seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
+       a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
     if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
-      if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*f.dmg*f.every*(f.shotK||1)*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
+      if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
