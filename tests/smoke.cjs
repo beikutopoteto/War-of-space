@@ -957,7 +957,7 @@ function check(ok, label, detail = '') {
     const f1 = await page.evaluate(() => {
       const mine = fleets.filter(f => f.team === 0 && !f.ward), bb = mine[mine.length - 1], bt = fleets.filter(f => f.ally && f.fixed);
       const r = { op: op.id, bb: bb.type === 'bb' && !groupOf(bb), allies: fleets.filter(f => f.ally && !f.fixed).length, bt: bt.length,
-        onRock: bt.every(f => Math.abs(f.pos.distanceTo(bodyC) - bodySurface(f.pos, op.body.r) - 1.2) < .1), centre: bodyC.z > 200,
+        onRock: bt.every(f => f.pit && f.pit.root && Math.abs(f.pos.y - rockAt(f.pos.x, f.pos.z).y) < 2), centre: bodyC.z > 200,
         sky: skyObj.children.length >= 3 && !farPlanet.visible };
       /* the gates: west, middle, east, the middle on the rock's middle and the two others about 160 either side, on their craters' floors,
          36 infantry dots round each; the batteries placed the same both sides */
@@ -965,7 +965,9 @@ function check(ok, label, detail = '') {
       r.gates = G.map(g => g.name).join('・'); r.sym = Math.abs(C.pos.x) < 3 && Math.abs(W.pos.x + 160) < 6 && Math.abs(E.pos.x - 160) < 6;
       r.onFloor = G.every(g => Math.abs(g.look.frame.pos.distanceTo(bodyC) - bodySurface(g.look.frame.pos, op.body.r)) < 4) && G.every(g => g.ring.distanceTo(g.pos) > 9);
       r.inf = G.every(g => g.look.inf.pts.length === 36 && g.inf === 36);
-      r.btSym = op.allies.filter(a => a.fixed).map(a => a.pos[0]).join(',') === '-300,-235,-110,-50,50,110,235,300' && bt.every((f, i) => Math.abs(f.pos.x + bt[7 - i].pos.x) < 8);   // set on the rock toward its centre, so the x on the rock is smaller
+      /* by the gates, a little apart (user decision 2026-10-17): 3 by the west gate, 2 by the middle, 3 by the east; 8 infantry each */
+      const gNear = f => gates.reduce((b, g) => Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z) < Math.hypot(f.pos.x - b.pos.x, f.pos.z - b.pos.z) ? g : b);
+      r.btSym = bt.every(f => { const g = gNear(f), d = Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z); return d > 20 && d < 45 && f.infN === 8; }) && gates.map(g => bt.filter(f => gNear(f) === g).length).join() === '3,2,3';
       r.btRange = bt.every(f => f.range === 90 && f.every === 64);
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
@@ -1060,7 +1062,7 @@ function check(ok, label, detail = '') {
     check(f1.op === 'februaria' && f1.bb && f1.allies === 13 && f1.bt === 8 && f1.onRock && f1.centre && f1.sky && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍13隊（2026-10-14 の兵力の見直し）と地表の砲台8基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,
-      'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が36ずつ。砲台は左右対称（2026-10-16）', JSON.stringify(f1));
+      'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が36ずつ。砲台はゲートのそば（西3・中央2・東3）で、強化歩兵が8人ずつ守る（2026-10-17）', JSON.stringify(f1));
     check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 砲台狩りの重巡洋艦は縁で待ち、時刻で放たれて地表の砲台を先に狙う（2026-10-13・16）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
     check(f1.btRange && f1.shots >= 2 && Math.abs(f1.shotGap - 64) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程90、64秒ごとに1発（1門の1発でコルベット1隻を沈める。2026-10-17）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));

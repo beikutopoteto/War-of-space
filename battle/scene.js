@@ -44,6 +44,7 @@ const rim = new THREE.DirectionalLight(0x6fa8ff, 0.7); rim.position.set(-100,30,
 let composer = null;
 try {
   composer = new THREE.EffectComposer(renderer);
+  composer.renderTarget1.stencilBuffer=composer.renderTarget2.stencilBuffer=true;   // 第5節: the holes of the base's guns are cut through the rock with the stencil (base.js)
   composer.addPass(new THREE.RenderPass(scene, camera));
   composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512,512), 0.85, 0.45, 0.55));
 } catch(e){ composer = null; }

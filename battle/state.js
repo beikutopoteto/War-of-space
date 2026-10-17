@@ -392,7 +392,8 @@ function reset(cfg=lastCfg){
   /* the enemy names the shield fleets guard (their block); kept for the AI */
   for(const f of fleets) if(f.team===1&&f.block!=null) f.blockAt=blocks[f.block]||null;
   /* fixed units (the batteries) stand on the body's surface, in the direction they are placed */
-  if(BD) for(const f of fleets) if(f.fixed){ const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
+  if(BD) for(const f of fleets) if(f.fixed){ if(f.pit){ pitBuild(f); continue; }   // 第5節: the base's guns in their holes (base.js)
+    const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
     /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
     f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=h.normal; s.base=h.point.clone().addScaledVector(h.normal,.34*f.scale); s.pos.copy(s.base); }); }
   setPhase(op.phase||'布陣');

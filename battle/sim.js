@@ -328,7 +328,7 @@ function fireTargetOf(f){
 /* one heavy shot of a battery (f.every): each gun throws a short, bright, thick bolt (three tracers side by side), a flash at the muzzle and one on the target */
 const _gs=new THREE.Vector3();
 function gunShot(f,t){ const c=TEAM_COL[0];
-  for(const s of f.ships){ const a=(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
+  for(const s of f.ships){ const a=s.muzzle?s.muzzle.clone():(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
     _gs.subVectors(b,a).cross(_up); if(_gs.lengthSq()<1e-6) _gs.set(1,0,0); _gs.setLength(.16);
     for(const k of [-1,0,1]) shoot(a.clone().addScaledVector(_gs,k),b.clone().addScaledVector(_gs,k),c,.2);
     burst(a,c,5,3,.3); burst(b,HOT,6,4,.4); } }
@@ -962,6 +962,15 @@ function stepBase(dt){
     for(const e of fleets) if(e.alive&&e.team===1&&(e.type==='mas'||e.comp&&e.comp.mas)&&e.seen){ const d=gap(e,{pos:g.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
     if(!t) continue;
     const at=randShip(t); damage(t,g.inf*(I.dmg||.03)*dt,g.infSrc); infFire(g.look,g.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
+  /* the few infantry round each gun on the rock (2026-10-17, data inf): fewer as the gun is worn down, none once it is lost; the same fire */
+  for(const f of fleets){ if(!f.pit||f.pit===true) continue;
+    f.inf=f.alive?Math.round(f.infN*Math.max(0,f.hpPool/(f.n*f.hp))):0; if(!f.inf||repelT!=null) continue;
+    let t=null, bd=INF_R;
+    for(const w of wings) if(w.alive&&w.team===1&&w.type==='was'&&w.seen){ const d=w.pos.distanceTo(f.pos); if(d<bd){ bd=d; t=w; } }
+    for(const e of fleets) if(e.alive&&e.team===1&&(e.type==='mas'||e.comp&&e.comp.mas)&&e.seen){ const d=gap(e,{pos:f.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
+    if(!t) continue;
+    if(!f.infSrc) f.infSrc={kind:'wing',inf:true,team:0,id:-300-f.id,name:`${f.name}の強化歩兵`};
+    const at=randShip(t); damage(t,f.inf*(I.dmg||.03)*dt,f.infSrc); infFire(f.pit,f.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
   /* the garrison: worn down while assault ships stay by the last gate, once its shield is gone (not while the enemy falls back) */
   const last=gates.find(g=>g.breached); if(!last||!garrison||repelT!=null) return;
   let n=0; for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='land'&&f.pos.distanceTo(last.ring)<=last.r) n+=f.ships.length;
