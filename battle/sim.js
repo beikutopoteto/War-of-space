@@ -436,10 +436,35 @@ function pincers(){
       if(dirs.every(d=>d.dot(v)<=0)){ dirs.push(v); by.push(x); } }
     f.pinchN=dirs.length; f.pinch=PINCH[Math.min(dirs.length,3)]; f.pinchBy=by; }
 }
-/* how far off an attacker stands: an enemy fleet that outranges its target keeps near the edge of its own guns (92%), out of
-   the target's reach, instead of closing to 75% (2026-10-10, 仮) */
+/* how far off an attacker stands: an enemy (2026-10-17 夜: or allied) fleet that outranges its target keeps near the edge of its own
+   guns (92%), out of the target's reach, instead of closing to 75% (2026-10-10, 仮) */
+function outranges(f,t){ return t.kind==='fleet'&&!!t.range&&!t.fixed&&(f.carrierOnly?f.launchMin*.8>t.range:f.range>t.range*1.05); }
 function standOff(f,t){ if(f.carrierOnly) return f.launchMin*.8+(t.radius||0);
-  const outranges=f.team===1&&t.kind==='fleet'&&t.range&&f.range>t.range*1.05; return f.range*(outranges?.92:.75)+(t.radius||0); }
+  return f.range*((f.team===1||f.ally)&&outranges(f,t)?.92:.75)+(t.radius||0); }
+/* falling back (user decision 2026-10-17 夜): a fleet fighting with no order of its own (the player's; for the AI's units, a move of their
+   own) that outranges its foe keeps its distance by backing off: it keeps its bow on the foe (it does not turn) and goes back at half
+   speed (BACK_SPEED), firing at full strength. One that does not outrange its foe stands its ground (only the sideways part of its move).
+   Carriers the same (their launch distance). Fire over the stern (the target more than 90 degrees off the bow) is REAR_FIRE of the fire
+   ahead, so a fleet running off at full speed fights at a quarter. 数値は仮 */
+const BACK_SPEED=.5, REAR_FIRE=.25, _bk=new THREE.Vector3(), _bt=new THREE.Vector3();
+function faceTo(f,t,dt){ _bt.subVectors(t.pos,f.pos); if(_bt.lengthSq()>1e-6) swingTo(f.heading,_bt.normalize(),dt*2); }
+/* turn a heading toward dir (unit): from dead astern it swings round sideways, as a lerp alone would never turn it */
+function swingTo(h,dir,k){ if(h.dot(dir)<-.98) h.set(h.x-dir.z*.3,h.y,h.z+dir.x*.3); h.lerp(dir,Math.min(1,k)).normalize(); }
+/* one step of a fight toward its spot `to` round its foe t: true if it moved */
+function stepFight(f,to,t,dt){
+  _bk.subVectors(to,f.pos); _bt.subVectors(t.pos,f.pos); const n=_bk.length(); if(n<=1.2) return false;
+  const tl=_bt.length(); if(tl<1e-6||_bk.dot(_bt)>=0){ stepToward(f,to,0,dt); return true; }   // ahead or sideways: as before
+  _bt.multiplyScalar(1/tl);
+  if(outranges(f,t)) _bk.multiplyScalar(Math.min(speedOf(f)*BACK_SPEED*dt,n)/n);
+  else { _bk.addScaledVector(_bt,-_bk.dot(_bt)); const m=_bk.length(); if(m<.05) return false; _bk.multiplyScalar(Math.min(speedOf(f)*dt,m)/m); }
+  f.pos.add(_bk); faceTo(f,t,dt); return true; }
+/* with no order, a fleet in a fight that outranges its foe backs off from inside its stand-off, bow on the foe, at half speed */
+function fallBack(f,t,dt){
+  if(!t||!t.alive||!outranges(f,t)) return false; const R=(f.carrierOnly?f.launchMin*.8:f.range*.92)+(t.radius||0);
+  _bk.subVectors(f.pos,t.pos); const d=_bk.length(); if(d>=R-.3||d<1e-6) return false;
+  f.pos.addScaledVector(_bk,Math.min(speedOf(f)*BACK_SPEED*dt,R-d)/d); faceTo(f,t,dt); return true; }
+/* the fire on t: a quarter over the stern */
+function bowK(f,t){ if(f.fixed||f.pit) return 1; _bt.subVectors(t.pos,f.pos); return f.heading.dot(_bt)<0?REAR_FIRE:1; }
 /* the side of its target an enemy fleet takes: the way it came in, turned by 0 / ±105 / 180 degrees for the 1st / 2nd, 3rd / 4th
    unit on the same target, give or take 15, and for the 2nd and 3rd 30 degrees above or below it (one over, one under: a pincer
    from above and below, user decision 2026-10-10). The 2nd and 3rd stand more than 90 degrees off the 1st, so they pin it (pincers).
@@ -1258,13 +1283,14 @@ function step(dt){
        once the target is inside 80% (1:4 from the edge) of its shortest launch distance. An enemy fleet going for one of ours
        takes its own side of it (slotOf), so units on the same target close from different sides and do not stack */
     /* the rock in the way of the shot: it keeps closing (round the rock) until it has a clear line */
+    f.still=false;
     if(goal){ const stop=standOff(f,goal);
       if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
-        stepToward(f,_w,0,dt); }
+        f.still=!stepFight(f,_w,goal,dt); }
       else if(f.ally&&goal.kind==='fleet'&&!goal.fixed){ const sl=allySlot(f,goal); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotA+=dt*.8;
-        stepToward(f,_w,0,dt); }
+        f.still=!stepFight(f,_w,goal,dt); }
       else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
     const ft=f.fireTarget;
@@ -1273,9 +1299,10 @@ function step(dt){
        a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
     if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
-      if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
+      if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt);
+      if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
-      damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
+      damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
