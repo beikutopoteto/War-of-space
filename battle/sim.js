@@ -202,6 +202,11 @@ function enemyCraft(u,maxD){
 function craftTarget(u,type,maxD){
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
   if((u.carrier||u).stance==='evade') return null;
+  /* 第5節 (2026-10-17, the enemy's priorities; 数値は仮): Alvarez's W.A.S. (prey:'mine') go for our own army's ships first, the rival;
+     every other W.A.S. first for what is firing on its own ship (the assault ships come in with their W.A.S. as their guard) */
+  if(u.team===1&&type==='was'&&gates.length){ const c=u.carrier;
+    if(c&&c.prey==='mine'){ const m=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.ally&&!t.fixed&&craftMayHit(u,t)); if(m) return m; }
+    if(c&&c.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===c&&craftMayHit(u,t)); if(a) return a; } }
   const ec=enemyCraft(u,maxD); if(ec) return ec;
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
@@ -1252,11 +1257,12 @@ function step(dt){
     }
     const ft=f.fireTarget;
     /* a gun that fires one heavy shot every `every` seconds (第5節 the batteries on the base, user decision 2026-10-16): the fire of those
-       seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target) */
+       seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
+       a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
     if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving){ _v.subVectors(ft.pos,f.pos).normalize(); f.heading.lerp(_v,Math.min(1,dt*2)).normalize(); }
-      if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*f.dmg*f.every*(f.shotK||1)*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
+      if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6;
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
