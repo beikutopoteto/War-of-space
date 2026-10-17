@@ -794,6 +794,9 @@ function stepCarrier(dt){
     for(const L of C.boardLogs||[]) if(S.boarded>=L[0]&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
     const full=S.boarded>=C.people;
     if(full||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
+      /* the last wave not come yet comes now, and goes after us with the rest (lastWave.atRetreat; 2026-10-17: the enemy was too weak
+         when the main fleet's half went first and the biggest wave never came) */
+      if(C.lastWave&&C.lastWave.atRetreat&&!S.lastCame){ S.lastCame=true; const k=spawnMass(C.lastWave.mass); if(C.lastWave.log) logEvent(C.lastWave.log[0],C.lastWave.log[1].replace('{units}',k)); }
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       /* the allied unit nearest the carrier escorts it; the rest stay and hold the enemy off (rear; user decision 2026-10-17) */
       const al=fleets.filter(f=>f.ally&&f.alive&&!f.fixed), esc=al.length?nearestOf(opCarrier,al):null;
