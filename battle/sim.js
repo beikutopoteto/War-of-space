@@ -796,7 +796,7 @@ function stepCarrier(dt){
     if(full||cutBoarding(C,S)){ S.done=true; opCarrier.locked=false; opCarrier.sub=C.fleet.sub; setPhase('撤退');
       /* the last wave not come yet comes now, and goes after us with the rest (lastWave.atRetreat; 2026-10-17: the enemy was too weak
          when the main fleet's half went first and the biggest wave never came) */
-      if(C.lastWave&&C.lastWave.atRetreat&&!S.lastCame){ S.lastCame=true; const k=spawnMass(C.lastWave.mass); if(C.lastWave.log) logEvent(C.lastWave.log[0],C.lastWave.log[1].replace('{units}',k)); }
+      if(C.lastWave&&C.lastWave.atRetreat&&!S.lastCame) comeLastWave(C.lastWave,S);
       exitObj.visible=true; exitObj.position.set(S.exit.x,S.exit.y+.2,S.exit.z); makeArrow(opCarrier.pos,S.exit,TEAM_COL[0],{life:8});
       /* the allied unit nearest the carrier escorts it; the rest stay and hold the enemy off (rear; user decision 2026-10-17) */
       const al=fleets.filter(f=>f.ally&&f.alive&&!f.fixed), esc=al.length?nearestOf(opCarrier,al):null;
@@ -809,9 +809,9 @@ function stepCarrier(dt){
          (the cloud for the returning units, 2026-10-10) and only answer what comes near. Every other unit comes after the carrier,
          beating what of ours is near it first (chase; user decision 2026-10-17), and may fire on the carrier now */
       for(const f of fleets) if(f.team===1&&f.alive&&!f.fixed){
-        if(f.ace||f.letGo){ f.ai='guard'; f.post.copy(f.home); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
+        if(f.ace||f.letGo) letGoOf(f);
         else { f.ai='chase'; f.spare=null; f.order=null; f.strike=null; } }
-      for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }   // their craft come home and leave the retreating allies alone
+      callCraftHome(); }
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }
@@ -838,25 +838,34 @@ function startEvac(C,S){
    `sunk` of its ships or the carrier is down to `carrier` of its armour, and always after `max` minutes of it (2026-10-12).
    The more the main fleet holds, the more people get aboard */
 /* allies (2026-10-17, user decision): when the allied units (the main fleet's six) have lost that share of their ships, it is cut short
-   (in place of sunk and carrier) */
+   (in place of sunk and carrier). 第4節 now has the last wave come then instead (lastWave.allies), and the retreat follows it */
 function cutBoarding(C,S){
   const K=C.cut; if(!K||S.board<(K.min||0)) return false;
   if(K.max&&S.board>=K.max) return true;
-  if(S.lastCame) return true;   // the last wave has come (carrier.lastWave)
+  if(S.lastCame) return gameSec*CLOCK_RATE-S.lastMin>=(C.lastWave.after||0);   // the last wave came `after` minutes ago (carrier.lastWave)
   if(K.allies!=null) return alliesLost()>=K.allies;
   return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
 }
-/* the last wave (op.carrier.lastWave {of, lost, gap, mass, log}; user decision 2026-10-17): while the people board, once the units of the wave
-   tagged `of` (mass.tag) have lost `lost` of their ships, and not before `gap` minutes after that wave came, the last wave comes (mass,
-   like an event's), and with it the retreat begins */
+/* the last wave (op.carrier.lastWave {of, lost, gap, allies, after, mass, log}; user decision 2026-10-17): while the people board, once the units
+   of the wave tagged `of` (mass.tag) have lost `lost` of their ships, and not before `gap` minutes after that wave came, or once the allied
+   units have lost `allies` of their ships, the last wave comes (mass, like an event's), and `after` minutes later the retreat begins.
+   log: a line, or a list of lines ({units}: the units that came) */
 let massAt={};
 function stepLastWave(C,S){
   const L=C.lastWave; if(!L||S.lastCame) return;
+  if(L.allies!=null&&alliesLost()>=L.allies){ comeLastWave(L,S); return; }
   if(L.gap&&(massAt[L.of]==null||gameSec*CLOCK_RATE-massAt[L.of]<L.gap)) return;
   const U=fleets.filter(f=>f.team===1&&f.tag===L.of), n=U.reduce((s,f)=>s+f.n,0); if(!n) return;
   if(1-U.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n<L.lost) return;
-  S.lastCame=true; const k=spawnMass(L.mass); if(L.log) logEvent(L.log[0],L.log[1].replace('{units}',k));
+  comeLastWave(L,S);
 }
+function comeLastWave(L,S){ S.lastCame=true; S.lastMin=gameSec*CLOCK_RATE; const k=spawnMass(L.mass);
+  for(const l of L.log?Array.isArray(L.log[0])?L.log:[L.log]:[]) logEvent(l[0],l[1].replace('{units}',k));
+  /* pullBack (2026-10-17): the ace's units leave the rest to the main force now, as they do at the retreat */
+  if(L.pullBack){ for(const f of fleets) if(f.team===1&&f.alive&&!f.fixed&&(f.ace||f.letGo)) letGoOf(f); callCraftHome(); } }
+/* the ace unit and the units under him (letGo) draw back to where they came from and only answer what comes near; their craft come home */
+function letGoOf(f){ f.ai='guard'; f.post.copy(f.home); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
+function callCraftHome(){ for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }
 /* the share of the allied units' ships (not the guns on a rock) that is sunk (a unit that left at the exit is not) */
 function alliesLost(){ const A=fleets.filter(f=>f.ally&&!f.fixed), n=A.reduce((s,f)=>s+f.n,0);
   return n?1-A.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0)/n:0; }
