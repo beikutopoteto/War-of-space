@@ -1038,7 +1038,11 @@ function check(ok, label, detail = '') {
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'), amPost = am.post.clone();
       const ld = makeFleet(1, { name: '試験 揚陸艦', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [W.ring.x, W.ring.z], alt: W.ring.y, ai: 'land', drop: '西ゲート', vis: 1, stl: 9 }); fleets.push(ld);
       const wt = makeFleet(1, { name: '試験 見張り', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [-150, 0], alt: 0, ai: 'hunt', watch: { pos: [-170, 150], alt: 0 }, vis: 1, stl: 9 }); fleets.push(wt);
+      /* a line pressing on the west gate (press) goes on to the gate left too (2026-10-17 夜: it sat at the sealed gate) */
+      const pl = makeFleet(1, { name: '試験 列', sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [-170, 100], alt: 0, ai: 'guard', postAt: [-170, 100], press: { goal: [-165, 150, 0] }, vis: 1, stl: 9 }); fleets.push(pl);
+      pressPost(pl); const plGoal = pl.pressGoal.clone(), plPost = pl.post.clone();
       damage(W, W.hp + 1, sh); stepBase(.05);
+      r.lineOn = Math.abs(pl.pressGoal.x - plGoal.x - (C.pos.x - W.pos.x)) < 1 && Math.abs(pl.post.x - plPost.x - (C.pos.x - W.pos.x)) < 1; pl.alive = false; pl.el.remove();
       r.sealed = W.sealed && !W.alive && !over && W.inf === 0 && said.some(t => t.includes('西ゲートが破られた')) && W.look.state === 'sealed';
       r.drawOff = Math.abs(am.post.x - amPost.x - (C.pos.x - W.pos.x)) < 1 && dropFor(ld) === C && Math.abs(wt.watchPos.x - (-170 + C.pos.x - W.pos.x)) < 1;
       r.notShot = fireTargetOf(sh) !== W; ours.forEach((f, k) => { f.seen = seenK[k]; });
@@ -1073,7 +1077,7 @@ function check(ok, label, detail = '') {
     check(f1.btRange && f1.shots >= 2 && Math.abs(f1.shotGap - 64) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程90、64秒ごとに1発（1門の1発でコルベット1隻を沈める。2026-10-17）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
-    check(f1.sealed && f1.drawOff && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先が残りのゲートへ移る（2026-10-16）', JSON.stringify(f1));
+    check(f1.sealed && f1.drawOff && f1.lineOn && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先と押し込みの列の行き先が残りのゲートへ移る（2026-10-16、列は 2026-10-17 夜）', JSON.stringify(f1));
     check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲート6700。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
