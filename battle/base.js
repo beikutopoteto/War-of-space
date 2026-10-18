@@ -168,9 +168,10 @@ let infRim=null;
 function infRimTex(){ if(infRim) return infRim; const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d');
   x.fillStyle='rgba(8,12,20,.9)'; x.beginPath(); x.arc(8,8,7.6,0,Math.PI*2); x.fill(); x.fillStyle='#fff'; x.beginPath(); x.arc(8,8,4.4,0,Math.PI*2); x.fill();
   return infRim=new THREE.CanvasTexture(c); }
-const INF_LOOK={teams:9, per:4, rMin:10.5, rMax:19, flat:1.37, spread:1.6, size:5, lift:.3};   // 1ゲートに36（9組×4）。東西 10.5〜19、南北 14〜26（仮）
-function infDots(x,z,I=INF_LOOK){ const teams=[];
-  for(let t=0;t<I.teams;t++){ const a=t*Math.PI*2/I.teams+gRnd()*.5, r=I.rMin+gRnd()*(I.rMax-I.rMin), cx=x+Math.cos(a)*r, cz=z+Math.sin(a)*r*I.flat, team=[];
+/* teams: how many fire teams of `per`, unless the data gives the head count n (2026-10-18, user decision: twice the infantry, 72 a gate and 16 a gun) */
+const INF_LOOK={teams:18, per:4, rMin:10.5, rMax:23, flat:1.37, spread:1.6, size:5, lift:.3};   // 1ゲートに72（18組×4）。東西 10.5〜23、南北 14〜32（仮。前は36、9組・〜19）
+function infDots(x,z,I=INF_LOOK,n){ const teams=[], nt=n?Math.max(1,Math.round(n/I.per)):I.teams;
+  for(let t=0;t<nt;t++){ const a=t*Math.PI*2/nt+gRnd()*.5, r=I.rMin+gRnd()*(I.rMax-I.rMin), cx=x+Math.cos(a)*r, cz=z+Math.sin(a)*r*I.flat, team=[];
     for(let k=0;k<I.per;k++){ const p=rockAt(cx+(gRnd()-.5)*I.spread,cz+(gRnd()-.5)*I.spread); p.y+=I.lift; team.push(p); } teams.push(team); }
   for(let i=teams.length-1;i>0;i--){ const j=Math.floor(gRnd()*(i+1)); [teams[i],teams[j]]=[teams[j],teams[i]]; }
   const pts=teams.flat(), p=new Float32Array(pts.length*3); pts.forEach((v,i)=>p.set([v.x,v.y,v.z],i*3));
@@ -185,8 +186,8 @@ function infDots(x,z,I=INF_LOOK){ const teams=[];
    than PIT_EL[0] the gun cannot reach (sim.js pitCan). The shaft is seen into: a disc at the mouth marks the stencil where nothing nearer
    is drawn, the shaft is drawn there over the rock (depth always), then the house, the ring, the bar and the lamps with the usual depth test.
    Sizes are the sample's units × PIT_S (twice the old battery, as the user chose). A few infantry (data inf) stand round each gun (PIT_INF). 数値は仮 ---- */
-const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.84,1.57], PIT_REST=1.4, PIT_TURN=1.2;
-const PIT_INF={teams:2, per:4, rMin:3.6, rMax:5.5, flat:1, spread:1.3, size:5, lift:.3};
+const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.66,1.57], PIT_REST=1.4, PIT_TURN=1.2;   // 仰角38〜90度（2026-10-18、ユーザー決定: 射角をもう少し広く。38は仮。前は48）
+const PIT_INF={teams:4, per:4, rMin:3.6, rMax:6.5, flat:1, spread:1.3, size:5, lift:.3};   // 16人（4組×4。前は8、2組・〜5.5。仮）
 const PM={dead:new THREE.MeshStandardMaterial({color:0x2a2e33,metalness:.3,roughness:.9}),
   shaft:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
     stencilWrite:true,stencilRef:1,stencilFunc:THREE.EqualStencilFunc}),
@@ -221,7 +222,7 @@ function pitBuild(f){
   mask.renderOrder=4; shaft.renderOrder=5; lamps.renderOrder=turn.renderOrder=gun.renderOrder=6; for(const m of [fix,mask,shaft,lamps,turn,gun]) m.userData.keep=true;
   pitch.position.y=-PIT_AXIS; pitch.add(gun); yaw.add(turn,pitch); root.add(fix,mask,shaft,lamps,yaw);
   /* resting: toward the north (local -z), nearly straight up */
-  const P={root,fix,turn,gun,yaw,pitch,lamps,up:F.up.clone(),az:Math.PI,el:PIT_REST,dead:false,inf:(gSeed=71+Math.abs(Math.round(F.pos.x*3+F.pos.z)),infDots(F.pos.x,F.pos.z,PIT_INF))};
+  const P={root,fix,turn,gun,yaw,pitch,lamps,up:F.up.clone(),az:Math.PI,el:PIT_REST,dead:false,inf:(gSeed=71+Math.abs(Math.round(F.pos.x*3+F.pos.z)),infDots(F.pos.x,F.pos.z,PIT_INF,f.inf))};
   yaw.rotation.y=P.az; pitch.rotation.x=-P.el; f.pit=P; f.infN=P.inf.pts.length; f.inf=f.infN;
   f.pos.copy(F.pos).addScaledVector(F.up,.6); f.post.copy(f.pos); f.home.copy(f.pos);
   f.ships.forEach(s=>{ s.up=F.up.clone(); s.base=f.pos.clone(); s.pos.copy(s.base); s.muzzle=f.pos.clone(); });
@@ -247,7 +248,7 @@ function buildBase(B){
   if(!B||!bodyShape) return [];
   return (B.blocks||[]).map((b,i)=>({b,i})).filter(o=>o.b.gate).map(({b,i},n)=>{
     const on=bodyShape.towns[i], floor=on.clone().multiplyScalar(bodyShape.R(on)-.25).add(bodyC), F=gateFrame(floor.x,floor.z,8*GATE_SCALE);
-    gSeed=11+n*7; const inf=infDots(F.pos.x,F.pos.z);
+    gSeed=11+n*7; const inf=infDots(F.pos.x,F.pos.z,INF_LOOK,op.base&&op.base.infantry&&op.base.infantry.n);
     const L={name:b.name, sub:b.sub, block:i, frame:F, at:F.pos.clone().addScaledVector(F.up,GATE_LID_Y*GATE_SCALE), up:F.up, inf, state:null, g:null, shown:-1, infN:inf.pts.length, seed:31+n*13};
     gateSet(L,'ok'); return L; });
 }

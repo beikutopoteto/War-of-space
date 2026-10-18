@@ -662,6 +662,8 @@ function pressPost(f){
 function pressShare(f){ return f.pressGoal?1-f.post.distanceTo(f.pressGoal)/Math.max(1,f.pressFrom.distanceTo(f.pressGoal)):0; }
 /* chase (第4節の撤退; user decision 2026-10-17): go after the fleeing carrier, but beat what of ours is within CHASE_NEAR first. 数値は仮 */
 const CHASE_NEAR=45;
+/* the front line of 第5節: the ships north of this z (the gates are at about 160, our line at about −25 to 60) are on it (仮) */
+const FRONT_LINE=100;
 function chaseAI(f,foes){
   const C=opCarrier&&opCarrier.alive?opCarrier:null, near=foes.filter(x=>x!==C&&x.pos.distanceTo(f.pos)<CHASE_NEAR);
   const t=near.length?pickFoe(f,near,true):C&&C.seen?C:null;
@@ -678,6 +680,9 @@ function enemyAI(){
     if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
     let foes=f.spare?all.filter(x=>!spares(f,x)):all;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
+    /* 第5節 (2026-10-18, user decision): one of Alvarez's units (prey:'front') hunts on the front line, the nearest of our ships, allies
+       and ours alike, out in front of the gates (north of FRONT_LINE); with none there, the shield of the gate by its watch point */
+    if(f.prey==='front'){ foes=foes.filter(x=>!x.fixed&&x.pos.z<FRONT_LINE); if(!foes.length&&gates.length&&gateWatch(f)) continue; }
     /* 第5節: the escorts go for the guns on the base first (2026-10-13). The guns stand where the enemy knows them (not only the ones
        in sight, or they came for the ships in sight first and the guns were never touched): one not in sight yet, it closes on.
        A reserve still held back (ai:'guard') waits in the clouds until it is let go (2026-10-14) */
@@ -939,8 +944,18 @@ function weakDrop(names){ const c=names.map(n=>gates.find(g=>g.name===n&&!g.seal
 function landAI(f){
   const g=dropFor(f);
   if(!g){ moveTo(f,f.pos.x,f.pos.y,-FIELD_R-30); return; }
-  if(f.pos.distanceTo(g.ring)>g.r*.5) moveTo(f,g.ring.x,g.ring.y,g.ring.z); else if(f.order&&f.order.type==='move') f.order=null;
+  const p=landSpot(f,g);
+  if(f.pos.distanceTo(p)>2) moveTo(f,p.x,p.y,p.z); else if(f.order&&f.order.type==='move') f.order=null;
 }
+/* the assault ships by a gate do not all stop on one point (2026-10-18, user decision: spread out a little): the k-th to come to a gate takes
+   its own spot in the ring, at the golden angle from the one before, LAND_SPREAD of the ring's radius out and a little over or under it
+   (LAND_ALT). Still inside the ring, so each can put its W.A.S. in at the last gate. 数値は仮 */
+const LAND_SPREAD=[.4,.85], LAND_ALT=3, _ls1=new THREE.Vector3(), _ls2=new THREE.Vector3();
+function landSpot(f,g){
+  if(!f.landSpot||f.landSpot.g!==g){ const k=g.landN=(g.landN||0)+1, a=k*2.39996, r=g.r*(LAND_SPREAD[0]+(LAND_SPREAD[1]-LAND_SPREAD[0])*((k*.618034)%1));
+    _ls1.set(1,0,0).addScaledVector(g.up,-g.up.x).normalize(); _ls2.crossVectors(g.up,_ls1);
+    f.landSpot={g,p:g.ring.clone().addScaledVector(_ls1,Math.cos(a)*r).addScaledVector(_ls2,Math.sin(a)*r).addScaledVector(g.up,((k%3)-1)*LAND_ALT)}; }
+  return f.landSpot.p; }
 /* the nearest gate whose shield f can fire on now (within R, a clear line) */
 function gateInReach(f,R=f.range){ let b=null,bd=R; for(const g of gates){ if(!g.alive) continue; const d=gap(f,g); if(d<=bd&&!bodyBlocks(f.pos,g.pos)){ bd=d; b=g; } } return b; }
 /* a hunting unit with nothing in sight: it stands off over the open gate nearest its watch point, inside its guns' reach of the shield */
@@ -1126,8 +1141,9 @@ function stepRepel(){
    on the ones still to come (events not yet run, the all-out attack's if it has not begun), are fewer than it takes to wear the garrison
    down (garrison.hp / garrison.was): the enemy cannot take the base and falls back */
 function wasLeft(){ let n=0;
-  const of=f=>(f.hangar&&f.hangar.was)||0;
-  for(const f of fleets) if(f.alive&&f.team===1) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
+  /* only the W.A.S. of the ships that land (ai:'land', or a reserve given its gate: drop / drops); the hunter on the front line (prey:'front') never puts any in */
+  const lands=f=>f.ai==='land'||!!(f.drop||f.drops), of=f=>lands(f)&&(f.hangar&&f.hangar.was)||0;
+  for(const f of fleets) if(f.alive&&f.team===1&&lands(f)) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
   return n; }
