@@ -960,16 +960,19 @@ function check(ok, label, detail = '') {
         onRock: bt.every(f => f.pit && f.pit.root && Math.abs(f.pos.y - rockAt(f.pos.x, f.pos.z).y) < 2), centre: bodyC.z > 200,
         sky: skyObj.children.length >= 3 && !farPlanet.visible };
       /* the gates: west, middle, east, the middle on the rock's middle and the two others about 160 either side, on their craters' floors,
-         36 infantry dots round each; the batteries placed the same both sides */
+         72 infantry dots round each (2026-10-18: twice the 36); the batteries placed the same both sides */
       const G = gates, W = G[0], C = G[1], E = G[2];
       r.gates = G.map(g => g.name).join('・'); r.sym = Math.abs(C.pos.x) < 3 && Math.abs(W.pos.x + 160) < 6 && Math.abs(E.pos.x - 160) < 6;
       r.onFloor = G.every(g => Math.abs(g.look.frame.pos.distanceTo(bodyC) - bodySurface(g.look.frame.pos, op.body.r)) < 4) && G.every(g => g.ring.distanceTo(g.pos) > 9);
-      r.inf = G.every(g => g.look.inf.pts.length === 36 && g.inf === 36);
+      r.inf = G.every(g => g.look.inf.pts.length === 72 && g.inf === 72);
       /* by the gates, a little apart (user decision 2026-10-17): 3 by the west gate, 2 by the middle, 3 by the east, and two more each further out
-         (2026-10-17 夜): 5, 4, 5; 8 infantry each */
+         (2026-10-17 夜): 5, 4, 5; 16 infantry each (2026-10-18: twice the 8) */
       const gNear = f => gates.reduce((b, g) => Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z) < Math.hypot(f.pos.x - b.pos.x, f.pos.z - b.pos.z) ? g : b);
-      r.btSym = bt.every(f => { const g = gNear(f), d = Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z); return d > 20 && d < 70 && f.infN === 8; }) && gates.map(g => bt.filter(f => gNear(f) === g).length).join() === '5,4,5';
-      r.btRange = bt.every(f => f.range === 200 && f.every === 48);
+      r.btSym = bt.every(f => { const g = gNear(f), d = Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z); return d > 20 && d < 70 && f.infN === 16; }) && gates.map(g => bt.filter(f => gNear(f) === g).length).join() === '5,4,5';
+      r.btRange = bt.every(f => f.range === 240 && f.every === 36);
+      /* 2026-10-18 (user decision: a little wider): the guns reach down to 38 degrees over the rock's face, not to 30 */
+      { const g = bt[0], at = d => g.pos.clone().addScaledVector(g.pit.up, Math.sin(d * Math.PI / 180) * 50).addScaledVector(new THREE.Vector3(1, 0, 0).addScaledVector(g.pit.up, -g.pit.up.x).normalize(), Math.cos(d * Math.PI / 180) * 50);
+        r.gunEl = pitCan(g, { pos: at(40) }) && !pitCan(g, { pos: at(30) }); }
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
       /* 2026-10-13: the gun hunters (prey:'battery', 2026-10-16: one on each side, let go in turn) go for a gun on the base first; the first gun
@@ -1030,7 +1033,7 @@ function check(ok, label, detail = '') {
       wc.pos.copy(C.pos).addScaledVector(C.up, 20); r.wasPick = craftTarget(wc, 'was', 30) === C; wc.el.remove();
       const hw = makeFleet(1, { name: '試験 待つ', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 9, scale: 1, pos: [150, -200], alt: 0, ai: 'hunt', watch: { pos: [150, 150], alt: 0 }, vis: 1, stl: 9 }); fleets.push(hw);
       enemyAI(); r.gateWatch = !!(hw.order && hw.order.type === 'move' && Math.hypot(hw.order.dest.x - E.pos.x, hw.order.dest.z - E.pos.z) < 20); hw.alive = false; hw.el.remove();
-      const hp0 = W.hp; damage(W, W.max * .5, sh); stepBase(.05); r.worn = W.hp < hp0 && Math.abs(W.inf - 18) <= 1 && !W.sealed && said.some(t => t.includes('西ゲートのシールド、残り半分'));
+      const hp0 = W.hp; damage(W, W.max * .5, sh); stepBase(.05); r.worn = W.hp < hp0 && Math.abs(W.inf - 36) <= 1 && !W.sealed && said.some(t => t.includes('西ゲートのシールド、残り半分'));
       /* the infantry fire on a W.A.S. near their gate, weakly */
       const wg = { kind: 'wing', team: 1, type: 'was', id: 9999, alive: true, seen: true, n: 4, hp: 24, hpPool: 96, eva: 0, pos: W.pos.clone().addScaledVector(W.up, 6), ships: [], squad: {} };
       wings.push(wg); for (let i = 0; i < 20; i++) stepBase(.05); r.infHit = wg.hpPool < 96 && wg.hpPool > 90; wg.alive = false;
@@ -1059,6 +1062,18 @@ function check(ok, label, detail = '') {
       const ld2 = makeFleet(1, { name: '試験 揚陸艦2', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, hangar: { was: 300 }, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', vis: 1, stl: 9 }); fleets.push(ld2);
       ld2.pos.copy(E.ring); ld.putAcc = 0; const g1h = garrison.hp; for (let i = 0; i < 20; i++) stepBase(.05); const d2 = g1h - garrison.hp;
       const want = Math.floor(4 * CLOCK_RATE / GA.every);   // one battle second
+      /* the assault ships by a gate do not stop on one point (2026-10-18): each its own spot, inside the ring */
+      { const sp = [0, 1, 2, 3].map(k => { const f = makeFleet(1, { name: '試験 散開' + k, sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [E.pos.x, E.pos.z - 80], alt: 0, ai: 'land', drop: '東ゲート', vis: 1, stl: 9 }); landAI(f); f.el.remove(); return f.order && f.order.dest; });
+        let md = 1e9; sp.forEach((a, i) => sp.forEach((b, j) => { if (i < j) md = Math.min(md, a.distanceTo(b)); }));
+        r.spread = sp.every(p => p && p.distanceTo(E.ring) <= E.r && p.distanceTo(E.ring) > 3) && md > 3; }
+      /* Alvarez's two (2026-10-18, user decision): 第7 lands at the middle gate, 第8 hunts on the front line (prey:'front'): the nearest of
+         our ships north of the gates, not one by the gates, and its W.A.S. are not counted as able to take the base */
+      { const ev = op.win.surge.events.map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 局地強襲')), a8 = ev.find(f => f.name.startsWith('第8 局地強襲'));
+        const w0 = wasLeft(), hn = makeFleet(1, { name: '試験 敵狩り', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [0, 140], alt: 30, ai: 'hunt', prey: 'front', watch: { pos: [0, -38], alt: 40 }, hangar: { was: 40 }, vis: 1, stl: 9 }); fleets.push(hn);
+        const mk = z => { const a = makeFleet(0, { name: '試験 的' + z, sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, z], alt: 30, ally: true, vis: 6, stl: 4 }); a.seen = true; a.ward = true; fleets.push(a); return a; };
+        const byGate = mk(150), onFront = mk(60); enemyAI();
+        r.front = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
+        [hn, byGate, onFront].forEach(f => { f.alive = false; f.el.remove(); }); }
       r.drain = garrison.max === 1000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
       /* 2026-10-18: the panel shows the gates and the garrison only, and keeps them when folded */
@@ -1074,12 +1089,13 @@ function check(ok, label, detail = '') {
     check(f1.op === 'februaria' && f1.bb && f1.allies === 27 && f1.bt === 14 && f1.onRock && f1.centre && f1.sky && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍27隊（2026-10-18 の兵力の見直し: 280隻）と地表の砲台14基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,
-      'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が36ずつ。砲台はゲートのそば（西3・中央2・東3）で、強化歩兵が8人ずつ守る（2026-10-17）', JSON.stringify(f1));
+      'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が72ずつ。砲台はゲートのそば（西5・中央4・東5）で、強化歩兵が16人ずつ守る（2026-10-17、数は 2026-10-18 に2倍）', JSON.stringify(f1));
     check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 砲台狩りの重巡洋艦は縁で待ち、時刻で放たれて地表の砲台を先に狙う（2026-10-13・16）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
-    check(f1.btRange && f1.shots >= 2 && Math.abs(f1.shotGap - 48) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程200、48秒ごとに1発（1門の1発でコルベット1隻を沈める。2026-10-17、射程と間隔は 2026-10-18）', JSON.stringify(f1));
+    check(f1.btRange && f1.gunEl && f1.shots >= 2 && Math.abs(f1.shotGap - 36) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程240、36秒ごとに1発、仰角38度から（1門の1発でコルベット1隻を沈める。2026-10-17、射程・間隔・仰角は 2026-10-18）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.lineOn && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先と押し込みの列の行き先が残りのゲートへ移る（2026-10-16、列は 2026-10-17 夜）', JSON.stringify(f1));
+    check(f1.spread && f1.front, 'フェブルアーリア防衛戦: ゲートの輪の突撃揚陸艦は1点に集まらず、輪の中で散らばる。アルバレス隊は第7が中央ゲートへ、第8が前線で敵狩り（2026-10-18）', JSON.stringify(f1));
     check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲート16,750（2026-10-18）。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -1130,7 +1146,7 @@ function check(ok, label, detail = '') {
         wong: Math.hypot(w.post.x + 30, w.post.z - 120) < 1, surgeAt: SG.share === .3 && SG.at === 450,
         lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
       const ace = fleets.filter(f => f.ace && f.alive), base = op.events.find(e => e.fleet && e.fleet.type === 'mas').fleet, other = base.craft.was, AC = ace.length && ace[0].craft.was;
-      r.ace = ace.length === 2 && ace.every(f => f.drop === '中央ゲート' && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)
+      r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line
         && ['dmg', 'hp'].every(k => Math.abs(AC[k] - (other[k] || 1) * 3) < 1e-9) && AC.eva === 1.5 && AC.speed === 1.2 && AC.range === 1.2
         && Math.abs(ace[0].dmg - base.dmg * 3 * dmgK(1)) < 1e-9 && Math.abs(ace[0].hp - base.hp * 3 * hpK(1)) < 1e-9 && Math.abs(ace[0].range - base.range * 1.2) < 1e-9
         && Math.abs(ace[0].speed - base.speed * 1.2) < 1e-9 && Math.abs(ace[0].eva - base.eva * 1.5) < 1e-9;   // 2026-10-18: 3 times, reach and speed 1.2, evasion 1.5
@@ -1163,7 +1179,7 @@ function check(ok, label, detail = '') {
       ours.forEach((f, i) => f.pos.copy(keep[i])); rs.alive = false; rs.el.remove();
       gameSec = op.win.until / CLOCK_RATE; step(.05); return { ...r, over, outcome, by: repelBy, share: op.win.share }; });
     check(f2.given && f2.wong && f2.amzBack && f2.surgeAt && f2.lines, 'フェブルアーリア防衛戦: 総攻撃（13:30 か本隊の3割）で列が全部前へ出る。工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が中央の前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
-    check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から中央ゲートへ。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
+    check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から（第7は中央ゲートへ、第8は前線で敵狩り。2026-10-18）。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
     check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
     check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .6, 'フェブルアーリア防衛戦: 本隊の6割を沈めるか、18:00 まで持たせると勝利（6割は 2026-10-18）', JSON.stringify(f2));
