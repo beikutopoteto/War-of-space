@@ -1235,6 +1235,10 @@ function check(ok, label, detail = '') {
       const g = troops[troops.length - 1], gun = lc.dropTo && lc.dropTo.gun;
       r.landed = sat && lc.unloaded && lc.ai === 'withdraw' && troops.length === n0 + 1 && g.n === 24 && !!gun && Math.hypot(g.pos.x - gun.pos.x, g.pos.z - gun.pos.z) < 16;
       r.dots = g.dots.length === 24 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 1);
+      /* they go each on his own (2026-10-18, user: not one block sliding along; 見本 B, the teams by bounds): the centre walking on, the men do not all shift alike */
+      { const p0 = g.dots.map(p => p.clone()), c0 = g.pos.clone(); for (let i = 0; i < 20; i++) { g.pos.x += .2; stepTroopMen(g, .1); }
+        const dv = g.dots.map((p, i) => p.x - p0[i].x), mean = dv.reduce((a, v) => a + v, 0) / dv.length, sd = Math.sqrt(dv.reduce((a, v) => a + (v - mean) ** 2, 0) / dv.length);
+        r.walk = { mean: +mean.toFixed(2), sd: +sd.toFixed(2) }; r.walkOk = mean > .5 && sd > .3 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 1.5); g.pos.copy(c0); }
       drawTroops(); r.drawn = tpGeo.drawRange.count === troops.reduce((s, x) => s + Math.min(x.n, x.dots.length), 0) && tpPts.material.color.getHex() === TEAM_COL[1].getHex();
       /* theirs and ours at the gun: both lose men; with ours gone they wear the gun down */
       const inf0 = gun.inf, hp0 = gun.hpPool; let k = 0; while (k++ < 4000 && gun.inf > 0) stepBase(.05);
@@ -1249,7 +1253,7 @@ function check(ok, label, detail = '') {
       const g0 = garrison.hp; let m = 0; while (m++ < 4000 && g.n > 0) stepBase(.05);
       r.inside = C.breached && g.n === 0 && Math.abs(g0 - garrison.hp - 20 * GA.troop) < 1e-6 && troopsWent >= 20;
       sh.el.remove(); return r; });
-    check(lt.data && lt.landed && lt.dots && lt.drawn, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る（2026-10-18）', JSON.stringify(lt));
+    check(lt.data && lt.landed && lt.dots && lt.drawn && lt.walkOk, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る。強化歩兵は丸ごと平行移動せず、組ごとに交互に走る・伏せる（2026-10-18）', JSON.stringify(lt));
     check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を壊す。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
     await page.evaluate(() => { if (talking) endTalk(); if (!over) end(false, true); }); await page.waitForTimeout(300); await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing

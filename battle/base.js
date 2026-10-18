@@ -294,11 +294,36 @@ function infFire(L,k,T,dt,rate,col=INF_LINE){
 const TROOP_MAX=2400, tpPos=new Float32Array(TROOP_MAX*3), tpGeo=new THREE.BufferGeometry(); tpGeo.setAttribute('position',new THREE.BufferAttribute(tpPos,3));
 const tpPts=new THREE.Points(tpGeo,new THREE.PointsMaterial({color:TEAM_COL[1],size:INF_LOOK.size,sizeAttenuation:false,transparent:true,depthWrite:false,map:infRimTex(),alphaTest:.05}));
 tpPts.renderOrder=3; tpPts.frustumCulled=false; scene.add(tpPts);
-function drawTroops(){ let n=0;
-  for(const g of troops){ const k=Math.min(g.n,g.dots.length); for(let i=0;i<k&&n<TROOP_MAX;i++){ const p=g.dots[i]; tpPos[n*3]=p.x; tpPos[n*3+1]=p.y; tpPos[n*3+2]=p.z; n++; } }
+/* how they walk (2026-10-18, user: not one block sliding along): the sim moves only the group's centre (sim.js stepTroops); here every man
+   goes on his own toward his place round it, at his own pace (TM.v), and his dot is set on the rock again once he has gone TM.reH.
+   While the group is on the move its fire teams string out behind the way it goes (TM.lag a team, TM.side either side); stopped, they
+   spread out round the centre as they landed. The teams go by bounds (user decision 2026-10-18, 見本 B): each runs TM.beat[0] seconds
+   (TM.run times its pace) and lies down TM.beat[1], on its own beat, so some run while the others are down. 数値は仮 */
+const TM={v:[1.7,2.6], run:1.7, lag:1.1, side:3.2, beat:[1.1,1.6], reH:.35, still:.6};
+function troopMen(g){ if(g.men) return g.men;
+  g.dir=new THREE.Vector3(0,0,-1); g.prevC=g.pos.clone(); g.still=9; g.teamT=[];
+  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/4)|0, k:i%4, off:g.offs[i]})); }
+function stepTroopMen(g,dt){
+  const M=troopMen(g); if(dt<=0) return;
+  const dx=g.pos.x-g.prevC.x, dz=g.pos.z-g.prevC.z, dm=Math.hypot(dx,dz);
+  if(dm>1e-4){ g.dir.x+=(dx/dm-g.dir.x)*.2; g.dir.z+=(dz/dm-g.dir.z)*.2; g.dir.y=0; g.dir.normalize(); g.still=0; } else g.still+=dt;
+  g.prevC.copy(g.pos);
+  const moving=g.still<TM.still, px=-g.dir.z, pz=g.dir.x;
+  M.forEach((m,i)=>{ if(i>=g.n) return;
+    let tx=g.pos.x+m.off[0], tz=g.pos.z+m.off[1];
+    if(moving){ const lat=Math.max(-TM.side,Math.min(TM.side,m.off[0]*px+m.off[1]*pz))*.8, back=1+m.team*TM.lag+m.k*.25;
+      tx=g.pos.x+px*lat-g.dir.x*back; tz=g.pos.z+pz*lat-g.dir.z*back; }
+    const ex=tx-m.p.x, ez=tz-m.p.z, d=Math.hypot(ex,ez); if(d<.05) return;
+    let v=m.v*Math.min(1.3,.35+d/2);
+    if(moving){ const T=g.teamT[m.team]??=Math.random()*3, ph=(time+T)%(TM.beat[0]+TM.beat[1]); v=ph<TM.beat[0]?m.v*TM.run:d>5?m.v:0; }   // its team's bound: run, or lie down (catching up if left far behind)
+    const s=Math.min(d,v*dt); m.p.x+=ex/d*s; m.p.z+=ez/d*s;
+    if(Math.hypot(m.p.x-m.h.x,m.p.z-m.h.z)>TM.reH){ m.p.y=rockAt(m.p.x,m.p.z).y+.3; m.h.copy(m.p); } });
+}
+function drawTroops(dt=0){ let n=0;
+  for(const g of troops){ stepTroopMen(g,dt); const k=Math.min(g.n,g.dots.length); for(let i=0;i<k&&n<TROOP_MAX;i++){ const p=g.dots[i]; tpPos[n*3]=p.x; tpPos[n*3+1]=p.y; tpPos[n*3+2]=p.z; n++; } }
   tpGeo.setDrawRange(0,n); tpGeo.attributes.position.needsUpdate=true; tpPts.material.size=INF_LOOK.size*pxK(); }
 function stepBaseFx(dt){
-  drawTroops();
+  drawTroops(dt);
   let n=0, h=0;
   rockets=rockets.filter(r=>{ r.t+=dt; const f=r.t/r.dur; if(f>=1){ burst(r.b,HOT,4,4,.4); return false; }
     _v.lerpVectors(r.a,r.b,f); _w.lerpVectors(r.a,r.b,Math.max(0,f-Math.min(.5,3.5/Math.max(1,r.a.distanceTo(r.b)))));
