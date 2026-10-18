@@ -64,6 +64,26 @@ function stepTracers(dt){
   tGeo.attributes.position.needsUpdate=true; tGeo.attributes.color.needsUpdate=true;
 }
 
+/* ---------- beams (第5節 the guns on the base; user decision 2026-10-18: 見本 B) ---------- */
+/* a white core in a glow, lit at once; the core and the outer haze go out within the first part of BEAM_LIFE, the glow thins and fades
+   over the rest, and glowing motes drift off its path for a while longer. 数値は仮 */
+const BEAM_LIFE=2.2, beams=[], beamGeo=new THREE.CylinderGeometry(1,1,1,10,1,true), motes=particles(1500,.5,0), _bUp=new THREE.Vector3(0,1,0);
+function beam(a,b,col){ const d=new THREE.Vector3().subVectors(b,a), L=d.length(); if(L<.1) return;
+  const q=new THREE.Quaternion().setFromUnitVectors(_bUp,d.clone().multiplyScalar(1/L)), mid=a.clone().addScaledVector(d,.5);
+  const mk=(c,op)=>{ const m=new THREE.Mesh(beamGeo,new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false}));
+    m.position.copy(mid); m.quaternion.copy(q); m.frustumCulled=false; scene.add(m); return m; };
+  beams.push({core:mk(new THREE.Color(1,1,1),.95),glow:mk(col,.45),halo:mk(col,.15),L,t:0}); beamSize(beams[beams.length-1]);
+  for(let i=0,n=Math.ceil(L*1.5);i<n;i++) motes.burst(a.clone().addScaledVector(d,Math.random()),col,1,1.5,BEAM_LIFE*1.3);
+}
+function beamSize(B){ const f=B.t/BEAM_LIFE, out=x=>Math.max(0,1-f/x);
+  B.core.scale.set(.32,B.L,.32); B.core.material.opacity=.95*out(.25); B.core.visible=f<.25;
+  B.halo.scale.set(2.2,B.L,2.2); B.halo.material.opacity=.15*out(.3); B.halo.visible=f<.3;
+  const r=1.1-.7*Math.min(1,f/.6); B.glow.scale.set(r,B.L,r); B.glow.material.opacity=f<.6?.45-.25*f/.6:.2*(1-f)/.4; }
+function stepBeams(dt){ for(let i=beams.length-1;i>=0;i--){ const B=beams[i]; B.t+=dt;
+    if(B.t>=BEAM_LIFE){ for(const m of [B.core,B.glow,B.halo]){ scene.remove(m); m.material.dispose(); } beams.splice(i,1); continue; }
+    beamSize(B); }
+  motes.step(dt); }
+
 /* ---------- movement arrows ---------- */
 /* an arrow shows the route a fleet really takes: a straight line, or opt.curve (the path through queued waypoints) */
 const arrows=new Set();

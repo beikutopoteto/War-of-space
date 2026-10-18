@@ -969,7 +969,7 @@ function check(ok, label, detail = '') {
          (2026-10-17 夜): 5, 4, 5; 8 infantry each */
       const gNear = f => gates.reduce((b, g) => Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z) < Math.hypot(f.pos.x - b.pos.x, f.pos.z - b.pos.z) ? g : b);
       r.btSym = bt.every(f => { const g = gNear(f), d = Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z); return d > 20 && d < 70 && f.infN === 8; }) && gates.map(g => bt.filter(f => gNear(f) === g).length).join() === '5,4,5';
-      r.btRange = bt.every(f => f.range === 90 && f.every === 64);
+      r.btRange = bt.every(f => f.range === 120 && f.every === 64);
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
       /* 2026-10-13: the gun hunters (prey:'battery', 2026-10-16: one on each side, let go in turn) go for a gun on the base first; the first gun
@@ -1116,12 +1116,13 @@ function check(ok, label, detail = '') {
         lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
       const ace = fleets.filter(f => f.ace && f.alive), base = op.events.find(e => e.fleet && e.fleet.type === 'mas').fleet, other = base.craft.was, AC = ace.length && ace[0].craft.was;
       r.ace = ace.length === 2 && ace.every(f => f.drop === '中央ゲート' && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)
-        && ['dmg', 'hp'].every(k => Math.abs(AC[k] - (other[k] || 1) * 2) < 1e-9) && AC.eva === (other.eva || 1) && AC.speed === 2 && !AC.range
-        && Math.abs(ace[0].dmg - base.dmg * 2) < 1e-9 && Math.abs(ace[0].hp - base.hp * 2 * hpK(1)) < 1e-9 && ace[0].range === base.range;
+        && ['dmg', 'hp'].every(k => Math.abs(AC[k] - (other[k] || 1) * 3) < 1e-9) && AC.eva === 1.5 && AC.speed === 1.2 && AC.range === 1.2
+        && Math.abs(ace[0].dmg - base.dmg * 3) < 1e-9 && Math.abs(ace[0].hp - base.hp * 3 * hpK(1)) < 1e-9 && Math.abs(ace[0].range - base.range * 1.2) < 1e-9
+        && Math.abs(ace[0].speed - base.speed * 1.2) < 1e-9 && Math.abs(ace[0].eva - base.eva * 1.5) < 1e-9;   // 2026-10-18: 3 times, reach and speed 1.2, evasion 1.5
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
       ace[0].hangars[0].next = 0; ace[0].hangars[0].squads.forEach(q => { q.ready = 0; }); const w0 = wings.length; launchCheck(ace[0]); const aw = wings[wings.length - 1];
-      r.aceWas = wings.length > w0 && aw.speed === WING.was.speed * 2 && aw.range === WING.was.range; t0.alive = false; t0.el.remove(); e1.el.remove();
+      r.aceWas = wings.length > w0 && Math.abs(aw.speed - WING.was.speed * 1.2) < 1e-9 && Math.abs(aw.range - WING.was.range * 1.2) < 1e-9; t0.alive = false; t0.el.remove(); e1.el.remove();
       /* Oliveira's unit, badly hurt, gives ground (retreat) */
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.ships.splice(0, am.ships.length - 1); allyAI(); r.amzBack = !!am.falling && am.post.distanceTo(am.fallTo) < 1;
       /* 2026-10-14: a unit hurt below fallBack (7割) of its ships withdraws into the clouds; its ships left are not counted as sunk, and a later
@@ -1147,7 +1148,7 @@ function check(ok, label, detail = '') {
       ours.forEach((f, i) => f.pos.copy(keep[i])); rs.alive = false; rs.el.remove();
       gameSec = op.win.until / CLOCK_RATE; step(.05); return { ...r, over, outcome, by: repelBy, share: op.win.share }; });
     check(f2.given && f2.wong && f2.amzBack && f2.surgeAt && f2.lines, 'フェブルアーリア防衛戦: 総攻撃（13:30 か本隊の3割）で列が全部前へ出る。工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が中央の前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
-    check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から中央ゲートへ。艦の耐久・打撃と W.A.S. の打撃・耐久・速さは、ほかの共和国の2倍（回避は基本のまま）で、射程はそのまま（2026-10-17）', JSON.stringify(f2));
+    check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から中央ゲートへ。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
     check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
     check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .5, 'フェブルアーリア防衛戦: 本隊の5割を沈めるか、18:00 まで持たせると勝利', JSON.stringify(f2));
