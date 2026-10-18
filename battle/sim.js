@@ -229,7 +229,7 @@ function launchCheck(f){
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
-      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range,
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
@@ -330,11 +330,9 @@ function fireTargetOf(f){
 function pitCan(f,t){ const P=f.pit; if(!P||P===true) return true; _gs.subVectors(t.pos,f.pos); const d=_gs.length(); return d<1e-6||_gs.dot(P.up)/d>=Math.sin(PIT_EL[0]); }
 /* one heavy shot of a battery (f.every): each gun throws a short, bright, thick bolt (three tracers side by side), a flash at the muzzle and one on the target */
 const _gs=new THREE.Vector3();
-function gunShot(f,t){ const c=TEAM_COL[0];
+function gunShot(f,t){ const c=TEAM_COL[0];   // a beam from each barrel that lingers (effects.js beam; user decision 2026-10-18: 見本 B)
   for(const s of f.ships){ const a=s.muzzle?s.muzzle.clone():(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
-    _gs.subVectors(b,a).cross(_up); if(_gs.lengthSq()<1e-6) _gs.set(1,0,0); _gs.setLength(.16);
-    for(const k of [-1,0,1]) shoot(a.clone().addScaledVector(_gs,k),b.clone().addScaledVector(_gs,k),c,.2);
-    burst(a,c,5,3,.3); burst(b,HOT,6,4,.4); } }
+    beam(a,b,c); burst(a,c,5,3,.3); burst(b,HOT,6,4,.4); } }
 /* a large explosion at [x, z, alt] (operation data) */
 function blast(at){ const p=new THREE.Vector3(at[0],at[2]||0,at[1]); for(let i=0;i<6;i++) burst(p.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,30,10,1.4); }
 /* escort operations: the convoy boards until `depart` (operation minutes), then follows its route to the departure point.
