@@ -166,7 +166,7 @@ function end(win,quit=false,full=false){
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
   const why=!win&&loseWhy==='time'&&op.timeUp?{lose:op.timeUp.lose,loseLog:op.timeUp.loseLog}:!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
-    :!win&&loseWhy==='garrison'&&op.result.loseGarrison?{lose:op.result.loseGarrison,loseLog:op.result.loseGarrisonLog}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:{};
+    :!win&&loseWhy==='garrison'&&op.result.loseGarrison?{lose:op.result.loseGarrison,loseLog:op.result.loseGarrisonLog}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:win&&repelBy==='was'&&op.result.winWas?{win:op.result.winWas,winLog:op.result.winWasLog||op.result.winLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
     op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。${gates.length?`塞いだゲート ${gates.filter(g=>g.sealed).length}/${gates.length}。基地守備隊 ${garrison?Math.ceil(100*garrison.hp/garrison.max):0}%。`:''}残存艦 ${left}隻。`:
     opCarrier?`${opCarrier.name}に乗せた住民 ${(opCarrier.cs.boarded||0).toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
@@ -1115,12 +1115,23 @@ function stepRepel(){
     const add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
     opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
   if(repelT!=null){ if(gameSec-repelT>=W.retreat.sec) end(true); return; }
-  if(k>=W.share&&W.retreat){ repelBy='sunk'; repelT=gameSec; stageText=W.retreat.text||stageText;
+  const short=W.wasShort&&wasShort();
+  if((k>=W.share||short)&&W.retreat){ repelBy=k>=W.share?'sunk':'was'; repelT=gameSec; stageText=W.retreat.text||stageText;
     for(const f of fleets) if(f.team===1&&f.alive&&!f.fixed){ f.ai='withdraw'; f.order=null; }
     if(W.retreat.log) logEvent(...W.retreat.log); return; }
   if(k>=W.share||now>=W.until){ repelBy=k>=W.share?'sunk':'time'; end(true); }
 }
 
+/* win.wasShort (第5節, user decision 2026-10-18): the enemy's W.A.S. left, aboard its assault ships (out with their squadrons too) and
+   on the ones still to come (events not yet run, the all-out attack's if it has not begun), are fewer than it takes to wear the garrison
+   down (garrison.hp / garrison.was): the enemy cannot take the base and falls back */
+function wasLeft(){ let n=0;
+  const of=f=>(f.hangar&&f.hangar.was)||0;
+  for(const f of fleets) if(f.alive&&f.team===1) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
+  for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
+  const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
+  return n; }
+function wasShort(){ const G=op.base&&op.base.garrison; return !!(G&&garrison&&wasLeft()<garrison.hp/(G.was||5)); }
 /* timeUp {at, until, warn, lose, loseLog} (user decision 2026-10-13: doing nothing must lose): at `at` minutes, if what it waits for
    has not happened (until 'fortress': the fortress destroyed; 'land': the carrier landed), the operation is lost. warn {at, log}: said once before */
 function stepTimeUp(){

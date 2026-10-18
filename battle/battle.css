@@ -43,6 +43,9 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #goal .gl{font-family:var(--f-num);font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
 #goal .gs{font-size:11px;color:var(--ink-dim);white-space:pre-line}
 #goal.fold b,#goal.fold .gs{display:none}
+/* 第5節 (user decision 2026-10-18): only the gates and the garrison, folded or not */
+#goal.gonly .gt,#goal.gonly b,#goal.gonly .gauge,#goal.gonly .gl,#goal.gonly .gs{display:none}
+#goal.gonly.fold .gx:not([hidden]){display:grid}
 /* 第5節: the base's gates and the garrison (案 C, user decision 2026-10-16): three small gate outlines filled to the shield left
    (amber at 60% or under, grey and 閉鎖 once sealed), and the garrison's thin gauge under them */
 #goal .gx{display:grid;gap:3px;margin:1px 0}
@@ -108,6 +111,10 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .pz-v svg{width:14px;height:14px;display:block;overflow:visible}
 .pz-v path{fill:color-mix(in srgb,var(--pz) 25%,transparent);stroke:var(--pz);stroke-width:1;stroke-linejoin:miter}
 .pz-x{position:absolute;left:13px;top:6px;font:700 10px/1 var(--f-num),sans-serif;color:var(--pz);letter-spacing:.04em;text-shadow:0 0 4px #000}
+.unit.gun .flag{display:none}   /* 第5節 the guns on the base: a small icon only, the name when selected (2026-10-18) */
+.unit.gun.sel .flag{display:block}
+.unit.gun .emb,.unit.gun.sel .emb{width:auto;height:auto;border:0;background:none;box-shadow:none;filter:drop-shadow(0 0 3px currentColor)}
+.unit.gun .emb svg{width:14px;height:14px;display:block}
 .unit.ghost{opacity:.5}   /* background evacuation ships (第3節): not targets, only scenery */
 .unit.lost .emb{border-style:dashed;box-shadow:none;background:transparent}
 .unit.lost .flag span{display:block}

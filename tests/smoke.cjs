@@ -1003,9 +1003,9 @@ function check(ok, label, detail = '') {
       /* a line (press) holds its post at the edge and moves it on toward its goal: slowly under a gun, fast where none covers it, not at all
          while our ships round it are 1.5 times its own */
       const ln = fleets.find(f => f.name === '第15 重巡洋 エスカドラ'), G0 = ln.post.clone();
-      r.pressAt = ln.ai === 'guard' && Math.hypot(G0.x - 300, G0.z - 95) < 1 && G0.y === 5;
+      r.pressAt = ln.ai === 'guard' && Math.hypot(G0.x - 100, G0.z + 51) < 1 && G0.y === 5;   // 2026-10-18: the line's posts stand north of the allied line
       const others = fleets.filter(f => f.team === 0 && !f.fixed && f.alive), keepY = others.map(f => f.pos.y); others.forEach(f => { f.pos.y += 600; });   // nobody of ours near
-      const gunE = bt[6], P = gunE.pos.clone().add(new THREE.Vector3(0, 70, -30)), goalP = new THREE.Vector3(180, -25, 145);
+      const gunE = bt[6], P = gunE.pos.clone().add(new THREE.Vector3(0, 70, -30)), goalP = new THREE.Vector3(131, -25, 145);
       ln.post.copy(P); enemyAI(); const v1 = P.distanceTo(ln.post);   // under the gun
       const gunsOff = bt.map(f => f.alive); bt.forEach(f => { f.alive = false; }); ln.post.copy(P); enemyAI(); const v2 = P.distanceTo(ln.post);   // no gun left
       r.press = v1 > 0 && v2 > v1 * 3 && ln.post.distanceTo(goalP) < P.distanceTo(goalP);
@@ -1035,7 +1035,8 @@ function check(ok, label, detail = '') {
       const wg = { kind: 'wing', team: 1, type: 'was', id: 9999, alive: true, seen: true, n: 4, hp: 24, hpPool: 96, eva: 0, pos: W.pos.clone().addScaledVector(W.up, 6), ships: [], squad: {} };
       wings.push(wg); for (let i = 0; i < 20; i++) stepBase(.05); r.infHit = wg.hpPool < 96 && wg.hpPool > 90; wg.alive = false;
       /* the west gate breached: it is blown shut (not the last), its infantry go in, and both sides draw off to the gates left */
-      const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'), amPost = am.post.clone();
+      /* an allied unit holding by the west gate (2026-10-18: the line stands far forward now, so a test one) */
+      const am = makeFleet(0, { name: '試験 ゲートの守り', sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [W.pos.x, W.pos.z - 25], alt: W.pos.y + 10, ally: true, vis: 6, stl: 4 }); am.ward = true; fleets.push(am); const amPost = am.post.clone();
       const ld = makeFleet(1, { name: '試験 揚陸艦', sub: '突撃揚陸艦', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [W.ring.x, W.ring.z], alt: W.ring.y, ai: 'land', drop: '西ゲート', vis: 1, stl: 9 }); fleets.push(ld);
       const wt = makeFleet(1, { name: '試験 見張り', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [-150, 0], alt: 0, ai: 'hunt', watch: { pos: [-170, 150], alt: 0 }, vis: 1, stl: 9 }); fleets.push(wt);
       /* a line pressing on the west gate (press) goes on to the gate left too (2026-10-17 夜: it sat at the sealed gate) */
@@ -1044,7 +1045,7 @@ function check(ok, label, detail = '') {
       damage(W, W.hp + 1, sh); stepBase(.05);
       r.lineOn = Math.abs(pl.pressGoal.x - plGoal.x - (C.pos.x - W.pos.x)) < 1 && Math.abs(pl.post.x - plPost.x - (C.pos.x - W.pos.x)) < 1; pl.alive = false; pl.el.remove();
       r.sealed = W.sealed && !W.alive && !over && W.inf === 0 && said.some(t => t.includes('西ゲートが破られた')) && W.look.state === 'sealed';
-      r.drawOff = Math.abs(am.post.x - amPost.x - (C.pos.x - W.pos.x)) < 1 && dropFor(ld) === C && Math.abs(wt.watchPos.x - (-170 + C.pos.x - W.pos.x)) < 1;
+      r.drawOff = Math.abs(am.post.x - amPost.x - (C.pos.x - W.pos.x)) < 1 && dropFor(ld) === C && Math.abs(wt.watchPos.x - (-170 + C.pos.x - W.pos.x)) < 1; am.alive = false; am.el.remove();
       r.notShot = fireTargetOf(sh) !== W; ours.forEach((f, k) => { f.seen = seenK[k]; });
       stepFronts(); r.frontShut = fronts[0].closed;   // the west gate sealed closes the west end's front
       /* the middle gate breached too: the east gate is the last; its shield gone, it stays open, and the assault ships by it wear the garrison down */
@@ -1060,7 +1061,8 @@ function check(ok, label, detail = '') {
       const want = Math.floor(4 * CLOCK_RATE / GA.every);   // one battle second
       r.drain = garrison.max === 1000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
-      r.goalFold = (() => { goalEl.classList.add('fold'); const h = getComputedStyle(gx).display === 'none'; goalEl.classList.remove('fold'); return h; })();
+      /* 2026-10-18: the panel shows the gates and the garrison only, and keeps them when folded */
+      r.goalFold = (() => { goalEl.classList.add('fold'); const v = getComputedStyle(gx).display !== 'none', g = getComputedStyle(goalBar.parentNode).display === 'none' && getComputedStyle(goalText).display === 'none'; goalEl.classList.remove('fold'); return goalEl.classList.contains('gonly') && v && g; })();
       logEvent = logE;
       /* the garrison worn to 0: the operation is lost */
       let n = 0; while (!over && n++ < 4000) stepBase(.05);
@@ -1104,6 +1106,19 @@ function check(ok, label, detail = '') {
       return r;
     });
     check(fb.caught && fb.bowOn && fb.rear && fb.back, '後退: 命令なしで射程が上回る隊は、艦首を相手に向けたまま半分の速さで下がり（追えば追いつける）、後ろ方向への攻撃は前の25%（2026-10-17 夜）', JSON.stringify(fb));
+    /* 2026-10-18: the guns on the base are small squares with a dot, their names hidden until selected; the enemy falls back once its
+       W.A.S. (aboard and still to come) are too few to wear the garrison down (garrison.hp / garrison.was) */
+    const ws = await page.evaluate(() => {
+      const r = {}, bt = fleets.filter(f => f.pit);
+      r.icon = bt.length === 14 && bt.every(f => f.el.classList.contains('gun') && f.el.querySelector('.emb rect') && getComputedStyle(f.el.querySelector('.flag')).display === 'none');
+      const need = garrison.hp / op.base.garrison.was; r.need = need; r.left = wasLeft(); r.start = !wasShort() && r.left >= need && op.win.share === .6 && op.win.wasShort;
+      const ne = nextEvent, su = surged, keep = fleets.filter(f => f.team === 1).map(f => f.hangars.map(h => [h.reserve, h.squads.map(q => q.n)]));
+      nextEvent = opEvents.length; surged = true; fleets.filter(f => f.team === 1).forEach(f => f.hangars.forEach(h => { h.reserve = 0; h.squads.forEach(q => { q.n = 0; }); }));
+      r.short = wasShort();
+      fleets.filter(f => f.team === 1).forEach((f, i) => f.hangars.forEach((h, k) => { h.reserve = keep[i][k][0]; h.squads.forEach((q, m) => { q.n = keep[i][k][1][m]; }); }));
+      nextEvent = ne; surged = su; r.back = wasLeft() === r.left;
+      return r; });
+    check(ws.icon && ws.start && ws.short && ws.back, 'フェブルアーリア防衛戦: 地表の砲台は小さな四角に点のアイコン（名札は選んだときだけ）。敵の W.A.S.（乗っている分とこれから来る分）が基地守備隊を削りきる数を下回ると勝ち（主力の6割でも勝ち。2026-10-18）', JSON.stringify(ws));
     const f2 = await page.evaluate(() => {
       /* the all-out attack (13:30, or 3割 of the main force sunk first): the lines all come on (hunt), Alvarez's unit comes down from above on the
          middle gate (its W.A.S. 1.5 times the others', the reach as it is: 2026-10-16), repaired frigates from the yard join at the end of our list
@@ -1151,7 +1166,7 @@ function check(ok, label, detail = '') {
     check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から中央ゲートへ。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
     check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
-    check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .5, 'フェブルアーリア防衛戦: 本隊の5割を沈めるか、18:00 まで持たせると勝利', JSON.stringify(f2));
+    check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .6, 'フェブルアーリア防衛戦: 本隊の6割を沈めるか、18:00 まで持たせると勝利（6割は 2026-10-18）', JSON.stringify(f2));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     const f3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);

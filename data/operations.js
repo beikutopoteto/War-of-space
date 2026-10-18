@@ -81,6 +81,7 @@ window.WOS_DATA=window.WOS_DATA||{};
      pits / pitA / crag / fine はクレーターの数・大きさ・岩の突起の高さ・細かい凹凸。label は天体の名札の位置。c を書くと blocks の向きは中心から測る
    （2026-10-12 の landing（降下点と占拠）は、2026-10-16 に下の body.blocks の gate と base に置き換えた）
    win:{type:'repel', share, until, text, surge:{share, at, events}}: main:true の敵の share を沈めるか、until 分まで持てば勝ち（時間なら result.winTime）。
+     wasShort:true なら、敵の W.A.S.（揚陸艦に乗っている分と、これから来る分）が基地守備隊を削りきる数（garrison.hp ÷ garrison.was）を下回っても勝ち（result.winWas）。goalGatesOnly: 任務欄をゲートと基地守備隊だけにする（たたんでも出す）
      surge は share を沈めるか at 分で起きる出来事（events と同じ形。after はそこからの分）
    events の scene: 戦闘を止めて見せる会話。ai の shift:[dx, dz] は友軍の持ち場をずらす。敵の postAt:[x,z] は guard の持ち場（出る場所と別）
    phases: 段階 [{at（分）, name, centre:[x,z], text, slide?（秒）, log?, scene?, events?}]。時刻になると作戦フィールドの中心が centre へ滑り（カメラも）、輪で示す。
@@ -935,13 +936,13 @@ WOS_DATA.operations=[
     /* 硬さ（2026-10-17、第5節の釣り合わせ。数値は仮）: 両軍の耐久の倍率を12に（ほかの節は2。全研究・自軍100隻・即応の早送りで、敵が柔らかく約4.5分で勝っていた）、
        敵だけさらに2倍（何もしないと負けるように。1.8では何もしなくても勝つ回があった）。早送り（tools/februaria-sim.cjs q tech army=100）で3回のうち2回勝ち
        （643・659秒、約11分。負けた1回は 15:15 に自軍が全滅）、何もしない（b）は2回とも 13:52 ごろに基地守備隊が尽きて負け */
-    hpScale:18, enemyHp:3.5, enemyDmg:2.5,   // 2026-10-18（兵力の作り直し。友軍280・敵155）: 早送りで釣り合う所（仮。下の説明と docs/campaign.md）   // 2026-10-18（ユーザー決定「ちょっと敵が固いかも」）: 敵だけの倍率 2 → 1.5。両軍の倍率12とゲートのシールドはそのまま
+    hpScale:18, enemyHp:3, enemyDmg:2,   // 2026-10-18（兵力の作り直しと、総基地の前の戦線）: 早送りで勝ち負けが半々の所（仮。docs/campaign.md）   // 2026-10-18（ユーザー決定「ちょっと敵が固いかも」）: 敵だけの倍率 2 → 1.5。両軍の倍率12とゲートのシールドはそのまま
     reward:700,
     chapter:'第一章 第5節',
     name:'フェブルアーリア防衛戦',
     summary:'地球に残る最後の資源惑星フェブルアーリア。地球連合宇宙軍の総基地を、共和国の主力から守る。初めて戦艦を預かる。',
     threat:'敵戦力：共和国の主力（重巡洋艦・駆逐艦、約90隻）・鹵獲した戦艦（約15隻）・突撃揚陸艦（約50隻）／目標：本隊の5割を沈めるか、18:00 まで総基地を守る（防衛）',
-    brief:'共和国の本隊が、総基地の三方面（東の端・西の端・真上）から一度に来る。友軍は三方面の持ち場で受ける。駐屯隊は持ち場を持たない即応部隊だ。押されている方面へ駆けつけろ（通信で知らせる）。敵の列は地表の砲台の傘の縁に並び、少しずつゲートへ寄ってくる。砲台が沈んだ所からは速い。総基地には3つのゲート（西・中央・東）があり、シールドで閉じている。敵はシールドを削り、突撃揚陸艦はゲートの上の輪へ向かう。破られたゲートは中を爆破して塞ぐ。最後のゲートが破られると、そばの揚陸艦が W.A.S. を中へ降ろし、基地守備隊を削る。守備隊が尽きれば失敗。揚陸艦を輪に入れるな。護衛より揚陸艦が先だ。揚陸艦の護衛の重巡洋艦は地表の砲台を先に狙う。共和国の本隊（前衛と突撃揚陸艦を除く主力）の5割を沈めれば共和国は退く。18:00 まで持たせても勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
+    brief:'共和国の本隊が北から来る。友軍の主力は総基地の前に戦線を張って受ける。駐屯隊は持ち場を持たない即応部隊だ。戦線を援護し、押されている方面へ駆けつけろ（通信で知らせる）。突撃揚陸艦は戦線の外や隙間を抜けて、ゲートの上の輪へ向かう。それを迎え撃つのが駐屯隊の一番の仕事だ。総基地には3つのゲート（西・中央・東）があり、シールドで閉じている。破られたゲートは中を爆破して塞ぐ。最後のゲートが破られると、そばの揚陸艦が W.A.S. を中へ降ろし、基地守備隊を削る。守備隊が尽きれば失敗。揚陸艦の護衛の重巡洋艦は地表の砲台を先に狙う。共和国の本隊（前衛と突撃揚陸艦を除く主力）の6割を沈めるか、揚陸艦を沈めて W.A.S. を守備隊を削りきれない数まで減らせば、共和国は退く。18:00 まで持たせても勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
     /* 作戦フィールドは基地全体を覆う1つ（ユーザー決定 2026-10-16。動かさない。fieldC / fieldR / reach、view.max は引ける距離。数値は仮） */
     phase:'前衛', view:{target:[0,110], dist:400, dir:[0,.78,.62], max:720},
     date:'A.E. 45.04.26', start:'06:00',
@@ -949,7 +950,7 @@ WOS_DATA.operations=[
        （戦闘の1秒で約0.69分。span は仮。wos-strategy の案を早送りで確かめた。前は clockScale .25） */
     span:720,
     deploy:[0,110], deployZone:{pos:[0,110], r:60},   // 配置は基地の真ん中の前だけ（ユーザー決定 2026-10-16）
-    fieldC:[0,120], fieldR:480, reach:465, altMax:90, cap:150,   // 2026-10-18（ユーザー決定）: 範囲を半径480に、上下を±90に、出撃の上限を150に（前は360・±60・100）
+    fieldC:[0,120], fieldR:480, reach:465, altMax:90, cap:150, goalGatesOnly:true,   // 任務欄はゲートと基地守備隊だけ（たたんでも出す。2026-10-18）   // 2026-10-18（ユーザー決定）: 範囲を半径480に、上下を±90に、出撃の上限を150に（前は360・±60・100）
     sectors:[
       {name:'火星側', sub:'共和国の主力', pos:[0,-250]},
       {name:'排気の雲', sub:'D-RAMS の排気。中は見通せない', pos:[-150,-280]},
@@ -987,38 +988,38 @@ WOS_DATA.operations=[
       {after:0, fleet:{name:'第26 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-150,-300], alt:5, ai:'guard', leash:60, drop:'西ゲート', vis:7, stl:6}},
       {after:0, fleet:{name:'第14 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[150,-300], alt:5, ai:'guard', leash:60, drop:'東ゲート', vis:7, stl:6}},
       {after:7, log:['ハッダード曹長', '「前衛が来ます。友軍は持ち場で受けます。中尉は、足りない所へ」']},
-      {after:10, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[430,-20], alt:10, ai:'hunt', watch:{pos:[290,110], alt:0}, vis:6, stl:4}, arrow:{pos:[290,110]}, log:['ハッダード曹長', '「排気の雲から前衛。東の端と、真上から！」']},
-      {after:12, fleet:{name:'第2 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[20,-150], alt:55, ai:'hunt', watch:{pos:[0,100], alt:40}, vis:6, stl:6}, arrow:{pos:[0,100]}},
-      {after:55, fleet:{name:'第7 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-430,-20], alt:15, ai:'hunt', watch:{pos:[-290,110], alt:0}, vis:6, stl:4}, arrow:{pos:[-290,110]}, log:['ハッダード曹長', '「また前衛。今度は三方面とも。西の端、東の端、真上」']},
-      {after:55, fleet:{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-20,-160], alt:55, ai:'hunt', watch:{pos:[0,100], alt:40}, vis:6, stl:4}, arrow:{pos:[0,100]}},
-      {after:57, fleet:{name:'第5 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[440,100], alt:-30, ai:'hunt', watch:{pos:[300,140], alt:-25}, vis:6, stl:6}, arrow:{pos:[300,140]}},
+      {after:10, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[300,-330], alt:10, ai:'hunt', watch:{pos:[261,8], alt:0}, vis:6, stl:4}, arrow:{pos:[261,8]}, log:['ハッダード曹長', '「排気の雲から前衛。東の端と、真上から！」']},
+      {after:12, fleet:{name:'第2 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[0,-330], alt:55, ai:'hunt', watch:{pos:[0,-38], alt:40}, vis:6, stl:6}, arrow:{pos:[0,-38]}},
+      {after:55, fleet:{name:'第7 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-300,-330], alt:15, ai:'hunt', watch:{pos:[-261,8], alt:0}, vis:6, stl:4}, arrow:{pos:[-261,8]}, log:['ハッダード曹長', '「また前衛。今度は三方面とも。西の端、東の端、真上」']},
+      {after:55, fleet:{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:15, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-330], alt:55, ai:'hunt', watch:{pos:[0,-38], alt:40}, vis:6, stl:4}, arrow:{pos:[0,-38]}},
+      {after:57, fleet:{name:'第5 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:10, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[310,-330], alt:-30, ai:'hunt', watch:{pos:[270,14], alt:-25}, vis:6, stl:6}, arrow:{pos:[270,14]}},
       {after:85, log:['ハッダード曹長', '「雲の奥で、全部が動きました。東の端、西の端、真上……三方面とも、本隊です」']},
       {after:95, log:['ウォン中将', '「持ち場を守れ。傘から出るな。中尉、穴を埋めるのは君だ」']},
       {after:100, phase:'全線', text:'押されている方面へ駆けつけろ。揚陸艦を輪に入れるな。護衛より揚陸艦が先'},
-      {after:100, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[480,-20], alt:20, ai:'guard', leash:45, postAt:[300,95], postAlt:5, press:{goal:[180,145,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[300,95]}, log:['ハッダード曹長', '「本隊、東の端から！」']},
-      {after:100, fleet:{name:'第22 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[490,60], alt:0, ai:'guard', leash:45, postAt:[320,130], postAlt:-15, press:{goal:[190,150,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[320,130]}},
-      {after:100, fleet:{name:'第1 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[500,100], alt:-5, ai:'guard', leash:45, postAt:[340,125], postAlt:-10, press:{goal:[195,148,-20]}, main:true, vis:6, stl:3}, arrow:{pos:[340,125]}},
-      {after:100, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[470,20], alt:10, ai:'guard', leash:60, prey:'battery', postAt:[330,60], main:true, vis:6, stl:4}, arrow:{pos:[330,60]}},
-      {after:100, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[470,100], alt:-20, ai:'guard', leash:60, prey:'battery', postAt:[345,110], main:true, vis:6, stl:4}, arrow:{pos:[345,110]}},
-      {after:102, fleet:{name:'第3 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[460,-70], alt:-10, ai:'guard', leash:45, postAt:[285,75], postAlt:-10, press:{goal:[170,140,-20]}, main:true, vis:6, stl:6}, arrow:{pos:[285,75]}},
-      {after:102, fleet:{name:'第7 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[500,20], alt:35, ai:'guard', leash:45, postAt:[300,110], postAlt:30, press:{goal:[185,140,-10]}, main:true, vis:6, stl:6}, arrow:{pos:[300,110]}},
-      {after:102, fleet:{name:'第24 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[470,-60], alt:10, ai:'guard', leash:45, postAt:[310,50], postAlt:15, press:{goal:[175,135,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[310,50]}},
-      {after:104, fleet:{name:'第8 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[480,140], alt:-35, ai:'guard', leash:45, postAt:[330,160], postAlt:-35, press:{goal:[200,155,-30]}, main:true, vis:6, stl:6}, arrow:{pos:[330,160]}},
-      {after:104, fleet:{name:'第19 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-30,-150], alt:55, ai:'guard', leash:45, postAt:[0,95], postAlt:45, press:{goal:[0,145,-15]}, main:true, vis:6, stl:4}, arrow:{pos:[0,95]}, log:['ハッダード曹長', '「真上からも！　砲台の届かない高さです」']},
-      {after:104, fleet:{name:'第3 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[30,-150], alt:55, ai:'guard', leash:60, prey:'battery', postAt:[30,60], main:true, vis:6, stl:4}, arrow:{pos:[30,60]}},
-      {after:104, fleet:{name:'第2 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[0,-190], alt:60, ai:'guard', leash:45, postAt:[0,85], postAlt:60, press:{goal:[0,142,-10]}, main:true, vis:6, stl:3}, arrow:{pos:[0,85]}},
-      {after:106, fleet:{name:'第27 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-60,-130], alt:50, ai:'guard', leash:45, postAt:[-40,100], postAlt:42, press:{goal:[-30,145,-15]}, main:true, vis:6, stl:4}, arrow:{pos:[-40,100]}},
-      {after:106, fleet:{name:'第10 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[60,-130], alt:50, ai:'guard', leash:45, postAt:[40,100], postAlt:42, press:{goal:[30,145,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[40,100]}},
-      {after:108, fleet:{name:'第23 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[0,-170], alt:55, ai:'guard', leash:45, postAt:[0,75], postAlt:50, press:{goal:[0,140,-5]}, main:true, vis:6, stl:6}, arrow:{pos:[0,75]}},
-      {after:110, fleet:{name:'第18 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-480,-20], alt:20, ai:'guard', leash:45, postAt:[-300,95], postAlt:5, press:{goal:[-180,145,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[-300,95]}, log:['ハッダード曹長', '「西の端からも本隊。アマゾン残存隊の正面です」']},
-      {after:110, fleet:{name:'第25 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-490,60], alt:0, ai:'guard', leash:45, postAt:[-320,130], postAlt:-15, press:{goal:[-190,150,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[-320,130]}},
-      {after:110, fleet:{name:'第3 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-500,100], alt:-5, ai:'guard', leash:45, postAt:[-340,125], postAlt:-10, press:{goal:[-195,148,-20]}, main:true, vis:6, stl:3}, arrow:{pos:[-340,125]}},
-      {after:110, fleet:{name:'第17 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-470,20], alt:10, ai:'guard', leash:60, prey:'battery', postAt:[-330,60], main:true, vis:6, stl:4}, arrow:{pos:[-330,60]}},
-      {after:110, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-470,100], alt:-20, ai:'guard', leash:60, prey:'battery', postAt:[-345,110], main:true, vis:6, stl:4}, arrow:{pos:[-345,110]}},
-      {after:112, fleet:{name:'第21 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-460,-70], alt:-10, ai:'guard', leash:45, postAt:[-285,75], postAlt:-10, press:{goal:[-170,140,-20]}, main:true, vis:6, stl:6}, arrow:{pos:[-285,75]}},
-      {after:112, fleet:{name:'第4 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-500,20], alt:35, ai:'guard', leash:45, postAt:[-300,110], postAlt:30, press:{goal:[-185,140,-10]}, main:true, vis:6, stl:6}, arrow:{pos:[-300,110]}},
-      {after:112, fleet:{name:'第6 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-470,-60], alt:10, ai:'guard', leash:45, postAt:[-310,50], postAlt:15, press:{goal:[-175,135,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[-310,50]}},
-      {after:114, fleet:{name:'第9 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-480,140], alt:-35, ai:'guard', leash:45, postAt:[-330,160], postAlt:-35, press:{goal:[-200,155,-30]}, main:true, vis:6, stl:6}, arrow:{pos:[-330,160]}},
+      {after:100, fleet:{name:'第15 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[115,-330], alt:20, ai:'guard', leash:45, postAt:[100,-51], postAlt:5, press:{goal:[131,145,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[100,-51]}, log:['ハッダード曹長', '「本隊、東の端から！」']},
+      {after:100, fleet:{name:'第22 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[150,-330], alt:0, ai:'guard', leash:45, postAt:[130,-47], postAlt:-15, press:{goal:[140,150,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[130,-47]}},
+      {after:100, fleet:{name:'第1 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[184,-330], alt:-5, ai:'guard', leash:45, postAt:[160,-44], postAlt:-10, press:{goal:[149,148,-20]}, main:true, vis:6, stl:3}, arrow:{pos:[160,-44]}},
+      {after:100, fleet:{name:'第16 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[285,-330], alt:10, ai:'guard', leash:60, prey:'battery', postAt:[248,-50], main:true, vis:6, stl:4}, arrow:{pos:[248,-50]}},
+      {after:100, fleet:{name:'第20 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[298,-330], alt:-20, ai:'guard', leash:60, prey:'battery', postAt:[259,-43], main:true, vis:6, stl:4}, arrow:{pos:[259,-43]}},
+      {after:102, fleet:{name:'第3 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[218,-330], alt:-10, ai:'guard', leash:45, postAt:[190,-37], postAlt:-10, press:{goal:[158,140,-20]}, main:true, vis:6, stl:6}, arrow:{pos:[190,-37]}},
+      {after:102, fleet:{name:'第7 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[253,-330], alt:35, ai:'guard', leash:45, postAt:[220,-29], postAlt:30, press:{goal:[167,140,-10]}, main:true, vis:6, stl:6}, arrow:{pos:[220,-29]}},
+      {after:102, fleet:{name:'第24 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[288,-330], alt:10, ai:'guard', leash:45, postAt:[250,-17], postAlt:15, press:{goal:[176,135,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[250,-17]}},
+      {after:104, fleet:{name:'第8 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[322,-330], alt:-35, ai:'guard', leash:45, postAt:[280,2], postAlt:-35, press:{goal:[185,155,-30]}, main:true, vis:6, stl:6}, arrow:{pos:[280,2]}},
+      {after:104, fleet:{name:'第19 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-92,-330], alt:55, ai:'guard', leash:45, postAt:[-80,-53], postAlt:45, press:{goal:[-32,145,-15]}, main:true, vis:6, stl:4}, arrow:{pos:[-80,-53]}, log:['ハッダード曹長', '「真上からも！　砲台の届かない高さです」']},
+      {after:104, fleet:{name:'第3 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[25,-330], alt:55, ai:'guard', leash:60, prey:'battery', postAt:[22,-87], main:true, vis:6, stl:4}, arrow:{pos:[22,-87]}},
+      {after:104, fleet:{name:'第2 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-46,-330], alt:60, ai:'guard', leash:45, postAt:[-40,-54], postAlt:60, press:{goal:[-16,142,-10]}, main:true, vis:6, stl:3}, arrow:{pos:[-40,-54]}},
+      {after:106, fleet:{name:'第27 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[0,-330], alt:50, ai:'guard', leash:45, postAt:[0,-56], postAlt:42, press:{goal:[0,145,-15]}, main:true, vis:6, stl:4}, arrow:{pos:[0,-56]}},
+      {after:106, fleet:{name:'第10 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[46,-330], alt:50, ai:'guard', leash:45, postAt:[40,-54], postAlt:42, press:{goal:[16,145,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[40,-54]}},
+      {after:108, fleet:{name:'第23 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[92,-330], alt:55, ai:'guard', leash:45, postAt:[80,-53], postAlt:50, press:{goal:[32,140,-5]}, main:true, vis:6, stl:6}, arrow:{pos:[80,-53]}},
+      {after:110, fleet:{name:'第18 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-322,-330], alt:20, ai:'guard', leash:45, postAt:[-280,2], postAlt:5, press:{goal:[-186,145,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[-280,2]}, log:['ハッダード曹長', '「西の端からも本隊。アマゾン残存隊の正面です」']},
+      {after:110, fleet:{name:'第25 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-288,-330], alt:0, ai:'guard', leash:45, postAt:[-250,-17], postAlt:-15, press:{goal:[-177,150,-25]}, main:true, vis:6, stl:4}, arrow:{pos:[-250,-17]}},
+      {after:110, fleet:{name:'第3 鹵獲戦艦 エスカドラ', sub:'自治軍 戦艦（鹵獲した主力艦）', type:'bb', n:5, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-253,-330], alt:-5, ai:'guard', leash:45, postAt:[-220,-29], postAlt:-10, press:{goal:[-168,148,-20]}, main:true, vis:6, stl:3}, arrow:{pos:[-220,-29]}},
+      {after:110, fleet:{name:'第17 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-285,-330], alt:10, ai:'guard', leash:60, prey:'battery', postAt:[-248,-50], main:true, vis:6, stl:4}, arrow:{pos:[-248,-50]}},
+      {after:110, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, hp:30, dmg:1.3, eva:.12, range:20, speed:9, scale:1.25, pos:[-298,-330], alt:-20, ai:'guard', leash:60, prey:'battery', postAt:[-259,-43], main:true, vis:6, stl:4}, arrow:{pos:[-259,-43]}},
+      {after:112, fleet:{name:'第21 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-218,-330], alt:-10, ai:'guard', leash:45, postAt:[-190,-37], postAlt:-10, press:{goal:[-159,140,-20]}, main:true, vis:6, stl:6}, arrow:{pos:[-190,-37]}},
+      {after:112, fleet:{name:'第4 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-184,-330], alt:35, ai:'guard', leash:45, postAt:[-160,-44], postAlt:30, press:{goal:[-150,140,-10]}, main:true, vis:6, stl:6}, arrow:{pos:[-160,-44]}},
+      {after:112, fleet:{name:'第6 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-150,-330], alt:10, ai:'guard', leash:45, postAt:[-130,-47], postAlt:15, press:{goal:[-141,135,-15]}, main:true, vis:6, stl:6}, arrow:{pos:[-130,-47]}},
+      {after:114, fleet:{name:'第9 機動駆逐 エスカドラ', sub:'自治軍 駆逐艦', type:'dd', n:3, hp:20, dmg:1.1, eva:.18, range:15, speed:11, scale:.95, pos:[-115,-330], alt:-35, ai:'guard', leash:45, postAt:[-100,-51], postAlt:-35, press:{goal:[-132,155,-30]}, main:true, vis:6, stl:6}, arrow:{pos:[-100,-51]}},
       {after:115, ai:{fleets:['第16 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「東の端の重巡洋艦が、砲台へ向かってきます」']}},
       {after:130, ai:{fleets:['第17 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「西の端からも、砲台狙いの重巡洋艦！」']}},
       {after:160, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,60], alt:0, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端と真上から。東ゲートと中央ゲートへ！」']},
@@ -1069,7 +1070,8 @@ WOS_DATA.operations=[
        兵力の見直し（2026-10-14、ユーザー決定: 本隊だけを主力に）: main は2つ目の段階（前の港の正面）からあとの重巡洋艦と駆逐艦（110隻）だけ。前衛と突撃揚陸艦は数えない。
        2026-10-14（ユーザー決定）: 本隊の5割で共和国はいったん退く（その分、本隊の耐久を2倍にした）。退くところを retreat.sec 秒（約20秒、仮）見せてから勝利の結果へ。
        雲へ下がった隊（fallBack）の残りの艦は撃沈に数えない（分母は本隊の110隻のまま） */
-    win:{type:'repel', share:.5, until:720, text:'共和国の本隊の5割を沈めるか、18:00 まで総基地を守れ',
+    /* 2026-10-18（ユーザー決定）: 主力の6割（前は5割）か、敵の W.A.S.（揚陸艦に乗っている分とこれから来る分）が基地守備隊を削りきるのに足りなくなるか（wasShort）、18:00 まで持てば勝ち */
+    win:{type:'repel', share:.6, until:720, wasShort:true, text:'共和国の本隊の6割を沈めるか、揚陸艦を沈めて W.A.S. を守備隊を削りきれない数まで減らすか、18:00 まで総基地を守れ',
       retreat:{sec:20, text:'共和国の本隊が北へ退いていく', log:['ウォン中将', '「追うな。岩から離れるな」']},
       /* 総攻撃（ユーザー決定 2026-10-16: 本隊の3割を沈めたときか 13:30 の早いほう）: 列と砲台狩りが全部前へ（hunt）。アルバレス隊（第7・第8、W.A.S. 40機ずつ）は真上から中央ゲートへ
          （ユーザー決定 2026-10-16。W.A.S. の打撃・耐久・回避・速さは、ほかの共和国の W.A.S. の1.5倍。射程と行動範囲はそのまま）。ウォン中将の戦艦が中央の前へ出る。
@@ -1137,36 +1139,36 @@ WOS_DATA.operations=[
       {name:'第29 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-60,175], alt:-35, vis:6, stl:3, leash:40},
       {name:'第30 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[60,175], alt:-35, vis:6, stl:3, leash:40},
       /* 真上（中央ゲートの前）: 2026-10-18 に持ち場を30上げ、10北へ（ユーザー決定「防衛前線をさらに上げ」） */
-      {name:'第5 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[0,85], alt:25, vis:6, stl:5, leash:60},
-      {name:'第14 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:14, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[0,110], alt:5, vis:7, stl:7, leash:60},
-      {name:'第24 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-40,95], alt:30, vis:6, stl:5, leash:60},
-      {name:'第25 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[40,95], alt:30, vis:6, stl:5, leash:60},
-      {name:'第27 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[-30,120], alt:10, vis:7, stl:7, leash:60},
-      {name:'第28 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[30,120], alt:10, vis:7, stl:7, leash:60},
+      {name:'第5 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-20,-27], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第14 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:14, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[20,-27], alt:26, vis:7, stl:7, leash:60},
+      {name:'第24 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-100,-23], alt:0, vis:6, stl:5, leash:60},
+      {name:'第25 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[100,-23], alt:-14, vis:6, stl:5, leash:60},
+      {name:'第27 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[-60,-26], alt:18, vis:7, stl:7, leash:60},
+      {name:'第28 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[60,-26], alt:6, vis:7, stl:7, leash:60},
       /* 西の端（西ゲートの前）。アマゾン残存隊は最後に狙われ、損害が大きいと中央ゲートの方へ下がる（retreat。2026-10-12） */
-      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦（オリヴェイラ少佐）', comp:{cl:2, dd:2}, n:4, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-170,150], alt:-30, vis:6, stl:5, leash:60, preyLast:true,
+      {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦（オリヴェイラ少佐）', comp:{cl:2, dd:2}, n:4, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-292,48], alt:0, vis:6, stl:5, leash:60, preyLast:true,
         retreat:{below:.8, to:[-90,165], alt:10, log:['オリヴェイラ少佐', '「アマゾン残存隊、下がる！　……すまん中尉、ここは任せた」']}},
-      {name:'第9 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-280,145], alt:-30, vis:6, stl:5, leash:60},
-      {name:'第11 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:6}, n:11, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-250,120], alt:-15, vis:6, stl:5, leash:60},
-      {name:'第3 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-235,135], alt:-25, vis:6, stl:3, leash:60},
-      {name:'第15 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-285,95], alt:0, vis:6, stl:5, leash:60},
-      {name:'第16 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-245,165], alt:-40, vis:6, stl:3, leash:60},
-      {name:'第17 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:12, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[-215,100], alt:10, vis:7, stl:7, leash:60},
-      {name:'第18 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-270,175], alt:-45, vis:6, stl:5, leash:60},
+      {name:'第9 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-268,22], alt:18, vis:6, stl:5, leash:60},
+      {name:'第11 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:6}, n:11, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-244,8], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第3 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-220,-1], alt:26, vis:6, stl:3, leash:60},
+      {name:'第15 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-196,-8], alt:6, vis:6, stl:5, leash:60},
+      {name:'第16 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-172,-14], alt:-14, vis:6, stl:3, leash:60},
+      {name:'第17 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:12, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[-148,-17], alt:12, vis:7, stl:7, leash:60},
+      {name:'第18 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[-124,-20], alt:30, vis:6, stl:5, leash:60},
       /* 東の端（東ゲートの前） */
-      {name:'第8 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[280,145], alt:-30, vis:6, stl:5, leash:60},
-      {name:'第6 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:5}, n:11, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[250,120], alt:-15, vis:6, stl:5, leash:60},
-      {name:'第4 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[235,135], alt:-25, vis:6, stl:3, leash:60},
-      {name:'第12 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:12, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[200,150], alt:-30, vis:7, stl:7, leash:60},
-      {name:'第20 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[285,95], alt:0, vis:6, stl:5, leash:60},
-      {name:'第21 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[245,165], alt:-40, vis:6, stl:3, leash:60},
-      {name:'第22 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:8, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[215,100], alt:10, vis:7, stl:7, leash:60},
-      {name:'第23 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[270,175], alt:-45, vis:6, stl:5, leash:60},
+      {name:'第8 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[148,-17], alt:30, vis:6, stl:5, leash:60},
+      {name:'第6 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:5}, n:11, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[172,-14], alt:0, vis:6, stl:5, leash:60},
+      {name:'第4 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[196,-8], alt:18, vis:6, stl:3, leash:60},
+      {name:'第12 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:12, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[124,-20], alt:12, vis:7, stl:7, leash:60},
+      {name:'第20 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[220,-1], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第21 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[244,8], alt:26, vis:6, stl:3, leash:60},
+      {name:'第22 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:8, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[268,22], alt:6, vis:7, stl:7, leash:60},
+      {name:'第23 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[292,48], alt:-14, vis:6, stl:5, leash:60},
       {name:'ユーコン', sub:'戦闘母艦（ファン・デル・ベルク中佐）', type:'cvb', n:1, hp:160, dmg:.8, eva:.04, range:12, speed:4, scale:1.4, hangar:{ftr:40}, pos:[0,170], alt:-30, vis:7, stl:3, aa:6, leash:30},
       /* 2026-10-17（ユーザー決定）: 砲台はゲートのそば（少しだけ離れた所）に置き、少数の強化歩兵（inf）に守らせる。西ゲートと東ゲートに3基（東西の脇と前）、
          射程200・48秒ごと（2026-10-18、ユーザー決定。前は120・64秒、その前は90。仰角48度より低い相手は撃てないので、横へ届くのは約130）。
          中央ゲートに2基（東西の脇）。2026-10-17 夜（ユーザー決定）: 各ゲートに2基ずつ足して14基に。脇のさらに外（ゲートから約60）に1基ずつ（位置は仮）。pit:true は案I の形（岩の竪穴に案D の砲塔、砲身だけが外に出る。battle/base.js）で、pos は岩の表面の実際の [x, z]。位置と人数は仮 */
-      ...[[-189,164],[-129,164],[-159,130],[-30,156],[30,156],[129,162],[189,162],[159,128],[-219,164],[-99,164],[-60,156],[60,156],[98,162],[218,162]].map(([x,z],i)=>({name:`第${i+1} 総基地砲台`, sub:'地表の砲台（二門連装）', type:'aa', n:2, hp:20, dmg:1.8, eva:0, range:200, every:48, shot:17.5, speed:0, scale:1.1,
+      ...[[-159,129],[-159,199],[-194,164],[-124,164],[-228,164],[0,121],[0,191],[-35,156],[35,156],[158,127],[158,197],[123,162],[193,162],[227,162]].map(([x,z],i)=>({name:`第${i+1} 総基地砲台`, sub:'地表の砲台（二門連装）', type:'aa', n:2, hp:20, dmg:1.8, eva:0, range:200, every:48, shot:17.5, speed:0, scale:1.1,
         pos:[x,z], alt:-35, aa:8, leash:0, vis:6, stl:5, fixed:true, pit:true, inf:8})),
     ],
     enemies:[],
@@ -1200,6 +1202,7 @@ WOS_DATA.operations=[
     result:{
       win:'共和国の主力は北へ退いた。フェブルアーリアは守られた。',
       winTime:'18:00 まで持ちこたえ、共和国の主力は北へ退いた。フェブルアーリアは守られた。',
+      winWas:'揚陸艦の多くを失い、総基地を取れなくなった共和国の主力は北へ退いた。フェブルアーリアは守られた。',
       lose:'駐屯隊は全滅した。',
       loseGarrison:'最後のゲートが破られ、基地守備隊が力尽きた。',
       winLog:['共和国 退却', '共和国の主力が北へ退いていく。地球連合は、初めて守り切った。'],

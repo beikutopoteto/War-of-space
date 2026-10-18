@@ -386,6 +386,7 @@ function updateGoal(){
   if(over) text=outcome?(perfect?'完全勝利':'任務達成'):'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
   const gh=gates.length?gatesHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
+  goalEl.classList.toggle('gonly',!!(gh&&op.goalGatesOnly));   // 第5節: the panel shows the gates and the garrison only (op.goalGatesOnly)
 }
 
 /* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
