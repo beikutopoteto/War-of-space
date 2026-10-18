@@ -970,9 +970,9 @@ function check(ok, label, detail = '') {
       const gNear = f => gates.reduce((b, g) => Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z) < Math.hypot(f.pos.x - b.pos.x, f.pos.z - b.pos.z) ? g : b);
       r.btSym = bt.every(f => { const g = gNear(f), d = Math.hypot(f.pos.x - g.pos.x, f.pos.z - g.pos.z); return d > 20 && d < 70 && f.infN === 16; }) && gates.map(g => bt.filter(f => gNear(f) === g).length).join() === '5,4,5';
       r.btRange = bt.every(f => f.range === 240 && f.every === 36);
-      /* 2026-10-18 (user decision: a little wider): the guns reach down to 38 degrees over the rock's face, not to 30 */
+      /* 2026-10-18 (user decision: wider, then wider again): the guns reach down to 20 degrees over the rock's face, not to 15 */
       { const g = bt[0], at = d => g.pos.clone().addScaledVector(g.pit.up, Math.sin(d * Math.PI / 180) * 50).addScaledVector(new THREE.Vector3(1, 0, 0).addScaledVector(g.pit.up, -g.pit.up.x).normalize(), Math.cos(d * Math.PI / 180) * 50);
-        r.gunEl = pitCan(g, { pos: at(40) }) && !pitCan(g, { pos: at(30) }); }
+        r.gunEl = pitCan(g, { pos: at(25) }) && !pitCan(g, { pos: at(15) }); }
       /* a ship heading over the base is put back outside the rock (the body's centre is off the field) */
       const me = mine[0], p0 = me.pos.clone(); me.pos.set(0, -60, 160); keepOffBody(me); r.pushed = me.pos.distanceTo(bodyC) >= bodySurface(me.pos, op.body.r) + 2.4; me.pos.copy(p0);
       /* 2026-10-13: the gun hunters (prey:'battery', 2026-10-16: one on each side, let go in turn) go for a gun on the base first; the first gun
@@ -1091,7 +1091,7 @@ function check(ok, label, detail = '') {
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,
       'フェブルアーリア防衛戦: 総基地の3つのゲート（中央が岩の真ん中、西と東が左右へ約160）がクレーターの底にあり、まわりに強化歩兵の点が72ずつ。砲台はゲートのそば（西5・中央4・東5）で、強化歩兵が16人ずつ守る（2026-10-17、数は 2026-10-18 に2倍）', JSON.stringify(f1));
     check(f1.preyOps && f1.battery && f1.gunLog, 'フェブルアーリア防衛戦: 砲台狩りの重巡洋艦は縁で待ち、時刻で放たれて地表の砲台を先に狙う（2026-10-13・16）。砲台が沈んだときの通信は出ない（2026-10-14 に消した）', JSON.stringify(f1));
-    check(f1.btRange && f1.gunEl && f1.shots >= 2 && Math.abs(f1.shotGap - 36) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程240、36秒ごとに1発、仰角38度から（1門の1発でコルベット1隻を沈める。2026-10-17、射程・間隔・仰角は 2026-10-18）', JSON.stringify(f1));
+    check(f1.btRange && f1.gunEl && f1.shots >= 2 && Math.abs(f1.shotGap - 36) < .11 && f1.corvette, 'フェブルアーリア防衛戦: 地表の砲台は射程240、36秒ごとに1発、仰角20度から（1門の1発でコルベット1隻を沈める。2026-10-17、射程・間隔・仰角は 2026-10-18）', JSON.stringify(f1));
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.lineOn && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先と押し込みの列の行き先が残りのゲートへ移る（2026-10-16、列は 2026-10-17 夜）', JSON.stringify(f1));
@@ -1243,7 +1243,7 @@ function check(ok, label, detail = '') {
       /* theirs and ours at the gun: both lose men; with ours gone they wear the gun down */
       const inf0 = gun.inf, hp0 = gun.hpPool; let k = 0; while (k++ < 4000 && gun.inf > 0) stepBase(.05);
       r.fight = inf0 > 0 && gun.inf === 0 && g.n < 24 && g.n > 0;
-      const hp1 = gun.hpPool; for (let i = 0; i < 200; i++) stepBase(.05); r.gunHit = gun.hpPool < hp1;
+      const hp1 = gun.hpPool, sh0 = shoot; let fired = 0; shoot = (...a) => { fired++; return sh0(...a); }; for (let i = 0; i < 200; i++) stepBase(.05); shoot = sh0; r.gunHit = gun.hpPool < hp1 && fired > 0;   // 2026-10-18: seen firing on it
       /* a gate held by more of ours: they wait out of its infantry's reach; the gate the last and open: they go in */
       gun.alive = false; fleets.filter(f => f.pit && f.pit !== true).forEach(f => { f.alive = false; });
       g.lost = 0; g.went = 0; g.n0 = g.n = 20; for (let i = 0; i < 600; i++) stepBase(.05);
@@ -1254,7 +1254,7 @@ function check(ok, label, detail = '') {
       r.inside = C.breached && g.n === 0 && Math.abs(g0 - garrison.hp - 20 * GA.troop) < 1e-6 && troopsWent >= 20;
       sh.el.remove(); return r; });
     check(lt.data && lt.landed && lt.dots && lt.drawn && lt.walkOk, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る。強化歩兵は丸ごと平行移動せず、組ごとに交互に走る・伏せる（2026-10-18）', JSON.stringify(lt));
-    check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を壊す。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
+    check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を撃って壊す（撃つ光が出る。2026-10-18）。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
     await page.evaluate(() => { if (talking) endTalk(); if (!over) end(false, true); }); await page.waitForTimeout(300); await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing
        nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */

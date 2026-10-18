@@ -186,7 +186,11 @@ function infDots(x,z,I=INF_LOOK,n){ const teams=[], nt=n?Math.max(1,Math.round(n
    than PIT_EL[0] the gun cannot reach (sim.js pitCan). The shaft is seen into: a disc at the mouth marks the stencil where nothing nearer
    is drawn, the shaft is drawn there over the rock (depth always), then the house, the ring, the bar and the lamps with the usual depth test.
    Sizes are the sample's units × PIT_S (twice the old battery, as the user chose). A few infantry (data inf) stand round each gun (PIT_INF). 数値は仮 ---- */
-const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.66,1.57], PIT_REST=1.4, PIT_TURN=1.2;   // 仰角38〜90度（2026-10-18、ユーザー決定: 射角をもう少し広く。38は仮。前は48）
+const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.349,1.57], PIT_REST=1.4, PIT_TURN=1.2;   // 仰角20〜90度（2026-10-18、ユーザー決定。その前は38、48）
+/* aimed low, the gun rises in its shaft (2026-10-18, with the 20 degrees) so the barrels clear the collar: its bar stands at least
+   PIT_POP[0] over the mouth where the barrels cross the collar's outer edge (PIT_POP[1] from the middle). A lost gun lies at PIT_DEAD, down */
+const PIT_POP=[.2,1.16], PIT_DEAD=.84;
+function pitLift(el){ return Math.max(0,PIT_POP[0]-PIT_POP[1]*Math.tan(el)+PIT_AXIS); }
 const PIT_INF={teams:4, per:4, rMin:3.6, rMax:6.5, flat:1, spread:1.3, size:5, lift:.3};   // 16人（4組×4。前は8、2組・〜5.5。仮）
 const PM={dead:new THREE.MeshStandardMaterial({color:0x2a2e33,metalness:.3,roughness:.9}),
   shaft:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
@@ -230,13 +234,13 @@ function pitBuild(f){
 /* every frame (loop.js): the gimbal turns and raises the barrels toward what the gun fires on; a lost gun lies dark with its barrels down */
 const _pl=new THREE.Vector3();
 function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
-  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_EL[0]; P.pitch.rotation.x=-P.el; burst(f.pos,HOT,30,10,1.2); }
+  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_DEAD; P.pitch.rotation.x=-P.el; P.yaw.position.y=0; burst(f.pos,HOT,30,10,1.2); }
     P.inf.m.geometry.setDrawRange(0,0); return; }
   let az=P.az, el=PIT_REST; const t=f.fireTarget;
   if(t&&t.alive){ _pl.copy(t.pos); P.root.worldToLocal(_pl); az=Math.atan2(_pl.x,_pl.z); el=Math.min(PIT_EL[1],Math.max(PIT_EL[0],Math.atan2(_pl.y,Math.hypot(_pl.x,_pl.z)))); }
   const k=Math.min(1,dt*PIT_TURN*2), da=Math.atan2(Math.sin(az-P.az),Math.cos(az-P.az));
   P.az+=Math.sign(da)*Math.min(Math.abs(da),PIT_TURN*dt+Math.abs(da)*k*.2); P.el+=(el-P.el)*k;
-  P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.root.updateMatrixWorld(true);
+  P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.yaw.position.y=pitLift(P.el); P.root.updateMatrixWorld(true);
   f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.1:.1,0,2.69); P.pitch.localToWorld(s.muzzle); });
   P.inf.m.geometry.setDrawRange(0,f.inf); }
 

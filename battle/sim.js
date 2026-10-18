@@ -1110,7 +1110,9 @@ function stepTroops(dt){
     const at=gun?TROOP_AT.gun:wait?TROOP_REACH.gate+6:TROOP_AT.gate;
     if(d>at+.5){ const m=Math.min(d-at,(T.speed??2)*dt); g.pos.x+=(goal.pos.x-g.pos.x)/d*m; g.pos.z+=(goal.pos.z-g.pos.z)/d*m; continue; }   // the men follow on their own (base.js stepTroopMen)
     if(wait) continue;
-    if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g); continue; }
+    /* the gun: they fire on it (the infantry's streaks and rockets, 2026-10-18: so it is seen that they are at it) and wear it down */
+    if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g); const I=op.base.infantry||{};
+      infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
     /* the gate: in once it is the last and open */
     if(goal.breached&&garrison){ g.inAcc=(g.inAcc||0)+(T.enter??60)*dt*CLOCK_RATE/60; const k=Math.min(g.n,Math.floor(g.inAcc)); if(k>0){ g.inAcc-=k; g.went+=k; g.n-=k; troopsWent+=k;
       if(!garrison.saidTroop&&T.inLog){ garrison.saidTroop=true; logEvent(T.inLog[0],T.inLog[1].replace('{name}',goal.name)); }
