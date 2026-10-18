@@ -1131,11 +1131,11 @@ WOS_DATA.operations=[
        フリゲートの隊も同じ計算で → 耐久12.5・打撃1.3・回避.18・射程14（12.5・1.28・.182・14.2）。速さ・ユーコン・砲台はそのまま
        2026-10-18（ユーザー決定: 防衛艦隊の戦線をもう少し前に）: 三方面の持ち場の隊を20前へ（西の端は西へ、東の端は東へ、真上は北へ。20は仮）。ウォン中将の戦艦（予備）とユーコンはそのまま */
     allies:[
-      /* 本軍の残り（ウォン中将の戦艦の隊）は中央の後ろの予備で、総攻撃で前へ（surge の shift） */
-      {name:'第1 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦（ウォン中将）', comp:{bb:6, cl:6}, n:12, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-25,165], alt:-35, vis:6, stl:3, leash:40, preyLast:true},
-      {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:6, cl:5}, n:11, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[25,165], alt:-35, vis:6, stl:3, leash:40},
-      {name:'第29 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-60,175], alt:-35, vis:6, stl:3, leash:40},
-      {name:'第30 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[60,175], alt:-35, vis:6, stl:3, leash:40},
+      /* 中央の後ろの予備で、総攻撃で前へ（surge の shift）: 本軍（ウォン中将の隊。第4節で戦艦の7割を失い、総基地の艦で組み直した）と、総基地の戦艦の隊2つ */
+      {name:'第1 主力戦艦 打撃群', sub:'本軍（組み直し） 戦艦・巡洋艦（ウォン中将）', comp:{bb:6, cl:6}, n:12, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-25,165], alt:-35, vis:6, stl:3, leash:40, preyLast:true},
+      {name:'第2 主力戦艦 打撃群', sub:'本軍（組み直し） 戦艦・巡洋艦', comp:{bb:6, cl:5}, n:11, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[25,165], alt:-35, vis:6, stl:3, leash:40},
+      {name:'第29 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[-60,175], alt:-35, vis:6, stl:3, leash:40},
+      {name:'第30 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, hp:30, dmg:2.6, eva:.08, range:17, speed:5.5, scale:1.45, pos:[60,175], alt:-35, vis:6, stl:3, leash:40},
       /* 真上（中央ゲートの前）: 2026-10-18 に持ち場を30上げ、10北へ（ユーザー決定「防衛前線をさらに上げ」） */
       {name:'第5 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, hp:22, dmg:2, eva:.12, range:16, speed:5.5, scale:1.1, pos:[0,85], alt:25, vis:6, stl:5, leash:60},
       {name:'第14 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:14, hp:12.5, dmg:1.3, eva:.18, range:14, speed:5.5, scale:.82, pos:[0,110], alt:5, vis:7, stl:7, leash:60},
