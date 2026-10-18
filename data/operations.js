@@ -77,11 +77,16 @@ window.WOS_DATA=window.WOS_DATA||{};
    ここから下は第5節「フェブルアーリア防衛戦」で足したもの（数値はすべて仮）:
    sky: 背景の天体 {sun:[x,y,z]（太陽光の向き）, earth / moon / mars / februaria:{pos:[x,y,z], r}}。位置はカメラからの相対（寄り引きで大きさが変わらない）。
      書かなければ今までの青い星。大きさと位置は docs/maps.md 6.5（物理の4倍に誇張する案2）
+   base.garrison.troop と base.troops（2026-10-18、ユーザー決定: 揚陸艇が共和国の強化歩兵を降ろす。仕組みは battle/sim.js の「the landing craft」と「the enemy's armoured infantry」。数値は仮）:
+     敵の type:'lc'（揚陸艇）・ai:'drop' の隊は、drop / drops のゲートのそばの砲台（尽きたらゲート）の脇の岩に降り、troops.unload 秒で1隻 troops 人の強化歩兵を降ろして北へ帰る。
+     強化歩兵は troops.seek の中の近い砲台、なければ近い開いたゲートへ troops.speed で岩の上を進み、出会ったこちらの強化歩兵（砲台とゲートのまわり）と撃ち合う
+     （1人が1秒に相手を troops.kill 人。こちらは陰にいるので troops.cover 分の1）。こちらがいなければ、砲台は1人1秒に troops.gun（耐久の倍率をかける）削り、
+     ゲートは最後のゲートのシールドが尽きてから、作戦の1時間に troops.enter 人ずつ中へ入り、1人ごとに garrison.troop 守備隊が減る。log は降りたとき、inLog は初めて入ったとき
    body の c:[x,y,z] は天体の中心（書かなければ原点）。sq は3軸の比、face / faceA は戦場に向いた側だけを作るときの向きと広さ（ラジアン）、seg はその細かさ。
      pits / pitA / crag / fine はクレーターの数・大きさ・岩の突起の高さ・細かい凹凸。label は天体の名札の位置。c を書くと blocks の向きは中心から測る
    （2026-10-12 の landing（降下点と占拠）は、2026-10-16 に下の body.blocks の gate と base に置き換えた）
    win:{type:'repel', share, until, text, surge:{share, at, events}}: main:true の敵の share を沈めるか、until 分まで持てば勝ち（時間なら result.winTime）。
-     wasShort:true なら、敵の W.A.S.（揚陸艦に乗っている分と、これから来る分）が基地守備隊を削りきる数（garrison.hp ÷ garrison.was）を下回っても勝ち（result.winWas）。goalGatesOnly: 任務欄をゲートと基地守備隊だけにする（たたんでも出す）
+     wasShort:true なら、敵の W.A.S.（揚陸艦に乗っている分と、これから来る分）× garrison.was と強化歩兵（岩の上・揚陸艇の中・これから来る分）× garrison.troop の合計が基地守備隊の耐久を下回っても勝ち（result.winWas。強化歩兵は 2026-10-18 から）。share を書かなければ撃沈では勝たない。goalGatesOnly: 任務欄をゲートと基地守備隊だけにする（たたんでも出す）
      surge は share を沈めるか at 分で起きる出来事（events と同じ形。after はそこからの分）
    events の scene: 戦闘を止めて見せる会話。ai の shift:[dx, dz] は友軍の持ち場をずらす。敵の postAt:[x,z] は guard の持ち場（出る場所と別）
    phases: 段階 [{at（分）, name, centre:[x,z], text, slide?（秒）, log?, scene?, events?}]。時刻になると作戦フィールドの中心が centre へ滑り（カメラも）、輪で示す。
@@ -939,8 +944,8 @@ WOS_DATA.operations=[
     chapter:'第一章 第5節',
     name:'フェブルアーリア防衛戦',
     summary:'地球に残る最後の資源惑星フェブルアーリア。地球連合宇宙軍の総基地を、共和国の主力から守る。初めて戦艦を預かる。',
-    threat:'敵戦力：共和国の主力（重巡洋艦・駆逐艦、約90隻）・鹵獲した戦艦（約15隻）・突撃揚陸艦（約50隻）／目標：本隊の6割を沈めるか、揚陸艦を沈めて W.A.S. を足りなくするか、18:00 まで総基地を守る（防衛）',
-    brief:'共和国の本隊が北から来る。友軍の主力は総基地の前に戦線を張って受ける。駐屯隊は持ち場を持たない即応部隊だ。戦線を援護し、押されている方面へ駆けつけろ（通信で知らせる）。突撃揚陸艦は戦線の外や隙間を抜けて、ゲートの上の輪へ向かう。それを迎え撃つのが駐屯隊の一番の仕事だ。総基地には3つのゲート（西・中央・東）があり、シールドで閉じている。破られたゲートは中を爆破して塞ぐ。最後のゲートが破られると、そばの揚陸艦が W.A.S. を中へ降ろし、基地守備隊を削る。守備隊が尽きれば失敗。揚陸艦の護衛の重巡洋艦は地表の砲台を先に狙う。共和国の本隊（前衛と突撃揚陸艦を除く主力）の6割を沈めるか、揚陸艦を沈めて W.A.S. を守備隊を削りきれない数まで減らせば、共和国は退く。18:00 まで持たせても勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
+    threat:'敵戦力：共和国の主力（重巡洋艦・駆逐艦、約90隻）・鹵獲した戦艦（約15隻）・突撃揚陸艦（約50隻）・揚陸艇（強化歩兵）／目標：揚陸艦と揚陸艇を沈めて W.A.S. と強化歩兵を足りなくするか、18:00 まで総基地を守る（防衛）',
+    brief:'共和国の本隊が北から来る。友軍の主力は総基地の前に戦線を張って受ける。駐屯隊は持ち場を持たない即応部隊だ。戦線を援護し、押されている方面へ駆けつけろ（通信で知らせる）。突撃揚陸艦は戦線の外や隙間を抜けて、ゲートの上の輪へ向かう。それを迎え撃つのが駐屯隊の一番の仕事だ。総基地には3つのゲート（西・中央・東）があり、シールドで閉じている。破られたゲートは中を爆破して塞ぐ。最後のゲートが破られると、そばの揚陸艦が W.A.S. を中へ降ろし、基地守備隊を削る。揚陸艇は砲台のそばの岩に降りて強化歩兵を降ろす。敵の強化歩兵は味方の強化歩兵と撃ち合い、砲台を壊し、最後のゲートが開くと中へ入って守備隊を削る。守備隊が尽きれば失敗。揚陸艦の護衛の重巡洋艦は地表の砲台を先に狙う。揚陸艦と揚陸艇を沈めて、W.A.S. と強化歩兵を守備隊を削りきれない数まで減らせば、共和国は退く。18:00 まで持たせても勝利。工廠から戦艦を1隻預かる（一覧のいちばん下）。',
     /* 作戦フィールドは基地全体を覆う1つ（ユーザー決定 2026-10-16。動かさない。fieldC / fieldR / reach、view.max は引ける距離。数値は仮） */
     phase:'前衛', view:{target:[0,110], dist:400, dir:[0,.78,.62], max:720},
     date:'A.E. 45.04.26', start:'06:00',
@@ -1019,19 +1024,31 @@ WOS_DATA.operations=[
       {after:130, ai:{fleets:['第17 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「西の端からも、砲台狙いの重巡洋艦！」']}},
       {after:160, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,60], alt:0, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端と真上から。東ゲートと中央ゲートへ！」']},
       {after:160, fleet:{name:'第15 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
+      /* 揚陸艇（2026-10-18、ユーザー決定: 新しい艦種。共和国の強化歩兵を砲台のそばに降ろす。155隻の外。1隻12人。時刻・位置・数は仮） */
+      {after:140, fleet:{name:'第12 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「西の端から揚陸艇！　砲台のそばに歩兵を降ろすつもりです」']},
+      {after:142, fleet:{name:'第13 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}},
       {after:180, ai:{fleets:['第3 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「真上の重巡洋艦が、真ん中の砲台へ降りてきます」']}},
       {after:200, fleet:{name:'第9 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,60], alt:0, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西の端から西ゲートへ！」']},
       {after:203, fleet:{name:'第17 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-150,-290], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[-45,100]}, log:['ハッダード曹長', '「北の雲からも揚陸艦！　{drop}へ。守りの薄い所を狙っています」']},
       {after:220, ai:{fleets:['第20 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「東の端、次の重巡洋艦が砲台へ！」']}},
+      {after:220, fleet:{name:'第14 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から！」']},
+      {after:222, fleet:{name:'第15 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}},
       {after:240, fleet:{name:'第18 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,130], alt:-30, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端の低い所と、真上から！」']},
       {after:240, fleet:{name:'第16 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
       {after:260, ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「西の端、次の重巡洋艦が砲台へ！」']}},
+      {after:262, fleet:{name:'第16 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}, log:['ハッダード曹長', '「揚陸艇、東の端の低い所から！」']},
+      {after:264, fleet:{name:'第17 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}},
       {after:280, fleet:{name:'第12 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,60], alt:0, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西ゲートへ！」']},
       {after:283, fleet:{name:'第20 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[150,-290], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[45,100]}, log:['ハッダード曹長', '「北の雲から揚陸艦！　{drop}へ」']},
+      {after:300, fleet:{name:'第18 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drops:['西ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西の端から{drop}へ！」']},
+      {after:302, fleet:{name:'第19 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drops:['東ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
       {after:320, fleet:{name:'第10 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,60], alt:0, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端と真上から！」']},
       {after:320, fleet:{name:'第13 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
+      {after:340, fleet:{name:'第20 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から{drop}へ！」']},
       {after:360, fleet:{name:'第19 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,130], alt:-30, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西の端の低い所から西ゲートへ！」']},
       {after:363, fleet:{name:'第21 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-320], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[0,100]}, log:['ハッダード曹長', '「北の雲から揚陸艦！　{drop}へ」']},
+      {after:380, fleet:{name:'第21 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西と東から同時に！」']},
+      {after:381, fleet:{name:'第22 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
     ],
     /* 総基地のゲート（ユーザー決定 2026-10-16。2026-10-12 の降下点と揚陸の阻止を置き換えた。仕組みは battle/sim.js、見た目は battle/base.js。数値は仮）:
        shield は各ゲートのシールドの耐久（耐久の倍率がかかる）。敵はどの艦も削れる（先に狙うものが届く所になければ、近いゲートのシールドを撃つ）。
@@ -1043,9 +1060,12 @@ WOS_DATA.operations=[
        2026-10-18（兵力の作り直し）: 敵の打撃が2.5倍（enemyDmg）になった分、シールドの実際の値も2.5倍の16,750に（倍率18で割って 16750/18 ≈ 931。仮）。守備隊は1000のまま（W.A.S. の数がほぼ同じなので）。
        infantry は強化歩兵（ゲートのまわりの点 n。近い W.A.S. と揚陸艦だけを、1人 dmg の弱い打撃で撃つ。line と rocket は撃つ見た目の多さ）。radius は射程に足すゲートの大きさ */
     base:{shield:16750/18, r:14, up:10, radius:7,   // r: 2026-10-18 に10から（揚陸艦が輪の中で散らばるので。仮）
-      garrison:{hp:1000, was:5, every:2, log:['ハッダード曹長', '「揚陸艦が{name}に取り付きました。基地守備隊が中で交戦中です」'],
+      /* 2026-10-18（ユーザー決定）: 守備隊を2倍の2000に。共和国の強化歩兵も中へ入って削る（1人で troop。仮） */
+      garrison:{hp:2000, was:5, troop:4, every:2, log:['ハッダード曹長', '「揚陸艦が{name}に取り付きました。基地守備隊が中で交戦中です」'],
         logs:[[.5, 'ハッダード曹長', '「基地守備隊、半数を失いました！」'], [.25, '総基地司令', '「守備隊はもう持たん。揚陸艦をゲートから引きはがせ」']]},
-      infantry:{n:72, dmg:.03, line:.35, rocket:.04},   // 2026-10-18（ユーザー決定）: 強化歩兵を2倍に（前は36）
+      infantry:{n:72, dmg:.03, line:.35, rocket:.04},
+      troops:{speed:2, kill:.02, cover:1.5, gun:.03, seek:90, enter:60, unload:4,
+        log:['ハッダード曹長', '「揚陸艇が{gate}のそばに降りました！　敵の強化歩兵です」'], inLog:['総基地司令', '「敵の歩兵が{name}から入ってきた。守備隊、迎え撃て」']},   // 2026-10-18（ユーザー決定）: 強化歩兵を2倍に（前は36）
       halfLog:['ハッダード曹長', '「{name}のシールド、残り半分です」'],
       sealLog:['総基地司令', '「{name}が破られた。中の区画を爆破して塞ぐ。各隊は残りのゲートへ」'],
       lastLog:['ハッダード曹長', '「最後のゲート、{name}のシールドが尽きました！　揚陸艦を近づけないでください。中は基地守備隊が迎え撃ちます」'],
@@ -1066,7 +1086,8 @@ WOS_DATA.operations=[
        2026-10-14（ユーザー決定）: 本隊の5割で共和国はいったん退く（その分、本隊の耐久を2倍にした）。退くところを retreat.sec 秒（約20秒、仮）見せてから勝利の結果へ。
        雲へ下がった隊（fallBack）の残りの艦は撃沈に数えない（分母は本隊の110隻のまま） */
     /* 2026-10-18（ユーザー決定）: 主力の6割（前は5割）か、敵の W.A.S.（揚陸艦に乗っている分とこれから来る分）が基地守備隊を削りきるのに足りなくなるか（wasShort）、18:00 まで持てば勝ち */
-    win:{type:'repel', share:.6, until:720, wasShort:true, text:'共和国の本隊の6割を沈めるか、揚陸艦を沈めて W.A.S. を守備隊を削りきれない数まで減らすか、18:00 まで総基地を守れ',
+    /* 2026-10-18（ユーザー決定）: 主力の6割で退くのをやめ、W.A.S. と強化歩兵で守備隊を削りきれなくなったときか、18:00 まで持ったときだけ勝ち */
+    win:{type:'repel', until:720, wasShort:true, text:'揚陸艦と揚陸艇を沈めて W.A.S. と強化歩兵を守備隊を削りきれない数まで減らすか、18:00 まで総基地を守れ',
       retreat:{sec:20, text:'共和国の本隊が北へ退いていく', log:['ウォン中将', '「追うな。岩から離れるな」']},
       /* 総攻撃（ユーザー決定 2026-10-16: 本隊の3割を沈めたときか 13:30 の早いほう）: 列と砲台狩りが全部前へ（hunt）。アルバレス隊（第7・第8、W.A.S. 40機ずつ）は真上から中央ゲートへ
          （ユーザー決定 2026-10-16。W.A.S. の打撃・耐久・回避・速さは、ほかの共和国の W.A.S. の1.5倍。射程と行動範囲はそのまま）。ウォン中将の戦艦が中央の前へ出る。
@@ -1093,6 +1114,8 @@ WOS_DATA.operations=[
         {after:20, log:['ソコロワ参謀大佐', '（傍受）「戦艦が動いた。予備も出せ。今日で終わらせる」']},
         {after:20, ai:{fleets:['第26 局地強襲 エスカドラ', '第14 局地強襲 エスカドラ'], ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], log:['ハッダード曹長', '「北の雲から予備！　{drop}へ向かっています」']}},
         {after:20, ai:{fleets:['第1 重巡洋 エスカドラ', '第2 重巡洋 エスカドラ', '第28 重巡洋 エスカドラ'], ai:'hunt', drops:['西ゲート', '中央ゲート', '東ゲート']}},
+        {after:20, fleet:{name:'第23 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
+        {after:21, fleet:{name:'第24 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
         {after:40, ai:{fleets:['第10 アマゾン残存 支隊'], ai:'guard', log:['オリヴェイラ少佐', '「左翼、まだ持ってる！　冗談を言う余裕は、もうないけどな」']}},
       ]},
     },
@@ -1199,7 +1222,7 @@ WOS_DATA.operations=[
     result:{
       win:'共和国の主力は北へ退いた。フェブルアーリアは守られた。',
       winTime:'18:00 まで持ちこたえ、共和国の主力は北へ退いた。フェブルアーリアは守られた。',
-      winWas:'揚陸艦の多くを失い、総基地を取れなくなった共和国の主力は北へ退いた。フェブルアーリアは守られた。',
+      winWas:'揚陸艦と揚陸艇の多くを失い、総基地を取れなくなった共和国の主力は北へ退いた。フェブルアーリアは守られた。',
       lose:'駐屯隊は全滅した。',
       loseGarrison:'最後のゲートが破られ、基地守備隊が力尽きた。',
       winLog:['共和国 退却', '共和国の主力が北へ退いていく。地球連合は、初めて守り切った。'],

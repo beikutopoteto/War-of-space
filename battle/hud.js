@@ -364,8 +364,8 @@ function updateGoal(){
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
   else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=gameSec*CLOCK_RATE;
     /* 第5節: sink half the enemy's main force or hold until the time; the gates and the garrison (goalGates), the batteries on the base */
-    p=Math.max(Math.min(1,k/W.share),Math.min(1,now/W.until)); text=stageText||W.text; mode='defend';
-    label=`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`;
+    p=Math.max(W.share?Math.min(1,k/W.share):0,Math.min(1,now/W.until)); text=stageText||W.text; mode='defend';   // no share (2026-10-18): only the time
+    label=W.share?`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`:`${clockStr(W.until)}まで`;
     const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT=`地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
     const al=fleets.filter(f=>f.ally&&!f.fixed); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:0}/${f.n}`).join('・'); }
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;

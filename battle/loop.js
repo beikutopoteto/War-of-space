@@ -33,6 +33,11 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 const _gm=new THREE.Matrix4(), _gx=new THREE.Vector3(), _gz=new THREE.Vector3();
 function groundGun(s,f){ _gz.copy(f.heading).addScaledVector(s.up,-f.heading.dot(s.up)); if(_gz.lengthSq()<1e-4) _gz.set(1,0,0).addScaledVector(s.up,-s.up.x); _gz.normalize();
   _gx.crossVectors(s.up,_gz).normalize(); _gm.makeBasis(_gx,s.up,_gz); o3.position.copy(s.base); o3.quaternion.setFromRotationMatrix(_gm); o3.scale.setScalar(f.scale); o3.updateMatrix(); }
+/* a landing craft setting down (第5節, sim.js sitSpots): how far down it is (0 over its spot, 1 sat on its legs), and its frame on the rock */
+const _sq=new THREE.Quaternion();
+function landK(f){ const D=f.land; return D?Math.max(0,Math.min(1,1-(f.pos.distanceTo(D.p)-DROP_SIT)/(DROP_OVER-DROP_SIT))):0; }
+function surfQ(u,h){ _gz.copy(h).addScaledVector(u,-h.dot(u)); if(_gz.lengthSq()<1e-4) _gz.set(1,0,0).addScaledVector(u,-u.x); _gz.normalize();
+  _gx.crossVectors(u,_gz).normalize(); _gm.makeBasis(_gx,u,_gz); return _sq.setFromRotationMatrix(_gm); }
 let last=performance.now(), time=0, rosterTick=0, autoTalkAt=0;
 const AUTO_TALK=1.6;
 function frame(now){
@@ -44,15 +49,16 @@ function frame(now){
   skyObj.position.copy(camera.position); starField.position.copy(camera.position);   // the far sky does not grow or shrink with the zoom
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
-  for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f);
+  for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
-      _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35;
+      _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
       const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue;
-      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
+      o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); if(lk>0) o3.quaternion.slerp(surfQ(f.land.up,f.heading),lk);
+      o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
   let trV=0;   // vertices of craft trails written this frame

@@ -75,6 +75,12 @@ const SHAPES={
   masc:()=>[...pair(at(loft([[-1.15,.13,.11],[-.3,.16,.13],[.6,.12,.1],[1.2,0,0]]),.33,0,0)),
     at(loft([[-.85,.36,.025],[.35,.36,.025],[.6,.12,.025]],RECT),0,.1,0), loft([[-.9,.1,.08],[-.2,.12,.1],[.4,.08,.07],[.8,0,0]]),
     at(loft([[-.6,.08,.07],[-.35,.09,.15,.06],[-.05,0,0,.03]]),0,.15,0), ...engines([.33,-.33],0,-1.2,.08)],
+  /* 揚陸艇 (第5節, the enemy's; user decision 2026-10-18, 見本 D3: between A and C): a rounded box hull with a short ramp at the bow, a small
+     bridge, a small pod on each side with its nozzle pointing down, and A's four landing legs with pads */
+  lc:()=>{ const pod=[...pair(at(loft([[-.24,.08,.08],[.15,.09,.09],[.24,.05,.05]],ROUND),.42,0,-.2)), ...pair(at(new THREE.CylinderGeometry(.06,.08,.075,10),.42,-.11,-.2))];
+    const legs=[[.26,.42],[-.26,.42],[.26,-.52],[-.26,-.52]].flatMap(([x,z])=>[limb([x*.9,-.1,z],[x*1.45,-.4,z],.03,.025), at(new THREE.CylinderGeometry(.07,.08,.03,8),x*1.45,-.42,z)]);
+    return [loft([[-.85,.3,.16],[-.45,.36,.19],[.4,.33,.17],[.78,.18,.1,-.03]],SQR), at(plate([[-.22,0],[.22,0],[.19,.34],[-.19,.34]],.04),0,-.08,.74,-.55,0,0),
+      at(loft([[-.35,.1,.06],[-.1,.11,.11,.04],[.15,0,0,.02]]),0,.17,-.25), ...pod, ...engines([.14,-.14],0,-.9,.075), ...legs]; },
   /* 輸送船: a long cargo spine with containers and a tank, the civilian ship of escort operations */
   tr:()=>[at(box(.5,.5,1.9),0,0,0), at(box(.7,.42,.5),0,.05,.45), at(box(.7,.42,.5),0,.05,-.15), at(tube(.3,.7,10),0,0,-.85), at(box(.36,.3,.32),0,.36,.8)],
   /* 対空砲台 (第4節): a fixed anti-air battery on the surface of a body — a hexagonal base, a mount and twin long barrels */

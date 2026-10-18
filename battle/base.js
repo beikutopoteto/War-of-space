@@ -276,7 +276,7 @@ function drawGate(G){ const L=G.look, k=G.max?Math.max(0,G.hp/G.max):0;
 
 /* ---- the infantry's fire (案c): thin streaks of light, and now and then the thin white trail of an anti-armour rocket with a bright head.
    The rockets and the muzzle glints are a small pool of their own; the streaks are the battle's tracers (effects.js) ---- */
-const INF_LINE=new THREE.Color(0xbfe6ff), RK_MAX=48;
+const INF_LINE=new THREE.Color(0xbfe6ff), TROOP_LINE=new THREE.Color(0xffc0ae), RK_MAX=48;   // TROOP_LINE: the enemy's infantry (2026-10-18)
 const rkPos=new Float32Array(RK_MAX*6), rkHd=new Float32Array(RK_MAX*2*3);
 const rkGeo=new THREE.BufferGeometry(); rkGeo.setAttribute('position',new THREE.BufferAttribute(rkPos,3));
 const rkLines=new THREE.LineSegments(rkGeo,new THREE.LineBasicMaterial({color:0xd8dde4,transparent:true,opacity:.6,depthWrite:false})); rkLines.frustumCulled=false; scene.add(rkLines);
@@ -284,13 +284,21 @@ const hdGeo=new THREE.BufferGeometry(); hdGeo.setAttribute('position',new THREE.
 const hdPts=new THREE.Points(hdGeo,new THREE.PointsMaterial({color:0xffe2b0,size:4.5,sizeAttenuation:false,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})); hdPts.frustumCulled=false; scene.add(hdPts);
 let rockets=[], glints=[];
 /* one burst of fire from the dots of gate L near the target point T (k: the dots still out there) */
-function infFire(L,k,T,dt,rate){
+function infFire(L,k,T,dt,rate,col=INF_LINE){
   const near=[]; for(let i=0;i<k;i++){ const p=L.inf.pts[i]; if(p.distanceTo(T)<30) near.push(p); } if(!near.length) return;
   const pick=()=>near[(Math.random()*near.length)|0];
-  if(Math.random()<k*rate.line*dt){ const a=pick(); shoot(a,T,INF_LINE,.26); if(glints.length<RK_MAX) glints.push({p:a.clone(),t:.1}); }
+  if(Math.random()<k*rate.line*dt){ const a=pick(); shoot(a,T,col,.26); if(glints.length<RK_MAX) glints.push({p:a.clone(),t:.1}); }
   if(Math.random()<k*rate.rocket*dt&&rockets.length<RK_MAX){ const a=pick(); rockets.push({a:a.clone(),b:T.clone(),t:0,dur:.5+a.distanceTo(T)/30}); }
 }
+/* the enemy's armoured infantry (第5節; user decision 2026-10-18: red dots, ours in the enemy's colour; sim.js troops): one pool of dots */
+const TROOP_MAX=2400, tpPos=new Float32Array(TROOP_MAX*3), tpGeo=new THREE.BufferGeometry(); tpGeo.setAttribute('position',new THREE.BufferAttribute(tpPos,3));
+const tpPts=new THREE.Points(tpGeo,new THREE.PointsMaterial({color:TEAM_COL[1],size:INF_LOOK.size,sizeAttenuation:false,transparent:true,depthWrite:false,map:infRimTex(),alphaTest:.05}));
+tpPts.renderOrder=3; tpPts.frustumCulled=false; scene.add(tpPts);
+function drawTroops(){ let n=0;
+  for(const g of troops){ const k=Math.min(g.n,g.dots.length); for(let i=0;i<k&&n<TROOP_MAX;i++){ const p=g.dots[i]; tpPos[n*3]=p.x; tpPos[n*3+1]=p.y; tpPos[n*3+2]=p.z; n++; } }
+  tpGeo.setDrawRange(0,n); tpGeo.attributes.position.needsUpdate=true; tpPts.material.size=INF_LOOK.size*pxK(); }
 function stepBaseFx(dt){
+  drawTroops();
   let n=0, h=0;
   rockets=rockets.filter(r=>{ r.t+=dt; const f=r.t/r.dur; if(f>=1){ burst(r.b,HOT,4,4,.4); return false; }
     _v.lerpVectors(r.a,r.b,f); _w.lerpVectors(r.a,r.b,Math.max(0,f-Math.min(.5,3.5/Math.max(1,r.a.distanceTo(r.b)))));
