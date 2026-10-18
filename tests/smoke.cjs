@@ -1074,7 +1074,7 @@ function check(ok, label, detail = '') {
         const byGate = mk(150), onFront = mk(60); enemyAI();
         r.front = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
         [hn, byGate, onFront].forEach(f => { f.alive = false; f.el.remove(); }); }
-      r.drain = garrison.max === 1000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
+      r.drain = garrison.max === 2000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
       /* 2026-10-18: the panel shows the gates and the garrison only, and keeps them when folded */
       r.goalFold = (() => { goalEl.classList.add('fold'); const v = getComputedStyle(gx).display !== 'none', g = getComputedStyle(goalBar.parentNode).display === 'none' && getComputedStyle(goalText).display === 'none'; goalEl.classList.remove('fold'); return goalEl.classList.contains('gonly') && v && g; })();
@@ -1127,14 +1127,16 @@ function check(ok, label, detail = '') {
     const ws = await page.evaluate(() => {
       const r = {}, bt = fleets.filter(f => f.pit);
       r.icon = bt.length === 14 && bt.every(f => f.el.classList.contains('gun') && f.el.querySelector('.emb rect') && getComputedStyle(f.el.querySelector('.flag')).display === 'none');
-      const need = garrison.hp / op.base.garrison.was; r.need = need; r.left = wasLeft(); r.start = !wasShort() && r.left >= need && op.win.share === .6 && op.win.wasShort;
+      /* 2026-10-18: the W.A.S. (× garrison.was) and the armoured infantry (× garrison.troop) together; no share of the main force */
+      const GA = op.base.garrison, cap = () => wasLeft() * GA.was + troopsLeft() * GA.troop; r.need = garrison.hp; r.left = wasLeft(); r.troops = troopsLeft(); r.cap = cap();
+      r.start = !wasShort() && r.cap >= garrison.hp && wasLeft() * GA.was < garrison.hp && !op.win.share && op.win.wasShort && GA.hp === 2000 && GA.troop > 0;
       const ne = nextEvent, su = surged, keep = fleets.filter(f => f.team === 1).map(f => f.hangars.map(h => [h.reserve, h.squads.map(q => q.n)]));
       nextEvent = opEvents.length; surged = true; fleets.filter(f => f.team === 1).forEach(f => f.hangars.forEach(h => { h.reserve = 0; h.squads.forEach(q => { q.n = 0; }); }));
       r.short = wasShort();
       fleets.filter(f => f.team === 1).forEach((f, i) => f.hangars.forEach((h, k) => { h.reserve = keep[i][k][0]; h.squads.forEach((q, m) => { q.n = keep[i][k][1][m]; }); }));
       nextEvent = ne; surged = su; r.back = wasLeft() === r.left;
       return r; });
-    check(ws.icon && ws.start && ws.short && ws.back, 'フェブルアーリア防衛戦: 地表の砲台は小さな四角に点のアイコン（名札は選んだときだけ）。敵の W.A.S.（乗っている分とこれから来る分）が基地守備隊を削りきる数を下回ると勝ち（主力の6割でも勝ち。2026-10-18）', JSON.stringify(ws));
+    check(ws.icon && ws.start && ws.short && ws.back, 'フェブルアーリア防衛戦: 地表の砲台は小さな四角に点のアイコン（名札は選んだときだけ）。敵の W.A.S. と強化歩兵（乗っている分とこれから来る分）で基地守備隊（2000）を削りきれなくなると勝ち。主力の6割では勝たない（2026-10-18）', JSON.stringify(ws));
     const f2 = await page.evaluate(() => {
       /* the all-out attack (13:30, or 3割 of the main force sunk first): the lines all come on (hunt), Alvarez's unit comes down from above on the
          middle gate (its W.A.S. 1.5 times the others', the reach as it is: 2026-10-16), repaired frigates from the yard join at the end of our list
@@ -1182,13 +1184,13 @@ function check(ok, label, detail = '') {
     check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から（第7は中央ゲートへ、第8は前線で敵狩り。2026-10-18）。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
     check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
-    check(f2.over && f2.outcome && f2.by === 'time' && f2.share === .6, 'フェブルアーリア防衛戦: 本隊の6割を沈めるか、18:00 まで持たせると勝利（6割は 2026-10-18）', JSON.stringify(f2));
+    check(f2.over && f2.outcome && f2.by === 'time' && !f2.share, 'フェブルアーリア防衛戦: 18:00 まで持たせると勝利（主力の6割で勝つのは 2026-10-18 にやめた）', JSON.stringify(f2));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     const f3 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(f3.cleared.includes('februaria') && f3.flags.bb === true, 'フェブルアーリア防衛戦: クリアが記録され、戦艦の兵科が開く', JSON.stringify({ cleared: f3.cleared, flags: f3.flags }));
-    /* 2026-10-14: half the main force sunk, the Republic falls back: every enemy withdraws (an assault ship by the last gate wears the
-       garrison down no more), nothing more comes, and after about 20 s the victory follows */
+    /* 2026-10-14: the Republic falls back (2026-10-18: once what it has left cannot take the base): every enemy withdraws (an assault ship by
+       the last gate wears the garrison down no more), nothing more comes, and after about 20 s the victory follows */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
     await page.click('#goBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
@@ -1199,20 +1201,57 @@ function check(ok, label, detail = '') {
       const lander = makeFleet(1, { name: '試験 揚陸艦', sub: '', type: 'mas', n: 4, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, hangar: { was: 300 }, pos: [E.ring.x, E.ring.z], alt: E.ring.y, ai: 'land', drop: E.name, vis: 1, stl: 9 }); fleets.push(lander);
       lander.pos.copy(E.ring); for (let i = 0; i < 20; i++) step(.05);
       const r = { drain: W.sealed && C.sealed && E.breached && garrison.hp < garrison.max };
-      const big = makeFleet(1, { name: '試験 本隊', sub: '', type: 'dd', n: Math.ceil(mainTotal * op.win.share) + 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -200], alt: 0, ai: 'hunt', main: true, vis: 1, stl: 9 });
-      big.ships.splice(1); fleets.push(big);
+      /* what is left to put in falls short of the garrison: no more to come, every other ship empty, the one by the gate with 20 W.A.S. */
+      nextEvent = opEvents.length; surged = true; troops = [];
+      fleets.filter(f => f.team === 1 && f !== lander).forEach(f => { if (f.ai === 'drop') f.alive = false; f.hangars.forEach(h => { h.reserve = 0; h.squads.forEach(q => { q.n = 0; }); }); });
+      lander.hangars.forEach(h => { h.reserve = 20; h.squads.forEach(q => { q.n = 0; }); });
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); }; const ev0 = nextEvent;
       step(.05); logEvent = logE;
-      r.retreat = !over && repelBy === 'sunk' && fleets.filter(f => f.team === 1 && f.alive && !f.fixed).every(f => f.ai === 'withdraw') && said.some(t => t.includes('追うな'));
+      r.retreat = !over && repelBy === 'was' && fleets.filter(f => f.team === 1 && f.alive && !f.fixed).every(f => f.ai === 'withdraw') && said.some(t => t.includes('追うな'));
       const g0 = garrison.hp; for (let i = 0; i < 40; i++) step(.05);
       r.noLand = garrison.hp === g0 && nextEvent === ev0 && stageText === op.win.retreat.text;
       let n = 0; while (!over && n++ < 2000) step(.05);
-      r.won = over && outcome && repelBy === 'sunk'; r.secs = Math.round(n * .05 + 2.05);
+      r.won = over && outcome && repelBy === 'was'; r.secs = Math.round(n * .05 + 2.05);
       return r; });
-    check(f4.drain && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: 本隊の6割を沈めると共和国が退き（全部の敵が撃たずに北へ。最後のゲートのそばの揚陸艦も守備隊を削らない）、約20秒あとに勝利（2026-10-14）', JSON.stringify(f4));
+    check(f4.drain && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: W.A.S. と強化歩兵で守備隊を削りきれなくなると共和国が退き（全部の敵が撃たずに北へ。最後のゲートのそばの揚陸艦も守備隊を削らない）、約20秒あとに勝利（2026-10-14、きっかけは 2026-10-18）', JSON.stringify(f4));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.screenshot({ path: 'test-results/februaria-retreat.png' }).catch(() => {});
     await page.click('#toMenu');
+    /* 2026-10-18 (user decision): the landing craft (a new class, the enemy's) set armoured infantry down by a gun; theirs and ours fight it
+       out, they wear the gun down once its infantry are gone, wait out of reach of a gate held by more of ours, and go in by the last gate
+       once its shield is gone, each man taking garrison.troop off the garrison. They are red dots */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const lt = await page.evaluate(() => {
+      const r = {}, T = op.base.troops, GA = op.base.garrison, [W, C, E] = gates;
+      const lcs = [...op.events, ...op.win.surge.events].filter(e => e.fleet && e.fleet.type === 'lc').map(e => e.fleet);
+      r.data = lcs.length >= 10 && lcs.every(f => f.ai === 'drop' && f.troops > 0 && (f.drop || f.drops)) && !!SHAPES.lc && SHIP_SIZE.lc < SHIP_SIZE.mas && !WOS_DATA.ships.some(x => x.id === 'lc');
+      /* a craft comes down by a gun of the middle gate, sets its infantry down, and leaves */
+      const lc = makeFleet(1, { name: '試験 揚陸艇', sub: '', type: 'lc', n: 2, hp: 1e6, dmg: 0, eva: 0, range: 1, speed: 30, scale: .6, troops: 12, pos: [0, 40], alt: 30, ai: 'drop', drop: '中央ゲート', vis: 1, stl: 9 }); fleets.push(lc);
+      const n0 = troops.length; let n = 0, sat = false;
+      while (n++ < 3000 && !lc.unloaded) { enemyAI(); step(.05); sat = sat || lc.dropState === 'sit'; }
+      const g = troops[troops.length - 1], gun = lc.dropTo && lc.dropTo.gun;
+      r.landed = sat && lc.unloaded && lc.ai === 'withdraw' && troops.length === n0 + 1 && g.n === 24 && !!gun && Math.hypot(g.pos.x - gun.pos.x, g.pos.z - gun.pos.z) < 16;
+      r.dots = g.dots.length === 24 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 1);
+      drawTroops(); r.drawn = tpGeo.drawRange.count === troops.reduce((s, x) => s + Math.min(x.n, x.dots.length), 0) && tpPts.material.color.getHex() === TEAM_COL[1].getHex();
+      /* theirs and ours at the gun: both lose men; with ours gone they wear the gun down */
+      const inf0 = gun.inf, hp0 = gun.hpPool; let k = 0; while (k++ < 4000 && gun.inf > 0) stepBase(.05);
+      r.fight = inf0 > 0 && gun.inf === 0 && g.n < 24 && g.n > 0;
+      const hp1 = gun.hpPool; for (let i = 0; i < 200; i++) stepBase(.05); r.gunHit = gun.hpPool < hp1;
+      /* a gate held by more of ours: they wait out of its infantry's reach; the gate the last and open: they go in */
+      gun.alive = false; fleets.filter(f => f.pit && f.pit !== true).forEach(f => { f.alive = false; });
+      g.lost = 0; g.went = 0; g.n0 = g.n = 20; for (let i = 0; i < 600; i++) stepBase(.05);
+      r.wait = g.goal === C && C.inf > 20 && Math.hypot(g.pos.x - C.pos.x, g.pos.z - C.pos.z) > 30 && g.n === 20;
+      const sh = makeFleet(1, { name: '試験 撃つ', sub: '', type: 'cl', n: 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -300], alt: 0, vis: 1, stl: 9 });
+      damage(W, W.hp + 1, sh); damage(E, E.hp + 1, sh); damage(C, C.hp + 1, sh); stepBase(.05);
+      const g0 = garrison.hp; let m = 0; while (m++ < 4000 && g.n > 0) stepBase(.05);
+      r.inside = C.breached && g.n === 0 && Math.abs(g0 - garrison.hp - 20 * GA.troop) < 1e-6 && troopsWent >= 20;
+      sh.el.remove(); return r; });
+    check(lt.data && lt.landed && lt.dots && lt.drawn, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る（2026-10-18）', JSON.stringify(lt));
+    check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を壊す。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
+    await page.evaluate(() => { if (talking) endTalk(); if (!over) end(false, true); }); await page.waitForTimeout(300); await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing
        nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */
     await page.click('[data-go="sortie"]');

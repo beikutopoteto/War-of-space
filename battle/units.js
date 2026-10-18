@@ -21,6 +21,9 @@ function buildSectors(list){
 /* one instanced mesh per team and ship class (shapes.js); a ship is drawn at its class's size */
 const SHIP_MAX=600, CRAFT_MAX=1500;
 const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
+/* 揚陸艇 (第5節, the enemy's only, not in data/ships.js): the size chosen from the sample (user decision 2026-10-18, 「0.6倍」), which beside the
+   assault ship there was 0.55 of it */
+SHIP_SIZE.lc=SHIP_SIZE.mas*.55;
 function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
 const shipMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t];
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5});

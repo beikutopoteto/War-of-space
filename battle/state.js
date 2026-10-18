@@ -356,7 +356,7 @@ function reset(cfg=lastCfg){
   gates=looks.map((L,i)=>({kind:'gate',team:0,id:-100-i,i,name:L.name,sub:L.sub,look:L,pos:L.at.clone(),up:L.up.clone(),ring:L.at.clone().addScaledVector(L.up,GB.up||10),r:GB.r||10,radius:GB.radius||7,
     hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||36,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
-  garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null;
+  garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null; troops=[]; troopsSaid=null; troopsWent=0;   // the enemy's infantry on the rock (sim.js)
   surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); massAt={};
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
