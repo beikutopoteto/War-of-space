@@ -66,6 +66,8 @@ function makeFleet(team,o){
   f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,h.launchR),Infinity);
   f.carrierOnly=f.hangars.length>0&&nc===o.n;
   f.el=mkUnitLabel(o.ally?2:team,o.name,'');
+  /* a gun on the base (第5節, pit): a small square with a dot, the turret seen from above (user decision 2026-10-18: 見本 B); its name only when selected */
+  if(o.pit){ f.el.classList.add('gun'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>'; }
   return f;
 }
 /* the class of each ship, from comp ({class: count}) or type; shuffled so losses fall on every class */
