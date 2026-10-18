@@ -1193,7 +1193,7 @@ function check(ok, label, detail = '') {
       let n = 0; while (!over && n++ < 2000) step(.05);
       r.won = over && outcome && repelBy === 'sunk'; r.secs = Math.round(n * .05 + 2.05);
       return r; });
-    check(f4.drain && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: 本隊の5割を沈めると共和国が退き（全部の敵が撃たずに北へ。最後のゲートのそばの揚陸艦も守備隊を削らない）、約20秒あとに勝利（2026-10-14）', JSON.stringify(f4));
+    check(f4.drain && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: 本隊の6割を沈めると共和国が退き（全部の敵が撃たずに北へ。最後のゲートのそばの揚陸艦も守備隊を削らない）、約20秒あとに勝利（2026-10-14）', JSON.stringify(f4));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.screenshot({ path: 'test-results/februaria-retreat.png' }).catch(() => {});
     await page.click('#toMenu');
