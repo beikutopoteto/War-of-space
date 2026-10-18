@@ -37,9 +37,13 @@ function select(f){ setSel(f?[f]:[]); }
 function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
 /* altitude control: sets the height of the selected fleet's destination */
 /* the ▲▼ buttons move to the next step of ALT_STEP from 0 (ユーザー決定 2026-10-03: 上下に15ずつ); the bar and Q/E stay free */
-let selAlt=0; const ALT_MAX=60, ALT_STEP=15;
+/* ALT_MAX: how far up or down an order may go, ±60, or op.altMax (第5節 ±90, user decision 2026-10-18); setAltMax redraws the ticks */
+let selAlt=0, ALT_MAX=60; const ALT_STEP=15;
 const altTrack=document.getElementById('altTrack'), altKnob=document.getElementById('altKnob'), altVal=document.getElementById('altVal');
-for(let v=-ALT_MAX;v<=ALT_MAX;v+=ALT_STEP){ if(!v) continue; const t=document.createElement('span'); t.className='tick'; t.style.top=(50-50*v/ALT_MAX)+'%'; altTrack.appendChild(t); }
+function setAltMax(m){ ALT_MAX=m; altTrack.querySelectorAll('.tick').forEach(t=>t.remove());
+  for(let v=-ALT_MAX;v<=ALT_MAX;v+=ALT_STEP){ if(!v) continue; const t=document.createElement('span'); t.className='tick'; t.style.top=(50-50*v/ALT_MAX)+'%'; altTrack.appendChild(t); }
+  altTrack.setAttribute('aria-valuemin',-ALT_MAX); altTrack.setAttribute('aria-valuemax',ALT_MAX); }
+setAltMax(ALT_MAX);
 function setAlt(v,apply=true){
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);

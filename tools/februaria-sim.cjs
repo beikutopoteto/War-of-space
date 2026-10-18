@@ -1,5 +1,5 @@
 /* 第5節「フェブルアーリア防衛戦」を最後まで早送りして、時刻ごとの様子を出す（釣り合わせの確かめ）。1〜2分かかる。
-   node tools/februaria-sim.cjs <b|s|q> [tech] [army=N]（tech: 全研究のあとで。army: 駐屯隊を約 N 隻にする。同じ隊を写して足す。預かる艦は数えない）
+   node tools/februaria-sim.cjs <b|s|q> [tech] [army=N]（PATCH=ファイル.js を付けると、始める前にそのスクリプトをページで実行する（WOS_DATA を書き換えて数値を試す）。tech: 全研究のあとで。army: 駐屯隊を約 N 隻にする。同じ隊を写して足す。預かる艦は数えない）
    b: 駐屯隊は何もしない（友軍と砲台だけで持つか。負けてよい）
    s: 駐屯隊は基地の真ん中の前に居続け、近づく揚陸艦と近くの敵を叩く
    q: 即応（2026-10-16 の案内どおりの遊び方）。ゲートの輪に近い揚陸艦から叩き、いなければ通信で押されている方面（いちばん段階の高い方面）の敵を叩き、
@@ -15,6 +15,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
 (async () => {
   const { browser, page, errors } = await openGame();
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
+  if (process.env.PATCH) await page.evaluate(require('fs').readFileSync(process.env.PATCH, 'utf8'));   // PATCH=file.js: a script run in the page first (try WOS_DATA values; the data files stay)
   if(process.argv.includes('tech')) await page.click('#dbgB [data-dbga="tech"]');   // 全研究: the upper bound of our strength
   await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);

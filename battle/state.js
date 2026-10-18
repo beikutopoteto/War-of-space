@@ -28,6 +28,8 @@ let chase=null, perfect=false;
 let HP_K=1;
 /* op.enemyHp (user decision 2026-10-15, 第1・2節 0.9): the enemy's ships and craft only, on top of HP_K */
 const hpK=team=>HP_K*(team===1&&op&&op.enemyHp||1);
+/* op.enemyDmg (第5節, 2026-10-18): the enemy's ships' and craft's firepower, made at the battle's start (the data stays as it is) */
+const dmgK=team=>team===1&&op&&op.enemyDmg||1;
 /* timeWarned: the time-up warning was said (sim.js stepTimeUp); gunLostSaid: the first lost gun on the base was told (第5節) */
 let timeWarned=false, gunLostSaid=false;
 let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
@@ -49,7 +51,7 @@ const AA=window.WOS_DATA.aa;
 function makeFleet(team,o){
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*hpK(team),hpPool:o.n*o.hp*hpK(team),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],dmg:o.dmg!=null?o.dmg*dmgK(team):o.dmg,hp:o.hp*hpK(team),hpPool:o.n*o.hp*hpK(team),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   if(o.postAt) f.post.set(o.postAt[0],o.postAlt??o.alt??0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節; postAlt its height)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
@@ -317,7 +319,7 @@ function reset(cfg=lastCfg){
   fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
-  fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200;
+  fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200; setAltMax(op.altMax||60); setAlt(0,false);
   controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R;
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
      (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */

@@ -151,7 +151,7 @@ const gridMat = new THREE.ShaderMaterial({
     }`
 });
 gridMat.side=THREE.DoubleSide;
-const grid = new THREE.Mesh(new THREE.PlaneGeometry(900,900), gridMat);   // wide enough for the edge of a larger field (op.fieldR up to about 430)
+const grid = new THREE.Mesh(new THREE.PlaneGeometry(1400,1400), gridMat);   // wide enough for the edge of a larger field (op.fieldR 480 off the centre by 120: 第5節)
 grid.rotation.x = -Math.PI/2; scene.add(grid);
 
 /* fortress asteroid */
