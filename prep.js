@@ -500,7 +500,7 @@ function renderSortie(){
 }
 /* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1×, shortened by op.pace like the
    clock (user decision 2026-10-15: show the real length) */
-const scaleOf=o=>D.scales&&D.scales[o.scale];
+const scaleOf=o=>{ const S=D.scales&&D.scales[o.scale]; return S&&o.cap?{...S,cap:o.cap}:S; };   // op.cap: this operation's own sortie limit (第5節 150)
 function scaleText(o){ const S=scaleOf(o), m=v=>Math.max(1,Math.round(v*(o.pace||1))); return S?`${S.name}（目安 ${m(S.min)}${S.max?`〜${m(S.max)}`:''}分${S.max?'':'〜'}）　`:''; }
 /* whether two army groups have an army in common */
 function shareArmy(g,h){ return g.members.some(m=>h.members.some(n=>n.army===m.army)); }

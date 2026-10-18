@@ -42,7 +42,7 @@ function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.cl
   const up=_up0.clone().addScaledVector(a,-a.y); if(up.lengthSq()<1e-4) up.set(1,0,0); up.normalize();
   const cand=[up,up.clone().negate()]; if(d>1) cand.push(_sp.clone().sub(bodyC).normalize());
   let best=null,bc=1e9; for(const n of cand){ const w=n.clone().multiplyScalar(bodySurface(n.clone().add(bodyC),op.body.r)+BODY_CLEAR).add(bodyC);
-    w.y=Math.max(-58,Math.min(58,w.y)); if(w.distanceTo(bodyC)<bodySurface(w,op.body.r)+BODY_CLEAR*.5) continue;   // under a body far larger than the field: no way
+    w.y=Math.max(2-ALT_MAX,Math.min(ALT_MAX-2,w.y)); if(w.distanceTo(bodyC)<bodySurface(w,op.body.r)+BODY_CLEAR*.5) continue;   // under a body far larger than the field: no way
     const r=key==null?Math.random():(x=>x-Math.floor(x))(Math.sin((key+1)*12.9898+cand.indexOf(n)*78.233)*43758.5453);
     const c=(p.distanceTo(w)+w.distanceTo(q))*(.95+r*.1); if(c<bc){ bc=c; best=w; } }
   return best; }
@@ -229,7 +229,7 @@ function launchCheck(f){
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
-      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1)*dmgK(f.team),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
@@ -467,7 +467,7 @@ function bowK(f,t){ if(f.fixed||f.pit) return 1; _bt.subVectors(t.pos,f.pos); re
    unit on the same target, give or take 15, and for the 2nd and 3rd 30 degrees above or below it (one over, one under: a pincer
    from above and below, user decision 2026-10-10). The 2nd and 3rd stand more than 90 degrees off the 1st, so they pin it (pincers).
    Every 25–45 s it shifts 10–25 degrees around and up to 10 up or down, so it does not sit still. A spot the rock hides from the target swings round (approach in step). 数値は仮 */
-const SLOT_TURN=[0,105,-105,180,50], SLOT_TILT=[0,30,-30,0,0], SLOT_ALT=55;
+const SLOT_TURN=[0,105,-105,180,50], SLOT_TILT=[0,30,-30,0,0], SLOT_ALT=()=>ALT_MAX-5;   // within the orders' height limit
 function slotOf(f,t,dt){
   if(f.slotOn!==t){ f.slotOn=t; f.slotT=25+Math.random()*20;
     const v=new THREE.Vector3().subVectors(f.pos,t.pos); if(v.lengthSq()<1e-6) v.set(0,0,1);
@@ -478,7 +478,7 @@ function slotOf(f,t,dt){
   else if((f.slotT-=dt)<=0){ f.slotT=25+Math.random()*20; f.slotH.applyAxisAngle(_up,(Math.random()<.5?-1:1)*(10+Math.random()*15)*Math.PI/180);
     f.slotP=Math.max(-.8,Math.min(.8,f.slotP+(Math.random()-.5)*.35)); }
   /* not above or below the field's height limit */
-  const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT) f.slotP=-f.slotP;
+  const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT()) f.slotP=-f.slotP;
   if(!f.slot) f.slot=new THREE.Vector3();
   return f.slot.copy(f.slotH).multiplyScalar(Math.cos(f.slotP)).setY(Math.sin(f.slotP));
 }
@@ -507,7 +507,7 @@ function allySlot(f,t){
     f.slotSide=side||0;
     f.slotA=((side||1)*ALLY_TURN[k]+(Math.random()-.5)*20)*Math.PI/180;
     f.slotP=(k?f.slotFlip*ALLY_TILT[k]:(Math.random()-.5)*16)*Math.PI/180; }
-  const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT) f.slotP=-f.slotP;
+  const R=standOff(f,t); if(Math.abs(t.pos.y+Math.sin(f.slotP)*R)>SLOT_ALT()) f.slotP=-f.slotP;
   return f.slot.copy(f.slotBase).applyAxisAngle(_up,f.slotA).multiplyScalar(Math.cos(f.slotP)).setY(Math.sin(f.slotP));
 }
 /* 第4節 hold (user decision 2026-10-13, in place of "stop where it is"): with every enemy down, ships and batteries alike, the allies
