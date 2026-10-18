@@ -1069,10 +1069,10 @@ function check(ok, label, detail = '') {
       /* Alvarez's two (2026-10-18, user decision): 第7 lands at the middle gate, 第8 hunts on the front line (prey:'front'): the nearest of
          our ships north of the gates, not one by the gates, and its W.A.S. are not counted as able to take the base */
       { const ev = op.win.surge.events.map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 局地強襲')), a8 = ev.find(f => f.name.startsWith('第8 局地強襲'));
-        const w0 = wasLeft(), hn = makeFleet(1, { name: '試験 敵狩り', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [0, 140], alt: 30, ai: 'hunt', prey: 'front', watch: { pos: [0, -38], alt: 40 }, hangar: { was: 40 }, vis: 1, stl: 9 }); fleets.push(hn);
-        const mk = z => { const a = makeFleet(0, { name: '試験 的' + z, sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, z], alt: 30, ally: true, vis: 6, stl: 4 }); a.seen = true; a.ward = true; fleets.push(a); return a; };
-        const byGate = mk(150), onFront = mk(60); enemyAI();
-        r.front = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
+        const w0 = wasLeft(), hn = makeFleet(1, { name: '試験 敵狩り', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [420, 110], alt: 80, ai: 'hunt', prey: 'front', watch: { pos: [0, -38], alt: 40 }, hangar: { was: 40 }, vis: 1, stl: 9 }); fleets.push(hn);
+        const mk = z => { const a = makeFleet(0, { name: '試験 的' + z, sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [420, z], alt: 80, ally: true, vis: 6, stl: 4 }); a.seen = true; a.ward = true; fleets.push(a); return a; };
+        const byGate = mk(115), onFront = mk(60); enemyAI();   // off at the east edge, away from the rest: the one by the gates (z over FRONT_LINE) is nearer
+        r.hunter = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
         [hn, byGate, onFront].forEach(f => { f.alive = false; f.el.remove(); }); }
       r.drain = garrison.max === 2000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
@@ -1095,7 +1095,7 @@ function check(ok, label, detail = '') {
     check(f1.craftPick && f1.craftOnly, '小型機: 艦載機と W.A.S. は preyLast の艦隊をほかに狙えるものがないときだけ狙う（2026-10-13）', JSON.stringify(f1));
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.lineOn && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先と押し込みの列の行き先が残りのゲートへ移る（2026-10-16、列は 2026-10-17 夜）', JSON.stringify(f1));
-    check(f1.spread && f1.front, 'フェブルアーリア防衛戦: ゲートの輪の突撃揚陸艦は1点に集まらず、輪の中で散らばる。アルバレス隊は第7が中央ゲートへ、第8が前線で敵狩り（2026-10-18）', JSON.stringify(f1));
+    check(f1.spread && f1.hunter, 'フェブルアーリア防衛戦: ゲートの輪の突撃揚陸艦は1点に集まらず、輪の中で散らばる。アルバレス隊は第7が中央ゲートへ、第8が前線で敵狩り（2026-10-18）', JSON.stringify(f1));
     check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲート16,750（2026-10-18）。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
