@@ -76,9 +76,9 @@ function beam(a,b,col){ const d=new THREE.Vector3().subVectors(b,a), L=d.length(
   for(let i=0,n=Math.ceil(L*1.5);i<n;i++) motes.burst(a.clone().addScaledVector(d,Math.random()),col,1,1.5,BEAM_LIFE*1.3);
 }
 function beamSize(B){ const f=B.t/BEAM_LIFE, out=x=>Math.max(0,1-f/x);
-  B.core.scale.set(.16,B.L,.16); B.core.material.opacity=.95*out(.25); B.core.visible=f<.25;   // the moment it fires: half the sample's width (user decision 2026-10-18)
-  B.halo.scale.set(1.1,B.L,1.1); B.halo.material.opacity=.15*out(.3); B.halo.visible=f<.3;
-  const r=.55-.15*Math.min(1,f/.6); B.glow.scale.set(r,B.L,r); B.glow.material.opacity=f<.6?.45-.25*f/.6:.2*(1-f)/.4; }
+  B.core.scale.set(.08,B.L,.08); B.core.material.opacity=.95*out(.25); B.core.visible=f<.25;   // a quarter of the sample's width as it fires, the glow left half as thick (user decision 2026-10-18)
+  B.halo.scale.set(.55,B.L,.55); B.halo.material.opacity=.15*out(.3); B.halo.visible=f<.3;
+  const r=.28-.08*Math.min(1,f/.6); B.glow.scale.set(r,B.L,r); B.glow.material.opacity=f<.6?.45-.25*f/.6:.2*(1-f)/.4; }
 function stepBeams(dt){ for(let i=beams.length-1;i>=0;i--){ const B=beams[i]; B.t+=dt;
     if(B.t>=BEAM_LIFE){ for(const m of [B.core,B.glow,B.halo]){ scene.remove(m); m.material.dispose(); } beams.splice(i,1); continue; }
     beamSize(B); }
