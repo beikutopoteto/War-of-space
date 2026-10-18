@@ -1077,12 +1077,12 @@ let troops=[], troopId=0, troopsSaid=null, troopsWent=0;   // troopsWent: how ma
 const TROOP_REACH={gun:12, gate:30}, TROOP_AT={gun:4, gate:9};
 function troopsOut(f,D){
   const n=f.ships.length*(f.troops||0); if(n<=0) return;
-  const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], placed:null, goal:null};
+  const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], goal:null};
   for(let t=0;t<Math.ceil(n/4);t++){ const a=Math.random()*Math.PI*2, r=1.5+Math.random()*4.5;
     for(let k=0;k<4;k++) g.offs.push([Math.cos(a)*r+(Math.random()-.5)*1.6,Math.sin(a)*r+(Math.random()-.5)*1.6]); }
   g.offs.length=n; troops.push(g); placeTroop(g);
   const L=op.base.troops&&op.base.troops.log; if(L&&gameSec-(troopsSaid??-1e9)>20){ troopsSaid=gameSec; logEvent(L[0],L[1].replace('{gate}',D.gate.name)); } }
-function placeTroop(g){ g.placed=g.pos.clone(); g.dots=g.offs.map(([x,z])=>{ const p=rockAt(g.pos.x+x,g.pos.z+z); p.y+=.3; return p; }); }
+function placeTroop(g){ g.dots=g.offs.map(([x,z])=>{ const p=rockAt(g.pos.x+x,g.pos.z+z); p.y+=.3; return p; }); }
 /* our infantry the group meets: the nearest gun with some left within its reach, or the gate it goes for (not while it waits) */
 function troopFoe(g){ let b=null,bd=1e9;
   for(const f of fleets) if(f.pit&&f.pit!==true&&f.inf>0){ const d=hxz(f.pos,g.pos); if(d<TROOP_REACH.gun&&d<bd){ bd=d; b=f; } }
@@ -1108,10 +1108,11 @@ function stepTroops(dt){
     /* a gate still shut and held by more of ours than there are of them round it: they wait just out of its infantry's reach */
     const gun=goal.kind==='fleet', d=hxz(goal.pos,g.pos), wait=g.wait=!gun&&!goal.breached&&goal.inf>troops.reduce((s,x)=>s+(hxz(x.pos,goal.pos)<TROOP_REACH.gate+12?x.n:0),0);
     const at=gun?TROOP_AT.gun:wait?TROOP_REACH.gate+6:TROOP_AT.gate;
-    if(d>at+.5){ const m=Math.min(d-at,(T.speed??2)*dt); g.pos.x+=(goal.pos.x-g.pos.x)/d*m; g.pos.z+=(goal.pos.z-g.pos.z)/d*m;
-      if(hxz(g.pos,g.placed)>.8) placeTroop(g); continue; }
+    if(d>at+.5){ const m=Math.min(d-at,(T.speed??2)*dt); g.pos.x+=(goal.pos.x-g.pos.x)/d*m; g.pos.z+=(goal.pos.z-g.pos.z)/d*m; continue; }   // the men follow on their own (base.js stepTroopMen)
     if(wait) continue;
-    if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g); continue; }
+    /* the gun: they fire on it (the infantry's streaks and rockets, 2026-10-18: so it is seen that they are at it) and wear it down */
+    if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g); const I=op.base.infantry||{};
+      infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
     /* the gate: in once it is the last and open */
     if(goal.breached&&garrison){ g.inAcc=(g.inAcc||0)+(T.enter??60)*dt*CLOCK_RATE/60; const k=Math.min(g.n,Math.floor(g.inAcc)); if(k>0){ g.inAcc-=k; g.went+=k; g.n-=k; troopsWent+=k;
       if(!garrison.saidTroop&&T.inLog){ garrison.saidTroop=true; logEvent(T.inLog[0],T.inLog[1].replace('{name}',goal.name)); }

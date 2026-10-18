@@ -1024,31 +1024,32 @@ WOS_DATA.operations=[
       {after:130, ai:{fleets:['第17 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「西の端からも、砲台狙いの重巡洋艦！」']}},
       {after:160, fleet:{name:'第11 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,60], alt:0, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端と真上から。東ゲートと中央ゲートへ！」']},
       {after:160, fleet:{name:'第15 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
-      /* 揚陸艇（2026-10-18、ユーザー決定: 新しい艦種。共和国の強化歩兵を砲台のそばに降ろす。155隻の外。1隻12人。時刻・位置・数は仮） */
-      {after:140, fleet:{name:'第12 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「西の端から揚陸艇！　砲台のそばに歩兵を降ろすつもりです」']},
-      {after:142, fleet:{name:'第13 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}},
+      /* 揚陸艇（2026-10-18、ユーザー決定: 新しい艦種。共和国の強化歩兵を砲台のそばに降ろす。155隻の外。1隻12人。時刻・位置・数は仮。
+         2026-10-18（ユーザー決定: 砲台の射角を20度に広げて易しくなった分、揚陸艇を増やす。ただし速さと耐久は低めに）: 1隊3隻→5隻、耐久8→6、速さ11→8（仮。一時は1隻16人で試した） */
+      {after:140, fleet:{name:'第12 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「西の端から揚陸艇！　砲台のそばに歩兵を降ろすつもりです」']},
+      {after:142, fleet:{name:'第13 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}},
       {after:180, ai:{fleets:['第3 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「真上の重巡洋艦が、真ん中の砲台へ降りてきます」']}},
       {after:200, fleet:{name:'第9 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,60], alt:0, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西の端から西ゲートへ！」']},
       {after:203, fleet:{name:'第17 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-150,-290], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[-45,100]}, log:['ハッダード曹長', '「北の雲からも揚陸艦！　{drop}へ。守りの薄い所を狙っています」']},
       {after:220, ai:{fleets:['第20 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「東の端、次の重巡洋艦が砲台へ！」']}},
-      {after:220, fleet:{name:'第14 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から！」']},
-      {after:222, fleet:{name:'第15 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}},
+      {after:220, fleet:{name:'第14 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から！」']},
+      {after:222, fleet:{name:'第15 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drop:'西ゲート', vis:7, stl:7}, arrow:{pos:[-200,150]}},
       {after:240, fleet:{name:'第18 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,130], alt:-30, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端の低い所と、真上から！」']},
       {after:240, fleet:{name:'第16 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
       {after:260, ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'hunt', log:['ハッダード曹長', '「西の端、次の重巡洋艦が砲台へ！」']}},
-      {after:262, fleet:{name:'第16 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}, log:['ハッダード曹長', '「揚陸艇、東の端の低い所から！」']},
-      {after:264, fleet:{name:'第17 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}},
+      {after:262, fleet:{name:'第16 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drop:'東ゲート', vis:7, stl:7}, arrow:{pos:[200,150]}, log:['ハッダード曹長', '「揚陸艇、東の端の低い所から！」']},
+      {after:264, fleet:{name:'第17 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drop:'中央ゲート', vis:7, stl:7}, arrow:{pos:[0,120]}},
       {after:280, fleet:{name:'第12 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,60], alt:0, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西ゲートへ！」']},
       {after:283, fleet:{name:'第20 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[150,-290], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[45,100]}, log:['ハッダード曹長', '「北の雲から揚陸艦！　{drop}へ」']},
-      {after:300, fleet:{name:'第18 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drops:['西ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西の端から{drop}へ！」']},
-      {after:302, fleet:{name:'第19 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drops:['東ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
+      {after:300, fleet:{name:'第18 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[-520,90], alt:0, ai:'drop', drops:['西ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西の端から{drop}へ！」']},
+      {after:302, fleet:{name:'第19 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[520,90], alt:0, ai:'drop', drops:['東ゲート', '中央ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
       {after:320, fleet:{name:'第10 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[520,60], alt:0, ai:'land', drop:'東ゲート', vis:7, stl:6}, arrow:{pos:[156,100]}, log:['ハッダード曹長', '「揚陸艦、東の端と真上から！」']},
       {after:320, fleet:{name:'第13 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-230], alt:55, ai:'land', drop:'中央ゲート', vis:7, stl:6}, arrow:{pos:[0,100]}},
-      {after:340, fleet:{name:'第20 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から{drop}へ！」']},
+      {after:340, fleet:{name:'第20 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[0,-240], alt:60, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[0,120]}, log:['ハッダード曹長', '「揚陸艇、真上から{drop}へ！」']},
       {after:360, fleet:{name:'第19 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[-520,130], alt:-30, ai:'land', drop:'西ゲート', vis:7, stl:6}, arrow:{pos:[-156,100]}, log:['ハッダード曹長', '「揚陸艦、西の端の低い所から西ゲートへ！」']},
       {after:363, fleet:{name:'第21 局地強襲 エスカドラ', sub:'自治軍 突撃揚陸艦', type:'mas', n:3, hp:18, dmg:1.1, eva:.16, range:13, speed:10, scale:1.1, hangar:{was:18}, craft:{was:{dmg:1.3, hp:1.2, eva:1}}, pos:[0,-320], alt:0, ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:6}, arrow:{pos:[0,100]}, log:['ハッダード曹長', '「北の雲から揚陸艦！　{drop}へ」']},
-      {after:380, fleet:{name:'第21 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西と東から同時に！」']},
-      {after:381, fleet:{name:'第22 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
+      {after:380, fleet:{name:'第21 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[-520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[-200,150]}, log:['ハッダード曹長', '「揚陸艇、西と東から同時に！」']},
+      {after:381, fleet:{name:'第22 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[520,130], alt:-30, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}, arrow:{pos:[200,150]}},
     ],
     /* 総基地のゲート（ユーザー決定 2026-10-16。2026-10-12 の降下点と揚陸の阻止を置き換えた。仕組みは battle/sim.js、見た目は battle/base.js。数値は仮）:
        shield は各ゲートのシールドの耐久（耐久の倍率がかかる）。敵はどの艦も削れる（先に狙うものが届く所になければ、近いゲートのシールドを撃つ）。
@@ -1064,7 +1065,8 @@ WOS_DATA.operations=[
       garrison:{hp:2000, was:5, troop:4, every:2, log:['ハッダード曹長', '「揚陸艦が{name}に取り付きました。基地守備隊が中で交戦中です」'],
         logs:[[.5, 'ハッダード曹長', '「基地守備隊、半数を失いました！」'], [.25, '総基地司令', '「守備隊はもう持たん。揚陸艦をゲートから引きはがせ」']]},
       infantry:{n:72, dmg:.03, line:.35, rocket:.04},
-      troops:{speed:2, kill:.02, cover:1.5, gun:.03, seek:90, enter:60, unload:4,
+      troops:{speed:2, kill:.02, cover:1.5, gun:.06,   // gun: 2026-10-18（ユーザー決定: 砲台を攻撃させて）に .03 から2倍（仮）
+        seek:90, enter:60, unload:4,
         log:['ハッダード曹長', '「揚陸艇が{gate}のそばに降りました！　敵の強化歩兵です」'], inLog:['総基地司令', '「敵の歩兵が{name}から入ってきた。守備隊、迎え撃て」']},   // 2026-10-18（ユーザー決定）: 強化歩兵を2倍に（前は36）
       halfLog:['ハッダード曹長', '「{name}のシールド、残り半分です」'],
       sealLog:['総基地司令', '「{name}が破られた。中の区画を爆破して塞ぐ。各隊は残りのゲートへ」'],
@@ -1114,8 +1116,8 @@ WOS_DATA.operations=[
         {after:20, log:['ソコロワ参謀大佐', '（傍受）「戦艦が動いた。予備も出せ。今日で終わらせる」']},
         {after:20, ai:{fleets:['第26 局地強襲 エスカドラ', '第14 局地強襲 エスカドラ'], ai:'land', drops:['西ゲート', '中央ゲート', '東ゲート'], log:['ハッダード曹長', '「北の雲から予備！　{drop}へ向かっています」']}},
         {after:20, ai:{fleets:['第1 重巡洋 エスカドラ', '第2 重巡洋 エスカドラ', '第28 重巡洋 エスカドラ'], ai:'hunt', drops:['西ゲート', '中央ゲート', '東ゲート']}},
-        {after:20, fleet:{name:'第23 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[-150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
-        {after:21, fleet:{name:'第24 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:3, hp:8, dmg:.3, eva:.2, range:8, speed:11, scale:.6, troops:12, pos:[150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
+        {after:20, fleet:{name:'第23 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[-150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
+        {after:21, fleet:{name:'第24 降下揚陸 エスカドラ', sub:'自治軍 揚陸艇', type:'lc', n:5, hp:6, dmg:.3, eva:.2, range:8, speed:8, scale:.6, troops:12, pos:[150,-300], alt:5, ai:'drop', drops:['西ゲート', '中央ゲート', '東ゲート'], vis:7, stl:7}},
         {after:40, ai:{fleets:['第10 アマゾン残存 支隊'], ai:'guard', log:['オリヴェイラ少佐', '「左翼、まだ持ってる！　冗談を言う余裕は、もうないけどな」']}},
       ]},
     },
@@ -1186,7 +1188,7 @@ WOS_DATA.operations=[
       {name:'ユーコン', sub:'戦闘母艦（ファン・デル・ベルク中佐）', type:'cvb', n:1, hp:160, dmg:.8, eva:.04, range:12, speed:4, scale:1.4, hangar:{ftr:40}, pos:[0,170], alt:-30, vis:7, stl:3, aa:6, leash:30},
       /* 2026-10-17（ユーザー決定）: 砲台はゲートのそば（少しだけ離れた所）に置き、少数の強化歩兵（inf）に守らせる。西ゲートと東ゲートに3基（東西の脇と前）、
          射程200・48秒ごと（2026-10-18、ユーザー決定。前は120・64秒、その前は90。仰角48度より低い相手は撃てないので、横へ届くのは約130）。
-         2026-10-18（ユーザー決定: 射程1.2倍、間隔0.75倍、射角をもう少し広く、強化歩兵2倍）: 射程240・36秒ごと、仰角38度から（battle/base.js の PIT_EL。38は仮。横へ届くのは約190）、強化歩兵16人。
+         2026-10-18（ユーザー決定: 射程1.2倍、間隔0.75倍、射角をもう少し広く、強化歩兵2倍）: 射程240・36秒ごと、仰角38度から（battle/base.js の PIT_EL。横へ届くのは約190）、強化歩兵16人。同じ日に「さらに広げて」で仰角20度から（ユーザー決定。横へ届くのは約225）。
          中央ゲートに2基（東西の脇）。2026-10-17 夜（ユーザー決定）: 各ゲートに2基ずつ足して14基に。脇のさらに外（ゲートから約60）に1基ずつ（位置は仮）。pit:true は案I の形（岩の竪穴に案D の砲塔、砲身だけが外に出る。battle/base.js）で、pos は岩の表面の実際の [x, z]。位置と人数は仮 */
       ...[[-159,129],[-159,199],[-194,164],[-124,164],[-228,164],[0,121],[0,191],[-35,156],[35,156],[158,127],[158,197],[123,162],[193,162],[227,162]].map(([x,z],i)=>({name:`第${i+1} 総基地砲台`, sub:'地表の砲台（二門連装）', type:'aa', n:2, hp:20, dmg:1.8, eva:0, range:240, every:36, shot:17.5, speed:0, scale:1.1,
         pos:[x,z], alt:-35, aa:8, leash:0, vis:6, stl:5, fixed:true, pit:true, inf:16})),

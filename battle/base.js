@@ -186,7 +186,11 @@ function infDots(x,z,I=INF_LOOK,n){ const teams=[], nt=n?Math.max(1,Math.round(n
    than PIT_EL[0] the gun cannot reach (sim.js pitCan). The shaft is seen into: a disc at the mouth marks the stencil where nothing nearer
    is drawn, the shaft is drawn there over the rock (depth always), then the house, the ring, the bar and the lamps with the usual depth test.
    Sizes are the sample's units × PIT_S (twice the old battery, as the user chose). A few infantry (data inf) stand round each gun (PIT_INF). 数値は仮 ---- */
-const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.66,1.57], PIT_REST=1.4, PIT_TURN=1.2;   // 仰角38〜90度（2026-10-18、ユーザー決定: 射角をもう少し広く。38は仮。前は48）
+const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.349,1.57], PIT_REST=1.4, PIT_TURN=1.2;   // 仰角20〜90度（2026-10-18、ユーザー決定。その前は38、48）
+/* aimed low, the gun rises in its shaft (2026-10-18, with the 20 degrees) so the barrels clear the collar: its bar stands at least
+   PIT_POP[0] over the mouth where the barrels cross the collar's outer edge (PIT_POP[1] from the middle). A lost gun lies at PIT_DEAD, down */
+const PIT_POP=[.2,1.16], PIT_DEAD=.84;
+function pitLift(el){ return Math.max(0,PIT_POP[0]-PIT_POP[1]*Math.tan(el)+PIT_AXIS); }
 const PIT_INF={teams:4, per:4, rMin:3.6, rMax:6.5, flat:1, spread:1.3, size:5, lift:.3};   // 16人（4組×4。前は8、2組・〜5.5。仮）
 const PM={dead:new THREE.MeshStandardMaterial({color:0x2a2e33,metalness:.3,roughness:.9}),
   shaft:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
@@ -230,13 +234,13 @@ function pitBuild(f){
 /* every frame (loop.js): the gimbal turns and raises the barrels toward what the gun fires on; a lost gun lies dark with its barrels down */
 const _pl=new THREE.Vector3();
 function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
-  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_EL[0]; P.pitch.rotation.x=-P.el; burst(f.pos,HOT,30,10,1.2); }
+  if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_DEAD; P.pitch.rotation.x=-P.el; P.yaw.position.y=0; burst(f.pos,HOT,30,10,1.2); }
     P.inf.m.geometry.setDrawRange(0,0); return; }
   let az=P.az, el=PIT_REST; const t=f.fireTarget;
   if(t&&t.alive){ _pl.copy(t.pos); P.root.worldToLocal(_pl); az=Math.atan2(_pl.x,_pl.z); el=Math.min(PIT_EL[1],Math.max(PIT_EL[0],Math.atan2(_pl.y,Math.hypot(_pl.x,_pl.z)))); }
   const k=Math.min(1,dt*PIT_TURN*2), da=Math.atan2(Math.sin(az-P.az),Math.cos(az-P.az));
   P.az+=Math.sign(da)*Math.min(Math.abs(da),PIT_TURN*dt+Math.abs(da)*k*.2); P.el+=(el-P.el)*k;
-  P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.root.updateMatrixWorld(true);
+  P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.yaw.position.y=pitLift(P.el); P.root.updateMatrixWorld(true);
   f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.1:.1,0,2.69); P.pitch.localToWorld(s.muzzle); });
   P.inf.m.geometry.setDrawRange(0,f.inf); }
 
@@ -294,11 +298,40 @@ function infFire(L,k,T,dt,rate,col=INF_LINE){
 const TROOP_MAX=2400, tpPos=new Float32Array(TROOP_MAX*3), tpGeo=new THREE.BufferGeometry(); tpGeo.setAttribute('position',new THREE.BufferAttribute(tpPos,3));
 const tpPts=new THREE.Points(tpGeo,new THREE.PointsMaterial({color:TEAM_COL[1],size:INF_LOOK.size,sizeAttenuation:false,transparent:true,depthWrite:false,map:infRimTex(),alphaTest:.05}));
 tpPts.renderOrder=3; tpPts.frustumCulled=false; scene.add(tpPts);
-function drawTroops(){ let n=0;
-  for(const g of troops){ const k=Math.min(g.n,g.dots.length); for(let i=0;i<k&&n<TROOP_MAX;i++){ const p=g.dots[i]; tpPos[n*3]=p.x; tpPos[n*3+1]=p.y; tpPos[n*3+2]=p.z; n++; } }
+/* how they walk (2026-10-18, user: not one block sliding along): the sim moves only the group's centre (sim.js stepTroops); here every man
+   goes on his own toward his place, at his own pace (TM.v), and his dot is set on the rock again once he has gone TM.reH.
+   On the move (user decision 2026-10-18: 見本 B and C together) they go in file, each TM.gap behind the one before along the way the
+   centre went, and by bounds: each fire team of four runs TM.beat[0] seconds (TM.run times its pace) and lies down TM.beat[1], on its
+   own beat, so some run while the others are down. Stopped (at the enemy, user: 「敵目前で広がる」) they spread out round the centre
+   as they landed. 数値は仮 */
+const TM={v:[1.7,2.6], run:1.7, gap:.85, beat:[1.1,1.6], reH:.35, still:.6, wave:.5};
+const _tw=new THREE.Vector3();
+function troopMen(g){ if(g.men) return g.men;
+  g.dir=new THREE.Vector3(0,0,-1); g.prevC=g.pos.clone(); g.still=9; g.teamT=[]; g.trail=[g.pos.clone()];
+  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/4)|0, off:g.offs[i], wob:Math.random()*6})); }
+/* the point d behind the head of the way the centre went */
+function trailAt(g,d){ const T=g.trail; let p=T[T.length-1]; for(let i=T.length-2;i>=0;i--){ const q=T[i], l=Math.hypot(p.x-q.x,p.z-q.z); if(l>=d) return _tw.set(p.x+(q.x-p.x)*d/l,0,p.z+(q.z-p.z)*d/l); d-=l; p=q; } return _tw.set(p.x,0,p.z); }
+function stepTroopMen(g,dt){
+  const M=troopMen(g); if(dt<=0) return;
+  const dx=g.pos.x-g.prevC.x, dz=g.pos.z-g.prevC.z, dm=Math.hypot(dx,dz);
+  if(dm>1e-4){ g.dir.x+=(dx/dm-g.dir.x)*.2; g.dir.z+=(dz/dm-g.dir.z)*.2; g.dir.y=0; g.dir.normalize(); g.still=0; } else g.still+=dt;
+  g.prevC.copy(g.pos);
+  const L=g.trail[g.trail.length-1]; if(Math.hypot(g.pos.x-L.x,g.pos.z-L.z)>.5){ g.trail.push(g.pos.clone()); if(g.trail.length>160) g.trail.shift(); }
+  const moving=g.still<TM.still, px=-g.dir.z, pz=g.dir.x;
+  M.forEach((m,i)=>{ if(i>=g.n) return;
+    let tx=g.pos.x+m.off[0], tz=g.pos.z+m.off[1];
+    if(moving){ const q=trailAt(g,i*TM.gap+.5), w=Math.sin(time*1.1+m.wob)*TM.wave; tx=q.x+px*w; tz=q.z+pz*w; }
+    const ex=tx-m.p.x, ez=tz-m.p.z, d=Math.hypot(ex,ez); if(d<.05) return;
+    let v=m.v*Math.min(1.3,.35+d/2);
+    if(moving){ const T=g.teamT[m.team]??=Math.random()*3, ph=(time+T)%(TM.beat[0]+TM.beat[1]); v=ph<TM.beat[0]?m.v*TM.run:d>5?m.v:0; }   // its team's bound: run, or lie down (catching up if left far behind)
+    const s=Math.min(d,v*dt); m.p.x+=ex/d*s; m.p.z+=ez/d*s;
+    if(Math.hypot(m.p.x-m.h.x,m.p.z-m.h.z)>TM.reH){ m.p.y=rockAt(m.p.x,m.p.z).y+.3; m.h.copy(m.p); } });
+}
+function drawTroops(dt=0){ let n=0;
+  for(const g of troops){ stepTroopMen(g,dt); const k=Math.min(g.n,g.dots.length); for(let i=0;i<k&&n<TROOP_MAX;i++){ const p=g.dots[i]; tpPos[n*3]=p.x; tpPos[n*3+1]=p.y; tpPos[n*3+2]=p.z; n++; } }
   tpGeo.setDrawRange(0,n); tpGeo.attributes.position.needsUpdate=true; tpPts.material.size=INF_LOOK.size*pxK(); }
 function stepBaseFx(dt){
-  drawTroops();
+  drawTroops(dt);
   let n=0, h=0;
   rockets=rockets.filter(r=>{ r.t+=dt; const f=r.t/r.dur; if(f>=1){ burst(r.b,HOT,4,4,.4); return false; }
     _v.lerpVectors(r.a,r.b,f); _w.lerpVectors(r.a,r.b,Math.max(0,f-Math.min(.5,3.5/Math.max(1,r.a.distanceTo(r.b)))));
