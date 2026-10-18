@@ -299,24 +299,28 @@ const TROOP_MAX=2400, tpPos=new Float32Array(TROOP_MAX*3), tpGeo=new THREE.Buffe
 const tpPts=new THREE.Points(tpGeo,new THREE.PointsMaterial({color:TEAM_COL[1],size:INF_LOOK.size,sizeAttenuation:false,transparent:true,depthWrite:false,map:infRimTex(),alphaTest:.05}));
 tpPts.renderOrder=3; tpPts.frustumCulled=false; scene.add(tpPts);
 /* how they walk (2026-10-18, user: not one block sliding along): the sim moves only the group's centre (sim.js stepTroops); here every man
-   goes on his own toward his place round it, at his own pace (TM.v), and his dot is set on the rock again once he has gone TM.reH.
-   While the group is on the move its fire teams string out behind the way it goes (TM.lag a team, TM.side either side); stopped, they
-   spread out round the centre as they landed. The teams go by bounds (user decision 2026-10-18, 見本 B): each runs TM.beat[0] seconds
-   (TM.run times its pace) and lies down TM.beat[1], on its own beat, so some run while the others are down. 数値は仮 */
-const TM={v:[1.7,2.6], run:1.7, lag:1.1, side:3.2, beat:[1.1,1.6], reH:.35, still:.6};
+   goes on his own toward his place, at his own pace (TM.v), and his dot is set on the rock again once he has gone TM.reH.
+   On the move (user decision 2026-10-18: 見本 B and C together) they go in file, each TM.gap behind the one before along the way the
+   centre went, and by bounds: each fire team of four runs TM.beat[0] seconds (TM.run times its pace) and lies down TM.beat[1], on its
+   own beat, so some run while the others are down. Stopped (at the enemy, user: 「敵目前で広がる」) they spread out round the centre
+   as they landed. 数値は仮 */
+const TM={v:[1.7,2.6], run:1.7, gap:.85, beat:[1.1,1.6], reH:.35, still:.6, wave:.5};
+const _tw=new THREE.Vector3();
 function troopMen(g){ if(g.men) return g.men;
-  g.dir=new THREE.Vector3(0,0,-1); g.prevC=g.pos.clone(); g.still=9; g.teamT=[];
-  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/4)|0, k:i%4, off:g.offs[i]})); }
+  g.dir=new THREE.Vector3(0,0,-1); g.prevC=g.pos.clone(); g.still=9; g.teamT=[]; g.trail=[g.pos.clone()];
+  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/4)|0, off:g.offs[i], wob:Math.random()*6})); }
+/* the point d behind the head of the way the centre went */
+function trailAt(g,d){ const T=g.trail; let p=T[T.length-1]; for(let i=T.length-2;i>=0;i--){ const q=T[i], l=Math.hypot(p.x-q.x,p.z-q.z); if(l>=d) return _tw.set(p.x+(q.x-p.x)*d/l,0,p.z+(q.z-p.z)*d/l); d-=l; p=q; } return _tw.set(p.x,0,p.z); }
 function stepTroopMen(g,dt){
   const M=troopMen(g); if(dt<=0) return;
   const dx=g.pos.x-g.prevC.x, dz=g.pos.z-g.prevC.z, dm=Math.hypot(dx,dz);
   if(dm>1e-4){ g.dir.x+=(dx/dm-g.dir.x)*.2; g.dir.z+=(dz/dm-g.dir.z)*.2; g.dir.y=0; g.dir.normalize(); g.still=0; } else g.still+=dt;
   g.prevC.copy(g.pos);
+  const L=g.trail[g.trail.length-1]; if(Math.hypot(g.pos.x-L.x,g.pos.z-L.z)>.5){ g.trail.push(g.pos.clone()); if(g.trail.length>160) g.trail.shift(); }
   const moving=g.still<TM.still, px=-g.dir.z, pz=g.dir.x;
   M.forEach((m,i)=>{ if(i>=g.n) return;
     let tx=g.pos.x+m.off[0], tz=g.pos.z+m.off[1];
-    if(moving){ const lat=Math.max(-TM.side,Math.min(TM.side,m.off[0]*px+m.off[1]*pz))*.8, back=1+m.team*TM.lag+m.k*.25;
-      tx=g.pos.x+px*lat-g.dir.x*back; tz=g.pos.z+pz*lat-g.dir.z*back; }
+    if(moving){ const q=trailAt(g,i*TM.gap+.5), w=Math.sin(time*1.1+m.wob)*TM.wave; tx=q.x+px*w; tz=q.z+pz*w; }
     const ex=tx-m.p.x, ez=tz-m.p.z, d=Math.hypot(ex,ez); if(d<.05) return;
     let v=m.v*Math.min(1.3,.35+d/2);
     if(moving){ const T=g.teamT[m.team]??=Math.random()*3, ph=(time+T)%(TM.beat[0]+TM.beat[1]); v=ph<TM.beat[0]?m.v*TM.run:d>5?m.v:0; }   // its team's bound: run, or lie down (catching up if left far behind)
