@@ -43,7 +43,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
     const log=[]; let idle=0, samples=0, maxOn=0, onSum=0;
     /* 2026-10-18: what the enemy can still put in (W.A.S. × was + infantry × troop), and the infantry landed */
     const GA=op.base.garrison, capNow=()=>Math.round(wasLeft()*(GA.was||5)+(typeof troopsLeft==='function'?troopsLeft()*(GA.troop||0):0));
-    let landed=0; const _to=window.troopsOut; if(_to) window.troopsOut=function(f,D){ landed+=f.ships.length*(f.troops||0); return _to.apply(this,arguments); };
+    let landed=0; const _to=window.troopsOut; if(_to) window.troopsOut=function(f,D){ landed+=Math.round(f.ships.length*(f.troops||0)); return _to.apply(this,arguments); };
     const L=(t='')=>{ const en=sum(fleets.filter(f=>f.team===1&&f.alive)), al=sum(fleets.filter(f=>f.ally&&!f.fixed&&f.alive)), me=sum(mine());
       const bt=R3.map(R=>fleets.filter(f=>f.fixed&&f.alive&&reg(f.home)===R).length).join('/');
       const pr=R3.map(R=>{ const u=fleets.filter(f=>f.alive&&f.team===1&&f.press&&f.ai==='guard'&&f.pressGoal&&reg(f.pressGoal)===R); return u.length?Math.round(100*u.reduce((s,f)=>s+pressShare(f),0)/u.length)+(u.some(f=>f.pressHeld)?'h':''):'-'; }).join('/');

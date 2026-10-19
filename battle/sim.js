@@ -1081,8 +1081,10 @@ const TROOP_REACH={gun:12, gate:30}, TROOP_AT={gun:4, gate:9};
    that reach (DEF_R.gate + DEF_WAIT). 数値は仮 */
 const DEF_R={gun:22, gate:40}, DEF_BACK=.6, DEF_WAIT=4;
 function holders(){ const H=[]; for(const f of fleets) if(f.pit&&f.pit!==true&&f.alive&&f.inf>0) H.push(f); for(const x of gates) if(!x.sealed&&x.inf>0) H.push(x); return H; }
+/* the men aboard a landing craft unit (troops a craft may be a fraction, 2026-10-19: 14.4; rounded as they step out) */
+const troopsIn=f=>Math.round(f.ships.length*(f.troops||0));
 function troopsOut(f,D){
-  const n=f.ships.length*(f.troops||0); if(n<=0) return;
+  const n=troopsIn(f); if(n<=0) return;
   const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], goal:null};
   for(let t=0;t<Math.ceil(n/4);t++){ const a=Math.random()*Math.PI*2, r=1.5+Math.random()*4.5;
     for(let k=0;k<4;k++) g.offs.push([Math.cos(a)*r+(Math.random()-.5)*1.6,Math.sin(a)*r+(Math.random()-.5)*1.6]); }
@@ -1253,8 +1255,8 @@ function wasLeft(){ let n=0;
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
   return n; }
 /* the enemy's armoured infantry left: on the rock, aboard the landing craft that have not set them down, and on the ones still to come */
-function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?(o.troops||0)*o.n:0;
-  for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='drop'&&!f.unloaded) n+=f.ships.length*(f.troops||0);
+function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?Math.round((o.troops||0)*o.n):0;
+  for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='drop'&&!f.unloaded) n+=troopsIn(f);
   for(const g of troops) n+=g.n;
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
