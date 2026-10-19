@@ -1282,7 +1282,7 @@ function stepTimeUp(){
    nearest the ring of an open gate first, then what comes near the field's centre; fortress: its guard when it runs, else the nearest fleet,
    then the fortress. Distances are 仮 */
 let autoMode=false;
-const AUTO_R={escort:45, defend:60, port:45, carrier:50, drop:150, field:90}, AUTO_WAIT=12;
+const AUTO_R={escort:45, defend:60, port:45, carrier:50, gate:140, near:70}, AUTO_WAIT=12;
 function autoAI(){
   if(!autoMode||over) return;
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.convoy&&!f.isCarrier&&!f.fixed&&!f.rescue);
@@ -1315,10 +1315,13 @@ function autoAI(){
       return; }
     if(S.done&&!(opCarrier.order&&opCarrier.order.type==='move')) order(opCarrier,{type:'move',dest:S.exit.clone()});
     guard(opCarrier.pos,AUTO_R.carrier,craftFirst); return; }
-  /* 第5節: the gates of the base */
-  if(op.base&&gates.length){ const open=openGates(), toDrop=e=>Math.min(...open.map(g=>g.ring.distanceTo(e.pos)));
-    const landing=ships.filter(e=>(e.ai==='land'||e.ai==='drop'&&!e.unloaded)&&e.pos.distanceTo(fieldC)<AUTO_R.drop&&open.length).sort((a,b)=>toDrop(a)-toDrop(b));
-    mine.forEach((f,i)=>{ const e=landing[0]||by(f,near(fieldC,AUTO_R.field),dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
+  /* 第5節: the gates of the base (2026-10-19, user decision: the same moves as the quick response of tools/februaria-sim.cjs, which now runs this):
+     the landing ship or craft nearest an open gate's ring (within AUTO_R.gate), then the front the radio calls the hardest pressed,
+     then an enemy within AUTO_R.near north of the base; else wait in front of the middle */
+  if(op.base&&gates.length){ const open=openGates(), toGate=e=>open.length?Math.min(...open.map(g=>g.ring.distanceTo(e.pos))):1e9, ahead=ships.filter(e=>e.pos.z>-60);
+    const landing=ships.filter(e=>(e.ai==='land'||e.ai==='drop'&&!e.unloaded)&&toGate(e)<AUTO_R.gate).sort((a,b)=>toGate(a)-toGate(b));
+    const hot=fronts.filter(F=>!F.closed&&F.level>0).sort((a,b)=>b.level-a.level||b.prog-a.prog)[0], inHot=hot?ahead.filter(e=>e.pos.x>=hot.x[0]&&e.pos.x<hot.x[1]):[];
+    mine.forEach((f,i)=>{ const e=landing[0]||by(f,inHot,dist)||by(f,near(f.pos,AUTO_R.near,ahead),dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
   /* the exercise: the fortress */
   if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
   mine.forEach((f,i)=>{ const e=by(f,ships,dist)||(fortress&&fortress.alive&&fortress.team===1?fortress:null); if(e) attack(f,e); else wait(f,fieldC,i); });
