@@ -1125,7 +1125,8 @@ function stepTroops(dt){
     const gun=goal.kind==='fleet', d=hxz(goal.pos,g.pos), wait=g.wait=!gun&&!goal.breached&&goal.inf>troops.reduce((s,x)=>s+(hxz(x.pos,goal.pos)<TROOP_REACH.gate+12?x.n:0),0);
     const at=gun?TROOP_AT.gun:wait?DEF_R.gate+DEF_WAIT:TROOP_AT.gate;
     if(d>at+.5){ const m=Math.min(d-at,(T.speed??2)*dt); g.pos.x+=(goal.pos.x-g.pos.x)/d*m; g.pos.z+=(goal.pos.z-g.pos.z)/d*m; continue; }   // the men follow on their own (base.js stepTroopMen)
-    if(wait) continue;
+    /* waiting, but inside the gate's reach (they came from a gun by it): they draw back out of it */
+    if(wait){ if(d<at-.5&&d>1e-3){ const m=Math.min(at-d,(T.speed??2)*dt); g.pos.x-=(goal.pos.x-g.pos.x)/d*m; g.pos.z-=(goal.pos.z-g.pos.z)/d*m; } continue; }
     /* the gun: they fire on it (the infantry's streaks and rockets, 2026-10-18: so it is seen that they are at it) and wear it down */
     if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g);
       infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }

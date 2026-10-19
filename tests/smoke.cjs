@@ -1255,11 +1255,11 @@ function check(ok, label, detail = '') {
       /* a gate held by more of ours: they wait out of its infantry's reach; the gate the last and open: they go in */
       gun.alive = false; fleets.filter(f => f.pit && f.pit !== true).forEach(f => { f.alive = false; });
       g.lost = 0; g.went = 0; g.n0 = g.n = 20; for (let i = 0; i < 600; i++) stepBase(.05);
-      r.wait = g.goal === C && C.inf > 20 && Math.hypot(g.pos.x - C.pos.x, g.pos.z - C.pos.z) > 30 && g.n === 20;
+      r.wait = g.goal === C && C.inf > 20 && Math.hypot(g.pos.x - C.pos.x, g.pos.z - C.pos.z) >= DEF_R.gate && g.n > 0;   // out of its infantry's reach (2026-10-18: they draw back to it)
       const sh = makeFleet(1, { name: '試験 撃つ', sub: '', type: 'cl', n: 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -300], alt: 0, vis: 1, stl: 9 });
       damage(W, W.hp + 1, sh); damage(E, E.hp + 1, sh); damage(C, C.hp + 1, sh); stepBase(.05);
-      const g0 = garrison.hp; let m = 0; while (m++ < 4000 && g.n > 0) stepBase(.05);
-      r.inside = C.breached && g.n === 0 && Math.abs(g0 - garrison.hp - 20 * GA.troop) < 1e-6 && troopsWent >= 20;
+      const g0 = garrison.hp, n1 = g.n, w0 = troopsWent; let m = 0; while (m++ < 4000 && g.n > 0) stepBase(.05);
+      r.inside = C.breached && n1 > 0 && g.n === 0 && Math.abs(g0 - garrison.hp - n1 * GA.troop) < 1e-6 && troopsWent - w0 === n1;
       sh.el.remove(); return r; });
     check(lt.data && lt.landed && lt.dots && lt.drawn && lt.walkOk, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る。強化歩兵は丸ごと平行移動せず、一列で組ごとに交互に走る・伏せる（2026-10-18）', JSON.stringify(lt));
     check(lt.guard, 'フェブルアーリア防衛戦: 味方の強化歩兵は、まわり（砲台22・ゲート40）の共和国の強化歩兵を、歩いていても撃ち、少しだけ前へ出る（持ち場を大きく離れない。2026-10-18）', JSON.stringify(lt));
