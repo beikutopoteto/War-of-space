@@ -1074,7 +1074,7 @@ function check(ok, label, detail = '') {
         const byGate = mk(115), onFront = mk(60); enemyAI();   // off at the east edge, away from the rest: the one by the gates (z over FRONT_LINE) is nearer
         r.hunter = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
         [hn, byGate, onFront].forEach(f => { f.alive = false; f.el.remove(); }); }
-      r.drain = garrison.max === 2000 && Math.abs(gates[0].max - 16750) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
+      r.drain = garrison.max === 2000 && Math.abs(gates[0].max - op.base.shield * HP_K) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
       /* 2026-10-18: the panel shows the gates and the garrison only, and keeps them when folded */
       r.goalFold = (() => { goalEl.classList.add('fold'); const v = getComputedStyle(gx).display !== 'none', g = getComputedStyle(goalBar.parentNode).display === 'none' && getComputedStyle(goalText).display === 'none'; goalEl.classList.remove('fold'); return goalEl.classList.contains('gonly') && v && g; })();
@@ -1096,7 +1096,7 @@ function check(ok, label, detail = '') {
     check(f1.shieldPick && f1.wasPick && f1.gateWatch && f1.worn && f1.infHit, 'フェブルアーリア防衛戦: ほかに届く敵がいなければ、敵の艦も W.A.S. も近いゲートのシールドを撃つ。強化歩兵は W.A.S. を弱く撃ち、シールドが減ると点も減る（2026-10-16）', JSON.stringify(f1));
     check(f1.sealed && f1.drawOff && f1.lineOn && f1.notShot, 'フェブルアーリア防衛戦: 最後でないゲートが破られると中を爆破して塞ぎ、友軍の持ち場・敵の狙う先と押し込みの列の行き先が残りのゲートへ移る（2026-10-16、列は 2026-10-17 夜）', JSON.stringify(f1));
     check(f1.spread && f1.hunter, 'フェブルアーリア防衛戦: ゲートの輪の突撃揚陸艦は1点に集まらず、輪の中で散らばる。アルバレス隊は第7が中央ゲートへ、第8が前線で敵狩り（2026-10-18）', JSON.stringify(f1));
-    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲート16,750（2026-10-18）。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
+    check(f1.last && f1.drain && f1.goal && f1.goalFold && f1.lost, 'フェブルアーリア防衛戦: 最後のゲートのシールドが尽きると、そばの揚陸艦が積んだ W.A.S. を1機ずつ降ろし、W.A.S. だけが基地守備隊（耐久1000、1機で5）を削る。シールドは1ゲートのデータの値×耐久の倍率（2026-10-19 から倍率は第4節と同じ2）。0で負け。任務欄に3つのゲートと守備隊（2026-10-16、2026-10-17 夜）', JSON.stringify(f1));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
@@ -1256,6 +1256,16 @@ function check(ok, label, detail = '') {
       gun.alive = false; fleets.filter(f => f.pit && f.pit !== true).forEach(f => { f.alive = false; });
       g.lost = 0; g.went = 0; g.n0 = g.n = 20; for (let i = 0; i < 600; i++) stepBase(.05);
       r.wait = g.goal === C && C.inf > 20 && Math.hypot(g.pos.x - C.pos.x, g.pos.z - C.pos.z) >= DEF_R.gate && g.n > 0;   // out of its infantry's reach (2026-10-18: they draw back to it)
+      /* 2026-10-19 (user decision): the gate's infantry gone, they come on and wear its shield down as they do a gun */
+      { const lost0 = C.infLost; C.infLost = 1e6; const hpC = C.hp; let j = 0; while (j++ < 2000 && C.hp >= hpC) stepBase(.05);
+        r.gateHit = C.hp < hpC && C.inf === 0 && g.goal === C && g.n > 0; C.infLost = lost0; }
+      /* 2026-10-19 (user decision): our ships with no enemy ship in reach fire on the enemy's infantry; an ally with no enemy ship to go for
+         closes on the infantry within its leash of its post. op.base.troops.hp a man */
+      { const al = makeFleet(0, { name: '試験 友軍', sub: '', type: 'cl', n: 1, hp: 1e6, dmg: 0, eva: 0, range: 16, speed: 0, scale: 1, pos: [g.pos.x, g.pos.z + 30], alt: g.pos.y + 25, vis: 1, stl: 9, ally: true, leash: 60 });
+        fleets.push(al); allyAI(); const ordered = !!(al.order && al.order.target === g);
+        al.pos.set(g.pos.x, g.pos.y + 8, g.pos.z + 6); const ft = fireTargetOf(al), n0 = g.n; damage(g, 3 * (op.base.troops.hp ?? 10) * HP_K + 1e-6, al);
+        r.shipInf = { ordered, fire: ft === g, killed: n0 - g.n }; r.shipInfOk = ordered && ft === g && n0 - g.n === 3;
+        al.alive = false; al.el.remove(); fleets.splice(fleets.indexOf(al), 1); }
       const sh = makeFleet(1, { name: '試験 撃つ', sub: '', type: 'cl', n: 1, hp: 1, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [0, -300], alt: 0, vis: 1, stl: 9 });
       damage(W, W.hp + 1, sh); damage(E, E.hp + 1, sh); damage(C, C.hp + 1, sh); stepBase(.05);
       const g0 = garrison.hp, n1 = g.n, w0 = troopsWent; let m = 0; while (m++ < 4000 && g.n > 0) stepBase(.05);
@@ -1263,6 +1273,7 @@ function check(ok, label, detail = '') {
       sh.el.remove(); return r; });
     check(lt.data && lt.landed && lt.dots && lt.drawn && lt.walkOk, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る。強化歩兵は丸ごと平行移動せず、一列で組ごとに交互に走る・伏せる（2026-10-18）', JSON.stringify(lt));
     check(lt.guard, 'フェブルアーリア防衛戦: 味方の強化歩兵は、まわり（砲台22・ゲート40）の共和国の強化歩兵を、歩いていても撃ち、少しだけ前へ出る（持ち場を大きく離れない。2026-10-18）', JSON.stringify(lt));
+    check(lt.gateHit && lt.shipInfOk, 'フェブルアーリア防衛戦: 共和国の強化歩兵は、ゲートの強化歩兵がいなくなるとシールドを削る。味方の艦は射程に敵の艦がいないとき共和国の強化歩兵を撃ち、友軍は持ち場の範囲の歩兵へ寄る（2026-10-19）', JSON.stringify({ gateHit: lt.gateHit, shipInf: lt.shipInf }));
     check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を撃って壊す（撃つ光が出る。2026-10-18）。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
     await page.evaluate(() => { if (talking) endTalk(); if (!over) end(false, true); }); await page.waitForTimeout(300); await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing

@@ -94,13 +94,16 @@ function civHit(n,ours){ const C=op.civil; if(!C||over||!(n>0)) return; casualti
   if(ours&&!civFirst){ civFirst=true; if(C.firstLog) logEvent(...C.firstLog); }
   for(const L of C.logs||[]) if(casualties>=L[0]*C.cap&&!civMarks.has(L[0])){ civMarks.add(L[0]); logEvent(L[1],L[2]); }
   if(casualties>C.cap){ loseWhy='civil'; end(false); } }
-function randShip(u){ if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
+function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Math.min(u.n,u.dots.length))|0]||u.pos:u.pos;
+  if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
   if(!t.alive) return;
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
   /* a gate's shield (第5節): no evasion, no lives */
   if(t.kind==='gate'){ gateHit(t,amt); return; }
+  /* ship fire on the enemy's infantry on the rock (第5節, 2026-10-19): op.base.troops.hp a man (times the hit points multiplier) */
+  if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??10)*HP_K); t.n=Math.max(0,t.n0-Math.floor(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
   if(t.kind==='block'){ civHit(amt*(op.civil.perRaid||2),false); if(Math.random()<amt*.08) burst(t.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*5,(Math.random()-.5)*8)),HOT,10,6,1); return; }
   if(t.eva) amt*=1-t.eva;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
@@ -322,7 +325,7 @@ function fireTargetOf(f){
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
-  if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok)||(f.team===1&&gates.length?gateInReach(f):null); }
+  if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok)||(f.team===1&&gates.length?gateInReach(f):null)||(f.team===0&&!f.fixed?troopNear(f,f.range):null); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
@@ -781,6 +784,8 @@ function allyAI(){
     if(threat) f.waitAt=null;
     if(threat&&!threat.seen){ moveTo(f,threat.pos.x,threat.pos.y,threat.pos.z); continue; }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
+    /* 第5節 (2026-10-19, user decision): no enemy ship to go for, it closes on the enemy's infantry within its leash of its post */
+    else if(troops.length&&(f.aimInf=troopNear(f.post,f.leash??60))){ if(!(f.order&&f.order.target===f.aimInf)) order(f,{type:'attack',target:f.aimInf}); }
     /* hold:true (第4節): with every foe down (ships and batteries), it does not go back to its post (user decision 2026-10-10) but waits
        near a habitat block, outside the civilian zone, spread from the others (waitSpot; user decision 2026-10-13). That spot is its post
        till it fights again. With no blocks, it stops where it is */
@@ -958,6 +963,8 @@ function landSpot(f,g){
     f.landSpot={g,p:g.ring.clone().addScaledVector(_ls1,Math.cos(a)*r).addScaledVector(_ls2,Math.sin(a)*r).addScaledVector(g.up,((k%3)-1)*LAND_ALT)}; }
   return f.landSpot.p; }
 /* the nearest gate whose shield f can fire on now (within R, a clear line) */
+/* the group of the enemy's infantry nearest p (a unit, or a point) within R that our guns can see (第5節, 2026-10-19) */
+function troopNear(p,R){ const at=p.pos||p; let b=null,bd=R; for(const g of troops){ if(!(g.n>0)) continue; const d=at.distanceTo(g.pos); if(d<bd&&!bodyBlocks(at,g.pos)){ bd=d; b=g; } } return b; }
 function gateInReach(f,R=f.range){ let b=null,bd=R; for(const g of gates){ if(!g.alive) continue; const d=gap(f,g); if(d<=bd&&!bodyBlocks(f.pos,g.pos)){ bd=d; b=g; } } return b; }
 /* a hunting unit with nothing in sight: it stands off over the open gate nearest its watch point, inside its guns' reach of the shield */
 function gateWatch(f){ const list=gates.filter(g=>g.alive); if(!list.length) return false;
@@ -1085,7 +1092,7 @@ function holders(){ const H=[]; for(const f of fleets) if(f.pit&&f.pit!==true&&f
 const troopsIn=f=>Math.round(f.ships.length*(f.troops||0));
 function troopsOut(f,D){
   const n=troopsIn(f); if(n<=0) return;
-  const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], goal:null};
+  const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], goal:null, alive:true, seen:true, ships:[]};
   for(let t=0;t<Math.ceil(n/4);t++){ const a=Math.random()*Math.PI*2, r=1.5+Math.random()*4.5;
     for(let k=0;k<4;k++) g.offs.push([Math.cos(a)*r+(Math.random()-.5)*1.6,Math.sin(a)*r+(Math.random()-.5)*1.6]); }
   g.offs.length=n; troops.push(g); placeTroop(g);
@@ -1132,12 +1139,15 @@ function stepTroops(dt){
     /* the gun: they fire on it (the infantry's streaks and rockets, 2026-10-18: so it is seen that they are at it) and wear it down */
     if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g);
       infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
+    /* the gate still shut, its infantry gone (2026-10-19, user decision): they wear its shield down as they do a gun */
+    if(!goal.breached&&goal.alive){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g);
+      infFire({inf:{pts:g.dots}},g.n,goal.ring||goal.pos,dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
     /* the gate: in once it is the last and open */
     if(goal.breached&&garrison){ g.inAcc=(g.inAcc||0)+(T.enter??60)*dt*CLOCK_RATE/60; const k=Math.min(g.n,Math.floor(g.inAcc)); if(k>0){ g.inAcc-=k; g.went+=k; g.n-=k; troopsWent+=k;
       if(!garrison.saidTroop&&T.inLog){ garrison.saidTroop=true; logEvent(T.inLog[0],T.inLog[1].replace('{name}',goal.name)); }
       garrisonHit(k*(G.troop||2)); if(over) return; } }
   }
-  troops=troops.filter(g=>g.n>0);
+  troops=troops.filter(g=>g.n>0||(g.alive=false));
 }
 /* 第5節: the operation in stages (op.phases; user decision 2026-10-12: move to the place given and fight there, the enemy coming
    from many sides, the centre of the field moving each stage). Each stage {at (minutes), name, centre:[x,z], text, slide?, log?, scene?,
@@ -1321,7 +1331,8 @@ function autoAI(){
   if(op.base&&gates.length){ const open=openGates(), toGate=e=>open.length?Math.min(...open.map(g=>g.ring.distanceTo(e.pos))):1e9, ahead=ships.filter(e=>e.pos.z>-60);
     const landing=ships.filter(e=>(e.ai==='land'||e.ai==='drop'&&!e.unloaded)&&toGate(e)<AUTO_R.gate).sort((a,b)=>toGate(a)-toGate(b));
     const hot=fronts.filter(F=>!F.closed&&F.level>0).sort((a,b)=>b.level-a.level||b.prog-a.prog)[0], inHot=hot?ahead.filter(e=>e.pos.x>=hot.x[0]&&e.pos.x<hot.x[1]):[];
-    mine.forEach((f,i)=>{ const e=landing[0]||by(f,inHot,dist)||by(f,near(f.pos,AUTO_R.near,ahead),dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
+    const inf=troops.filter(g=>g.n>0&&toGate(g)<AUTO_R.gate);   // 2026-10-19: the enemy's infantry by an open gate, when there is nothing else
+    mine.forEach((f,i)=>{ const e=landing[0]||by(f,inHot,dist)||by(f,near(f.pos,AUTO_R.near,ahead),dist)||by(f,inf,dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
   /* the exercise: the fortress */
   if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
   mine.forEach((f,i)=>{ const e=by(f,ships,dist)||(fortress&&fortress.alive&&fortress.team===1?fortress:null); if(e) attack(f,e); else wait(f,fieldC,i); });
