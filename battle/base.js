@@ -242,7 +242,7 @@ function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
   P.az+=Math.sign(da)*Math.min(Math.abs(da),PIT_TURN*dt+Math.abs(da)*k*.2); P.el+=(el-P.el)*k;
   P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.yaw.position.y=pitLift(P.el); P.root.updateMatrixWorld(true);
   f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.1:.1,0,2.69); P.pitch.localToWorld(s.muzzle); });
-  P.inf.m.geometry.setDrawRange(0,f.inf); }
+  infLean(P.inf,f,dt); P.inf.m.geometry.setDrawRange(0,f.inf); }
 
 /* ---- building and changing the gates ---- */
 function gateDispose(o){ o.traverse(x=>{ if(x.userData.keep) return; if(x.geometry&&!GATE_RUBBLE.includes(x.geometry)) x.geometry.dispose(); if(x.material&&!GM_KEEP.has(x.material)) x.material.dispose(); }); }
@@ -270,7 +270,21 @@ function gateSet(L,state){
   g.add(gateMarker(L,state));
 }
 /* every frame (loop.js): the band shows the shield left, the lid its state, the dots the infantry left */
-function drawGate(G){ const L=G.look, k=G.max?Math.max(0,G.hp/G.max):0;
+/* our infantry leaning toward the enemy's they fire on (sim.js infAim; 2026-10-18, user: not going far from where they are): each dot
+   goes at most INF_LEAN from its place toward them, INF_GO a second, and back when there is none; set on the rock again every TM.reH */
+const INF_LEAN=3, INF_GO=1.5, _il=new THREE.Vector3();
+function infLean(I,H,dt){ if(!(dt>0)||!I||!I.pts.length) return;
+  if(!I.home) I.home=I.pts.map(p=>p.clone()), I.at=I.pts.map(p=>p.clone());
+  const A=H.infAim&&H.infAim.n>0?H.infAim:null; let moved=false;
+  if(A){ _il.set(A.pos.x-H.pos.x,0,A.pos.z-H.pos.z); const l=_il.length(); if(l>1e-3) _il.multiplyScalar(INF_LEAN/l); else _il.set(0,0,0); } else _il.set(0,0,0);
+  const pos=I.m.geometry.attributes.position;
+  I.pts.forEach((p,i)=>{ const h=I.home[i], tx=h.x+_il.x, tz=h.z+_il.z, ex=tx-p.x, ez=tz-p.z, d=Math.hypot(ex,ez); if(d<.02) return;
+    const s=Math.min(d,INF_GO*dt); p.x+=ex/d*s; p.z+=ez/d*s; moved=true;
+    if(Math.hypot(p.x-I.at[i].x,p.z-I.at[i].z)>TM.reH){ p.y=rockAt(p.x,p.z).y+.3; I.at[i].copy(p); }
+    pos.setXYZ(i,p.x,p.y,p.z); });
+  if(moved) pos.needsUpdate=true; }
+function drawGate(G,dt=0){ const L=G.look, k=G.max?Math.max(0,G.hp/G.max):0;
+  if(!G.sealed) infLean(L.inf,G,dt);
   gateSet(L,G.sealed?'sealed':k<=GATE_AMBER?'dmg':'ok');
   if(L.lit){ const n=GATE_BAND.length, seg=k>=.999?n:k>0?Math.max(2,Math.round(n*k)):0;
     if(L.shown!==seg){ L.shown=seg; L.lit.geometry.setDrawRange(0,seg*6); L.dim.visible=seg<n; L.lit.material.opacity=seg>=n?.6:.75;

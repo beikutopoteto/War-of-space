@@ -84,7 +84,7 @@ function frame(now){
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBeams(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
-  for(const g of gates) drawGate(g);   // 第5節: the gates' bands, lids and infantry (base.js)
+  for(const g of gates) drawGate(g,dt>0?dt:0);   // 第5節: the gates' bands, lids and infantry (base.js)
   for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;

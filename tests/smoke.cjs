@@ -1240,6 +1240,13 @@ function check(ok, label, detail = '') {
         const dv = g.dots.map((p, i) => p.x - p0[i].x), mean = dv.reduce((a, v) => a + v, 0) / dv.length, sd = Math.sqrt(dv.reduce((a, v) => a + (v - mean) ** 2, 0) / dv.length);
         const moved = g.dots.reduce((a, p, i) => a + Math.hypot(p.x - p0[i].x, p.z - p0[i].z), 0) / g.dots.length;   // they fall in behind one another: not all the same way
         r.walk = { moved: +moved.toFixed(2), sd: +sd.toFixed(2) }; r.walkOk = moved > .5 && sd > .3 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 3); g.pos.copy(c0); }
+      /* 2026-10-18 (user: our infantry guard the guns, the enemy on the move or not, not going far): ours round another gun fire on a group
+         passing within its reach that is not at them yet, and lean a little toward it */
+      { const gun2 = fleets.filter(f => f.pit && f.pit !== true && f.alive && f !== gun && hxz(f.pos, g.pos) > 60)[0], p = rockAt(gun2.pos.x + 18, gun2.pos.z);
+        troopsOut({ ships: [1], troops: 12, name: '試験 通り' }, { p, gate: C }); const h = troops[troops.length - 1], d0 = gun2.pit.inf.pts[0].clone();
+        for (let i = 0; i < 10; i++) { stepBase(.05); infLean(gun2.pit.inf, gun2, .05); }
+        r.guard = h.lost > 0 && h.foe !== gun2 && gun2.infAim === h && gun2.pit.inf.pts[0].distanceTo(d0) > 0 && gun2.pit.inf.pts[0].distanceTo(gun2.pit.inf.home[0]) <= 3.01;
+        troops.splice(troops.indexOf(h), 1); }
       drawTroops(); r.drawn = tpGeo.drawRange.count === troops.reduce((s, x) => s + Math.min(x.n, x.dots.length), 0) && tpPts.material.color.getHex() === TEAM_COL[1].getHex();
       /* theirs and ours at the gun: both lose men; with ours gone they wear the gun down */
       const inf0 = gun.inf, hp0 = gun.hpPool; let k = 0; while (k++ < 4000 && gun.inf > 0) stepBase(.05);
@@ -1255,6 +1262,7 @@ function check(ok, label, detail = '') {
       r.inside = C.breached && g.n === 0 && Math.abs(g0 - garrison.hp - 20 * GA.troop) < 1e-6 && troopsWent >= 20;
       sh.el.remove(); return r; });
     check(lt.data && lt.landed && lt.dots && lt.drawn && lt.walkOk, 'フェブルアーリア防衛戦: 揚陸艇（共和国だけの新しい艦種）は砲台のそばの岩に降りて強化歩兵（赤い点）を降ろし、北へ帰る。強化歩兵は丸ごと平行移動せず、一列で組ごとに交互に走る・伏せる（2026-10-18）', JSON.stringify(lt));
+    check(lt.guard, 'フェブルアーリア防衛戦: 味方の強化歩兵は、まわり（砲台22・ゲート40）の共和国の強化歩兵を、歩いていても撃ち、少しだけ前へ出る（持ち場を大きく離れない。2026-10-18）', JSON.stringify(lt));
     check(lt.fight && lt.gunHit && lt.wait && lt.inside, 'フェブルアーリア防衛戦: 共和国の強化歩兵は砲台の強化歩兵と撃ち合い、いなくなると砲台を撃って壊す（撃つ光が出る。2026-10-18）。守りの多いゲートの手前で待ち、最後のゲートが開くと中へ入って守備隊を削る（2026-10-18）', JSON.stringify(lt));
     await page.evaluate(() => { if (talking) endTalk(); if (!over) end(false, true); }); await page.waitForTimeout(300); await page.click('#toMenu');
     /* balance (user decision 2026-10-13): both sides' hit points ×2 when the battle is built (op.hpScale overrides it: 第2節 ×1.5), and doing
