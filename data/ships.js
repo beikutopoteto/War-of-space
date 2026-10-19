@@ -3,6 +3,7 @@
 window.WOS_DATA=window.WOS_DATA||{};
 
 /* 艦種。能力値は1〜10。研究をすべて終えた最終形態の値で、自分で編成した艦隊は最初その3割（data/tech.js）。
+   突撃揚陸艦の防御2.44: 2026-10-19（ユーザー決定）に、艦種ごとの耐久の倍率0.7（前の WOS_DATA.classHp）を地の値に入れた（防御4・耐久26 → 2.44・18.2。耐久は 6＋防御×5）
    aa: 対空照準。艦砲が艦載機と W.A.S. に与える打撃に効く（下の WOS_DATA.aa）
    id: 保存データと編成ボーナスが使う名前（変えると古い保存データが読めなくなる）
    max: 1つの支隊（戦闘団）に入れられる最大隻数　scale: 戦闘画面での艦の大きさ
@@ -14,7 +15,7 @@ WOS_DATA.ships=[
   {id:'cl',   name:'巡洋艦',   atk:6, def:6, eva:4, rng:6, vis:6, stl:4, aa:6, spd:5,  max:6,  scale:1.2, note:'攻守の均衡した主力艦'},
   {id:'bb',   name:'戦艦',    atk:9, def:9, eva:2, rng:8, vis:5, stl:2, aa:4, spd:3,  max:4,  scale:1.7, note:'長射程の主砲を持つ決戦艦'},
   {id:'cvb',  name:'戦闘母艦',  atk:4, def:5, eva:3, rng:4, vis:7, stl:3, aa:6, spd:4,  max:3,  scale:1.6, hangar:{ftr:40}, note:'艦載機（W.A.S.ではない）を発進させ、遠くの敵を叩く'},
-  {id:'mas',  name:'突撃揚陸艦', atk:5, def:4, eva:5, rng:2, vis:5, stl:7, aa:3, spd:6,  max:6,  scale:.9,  hangar:{was:10}, note:'W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる'},
+  {id:'mas',  name:'突撃揚陸艦', atk:5, def:2.44, eva:5, rng:2, vis:5, stl:7, aa:3, spd:6,  max:6,  scale:.9,  hangar:{was:10}, note:'W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる'},
   {id:'masc', name:'強襲母艦',  atk:4, def:5, eva:2, rng:3, vis:6, stl:3, aa:4, spd:4,  max:3,  scale:1.6, hangar:{was:30,ftr:10}, note:'W.A.S.が主力。艦載機も少し出せる'},
 ];
 
@@ -44,10 +45,6 @@ WOS_DATA.unitNames={
     /* 揚陸艇（2026-10-18。共和国だけの艦種で、上の艦種の表 WOS_DATA.ships には入れない。名前は仮） */
     lc:  [[3,'軌道降下'], [12,'降下揚陸'], [31,'強行揚陸']]},
 };
-
-/* 艦種ごとの耐久の倍率（ユーザー決定 2026-10-18: 敵味方関係なく、揚陸艦（突撃揚陸艦）と揚陸艇の耐久を今の0.7倍に。全部の作戦。
-   自軍の編成の艦も、作戦データの敵・友軍も、戦闘で艦隊を作るときに掛ける。いくつもの艦種の隊は隻数で平均。battle/state.js の classHpK） */
-WOS_DATA.classHp={mas:.7, lc:.7};
 
 /* 対空照準の効き目（仮）: 艦や要塞の砲が小型機に与える打撃 = 打撃 ×（1 − 小型機の eva）× per × 撃つ側の aa。
    aa を書いていない艦隊（決まった艦隊、敵、要塞）は std。std の艦が今の対空の基準（艦載機 0.375、W.A.S. 0.275） */

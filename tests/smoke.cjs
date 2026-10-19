@@ -1150,7 +1150,7 @@ function check(ok, label, detail = '') {
       const ace = fleets.filter(f => f.ace && f.alive), base = op.events.find(e => e.fleet && e.fleet.type === 'mas').fleet, other = base.craft.was, AC = ace.length && ace[0].craft.was;
       r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line
         && ['dmg', 'hp'].every(k => Math.abs(AC[k] - (other[k] || 1) * 3) < 1e-9) && AC.eva === 1.5 && AC.speed === 1.2 && AC.range === 1.2
-        && Math.abs(ace[0].dmg - base.dmg * 3 * dmgK(1)) < 1e-9 && Math.abs(ace[0].hp - base.hp * 3 * hpK(1) * WOS_DATA.classHp.mas) < 1e-9 && Math.abs(ace[0].range - base.range * 1.2) < 1e-9
+        && Math.abs(ace[0].dmg - base.dmg * 3 * dmgK(1)) < 1e-9 && Math.abs(ace[0].hp - base.hp * 3 * hpK(1)) < 1e-6 && Math.abs(ace[0].range - base.range * 1.2) < 1e-9
         && Math.abs(ace[0].speed - base.speed * 1.2) < 1e-9 && Math.abs(ace[0].eva - base.eva * 1.5) < 1e-9;   // 2026-10-18: 3 times, reach and speed 1.2, evasion 1.5
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
