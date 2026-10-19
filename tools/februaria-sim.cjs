@@ -3,7 +3,7 @@
    b: 駐屯隊は何もしない（友軍と砲台だけで持つか。負けてよい）
    s: 駐屯隊は基地の真ん中の前に居続け、近づく揚陸艦と近くの敵を叩く
    q: 即応（2026-10-16 の案内どおりの遊び方）。ゲートの輪に近い揚陸艦から叩き、いなければ通信で押されている方面（いちばん段階の高い方面）の敵を叩き、
-      どこも押されていなければ真ん中の前で待つ
+      どこも押されていなければ真ん中の前で待つ。2026-10-19 から、デバッグのオートモードそのもの（battle/sim.js の autoAI。auto と書いても同じ）で動かす
    2026-10-16: 三方面の押し合いに作り直した。行の読み方: 時刻 段階 sunk=主力の撃沈の割合 gate=西/中央/東のシールドの残り%（S 塞いだ / B 最後のゲートが破られた）
    gar=基地守備隊の耐久 cap=敵がまだ入れられる量（W.A.S.×was＋強化歩兵×troop。括弧は W.A.S. の機数と強化歩兵の人数。2026-10-18） tp=岩の上の共和国の強化歩兵 bt=鳴っている砲台（西/真ん中/東） pr=列の進み%（西/真上/東。h はこちらが数で勝って止まっている） fr=押されている段階（西/真上/東。x は閉じた方面）
    en=敵の隻数（西/真上/東/北） al=友軍の隻数（西/真上/東） me=駐屯隊の隻数（西/真上/東/北）。
@@ -51,6 +51,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
       log.push(`${clockStr()} ${phaseName} sunk=${Math.round(mainSunk()*100)}% gate=${gateStr()} gar=${garrison?Math.round(garrison.hp):'-'} cap=${capNow()}(${wasLeft()}w/${troopsLeft()}t) tp=${troops.reduce((s,g)=>s+g.n,0)} bt=${bt} pr=${pr} fr=${fr} en=${en.W}/${en.C}/${en.E}/${en.N} al=${al.W}/${al.C}/${al.E} me=${me.W}/${me.C}/${me.E}/${me.N} ${t}`); };
     L('start '+mine().length+'隊 '+mine().reduce((s,f)=>s+f.ships.length,0)+'隻');
     const anchor=new THREE.Vector3(0,0,125);
+    if(strat==='q'||strat==='auto') autoMode=true;   // 2026-10-19: the quick response is the debug auto mode itself (sim.js autoAI), so the two stay the same
     let n=0, retreatAt='', surgeAt=''; const gateAt={};
     while(!over&&n++<60000){ step(.05);
       for(const g of gates) if((g.sealed||g.breached)&&!gateAt[g.name]){ gateAt[g.name]=`${clockStr()}${g.sealed?'塞いだ':'破られた（最後）'}`; L(`${g.name} ${g.sealed?'sealed':'breached'}`); }
@@ -64,9 +65,6 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
       const attack=(f,e)=>{ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); };
       const wait=f=>{ if(f.pos.distanceTo(anchor)>10&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:anchor.clone()}); };
       if(strat==='s') mine().forEach(f=>{ const e=near(f,land.filter(e=>e.pos.distanceTo(anchor)<130))||near(f,en.filter(e=>e.pos.distanceTo(anchor)<100)); e?attack(f,e):wait(f); });
-      if(strat==='q'){ const urgent=land.map(e=>({e,d:Math.min(...openGates().map(g=>g.ring.distanceTo(e.pos)))})).filter(x=>x.d<140).sort((a,b)=>a.d-b.d).map(x=>x.e);
-        const hot=fronts.filter(F=>!F.closed&&F.level>0).sort((a,b)=>b.level-a.level||b.prog-a.prog)[0], inHot=e=>hot&&e.pos.z>-60&&e.pos.x>=hot.x[0]&&e.pos.x<hot.x[1];
-        mine().forEach(f=>{ const e=urgent[0]||near(f,en.filter(inHot))||near(f,en.filter(e=>e.pos.distanceTo(f.pos)<70&&e.pos.z>-60)); e?attack(f,e):wait(f); }); }
       if(n%200===0) L();
     }
     L('end'); const tot=Object.values(dmgBy).reduce((a,b)=>a+b,0)||1;
