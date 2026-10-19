@@ -27,7 +27,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
     if(army){ const base=own(); let total=base.reduce((s,f)=>s+f.n,0), k=0;
       while(base.length&&total+base[k%base.length].n<=army){
         const f=base[k%base.length], o={}; for(const key of ['sub','type','comp','n','dmg','eva','range','speed','scale','vis','stl','hangar','craft','aa']) if(f[key]!=null) o[key]=f[key];
-        o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/hpK(0)/classHpK(f); o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
+        o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/hpK(0); o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
         fleets.push(makeFleet(0,o)); total+=f.n; k++; }
       buildRoster(); updateRoster(); }
     const cat=s=>s.inf===true?'inf':s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;
