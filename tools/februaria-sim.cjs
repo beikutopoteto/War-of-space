@@ -5,7 +5,7 @@
    q: 即応（2026-10-16 の案内どおりの遊び方）。ゲートの輪に近い揚陸艦から叩き、いなければ通信で押されている方面（いちばん段階の高い方面）の敵を叩き、
       どこも押されていなければ真ん中の前で待つ。2026-10-19 から、デバッグのオートモードそのもの（battle/sim.js の autoAI。auto と書いても同じ）で動かす
    2026-10-16: 三方面の押し合いに作り直した。行の読み方: 時刻 段階 sunk=主力の撃沈の割合 gate=西/中央/東のシールドの残り%（S 塞いだ / B 最後のゲートが破られた）
-   gar=基地守備隊の耐久 cap=敵がまだ入れられる量（W.A.S.×was＋強化歩兵×troop。括弧は W.A.S. の機数と強化歩兵の人数。2026-10-18） tp=岩の上の共和国の強化歩兵 bt=鳴っている砲台（西/真ん中/東） pr=列の進み%（西/真上/東。h はこちらが数で勝って止まっている） fr=押されている段階（西/真上/東。x は閉じた方面）
+   gar=基地守備隊の耐久 cap=敵がまだ入れられる量（W.A.S.×was＋強化歩兵×troop。括弧は W.A.S. の機数と強化歩兵の点の数（2026-10-20 から1点＝1個中隊）。2026-10-18） tp=岩の上の共和国の強化歩兵 bt=鳴っている砲台（西/真ん中/東） pr=列の進み%（西/真上/東。h はこちらが数で勝って止まっている） fr=押されている段階（西/真上/東。x は閉じた方面）
    en=敵の隻数（西/真上/東/北） al=友軍の隻数（西/真上/東） me=駐屯隊の隻数（西/真上/東/北） id=友軍の棒立ちの隊/隊の数（西/中/東。2026-10-20）。
    最後に勝ち負け「over outcome loseWhy repelBy」、ゲートが破られた時刻、守備隊の耐久、総攻撃と退却の時刻、
    敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台 / inf 強化歩兵。艦載機はその母艦に数える。2026-10-14）、
@@ -90,7 +90,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
       gates:gates.map(g=>`${g.name} ${gateAt[g.name]||Math.round(100*g.hp/g.max)+'%'}`).join('・'), gar:garrison?`${Math.ceil(garrison.hp)}/${garrison.max}`:'-', clock:clockStr(),
       idle:Math.round(100*idle/Math.max(1,samples)), ...Object.fromEntries([['still',still],['hitStill',hitStill]].map(([key,S])=>[key,['pre','surge','seal1','last'].filter(k=>S[k]).map(k=>`${k} `+R3.map(r=>{ const [a,b]=S[k][r]; return `${r}${b?Math.round(100*a/b):'-'}%`; }).join('/')).join('　')+'　全体 '+R3.map(r=>{ let a=0,b=0; for(const k in S){ a+=S[k][r][0]; b+=S[k][r][1]; } return `${r}${b?Math.round(100*a/b):'-'}%`; }).join('/')])), avgOn:Math.round(onSum/Math.max(1,samples)), maxOn,
       tg:JSON.stringify(troops.map(g=>[Math.round(g.pos.x),Math.round(g.pos.z),g.n,g.goal&&g.goal.name,troopFoe(g)&&troopFoe(g).name])),
-      tp:`揚陸艇 ${fleets.filter(f=>f.team===1&&f.type==='lc').map(f=>`${f.name.replace(/ 降下揚陸 エスカドラ/,'')}${f.unloaded?'降':''}${f.alive||f.left?'':'x'}`).join(' ')}　降りた強化歩兵 ${landed}人・岩の上に残り ${troops.reduce((s,g)=>s+g.n,0)}人・中へ入った ${troopsWent}人`,
+      tp:`揚陸艇 ${fleets.filter(f=>f.team===1&&f.type==='lc').map(f=>`${f.name.replace(/ 降下揚陸 エスカドラ/,'')}${f.unloaded?'降':''}${f.alive||f.left?'':'x'}`).join(' ')}　降りた強化歩兵 ${landed}点・岩の上に残り ${troops.reduce((s,g)=>s+g.n,0)}点・中へ入った ${troopsWent}点`,
       drops:fleets.filter(f=>f.team===1&&f.type==='mas').map(f=>`${f.name.replace(/ 局地強襲 エスカドラ/,'')}→${(f.drop||'?').replace('ゲート','')}${f.alive?'':'x'}`).join(' ')};
   }, {strat, army:+(opt.army||0)});
   console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, r.repelBy, r.clock, errors.slice(0, 3));
