@@ -1156,16 +1156,16 @@ function check(ok, label, detail = '') {
       const r = { given: early && surged && phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === SG.events.find(e => e.given).given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
         wong: Math.hypot(w.post.x + 30, w.post.z - 120) < 1, surgeAt: SG.share === .3 && SG.at === 450,
         lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
-      /* 2026-10-20 (user decision): the Bureau's ships are 1.25 times the stage's Republic values; their W.A.S. only hit 3 times as hard */
+      /* 2026-10-20 (user decision): the Bureau's fleets are 1.25 times the stage's Republic values (ships and W.A.S.), their W.A.S. hitting 3 times as hard */
       const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
       r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line
-        && near(AC.hp, PC.hp) && near(AC.eva, PC.eva) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed == null && AC.range == null
+        && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
         && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
         && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
       ace[0].hangars[0].next = 0; ace[0].hangars[0].squads.forEach(q => { q.ready = 0; }); const w0 = wings.length; launchCheck(ace[0]); const aw = wings[wings.length - 1];
-      r.aceWas = wings.length > w0 && Math.abs(aw.speed - WING.was.speed) < 1e-9 && Math.abs(aw.range - WING.was.range) < 1e-9; t0.alive = false; t0.el.remove(); e1.el.remove();
+      r.aceWas = wings.length > w0 && Math.abs(aw.speed - WING.was.speed * A.ship) < 1e-9 && Math.abs(aw.range - WING.was.range * A.ship) < 1e-9; t0.alive = false; t0.el.remove(); e1.el.remove();
       /* Oliveira's unit, badly hurt, gives ground (retreat) */
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.ships.splice(0, am.ships.length - 1); allyAI(); r.amzBack = !!am.falling && am.post.distanceTo(am.fallTo) < 1;
       /* 2026-10-14: a unit hurt below fallBack (7割) of its ships withdraws into the clouds; its ships left are not counted as sunk, and a later

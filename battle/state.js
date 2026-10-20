@@ -57,11 +57,10 @@ function techFleet(team,o){
   const tot=Object.values(by).reduce((a,b)=>a+b,0)||1, st={atk:0,def:0,eva:0,rng:0,spd:99};
   Object.entries(by).forEach(([t,c])=>{ const M=side==='mars'&&SIDES.mars.ships[t], s=M||CLASS_MAX[t], r=techRate(M?'mars':'earth',p);
     ['atk','def','eva','rng'].forEach(k=>st[k]+=s[k]*r*c/tot); st.spd=Math.min(st.spd,s.spd); });
-  /* the Advanced Equipment Development Bureau's fleets (ace): the ships k times the stage's values; their W.A.S. only hit wasDmg times as hard
-     (user decision 2026-10-20: the W.A.S. are otherwise the stage's own) */
+  /* the Advanced Equipment Development Bureau's fleets (ace): k times the stage's values, their W.A.S. hitting wasDmg times as hard */
   const A=o.ace&&SIDES.mars.ace, k=A?A.ship:1, r=techRate(side,p), craft={};
   Object.keys(o.hangar||{}).forEach(c=>{ const W=WING[c], F={...W,...(side==='mars'&&SIDES.mars.crafts[c]||{})};
-    craft[c]={hp:F.hp/W.hp*r, dmg:F.dmg/W.dmg*r*(A&&c==='was'?A.wasDmg:1), eva:F.eva/W.eva*r}; });
+    craft[c]={hp:F.hp/W.hp*r*k, dmg:F.dmg/W.dmg*r*(A&&c==='was'?A.wasDmg:k), eva:F.eva/W.eva*r*k, ...(A?{speed:k, range:k}:{})}; });
   return {hp:(6+st.def*5)*k, dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft};
 }
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
