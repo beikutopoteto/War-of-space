@@ -642,7 +642,7 @@ function pickFoe(f,foes,hunt){
   else if(f.ally&&foes.length>1){ const force=allyForce(), sh=new Map(foes.map(p=>[p,shareOn(p,f,force)])), lo=Math.min(...sh.values());
     foes=foes.filter(p=>sh.get(p)<=Math.max(ALLY_SHARE_MAX,lo+1e-9)); }
   for(const p of foes){
-    const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*jitOf(f,p);
+    const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*(f.gateFirst&&gateBound(p)?GATE_FIRST:1)*jitOf(f,p);
     if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
   return cur&&cs*PICK_KEEP<=bs?cur:best;
 }
@@ -780,7 +780,8 @@ function allyAI(){
       else if(R.heldLog&&!f.heldSaid&&R.heldIf&&fleets.some(e=>e.team===1&&e.name===R.heldIf&&!e.alive)){ f.heldSaid=true; logEvent(...R.heldLog); } }
     /* which foe: shared out among the allies like the enemy does it (pickFoe), within its leash of its post (f.aim: what it goes for,
        counted in the share-out even before it can see it). A battery it cannot see yet: it closes on its known place, and attacks it once seen */
-    const threat=pickFoe(f,foes,false); f.aim=threat;
+    /* stack (第5節の総攻撃の戦艦, 2026-10-20): not a foe that `stack` other allies already go for */
+    const threat=pickFoe(f,f.stack?foes.filter(p=>{ let n=0; for(const x of fleets) if(x!==f&&x.ally&&x.alive&&!x.fixed&&(x.aim===p||x.order&&x.order.target===p)) n++; return n<f.stack; }):foes,false); f.aim=threat;
     if(threat) f.waitAt=null;
     if(threat&&!threat.seen){ moveTo(f,threat.pos.x,threat.pos.y,threat.pos.z); continue; }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
@@ -988,6 +989,7 @@ function sealGate(g){ const B=op.base; g.sealed=true; g.inf=0; g.boomT=2.2; draw
       if(near(f.pressGoal)){ const t=to(f.pressGoal); move(f.pressGoal,t); move(f.post,t); if(f.order&&f.order.type==='move') f.order=null; }
       else if(f.post&&near(f.post)){ move(f.post,to(f.post)); if(f.order&&f.order.type==='move') f.order=null; }
       continue; }
+    if(f.ally&&!f.fixed&&f.stack){ if(gateNear(f.post)===g){ frontPost(f); f.aim=null; f.order=null; } continue; }   // the battleships' line (2026-10-20)
     if(f.ally&&!f.fixed&&near(f.home||f.post)){ const t=to(f.post); move(f.post,t); if(f.home) move(f.home,t); if(f.fallTo) move(f.fallTo,t); f.aim=null; f.order=null; } }
   /* the stage's place on this gate (第5節 in stages): the field slides to the gate left */
   if(stageGate===g){ const t=to(fieldC); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(fieldC.x+t.pos.x-g.pos.x,0,fieldC.z+t.pos.z-g.pos.z); slideT=0; slideDur=4;
@@ -995,6 +997,20 @@ function sealGate(g){ const B=op.base; g.sealed=true; g.inf=0; g.boomT=2.2; draw
     const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
     if(B.moveLog) logEvent(B.moveLog[0],B.moveLog[1].replace('{name}',t.name)); }
 }
+/* the battleships' line in the all-out attack (第5節, user decision 2026-10-20: Wong's and every unit with battleships on the line go forward,
+   push the line up and meet what makes for the shields; no more than two units to one place). An ally with `stack` keeps its post on the
+   front of the gate nearest it; that gate sealed, the post goes across to the front of the gate left (same distance north). If `stack` or more
+   other allies already have their posts within STACK_R of it, it goes on to the next place, STACK_STEP to one side and then the other.
+   It does not go for a foe that `stack` or more other allies already go for (allyAI), and one that makes for a gate (gateFirst) counts as
+   GATE_FIRST as far (pickFoe). 数値は仮 */
+const STACK_R=15, STACK_STEP=20, GATE_FIRST=.6;
+function postsNear(p,f){ let n=0; for(const x of fleets) if(x!==f&&x.ally&&x.alive&&!x.fixed&&Math.hypot(x.post.x-p.x,x.post.z-p.z)<STACK_R) n++; return n; }
+function frontPost(f){ const g=gateNear(f.post);
+  if(g&&g.sealed){ const t=gateNear(f.post,openGates()); if(t){ f.post.x+=t.pos.x-g.pos.x; f.home.copy(f.post); } }
+  const k=f.stack||2; if(postsNear(f.post,f)<k) return;
+  const p=f.post.clone(), q=p.clone();
+  for(let i=1;i<=12;i++) for(const s of [1,-1]){ q.copy(p); q.x+=s*i*STACK_STEP; if(postsNear(q,f)<k){ f.post.copy(q); f.home.copy(q); return; } } }
+function gateBound(p){ return p.team===1&&(p.ai==='land'||p.ai==='drop'&&!p.unloaded); }
 /* after an ally's post is moved by an event (shift): not onto a sealed gate */
 function postOffSealed(f){ const g=gateNear(f.post); if(!g||!g.sealed||Math.hypot(f.post.x-g.pos.x,f.post.z-g.pos.z)>=GATE_AREA) return; const t=gateNear(f.post,openGates()); if(!t) return;
   f.post.x+=t.pos.x-g.pos.x; f.post.z+=t.pos.z-g.pos.z; }
@@ -1415,7 +1431,9 @@ function step(dt){
     const dp=E.ai&&E.ai.drops?weakDrop(E.ai.drops):null;
     if(E.ai&&E.ai.log&&fleets.some(f=>f.alive&&E.ai.fleets.includes(f.name))) logEvent(E.ai.log[0],E.ai.log[1].replace('{drop}',dp?dp.name:''));   // said only if one of them is still there
     if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)&&!(f.fellBack&&E.ai.ai!=='withdraw')){ if(dp){ if(E.ai.ai==='land'||E.ai.ai==='drop'){ f.drop=dp.name; f.dropAt=null; } else f.watchPos=new THREE.Vector3(dp.pos.x,0,dp.pos.z); }
-      if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); } }
+      if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); }
+        /* post:[x,z,alt] / stack / gateFirst (第5節の総攻撃、2026-10-20): the battleships' posts on the line, no more than `stack` to a place (frontPost) */
+        if(E.ai.post){ const P=E.ai.post; f.post.set(P[0],P[2]??f.post.y,P[1]); f.home.copy(f.post); if(E.ai.stack) f.stack=E.ai.stack; if(E.ai.gateFirst) f.gateFirst=true; if(gates.length) frontPost(f); } }
       else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; if(gates.length) watchOffSealed(f); } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.text!=null) stageText=E.text;   // the goal panel's line (第5節: an operation without stages)

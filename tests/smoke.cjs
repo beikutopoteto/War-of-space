@@ -742,7 +742,7 @@ function check(ok, label, detail = '') {
     check(n1.falling && n1.moved > 1 && n1.rear, 'ナイル防衛線: ドナウ残存隊は隻数が3分の2を切ると後ろへ下がっていく', JSON.stringify(n1));
     check(n1.siege && n1.was, 'ナイル防衛線: 攻城の敵はステーションへ向かい、敵の W.A.S. はステーションを狙える', JSON.stringify(n1));
     check(n1.stationFtr, 'ナイル防衛線: ステーションは艦載機を持ち、近づいた敵へ出す', JSON.stringify(n1));
-    check(n1.split.e1 + n1.split.e2 === 3 && Math.max(n1.split.e1, n1.split.e2) <= 2 && n1.spread.all && n1.spread.room > 0 && n1.spread.leash && n1.spread.pincer === 3 && n1.spread.height > 6,
+    check(n1.split.e1 + n1.split.e2 === 3 && Math.max(n1.split.e1, n1.split.e2) <= 2 && n1.spread.all && n1.spread.room > 0 && n1.spread.leash && n1.spread.pincer === 3 && n1.spread.height > 4,   // 2026-10-20: 6 → 4. The heights come out about 6.0±0.2 (3rd unit stops about 5 short of its spot), so 6 failed by chance
       '友軍: 並んだ3隊は、味方の3割より多くがもう狙っている敵を避けて2つの敵に分かれる。敵が1つなら全隊でそれを狙い、90度より離れた3つの向きから、高さを変え、間を空けて挟む（持ち場の leash の中）', JSON.stringify(n1.split) + JSON.stringify(n1.spread));
     await page.evaluate(() => { while (gameSec < 22 && !over) step(.05); });
     await page.waitForTimeout(500);
@@ -1154,11 +1154,15 @@ function check(ok, label, detail = '') {
       gameSec = SG.at / CLOCK_RATE; step(.05); gameSec = (SG.at + 1.02) / CLOCK_RATE; step(.05);
       const mine = fleets.filter(f => f.team === 0 && !f.ward), ff = mine[mine.length - 1], w = fleets.find(f => f.name === '第1 主力戦艦 打撃群');
       const r = { given: early && surged && phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === SG.events.find(e => e.given).given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
-        wong: Math.hypot(w.post.x + 30, w.post.z - 120) < 1, surgeAt: SG.share === .3 && SG.at === 450,
+        wong: Math.hypot(w.post.x + 40, w.post.z + 57) < 1, surgeAt: SG.share === .3 && SG.at === 450,
         lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
+      /* 2026-10-20 (user decision): Wong's four and every unit with battleships on the line take posts on the front of the line, no more than two to a place */
+      { const bb = fleets.filter(f => f.ally && !f.fixed && f.stack), crowd = f => fleets.filter(x => x !== f && x.ally && x.alive && !x.fixed && Math.hypot(x.post.x - f.post.x, x.post.z - f.post.z) < STACK_R).length;
+        const want = fleets.filter(f => f.ally && !f.fixed && (f.type === 'bb' || f.comp && f.comp.bb));
+        r.bbLine = bb.length === 8 && want.length === 8 && want.every(f => bb.includes(f)) && bb.every(f => f.post.z < 0 && f.stack === 2 && f.gateFirst && crowd(f) < 2); }
       /* 2026-10-20 (user decision): the Bureau's fleets are 1.25 times the stage's Republic values (ships and W.A.S.), their W.A.S. hitting 3 times as hard */
       const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
-      r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line
+      r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 80)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line (2026-10-20: 80 W.A.S. each)
         && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
         && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
         && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
@@ -1190,7 +1194,29 @@ function check(ok, label, detail = '') {
       const sl = fleets.find(f => f.name === '試験 揚陸'); r.spawnDrop = sl.drop === '中央ゲート' && said.includes('揚陸艦中央ゲート'); sl.alive = false; sl.el.remove();
       ours.forEach((f, i) => f.pos.copy(keep[i])); rs.alive = false; rs.el.remove();
       gameSec = op.win.until / CLOCK_RATE; step(.05); return { ...r, over, outcome, by: repelBy, share: op.win.share }; });
-    check(f2.given && f2.wong && f2.amzBack && f2.surgeAt && f2.lines, 'フェブルアーリア防衛戦: 総攻撃（13:30 か本隊の3割）で列が全部前へ出る。工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の戦艦が中央の前へ出る。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
+    check(f2.given && f2.wong && f2.amzBack && f2.surgeAt && f2.lines && f2.bbLine, 'フェブルアーリア防衛戦: 総攻撃（13:30 か本隊の3割）で列が全部前へ出る。工廠のフリゲートが自軍の一覧の最後に加わり、ウォン中将の4隊と戦線の戦艦の隊が戦線の前へ出る（1か所に2隊まで。2026-10-20）。アマゾン残存隊は損害が大きいと下がる', JSON.stringify(f2));
+    /* 2026-10-20 (user decision): the battleships' line (stack:2): a third onto one place goes on to the next; no foe with two others already on it;
+       what makes for a gate is met first (gateFirst); the post follows the line to the gate left when the gate in front of it is sealed */
+    const sk = await page.evaluate(() => {
+      const keep = fleets.splice(0, fleets.length), r = {};
+      const ally = (name, x, z, o) => { const f = makeFleet(0, { name, sub: '', type: 'bb', n: 1, hp: 1e5, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [x, z], alt: 0, vis: 6, stl: 3, ally: true, leash: 40, ...o }); f.ward = true; f.mode = 'guard'; fleets.push(f); return f; };
+      const foe = (name, x, z, ai) => { const f = makeFleet(1, { name, sub: '', type: 'cl', n: 1, hp: 1e5, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [x, z], alt: 0, ai, vis: 9, stl: 0 }); f.seen = true; fleets.push(f); return f; };
+      for (let i = 0; i < 7; i++) ally('試験 遠く' + i, -400 + i * 30, 400);   // the rest of the allied force, far off (the share-out counts all of them)
+      const a = ally('試験 戦艦a', 0, 0, { stack: 2 }), b = ally('試験 戦艦b', 1, 0, { stack: 2 }), c = ally('試験 戦艦c', 30, 0, { stack: 2 });
+      /* the third onto one place moves on to the next */
+      c.post.set(0, 0, 0); frontPost(c); r.spread = Math.abs(Math.abs(c.post.x) - STACK_STEP) < 1e-6 && c.post.z === 0; c.post.set(-1, 0, 0);
+      const t1 = foe('試験 敵1', 0, -5, 'hunt'), t2 = foe('試験 敵2', 0, -30, 'hunt'); allyAI();
+      r.two = a.aim === t1 && b.aim === t1 && c.aim === t2;
+      c.stack = 0; c.aim = null; c.order = null; allyAI(); r.free = c.aim === t1;   // without stack the third would go for the near one too
+      /* gateFirst: the one making for a gate, a little farther, first */
+      [a, b, c, t1, t2].forEach(f => { f.alive = false; f.el.remove(); });
+      const g = ally('試験 戦艦g', 0, 0, { stack: 2, gateFirst: true }), h = foe('試験 敵h', 0, -10, 'hunt'), l = foe('試験 揚陸', 0, 12, 'land'); allyAI(); r.gateFirst = g.aim === l;
+      /* the gate in front sealed: the post goes across to the front of the gate left */
+      const W = gates.find(x => x.name === '西ゲート'), C = gates.find(x => x.name === '中央ゲート'), s0 = W.sealed; W.sealed = true;
+      const wl = ally('試験 西の戦艦', -218, -30, { stack: 2 }); frontPost(wl); r.sealed = Math.abs(wl.post.x - (-218 + C.pos.x - W.pos.x)) < 1e-6 && wl.post.z === -30; W.sealed = s0;
+      fleets.forEach(f => f.el && f.el.remove()); fleets.length = 0; keep.forEach(f => fleets.push(f));
+      return r; });
+    check(sk.spread && sk.two && sk.free && sk.gateFirst && sk.sealed, 'フェブルアーリア防衛戦: 総攻撃の戦艦は1か所に2隊まで（3隊目は横の次の場所へ）、同じ敵へ向かうのも2隊まで。ゲートへ向かう敵を先に受け、前のゲートが塞がれると残りのゲートの前へ移る（2026-10-20）', JSON.stringify(sk));
     check(f2.ace && f2.aceWas, 'フェブルアーリア防衛戦: アルバレス隊は真上から（第7は中央ゲートへ、第8は前線で敵狩り。2026-10-18）。艦の耐久・打撃と W.A.S. の打撃・耐久は、ほかの共和国の3倍、速さと射程は1.2倍、回避は1.5倍（2026-10-18）', JSON.stringify(f2));
     check(f2.fbKeep && f2.fbBack, 'フェブルアーリア防衛戦: 敵の隊は隻数が7割を切ると雲へ下がり（fallBack）、残りの艦は撃沈に数えない。あとの出来事でも戻らない（2026-10-14）', JSON.stringify(f2));
     check(f2.weak1 && f2.weak2 && f2.weakGo && f2.spawnDrop, 'フェブルアーリア防衛戦: 予備と、出るときに drops を持つ揚陸艦は、候補のゲートのうち、まわりの自軍と友軍がいちばん少ないところへ向かう（2026-10-14・16）', JSON.stringify(f2));
