@@ -27,7 +27,7 @@ tools: Read, Grep, Glob, Bash
 
 ## 確かめかた
 
-- 早送りの道具（`node tools/februaria-sim.cjs q tech army=80`（q はデバッグのオートモードと同じ動き）、`TECH=1 node tools/denali-sim.cjs auto|a|b`（auto はオートモードの上手な動き）、`node tools/retreat-sim.cjs a` など）で測る。乱数があるので、条件ごとに数回ずつ走らせ、平均と幅で話す。
+- 早送りの道具（2026-10-20 から自軍は節の技術の段階で測る: `STAGE=1 node tools/februaria-sim.cjs q army=80`、どの作戦でも `STAGE=1 node tools/op-sim.cjs <作戦id> auto|idle`。前は `node tools/februaria-sim.cjs q tech army=80`（q はデバッグのオートモードと同じ動き）、`TECH=1 node tools/denali-sim.cjs auto|a|b`（auto はオートモードの上手な動き）、`node tools/retreat-sim.cjs a` など）で測る。乱数があるので、条件ごとに数回ずつ走らせ、平均と幅で話す。
 - 数値を変えた場合の結果は、ページの中で `WOS_DATA` を書き換える短いパッチ（スクラッチパッドに置く）で試す。リポジトリのファイルは書き換えない。git も使わない。
 - 1本の早送りは1〜4分かかる。並べて走らせてよいが、同時に多すぎると遅くなる。
 

@@ -12,4 +12,11 @@ async function openGame(viewport = { width: 1280, height: 800 }) {
   await page.goto('file://' + path.join(ROOT, 'index.html')); await page.waitForTimeout(1200);
   return { browser, page, errors };
 }
-module.exports = { openGame, ROOT };
+/* STAGE=1 in the tools (2026-10-20): the player's own fleets (built in the fleet editor) researched as far as the operation's stage,
+   on the Earth's tables (battle/state.js techFleet), the speed at the same rate as the player's own. Call it once the battle is built */
+async function toStage(page) {
+  await page.evaluate(() => fleets.filter(f => f.team === 0 && f.stats && f.alive).forEach(f => { const rate = techRate('earth', op.stage || 0), v = techFleet(0, { comp: f.comp, hangar: f.hangar });
+    const spd = Math.min(...Object.keys(f.comp).map(t => CLASS_MAX[t].spd)) * rate;
+    Object.assign(f, { hp: v.hp * HP_K, hpPool: f.n * v.hp * HP_K, dmg: v.dmg, eva: v.eva, range: v.range, speed: (2 + spd) * SPEED_K, craft: { ...f.craft, ...v.craft } }); }));
+}
+module.exports = { openGame, toStage, ROOT };

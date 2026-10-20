@@ -4,7 +4,7 @@
    TECH=1 を付けると、研究をすべて終えた自軍で戦う
    行の読み方: 時刻 段階 cas=民間の被害 yk=ユーコンの耐久 al=本軍6隊の隻数（L=離脱） me=駐屯隊 en=敵 aa=残りの砲台。
    最後に乗せた人数と、駐屯隊に打撃を与えた敵の内訳、撤退の始まりと終わりに沈んでいた味方（本軍と駐屯隊）の隻数（lost）。勝ち負けは「over outcome loseWhy」 */
-const { openGame } = require('./browser.cjs');
+const { openGame, toStage } = require('./browser.cjs');
 (async () => {
   const { browser, page, errors } = await openGame();
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
@@ -14,6 +14,7 @@ const { openGame } = require('./browser.cjs');
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
   const strat=process.argv[2]||'a';
+  if (process.env.STAGE) await toStage(page);   // STAGE=1: our own fleets researched as far as the operation's stage (2026-10-20)
   const r = await page.evaluate((strat) => {
     const log=[]; const L=(t='')=>log.push(`${clockStr()} ${phaseName} cas=${Math.round(casualties)} yk=${opCarrier.alive?Math.round(opCarrier.hpPool):'x'} al=${fleets.filter(f=>f.ally).map(f=>f.alive?f.ships.length:(f.left?'L':'-')).join('/')} me=${fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier).map(f=>f.alive?f.ships.length:'-').join('/')} en=${fleets.filter(f=>f.team===1&&f.alive&&!f.fixed).map(f=>f.name.slice(0,5)+f.ships.length).join(',')} aa=${fleets.filter(f=>f.fixed&&f.alive).length} ${t}`);
     const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier&&f.alive);

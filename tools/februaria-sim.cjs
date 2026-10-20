@@ -10,7 +10,7 @@
    最後に勝ち負け「over outcome loseWhy repelBy」、ゲートが破られた時刻、守備隊の耐久、総攻撃と退却の時刻、
    敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台 / inf 強化歩兵。艦載機はその母艦に数える。2026-10-14）、
    敵がいない（撃っていない）時間の割合、場にいる敵の平均と最多、揚陸艦の行き先、押されている知らせの通信 */
-const { openGame } = require('./browser.cjs');
+const { openGame, toStage } = require('./browser.cjs');
 const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).map(a=>a.split('=')));
 (async () => {
   const { browser, page, errors } = await openGame();
@@ -21,13 +21,14 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
   const strat=process.argv[2]||'q';
+  if (process.env.STAGE) await toStage(page);   // STAGE=1: our own fleets researched as far as the operation's stage (2026-10-20)
   const r = await page.evaluate(({strat,army}) => {
     /* army=N: copies of our own fleets (not the lent ones) until about N ships */
     const lent=f=>(op.given||[]).some(g=>g.name===f.name), own=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.ally&&f.alive&&!lent(f));
     if(army){ const base=own(); let total=base.reduce((s,f)=>s+f.n,0), k=0;
       while(base.length&&total+base[k%base.length].n<=army){
         const f=base[k%base.length], o={}; for(const key of ['sub','type','comp','n','dmg','eva','range','speed','scale','vis','stl','hangar','craft','aa']) if(f[key]!=null) o[key]=f[key];
-        o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/hpK(0); o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
+        o.name=`${f.name}（写し${Math.floor(k/base.length)+1}）`; o.hp=f.hp/HP_K; o.speed=f.speed/SPEED_K; o.pos=[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20]; o.alt=f.pos.y;
         fleets.push(makeFleet(0,o)); total+=f.n; k++; }
       buildRoster(); updateRoster(); }
     const cat=s=>s.inf===true?'inf':s.fixed?'battery':s.ally?'ally':'me', dmgBy={}, sinkBy={}, _d=window.damage;

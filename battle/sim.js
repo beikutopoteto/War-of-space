@@ -232,7 +232,7 @@ function launchCheck(f){
     const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
-      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*hpK(f.team),hpPool:sq.n*W.hp*(C.hp??1)*hpK(f.team),eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1)*dmgK(f.team),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
+      pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*HP_K,hpPool:sq.n*W.hp*(C.hp??1)*HP_K,eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
       vis:W.vis,stl:W.stl,fuel:W.fuel,target:tgt,state:'attack',alive:true,seen:f.seen,everSeen:true,revealT:0,retarget:0,fireTarget:null,radius:0,ships:[]};
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
