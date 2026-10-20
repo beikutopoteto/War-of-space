@@ -577,10 +577,15 @@ function check(ok, label, detail = '') {
       const end = (op.convoy.depart + 10) / CLOCK_RATE; while (gameSec < end && !over) step(.05);
       r.departed = convoy.departed && convoy.order && convoy.order.type === 'move'; r.assault = fleets.some(f => f.team === 1 && f.hangars.length); r.phase = phaseName; return r; });
     check(sh.convoy && sh.station && !sh.fort, 'ネオ信濃奇襲: 中継ステーションと輸送船団が出る');
-    /* the enemy's hit points ×0.9 on this operation only (op.enemyHp, user decision 2026-10-15), ships and craft; ours as before */
-    const ehp = await page.evaluate(() => { const q = op.enemies[0], e = fleets.find(f => f.name === q.name), m = fleets.find(f => f.team === 0 && !f.convoy);
-      return { k: op.enemyHp, enemy: Math.abs(hpK(1) - HP_K * .9) < 1e-9 && Math.abs(e.hp - q.hp * HP_K * .9) < 1e-9, mine: hpK(0) === HP_K && m.hp === op.quick.find(x => x.name === m.name).hp * HP_K }; });
-    check(ehp.k === .9 && ehp.enemy && ehp.mine, 'ネオ信濃奇襲: 敵の耐久だけ0.9倍（自軍はそのまま）', JSON.stringify(ehp));
+    /* the two sides' tech (user decision 2026-10-20): a fighting fleet with no hp in the data takes the class tables at the operation's stage
+       (開戦 0: the Earth 3割, the Republic 4.5割), the speed at the final form, every warship ×balance.speed; no multiplier per operation */
+    const tt = await page.evaluate(() => { const q = op.enemies[0], e = fleets.find(f => f.name === q.name), mq = op.quick.find(x => x.type === 'dd'), m = fleets.find(f => f.name === mq.name);
+      const T = WOS_DATA.sides.mars.ships, c = q.comp, tot = Object.values(c).reduce((a, b) => a + b, 0), avg = k => Object.keys(c).reduce((s, t) => s + T[t][k] * c[t], 0) / tot;
+      const M = { def: avg('def'), atk: avg('atk'), spd: Math.min(...Object.keys(c).map(t => T[t].spd)) }, E = WOS_DATA.ships.find(x => x.id === 'dd'), near = (a, b) => Math.abs(a - b) < 1e-9;
+      return { stage: op.stage, noData: q.hp == null && mq.hp == null, k: !('enemyHp' in op) && !WOS_DATA.operations.some(o => 'hpScale' in o || 'enemyHp' in o || 'enemyDmg' in o),
+        enemy: near(e.hp, (6 + M.def * .45 * 5) * HP_K) && near(e.dmg, .4 + M.atk * .45 * .45) && near(e.speed, (2 + M.spd) * SPEED_K),
+        mine: near(m.hp, (6 + E.def * .3 * 5) * HP_K) && near(m.dmg, .4 + E.atk * .3 * .45) && near(m.range, 10 + E.rng * .3 * 1.6) && near(m.speed, (2 + E.spd) * SPEED_K), conv: convoy.speed === op.convoy.fleet.speed }; });
+    check(tt.stage === 0 && tt.noData && tt.k && tt.enemy && tt.mine && tt.conv, 'ネオ信濃奇襲: 敵も自分の決まった艦隊も、陣営の艦種の表の技術の段階（開戦0）の値。速さは研究しきった値の1.2倍、輸送船はそのまま（2026-10-20）', JSON.stringify(tt));
     const rosterNames = await page.$$eval('#roster button[id^="fl"]', e => e.map(x => x.textContent));
     const grp = await page.textContent('#roster .grpBtn').catch(() => '');
     check(grp.includes('第2 ネオ信濃駐屯 戦区軍'), 'ネオ信濃奇襲: 4隊が戦区軍「第2 ネオ信濃駐屯 戦区軍」にまとまる', grp);
@@ -782,7 +787,7 @@ function check(ok, label, detail = '') {
       r.beltHides = !canSee(o, t) && !canSee(o, tin) && canSee(o, t2);
       /* a ship in a civilian zone: hitting it costs lives; out in the open, or a gun battery on the rock, it does not */
       const g = fleets.find(f => f.name === '第14 巡洋阻止 戦闘隊'), gp = g.pos.clone(), me = mine[0];
-      g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); const c0 = casualties; damage(g, 5, me); r.zoneCost = +(casualties - c0).toFixed(1);
+      g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); const c0 = casualties; damage(g, 5, me); r.zoneCost = +(casualties - c0).toFixed(1); r.zoneWant = +(5 * (1 - g.eva) * op.civil.perDmg / HP_K).toFixed(1);
       g.pos.copy(gp); const c1 = casualties; damage(g, 5, me); const e = fleets.find(f => f.fixed && f.alive); damage(e, 5, me); r.openFree = casualties === c1;
       /* the allies do not fire on a ship in a zone, but do on a battery */
       const a = fleets.find(f => f.ally); g.seen = true; g.pos.copy(blocks[2].pos).add(new THREE.Vector3(0, 0, 6)); a.pos.copy(g.pos).add(new THREE.Vector3(0, 0, 14));
@@ -912,7 +917,7 @@ function check(ok, label, detail = '') {
     check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
     check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
     /* 5 × (1 − eva .16) × perDmg 2 ÷ the hit points multiplier 2 (2026-10-13: the same lives for twice the fire) */
-    check(d1.zoneCost === 4.2 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る（2026-10-14）', JSON.stringify(d1));
+    check(d1.zoneCost === d1.zoneWant && d1.zoneCost > 0 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る（2026-10-14）', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.raidYukon === 1, 'デナリの盾: 着陸で戻る奇襲部隊のうち1隊（アルバレスの隊ではない）がユーコンを狙う（2026-10-17）', JSON.stringify(d1));
     check(d1.evacNow && d1.wave2, 'デナリの盾: 着陸で奇襲部隊が戻ると、すぐ作戦変更で収容が始まる（2026-10-17）。40分後に最後の波の1つ目（ユーコンを狙う第6 を含む）が来る', JSON.stringify(d1));
@@ -1147,15 +1152,16 @@ function check(ok, label, detail = '') {
       const r = { given: early && surged && phaseName === '総攻撃' && mine.length === n0 + 1 && ff.name === SG.events.find(e => e.given).given[0].name && !groupOf(ff) && !!ff.btn && rosterEl.contains(ff.btn),
         wong: Math.hypot(w.post.x + 30, w.post.z - 120) < 1, surgeAt: SG.share === .3 && SG.at === 450,
         lines: fleets.filter(f => f.team === 1 && f.alive && f.press).every(f => f.ai === 'hunt') };
-      const ace = fleets.filter(f => f.ace && f.alive), base = op.events.find(e => e.fleet && e.fleet.type === 'mas').fleet, other = base.craft.was, AC = ace.length && ace[0].craft.was;
+      /* 2026-10-20 (user decision): the Bureau's fleets are 1.25 times the stage's Republic values (ships and W.A.S.), their W.A.S. hitting 3 times as hard */
+      const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
       r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 40)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line
-        && ['dmg', 'hp'].every(k => Math.abs(AC[k] - (other[k] || 1) * 3) < 1e-9) && AC.eva === 1.5 && AC.speed === 1.2 && AC.range === 1.2
-        && Math.abs(ace[0].dmg - base.dmg * 3 * dmgK(1)) < 1e-9 && Math.abs(ace[0].hp - base.hp * 3 * hpK(1)) < 1e-6 && Math.abs(ace[0].range - base.range * 1.2) < 1e-9
-        && Math.abs(ace[0].speed - base.speed * 1.2) < 1e-9 && Math.abs(ace[0].eva - base.eva * 1.5) < 1e-9;   // 2026-10-18: 3 times, reach and speed 1.2, evasion 1.5
+        && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
+        && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
+        && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
       ace[0].hangars[0].next = 0; ace[0].hangars[0].squads.forEach(q => { q.ready = 0; }); const w0 = wings.length; launchCheck(ace[0]); const aw = wings[wings.length - 1];
-      r.aceWas = wings.length > w0 && Math.abs(aw.speed - WING.was.speed * 1.2) < 1e-9 && Math.abs(aw.range - WING.was.range * 1.2) < 1e-9; t0.alive = false; t0.el.remove(); e1.el.remove();
+      r.aceWas = wings.length > w0 && Math.abs(aw.speed - WING.was.speed * A.ship) < 1e-9 && Math.abs(aw.range - WING.was.range * A.ship) < 1e-9; t0.alive = false; t0.el.remove(); e1.el.remove();
       /* Oliveira's unit, badly hurt, gives ground (retreat) */
       const am = fleets.find(f => f.name === '第10 アマゾン残存 支隊'); am.ships.splice(0, am.ships.length - 1); allyAI(); r.amzBack = !!am.falling && am.post.distanceTo(am.fallTo) < 1;
       /* 2026-10-14: a unit hurt below fallBack (7割) of its ships withdraws into the clouds; its ships left are not counted as sunk, and a later
@@ -1286,7 +1292,7 @@ function check(ok, label, detail = '') {
     const tu = await page.evaluate(() => {
       const F = op.fortress, q = op.quick[0], f = fleets[0], cv = fleets.find(x => x.team === 0 && x.hangars.length);
       const r = { k: HP_K, fort: fortress.max === F.hp * 2 && fortress.max === 9600 && F.dps === 9 && F.hangar.ftr === 60, fleet: f.hp === q.hp * 2 && f.hpPool === q.n * q.hp * 2,
-        retreat: WOS_DATA.operations.find(o => o.id === 'retreat').hpScale === 1.5, craftData: WOS_DATA.crafts.ftr.hp === 5 };
+        retreat: WOS_DATA.operations.every(o => o.hpScale == null), craftData: WOS_DATA.crafts.ftr.hp === 5 };
       const e = makeFleet(1, { name: '試験', sub: '', type: 'dd', n: 2, hp: 10, dmg: 0, range: 10, speed: 0, scale: 1, pos: [cv.pos.x, cv.pos.z - 20], alt: cv.pos.y, vis: 5, stl: 5 });
       fleets.push(e); e.seen = true; const w0 = wings.length; launchCheck(cv); const w = wings[wings.length - 1];
       r.wing = wings.length > w0 && w.hp === WING[w.type].hp * 2; wings.forEach(x => { x.alive = false; }); wings = []; e.alive = false; e.el.remove();
@@ -1295,7 +1301,7 @@ function check(ok, label, detail = '') {
       gameSec = (op.timeUp.at - 1) / CLOCK_RATE; step(.05); logEvent = logE; r.warned = said.some(t => t.includes('残り30分')); r.early = !over;
       let n = 0; while (!over && n++ < 400) step(.05);
       return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
-    check(tu.k === 2 && tu.fort && tu.fleet && tu.wing && tu.retreat && tu.craftData, '釣り合い: 戦闘の生成で艦隊・小型機・要塞の耐久が2倍になる（データは元の値。第2節は1.5倍）。要塞は基準4,800（2倍で9,600）、火力9、艦載機60', JSON.stringify(tu));
+    check(tu.k === 2 && tu.fort && tu.fleet && tu.wing && tu.retreat && tu.craftData, '釣り合い: 戦闘の生成で艦隊・小型機・要塞の耐久が2倍になる（データは元の値。全部の作戦で同じ、2026-10-20）。要塞は基準4,800（2倍で9,600）、火力9、艦載機60', JSON.stringify(tu));
     check(tu.warned && tu.early && tu.over && !tu.outcome && tu.why === 'time' && tu.clock === '17:00' && tu.rp.includes('時間切れ'), '演習: 17:00 までに要塞を落とせなければ時間切れで負け（警告の通信が先に入る）', JSON.stringify(tu));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
@@ -1305,7 +1311,7 @@ function check(ok, label, detail = '') {
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const dl = await page.evaluate(() => {
-      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: w.hp === 60 && op.allies[0].hp === 30 };   // the player's own values with half the research done (2026-10-17)
+      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: op.allies[0].hp == null && Math.abs(w.hp - techFleet(0, op.allies[0]).hp * HP_K) < 1e-9 };   // the Earth's tables at the stage (2026-10-20)
       fleets.filter(x => x.team === 0).forEach(x => { x.hpPool = 1e9; });
       const T = op.timeUp; gameSec = (T.at + 1) / CLOCK_RATE; opCarrier.cs.landed = true; stepTimeUp(); r.landedOk = !over; opCarrier.cs.landed = false;
       gameSec = (T.warn.at - 1) / CLOCK_RATE; step(.05); r.quiet = !over && !timeWarned;
@@ -1313,7 +1319,7 @@ function check(ok, label, detail = '') {
       let n = 0; while (!over && n++ < 400) step(.05);
       return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
     check(dl.main && dl.landedOk && dl.quiet && dl.warned && dl.over && !dl.outcome && dl.why === 'time' && dl.clock === '12:00' && dl.rp.includes('降りられなかった'),
-      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦の隊のデータは30で、戦闘では2倍の60（2026-10-17 に自軍の研究を半分すませた値にそろえた）', JSON.stringify(dl));
+      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦の隊は地球の艦種の表の、この節の技術の段階の値（2026-10-20）', JSON.stringify(dl));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* holding Ctrl fast-forwards the conversation */

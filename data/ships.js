@@ -58,3 +58,20 @@ WOS_DATA.crafts={
   ftr:{name:'艦載機', branch:'carrier', squad:30, maxOut:3, launchR:52, range:9, speed:17, hp:5,  eva:.25, dmg:.3,  fuel:24, rearm:8,  cd:3, vis:5, stl:7},
   was:{name:'W.A.S.', branch:'was',     squad:20, maxOut:3, launchR:30, range:5, speed:10, hp:10, eva:.45, dmg:.65, fuel:16, rearm:10, cd:4, vis:4, stl:6},
 };
+
+/* 両陣営の技術（ユーザー決定 2026-10-20。docs/spec.md「両陣営の技術と強さ」。数値は仮）。
+   作戦データで hp を書いていない戦う艦隊（敵・友軍・自分の決まった艦隊）は、陣営の表と作戦の stage（技術の段階。最大までのどこまでか、0〜1）から
+   値を出す（battle/state.js の techFleet）。能力の割合は base +（1 − base）× stage で、耐久・打撃・回避・射程・速さは自分で編成した艦隊と同じ式
+   （prep.js の armyToFleet）。小型機の耐久・打撃・回避も同じ割合。
+   earth: 地球連合。艦種の最大は上の WOS_DATA.ships、小型機の最大は WOS_DATA.crafts。
+   mars: 惑星共和国（惑星自治軍）。ships は艦種の最大（打撃/防御/回避/射程/速さ）。表にない艦種（戦艦など）は鹵獲した地球の艦として地球の表と割合を使う。
+     作戦データの side:'earth' の敵は全部地球の表（鹵獲艦の隊）。crafts は小型機の最大（W.A.S. は地球の1.5倍、回避0.55）。
+     ace: 惑星先進装備開発局の隊（ace:true、アルバレス隊）は、その段階の値の ship 倍（耐久・打撃・回避・射程・速さ。小型機も）、W.A.S. の打撃は wasDmg 倍 */
+WOS_DATA.sides={
+  earth:{base:.3},
+  mars:{base:.45,
+    ships:{cv:{atk:3, def:1.5, eva:10, rng:3, spd:11}, ff:{atk:4, def:2.5, eva:8, rng:4, spd:9}, dd:{atk:6, def:3.5, eva:7, rng:5, spd:8},
+      cl:{atk:8, def:7, eva:4, rng:6.5, spd:6}, mas:{atk:6, def:3, eva:6, rng:2.5, spd:8}},
+    crafts:{was:{hp:15, dmg:1, eva:.55}},
+    ace:{ship:1.25, wasDmg:3}},
+};

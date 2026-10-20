@@ -23,13 +23,10 @@ let chase=null, perfect=false;
    casualties: civilians lost in the blocks (op.civil.cap loses the operation); civMarks: the warnings already given
    debris: the mining debris clouds {c (centre, Vector3), r}; opCarrier: the carrier given for this operation (op.carrier.fleet), state in opCarrier.cs
    {landed, landMin, board (minutes boarded), done, exit}; loseWhy: why the battle was lost ('carrier', 'civil', 'garrison', 'time', or null) */
-/* the hit points multiplier (user decision 2026-10-13: both sides twice as hard): op.hpScale or WOS_DATA.balance.hp, set in reset().
-   Every fleet, craft, fortress and station gets it when the battle is built; the data and the fleet editor keep the base values */
+/* the hit points multiplier (user decision 2026-10-13: both sides twice as hard): WOS_DATA.balance.hp, set in reset(), the same in every
+   operation (user decision 2026-10-20: no multiplier per operation). Every fleet, craft, fortress and station gets it when the battle is built;
+   the data and the fleet editor keep the base values */
 let HP_K=1;
-/* op.enemyHp (user decision 2026-10-15, 第1・2節 0.9): the enemy's ships and craft only, on top of HP_K */
-const hpK=team=>HP_K*(team===1&&op&&op.enemyHp||1);
-/* op.enemyDmg (第5節, 2026-10-18): the enemy's ships' and craft's firepower, made at the battle's start (the data stays as it is) */
-const dmgK=team=>team===1&&op&&op.enemyDmg||1;
 /* timeWarned: the time-up warning was said (sim.js stepTimeUp); gunLostSaid: the first lost gun on the base was told (第5節) */
 let timeWarned=false, gunLostSaid=false;
 let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
@@ -48,10 +45,32 @@ function mainType(by){ let best=null; Object.keys(by).forEach(t=>{ if(by[t]>0&&(
 function relPos(p){ return [fieldC.x+p[0],fieldC.z+p[1]]; }
 
 const AA=window.WOS_DATA.aa;
+/* the two sides' tech (user decision 2026-10-20, data/ships.js WOS_DATA.sides): a fighting fleet with no hp in the data takes its values
+   from its side's class tables at the operation's stage (op.stage), by the same formulas as the player's own fleets (prep.js armyToFleet).
+   A mixed fleet averages its classes by numbers and goes at its slowest class's speed. A class the Republic has no table for (the battleship)
+   is a captured Earth ship, at the Earth's rate; side:'earth' puts a whole enemy fleet on the Earth's tables.
+   The speed is the table's final form whatever the stage (user decision 2026-10-20: the ships keep about their old speeds) */
+const SIDES=WOS_DATA.sides, CLASS_MAX=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s]));
+const techRate=(side,p)=>SIDES[side].base+(1-SIDES[side].base)*p;
+function techFleet(team,o){
+  const side=o.side||(team===1?'mars':'earth'), p=op&&op.stage||0, by=o.comp||{[o.type]:1};
+  const tot=Object.values(by).reduce((a,b)=>a+b,0)||1, st={atk:0,def:0,eva:0,rng:0,spd:99};
+  Object.entries(by).forEach(([t,c])=>{ const M=side==='mars'&&SIDES.mars.ships[t], s=M||CLASS_MAX[t], r=techRate(M?'mars':'earth',p);
+    ['atk','def','eva','rng'].forEach(k=>st[k]+=s[k]*r*c/tot); st.spd=Math.min(st.spd,s.spd); });
+  /* the Advanced Equipment Development Bureau's fleets (ace): k times the stage's values, their W.A.S. hitting wasDmg times as hard */
+  const A=o.ace&&SIDES.mars.ace, k=A?A.ship:1, r=techRate(side,p), craft={};
+  Object.keys(o.hangar||{}).forEach(c=>{ const W=WING[c], F={...W,...(side==='mars'&&SIDES.mars.crafts[c]||{})};
+    craft[c]={hp:F.hp/W.hp*r*k, dmg:F.dmg/W.dmg*r*(A&&c==='was'?A.wasDmg:k), eva:F.eva/W.eva*r*k, ...(A?{speed:k, range:k}:{})}; });
+  return {hp:(6+st.def*5)*k, dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft};
+}
+/* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
+const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
+  if(o.hp==null) o={...o,...techFleet(team,o)};
+  if(o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],dmg:o.dmg!=null?o.dmg*dmgK(team):o.dmg,hp:o.hp*hpK(team),hpPool:o.n*o.hp*hpK(team),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*HP_K,hpPool:o.n*o.hp*HP_K,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   if(o.postAt) f.post.set(o.postAt[0],o.postAlt??o.alt??0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節; postAlt its height)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
@@ -326,7 +345,7 @@ function reset(cfg=lastCfg){
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
      (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */
   const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)
-  HP_K=op.hpScale??(WOS_DATA.balance&&WOS_DATA.balance.hp)??1;
+  HP_K=WOS_DATA.balance&&WOS_DATA.balance.hp||1;
   timeWarned=false; gunLostSaid=false;
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
