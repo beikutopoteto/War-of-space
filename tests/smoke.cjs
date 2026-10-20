@@ -923,11 +923,15 @@ function check(ok, label, detail = '') {
     check(d1.evacNow && d1.wave2, 'デナリの盾: 着陸で奇襲部隊が戻ると、すぐ作戦変更で収容が始まる（2026-10-17）。40分後に最後の波の1つ目（ユーコンを狙う第6 を含む）が来る', JSON.stringify(d1));
     check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 本軍の隻数の5割が沈むと最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う（2026-10-17）', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    /* the waves' ships and W.A.S. from the data (2026-10-20: the Republic's numbers were fitted to the two sides' tables) */
+    const DW = await page.evaluate(() => { const C = WOS_DATA.operations.find(o => o.id === 'denali').carrier, E = C.evacEvents.find(e => e.mass).mass, L = C.lastWave.mass;
+      const cnt = m => m.own.reduce((s, f) => s + f.n, 0) + m.types.reduce((s, t) => s + t.n, 0), was = m => m.types.reduce((s, t) => s + (t.was || 0), 0);
+      return { n1: cnt(E), was1: was(E), n2: cnt(L), was2: was(L) }; });
     { const M = d1.mass || {};
-      check(M.ours >= 2 && M.k === 4 && M.n === 20 && M.was === 76 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
-        'デナリの盾: 後半の敵は一度に来る（1つ目の波は第6 を入れて4隊・20隻・W.A.S. 76。2026-10-17）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
+      check(M.ours >= 2 && M.k === 4 && M.n === DW.n1 && M.was === DW.was1 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
+        'デナリの盾: 後半の敵は一度に来る（1つ目の波は第6 を入れて4隊。隻数と W.A.S. はデータのとおり。2026-10-17）。各個撃破: 孤立した隊に2隊、ほかの隊に1隊ずつ（ウォン中将の隊は最後）', JSON.stringify(M)); }
     { const L = d1.lastWave || {};
-      check(d1.noLastYet && L.n1 === 20 && L.was1 === 76 && L.early && L.gapWait && L.came && L.n2 === 24 && L.was2 === 36 && L.units2 === 6 && L.yukon2 === 1 && L.wait && L.cut && d1.pullBack, 'デナリの盾: 最後の波は2つ。1つ目（20隻）の6割が沈み、1つ目から30分たつと2つ目（6隊24隻・W.A.S. 36。1隊はユーコンを狙う。前半の第17 重巡洋を戻した）が来て、アルバレスの隊は引き上げ、20分後に撤退が始まる（2026-10-17）', JSON.stringify(L)); }
+      check(d1.noLastYet && L.n1 === DW.n1 && L.was1 === DW.was1 && L.early && L.gapWait && L.came && L.n2 === DW.n2 && L.was2 === DW.was2 && L.units2 === 6 && L.yukon2 === 1 && L.wait && L.cut && d1.pullBack, 'デナリの盾: 最後の波は2つ。1つ目の6割が沈み、1つ目から30分たつと2つ目（6隊。隻数と W.A.S. はデータのとおり。1隊はユーコンを狙う。前半の第17 重巡洋を戻した）が来て、アルバレスの隊は引き上げ、20分後に撤退が始まる（2026-10-17）', JSON.stringify(L)); }
     check(d1.wavesGone && d1.doneEv,'デナリの盾: 切り上げのとき、まだ来ていない波（wave:true）は捨て、撤退の出来事（doneEvents）が切り上げから始まる', JSON.stringify(d1));
     check(d1.lost === d1.lostWant && d1.lostLeft, 'デナリの盾: 勝ちの会話の {lost} に、本軍の戦艦の帰らなかった割合が入る（離脱点から抜けた隊は帰ったと数える）', JSON.stringify(d1));
     check(d1.slow === .48 && d1.slowFull === .3, 'デナリの盾: ユーコンは乗せた人数に比例して遅くなり、満員で70%遅い', JSON.stringify(d1));
