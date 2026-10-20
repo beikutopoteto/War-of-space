@@ -1242,7 +1242,7 @@ function check(ok, label, detail = '') {
       r.landed = sat && lc.unloaded && lc.ai === 'withdraw' && troops.length === n0 + 1 && g.n === 24 && !!gun && Math.hypot(g.pos.x - gun.pos.x, g.pos.z - gun.pos.z) < 16;
       r.dots = g.dots.length === 24 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 1);
       /* they go each on his own (2026-10-18, user: not one block sliding along; 見本 B and C: in file, the teams by bounds): the centre walking on, the men do not all shift alike */
-      { const p0 = g.dots.map(p => p.clone()), c0 = g.pos.clone(); for (let i = 0; i < 20; i++) { g.pos.x += .2; stepTroopMen(g, .1); }
+      { const p0 = g.dots.map(p => p.clone()), c0 = g.pos.clone(); for (let i = 0; i < 40; i++) { g.pos.x += .2; stepTroopMen(g, .1); }   // 4 s: longer than a team's run and lie-down (1.1 + 1.6 s), so every team runs
         const dv = g.dots.map((p, i) => p.x - p0[i].x), mean = dv.reduce((a, v) => a + v, 0) / dv.length, sd = Math.sqrt(dv.reduce((a, v) => a + (v - mean) ** 2, 0) / dv.length);
         const moved = g.dots.reduce((a, p, i) => a + Math.hypot(p.x - p0[i].x, p.z - p0[i].z), 0) / g.dots.length;   // they fall in behind one another: not all the same way
         r.walk = { moved: +moved.toFixed(2), sd: +sd.toFixed(2) }; r.walkOk = moved > .5 && sd > .3 && g.dots.every(p => Math.abs(p.y - rockAt(p.x, p.z).y) < 3); g.pos.copy(c0); }
