@@ -752,11 +752,11 @@ WOS_DATA.operations=[
         /* 着陸すると、守備隊と、着陸までに来た哨戒隊・予備隊の残りがこちらの艦を狙う。ユーコンは狙わない（入れないと、着陸のあとに出た隊がユーコンを沈める） */
         {after:0, ai:{fleets:['第11 巡洋阻止 戦闘隊','第12 巡洋阻止 戦闘隊','第14 巡洋阻止 戦闘隊','第15 機動駆逐 戦闘隊','第16 巡洋阻止 戦闘隊','第17 機動駆逐 戦闘隊','第13 巡洋阻止 戦闘隊','第19 機動駆逐 戦闘隊','第20 巡洋阻止 戦闘隊'], ai:'hunt', spare:['carrier'], keepOut:true}},
         /* 強襲母艦は第一章ではまだ出さない（ユーザー決定 2026-10-09: 敵も味方も開発していない）。アルバレスの隊は突撃揚陸艦だけ */
-        {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, scale:1.1,
-          hangar:{was:80}, ace:true, spare:['carrier'], prey:'ally', keepOut:true, pos:[-16,-89], alt:62, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
+        {after:0, fleet:{name:'第7 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:4, scale:1.1,
+          hangar:{was:40}, ace:true, spare:['carrier'], prey:'ally', keepOut:true, pos:[-16,-89], alt:62, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
         /* 重巡洋艦はこちらの艦を狙う（ユーザー決定 2026-10-10）。居住区を撃つのは「初撃」だけ（ユーザー決定 2026-10-10: 脅しだけで初撃だけ） */
         /* 2026-10-17（ユーザー決定: 着陸から後の波には、ユーコンを狙う隊を1隊ずつ）: 第5 重巡洋艦がユーコンを狙う（prey:'carrier'） */
-        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:7, log:['ハッダード曹長', '「岩くずの雲の北西の端から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         {after:9, log:['ハッダード曹長', '「雲の中ほど、北の上からも！　同時です。居住区A の上へ」']},
         /* 敵が来たら、本軍の各隊は受け持ちのユーコンか居住区の前へ出て守る（ユーザー決定 2026-10-10。ai:'protect'。受け持ちは本軍の protect） */
@@ -765,10 +765,10 @@ WOS_DATA.operations=[
         {after:21, log:['傍受', 'アルバレス大尉「デナリの守備隊、よく持たせた。……ここからは俺たちの番だ。居住区には当てるなよ。狙うのは軍艦だけだ」']},
         /* アルバレスの指揮の下の第8（色はふつうの赤。居住区とユーコンは狙わず、撤退も追わない letGo。W.A.S. は第7 の半分の40、仮）と第4 重巡洋艦。
            2026-10-12 から27分後の第2波だったのを、2026-10-14 に第7・第5 と同時にした（ユーザー決定: 後半の奇襲のタイミングを合わせ、同時に出す） */
-        {after:0, fleet:{name:'第8 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:8, scale:1.1,
-          hangar:{was:40}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
+        {after:0, fleet:{name:'第8 局地強襲 エスカドラ', sub:'アルバレス隊 突撃揚陸艦', type:'mas', n:4, scale:1.1,
+          hangar:{was:20}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
           arrow:{pos:[-12,-50]}},
-        {after:0, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, scale:1.25, pos:[-8,-125], alt:82, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+        {after:0, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[-8,-125], alt:82, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:36, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊が去らない限り、居住区への砲撃を続ける。これは警告だ」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'raid'}},
         {after:38, log:['ハッダード曹長', '「居住区に着弾！　第5 重巡洋艦が、居住区を撃っています！」']},
         {after:40, log:['ハッダード曹長', '「砲撃が止みました。……今のは、見せしめです」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'hunt'}},
@@ -787,10 +787,10 @@ WOS_DATA.operations=[
          本軍を先に狙わない（prey:'ally' を外した。W.A.S. も近い艦から叩くので、駐屯隊も狙われる）。本軍を先に狙うのはアルバレスの隊（第7・第8）だけ */
       evacEvents:[
         {after:40, wave:true, mass:{units:4, tag:'w1',
-          own:[{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:6, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
+          own:[{name:'第6 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[110,-60], alt:20, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
-            {n:5, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
-            {n:9, was:76, nums:[9,10,11,12,13,14,15,16,17,18,19], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
+            {n:2, nums:[3,2,1,7,8,9,10,11,12,13,14], fleet:{name:'第{n} 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', scale:1.25, ai:'detail', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+            {n:4, was:38, nums:[9,10,11,12,13,14,15,16,17,18,19], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
               spare:['carrier'], keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
           ],
           at:[[-118,-25,-45],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[140,60,10],[-150,-60,-30]]},
@@ -811,16 +811,16 @@ WOS_DATA.operations=[
       lastWave:{of:'w1', lost:.6, gap:30, allies:.5, after:20, atRetreat:true, pullBack:true,
         log:[['ハッダード曹長', '「また全方位から、{units}隊！　主力の残りが、全部来ます！」'], ['傍受', 'アルバレス大尉「主力のお出ましだ。……あとは任せる。第7、第8、雲へ戻れ」'], ['ウォン中将', '「主力の残りだ。……あと20分、持たせろ。それで退く」']],
         mass:{units:6,
-          own:[{name:'第18 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:4, scale:1.25, pos:[130,-20], alt:-25, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
-            {name:'第17 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[60,-150], alt:-40, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
+          own:[{name:'第18 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:2, scale:1.25, pos:[130,-20], alt:-25, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
+            {name:'第17 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:2, scale:1.25, pos:[60,-150], alt:-40, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
-            {n:17, was:36, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
+            {n:8, was:18, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
               spare:['carrier'], keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
           ],
           at:[[-118,-25,-45],[140,60,10],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[-150,-60,-30]]}},
       /* 切り上げ（か満員）から何分後かの出来事（2026-10-12、wos-strategy の案。時刻・位置・隻数は仮）: 西の下から駆逐艦が離脱点へ回り込み、ユーコンを狙う */
       doneEvents:[
-        {after:2, fleet:{name:'第18 機動駆逐 戦闘隊', sub:'自治軍 駆逐艦', type:'dd', n:6, scale:.95, pos:[-205,60], alt:-30, ai:'hunt', prey:'carrier', watch:{pos:[-127,127], alt:0}, vis:6, stl:6},
+        {after:2, fleet:{name:'第18 機動駆逐 戦闘隊', sub:'自治軍 駆逐艦', type:'dd', n:3, scale:.95, pos:[-205,60], alt:-30, ai:'hunt', prey:'carrier', watch:{pos:[-127,127], alt:0}, vis:6, stl:6},
           arrow:{pos:[-110,90]}, log:['ハッダード曹長', '「西の下から駆逐艦、離脱点へ回り込んできます！」']},
         {after:8, log:['オリヴェイラ少佐', '「アマゾン残存隊が前に出る。中尉、ユーコンから離れるな！」']},
       ],
@@ -860,9 +860,9 @@ WOS_DATA.operations=[
        対空砲台: デナリの表面に置く動かない敵（ユーザー決定 2026-10-09）。艦載機をよく落とす。撃っても住民に被害は出ない（岩の上。ユーザー決定 2026-10-10）。
        本軍は対空砲台も敵として守備隊と同じように狙い、目標を分ける（ユーザー決定 2026-10-10、2026-10-13） */
     enemies:[
-      {name:'第11 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-24,-62], alt:4, ai:'shield', block:0, below:.5, leash:50, vis:6, stl:5},
-      {name:'第12 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-88,12], alt:-2, ai:'shield', block:1, below:.5, leash:50, vis:6, stl:5},
-      {name:'第14 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[46,72], alt:2, ai:'shield', block:2, below:.5, leash:50, vis:6, stl:5},
+      {name:'第11 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[-24,-62], alt:4, ai:'shield', block:0, below:.5, leash:50, vis:6, stl:5},
+      {name:'第12 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[-88,12], alt:-2, ai:'shield', block:1, below:.5, leash:50, vis:6, stl:5},
+      {name:'第14 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[46,72], alt:2, ai:'shield', block:2, below:.5, leash:50, vis:6, stl:5},
       ...[[0,[-22,-25],4],[0,[2,-33],4],[1,[-32,-8],-2],[1,[-28,18],-2],[2,[5,33],2],[2,[26,20],2]].map(([b,pos,alt],i)=>(
         {name:`第${i+1} デナリ対空砲台`, sub:'対空砲台', type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scale:1.1, pos, alt, aa:9, leash:0, vis:6, stl:5, fixed:true})),
     ],
@@ -871,28 +871,28 @@ WOS_DATA.operations=[
        予備隊（重巡洋艦・駆逐艦）を2隊ずつ3回、別の方向から足した。管制主任が港の管制を開ける117分（body.port.openAt）までは着陸できない */
     events:[
       {after:9, log:['ハッダード曹長', '「本軍は友軍です。こちらからは動かせません。ユーコンは一覧のいちばん下。宇宙港まで連れていきます」']},
-      {after:18, fleet:{name:'第15 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:4, scale:.95, pos:[110,40], alt:-30, ai:'hunt', prey:'carrier', watch:{pos:[14,110], alt:0}, vis:6, stl:6},
+      {after:18, fleet:{name:'第15 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:2, scale:.95, pos:[110,40], alt:-30, ai:'hunt', prey:'carrier', watch:{pos:[14,110], alt:0}, vis:6, stl:6},
         arrow:{pos:[30,100]}, log:['ハッダード曹長', '「東の下、岩くずの雲の端から駆逐艦！　ユーコンを狙っています」']},
-      {after:19, fleet:{name:'第16 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[0,-120], alt:50, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:6, stl:5},
+      {after:19, fleet:{name:'第16 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[0,-120], alt:50, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:6, stl:5},
         arrow:{pos:[-15,-50]}},
       {after:27, log:['ハッダード曹長', '「デナリの表面に対空砲台。艦載機は、あれの届かないところで使ってください」']},
       /* 2026-10-17（ユーザー決定: 前半が少なく後半が詰まりすぎ）: 最後の波の2つ目から重巡洋艦9隻を、前半の隙間に3隊（3隻ずつ）で回した。時刻・位置は仮。
          2026-10-17（ユーザー決定）: 104分の第17 は最後の波の2つ目へ戻した（carrier.lastWave） */
-      {after:34, fleet:{name:'第15 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦（先遣）', type:'cl', n:3, scale:1.25, pos:[140,-90], alt:30, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
+      {after:34, fleet:{name:'第15 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦（先遣）', type:'cl', n:2, scale:1.25, pos:[140,-90], alt:30, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
         arrow:{pos:[50,10]}, log:['ハッダード曹長', '「北東の上から重巡洋艦！　守備隊の色ではありません。……共和国の主力の艦です」']},
       {after:42, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊に告ぐ。デナリの住民は、惑星共和国の保護下にある。撃てば、その弾は住民に当たる。賢明な判断を期待する」']},
       /* 居住区B の陰に隠れる駆逐艦（shield。命令優先で撃つ相手） */
-      {after:51, fleet:{name:'第17 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:5, scale:.95, pos:[-125,-15], alt:-40, ai:'shield', block:1, below:.8, leash:60, postAt:[-60,2], vis:6, stl:6},
+      {after:51, fleet:{name:'第17 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:2, scale:.95, pos:[-125,-15], alt:-40, ai:'shield', block:1, below:.8, leash:60, postAt:[-60,2], vis:6, stl:6},
         arrow:{pos:[-58,2]}, log:['ハッダード曹長', '「西の下、居住区B の陰に駆逐艦。……区画へ入るつもりです」']},
-      {after:52, fleet:{name:'第13 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[95,-70], alt:40, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:5},
+      {after:52, fleet:{name:'第13 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[95,-70], alt:40, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:5},
         arrow:{pos:[45,15]}},
       {after:66, log:['ウォン中将', '「戦艦の砲では、区画の中の敵だけを撃てない。中尉、居住区のそばは駐屯隊に任せる。小さい艦のほうが、狙いは細かい」']},
       {after:69, log:['ハッダード曹長', '「区画の中は、命令優先で。勝手に撃たせないでください」']},
-      {after:70, fleet:{name:'第16 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦（先遣）', type:'cl', n:3, scale:1.25, pos:[-150,-80], alt:40, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
+      {after:70, fleet:{name:'第16 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦（先遣）', type:'cl', n:2, scale:1.25, pos:[-150,-80], alt:40, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
         arrow:{pos:[-50,0]}, log:['ハッダード曹長', '「北西の上からも主力の重巡洋艦。月面へ向かった本隊から、少しずつ戻ってきています」']},
-      {after:90, fleet:{name:'第19 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:5, scale:.95, pos:[-60,-140], alt:-45, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:6},
+      {after:90, fleet:{name:'第19 機動駆逐 戦闘隊', sub:'デナリ哨戒隊 駆逐艦', type:'dd', n:2, scale:.95, pos:[-60,-140], alt:-45, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:6},
         arrow:{pos:[-30,-40]}, log:['ハッダード曹長', '「北の下、デナリの裏から駆逐艦。予備の最後の隊です」']},
-      {after:91, fleet:{name:'第20 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-150,110], alt:-20, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:5},
+      {after:91, fleet:{name:'第20 巡洋阻止 戦闘隊', sub:'デナリ予備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[-150,110], alt:-20, ai:'hunt', spare:['carrier'], watch:{pos:[20,60], alt:0}, vis:6, stl:5},
         arrow:{pos:[-60,70]}, log:['ハッダード曹長', '「南西、後ろからも！　哨戒に出ていた隊が戻ってきます」']},
       {after:117, log:['デナリ管制主任', '（隠れた通信）「こちらデナリ管制室。聞こえるか、連合の艦隊。宇宙港は居住区C だ。港の管制を開けた。住民はこっちで港へ集める」']},
       {after:126, log:['ハッダード曹長', '「岩くずの雲の向こうに、排気の光……のようなもの。雲の中は見通せません。確かめようがない」']},
