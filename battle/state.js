@@ -373,7 +373,7 @@ function reset(cfg=lastCfg){
      stop) is `up` over the lid along the rock's face; pos is the lid's middle, what the enemy fires on (radius for the reach) */
   const GB=op.base, looks=GB?buildBase(BD):buildBase(null);
   gates=looks.map((L,i)=>({kind:'gate',team:0,id:-100-i,i,name:L.name,sub:L.sub,look:L,pos:L.at.clone(),up:L.up.clone(),ring:L.at.clone().addScaledVector(L.up,GB.up||10),r:GB.r||10,radius:GB.radius||7,
-    hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||36,
+    hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||18,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
   garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null; troops=[]; troopsSaid=null; troopsWent=0;   // the enemy's infantry on the rock (sim.js)
   surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); massAt={};
