@@ -4,7 +4,8 @@
    escort: 船団のある作戦で、船団のまわり（90）の見えている敵を、母艦（W.A.S.）から叩き、いなければ船団のそばで待つ。戦艦のいる本隊とは撃ち合わない（第1節の早送りの遊び方）
    STAGE=1 を付けると、自分で編成した艦隊を、その作戦の技術の段階（op.stage）まで研究した値にする（地球の表。速さも段階の割合。
    作戦の想定する研究の度合い）。TECH=1 は全研究。PATCH=ファイル.js は始める前にそのスクリプトをページで実行する（データは書き換えない）。
-   出すもの: 勝ち負けと理由（over outcome loseWhy）、戦闘の秒（1倍速の実時間）と作戦の時刻、両軍の沈んだ隻数（自軍・友軍・敵）、輸送船の残り */
+   出すもの: 勝ち負けと理由（over outcome loseWhy）、戦闘の秒（1倍速の実時間）と作戦の時刻、両軍の沈んだ隻数（自軍・友軍・敵）、輸送船の残り、
+   要塞か守るステーションの耐久の残り（fort） */
 const { openGame, toStage } = require('./browser.cjs');
 const id = process.argv[2], strat = process.argv[3] || 'idle';
 const opt = Object.fromEntries(process.argv.slice(3).filter(a => a.includes('=')).map(a => a.split('=')));
@@ -38,7 +39,8 @@ const opt = Object.fromEntries(process.argv.slice(3).filter(a => a.includes('=')
     return { start, over, outcome: typeof outcome !== 'undefined' ? outcome : null, why: loseWhy, sec: Math.round(gameSec), clock: clockStr(),
       sunk: { me: side(f => f.team === 0 && !f.ward && !f.ally && !f.isCarrier), ally: side(f => f.team === 0 && (f.ally || f.ward) && !f.isCarrier), enemy: side(f => f.team === 1) },
       convoy: typeof convoy !== 'undefined' && convoy ? `${convoy.alive ? convoy.ships.length : 0}/${convoy.n}` : null,
-      carrier: opCarrier ? (opCarrier.alive ? Math.round(opCarrier.hpPool) : 'x') : null };
+      carrier: opCarrier ? (opCarrier.alive ? Math.round(opCarrier.hpPool) : 'x') : null,
+      fort: fortress && fortress.max ? Math.round(100 * Math.max(0, fortress.hpPool) / fortress.max) + '%' : null };   // the fortress or the station we keep
   }, { strat, army: +opt.army || 0 });
   console.log(JSON.stringify(r, null, 1)); if (errors.length) console.log('errors', errors.slice(0, 3));
   await browser.close();
