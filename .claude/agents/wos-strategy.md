@@ -42,7 +42,7 @@ tools: Read, Grep, Glob, Bash
 
 ## 確かめかた
 
-- 早送りの道具（`node tools/februaria-sim.cjs q tech army=80`（q はデバッグのオートモードと同じ動き）、`TECH=1 node tools/denali-sim.cjs auto` など）で、今の作戦の時刻ごとの様子と勝ち負けを見る。研究の進み具合で強さが大きく変わるので、研究なしと全研究（`tech`）の両方を見る。
+- 早送りの道具（2026-10-20 から自軍は節の技術の段階で測る: `STAGE=1 node tools/februaria-sim.cjs q army=80`、どの作戦でも `STAGE=1 node tools/op-sim.cjs <作戦id> auto|idle`。前は `node tools/februaria-sim.cjs q tech army=80`（q はデバッグのオートモードと同じ動き）、`TECH=1 node tools/denali-sim.cjs auto` など）で、今の作戦の時刻ごとの様子と勝ち負けを見る。研究の進み具合で強さが大きく変わるので、研究なしと全研究（`tech`）の両方を見る。
 - 道具がない作戦は、`tools/browser.cjs` の `openGame` を使った短いスクリプトを、呼び出し元が渡すスクラッチパッド（なければ `/tmp`）に書いて確かめる。リポジトリには書かない。
 - 数値は計算で示す（例: 速さ6の艦が180離れた持ち場へ移るのに30秒、作戦の時計で約2時間）。
 
