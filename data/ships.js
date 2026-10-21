@@ -66,12 +66,14 @@ WOS_DATA.crafts={
    earth: 地球連合。艦種の最大は上の WOS_DATA.ships、小型機の最大は WOS_DATA.crafts。
    mars: 惑星共和国（惑星自治軍）。ships は艦種の最大（打撃/防御/回避/射程/速さ）。表にない艦種（戦艦など）は鹵獲した地球の艦として地球の表と割合を使う。
      作戦データの side:'earth' の敵は全部地球の表（鹵獲艦の隊）。crafts は小型機の最大（W.A.S. は地球の1.5倍、回避0.55）。
+     ships の was: 1隻に積む W.A.S.（2026-10-21、ユーザー決定: 揚陸艦そのものの性能。どの作戦でも。作戦データに hangar を書かない共和国の隊は、
+     その艦種の隻数×was を積む。地球の突撃揚陸艦は上の WOS_DATA.ships の hangar で10）。
      ace: 惑星先進装備開発局の隊（ace:true、アルバレス隊）は、その段階の値の ship 倍（耐久・打撃・回避・射程・速さ。小型機も）、W.A.S. の打撃は wasDmg 倍 */
 WOS_DATA.sides={
   earth:{base:.3},
   mars:{base:.45,
     ships:{cv:{atk:3, def:1.5, eva:10, rng:3, spd:11}, ff:{atk:4, def:2.5, eva:8, rng:4, spd:9}, dd:{atk:6, def:3.5, eva:7, rng:5, spd:8},
-      cl:{atk:8, def:7, eva:4, rng:6.5, spd:6}, mas:{atk:6, def:3, eva:6, rng:2.5, spd:8}},
+      cl:{atk:8, def:7, eva:4, rng:6.5, spd:6}, mas:{atk:6, def:3, eva:6, rng:2.5, spd:8, was:12}},
     crafts:{was:{hp:15, dmg:1, eva:.55}},
     ace:{ship:1.25, wasDmg:3}},
 };
