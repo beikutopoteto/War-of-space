@@ -340,8 +340,12 @@ function gatesHtml(){
       (g.sealed?`<polygon points="${GOAL_OCT}" fill="none" stroke="${c}" stroke-width="1" stroke-dasharray="2 1.6"/><path d="M8.5 7.5L15.5 16.5M15.5 7.5L8.5 16.5" stroke="${c}" stroke-width="1"/>`:
       `<polygon points="${GOAL_OCT}" fill="${c}" fill-opacity=".38" clip-path="url(#gk${i})"/><polygon points="${GOAL_OCT}" fill="none" stroke="${c}" stroke-width="1"/>`)+'</svg>'; };
   const cls=g=>g.sealed?'shut':g.hp/g.max<=GATE_AMBER?'warn':'ok', pct=g=>g.sealed?'閉鎖':Math.ceil(100*Math.max(0,g.hp/g.max))+'%';
+  /* the front before each gate (stepFronts), if pressed: an amber frame and a chevron, two when falling (案 A, user decision 2026-10-21) */
+  const front=g=>!over&&repelT==null&&fronts.find(F=>F.gate===g.name&&!F.closed&&F.level>0)||null,
+    tip=(g,L)=>L?`${L.name}が${L.level>1?'崩れかけている':'押されている'}`:`${g.name}のシールド`,
+    chev=L=>L?`<i class="pm"><svg viewBox="0 0 14 15" aria-hidden="true"><path d="M2 2L7 7L12 2"/>${L.level>1?'<path d="M2 8L7 13L12 8"/>':''}</svg></i>`:'';
   const gar=garrison?Math.max(0,garrison.hp/garrison.max):0;
-  return `<div class="gr">${gates.map((g,i)=>`<div class="gc ${cls(g)}" title="${g.name}のシールド">${icon(g,i)}<span>${g.name.replace(/ゲート$/,'')}</span><span class="v">${pct(g)}</span></div>`).join('')}</div>`+
+  return `<div class="gr">${gates.map((g,i)=>{ const L=front(g); return `<div class="gc ${cls(g)}${L?' p'+Math.min(2,L.level):''}" title="${tip(g,L)}">${icon(g,i)}<span>${g.name.replace(/ゲート$/,'')}</span><span class="v">${pct(g)}</span>${chev(L)}</div>`; }).join('')}</div>`+
     (garrison?`<div class="gar" title="基地の中の守備隊。最後のゲートのシールドが尽きると、そばの揚陸艦が降ろす W.A.S. に削られる。0で失敗"><span>基地守備隊</span><span class="g"><i style="width:${(gar*100).toFixed(1)}%"></i></span><span class="v">${Math.ceil(gar*100)}%</span></div>`:''); }
 goalEl.addEventListener('click',()=>goalEl.classList.toggle('fold'));
 function updateGoal(){

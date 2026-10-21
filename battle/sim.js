@@ -1329,7 +1329,8 @@ function stepFronts(){
 }
 /* 第5節: hold the base (op.win {type:'repel', share, until, surge}): won when `share` of the enemy's main force (fleets marked main)
    is sunk, or at `until` minutes. surge {share, at, events}: the all-out attack, when `share` of it is sunk or at `at` minutes,
-   whichever comes first; its events (the form of op.events, after: minutes from then) follow. 数値は仮
+   whichever comes first; its events (the form of op.events, after: minutes from then) follow, those with by:'share' / 'time' only
+   when it came that way (2026-10-21). 数値は仮
    retreat {sec, text, log} (user decision 2026-10-14): once `share` is sunk the enemy falls back first: every enemy fleet withdraws
    (no fire, its craft called back, north; an assault ship in a ring puts nothing down), nothing more comes, and after `sec` seconds
    of the battle the result follows. text goes in the goal panel meanwhile */
@@ -1339,7 +1340,7 @@ function stepRepel(){
   const W=op.win; if(!W||W.type!=='repel'||over) return;
   const k=mainSunk(), now=gameSec*CLOCK_RATE, S=W.surge;
   if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true;
-    const add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
+    const by=k>=S.share?'share':'time', add=(S.events||[]).filter(e=>!e.by||e.by===by).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
     opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
   if(repelT!=null){ if(gameSec-repelT>=W.retreat.sec) end(true); return; }
   const short=W.wasShort&&wasShort();
