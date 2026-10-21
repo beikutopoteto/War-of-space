@@ -158,8 +158,9 @@ function destroyFleet(f,src){
   /* 第5節: the first gun on the base lost to the enemy (the escorts go for them, prey:'battery'): say what it means */
   if(f.fixed&&f.team===0&&op.base&&op.base.gunLostLog&&!gunLostSaid){ gunLostSaid=true; logEvent(...op.base.gunLostLog); }
   if(f===opCarrier&&!over){ loseWhy='carrier'; end(false); }
-  /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on) */
-  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
+  /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on). op.wipeLose:false (第5節, user decision
+     2026-10-21): losing them is no defeat; the battle goes on until the garrison is gone or the Republic falls back */
+  if(op.wipeLose!==false&&!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
   updateRoster();
 }
 let outcome=null;
