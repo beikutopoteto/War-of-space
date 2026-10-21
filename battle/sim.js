@@ -158,8 +158,9 @@ function destroyFleet(f,src){
   /* 第5節: the first gun on the base lost to the enemy (the escorts go for them, prey:'battery'): say what it means */
   if(f.fixed&&f.team===0&&op.base&&op.base.gunLostLog&&!gunLostSaid){ gunLostSaid=true; logEvent(...op.base.gunLostLog); }
   if(f===opCarrier&&!over){ loseWhy='carrier'; end(false); }
-  /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on) */
-  if(!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
+  /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on). op.wipeLose:false (第5節, user decision
+     2026-10-21): losing them is no defeat; the battle goes on until the garrison is gone or the Republic falls back */
+  if(op.wipeLose!==false&&!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
   updateRoster();
 }
 let outcome=null;
@@ -1352,8 +1353,9 @@ function stepRepel(){
    on the ones still to come (events not yet run, the all-out attack's if it has not begun), are fewer than it takes to wear the garrison
    down (garrison.hp / garrison.was): the enemy cannot take the base and falls back */
 function wasLeft(){ let n=0;
-  /* only the W.A.S. of the ships that land (ai:'land', or a reserve given its gate: drop / drops); the hunter on the front line (prey:'front') never puts any in */
-  const lands=f=>f.ai==='land'||!!(f.drop||f.drops), of=f=>lands(f)&&(f.hangar&&f.hangar.was)||0;
+  /* the W.A.S. of the ships that land (ai:'land', or a reserve given its gate: drop / drops), and of Alvarez's hunters (ace; user decision 2026-10-21).
+     A fleet still to come with no hangar in the data carries its class's W.A.S. (data/ships.js sides.mars, techFleet) */
+  const lands=f=>f.ai==='land'||!!(f.drop||f.drops)||!!f.ace, of=f=>lands(f)&&((f.hangar||(f.hp==null?techFleet(1,f).hangar:null)||{}).was||0)||0;
   for(const f of fleets) if(f.alive&&f.team===1&&lands(f)) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
