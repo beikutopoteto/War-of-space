@@ -576,7 +576,7 @@ WOS_DATA.operations=[
       {after:360, fleet:{name:'第25 下方 浸透 戦闘隊', sub:'自治軍 駆逐艦', comp:{dd:2}, n:2, scale:1.1, pos:[-90,-150], alt:-50, ai:'siege', vis:6, stl:7},
         arrow:{pos:[-40,-60], alt:-35}, log:['ハッダード曹長', '「左下から駆逐艦。ステーションの腹へ潜り込む気です」']},
       {after:420, phase:'右翼の突破', log:['ハッダード曹長', '「右から巡洋艦。ドナウ残存隊が押されています」'],
-        fleet:{name:'第15 右翼突破 戦闘隊', sub:'自治軍 重巡洋艦・突撃揚陸艦', comp:{cl:3, mas:2}, n:5, scale:1.2, pos:[150,-70], alt:0, ai:'hunt', watch:{pos:[8,-6], alt:0}, vis:6, stl:5}, arrow:{pos:[80,-50]}},
+        fleet:{name:'第15 右翼突破 戦闘隊', sub:'自治軍 重巡洋艦・突撃揚陸艦', comp:{cl:2, mas:2}, n:4, scale:1.2, pos:[150,-70], alt:0, ai:'hunt', watch:{pos:[8,-6], alt:0}, vis:6, stl:5}, arrow:{pos:[80,-50]}},
       /* 右翼の突破に続いて、ドナウ残存隊へ突撃揚陸艦の2隊が上と下から突っ込む（ユーザー決定 2026-10-04。数値は仮）。
          2026-10-13（ユーザー決定）: 右翼の突破と同時だったのを、第20 は40分、第21 は80分遅らせ、W.A.S. を15から10に（数値は仮）。
          2026-10-14（ユーザー決定）: 共和国のドクトリン（同じ一撃の隊は15分以内に着く。docs/story.md 6.1）に合わせ、右翼の突破（420分）と±15分にそろえた。
@@ -592,7 +592,7 @@ WOS_DATA.operations=[
         fleet:{name:'第23 左翼 牽制 戦闘隊', sub:'自治軍 重巡洋艦・駆逐艦', comp:{cl:1, dd:2}, n:3, scale:1.1, pos:[-180,-110], alt:15, ai:'hunt', watch:{pos:[-70,-48], alt:0}, vis:6, stl:6},
         arrow:{pos:[-110,-80], alt:10}},
       {after:690,
-        fleet:{name:'第5 重巡洋 エスカドラ', sub:'主力艦隊 重巡洋艦・突撃揚陸艦', comp:{cl:5, mas:2}, n:7, scale:1.4, pos:[0,-150], alt:12, ai:'siege', vis:6, stl:3}, arrow:{pos:[0,-60]}},
+        fleet:{name:'第5 重巡洋 エスカドラ', sub:'主力艦隊 重巡洋艦・突撃揚陸艦', comp:{cl:4, mas:2}, n:6, scale:1.4, pos:[0,-150], alt:12, ai:'siege', vis:6, stl:3}, arrow:{pos:[0,-60]}},
       {after:780, phase:'最後の2時間', log:['ハッダード曹長', '「下方から人型の群れ。ステーションの腹に取り付く気です」'], fleet:{name:'第19 突撃揚陸 戦闘隊', sub:'自治軍 突撃揚陸艦', type:'mas', n:2, scale:1, pos:[-40,-120], alt:-30, ai:'siege', vis:5, stl:7, }},
       {after:810, log:['傍受', 'アルバレス大尉「ナイルは本隊に任せろ。俺たちの出番は次だ」']},
       {after:870, fleet:{name:'第24 追撃 戦闘隊', sub:'自治軍 重巡洋艦・突撃揚陸艦', comp:{cl:2, mas:1}, n:3, scale:1.1, pos:[150,-120], alt:20, ai:'siege', vis:6, stl:6},
