@@ -1075,13 +1075,13 @@ function check(ok, label, detail = '') {
       { const sp = [0, 1, 2, 3].map(k => { const f = makeFleet(1, { name: '試験 散開' + k, sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [E.pos.x, E.pos.z - 80], alt: 0, ai: 'land', drop: '東ゲート', vis: 1, stl: 9 }); landAI(f); f.el.remove(); return f.order && f.order.dest; });
         let md = 1e9; sp.forEach((a, i) => sp.forEach((b, j) => { if (i < j) md = Math.min(md, a.distanceTo(b)); }));
         r.spread = sp.every(p => p && p.distanceTo(E.ring) <= E.r && p.distanceTo(E.ring) > 3) && md > 3; }
-      /* Alvarez's two (2026-10-18, user decision): 第7 lands at the middle gate, 第8 hunts on the front line (prey:'front'): the nearest of
+      /* Alvarez's two (2026-10-18, user decision; 2026-10-21 both hunt, named 試験強襲 of the Advanced Equipment Development Bureau): they hunt on the front line (prey:'front'): the nearest of
          our ships north of the gates, not one by the gates, and its W.A.S. are not counted as able to take the base */
-      { const ev = op.win.surge.events.map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 局地強襲')), a8 = ev.find(f => f.name.startsWith('第8 局地強襲'));
+      { const ev = op.win.surge.events.map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 試験強襲')), a8 = ev.find(f => f.name.startsWith('第8 試験強襲'));
         const w0 = wasLeft(), hn = makeFleet(1, { name: '試験 敵狩り', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [420, 110], alt: 80, ai: 'hunt', prey: 'front', watch: { pos: [0, -38], alt: 40 }, hangar: { was: 40 }, vis: 1, stl: 9 }); fleets.push(hn);
         const mk = z => { const a = makeFleet(0, { name: '試験 的' + z, sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [420, z], alt: 80, ally: true, vis: 6, stl: 4 }); a.seen = true; a.ward = true; fleets.push(a); return a; };
         const byGate = mk(115), onFront = mk(60); enemyAI();   // off at the east edge, away from the rest: the one by the gates (z over FRONT_LINE) is nearer
-        r.hunter = a7.ai === 'land' && a7.drop === '中央ゲート' && a8.ai === 'hunt' && a8.prey === 'front' && !a8.drop && hn.order && hn.order.target === onFront && wasLeft() === w0;
+        r.hunter = [a7, a8].every(a => a.ai === 'hunt' && a.prey === 'front' && !a.drop && a.ace && a.sub.startsWith('惑星先進装備開発局')) && hn.order && hn.order.target === onFront && wasLeft() === w0;
         [hn, byGate, onFront].forEach(f => { f.alive = false; f.el.remove(); }); }
       r.drain = garrison.max === 2000 && Math.abs(gates[0].max - op.base.shield * HP_K) < 1e-6 && GA.was === 5 && d0 === 0 && put1 >= want && put1 <= want + 1 && d1 === put1 * GA.was && Math.abs(d2 - 2 * d1) <= 2 * GA.was;
       updateGoal(); const gx = document.getElementById('goalGates'); r.goal = !gx.hidden && gx.textContent.includes('閉鎖') && gx.textContent.includes('基地守備隊') && !goalSub.textContent.includes('降下点');
@@ -1162,7 +1162,7 @@ function check(ok, label, detail = '') {
         r.bbLine = bb.length === 8 && want.length === 8 && want.every(f => bb.includes(f)) && bb.every(f => f.post.z < 0 && f.stack === 2 && f.gateFirst && crowd(f) < 2); }
       /* 2026-10-20 (user decision): the Bureau's fleets are 1.25 times the stage's Republic values (ships and W.A.S.), their W.A.S. hitting 3 times as hard */
       const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
-      r.ace = ace.length === 2 && ace.every(f => (f.name.startsWith('第7') ? f.drop === '中央ゲート' : f.prey === 'front' && f.ai === 'hunt') && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 80)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line (2026-10-20: 80 W.A.S. each)
+      r.ace = ace.length === 2 && ace.every(f => f.prey === 'front' && f.ai === 'hunt' && !f.drop && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 80)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line (2026-10-20: 80 W.A.S. each)
         && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
         && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
         && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
