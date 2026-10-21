@@ -1355,7 +1355,7 @@ function stepRepel(){
 function wasLeft(){ let n=0;
   /* the W.A.S. of the ships that land (ai:'land', or a reserve given its gate: drop / drops), and of Alvarez's hunters (ace; user decision 2026-10-21).
      A fleet still to come with no hangar in the data carries its class's W.A.S. (data/ships.js sides.mars, techFleet) */
-  const lands=f=>f.ai==='land'||!!(f.drop||f.drops)||!!f.ace, of=f=>lands(f)&&((f.hangar||techFleet(1,f).hangar||{}).was||0)||0;
+  const lands=f=>f.ai==='land'||!!(f.drop||f.drops)||!!f.ace, of=f=>lands(f)&&((f.hangar||(f.hp==null?techFleet(1,f).hangar:null)||{}).was||0)||0;
   for(const f of fleets) if(f.alive&&f.team===1&&lands(f)) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
