@@ -925,7 +925,7 @@ function check(ok, label, detail = '') {
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     /* the waves' ships and W.A.S. from the data (2026-10-20: the Republic's numbers were fitted to the two sides' tables) */
     const DW = await page.evaluate(() => { const C = WOS_DATA.operations.find(o => o.id === 'denali').carrier, E = C.evacEvents.find(e => e.mass).mass, L = C.lastWave.mass;
-      const cnt = m => m.own.reduce((s, f) => s + f.n, 0) + m.types.reduce((s, t) => s + t.n, 0), was = m => m.types.reduce((s, t) => s + (t.was || 0), 0);
+      const cnt = m => m.own.reduce((s, f) => s + f.n, 0) + m.types.reduce((s, t) => s + t.n, 0), was = m => m.types.reduce((s, t) => s + (t.was ?? ((WOS_DATA.sides.mars.ships[t.fleet.type] || {}).was || 0) * t.n), 0);   // the class's W.A.S. when the data gives none (2026-10-21)
       return { n1: cnt(E), was1: was(E), n2: cnt(L), was2: was(L) }; });
     { const M = d1.mass || {};
       check(M.ours >= 2 && M.k === 4 && M.n === DW.n1 && M.was === DW.was1 && M.detail === M.k - 1 && M.focus === 2 && M.pinned === Math.min(M.ours - 1, M.detail - 2) && M.lone,
@@ -1138,7 +1138,7 @@ function check(ok, label, detail = '') {
       r.icon = bt.length === 14 && bt.every(f => f.el.classList.contains('gun') && f.el.querySelector('.emb rect') && getComputedStyle(f.el.querySelector('.flag')).display === 'none');
       /* 2026-10-18: the W.A.S. (× garrison.was) and the armoured infantry (× garrison.troop) together; no share of the main force */
       const GA = op.base.garrison, cap = () => wasLeft() * GA.was + troopsLeft() * GA.troop; r.need = garrison.hp; r.left = wasLeft(); r.troops = troopsLeft(); r.cap = cap();
-      r.start = !wasShort() && r.cap >= garrison.hp && wasLeft() * GA.was < garrison.hp && !op.win.share && op.win.wasShort && GA.hp === 2000 && GA.troop > 0;
+      r.start = !wasShort() && r.cap >= garrison.hp && troopsLeft() > 0 && !op.win.share && op.win.wasShort && GA.hp === 2000 && GA.troop > 0;
       const ne = nextEvent, su = surged, keep = fleets.filter(f => f.team === 1).map(f => f.hangars.map(h => [h.reserve, h.squads.map(q => q.n)]));
       nextEvent = opEvents.length; surged = true; fleets.filter(f => f.team === 1).forEach(f => f.hangars.forEach(h => { h.reserve = 0; h.squads.forEach(q => { q.n = 0; }); }));
       r.short = wasShort();
