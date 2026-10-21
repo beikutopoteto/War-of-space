@@ -168,8 +168,9 @@ let infRim=null;
 function infRimTex(){ if(infRim) return infRim; const c=document.createElement('canvas'); c.width=c.height=16; const x=c.getContext('2d');
   x.fillStyle='rgba(8,12,20,.9)'; x.beginPath(); x.arc(8,8,7.6,0,Math.PI*2); x.fill(); x.fillStyle='#fff'; x.beginPath(); x.arc(8,8,4.4,0,Math.PI*2); x.fill();
   return infRim=new THREE.CanvasTexture(c); }
-/* teams: how many fire teams of `per`, unless the data gives the head count n (2026-10-18, user decision: twice the infantry, 72 a gate and 16 a gun) */
-const INF_LOOK={teams:18, per:4, rMin:10.5, rMax:23, flat:1.37, spread:1.6, size:5, lift:.3};   // 1ゲートに72（18組×4）。東西 10.5〜23、南北 14〜32（仮。前は36、9組・〜19）
+/* teams: how many fire teams of `per`, unless the data gives the count of dots n (2026-10-18, user decision: twice the infantry, 72 a gate and 16 a gun;
+   2026-10-20, user decision: a quarter of the dots, each four times as strong (a dot about a company, four platoons; it was a platoon): 18 a gate and 4 a gun) */
+const INF_LOOK={teams:9, per:2, rMin:10.5, rMax:23, flat:1.37, spread:2.2, size:5, lift:.3};   // 1ゲートに18（9組×2。2026-10-20、前は72で18組×4）。東西 10.5〜23、南北 14〜32（仮。前は36、9組・〜19）
 function infDots(x,z,I=INF_LOOK,n){ const teams=[], nt=n?Math.max(1,Math.round(n/I.per)):I.teams;
   for(let t=0;t<nt;t++){ const a=t*Math.PI*2/nt+gRnd()*.5, r=I.rMin+gRnd()*(I.rMax-I.rMin), cx=x+Math.cos(a)*r, cz=z+Math.sin(a)*r*I.flat, team=[];
     for(let k=0;k<I.per;k++){ const p=rockAt(cx+(gRnd()-.5)*I.spread,cz+(gRnd()-.5)*I.spread); p.y+=I.lift; team.push(p); } teams.push(team); }
@@ -191,7 +192,7 @@ const PIT_S=1.1, PIT_R=.8, PIT_AXIS=.8, PIT_DEEP=2.3, PIT_EL=[.349,1.57], PIT_RE
    PIT_POP[0] over the mouth where the barrels cross the collar's outer edge (PIT_POP[1] from the middle). A lost gun lies at PIT_DEAD, down */
 const PIT_POP=[.2,1.16], PIT_DEAD=.84;
 function pitLift(el){ return Math.max(0,PIT_POP[0]-PIT_POP[1]*Math.tan(el)+PIT_AXIS); }
-const PIT_INF={teams:4, per:4, rMin:3.6, rMax:6.5, flat:1, spread:1.3, size:5, lift:.3};   // 16人（4組×4。前は8、2組・〜5.5。仮）
+const PIT_INF={teams:2, per:2, rMin:3.6, rMax:6.5, flat:1, spread:1.8, size:5, lift:.3};   // 4点（2組×2。2026-10-20、前は16で4組×4、その前は8、2組・〜5.5。仮）
 const PM={dead:new THREE.MeshStandardMaterial({color:0x2a2e33,metalness:.3,roughness:.9}),
   shaft:new THREE.MeshStandardMaterial({color:0x4a5462,roughness:.9,metalness:.2,side:THREE.DoubleSide,depthFunc:THREE.AlwaysDepth,
     stencilWrite:true,stencilRef:1,stencilFunc:THREE.EqualStencilFunc}),
@@ -242,7 +243,7 @@ function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
   P.az+=Math.sign(da)*Math.min(Math.abs(da),PIT_TURN*dt+Math.abs(da)*k*.2); P.el+=(el-P.el)*k;
   P.yaw.rotation.y=P.az; P.pitch.rotation.x=-P.el; P.yaw.position.y=pitLift(P.el); P.root.updateMatrixWorld(true);
   f.ships.forEach((s,i)=>{ s.muzzle.set(i?-.1:.1,0,2.69); P.pitch.localToWorld(s.muzzle); });
-  infLean(P.inf,f,dt); P.inf.m.geometry.setDrawRange(0,f.inf); }
+  infLean(P.inf,f,dt); P.inf.m.geometry.setDrawRange(0,Math.ceil(f.inf)); }
 
 /* ---- building and changing the gates ---- */
 function gateDispose(o){ o.traverse(x=>{ if(x.userData.keep) return; if(x.geometry&&!GATE_RUBBLE.includes(x.geometry)) x.geometry.dispose(); if(x.material&&!GM_KEEP.has(x.material)) x.material.dispose(); }); }
@@ -289,7 +290,7 @@ function drawGate(G,dt=0){ const L=G.look, k=G.max?Math.max(0,G.hp/G.max):0;
   if(L.lit){ const n=GATE_BAND.length, seg=k>=.999?n:k>0?Math.max(2,Math.round(n*k)):0;
     if(L.shown!==seg){ L.shown=seg; L.lit.geometry.setDrawRange(0,seg*6); L.dim.visible=seg<n; L.lit.material.opacity=seg>=n?.6:.75;
       const c=k>GATE_AMBER?GATE_COL.band:GATE_COL.amber; L.lit.material.color.setHex(c); L.dim.material.color.setHex(c); } }
-  L.inf.m.geometry.setDrawRange(0,G.inf);
+  L.inf.m.geometry.setDrawRange(0,Math.ceil(G.inf));   // the strength in quarters, a dot while any of it is left (sim.js infQ)
 }
 
 /* ---- the infantry's fire (案c): thin streaks of light, and now and then the thin white trail of an anti-armour rocket with a bright head.
@@ -315,14 +316,15 @@ tpPts.renderOrder=3; tpPts.frustumCulled=false; scene.add(tpPts);
 /* how they walk (2026-10-18, user: not one block sliding along): the sim moves only the group's centre (sim.js stepTroops); here every man
    goes on his own toward his place, at his own pace (TM.v), and his dot is set on the rock again once he has gone TM.reH.
    On the move (user decision 2026-10-18: 見本 B and C together) they go in file, each TM.gap behind the one before along the way the
-   centre went, and by bounds: each fire team of four runs TM.beat[0] seconds (TM.run times its pace) and lies down TM.beat[1], on its
+   centre went, and by bounds: each fire team (TROOP_TEAM dots; 2026-10-20: 2, was 4 men, as a dot is now about a company) runs TM.beat[0] seconds (TM.run times its pace) and lies down TM.beat[1], on its
    own beat, so some run while the others are down. Stopped (at the enemy, user: 「敵目前で広がる」) they spread out round the centre
    as they landed. 数値は仮 */
-const TM={v:[1.7,2.6], run:1.7, gap:.85, beat:[1.1,1.6], reH:.35, still:.6, wave:.5};
+const TM={v:[1.7,2.6], run:1.7, gap:1.4, beat:[1.1,1.6], reH:.35, still:.6, wave:.5};   // gap: 2026-10-20 に .85 から（点が4分の1なので列が短くなりすぎないよう。仮）
+const TROOP_TEAM=2;   // 組の点の数（2026-10-20、点を4分の1にしたので4から。sim.js troopsOut も使う。仮）
 const _tw=new THREE.Vector3();
 function troopMen(g){ if(g.men) return g.men;
   g.dir=new THREE.Vector3(0,0,-1); g.prevC=g.pos.clone(); g.still=9; g.teamT=[]; g.trail=[g.pos.clone()];
-  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/4)|0, off:g.offs[i], wob:Math.random()*6})); }
+  return g.men=g.dots.map((p,i)=>({p, h:p.clone(), v:TM.v[0]+Math.random()*(TM.v[1]-TM.v[0]), team:(i/TROOP_TEAM)|0, off:g.offs[i], wob:Math.random()*6})); }
 /* the point d behind the head of the way the centre went */
 function trailAt(g,d){ const T=g.trail; let p=T[T.length-1]; for(let i=T.length-2;i>=0;i--){ const q=T[i], l=Math.hypot(p.x-q.x,p.z-q.z); if(l>=d) return _tw.set(p.x+(q.x-p.x)*d/l,0,p.z+(q.z-p.z)*d/l); d-=l; p=q; } return _tw.set(p.x,0,p.z); }
 function stepTroopMen(g,dt){

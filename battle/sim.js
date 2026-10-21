@@ -3,7 +3,10 @@
 /* ---------- simulation ---------- */
 let wings=[];
 function units(){ return fortress.alive?[...fleets,...wings,fortress]:[...fleets,...wings]; }
-function gap(a,b){ return a.pos.distanceTo(b.pos)-(b.radius||0); }
+function gap(a,b){ return b.troop?troopGap(a.pos||a,b):a.pos.distanceTo(b.pos)-(b.radius||0); }
+/* the enemy's infantry (第5節): measured to the nearest man of the group or its centre, the nearer (2026-10-20: a man plainly in reach was not fired on
+   while the group's centre was just out of it) */
+function troopGap(p,g){ let d=1e9; const k=Math.min(g.n,g.dots.length); for(let i=0;i<k;i++){ const x=p.distanceTo(g.dots[i]); if(x<d) d=x; } return Math.min(d,p.distanceTo(g.pos)); }
 /* detection: a team sees an enemy unit while any of its own units has it within sight.
    sight grows with the observer's 視界, shrinks with the target's 隠蔽性; vision is shared across the team,
    and a unit that opens fire gives itself away for a few seconds. */
@@ -102,8 +105,8 @@ function damage(t,amt,src){
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
   /* a gate's shield (第5節): no evasion, no lives */
   if(t.kind==='gate'){ gateHit(t,amt); return; }
-  /* ship fire on the enemy's infantry on the rock (第5節, 2026-10-19): op.base.troops.hp a man (times the hit points multiplier) */
-  if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??10)*HP_K); t.n=Math.max(0,t.n0-Math.floor(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
+  /* ship fire on the enemy's infantry on the rock (第5節, 2026-10-19): op.base.troops.hp a dot (times the hit points multiplier) */
+  if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??40)*HP_K); t.n=Math.max(0,t.n0-infQ(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
   if(t.kind==='block'){ civHit(amt*(op.civil.perRaid||2),false); if(Math.random()<amt*.08) burst(t.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*5,(Math.random()-.5)*8)),HOT,10,6,1); return; }
   if(t.eva) amt*=1-t.eva;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
@@ -781,7 +784,14 @@ function allyAI(){
     /* which foe: shared out among the allies like the enemy does it (pickFoe), within its leash of its post (f.aim: what it goes for,
        counted in the share-out even before it can see it). A battery it cannot see yet: it closes on its known place, and attacks it once seen */
     /* stack (第5節の総攻撃の戦艦, 2026-10-20): not a foe that `stack` other allies already go for */
-    const threat=pickFoe(f,f.stack?foes.filter(p=>{ let n=0; for(const x of fleets) if(x!==f&&x.ally&&x.alive&&!x.fixed&&(x.aim===p||x.order&&x.order.target===p)) n++; return n<f.stack; }):foes,false); f.aim=threat;
+    const free=f.stack?foes.filter(p=>{ let n=0; for(const x of fleets) if(x!==f&&x.ally&&x.alive&&!x.fixed&&(x.aim===p||x.order&&x.order.target===p)) n++; return n<f.stack; }):foes;
+    let threat=pickFoe(f,free,false);
+    /* the battleships' line with op.allyFall (2026-10-20: "meet what makes for the shields"; they stood idle out in front while the enemy that had
+       come round worked on the gate behind them): nothing in its leash, it goes back for the nearest ship by the gate in front of it (within
+       GATE_HELP, or an assault ship making for it), then returns to its post */
+    if(!threat&&f.stack&&op.allyFall&&gates.length){ const g=gateNear(f.post,openGates());
+      if(g) threat=nearestOf(f,free.filter(p=>!p.fixed&&p.seen&&(Math.hypot(p.pos.x-g.pos.x,p.pos.z-g.pos.z)<GATE_HELP||p.dropAt===g&&gateBound(p)))); }
+    f.aim=threat;
     if(threat) f.waitAt=null;
     if(threat&&!threat.seen){ moveTo(f,threat.pos.x,threat.pos.y,threat.pos.z); continue; }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
@@ -965,7 +975,7 @@ function landSpot(f,g){
   return f.landSpot.p; }
 /* the nearest gate whose shield f can fire on now (within R, a clear line) */
 /* the group of the enemy's infantry nearest p (a unit, or a point) within R that our guns can see (第5節, 2026-10-19) */
-function troopNear(p,R){ const at=p.pos||p; let b=null,bd=R; for(const g of troops){ if(!(g.n>0)) continue; const d=at.distanceTo(g.pos); if(d<bd&&!bodyBlocks(at,g.pos)){ bd=d; b=g; } } return b; }
+function troopNear(p,R){ const at=p.pos||p; let b=null,bd=R; for(const g of troops){ if(!(g.n>0)) continue; const d=troopGap(at,g); if(d<bd&&!bodyBlocks(at,g.pos)){ bd=d; b=g; } } return b; }
 function gateInReach(f,R=f.range){ let b=null,bd=R; for(const g of gates){ if(!g.alive) continue; const d=gap(f,g); if(d<=bd&&!bodyBlocks(f.pos,g.pos)){ bd=d; b=g; } } return b; }
 /* a hunting unit with nothing in sight: it stands off over the open gate nearest its watch point, inside its guns' reach of the shield */
 function gateWatch(f){ const list=gates.filter(g=>g.alive); if(!list.length) return false;
@@ -990,7 +1000,8 @@ function sealGate(g){ const B=op.base; g.sealed=true; g.inf=0; g.boomT=2.2; draw
       else if(f.post&&near(f.post)){ move(f.post,to(f.post)); if(f.order&&f.order.type==='move') f.order=null; }
       continue; }
     if(f.ally&&!f.fixed&&f.stack){ if(gateNear(f.post)===g){ frontPost(f); f.aim=null; f.order=null; } continue; }   // the battleships' line (2026-10-20)
-    if(f.ally&&!f.fixed&&near(f.home||f.post)){ const t=to(f.post); move(f.post,t); if(f.home) move(f.home,t); if(f.fallTo) move(f.fallTo,t); f.aim=null; f.order=null; } }
+    if(f.ally&&!f.fixed&&!f.frontL&&near(f.home||f.post)){ const t=to(f.post); move(f.post,t); if(f.home) move(f.home,t); if(f.fallTo) move(f.fallTo,t); f.aim=null; f.order=null; } }
+  allyFallSeal(g);   // the line of this gate's front goes to the gate left; one gate left, every ally round it (2026-10-20)
   /* the stage's place on this gate (第5節 in stages): the field slides to the gate left */
   if(stageGate===g){ const t=to(fieldC); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(fieldC.x+t.pos.x-g.pos.x,0,fieldC.z+t.pos.z-g.pos.z); slideT=0; slideDur=4;
     spotObj.position.set(slideTo.x,.3,slideTo.z); stageText=stageText.split(g.name).join(t.name); stageGate=t;
@@ -1007,9 +1018,71 @@ const STACK_R=15, STACK_STEP=20, GATE_FIRST=.6;
 function postsNear(p,f){ let n=0; for(const x of fleets) if(x!==f&&x.ally&&x.alive&&!x.fixed&&Math.hypot(x.post.x-p.x,x.post.z-p.z)<STACK_R) n++; return n; }
 function frontPost(f){ const g=gateNear(f.post);
   if(g&&g.sealed){ const t=gateNear(f.post,openGates()); if(t){ f.post.x+=t.pos.x-g.pos.x; f.home.copy(f.post); } }
-  const k=f.stack||2; if(postsNear(f.post,f)<k) return;
+  spreadPost(f,f.stack||2); }
+/* no more than k allies' posts to one place: if k or more others are within STACK_R of f's post, it goes on STACK_STEP to one side, then the other */
+function spreadPost(f,k){ if(postsNear(f.post,f)<k) return;
   const p=f.post.clone(), q=p.clone();
   for(let i=1;i<=12;i++) for(const s of [1,-1]){ q.copy(p); q.x+=s*i*STACK_STEP; if(postsNear(q,f)<k){ f.post.copy(q); f.home.copy(q); return; } } }
+/* the allies' fall-back (第5節, user decision 2026-10-20, after the east of the line stood idle through the second half: its posts far out in
+   front, the enemy that had come round working on the shield of the gate behind it, out of its leash). op.allyFall
+   {collapse, back, toGate, rings, gap, arc, lift, log, lastLog}. Each unit of the line (an ally whose post is north of FRONT_LINE at the start:
+   not the reserve behind the centre nor Yukon) belongs to the front (op.fronts) its post is in (frontL).
+   A front gives way, once and for good, when its level comes to 2 (falling, stepFronts) or its line has fewer than `collapse` of its ships left.
+   What is left of its line then splits (doctrine: the escorts sweep the W.A.S. and the landers by the gate, the hurt pull back under the guns to
+   regroup, the sound cruisers hold a second line): `toGate` of its units (rounded up; the escorts first, then the most hurt) take posts round the
+   front's gate (gateSlot), the rest move their posts `back` of the way toward the gate (the second line), no more than two to a place (spreadPost).
+   The battleships put on the front in the all-out attack (stack) keep their posts there (2026-10-20). A front whose gate is sealed: its units go
+   on to the nearest gate left and split the same way round it. An ally with guardGate (2026-10-20, user decision: the east and west gates
+   guarded from the start) holds a spot round that gate from the start, like the guards of a front that gave way. One gate left: every ally (the battleships, the reserve and Yukon too) takes a
+   post round it, no more than two to a place (lastStand). 数値は仮 */
+function allyFallInit(){ const A=op.allyFall; if(!A||!fronts.length) return;
+  for(const f of fleets){ if(!f.ally||f.fixed||!f.alive) continue;
+    /* guardGate (2026-10-20, user decision): a gate's own guard from the start, on the ring round it like the guards of a front that gave way */
+    if(f.guardGate){ const g=gates.find(x=>x.name===f.guardGate); if(!g) continue; f.frontL=fronts.find(F=>F.gate===g.name)||null; f.fall='gate';
+      const p=gateSlot(f,g,q=>postsNear(q,f)); if(p) setPost(f,p); continue; }
+    if(f.post.z>=FRONT_LINE) continue; const L=fronts.find(F=>f.post.x>=F.x[0]&&f.post.x<F.x[1]); if(!L) continue;
+    f.frontL=L; f.line=true; L.lineN0=(L.lineN0||0)+f.n; } }
+function lineOf(L){ return fleets.filter(f=>f.ally&&f.alive&&!f.fixed&&f.line&&f.frontL===L); }
+function stepAllyFall(){ const A=op.allyFall; if(!A||!fronts.length||over||repelT!=null||lastGate) return;
+  for(const L of fronts){ if(L.fell) continue; const g=gates.find(x=>x.name===L.gate); if(!g||g.sealed) continue;
+    const ships=lineOf(L).reduce((s,f)=>s+f.ships.length,0);
+    if(L.level>=2||ships<(A.collapse??.5)*(L.lineN0||0)){ L.fell=true; fallTo(lineOf(L).filter(f=>!f.stack&&!f.fall),g,null);
+      if(A.log&&lineOf(L).length) logEvent(A.log[0],A.log[1].replace('{front}',L.name).replace('{gate}',g.name)); } } }
+/* the units go back to gate g (coming from sealed gate `from`, their posts moved across first): toGate of them round it, the rest to the second line */
+function fallTo(list,g,from){ const A=op.allyFall, L=fronts.find(F=>F.gate===g.name); if(!list.length) return;
+  const esc=f=>f.type==='ff'||!!(f.comp&&Object.keys(f.comp).every(t=>t==='ff'));
+  const order=list.slice().sort((a,b)=>esc(b)-esc(a)||a.ships.length/a.n-b.ships.length/b.n), nG=Math.ceil(order.length*(A.toGate??.5));
+  order.forEach((f,i)=>{ if(L) f.frontL=L; f.aim=null; f.order=null; f.fall=i<nG?'gate':'back';
+    if(i<nG){ const p=gateSlot(f,g,q=>postsNear(q,f)); if(p){ setPost(f,p); return; } f.fall='back'; }
+    if(from){ f.home.x+=g.pos.x-from.pos.x; f.home.z+=g.pos.z-from.pos.z; }
+    _w.set(g.pos.x,f.home.y,g.pos.z); setPost(f,_w.lerp(f.home,1-(A.back??.5))); spreadPost(f,2); }); }
+function setPost(f,p){ f.post.copy(p); f.home.copy(p); if(f.fallTo) f.fallTo.copy(p); }
+/* a spot round gate g for f: on the arc north of it (±arc degrees), on the ring for its kind (the battleships outside, the cruisers in the
+   middle, the escorts and the carrier inside), else the next ring; the free spot (occ(spot) < 2) nearest f. Spots `gap` apart, `lift` over the
+   gate and clear of the rock */
+function gateSlot(f,g,occ){ const A=op.allyFall, R=A.rings||[35,55,75], gap=A.gap||22, arc=(A.arc??80)*Math.PI/180;
+  const kind=f.type==='bb'||f.comp&&f.comp.bb?2:f.type==='ff'||f.isCarrier||f.type==='cvb'||f.comp&&Object.keys(f.comp).every(t=>t==='ff')?0:1;
+  const rings=R.map((r,i)=>[r,i]).sort((a,b)=>Math.abs(a[1]-kind)-Math.abs(b[1]-kind)||b[1]-a[1]);
+  for(const [r] of rings){ const n=Math.max(2,Math.floor(2*arc*r/gap)+1); let best=null,bd=1e9;
+    for(let i=0;i<n;i++){ const a=-arc+2*arc*i/(n-1), p=new THREE.Vector3(g.pos.x+r*Math.sin(a),g.pos.y+(A.lift??8),g.pos.z-r*Math.cos(a));
+      if(op.body){ const S=bodySurface(p,op.body.r)+6; if(p.distanceTo(bodyC)<S) p.sub(bodyC).setLength(S).add(bodyC); }
+      if(occ(p)>=2) continue; const d=p.distanceTo(f.pos); if(d<bd){ bd=d; best=p; } }
+    if(best) return best; }
+  return null; }
+let lastGate=null;
+const GATE_HELP=70;   // 仮: an enemy this near a gate (across) is working on it (the battleships' line comes back for it, allyAI)
+function allyFallSeal(g){ const A=op.allyFall; if(!A||!fronts.length) return; const open=openGates(); if(!open.length) return;
+  if(open.length===1) return lastStand(open[0]);
+  const t=gateNear(g.pos,open), L=fronts.find(F=>F.gate===g.name); if(L) L.fell=true;
+  fallTo(fleets.filter(f=>f.ally&&f.alive&&!f.fixed&&!f.stack&&f.frontL&&f.frontL.gate===g.name),t,g); }
+/* one gate left: every ally round it. The battleships first (they choose first on the outer ring), then the cruisers, the escorts and the carrier */
+function lastStand(g){ const A=op.allyFall; if(lastGate) return; lastGate=g; const used=[];
+  const occ=q=>used.filter(p=>Math.hypot(p.x-q.x,p.z-q.z)<1).length, rank=f=>f.type==='bb'||f.comp&&f.comp.bb?0:f.type==='ff'||f.isCarrier||f.type==='cvb'?2:1;
+  const all=fleets.filter(f=>f.ally&&f.alive&&!f.fixed&&f.mode!=='leave').sort((a,b)=>rank(a)-rank(b));
+  for(const f of all){ const p=gateSlot(f,g,occ); f.fall='last'; f.aim=null; f.order=null; if(!p) continue;
+    if(occ(p)) p.y+=8;   // the second unit on a spot a little over the first
+    used.push(p); setPost(f,p); }
+  if(A.lastLog) logEvent(A.lastLog[0],A.lastLog[1].replace('{gate}',g.name)); }
 function gateBound(p){ return p.team===1&&(p.ai==='land'||p.ai==='drop'&&!p.unloaded); }
 /* after an ally's post is moved by an event (shift): not onto a sealed gate */
 function postOffSealed(f){ const g=gateNear(f.post); if(!g||!g.sealed||Math.hypot(f.post.x-g.pos.x,f.post.z-g.pos.z)>=GATE_AREA) return; const t=gateNear(f.post,openGates()); if(!t) return;
@@ -1021,25 +1094,25 @@ function watchOffSealed(f){ const p=f.watchPos; if(!p) return; const g=gateNear(
 const INF_R=28, INF_SHOOTS=e=>e.type==='mas'||e.type==='lc'||!!(e.comp&&e.comp.mas);
 function stepBase(dt){
   const B=op.base; if(!B||!gates.length||over) return;
-  const I=B.infantry||{}, n0=I.n||36;
+  const I=B.infantry||{}, n0=I.n||18;
   for(const g of gates){
     if(g.boomT>0){ g.boomT-=dt; if(Math.random()<dt*14) burst(g.pos.clone().add(new THREE.Vector3((Math.random()-.5)*10,Math.random()*5,(Math.random()-.5)*14)),HOT,24,9,1.2); }
     if(g.sealed){ g.inf=0; continue; }
-    g.inf=Math.max(0,Math.round(n0*Math.max(0,g.hp/g.max))-Math.floor(g.infLost||0)); if(!g.inf||repelT!=null) continue;
+    g.inf=Math.max(0,infR(n0*Math.max(0,g.hp/g.max))-infQ(g.infLost||0)); if(!g.inf||repelT!=null) continue;
     let t=null, bd=INF_R;
     for(const w of wings) if(w.alive&&w.team===1&&w.type==='was'&&w.seen){ const d=w.pos.distanceTo(g.pos); if(d<bd){ bd=d; t=w; } }
     for(const e of fleets) if(e.alive&&e.team===1&&INF_SHOOTS(e)&&e.seen){ const d=gap(e,{pos:g.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
     if(!t) continue;
-    const at=randShip(t); damage(t,g.inf*(I.dmg||.03)*dt,g.infSrc); infFire(g.look,g.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
+    const at=randShip(t); damage(t,g.inf*(I.dmg||.12)*dt,g.infSrc); infFire(g.look,g.inf,at,dt,{line:I.line||1.4,rocket:I.rocket||.16}); }
   /* the few infantry round each gun on the rock (2026-10-17, data inf): fewer as the gun is worn down, none once it is lost; the same fire */
   for(const f of fleets){ if(!f.pit||f.pit===true) continue;
-    f.inf=f.alive?Math.max(0,Math.round(f.infN*Math.max(0,f.hpPool/(f.n*f.hp)))-Math.floor(f.infLost||0)):0; if(!f.inf||repelT!=null) continue;
+    f.inf=f.alive?Math.max(0,infR(f.infN*Math.max(0,f.hpPool/(f.n*f.hp)))-infQ(f.infLost||0)):0; if(!f.inf||repelT!=null) continue;
     let t=null, bd=INF_R;
     for(const w of wings) if(w.alive&&w.team===1&&w.type==='was'&&w.seen){ const d=w.pos.distanceTo(f.pos); if(d<bd){ bd=d; t=w; } }
     for(const e of fleets) if(e.alive&&e.team===1&&INF_SHOOTS(e)&&e.seen){ const d=gap(e,{pos:f.pos,radius:0}); if(d<bd){ bd=d; t=e; } }
     if(!t) continue;
     if(!f.infSrc) f.infSrc={kind:'wing',inf:true,team:0,id:-300-f.id,name:`${f.name}の強化歩兵`};
-    const at=randShip(t); damage(t,f.inf*(I.dmg||.03)*dt,f.infSrc); infFire(f.pit,f.inf,at,dt,{line:I.line||.35,rocket:I.rocket||.04}); }
+    const at=randShip(t); damage(t,f.inf*(I.dmg||.12)*dt,f.infSrc); infFire(f.pit,f.inf,at,dt,{line:I.line||1.4,rocket:I.rocket||.16}); }
   /* the garrison: once the last gate's shield is gone (not while the enemy falls back), the assault ships by it put their W.A.S. in, one
      from each ship every G.every minutes of the operation clock, out of what they carry (spare craft first, then docked squadrons), and
      only the W.A.S. wear the garrison down, G.was each (user decision 2026-10-17 夜: they storm in and fight it out inside) */
@@ -1089,29 +1162,34 @@ function dropAI(f){
 function sitSpots(f,D){ f.land={up:D.up, p:D.p};
   f.ships.forEach(s=>{ const q=rockAt(D.p.x+s.off.x*1.4,D.p.z+s.off.z*1.4); s.sit=q.addScaledVector(D.up,SHIP_SIZE.lc*.45); }); }
 
-/* the enemy's armoured infantry on the rock (第5節; user decision 2026-10-18): red dots, in fire teams of four round where they stand.
+/* the enemy's armoured infantry on the rock (第5節; user decision 2026-10-18): red dots, in fire teams (TROOP_TEAM) round where they stand.
+   A dot (2026-10-20, user decision: a quarter of the dots, each four times as strong, both sides, as it was heavy to run): about a company,
+   four platoons (a dot was a platoon before). Every count below (n, kill, enter, garrison.troop) is in dots; what one dot does is 4×.
    A group goes for the nearest gun still standing within troops.seek, else the nearest open gate, troops.speed a second over the rock.
-   It fights the first of our infantry (round a gun or a gate) it comes within reach of (TROOP_REACH): each side loses troops.kill men a
-   second for each man of the other, ours (in cover) troops.cover times less. With none of ours left there, at a gun it wears the gun
-   down (troops.gun a man a second, the hit points' scale on it). A gate still shut it closes on only when they round it outnumber our
-   infantry there (else they wait just out of reach); it goes in once the gate is the last and its shield is gone, troops.enter men an
+   It fights the first of our infantry (round a gun or a gate) it comes within reach of (TROOP_REACH): each side loses troops.kill dots a
+   second for each dot of the other, ours (in cover) troops.cover times less (both sides a quarter, so the same kill keeps the fight
+   as it was, 2026-10-20). With none of ours left there, at a gun it wears the gun down (troops.gun a dot a second, the hit points' scale on it). A gate still shut it closes on only when they round it outnumber our
+   infantry there (else they wait just out of reach); it goes in once the gate is the last and its shield is gone, troops.enter dots an
    hour of the operation clock, each taking garrison.troop off the garrison. 数値は仮 */
 let troops=[], troopId=0, troopsSaid=null, troopsWent=0;   // troopsWent: how many went in, in all
 const TROOP_REACH={gun:12, gate:30}, TROOP_AT={gun:4, gate:9};
+/* a dot's strength in quarters (2026-10-20): a dot is four of the old dots (four platoons), so they are counted one by one as before,
+   and the dot stays on the screen (drawn as the count rounded up) until the last of them is gone. Both sides; the fights go as they did */
+const INF_Q=4, infQ=x=>Math.floor(x*INF_Q+1e-9)/INF_Q, infR=x=>Math.round(x*INF_Q)/INF_Q;
 /* our infantry guard the guns and the gates (2026-10-18, user: whether the enemy is on the move or not, but not going far from where they
    are): ours round a gun or an open gate fire on the nearest group of theirs within DEF_R of it, which fires back (DEF_BACK of its fire,
    the rest on its way); ours go no further than leaning a little toward them (base.js infLean). A gate's waiting place is out of
    that reach (DEF_R.gate + DEF_WAIT). 数値は仮 */
 const DEF_R={gun:22, gate:40}, DEF_BACK=.6, DEF_WAIT=4;
 function holders(){ const H=[]; for(const f of fleets) if(f.pit&&f.pit!==true&&f.alive&&f.inf>0) H.push(f); for(const x of gates) if(!x.sealed&&x.inf>0) H.push(x); return H; }
-/* the men aboard a landing craft unit (troops a craft may be a fraction, 2026-10-19: 14.4; rounded as they step out) */
-const troopsIn=f=>Math.round(f.ships.length*(f.troops||0));
+/* the dots aboard a landing craft unit (troops a craft may be a fraction, 2026-10-19: 14.4, 2026-10-20: 3.6; rounded to a quarter as they step out) */
+const troopsIn=f=>infR(f.ships.length*(f.troops||0));
 function troopsOut(f,D){
   const n=troopsIn(f); if(n<=0) return;
   const g={kind:'wing', inf:true, troop:true, team:1, id:-400-troopId++, name:`${f.name}の強化歩兵`, n, n0:n, lost:0, went:0, pos:D.p.clone(), offs:[], dots:[], goal:null, alive:true, seen:true, ships:[]};
-  for(let t=0;t<Math.ceil(n/4);t++){ const a=Math.random()*Math.PI*2, r=1.5+Math.random()*4.5;
-    for(let k=0;k<4;k++) g.offs.push([Math.cos(a)*r+(Math.random()-.5)*1.6,Math.sin(a)*r+(Math.random()-.5)*1.6]); }
-  g.offs.length=n; troops.push(g); placeTroop(g);
+  for(let t=0;t<Math.ceil(n/TROOP_TEAM);t++){ const a=Math.random()*Math.PI*2, r=1.5+Math.random()*4.5;
+    for(let k=0;k<TROOP_TEAM;k++) g.offs.push([Math.cos(a)*r+(Math.random()-.5)*1.6,Math.sin(a)*r+(Math.random()-.5)*1.6]); }
+  g.offs.length=Math.ceil(n); troops.push(g); placeTroop(g);
   const L=op.base.troops&&op.base.troops.log; if(L&&gameSec-(troopsSaid??-1e9)>20){ troopsSaid=gameSec; logEvent(L[0],L[1].replace('{gate}',D.gate.name)); } }
 function placeTroop(g){ g.dots=g.offs.map(([x,z])=>{ const p=rockAt(g.pos.x+x,g.pos.z+z); p.y+=.3; return p; }); }
 /* our infantry the group meets: the nearest gun with some left within its reach, or the gate it goes for (not while it waits) */
@@ -1124,14 +1202,14 @@ function troopGoal(g,T){ let b=null,bd=T.seek??90;
   if(b) return b; const open=openGates(); return open.length?gateNear(g.pos,open):null; }
 function stepTroops(dt){
   if(!troops.length||repelT!=null) return;
-  const T=op.base.troops||{}, G=op.base.garrison, k=T.kill??.02, I=op.base.infantry||{}, rate={line:I.line||.35, rocket:I.rocket||.04};
+  const T=op.base.troops||{}, G=op.base.garrison, k=T.kill??.02, I=op.base.infantry||{}, rate={line:I.line||1.4, rocket:I.rocket||.16};
   for(const g of troops) g.foe=troopFoe(g);
   /* ours fire on theirs within reach of where they stand, on the move or not; a group already fighting them is left to that fight */
   for(const H of holders()){ H.infAim=null;
     const R=H.kind==='gate'?DEF_R.gate:DEF_R.gun; let g=null, bd=R;
     for(const x of troops){ const d=hxz(x.pos,H.pos); if(x.n>0&&d<bd){ bd=d; g=x; } }
     if(!g) continue; H.infAim=g; if(g.foe===H) continue;
-    g.lost+=H.inf*k*dt; g.n=Math.max(0,g.n0-Math.floor(g.lost)-g.went); H.infLost=(H.infLost||0)+g.n*k*dt/(T.cover??1.5)*DEF_BACK;
+    g.lost+=H.inf*k*dt; g.n=Math.max(0,g.n0-infQ(g.lost)-g.went); H.infLost=(H.infLost||0)+g.n*k*dt/(T.cover??1.5)*DEF_BACK;
     const look=H.look||H.pit;
     if(look.inf&&g.dots.length) infFire(look,H.inf,g.dots[(Math.random()*Math.min(g.n,g.dots.length))|0]||g.pos,dt,rate);
     if(g.n>0&&look.inf) infFire({inf:{pts:g.dots}},Math.ceil(g.n*DEF_BACK),look.inf.pts[(Math.random()*H.inf)|0]||H.pos,dt,rate,TROOP_LINE); }
@@ -1140,7 +1218,7 @@ function stepTroops(dt){
     if(foe){   // a fire fight with our infantry there
       const ours=foe.inf; foe.infAim=g;
       g.lost+=ours*k*dt; foe.infLost=(foe.infLost||0)+g.n*k*dt/(T.cover??1.5);
-      g.n=Math.max(0,g.n0-Math.floor(g.lost)-g.went);
+      g.n=Math.max(0,g.n0-infQ(g.lost)-g.went);
       const look=foe.look||foe.pit;
       if(g.dots.length&&look.inf) infFire(look,ours,g.dots[(Math.random()*Math.min(g.n,g.dots.length))|0]||g.pos,dt,rate);
       if(g.n>0&&look.inf) infFire({inf:{pts:g.dots}},g.n,look.inf.pts[(Math.random()*ours)|0]||foe.pos,dt,rate,TROOP_LINE);
@@ -1153,15 +1231,15 @@ function stepTroops(dt){
     /* waiting, but inside the gate's reach (they came from a gun by it): they draw back out of it */
     if(wait){ if(d<at-.5&&d>1e-3){ const m=Math.min(at-d,(T.speed??2)*dt); g.pos.x-=(goal.pos.x-g.pos.x)/d*m; g.pos.z-=(goal.pos.z-g.pos.z)/d*m; } continue; }
     /* the gun: they fire on it (the infantry's streaks and rockets, 2026-10-18: so it is seen that they are at it) and wear it down */
-    if(gun){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g);
-      infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
+    if(gun){ damage(goal,g.n*(T.gun??.24)*HP_K*dt,g);
+      infFire({inf:{pts:g.dots}},g.n,_w.copy(goal.pos).addScaledVector(goal.pit&&goal.pit.up||_up,.6),dt,{line:I.line||1.4,rocket:(I.rocket||.16)*2},TROOP_LINE); continue; }
     /* the gate still shut, its infantry gone (2026-10-19, user decision): they wear its shield down as they do a gun */
-    if(!goal.breached&&goal.alive){ damage(goal,g.n*(T.gun??.06)*HP_K*dt,g);
-      infFire({inf:{pts:g.dots}},g.n,goal.ring||goal.pos,dt,{line:I.line||.35,rocket:(I.rocket||.04)*2},TROOP_LINE); continue; }
+    if(!goal.breached&&goal.alive){ damage(goal,g.n*(T.gun??.24)*HP_K*dt,g);
+      infFire({inf:{pts:g.dots}},g.n,goal.ring||goal.pos,dt,{line:I.line||1.4,rocket:(I.rocket||.16)*2},TROOP_LINE); continue; }
     /* the gate: in once it is the last and open */
-    if(goal.breached&&garrison){ g.inAcc=(g.inAcc||0)+(T.enter??60)*dt*CLOCK_RATE/60; const k=Math.min(g.n,Math.floor(g.inAcc)); if(k>0){ g.inAcc-=k; g.went+=k; g.n-=k; troopsWent+=k;
+    if(goal.breached&&garrison){ g.inAcc=(g.inAcc||0)+(T.enter??15)*dt*CLOCK_RATE/60; const k=Math.min(g.n,infQ(g.inAcc)); if(k>0){ g.inAcc-=k; g.went+=k; g.n-=k; troopsWent+=k;
       if(!garrison.saidTroop&&T.inLog){ garrison.saidTroop=true; logEvent(T.inLog[0],T.inLog[1].replace('{name}',goal.name)); }
-      garrisonHit(k*(G.troop||2)); if(over) return; } }
+      garrisonHit(k*(G.troop||16)); if(over) return; } }
   }
   troops=troops.filter(g=>g.n>0||(g.alive=false));
 }
@@ -1213,7 +1291,7 @@ function stepPhases(dt){
    its front. 数値は仮 */
 const FRONT_N=-60, FRONT_PROG=[.35,.7], FRONT_RATIO=[1.3,2.2], FRONT_GUN=2, FRONT_MIN=8, FRONT_DROP=.06, FRONT_WIN=20, FRONT_LOW=.35, FRONT_CALM=10;
 let fronts=[], frontSaidT=-1e9;
-function initFronts(){ fronts=op.fronts?op.fronts.list.map(L=>({...L,level:0,calmT:null,pend:0,said:-1e9,saidLv:0,lastLv:0,cause:'',prog:0,hist:[],closed:false})):[]; frontSaidT=-1e9; }
+function initFronts(){ fronts=op.fronts?op.fronts.list.map(L=>({...L,level:0,calmT:null,pend:0,said:-1e9,saidLv:0,lastLv:0,cause:'',prog:0,hist:[],closed:false})):[]; frontSaidT=-1e9; lastGate=null; allyFallInit(); }
 function stepFronts(){
   const F=op.fronts; if(!F||over||repelT!=null||gameSec*CLOCK_RATE<(F.from||0)) return;
   const now=gameSec*CLOCK_RATE, inZ=(L,p)=>p.z>FRONT_N&&p.x>=L.x[0]&&p.x<L.x[1]&&Math.hypot(p.x-fieldC.x,p.z-fieldC.z)<=FIELD_R;   // in the field only
@@ -1281,7 +1359,7 @@ function wasLeft(){ let n=0;
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
   return n; }
 /* the enemy's armoured infantry left: on the rock, aboard the landing craft that have not set them down, and on the ones still to come */
-function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?Math.round((o.troops||0)*o.n):0;
+function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?infR((o.troops||0)*o.n):0;
   for(const f of fleets) if(f.alive&&f.team===1&&f.ai==='drop'&&!f.unloaded) n+=troopsIn(f);
   for(const g of troops) n+=g.n;
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
@@ -1347,7 +1425,9 @@ function autoAI(){
   if(op.base&&gates.length){ const open=openGates(), toGate=e=>open.length?Math.min(...open.map(g=>g.ring.distanceTo(e.pos))):1e9, ahead=ships.filter(e=>e.pos.z>-60);
     const landing=ships.filter(e=>(e.ai==='land'||e.ai==='drop'&&!e.unloaded)&&toGate(e)<AUTO_R.gate).sort((a,b)=>toGate(a)-toGate(b));
     const hot=fronts.filter(F=>!F.closed&&F.level>0).sort((a,b)=>b.level-a.level||b.prog-a.prog)[0], inHot=hot?ahead.filter(e=>e.pos.x>=hot.x[0]&&e.pos.x<hot.x[1]):[];
-    const inf=troops.filter(g=>g.n>0&&toGate(g)<AUTO_R.gate);   // 2026-10-19: the enemy's infantry by an open gate, when there is nothing else
+    /* 2026-10-19: the enemy's infantry by an open gate, when there is nothing else. 2026-10-20: also a group going for a gun still standing
+       (by a sealed gate too: before, it wrecked the guns there with no one going for it) */
+    const inf=troops.filter(g=>g.n>0&&(toGate(g)<AUTO_R.gate||g.goal&&g.goal.kind==='fleet'&&g.goal.alive));
     mine.forEach((f,i)=>{ const e=landing[0]||by(f,inHot,dist)||by(f,near(f.pos,AUTO_R.near,ahead),dist)||by(f,inf,dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
   /* the exercise: the fortress */
   if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
@@ -1431,9 +1511,9 @@ function step(dt){
     const dp=E.ai&&E.ai.drops?weakDrop(E.ai.drops):null;
     if(E.ai&&E.ai.log&&fleets.some(f=>f.alive&&E.ai.fleets.includes(f.name))) logEvent(E.ai.log[0],E.ai.log[1].replace('{drop}',dp?dp.name:''));   // said only if one of them is still there
     if(E.ai) for(const f of fleets) if(f.alive&&E.ai.fleets.includes(f.name)&&!(f.fellBack&&E.ai.ai!=='withdraw')){ if(dp){ if(E.ai.ai==='land'||E.ai.ai==='drop'){ f.drop=dp.name; f.dropAt=null; } else f.watchPos=new THREE.Vector3(dp.pos.x,0,dp.pos.z); }
-      if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); }
+      if(f.ally){ f.mode=E.ai.ai; if(E.ai.shift&&f.fall!=='last'){ f.post.x+=E.ai.shift[0]; f.post.z+=E.ai.shift[1]; if(gates.length) postOffSealed(f); }
         /* post:[x,z,alt] / stack / gateFirst (第5節の総攻撃、2026-10-20): the battleships' posts on the line, no more than `stack` to a place (frontPost) */
-        if(E.ai.post){ const P=E.ai.post; f.post.set(P[0],P[2]??f.post.y,P[1]); f.home.copy(f.post); if(E.ai.stack) f.stack=E.ai.stack; if(E.ai.gateFirst) f.gateFirst=true; if(gates.length) frontPost(f); } }
+        if(E.ai.post&&f.fall!=='last'){ const P=E.ai.post; f.post.set(P[0],P[2]??f.post.y,P[1]); f.home.copy(f.post); if(E.ai.stack) f.stack=E.ai.stack; if(E.ai.gateFirst) f.gateFirst=true; if(gates.length) frontPost(f); } }
       else { f.ai=E.ai.ai; if(E.ai.leash!=null) f.leash=E.ai.leash; if(E.ai.spare) f.spare=E.ai.spare; if(E.ai.keepOut!=null) f.keepOut=E.ai.keepOut; if(gates.length) watchOffSealed(f); } f.order=null; }
     if(E.phase) setPhase(E.phase);
     if(E.text!=null) stageText=E.text;   // the goal panel's line (第5節: an operation without stages)
@@ -1444,7 +1524,7 @@ function step(dt){
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
-  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts();}
+  aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts(); stepAllyFall();}
   stepDefend(dt); stepBase(dt); stepRepel(); stepPhases(dt); stepTimeUp();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
