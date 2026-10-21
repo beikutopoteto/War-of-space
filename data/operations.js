@@ -1199,6 +1199,7 @@ WOS_DATA.operations=[
     ],
     group:{name:'第2 ネオ信濃駐屯 戦区軍', sync:false},
     /* 2026-10-18（ユーザー決定）: 地球連合は開戦前1260隻。奇襲で−400、第4節の裏の主力艦隊の会戦で−200、修理・燃料・行方不明で300隻が動かない。
+       2026-10-21（ユーザー決定）: 動ける360隻のうち100隻は月の PKO として月の指揮下にあり、ここにいない。戦線の19隊の隻数をそれぞれ約半分にし、友軍は180隻（下の数は前の経緯）。
        残る360隻でこの防衛に挑み、駐屯隊（60〜100隻の想定）を除く友軍は280隻: 27隊（三方面の持ち場に西81・東85・真上64（2026-10-20 から東65、東西のゲートの守りに20）、予備にウォン中将の戦艦43、ユーコン）。
        隊の強さは今までと同じ。三方面の持ち場はさらに30前へ（西は西、東は東、真上は30上へ・10北へ）。隊の名前・位置・数は仮。下は前の説明 */
     /* 友軍（AI が動かす）: 三方面の持ち場で受ける（ユーザー決定 2026-10-16。wos-strategy の案、実際の座標。仮）。西の端は第9・第11 巡洋、第3 主力戦艦、アマゾン残存隊（西ゲートの輪）。
@@ -1223,34 +1224,34 @@ WOS_DATA.operations=[
       {name:'第29 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[-60,175], alt:-35, vis:6, stl:3, leash:40},
       {name:'第30 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[60,175], alt:-35, vis:6, stl:3, leash:40},
       /* 真上（中央ゲートの前）: 2026-10-18 に持ち場を30上げ、10北へ（ユーザー決定「防衛前線をさらに上げ」） */
-      {name:'第5 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[-20,-27], alt:-8, vis:6, stl:5, leash:60},
-      {name:'第14 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:14, scale:.82, pos:[20,-27], alt:26, vis:7, stl:7, leash:60},
-      {name:'第24 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[-100,-23], alt:0, vis:6, stl:5, leash:60},
-      {name:'第25 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[100,-23], alt:-14, vis:6, stl:5, leash:60},
-      {name:'第27 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, scale:.82, pos:[-60,-26], alt:18, vis:7, stl:7, leash:60},
-      {name:'第28 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:10, scale:.82, pos:[60,-26], alt:6, vis:7, stl:7, leash:60},
+      {name:'第5 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-20,-27], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第14 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:7, scale:.82, pos:[20,-27], alt:26, vis:7, stl:7, leash:60},
+      {name:'第24 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-100,-23], alt:0, vis:6, stl:5, leash:60},
+      {name:'第25 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[100,-23], alt:-14, vis:6, stl:5, leash:60},
+      {name:'第27 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:5, scale:.82, pos:[-60,-26], alt:18, vis:7, stl:7, leash:60},
+      {name:'第28 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:5, scale:.82, pos:[60,-26], alt:6, vis:7, stl:7, leash:60},
       /* 西の端（西ゲートの前）。アマゾン残存隊は最後に狙われ、損害が大きいと中央ゲートの方へ下がる（retreat。2026-10-12） */
       {name:'第10 アマゾン残存 支隊', sub:'友軍 巡洋艦・駆逐艦（オリヴェイラ少佐）', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[-292,48], alt:0, vis:6, stl:5, leash:60, preyLast:true,
         retreat:{below:.8, to:[-90,165], alt:10, log:['オリヴェイラ少佐', '「アマゾン残存隊、下がる！　……すまん中尉、ここは任せた」']}},
-      {name:'第9 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[-268,22], alt:18, vis:6, stl:5, leash:60},
-      {name:'第11 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:6}, n:11, scale:1.1, pos:[-244,8], alt:-8, vis:6, stl:5, leash:60},
-      {name:'第3 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[-220,-1], alt:26, vis:6, stl:3, leash:60},
-      {name:'第15 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[-196,-8], alt:6, vis:6, stl:5, leash:60},
-      {name:'第16 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[-172,-14], alt:-14, vis:6, stl:3, leash:60},
-      {name:'第17 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:12, scale:.82, pos:[-148,-17], alt:12, vis:7, stl:7, leash:60},
-      {name:'第18 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, scale:1.1, pos:[-124,-20], alt:30, vis:6, stl:5, leash:60},
+      {name:'第9 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-268,22], alt:18, vis:6, stl:5, leash:60},
+      {name:'第11 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-244,8], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第3 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, scale:1.45, pos:[-220,-1], alt:26, vis:6, stl:3, leash:60},
+      {name:'第15 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-196,-8], alt:6, vis:6, stl:5, leash:60},
+      {name:'第16 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, scale:1.45, pos:[-172,-14], alt:-14, vis:6, stl:3, leash:60},
+      {name:'第17 護衛 打撃群', sub:'総基地の艦隊 フリゲート', type:'ff', n:6, scale:.82, pos:[-148,-17], alt:12, vis:7, stl:7, leash:60},
+      {name:'第18 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-124,-20], alt:30, vis:6, stl:5, leash:60},
       /* 東西のゲートの守り（ユーザー決定 2026-10-20: 東西のゲートにも最初から守備の艦隊を置く。戦力は東翼から回す。東翼は6隊65隻に）。
          guardGate: 最初からそのゲートのまわりの弧（allyFall の rings。護衛は内の輪）に持ち場を取り、近づく揚陸艦・揚陸艇・W.A.S.・強化歩兵を叩く。
          ゲートが塞がれると残りのゲートへ移り、残り一つで全部隊と同じくそのまわりへ（battle/sim.js の allyFallInit・allyFallSeal・lastStand） */
       {name:'第12 護衛 打撃群', sub:'総基地の艦隊 フリゲート（東ゲートの守り）', type:'ff', n:12, scale:.82, pos:[175,130], alt:-35, vis:7, stl:7, leash:60, guardGate:'東ゲート'},
       {name:'第22 護衛 打撃群', sub:'総基地の艦隊 フリゲート（西ゲートの守り）', type:'ff', n:8, scale:.82, pos:[-176,130], alt:-38, vis:7, stl:7, leash:60, guardGate:'西ゲート'},
       /* 東の端（東ゲートの前） */
-      {name:'第8 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[148,-17], alt:30, vis:6, stl:5, leash:60},
-      {name:'第6 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:5}, n:11, scale:1.1, pos:[172,-14], alt:0, vis:6, stl:5, leash:60},
-      {name:'第4 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[196,-8], alt:18, vis:6, stl:3, leash:60},
-      {name:'第20 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:6, dd:6}, n:12, scale:1.1, pos:[220,-1], alt:-8, vis:6, stl:5, leash:60},
-      {name:'第21 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:5, cl:5}, n:10, scale:1.45, pos:[244,8], alt:26, vis:6, stl:3, leash:60},
-      {name:'第23 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:5, dd:5}, n:10, scale:1.1, pos:[292,48], alt:-14, vis:6, stl:5, leash:60},
+      {name:'第8 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[148,-17], alt:30, vis:6, stl:5, leash:60},
+      {name:'第6 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[172,-14], alt:0, vis:6, stl:5, leash:60},
+      {name:'第4 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, scale:1.45, pos:[196,-8], alt:18, vis:6, stl:3, leash:60},
+      {name:'第20 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[220,-1], alt:-8, vis:6, stl:5, leash:60},
+      {name:'第21 主力戦艦 打撃群', sub:'総基地の艦隊 戦艦・巡洋艦', comp:{bb:3, cl:3}, n:6, scale:1.45, pos:[244,8], alt:26, vis:6, stl:3, leash:60},
+      {name:'第23 巡洋 打撃群', sub:'総基地の艦隊 巡洋艦・駆逐艦', comp:{cl:2, dd:3}, n:5, scale:1.1, pos:[292,48], alt:-14, vis:6, stl:5, leash:60},
       {name:'ユーコン', sub:'戦闘母艦（ファン・デル・ベルク中佐）', type:'cvb', n:1, hp:160, dmg:.8, eva:.04, range:12, speed:4, scale:1.4, hangar:{ftr:40}, pos:[0,170], alt:-30, vis:7, stl:3, aa:6, leash:30},
       /* 2026-10-17（ユーザー決定）: 砲台はゲートのそば（少しだけ離れた所）に置き、少数の強化歩兵（inf）に守らせる。西ゲートと東ゲートに3基（東西の脇と前）、
          射程200・48秒ごと（2026-10-18、ユーザー決定。前は120・64秒、その前は90。仰角48度より低い相手は撃てないので、横へ届くのは約130）。

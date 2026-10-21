@@ -1225,7 +1225,7 @@ function check(ok, label, detail = '') {
       { const gd = n => fleets.find(f => f.name === n), G = n => gates.find(g => g.name === n), e = gd('第12 護衛 打撃群'), w = gd('第22 護衛 打撃群');
         const east = op.allies.filter(a => !a.fixed && !a.guardGate && a.pos[0] > 120);   // the east wing (the data's block east of x 120)
         r.guards = e.guardGate === '東ゲート' && w.guardGate === '西ゲート' && [[e, G('東ゲート')], [w, G('西ゲート')]].every(([f, g]) => f.fall === 'gate' && xz(f.home, g.pos) < 80 && f.home.z < g.pos.z && !f.line)
-          && east.length === 6 && east.reduce((s, a) => s + a.n, 0) === 65; r.east = [east.length, east.reduce((s, a) => s + a.n, 0)]; }
+          && east.length === 6 && east.reduce((s, a) => s + a.n, 0) === 35; r.east = [east.length, east.reduce((s, a) => s + a.n, 0)]; }   // 2026-10-21: the front units about halved (100 ships with the Moon's PKO)
       /* the enemy's infantry (2026-10-20): in reach when a man of the group is (not only its centre); the auto mode goes for a group making
          for a gun by a sealed gate too */
       { const E = gates.find(g => g.name === '東ゲート'), t0 = troops.length; troopsOut({ ships: [1], troops: 12, name: '試験 歩兵' }, { p: rockAt(E.pos.x + 30, E.pos.z - 10), gate: E }); const g = troops[troops.length - 1];
@@ -1261,7 +1261,7 @@ function check(ok, label, detail = '') {
       W.sealed = s0[0]; E.sealed = s0[1]; lastGate = lg;
       fleets.forEach(f => f.el && f.el.remove()); fleets.length = 0; keep.forEach(f => fleets.push(f));
       return r; });
-    check(af.guards, 'フェブルアーリア防衛戦: 東西のゲートには最初から護衛の艦隊（第12・第22、東翼から回した。東翼は6隊65隻）がつき、ゲートのまわりに持ち場を取る（2026-10-20）', JSON.stringify(af));
+    check(af.guards, 'フェブルアーリア防衛戦: 東西のゲートには最初から護衛の艦隊（第12・第22、東翼から回した。東翼は6隊35隻。2026-10-21 に戦線を約半分に）がつき、ゲートのまわりに持ち場を取る（2026-10-20）', JSON.stringify(af));
     check(af.manIn && af.manOut && af.autoSealed, 'フェブルアーリア防衛戦: 艦は共和国の強化歩兵を、組の中心でなくいちばん近い1人が射程に入れば撃つ。オートモードは塞がれたゲートのそばでも、砲台へ向かう歩兵へ寄る（2026-10-20）', JSON.stringify(af));
     check(af.split && af.wasOut && af.engage && af.last,'フェブルアーリア防衛戦: 崩れた方面の戦線は半分（護衛と損害の大きい隊から）がゲートのまわり、ほかは持ち場をゲートへ半分寄せる。ゲートの守りはシールドを削る敵を受ける。ゲートが残り一つで友軍すべてがそのまわりへ（1か所に2隊まで、戦艦が外。2026-10-20）', JSON.stringify(af));
     check(sk.spread && sk.two && sk.free && sk.gateFirst && sk.sealed,'フェブルアーリア防衛戦: 総攻撃の戦艦は1か所に2隊まで（3隊目は横の次の場所へ）、同じ敵へ向かうのも2隊まで。ゲートへ向かう敵を先に受け、前のゲートが塞がれると残りのゲートの前へ移る（2026-10-20）', JSON.stringify(sk));
