@@ -150,7 +150,10 @@ window.WOS_DATA=window.WOS_DATA||{};
      from 分から、方面（x の範囲、作戦フィールドの中）ごとに「押されている」「崩れかけ」を決め、上がったときに方面の指揮官（voice の隊が残っていれば press / fall）と who（say）が言う。
      持ち直すと say.ok。全体で gap 秒、同じ方面は again 分あける（悪くなったときは除く）。駐屯隊の過半がその方面にいれば言わない。ゲートが塞がれるとその方面は閉じる。判定は battle/sim.js の stepFronts
    allyFall:{collapse, back, toGate, rings, gap, arc, lift, log, lastLog}: 友軍の後退（2026-10-20）。fronts の方面の戦線が崩れると（段階2か、戦線の艦が collapse を切る）
-     残った隊が toGate だけゲートのまわり（rings の弧）へ、ほかは持ち場を back だけゲートへ寄せる。ゲートが残り一つで全部隊がそのまわりへ。1か所に2隊まで。battle/sim.js の stepAllyFall */
+     残った隊が toGate だけゲートのまわり（rings の弧）へ、ほかは持ち場を back だけゲートへ寄せる。ゲートが残り一つで全部隊がそのまわりへ。1か所に2隊まで。battle/sim.js の stepAllyFall
+   roleAI:true: 艦種別の動き（2026-10-22、ユーザー決定。第6節からの作戦に付ける。第1〜5節と演習には付けない）。表は data/ships.js の WOS_DATA.roles。
+     この作戦の敵と友軍は、作戦が書いていないところ（どの敵を狙うか、どこに立つか、いつ下がるか）を艦種の役目で決め、自軍の隊は命令のないときの狙いだけを役目で決める。
+     ai・leash・fallBack・retreat など作戦が書いたことが先（例: ai:'hunt' の戦艦は追う。fallBack や retreat のある隊は役目の退き際を使わない） */
 /* 戦闘の規模（ユーザー決定 2026-10-12: 4つ。1倍速での長さの目安）。作戦の scale に書く。
    min / max: 1倍速の長さ（分）　sec: 作戦の時計を合わせる目標の秒数（span ÷ sec で時計の速さが決まる。仮）
    cap: 自分の戦区軍で出撃できる艦の合計（全兵科、選んだ戦区軍すべて。ユーザー決定 2026-10-12: 規模で出撃の上限を制限する。数は仮） */

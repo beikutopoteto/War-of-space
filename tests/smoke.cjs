@@ -1428,6 +1428,62 @@ function check(ok, label, detail = '') {
       'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦の隊は地球の艦種の表の、この節の技術の段階の値（2026-10-20）', JSON.stringify(dl));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
+    /* 艦種別の動き (user decision 2026-10-22): only in an operation marked roleAI (第6節 on; none yet, so a small battle of mixed units of both
+       sides made here). The same battle with the mark and without it, from the same random numbers (2 seeds × 120 s): the allied battleship
+       holds within leash × 0.6 of its post and fires on the heaviest in reach; the destroyer goes round (the 2nd place on) onto what our
+       battleship and cruiser fire on, and falls back behind a heavy ship under 4割; the Republic's frigates go in front of their assault ship;
+       their W.A.S. leave our frigates for last; the player's own fleet only aims by its role (standing off and backing off as before) */
+    const ro = await page.evaluate(() => {
+      const rand0 = Math.random, end0 = end, r = { on: [], off: [] };
+      const mk = (name, o) => ({ name, sub: '', vis: 6, stl: 4, ...o });
+      const OP = { id: 'roletest', name: '試験', brief: '', forces: 'fixed', stage: .35, wipeLose: false, phase: '交戦', sectors: [],
+        quick: [mk('試験 自軍戦艦', { type: 'bb', n: 2, scale: 1.4, pos: [45, 30] })],
+        allies: [mk('試験 戦艦', { type: 'bb', n: 3, scale: 1.4, pos: [0, 48], leash: 70 }), mk('試験 巡洋', { type: 'cl', n: 4, scale: 1.1, pos: [-14, 44], leash: 70 }),
+          mk('試験 駆逐', { type: 'dd', n: 6, scale: .85, pos: [16, 44], leash: 70 }), mk('試験 護衛', { type: 'ff', n: 6, scale: .7, pos: [0, 34], leash: 70 })],
+        enemies: [mk('試験 揚陸', { type: 'mas', n: 4, scale: .9, pos: [0, -30], ai: 'hunt' }), mk('試験 盾', { type: 'ff', n: 6, scale: .7, pos: [-12, -35], ai: 'hunt' }),
+          mk('試験 敵駆逐', { type: 'dd', n: 6, scale: .85, pos: [20, -30], ai: 'hunt' }), mk('試験 重巡', { type: 'cl', n: 4, scale: 1.1, pos: [-25, -25], ai: 'hunt' })] };
+      WOS_DATA.operations.push(OP); end = w => { over = true; outcome = w; };
+      const seed = sd => { let s = sd >>> 0; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+      const start = (on, sd) => { seed(sd); OP.roleAI = on; aiTimer = 0; reset({ op: 'roletest' });
+        fleets.forEach(f => { f.seen = true; const k = f.team === 0 && !f.ally ? 20 : 4; f.hp *= k; f.hpPool *= k; }); return n => fleets.find(f => f.name === n); };
+      try {
+        for (const sd of [1, 2]) for (const on of [true, false]) {
+          const F = start(on, sd), bb = F('試験 戦艦'), dd = F('試験 駆逐'), ff = F('試験 盾'), mas = F('試験 揚陸');
+          const m = { bbMax: 0, heavier: 0, bbFire: 0, ddOn: 0, ddMark: 0, ddSlot0: 0, ffN: 0, ffFront: 0, was: 0, wasFF: 0, fell: null, behN: 0, behind: 0 };
+          for (let i = 0; i < 2400; i++) { step(.05); if (i % 4) continue;
+            if (bb.alive) { m.bbMax = Math.max(m.bbMax, bb.pos.distanceTo(bb.post)); const t = bb.fireTarget;
+              if (t && t.kind === 'fleet') { m.bbFire++; if (fleets.some(e => e.team === 1 && e.alive && e.seen && gap(bb, e) <= bb.range && !bodyBlocks(bb.pos, e.pos) && heavyOf(e) > heavyOf(t))) m.heavier++; } }
+            if (dd.alive && !dd.roleFell && dd.order && dd.order.type === 'attack') { const t = dd.order.target; m.ddOn++; if (dd.slotOn === t && !dd.slotK) m.ddSlot0++;
+              if (fleets.some(x => x.ally && x.alive && x !== dd && ['bb', 'cl'].includes(x.type) && (x.fireTarget === t || x.order && x.order.target === t))) m.ddMark++; }
+            const t = mas.alive && mas.order && mas.order.target;
+            if (ff.alive && t && t.alive) { m.ffN++; if (ff.pos.distanceTo(mas.pos) < 25 && ff.pos.distanceTo(t.pos) < mas.pos.distanceTo(t.pos)) m.ffFront++; }
+            for (const w of wings) if (w.alive && w.team === 1 && w.type === 'was' && w.state === 'attack' && w.target && w.target.kind === 'fleet') { m.was++; if (w.target.type === 'ff') m.wasFF++; }
+            if (dd.roleFell && m.fell == null) m.fell = dd.ships.length / dd.n;
+            if (dd.alive && dd.roleFell) { const H = friendOf(dd, dd.pos, ['bb', 'cl'], 1e9, x => !x.roleFell), c = H && foeSide(H, fleets.filter(x => x.team === 1 && x.alive)); if (c) { m.behN++; if (dd.pos.distanceTo(c) > H.pos.distanceTo(c)) m.behind++; } } }
+          (on ? r.on : r.off).push({ bbMax: +m.bbMax.toFixed(1), heavier: +(m.heavier / Math.max(1, m.bbFire)).toFixed(2), ddMark: +(m.ddMark / Math.max(1, m.ddOn)).toFixed(2), ddSlot0: m.ddSlot0,
+            ffFront: +(m.ffFront / Math.max(1, m.ffN)).toFixed(2), wasFF: +(m.wasFF / Math.max(1, m.was)).toFixed(2), fell: m.fell && +m.fell.toFixed(2), behind: +(m.behind / Math.max(1, m.behN)).toFixed(2) }); }
+        /* the player's own: two foes in reach, a frigate near and a cruiser further; no order: the cruiser (the battleship's heaviest) with the mark,
+           the frigate without; an attack order still comes first; how far it stands off and whether it backs off are as before */
+        const aim = on => { const F = start(on, 3), me = F('試験 自軍戦艦'), a = F('試験 盾'), b = F('試験 重巡');
+          fleets.forEach(f => { if (f.team === 1 && f !== a && f !== b) f.alive = false; if (f.ally) f.alive = false; });
+          a.pos.set(me.pos.x, 0, me.pos.z - 7); b.pos.set(me.pos.x, 0, me.pos.z - 14);
+          const x = { free: fireTargetOf(me).name, stand: +standOff(me, b).toFixed(3), back: backsOff(me, a) === outranges(me, a), move: roleMove(me) };
+          order(me, { type: 'attack', target: a }); x.ordered = fireTargetOf(me).name; return x; };
+        r.me = { on: aim(true), off: aim(false) };
+        OP.roleAI = false; r.none = fleets.every(f => roleOf(f) == null);
+      } finally { WOS_DATA.operations.pop(); Math.random = rand0; end = end0; }
+      return r; });
+    const avg = (L, k) => L.reduce((s, x) => s + x[k], 0) / L.length;
+    check(ro.on.every(x => x.bbMax <= 70 * .6 + 4 && x.heavier <= .1) && avg(ro.off, 'bbMax') > 55,
+      '艦種別の動き: 戦艦は持ち場から leash×0.6 の中に据わり（印なしでは追って出る）、射程の中のいちばん重い艦を撃つ（2026-10-22）', JSON.stringify([ro.on, ro.off]));
+    check(ro.on.every(x => x.ddSlot0 === 0 && x.fell != null && x.fell < .4 && x.behind >= .6) && avg(ro.on, 'ddMark') > avg(ro.off, 'ddMark') && ro.off.every(x => x.fell == null),
+      '艦種別の動き: 駆逐艦は戦艦・巡洋艦が撃っている重い艦へ、回る向きの2番目以降から挟み、4割を切ると味方の重い艦の後ろへ下がる（2026-10-22）', JSON.stringify([ro.on, ro.off]));
+    check(ro.on.every(x => x.ffFront >= .5) && avg(ro.on, 'ffFront') > avg(ro.off, 'ffFront') + .2,
+      '艦種別の動き: 共和国のフリゲートは突撃揚陸艦と一緒に出て、その前（揚陸艦の目標の側）に並ぶ（2026-10-22）', JSON.stringify([ro.on, ro.off]));
+    check(ro.on.every(x => x.wasFF <= .1) && avg(ro.off, 'wasFF') > avg(ro.on, 'wasFF') + .1,
+      '艦種別の動き: 共和国の W.A.S. は地球のフリゲート（対空が強い）を後回しにする（2026-10-22）', JSON.stringify([ro.on, ro.off]));
+    check(ro.me.on.free === '試験 重巡' && ro.me.off.free === '試験 盾' && ro.me.on.ordered === '試験 盾' && ro.me.on.stand === ro.me.off.stand && ro.me.on.back && ro.me.on.move === null && ro.none,
+      '艦種別の動き: 自軍の隊は命令のないときの狙いだけが変わる（戦艦はいちばん重い艦。命令が先、立つ距離と下がり方は前のまま）。印のない作戦では役目がない（2026-10-22）', JSON.stringify([ro.me, ro.none]));
     /* holding Ctrl fast-forwards the conversation */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);
