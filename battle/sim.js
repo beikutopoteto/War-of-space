@@ -215,11 +215,16 @@ function craftTarget(u,type,maxD){
     if(c&&c.prey==='mine'){ const m=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.ally&&!t.fixed&&craftMayHit(u,t)); if(m) return m; }
     if(c&&c.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===c&&craftMayHit(u,t)); if(a) return a; } }
   const ec=enemyCraft(u,maxD); if(ec) return ec;
+  /* 艦種別の動き (roleAI operations): the W.A.S. of the Republic then go for what fires on their carrier (guard) */
+  const CR=craftRole(u.team,type), cc=u.kind==='wing'?u.carrier:u;
+  if(CR&&CR.guard&&cc&&cc.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===cc&&craftMayHit(u,t)); if(a) return a; }
   if(u.team===1&&type==='was'&&convoy&&convoy.alive&&convoy.seen&&gap(u,convoy)<maxD&&craftMayHit(u,convoy)) return convoy;
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
   if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
   /* prey:'ally' (第4節 Alvarez): the allied main fleet's warships first */
   if((u.carrier||u).prey==='ally'){ const a=preyNearest(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
+  /* 艦種別の動き: then by the table (prefer / avoid), the rest as before */
+  if(CR){ const t=roleCraftFoe(u,CR,maxD); if(t) return t; }
   /* our craft left to themselves do not go for a ship in a civilian zone (第4節); an attack order still sends them */
   /* 第5節: the enemy's W.A.S. with nothing else in reach go for the nearest gate's shield */
   return preyNearest(u,maxD,t=>craftMayHit(u,t)&&!(u.team===0&&op.civil&&t.kind==='fleet'&&inZone(t)))||(u.team===1&&type==='was'&&gates.length?gateInReach(u,maxD):null);
@@ -360,7 +365,10 @@ function fireTargetOf(f){
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
-  if(f.stance!=='evade'){ const o=inRange(orderedTarget(f)); return o&&(!ok||ok(o))?o:nearestFoe(f,f.range,ok)||(f.team===1&&gates.length?gateInReach(f):null)||(f.team===0&&!f.fixed?troopNear(f,f.range):null); }
+  /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
+     heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
+  if(f.stance!=='evade'){ const R=roleOf(f), o=inRange(orderedTarget(f)); if(R&&R.role==='ferry') return null;
+    return o&&(!ok||ok(o))&&!(R&&R.role==='anchor'&&roleMove(f))?o:(R?roleFoe(f,R,f.range,ok):nearestFoe(f,f.range,ok))||(f.team===1&&gates.length?gateInReach(f):null)||(f.team===0&&!f.fixed?troopNear(f,f.range):null); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
@@ -475,7 +483,8 @@ function pincers(){
 /* how far off an attacker stands: an enemy (2026-10-17 夜: or allied) fleet that outranges its target keeps near the edge of its own
    guns (92%), out of the target's reach, instead of closing to 75% (2026-10-10, 仮) */
 function outranges(f,t){ return t.kind==='fleet'&&!!t.range&&!t.fixed&&(f.carrierOnly?f.launchMin*.8>t.range:f.range>t.range*1.05); }
-function standOff(f,t){ if(f.carrierOnly) return f.launchMin*.8+(t.radius||0);
+function standOff(f,t){ const R=roleMove(f), r=R?roleStand(f,R,t):null; if(r!=null) return r;
+  if(f.carrierOnly) return f.launchMin*.8+(t.radius||0);
   return f.range*((f.team===1||f.ally)&&outranges(f,t)?.92:.75)+(t.radius||0); }
 /* falling back (user decision 2026-10-17 夜): a fleet fighting with no order of its own (the player's; for the AI's units, a move of their
    own) that outranges its foe keeps its distance by backing off: it keeps its bow on the foe (it does not turn) and goes back at half
@@ -487,16 +496,16 @@ function faceTo(f,t,dt){ _bt.subVectors(t.pos,f.pos); if(_bt.lengthSq()>1e-6) sw
 /* turn a heading toward dir (unit): from dead astern it swings round sideways, as a lerp alone would never turn it */
 function swingTo(h,dir,k){ if(h.dot(dir)<-.98) h.set(h.x-dir.z*.3,h.y,h.z+dir.x*.3); h.lerp(dir,Math.min(1,k)).normalize(); }
 /* one step of a fight toward its spot `to` round its foe t: true if it moved */
-function stepFight(f,to,t,dt){
+function stepFight(f,to,t,dt,back){
   _bk.subVectors(to,f.pos); _bt.subVectors(t.pos,f.pos); const n=_bk.length(); if(n<=1.2) return false;
   const tl=_bt.length(); if(tl<1e-6||_bk.dot(_bt)>=0){ stepToward(f,to,0,dt); return true; }   // ahead or sideways: as before
   _bt.multiplyScalar(1/tl);
-  if(outranges(f,t)) _bk.multiplyScalar(Math.min(speedOf(f)*BACK_SPEED*dt,n)/n);
+  if(back||backsOff(f,t)) _bk.multiplyScalar(Math.min(speedOf(f)*BACK_SPEED*dt,n)/n);
   else { _bk.addScaledVector(_bt,-_bk.dot(_bt)); const m=_bk.length(); if(m<.05) return false; _bk.multiplyScalar(Math.min(speedOf(f)*dt,m)/m); }
   f.pos.add(_bk); faceTo(f,t,dt); return true; }
 /* with no order, a fleet in a fight that outranges its foe backs off from inside its stand-off, bow on the foe, at half speed */
 function fallBack(f,t,dt){
-  if(!t||!t.alive||!outranges(f,t)) return false; const R=(f.carrierOnly?f.launchMin*.8:f.range*.92)+(t.radius||0);
+  if(!t||!t.alive||!backsOff(f,t)) return false; const RS=roleMove(f), rs=RS?roleStand(f,RS,t):null, R=rs!=null?rs:(f.carrierOnly?f.launchMin*.8:f.range*.92)+(t.radius||0);
   _bk.subVectors(f.pos,t.pos); const d=_bk.length(); if(d>=R-.3||d<1e-6) return false;
   f.pos.addScaledVector(_bk,Math.min(speedOf(f)*BACK_SPEED*dt,R-d)/d); faceTo(f,t,dt); return true; }
 /* the fire on t: a quarter over the stern */
@@ -510,7 +519,7 @@ function slotOf(f,t,dt){
   if(f.slotOn!==t){ f.slotOn=t; f.slotT=25+Math.random()*20;
     const v=new THREE.Vector3().subVectors(f.pos,t.pos); if(v.lengthSq()<1e-6) v.set(0,0,1);
     f.slotH=v.clone().setY(0); if(f.slotH.lengthSq()<1e-6) f.slotH.set(0,0,1); f.slotH.normalize();
-    const k=Math.min(claimsOn(t,f),SLOT_TURN.length-1), flip=Math.random()<.3?-1:1;
+    const RP=roleMove(f), k=Math.min(Math.max(claimsOn(t,f),RP&&RP.role==='pincer'?1:0),SLOT_TURN.length-1), flip=Math.random()<.3?-1:1;   // 艦種別の動き: a destroyer goes round (the 2nd place on)
     f.slotH.applyAxisAngle(_up,(SLOT_TURN[k]+(Math.random()-.5)*30)*Math.PI/180);
     f.slotP=SLOT_TILT[k]?flip*SLOT_TILT[k]*Math.PI/180:Math.max(-.5,Math.min(.5,Math.asin(v.normalize().y))); }
   else if((f.slotT-=dt)<=0){ f.slotT=25+Math.random()*20; f.slotH.applyAxisAngle(_up,(Math.random()<.5?-1:1)*(10+Math.random()*15)*Math.PI/180);
@@ -536,7 +545,7 @@ function allySlot(f,t){
     const mates=fleets.filter(x=>x!==f&&x.ally&&x.alive&&x.slotOn===t&&x.order&&x.order.target===t), lead=mates.find(x=>x.slotBase);
     f.slotBase=lead?lead.slotBase.clone():allyBase(f,t,new THREE.Vector3());
     f.slotFlip=lead?lead.slotFlip:Math.random()<.5?-1:1;
-    const taken=new Set(mates.map(x=>x.slotK)); let k=0; while(taken.has(k)&&k<ALLY_TURN.length-1) k++; f.slotK=k;
+    const RP=roleMove(f), taken=new Set(mates.map(x=>x.slotK)); let k=RP&&RP.role==='pincer'?1:0; while(taken.has(k)&&k<ALLY_TURN.length-1) k++; f.slotK=k;   // 艦種別の動き: a destroyer goes round (the 2nd place on)
     /* which way round: the group's side, chosen by the first to go round (the side less in reach of the other enemies, and nearer its post) */
     let side=(mates.find(x=>x.slotSide)||{}).slotSide;
     if(!side&&ALLY_TURN[k]%180){ const R=standOff(f,t), cost=g=>{ const q=f.slotBase.clone().applyAxisAngle(_up,g*ALLY_TURN[k]*Math.PI/180).multiplyScalar(R).add(t.pos);
@@ -670,17 +679,115 @@ function allyForce(){ return fleets.filter(x=>x.ally&&x.alive&&!x.fixed&&x.mode!
 function shareOn(t,f,force){ let on=0; for(const x of force) if(x!==f&&(x.aim===t||x.order&&x.order.target===t)) on++; return force.length?on/force.length:0; }
 function jitOf(f,t){ if(!f.jit) f.jit=new Map(); let j=f.jit.get(t.id); if(j==null){ j=.85+Math.random()*.3; f.jit.set(t.id,j); } return j; }
 function pickFoe(f,foes,hunt){
-  const cur=f.ally&&f.aim&&f.aim.alive?f.aim:f.order&&f.order.type==='attack'?f.order.target:null, from=f.ally?f.post:f.pos; let best=null,bs=1e9,cs=1e9;
+  const cur=f.ally&&f.aim&&f.aim.alive?f.aim:f.order&&f.order.type==='attack'?f.order.target:null, from=f.ally?f.post:f.pos, R=roleMove(f); let best=null,bs=1e9,cs=1e9;
   if(!hunt) foes=foes.filter(p=>p.pos.distanceTo(f.post)<f.leash);
   /* allies: only foes not over ALLY_SHARE_MAX; if every one is, those with the smallest share (so six on two foes go three and three) */
   if(f.ally&&op.allySplit){ const force=allyForce(); foes=foes.filter(p=>p===cur&&shareOn(p,f,force)<=ALLY_SHARE_MAX+1e-9||shareOn(p,f,force)<ALLY_SHARE_MAX-1e-9); }
   else if(f.ally&&foes.length>1){ const force=allyForce(), sh=new Map(foes.map(p=>[p,shareOn(p,f,force)])), lo=Math.min(...sh.values());
     foes=foes.filter(p=>sh.get(p)<=Math.max(ALLY_SHARE_MAX,lo+1e-9)); }
   for(const p of foes){
-    const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*(f.gateFirst&&gateBound(p)?GATE_FIRST:1)*jitOf(f,p);
+    const c=f.ally?0:claimsOn(p,f), hp=p.n?p.ships.length/p.n:1, s=p.pos.distanceTo(from)*(c>=PICK_MAX?3:1+c*.1)*(.7+.3*hp)*(p.preyLast?4:1)*(f.gateFirst&&gateBound(p)?GATE_FIRST:1)*jitOf(f,p)*(R?aimK(f,R,p):1);
     if(p===cur) cs=s; if(s<bs){ bs=s; best=p; } }
   return cur&&cs*PICK_KEEP<=bs?cur:best;
 }
+/* 艦種別の動き (user decision 2026-10-22, docs/spec.md「CPU の行動規範」; the table and its numbers, all 仮, are WOS_DATA.roles in
+   data/ships.js). Only in an operation marked roleAI (第6節 on): elsewhere roleOf is null and nothing below runs, so 第1〜5節 and the
+   exercise play exactly as before. The operation comes first: what it gives a unit (ai, leash, fallBack, retreat, drops…) stands, and
+   the role fills in only what it leaves open. The enemy's and the allies' units (roleMove) take from it which foe, where to stand and
+   when to fall back; the player's own (team 0, not allied) only which foe their guns pick with no order of theirs (fireTargetOf), and
+   the craft of every carrier which target (craftTarget). A unit's class is its highest (ROLES.rank, as for the names of mixed units) */
+const ROLES=WOS_DATA.roles;
+function topClass(f){ if(f.roleCls!==undefined) return f.roleCls; const by=f.comp||(f.type?{[f.type]:1}:{}); let b=null,bi=-1;
+  for(const [t,c] of Object.entries(by)){ const i=ROLES.rank.indexOf(t); if(c>0&&i>bi){ bi=i; b=t; } } return f.roleCls=b; }
+const sideOf=f=>f.team===1?'mars':'earth';
+function roleOf(f){ if(!op.roleAI||!f) return null; const T=ROLES[sideOf(f)];
+  if(f.kind==='wing') return T.crafts&&T.crafts[f.type]||null;
+  if(f.kind!=='fleet'||f.fixed||f.convoy||f.rescue||f.ghost) return null; const c=topClass(f); return c&&(T[c]||ROLES.earth[c])||null; }
+/* the AI's own units: the enemy's and the allies' (the player's only aim) */
+function roleMove(f){ return f&&(f.team===1||f.ally)?roleOf(f):null; }
+const craftRole=(team,type)=>op.roleAI?(ROLES[team===1?'mars':'earth'].crafts||{})[type]||null:null;
+function classOf(t){ return t.kind==='wing'?t.type:t.kind==='fleet'?topClass(t)||'gen':t.kind; }
+const heavyOf=t=>ROLES.heavy[classOf(t)]||(t.kind==='fleet'?1:0);
+/* a friend of f (same side, alive, under way) of one of these classes, nearest to p within r */
+function friendOf(f,p,cls,r=1e9,ok){ let b=null,bd=r; for(const x of fleets){ if(x===f||!x.alive||x.team!==f.team||x.fixed||x.convoy||x.ghost||x.left||!cls.includes(topClass(x))||ok&&!ok(x)) continue;
+  const d=x.pos.distanceTo(p); if(d<bd){ bd=d; b=x; } } return b; }
+/* the factor on how far a foe t seems to f (smaller: sooner): prefer / avoid by class; craft near the friends it guards (傘, 盾);
+   the heavy ship a battleship or cruiser of ours fires on, or that our W.A.S. are on (mark, the destroyers); a unit with no friend near (stray) */
+function aimK(f,R,t){ const K=ROLES.k, c=classOf(t); let k=1;
+  if(t.kind==='wing'&&R.guard){ if(friendOf(f,t.pos,R.guard,R.near)) k*=K.prefer; }
+  else if(R.prefer&&R.prefer.includes(c)) k*=K.prefer; else if(R.avoid&&R.avoid.includes(c)) k*=K.avoid;
+  if(R.mark&&t.kind==='fleet'&&(R.mark==='was'?wings.some(w=>w.alive&&w.team===f.team&&w.type==='was'&&w.state==='attack'&&w.target===t)
+    :heavyOf(t)>=ROLES.heavy.cl&&fleets.some(x=>x!==f&&x.alive&&x.team===f.team&&(x.fireTarget===t||x.order&&x.order.target===t)&&['bb','cl'].includes(topClass(x))))) k*=K.mark;
+  if(R.stray&&t.kind==='fleet'&&!fleets.some(x=>x!==t&&x.alive&&x.team===t.team&&!x.fixed&&x.pos.distanceTo(t.pos)<R.stray)) k*=K.prefer;
+  return k; }
+/* like nearestFoe, by a score of its own (u, its gap) */
+function bestFoe(f,maxD,ok,score){ let best=null,bs=1e9;
+  for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||spares(f,u)||ok&&!ok(u)) continue; const d=gap(f,u);
+    if(d>=maxD||f.kind!=='wing'&&bodyBlocks(f.pos,u.pos)) continue; const s=score(u,d); if(s<bs){ bs=s; best=u; } }
+  return best; }
+/* the guns' foe within reach: the anchor (battleship) the heaviest, the others by aimK */
+function roleFoe(f,R,maxD,ok){ return bestFoe(f,maxD,ok,R.role==='anchor'?(u,d)=>d-1e3*heavyOf(u):(u,d)=>d*aimK(f,R,u)); }
+/* the craft's target after the order, the enemy craft and (the W.A.S.) what fires on their carrier: by aimK, preyLast last */
+function roleCraftFoe(u,R,maxD){ const ok=t=>t.kind==='fleet'&&craftMayHit(u,t)&&!(u.team===0&&op.civil&&inZone(t)), sc=(t,d)=>d*aimK(u,R,t);
+  return bestFoe(u,maxD,t=>!t.preyLast&&ok(t),sc)||bestFoe(u,maxD,ok,sc); }
+/* how far it stands off (null: as before): carriers at their launch distance, the eye outside the foe's reach, else stand × range */
+function roleStand(f,R,t){ const r=t.radius||0;
+  if((R.role==='base'||R.role==='mother')&&f.hangars.length) return f.launchMin*.8+r;
+  if(R.role==='eye') return Math.max(f.range*.92,(t.range||0)*1.05+3)+r;
+  return R.stand?f.range*R.stand+r:null; }
+/* backing off from a foe inside its stand-off: never the anchor, always the edge (寄られたら下がる), else as before (it outranges it) */
+function backsOff(f,t){ const R=roleMove(f); if(R&&R.role==='anchor') return false; if(R&&R.role==='edge') return t.kind==='fleet'&&!t.fixed; return outranges(f,t); }
+const _rv=new THREE.Vector3();
+/* the spot behind `of` as seen from `from` (a unit or a point), `gap` beyond both units' discs */
+function behindOf(of,from,f,gap){ _rv.subVectors(of.pos,from.pos||from).setY(0); if(_rv.lengthSq()<1e-6) _rv.set(0,0,f.team===1?-1:1); return _rv.setLength(discR(of)+discR(f)+gap).add(of.pos).clone(); }
+/* where the foe is, seen from f: the middle of the foes within ROLES.foeSide of it (steadier than the nearest in a melee), else the nearest */
+function foeSide(f,foes){ let n=0; const c=new THREE.Vector3(); for(const e of foes) if(e.alive&&!e.fixed&&e.pos.distanceTo(f.pos)<ROLES.foeSide){ c.add(e.pos); n++; }
+  if(n) return c.multiplyScalar(1/n); const e=nearFoe(f,foes); return e&&e.pos.clone(); }
+function nearFoe(f,foes,ok){ let b=null,bd=1e9; for(const e of foes){ if(!e.alive||e.fixed||ok&&!ok(e)) continue; const d=e.pos.distanceTo(f.pos); if(d<bd){ bd=d; b=e; } } return b; }
+/* the craft a carrier has left, of what it had (aboard, out and in reserve) */
+function craftLeft(f){ let n=0; for(const h of f.hangars){ n+=h.reserve; for(const q of h.squads) n+=q.state==='out'&&q.wing?q.wing.n:q.n; } if(f.roleCraft0==null) f.roleCraft0=n; return f.roleCraft0?n/f.roleCraft0:1; }
+/* before the foe is picked: falling back (back; never when the operation gives the unit a way back of its own), the eye that a longer
+   gun comes for (behind a battleship), the carrier closed on (behind a frigate). True when it has its orders for this round */
+function roleFirst(f,R,foes){ f.roleSpot=null;
+  if(R.back&&f.fallBack==null&&!f.retreat&&!f.roleFell&&(R.role==='base'?f.hangars.length&&craftLeft(f)<R.back:f.ships.length<f.n*R.back)) f.roleFell=true;
+  let s=null;
+  if(f.roleFell){ const H=friendOf(f,f.pos,ROLES.rank.filter(c=>ROLES.heavy[c]>=ROLES.heavy.cl),1e9,x=>!x.roleFell), e=H&&foeSide(H,foes);
+    s=H&&e?behindOf(H,e,f,ROLES.behind):H?H.pos.clone():f.home; }
+  else if(R.shy){ const e=nearFoe(f,foes,e=>e.range>f.range&&gap(e,f)<e.range+R.shy);
+    if(e){ const B=friendOf(f,f.pos,['bb']); s=B?behindOf(B,e,f,ROLES.behind):_rv.subVectors(f.pos,e.pos).setLength(e.range+R.shy+2).add(e.pos).clone(); } }
+  else if(R.close){ const e=nearFoe(f,foes,e=>gap(e,f)<R.close);   // behind a frigate, but never toward the foe: else straight away from it
+    if(e){ const F=friendOf(f,f.pos,['ff']), d=f.pos.distanceTo(e.pos); s=F&&behindOf(F,e,f,3); if(!s||s.distanceTo(e.pos)<d) s=_rv.subVectors(f.pos,e.pos).setLength(Math.max(d+5,R.close+5)).add(e.pos).clone(); } }
+  if(!s) return false;
+  if(f.order&&f.order.type==='attack') f.order=null;
+  if(f.pos.distanceTo(s)>2) moveTo(f,s.x,s.y,s.z); else if(f.order&&f.order.type==='move') f.order=null;
+  return true; }
+/* with the foe picked (or none): where it stands. f.roleSpot (the spot it fights from instead of its side of the foe, step) or, with no
+   foe, a move of its own; true when it has its orders. The shield (bait) in front of the assault ship it goes with; the assault ship with
+   its W.A.S. out keeps behind its shield; the eye of the Republic ahead of the assault ships; the umbrella and the core near their battleship */
+function rolePlace(f,R,threat,foes){ f.roleWard=null;
+  if(R.role==='bait'){ const M=friendOf(f,f.pos,['mas','masc'],R.reach); if(!M) return false; f.roleWard=M;
+    const t=M.order&&M.order.type==='attack'&&M.order.target.alive?M.order.target:threat||nearFoe(M,foes);
+    if(t) _rv.subVectors(t.pos,M.pos).setY(0); else _rv.copy(M.heading).setY(0); if(_rv.lengthSq()<1e-6) _rv.set(0,0,1);
+    const s=_rv.setLength(discR(M)+discR(f)+R.front).add(M.pos).clone(); if(threat){ f.roleSpot=s; return false; }
+    if(f.pos.distanceTo(s)>2) moveTo(f,s.x,s.y,s.z); else if(f.order&&f.order.type==='move') f.order=null; return true; }
+  if(R.role==='mother'&&threat&&wings.some(w=>w.alive&&w.carrier===f)){ const F=friendOf(f,f.pos,['ff'],f.launchR,x=>x.roleWard===f);
+    if(F){ _rv.subVectors(F.pos,threat.pos); if(_rv.lengthSq()>1e-6) f.roleSpot=_rv.setLength(roleStand(f,R,threat)??standOff(f,threat)).add(threat.pos).clone(); } return false; }
+  if(threat) { if(R.stay) f.roleWard=friendOf(f,f.pos,R.stay.of); return false; }
+  if(R.ahead){ const M=friendOf(f,f.pos,['mas','masc']); if(!M) return false; const e=nearFoe(M,foes);
+    if(e) _rv.subVectors(e.pos,M.pos).setY(0); else _rv.copy(M.heading).setY(0); if(_rv.lengthSq()<1e-6) _rv.set(0,0,1);
+    const s=_rv.setLength(R.ahead).add(M.pos).clone(); if(e&&s.distanceTo(e.pos)<(e.range||0)+4) s.sub(e.pos).setLength((e.range||0)+4).add(e.pos);
+    if(f.pos.distanceTo(s)>2) moveTo(f,s.x,s.y,s.z); else if(f.order&&f.order.type==='move') f.order=null; return true; }
+  if(R.stay){ const W=f.roleWard=friendOf(f,f.pos,R.stay.of); if(!W) return false; if(f.order&&f.order.type==='attack') f.order=null;
+    if(f.pos.distanceTo(W.pos)>R.stay.r){ _rv.subVectors(f.pos,W.pos); if(_rv.lengthSq()<1e-6) _rv.set(1,0,0); const s=_rv.setLength(R.stay.r*.6).add(W.pos); moveTo(f,s.x,s.y,s.z); }
+    else if(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(W.pos)>R.stay.r) f.order=null;
+    return true; }
+  return false; }
+/* the spot it fights from, held in: the anchor within leash × hold of its post (a hunting one goes as the operation says), the umbrella and
+   the core within stay.r of their battleship (or carrier). True when it was held in: it may then back toward it (bow on the foe, stepFight) */
+function roleClamp(f,R,p){ let held=false;
+  if(R.role==='anchor'&&R.hold&&f.ai!=='hunt'&&f.leash){ const L=f.leash*R.hold; if(p.distanceTo(f.post)>L){ p.sub(f.post).setLength(L).add(f.post); held=true; } }
+  const W=f.roleWard; if(R.stay&&W&&W.alive&&p.distanceTo(W.pos)>R.stay.r){ p.sub(W.pos).setLength(R.stay.r).add(W.pos); held=true; }
+  return held; }
 /* press (第5節, user decision 2026-10-16: the lines push in on the base): a line unit (ai:'guard' with press {goal:[x,z,alt], slow, fast, hold})
    holds its post at the edge and moves it on toward its goal by the gates, `slow` a clock hour (operation minutes) while a gun on the base
    covers the post (within its range + PRESS_COVER), `fast` where none does any more, and not at all while our ships round the post
@@ -713,6 +820,7 @@ function enemyAI(){
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
+    if(f.roleSpot) f.roleSpot=null;
     /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
        Ships that leave are not counted as sunk (mainSunk counts only the ships lost) */
     if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
@@ -743,7 +851,9 @@ function enemyAI(){
     if(f.ai==='withdraw'){ withdrawAI(f); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
     if(f.press&&f.ai==='guard') pressPost(f);   // 第5節: a line creeping toward the gates
+    const RL=roleMove(f); if(RL&&roleFirst(f,RL,foes)) continue;   // 艦種別の動き (roleAI operations only)
     const threat=pickFoe(f,foes,f.ai==='hunt');
+    if(RL&&rolePlace(f,RL,threat,foes)) continue;
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
     else if(f.cover&&chase&&chase.fleet.alive){ const p=chase.fleet.pos; if(f.pos.distanceTo(p)>12) moveTo(f,p.x,p.y,p.z); }   // nothing in sight: stay by the guard
     else if(f.ai==='hunt'){ if(gates.length&&gateWatch(f)) continue;   // 第5節: nothing in sight, the shield of the gate by its watch point
@@ -808,6 +918,8 @@ function allyAI(){
       if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); } else if(f.order&&f.order.type==='attack') f.order=null;
       continue; }
     if(f.mode==='protect'&&protectAI(f)) continue;
+    if(f.roleSpot) f.roleSpot=null;
+    const RL=f.mode==='guard'?roleMove(f):null; if(RL&&roleFirst(f,RL,foes)) continue;   // 艦種別の動き (roleAI operations only)
     const R=f.retreat;
     if(R){ const k=f.ships.length/f.n;
       if(k<R.below){ if(!f.falling){ f.falling=true; if(R.log) logEvent(...R.log); }
@@ -825,6 +937,7 @@ function allyAI(){
       if(g) threat=nearestOf(f,free.filter(p=>!p.fixed&&p.seen&&(Math.hypot(p.pos.x-g.pos.x,p.pos.z-g.pos.z)<GATE_HELP||p.dropAt===g&&gateBound(p)))); }
     f.aim=threat;
     if(threat) f.waitAt=null;
+    if(RL&&(threat||!f.hold&&!troops.length)&&rolePlace(f,RL,threat,foes)) continue;
     if(threat&&!threat.seen){ moveTo(f,threat.pos.x,threat.pos.y,threat.pos.z); continue; }
     if(threat){ if(!(f.order&&f.order.target===threat)) order(f,{type:'attack',target:threat}); }
     /* 第5節 (2026-10-19, user decision): no enemy ship to go for, it closes on the enemy's infantry within its leash of its post */
@@ -1582,13 +1695,15 @@ function step(dt){
        takes its own side of it (slotOf), so units on the same target close from different sides and do not stack */
     /* the rock in the way of the shot: it keeps closing (round the rock) until it has a clear line */
     f.still=false;
-    if(goal){ const stop=standOff(f,goal);
-      if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
+    if(goal){ const stop=standOff(f,goal), RL=roleMove(f);
+      /* 艦種別の動き: a spot of its own (the shield before its assault ship, the assault ship behind its shield), or its side of the foe held in (roleClamp) */
+      if(RL&&f.roleSpot) f.still=!stepFight(f,f.roleSpot,goal,dt);
+      else if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
-        f.still=!stepFight(f,_w,goal,dt); }
+        f.still=!stepFight(f,_w,goal,dt,RL&&roleClamp(f,RL,_w)); }
       else if(f.ally&&goal.kind==='fleet'&&!goal.fixed){ const sl=allySlot(f,goal); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotA+=dt*.8;
-        f.still=!stepFight(f,_w,goal,dt); }
+        f.still=!stepFight(f,_w,goal,dt,RL&&roleClamp(f,RL,_w)); }
       else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
     const ft=f.fireTarget;

@@ -77,3 +77,52 @@ WOS_DATA.sides={
     crafts:{was:{hp:15, dmg:1, eva:.55}},
     ace:{ship:1.25, wasDmg:3}},
 };
+
+/* 艦種別の動き（ユーザー決定 2026-10-22。docs/spec.md「CPU の行動規範」。数値はすべて仮で docs/menu.md「艦種別の動き」）。
+   作戦データに roleAI:true がある作戦（第6節から）だけで効く。作戦が隊に書いたこと（ai、leash、fallBack、retreat など）が先で、
+   書いていないところだけをこの表で埋める。敵（共和国）と友軍は狙い・立つ位置・退き際、自軍（プレイヤーの隊）は狙いだけ
+   （命令のないときにどれを撃つか。艦載機と W.A.S. の狙いも）。仕組みは battle/sim.js の「艦種別の動き」。
+   rank: 隊の役目を決める艦種の上位の順（混成の隊はいちばん上位の艦種。部隊の名前の決まりと同じ。揚陸艇はいちばん下）
+   heavy: 「重い艦」の重さ（戦艦は射程の中でいちばん重い艦を撃つ。cl 以上が「重い艦」）
+   k: 狙いの係数。距離にかける（小さいほど先に狙う）。prefer 好む、avoid 避ける、mark 駆逐艦が「味方が撃っている重い艦」「W.A.S. が取り付いた艦」
+   behind: 退いた隊が味方の重い艦の後ろに立つ間隔（艦の円盤の外から）。foeSide: 「後ろ」を決める敵の向き（その重い艦のまわりこの距離の敵の真ん中）
+   earth（大艦巨砲主義）/ mars（W.A.S. が要）: 艦種ごとの役目。表にない艦種は earth の行（鹵獲戦艦は地球の戦艦と同じ）
+     role: anchor 錨 / core 芯 / pincer 挟み手 / umbrella 傘 / eye 目 / base 基地（母艦） / mother 母体（突撃揚陸艦） / bait 囮と盾 / edge 射程の端 / ferry 運び手
+     prefer / avoid: 先に狙う / 後回しにする相手の艦種（ftr 艦載機、was W.A.S.）
+     guard: その艦種の味方に near 以内まで寄った小型機を先に撃つ（傘、盾）
+     stay: {of: 艦種, r}: その艦種の味方から r 以内にいる（傘は戦艦か母艦、芯は戦艦）
+     hold: 錨が持ち場から leash×hold より外へ出ない（ai:'hunt' の隊は作戦のとおり追う）
+     stand: 撃つ距離（射程の割合）。edge は寄られたら下がる。eye は相手の射程の外（相手の射程×1.05＋3）
+     back: 隻数がこの割合を切ると、味方の重い艦の後ろ（いなければ来た所）へ下がる。base は艦載機・W.A.S. の残り
+     mark: 'guns'（戦艦・巡洋艦が撃っている重い艦）/ 'was'（味方の W.A.S. が取り付いた艦）を mark 倍
+     stray: まわりこの距離に味方のいない隊を好む（はぐれた隊）
+     shy: 射程の長い相手の射程＋shy に入ったら、戦艦の後ろへ　close: 敵艦がここまで寄ったら、フリゲートの後ろへ
+     front: 盾が揚陸艦の前に立つ距離（reach 以内の揚陸艦について行く）　ahead: 目が揚陸艦の前に出る距離
+     crafts: 小型機の狙い（命令、相手の小型機、母艦を撃っている艦（guard:true）のあと） */
+WOS_DATA.roles={
+  rank:['lc','cv','ff','dd','mas','cl','bb','cvb','masc'],
+  heavy:{bb:5, cvb:4, masc:4, cl:3, mas:2, dd:2, ff:1, cv:1, lc:.5},
+  k:{prefer:.6, avoid:1.5, mark:.5},
+  behind:8, foeSide:90,
+  earth:{
+    bb:  {role:'anchor', hold:.6, prefer:['bb','cvb','masc','cl']},
+    cl:  {role:'core', prefer:['dd','mas','lc'], stand:.75, back:.3, stay:{of:['bb'], r:40}},
+    dd:  {role:'pincer', mark:'guns', back:.4},
+    ff:  {role:'umbrella', prefer:['mas','lc'], guard:['bb','cvb','masc'], near:25, stay:{of:['bb','cvb','masc'], r:25}},
+    cv:  {role:'eye', prefer:['lc','ftr','was'], stray:45, back:.6, shy:5},
+    cvb: {role:'base', close:25, back:.5},
+    masc:{role:'base', close:25, back:.5},
+    mas: {role:'base', close:25, back:.5},
+    crafts:{ftr:{prefer:['mas','lc']}, was:{prefer:['mas','lc']}},
+  },
+  mars:{
+    mas: {role:'mother', prefer:['bb','cvb','masc','cl'], avoid:['ff']},
+    masc:{role:'mother', prefer:['bb','cvb','masc','cl'], avoid:['ff']},
+    ff:  {role:'bait', prefer:[], guard:['mas','masc'], near:20, front:8, reach:60},
+    dd:  {role:'pincer', mark:'was', prefer:['ff'], back:.4},
+    cl:  {role:'edge', prefer:['ff','cl'], stand:.92, back:.3},
+    cv:  {role:'eye', ahead:30, back:.6, shy:5},
+    lc:  {role:'ferry'},
+    crafts:{was:{prefer:['mas','bb','dd'], avoid:['ff'], guard:true}},
+  },
+};
