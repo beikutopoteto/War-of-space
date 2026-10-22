@@ -153,7 +153,13 @@ window.WOS_DATA=window.WOS_DATA||{};
      残った隊が toGate だけゲートのまわり（rings の弧）へ、ほかは持ち場を back だけゲートへ寄せる。ゲートが残り一つで全部隊がそのまわりへ。1か所に2隊まで。battle/sim.js の stepAllyFall
    roleAI:true: 艦種別の動き（2026-10-22、ユーザー決定。第6節からの作戦に付ける。第1〜5節と演習には付けない）。表は data/ships.js の WOS_DATA.roles。
      この作戦の敵と友軍は、作戦が書いていないところ（どの敵を狙うか、どこに立つか、いつ下がるか）を艦種の役目で決め、自軍の隊は命令のないときの狙いだけを役目で決める。
-     ai・leash・fallBack・retreat など作戦が書いたことが先（例: ai:'hunt' の戦艦は追う。fallBack や retreat のある隊は役目の退き際を使わない） */
+     ai・leash・fallBack・retreat など作戦が書いたことが先（例: ai:'hunt' の戦艦は追う。fallBack や retreat のある隊は役目の退き際を使わない）
+   packs: ドクトリンの型（2026-10-22、ユーザー決定。第6節からの作戦に付ける。共和国の隊だけ）[{doctrine, fleets:[隊の名前…], goal?, from?, ward?, start?, backTo?}]。
+     型は data/ships.js の WOS_DATA.doctrines.mars（spear 槍 / mistHammer 霧と鎚 / rockShield 岩の盾）。fleets の隊を艦種で型の枠に入れ、段の手順で動かす（あとから出る隊も名前で入る）。
+     goal: 目標。隊の名前か艦種（'bb' など）、または並び（前ほど先。例 ['工作艦の隊の名前', 'bb'] なら工作艦が出たらそちらへ切り替える）。
+     from: 槍の向き [[x, z, 上], …]（目標から見た向き。枠ごとの k 番目の隊が k 番目の向きから来る）。ward: 守るもの（隊・ゲート・居住区の名前、または点 [x, z, alt]）。
+     start: 型が動き出す時刻（分。それまでは作戦の ai のまま）。backTo: 退く先 [x, z, alt]（書かなければ各隊の出た所）。
+     作戦が書いたこと（ai、guard の leash、fallBack、events の ai）は型より先。型の行き先は艦種別の動きの立ち位置より先。合図は通信や印で知らせない */
 /* 戦闘の規模（ユーザー決定 2026-10-12: 4つ。1倍速での長さの目安）。作戦の scale に書く。
    min / max: 1倍速の長さ（分）　sec: 作戦の時計を合わせる目標の秒数（span ÷ sec で時計の速さが決まる。仮）
    cap: 自分の戦区軍で出撃できる艦の合計（全兵科、選んだ戦区軍すべて。ユーザー決定 2026-10-12: 規模で出撃の上限を制限する。数は仮） */
