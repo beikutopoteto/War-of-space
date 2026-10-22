@@ -280,7 +280,8 @@ function tetherCarriers(dt){
     if(leavesCraft(f)){ for(const w of out) if(w.pos.distanceTo(f.pos)>w.launchR+TETHER_SLACK) loseWing(w); continue; }
     let m=0; for(let k=0;k<2;k++) for(const w of out) m+=keepWithin(f.pos,f.tp,w.pos,w.launchR);
     if(m<1e-4){ f.heldT=0; continue; }
-    const o=f.tOrd; if(o&&o===f.order&&o.type==='move'&&o.path){ f.pos.copy(f.tp); o.path.s=f.tS; }   // a move order: this step is undone (it stops short)
+    const o=f.tOrd, mv=o&&o===f.order&&o.type==='move'&&o.path;
+    if(mv||out.some(w=>f.pos.distanceTo(w.pos)>Math.max(w.launchR,f.tp.distanceTo(w.pos))+.01)){ f.pos.copy(f.tp); if(mv) o.path.s=f.tS; }   // a move order (or squadrons on both sides): this step is undone (it stops short)
     f.heldT=(f.heldT||0)+dt;
     if(f.heldT>TETHER_CALL&&(f.withdrawing||f.order&&f.order.type==='move')){ f.heldT=0; f.callT=gameSec;
       for(const w of out) if(w.state==='attack'&&w.pos.distanceTo(f.pos)>w.launchR*.85){ w.state='return'; w.target=null; } } }
@@ -1605,10 +1606,10 @@ function step(dt){
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
-  tetherCarriers(dt);
   spreadAllies(dt);
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
   if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
+  tetherCarriers(dt);   // after the pushes off the rock and out of the zones (a path into the rock pushed a landing ship out past its W.A.S.)
   stepField();   // after the convoy has moved this step
   if(fortress.alive){
     fortress.retarget-=dt; if(fortress.retarget<=0){fortress.retarget=.5; fortress.fireTarget=nearestFoe(fortress,fortress.range);}
