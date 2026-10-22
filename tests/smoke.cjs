@@ -435,6 +435,32 @@ function check(ok, label, detail = '') {
     check(air.ours > 0 && air.theirs > 0 && air.oursOnCraft === air.ours, '空中戦: 小型機は敵の小型機を艦より先に狙う', JSON.stringify(air));
     await page.evaluate(() => { reset(); select(null); });
 
+    /* 小型機と母艦をつなぐ (user decision 2026-10-22): a carrier on 自動交戦 told to move off does not leave its W.A.S. beyond the launch
+       distance (it waits, calls them home, then goes); the AI's assault ship withdrawing the same, and it still gets away; on 命令優先 the
+       player's carrier may go, and the squadron left beyond it is lost */
+    const teth = await page.evaluate(() => {
+      const run = (team, how) => {
+        reset(); fortress.alive = false; fleets.forEach(f => { f.alive = false; });
+        const N = fieldC.z - FIELD_R + 15, c = makeFleet(team, { name: '揚陸', sub: '', type: 'mas', n: 3, hp: 70, dmg: 0, range: 6, speed: how === 'evade' ? 20 : 6, scale: 1, pos: [0, N + 30], alt: 0, vis: 7, stl: 3, hangar: { was: 60 } });
+        const e = makeFleet(1 - team, { name: '的', sub: '', type: 'cl', n: 4, hp: 999, dmg: 0, range: 6, speed: 0, scale: 1, pos: [0, N + 52], alt: 0, vis: 7, stl: 3 });
+        fleets.push(c, e); c.hpPool = e.hpPool = 1e9; e.ai = null; e.leash = 0; c.seen = e.seen = true;
+        if (team === 1) { c.ai = 'hunt'; c.leash = 300; c.post = c.pos.clone(); } else { c.stance = how; order(c, { type: 'attack', target: e }); }
+        let i = 0; while (!wings.some(w => w.carrier === c && w.alive && w.state === 'attack' && w.pos.distanceTo(c.pos) > 15) && i++ < 400) step(.05);
+        const p0 = c.pos.clone(), sq = wings.filter(w => w.carrier === c && w.alive).map(w => w.squad), lost0 = tetherLost; let worst = 0, t = 0;
+        if (team === 1) { c.ai = 'withdraw'; c.order = null; } else order(c, { type: 'move', dest: c.pos.clone().add(new THREE.Vector3(0, 0, 150)) });
+        for (; t < 1600 && c.alive && c.pos.distanceTo(p0) < 60; t++) { step(.05);
+          for (const w of wings) if (w.carrier === c && w.alive) worst = Math.max(worst, w.pos.distanceTo(c.pos) / w.launchR); }
+        const r = { out: sq.length, worst: +worst.toFixed(3), sec: +(t * .05).toFixed(1), went: +c.pos.distanceTo(p0).toFixed(1), left: !!c.left, lost: sq.filter(q => q.state === 'lost').length, tlost: tetherLost - lost0 };
+        c.el.remove(); e.el.remove(); return r;
+      };
+      return { engage: run(0, 'engage'), ai: run(1, 'withdraw'), evade: run(0, 'evade') };
+    });
+    check(teth.engage.out > 0 && teth.engage.worst <= 1.01 && teth.engage.went >= 60 && teth.engage.sec > 2 && teth.engage.lost === 0
+      && teth.ai.out > 0 && teth.ai.worst <= 1.01 && (teth.ai.went >= 60 || teth.ai.left) && teth.ai.lost === 0
+      && teth.evade.out > 0 && teth.evade.worst > 1 && teth.evade.lost > 0 && teth.evade.tlost === teth.evade.lost,
+      '小型機と母艦: 自動交戦と CPU の母艦は出ている隊を発艦の距離の外に残して動かず（呼び戻してから動く）、命令優先なら離れられて残された隊は失われる', JSON.stringify(teth));
+    await page.evaluate(() => { reset(); select(null); });
+
     /* ship guns: the foe ordered to attack comes first while in range, then the nearest */
     const fire = await page.evaluate(() => {
       reset(); const f = fleets.find(x => x.team === 0 && !x.hangars.length), [a, b] = fleets.filter(x => x.team === 1);
