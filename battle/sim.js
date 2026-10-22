@@ -230,6 +230,7 @@ function preyNearest(u,maxD,ok){ return nearestFoe(u,maxD,t=>!t.preyLast&&ok(t))
 let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut (h.out) at once */
 function launchCheck(f){
+  if(f.callT!=null&&gameSec-f.callT<TETHER_QUIET&&(f.withdrawing||f.order&&f.order.type==='move')) return;   // it has just called its craft home to move
   for(const h of f.hangars){ const W=WING[h.type], C=f.craft&&f.craft[h.type]||{};   /* C: research of the player's own fleets (prep.js) */
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
@@ -257,15 +258,43 @@ const SLOW_BY=.4;
 /* the carrier slows with the people aboard (op.carrier.slowFull, 第4節; user decision 2026-10-10: down by 70% when full), in proportion */
 function loadSlow(f){ const C=op.carrier; return f.isCarrier&&C&&C.slowFull&&f.cs?1-C.slowFull*Math.min(1,(f.cs.boarded||0)/C.people):1; }
 function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1)*loadSlow(f); }
+/* 小型機と母艦をつなぐ (user decision 2026-10-22, every operation): a squadron out stays within its carrier's launch distance (launchR):
+   it does not go for a target farther than that from the carrier, nor fly out past it. The carrier (an assault ship too, AI or the
+   player's on 自動交戦) does not move so that a squadron out is left beyond it: it stops short (a step of a move order is undone), or
+   slides round. Held so for TETHER_CALL seconds on a move (or withdrawing), it calls the squadrons holding it home and launches no more
+   for TETHER_QUIET seconds while it moves. Only the player's carrier on 命令優先 (evade) may leave: a squadron left more than
+   TETHER_SLACK beyond the distance cannot come back and is lost (as with a sunk carrier). 数値は仮 */
+const TETHER_SLACK=1, TETHER_CALL=2, TETHER_QUIET=6, _tw0=new THREE.Vector3(), _tq0=new THREE.Vector3();
+let tetherLost=0;
+function leashed(w,t){ const c=w.carrier; return !!t&&(!c||!c.alive||gap(c,t)<w.launchR); }
+/* p moved from `from`: if that took it farther than R from c (and farther than it was), it goes back onto that sphere. The correction */
+function keepWithin(p,from,c,R){ const d=p.distanceTo(c); if(d<=R) return 0; const b=Math.max(R,from.distanceTo(c)); if(d<=b+1e-6) return 0;
+  _tq0.subVectors(p,c).multiplyScalar(b/d).add(c); const m=_tq0.distanceTo(p); p.copy(_tq0); return m; }
+function leavesCraft(f){ return f.team===0&&!f.ally&&f.stance==='evade'; }
+function loseWing(w){ w.alive=false; w.squad.n=0; w.squad.state='lost'; w.squad.wing=null; tetherLost++;
+  if(w.team===0) logEvent(`${w.name} 喪失`,`母艦が発艦の距離の外へ離れ、${w.n}機は帰れずに失われた。`); }
+/* after the fleets have moved: each carrier against its squadrons out (f.tp: where it was, f.tOrd / f.tS: its move order and path then) */
+function tetherCarriers(dt){
+  for(const f of fleets){ const out=f.alive&&f.hangars.length?wings.filter(w=>w.alive&&w.carrier===f):null;
+    if(!out||!out.length||!f.tp){ f.heldT=0; continue; }
+    if(leavesCraft(f)){ for(const w of out) if(w.pos.distanceTo(f.pos)>w.launchR+TETHER_SLACK) loseWing(w); continue; }
+    let m=0; for(let k=0;k<2;k++) for(const w of out) m+=keepWithin(f.pos,f.tp,w.pos,w.launchR);
+    if(m<1e-4){ f.heldT=0; continue; }
+    const o=f.tOrd; if(o&&o===f.order&&o.type==='move'&&o.path){ f.pos.copy(f.tp); o.path.s=f.tS; }   // a move order: this step is undone (it stops short)
+    f.heldT=(f.heldT||0)+dt;
+    if(f.heldT>TETHER_CALL&&(f.withdrawing||f.order&&f.order.type==='move')){ f.heldT=0; f.callT=gameSec;
+      for(const w of out) if(w.state==='attack'&&w.pos.distanceTo(f.pos)>w.launchR*.85){ w.state='return'; w.target=null; } } }
+}
 function stepWings(dt){
   for(const w of wings){ if(!w.alive) continue;
     const c=w.carrier;
     if(w.state==='attack'){
       w.fuel-=dt;
-      const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.launchR) w.target=o;   // a new attack order turns them at once
+      const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.launchR&&leashed(w,o)) w.target=o;   // a new attack order turns them at once
       else if(!(o&&w.target===o)&&c.stance!=='evade'&&w.target){ const ec=enemyCraft(w,w.launchR);   // enemy craft come first; the one pressing nearest the carrier
-        if(ec&&ec!==w.target&&(w.target.kind!=='wing'||ec.pos.distanceTo(c.pos)<w.target.pos.distanceTo(c.pos)-10)) w.target=ec; }
-      if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)) w.target=craftTarget(w,w.type,w.launchR*.6)||(c.alive?craftTarget(c,w.type,w.launchR):null);
+        if(ec&&ec!==w.target&&leashed(w,ec)&&(w.target.kind!=='wing'||ec.pos.distanceTo(c.pos)<w.target.pos.distanceTo(c.pos)-10)) w.target=ec; }
+      if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)||!leashed(w,w.target)){ const t=craftTarget(w,w.type,w.launchR*.6);
+        w.target=leashed(w,t)?t:c.alive?craftTarget(c,w.type,w.launchR):null; }
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
     if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }
@@ -274,7 +303,8 @@ function stepWings(dt){
       const stop=w.state==='attack'?w.range*.6+(w.target.radius||0):1;
       _v.subVectors(goal,w.pos); const d=_v.length();
       if(w.state==='return'&&d<=stop+.5){ dock(w); continue; }
-      if(d>stop){ _v.normalize(); w.pos.addScaledVector(_v,Math.min(w.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize(); }
+      if(d>stop){ _v.normalize(); _tw0.copy(w.pos); w.pos.addScaledVector(_v,Math.min(w.speed*dt,d-stop)); w.heading.lerp(_v,Math.min(1,dt*4)).normalize();
+        if(c.alive) keepWithin(w.pos,_tw0,c.pos,w.launchR); }   // the squadron does not go out of its carrier's launch distance
     }
     if(w.state!=='attack') continue;
     w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range?t:nearestFoe(w,w.range); }
@@ -1534,6 +1564,7 @@ function step(dt){
   stepSorties();
   for(const f of fleets){
     if(!f.alive) continue;
+    if(f.hangars.length){ (f.tp||(f.tp=new THREE.Vector3())).copy(f.pos); f.tOrd=f.order; f.tS=f.order&&f.order.path?f.order.path.s:0; }   // for tetherCarriers
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
     f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
     let goal=null, moving=false;
@@ -1574,6 +1605,7 @@ function step(dt){
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
+  tetherCarriers(dt);
   spreadAllies(dt);
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
   if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
