@@ -745,7 +745,8 @@ function foeSide(f,foes){ let n=0; const c=new THREE.Vector3(); for(const e of f
   if(n) return c.multiplyScalar(1/n); const e=nearFoe(f,foes); return e&&e.pos.clone(); }
 function nearFoe(f,foes,ok){ let b=null,bd=1e9; for(const e of foes){ if(!e.alive||e.fixed||ok&&!ok(e)) continue; const d=e.pos.distanceTo(f.pos); if(d<bd){ bd=d; b=e; } } return b; }
 /* the craft a carrier has left, of what it had (aboard, out and in reserve) */
-function craftLeft(f){ let n=0; for(const h of f.hangars){ n+=h.reserve; for(const q of h.squads) n+=q.state==='out'&&q.wing?q.wing.n:q.n; } if(f.roleCraft0==null) f.roleCraft0=n; return f.roleCraft0?n/f.roleCraft0:1; }
+function craftN(f){ let n=0; for(const h of f.hangars){ n+=h.reserve; for(const q of h.squads) n+=q.state==='out'&&q.wing?q.wing.n:q.n; } return n; }
+function craftLeft(f){ const n=craftN(f); if(f.roleCraft0==null) f.roleCraft0=n; return f.roleCraft0?n/f.roleCraft0:1; }
 /* before the foe is picked: falling back (back; never when the operation gives the unit a way back of its own), the eye that a longer
    gun comes for (behind a battleship), the carrier closed on (behind a frigate). True when it has its orders for this round */
 function roleFirst(f,R,foes){ f.roleSpot=null;
@@ -788,6 +789,94 @@ function roleClamp(f,R,p){ let held=false;
   if(R.role==='anchor'&&R.hold&&f.ai!=='hunt'&&f.leash){ const L=f.leash*R.hold; if(p.distanceTo(f.post)>L){ p.sub(f.post).setLength(L).add(f.post); held=true; } }
   const W=f.roleWard; if(R.stay&&W&&W.alive&&p.distanceTo(W.pos)>R.stay.r){ p.sub(W.pos).setLength(R.stay.r).add(W.pos); held=true; }
   return held; }
+/* ドクトリンの型 (user decision 2026-10-22, docs/spec.md「CPU の行動規範」; the doctrines and their numbers, all 仮, are WOS_DATA.doctrines in
+   data/ships.js). Only the Republic's units (team 1), and only in an operation with packs: elsewhere `packs` is empty and nothing below runs.
+   A pack puts its units (op.packs[].fleets, by name) into its doctrine's slots by class and runs them through the steps: each step gives
+   each slot a move, and a signal (next, or `after` minutes) moves the pack on. The operation comes first (enemyAI deals with its own ai,
+   fallBack and events before this, and a guard goes nowhere past its leash); the doctrine's goal and spots come before the role's
+   (roleFirst / rolePlace are skipped); which foe the guns fire on is left to the role (fireTargetOf). No signal is told by talk or marks */
+const DOCTRINES=WOS_DATA.doctrines&&WOS_DATA.doctrines.mars||{}, _pk=new THREE.Vector3();
+let packs=[];
+function initPacks(){ packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false})); }
+const opMin=()=>gameSec*CLOCK_RATE, packVec=a=>new THREE.Vector3(a[0],a[2]||0,a[1]);
+const packMove=f=>{ const P=f.pack, S=P.D.steps[P.step]; return P.back?'back':S[f.packSlot]||S.all||'hold'; };
+const packMates=(f,ok)=>f.pack.mem.filter(x=>x!==f&&x.alive&&ok(x));
+/* the goal: the first of op.packs[].goal (a unit's name or a class) that is there, the one it had while that still holds */
+function packGoal(P,c){ for(const g of [].concat(P.goal||[])){ const L=fleets.filter(x=>x.team===0&&x.alive&&!x.convoy&&!x.ghost&&(x.name===g||!x.fixed&&topClass(x)===g));
+  if(L.length) return L.includes(P.G)?P.G:L.reduce((a,b)=>a.pos.distanceTo(c)<=b.pos.distanceTo(c)?a:b); } return null; }
+function approachSpot(f){ const P=f.pack, F=P.from&&P.from[f.packK%P.from.length]; if(F) _pk.set(F[0],F[2]||0,F[1]); else _pk.subVectors(f.pos,P.G.pos);
+  if(_pk.lengthSq()<1e-6) _pk.set(0,0,-1); return _pk.setLength(P.D.gather||55).add(P.G.pos).clone(); }
+/* hold / hide: the doctrine's spot round the ward (front, rim, shadow), else where it was when the step began */
+function packAt(f){ const P=f.pack, D=P.D, A=D.at&&D.at[f.packSlot], W=P.wardPos, d=P.face;
+  if(!A||!W) return f.packAt||(f.packAt=f.pos.clone());
+  if(A==='front') return d.clone().setLength(D.front||10).add(W);
+  if(A==='rim') return d.clone().applyAxisAngle(_up,(f.packK%2?-70:70)*Math.PI/180).setLength(D.rim||28).add(W);
+  const C=op.body?bodyC:W; return d.clone().setLength(-((op.body?op.body.r*BODY_OUT:0)+(D.shadow||30))).add(C); }
+function callHome(f){ f.strike=null; if(f.order&&f.order.type==='attack') f.order=null; let out=false;
+  for(const w of wings) if(w.alive&&w.carrier===f){ out=true; if(w.state==='attack'){ w.state='return'; w.target=null; } } return out; }
+const packStay=(f,p)=>{ if(f.pos.distanceTo(p)>2) moveTo(f,p.x,p.y,p.z); else if(f.order&&f.order.type==='move') f.order=null; };
+/* once a round (enemyAI): members, goal, ward, the signals, the break-off, and the speeds of those coming in together (sync) */
+function stepPacks(all){
+  for(const P of packs){ const D=P.D; if(opMin()<(P.start||0)) continue; if(P.t0==null) P.t0=opMin();
+    for(const f of fleets) if(f.team===1&&f.alive&&!f.pack&&!f.fixed&&P.fleets.includes(f.name)){ const s=Object.keys(D.slots).find(k=>D.slots[k].includes(topClass(f))); if(!s) continue;
+      Object.assign(f,{pack:P,packSlot:s,packK:P.mem.filter(x=>x.packSlot===s).length,packN0:f.n,packW0:craftN(f)}); P.mem.push(f); }
+    const live=P.mem.filter(f=>f.alive); if(!live.length) continue;
+    const c=live.reduce((s,f)=>s.add(f.pos),new THREE.Vector3()).multiplyScalar(1/live.length); P.G=packGoal(P,c);
+    /* the ward (a unit, gate or block by name, or a point [x,z,alt]): hit when it loses hit points, lost when it falls */
+    const W=typeof P.ward==='string'?[...fleets,...gates,...blocks].find(x=>x.name===P.ward):null; P.wardPos=W?W.pos:P.ward?packVec(P.ward):null;
+    if(W){ const hp=W.hpPool??W.hp; if(P.wardHp!=null&&hp<P.wardHp-1e-9){ P.hitAt=opMin(); P.hitBy=all.find(e=>e.fireTarget===W)||nearestOf(W,all)||P.hitBy; } P.wardHp=hp; if(!W.alive&&P.lostAt==null) P.lostAt=opMin(); }
+    if(P.wardPos){ const fc=all.filter(e=>!e.fixed); if(fc.length){ const m=fc.reduce((s,e)=>s.add(e.pos),new THREE.Vector3()).multiplyScalar(1/fc.length).sub(P.wardPos).setY(0); if(m.lengthSq()>1) P.face=m.normalize(); } if(!P.face) P.face=new THREE.Vector3(0,0,1); }
+    const B=D.breakOff, sum=(L,g)=>L.reduce((s,f)=>s+g(f),0);
+    if(B&&!P.back){ const sh=P.mem.filter(f=>f.packSlot===B.slot), n0=sum(sh,f=>f.packN0), w0=sum(P.mem,f=>f.packW0);
+      if(n0&&sum(sh,f=>f.alive?f.ships.length:0)<n0*B.below||w0&&sum(P.mem,f=>f.alive?craftN(f):0)<w0*B.was){ P.back=true; P.backAt=opMin(); } }
+    const S=D.steps[P.step], sig=S.next==='sync'?live.every(f=>packMove(f)!=='approach'||f.packArr!=null)
+      :S.next==='wasOn'?wings.some(w=>w.alive&&w.carrier.pack===P&&w.fireTarget&&w.carrier.order&&w.fireTarget===w.carrier.order.target)
+      :S.next==='hit'?P.hitAt!=null&&P.hitAt>=P.t0:S.next==='lost'?P.lostAt!=null:false;
+    if(!P.back&&P.step<D.steps.length-1&&(sig||S.after!=null&&opMin()-P.t0>=S.after)){ P.step++; P.t0=opMin(); for(const f of live) f.packAt=null; }
+    /* coming in together: the slower set the time, the others slow to arrive with them (and wait if they are there first) */
+    const go=P.G&&!P.back?live.filter(f=>packMove(f)==='approach'&&f.packArr==null):[], eta=f=>f.pos.distanceTo(approachSpot(f))/f.speed, T=Math.max(1e-6,...go.map(eta));
+    for(const f of live) f.syncSpeed=go.includes(f)?f.speed*Math.max(D.slowest||.2,eta(f)/T):null; }
+}
+/* a member's move for this round; false leaves it to what comes after (the role, the operation's ai) */
+function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) return false;
+  const D=P.D, mv=packMove(f), how=D.how&&D.how[f.packSlot], G=P.G, home=P.backTo?packVec(P.backTo):f.home, mom=f.hangars.length>0;
+  const quiet=mv==='hide'||mv==='back'&&mom; if(!quiet&&f.packSt0!=null){ f.stance=f.packSt0; f.packSt0=null; }
+  const free=p=>f.ai!=='guard'||p.distanceTo(f.post)<f.leash, hush=()=>{ if(f.packSt0==null) f.packSt0=f.stance; f.stance='evade'; };
+  if(mv==='approach'){ if(!G) return false; const s=approachSpot(f); if(!free(s)) return false;
+    if(f.packArr==null&&f.pos.distanceTo(s)<6) f.packArr=opMin(); packStay(f,s); return true; }
+  if(mv==='hold'||mv==='hide'){ const s=packAt(f); if(!free(s)) return false; f.packOver=false; f.packWp=null;
+    if(mv==='hide'){ hush(); if(callHome(f)) f.order=null; else packStay(f,s); return true; }
+    const near=foes.filter(e=>e.pos.distanceTo(s)<(D.holdR||30)), t=near.length?pickFoe(f,near,true):null;
+    if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); } else packStay(f,s); return true; }
+  if(mv==='back'){ if(mom){ hush(); if(callHome(f)) f.order=null; else { if(P.goneAt==null) P.goneAt=opMin(); packStay(f,home); } return true; }
+    const M=nearestOf(f,packMates(f,x=>x.hangars.length&&x.pos.distanceTo(P.backTo?home:x.home)>8)); if(!M){ packStay(f,home); return true; }   // the mothers still on their way
+    const e=foeSide(M,foes)||G&&G.pos.clone(); if(!e){ packStay(f,M.pos); return true; }
+    const s=e.sub(M.pos).setLength(discR(M)+discR(f)+(D.front||8)).add(M.pos), t=nearFoe(f,foes,x=>gap(f,x)<(D.holdR||30));
+    if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; } else packStay(f,s); return true; }
+  /* charge */
+  let t=G;
+  if(how==='antiAir'){ t=f.packPrey&&f.packPrey.alive&&f.packPrey.seen?f.packPrey:null;
+    for(const c of D.prey||[]){ if(t) break; t=nearFoe(f,foes,e=>classOf(e)===c); } t=f.packPrey=t||G; }
+  if(how==='over'){ t=P.hitBy&&P.hitBy.alive?P.hitBy:P.wardPos&&nearFoe({pos:P.wardPos},foes); }
+  if(!t||!free(t.pos)) return false;
+  const edge=ROLES.mars.cl.stand||.92;
+  if(how==='edge'&&nearFoe(f,foes,e=>e!==t&&gap(f,e)<f.range*edge)) return false;   // closed on: the role's way (it backs off)
+  /* the reserve goes over (or under) the ward or the rock first, then for what hit the ward */
+  if(how==='over'&&!f.packOver){ const C=op.body?bodyC:P.wardPos||t.pos, R=op.body?op.body.r*BODY_OUT:12;
+    if(!f.packWp){ f.packWp=C.clone().setY(C.y+(f.packK%2?-1:1)*(R+(D.over||15)));
+      f.order={type:'move',dest:_pk.subVectors(f.packWp,t.pos).setLength(standOff(f,t)).add(t.pos).clone(),via:[f.packWp]}; return true; }
+    if(f.order&&f.order.type==='move'&&f.pos.distanceTo(f.packWp)>=10) return true; f.packOver=true; }
+  let s=null; const M=nearestOf(f,packMates(f,x=>x.hangars.length&&x.packK===f.packK))||nearestOf(f,packMates(f,x=>x.hangars.length));   // its assault ship
+  if(how==='screen'){ if(M) s=_pk.subVectors(t.pos,M.pos).setLength(discR(M)+discR(f)+(D.front||8)).add(M.pos).clone(); }
+  else if(how==='flank'){ const b=_pk.subVectors(M?M.pos:f.pos,t.pos); if(b.lengthSq()<1e-6) b.set(0,0,-1); b.normalize();
+    const d=f.packK%2?b.clone().multiplyScalar(.35).add(_w.set(0,f.pos.y>=t.pos.y?1:-1,0))   // the 2nd knife over or under, the 1st to the side
+      :new THREE.Vector3().crossVectors(b,_up).multiplyScalar(Math.sign(_w.subVectors(f.pos,t.pos).dot(_rv.crossVectors(b,_up)))||1).addScaledVector(b,.35);
+    s=d.setLength(standOff(f,t)).add(t.pos); s.y=Math.max(-SLOT_ALT(),Math.min(SLOT_ALT(),s.y)); }
+  else { _pk.subVectors(f.pos,t.pos); if(_pk.lengthSq()<1e-6) _pk.set(0,0,-1); s=_pk.setLength(how==='edge'?f.range*edge+(t.radius||0):standOff(f,t)).add(t.pos).clone(); }
+  /* the assault ship keeps behind its shield: slower while the shield is not ahead of it */
+  const SH=mom&&packMates(f,x=>D.how&&D.how[x.packSlot]==='screen'&&x.packK===f.packK)[0]; f.syncSpeed=SH&&SH.pos.distanceTo(t.pos)>f.pos.distanceTo(t.pos)-1?f.speed*.6:null;
+  if(!t.seen){ packStay(f,s); return true; }
+  if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; f.packBk=how==='edge'; return true; }
 /* press (第5節, user decision 2026-10-16: the lines push in on the base): a line unit (ai:'guard' with press {goal:[x,z,alt], slow, fast, hold})
    holds its post at the edge and moves it on toward its goal by the gates, `slow` a clock hour (operation minutes) while a gun on the base
    covers the post (within its range + PRESS_COVER), `fast` where none does any more, and not at all while our ships round the post
@@ -818,9 +907,11 @@ function chaseAI(f,foes){
 function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
+  if(packs.length) stepPacks(all);   // ドクトリンの型 (operations with packs only)
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
     if(f.roleSpot) f.roleSpot=null;
+    if(f.packSpot) f.packSpot=null;
     /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
        Ships that leave are not counted as sunk (mainSunk counts only the ships lost) */
     if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
@@ -851,6 +942,7 @@ function enemyAI(){
     if(f.ai==='withdraw'){ withdrawAI(f); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
     if(f.press&&f.ai==='guard') pressPost(f);   // 第5節: a line creeping toward the gates
+    if(f.pack&&packAI(f,foes)) continue;   // ドクトリンの型: before the role
     const RL=roleMove(f); if(RL&&roleFirst(f,RL,foes)) continue;   // 艦種別の動き (roleAI operations only)
     const threat=pickFoe(f,foes,f.ai==='hunt');
     if(RL&&rolePlace(f,RL,threat,foes)) continue;
@@ -1697,7 +1789,8 @@ function step(dt){
     f.still=false;
     if(goal){ const stop=standOff(f,goal), RL=roleMove(f);
       /* 艦種別の動き: a spot of its own (the shield before its assault ship, the assault ship behind its shield), or its side of the foe held in (roleClamp) */
-      if(RL&&f.roleSpot) f.still=!stepFight(f,f.roleSpot,goal,dt);
+      if(f.packSpot) f.still=!stepFight(f,f.packSpot,goal,dt,f.packBk);   // ドクトリンの型: its spot in the pack
+      else if(RL&&f.roleSpot) f.still=!stepFight(f,f.roleSpot,goal,dt);
       else if(f.team===1&&goal.kind==='fleet'){ const sl=slotOf(f,goal,dt); _w.copy(sl).multiplyScalar(stop).add(goal.pos);
         if(bodyBlocks(_w,goal.pos)||op.body&&_w.distanceTo(bodyC)<bodySurface(_w,op.body.r)+3) f.slotH.applyAxisAngle(_up,dt*.8);   // its spot is behind or in the rock: swing round
         f.still=!stepFight(f,_w,goal,dt,RL&&roleClamp(f,RL,_w)); }

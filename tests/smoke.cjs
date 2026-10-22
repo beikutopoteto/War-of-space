@@ -1484,6 +1484,84 @@ function check(ok, label, detail = '') {
       '艦種別の動き: 共和国の W.A.S. は地球のフリゲート（対空が強い）を後回しにする（2026-10-22）', JSON.stringify([ro.on, ro.off]));
     check(ro.me.on.free === '試験 重巡' && ro.me.off.free === '試験 盾' && ro.me.on.ordered === '試験 盾' && ro.me.on.stand === ro.me.off.stand && ro.me.on.back && ro.me.on.move === null && ro.none,
       '艦種別の動き: 自軍の隊は命令のないときの狙いだけが変わる（戦艦はいちばん重い艦。命令が先、立つ距離と下がり方は前のまま）。印のない作戦では役目がない（2026-10-22）', JSON.stringify([ro.me, ro.none]));
+    /* ドクトリン（型） (user decision 2026-10-22): only the Republic's units in an operation with packs (第6節 on; none yet, so a small battle made
+       here, roleAI on in both). The same battle with packs and without, from the same random numbers (2 seeds × 120 s, the clock at 0.75 minutes
+       a second): the spear (two teams from the north and from the east above), the mist and hammer, the rock shield round a thruster that our
+       battleship is sent at. Once the spear's last charge has gone on 15 s, half of its frigates are sunk here (to see the break-off) */
+    const dc = await page.evaluate(() => {
+      const rand0 = Math.random, end0 = end, r = { on: [], off: [] };
+      const mk = (name, o) => ({ name, sub: '', vis: 6, stl: 4, ...o });
+      const PK = [{ doctrine: 'spear', fleets: ['槍 盾1', '槍 揚陸1', '槍 駆逐1', '槍 盾2', '槍 揚陸2', '槍 駆逐2'], goal: ['試験 工作', 'bb'], from: [[0, -1, 0], [1, 0, .7]] },
+        { doctrine: 'mistHammer', fleets: ['霧 揚陸', '鎚 重巡'], goal: 'bb' }, { doctrine: 'rockShield', fleets: ['岩 盾', '岩 縁', '岩 予備'], ward: '岩 推進器' }];
+      const OP = { id: 'packtest', name: '試験', brief: '', forces: 'fixed', stage: .35, wipeLose: false, phase: '交戦', sectors: [], roleAI: true, clockScale: .05,
+        quick: [mk('試験 自軍戦艦', { type: 'bb', n: 2, scale: 1.4, pos: [-120, 40] })],
+        allies: [mk('試験 戦艦', { type: 'bb', n: 3, scale: 1.4, pos: [0, 48], leash: 70 }), mk('試験 巡洋', { type: 'cl', n: 4, scale: 1.1, pos: [-14, 44], leash: 70 }),
+          mk('試験 駆逐', { type: 'dd', n: 6, scale: .85, pos: [16, 44], leash: 70 }), mk('試験 護衛', { type: 'ff', n: 6, scale: .7, pos: [0, 34], leash: 70 }),
+          mk('試験 母艦', { type: 'cvb', n: 2, scale: 1.4, pos: [30, 62], leash: 70 })],
+        enemies: [mk('槍 盾1', { type: 'ff', n: 6, scale: .7, pos: [-10, -60], ai: 'hunt' }), mk('槍 揚陸1', { type: 'mas', n: 4, scale: .9, pos: [-10, -66], ai: 'hunt' }),
+          mk('槍 駆逐1', { type: 'dd', n: 4, scale: .85, pos: [-3, -64], ai: 'hunt' }), mk('槍 盾2', { type: 'ff', n: 6, scale: .7, pos: [110, -90], ai: 'hunt' }),
+          mk('槍 揚陸2', { type: 'mas', n: 4, scale: .9, pos: [116, -94], ai: 'hunt' }), mk('槍 駆逐2', { type: 'dd', n: 4, scale: .85, pos: [112, -98], ai: 'hunt' }),
+          mk('霧 揚陸', { type: 'mas', n: 4, scale: .9, pos: [-40, -40], ai: 'hunt' }), mk('鎚 重巡', { type: 'cl', n: 4, scale: 1.1, pos: [-60, -95], ai: 'hunt' }),
+          mk('岩 推進器', { type: 'cl', n: 1, hp: 30, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1.4, fixed: true, pos: [-120, -20], vis: 1, stl: 2 }),
+          mk('岩 盾', { type: 'ff', n: 6, scale: .7, pos: [-115, -10], ai: 'hunt' }), mk('岩 縁', { type: 'cl', n: 3, scale: 1.1, pos: [-135, -15], ai: 'hunt' }),
+          mk('岩 予備', { type: 'mas', n: 4, scale: .9, pos: [-120, -50], ai: 'hunt' })] };
+      WOS_DATA.operations.push(OP); end = w => { over = true; outcome = w; };
+      const seed = sd => { let s = sd >>> 0; Math.random = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+      const start = (on, sd) => { seed(sd); OP.packs = on ? PK : undefined; aiTimer = 0; reset({ op: 'packtest' });
+        fleets.forEach(f => { f.seen = true; const k = f.team === 0 && !f.ally ? 20 : 4; if (!f.fixed) { f.hp *= k; f.hpPool *= k; } }); return n => fleets.find(f => f.name === n); };
+      const ang = (a, b) => Math.acos(Math.max(-1, Math.min(1, a.clone().normalize().dot(b.clone().normalize())))) * 180 / Math.PI, fx = (x, d = 1) => x == null ? null : +x.toFixed(d);
+      try {
+        for (const sd of [1, 2]) for (const on of [true, false]) {
+          const F = start(on, sd), me = F('試験 自軍戦艦'), bb = F('試験 戦艦'), W = F('岩 推進器'), res = F('岩 予備'), ham = F('鎚 重巡');
+          const team = [['槍 盾1', '槍 揚陸1', '槍 駆逐1'], ['槍 盾2', '槍 揚陸2', '槍 駆逐2']].map(L => L.map(F)), [S, M, R] = on ? packs : [];
+          const m = { vec: {}, ffN: 0, ffFront: 0, pre: 0, preN: 0, post: 0, postN: 0, hamFire: null, wasOn: null, back: null, far0: null, left: 0, mww: 0, guardN: 0, guard: 0, idle: 0, out: 0, y: 0, end: null, s2: null };
+          for (let i = 0; i < 2400; i++) {
+            if (i === 200) order(me, { type: 'attack', target: W });   // our battleship at the thruster: the rock shield's reserve comes out
+            if (on && m.s2 == null && S.step === 2) m.s2 = i;
+            if (on && m.s2 != null && i === m.s2 + 300) for (const [ff] of team) while (ff.alive && ff.ships.length > 2) damage(ff, ff.hp, bb);
+            step(.05); if (i % 4) continue; const min = opMin(), G = on ? S.G : bb;
+            for (const L of team) for (const f of L) if (f.alive && G && !m.vec[f.name] && f.pos.distanceTo(G.pos) < 62) m.vec[f.name] = f.pos.clone().sub(G.pos);
+            for (const [ff, mas, dd] of team) { const t = mas.alive && mas.order && mas.order.type === 'attack' && mas.order.target, go = on ? S.step >= 1 && !S.back : !!t;
+              if (go && ff.alive && mas.alive && G) { m.ffN++; if (ff.pos.distanceTo(mas.pos) < 25 && ff.pos.distanceTo(G.pos) < mas.pos.distanceTo(G.pos)) m.ffFront++; }
+              if (go && dd.alive && mas.alive && G) { const side = ang(dd.pos.clone().sub(G.pos), mas.pos.clone().sub(G.pos)) >= 55 && dd.pos.distanceTo(G.pos) < 30;
+                if (on && S.step === 1) { m.preN++; if (side) m.pre++; } else { m.postN++; if (side) m.post++; } } }
+            if (on && M.step === 1 && m.wasOn == null) m.wasOn = min;
+            if (ham.alive && m.hamFire == null && ham.fireTarget && gap(ham, ham.fireTarget) <= ham.range * 1.08) m.hamFire = min;
+            if (on && S.back) { if (m.back == null) { m.back = min; m.far0 = team.map(L => L[1].pos.distanceTo(L[1].home)); }
+              for (const w of wings) if (w.alive && w.carrier.pack === S && w.carrier.alive) m.left = Math.max(m.left, w.pos.distanceTo(w.carrier.pos) - w.launchR);
+              for (const [ff, mas, dd] of team) if (mas.alive && mas.order && mas.order.type === 'move') { if (wings.some(w => w.alive && w.carrier === mas)) m.mww++;
+                if (mas.pos.distanceTo(mas.home) > 8 && G) for (const g of [ff, dd]) if (g.alive) { m.guardN++; if (g.pos.distanceTo(G.pos) < mas.pos.distanceTo(G.pos)) m.guard++; } } }
+            if (on && res.alive) { const sh = packAt(res);
+              if (R.hitAt == null && min > 5) m.idle = Math.max(m.idle, res.pos.distanceTo(sh));
+              if (R.hitAt != null && R.lostAt == null) { m.out = Math.max(m.out, res.pos.distanceTo(sh)); m.y = Math.max(m.y, Math.abs(res.pos.y - W.pos.y)); }
+              if (R.lostAt != null) m.end = res.pos.distanceTo(sh) + wings.filter(w => w.alive && w.carrier === res).length * 100; } }
+          const v = m.vec, arr = on ? S.mem.map(f => f.packArr).filter(x => x != null) : [];
+          (on ? r.on : r.off).push({ arr: on ? arr.length : null, spread: arr.length ? fx(Math.max(...arr) - Math.min(...arr), 2) : null, angle: v['槍 揚陸1'] && v['槍 揚陸2'] ? Math.round(ang(v['槍 揚陸1'], v['槍 揚陸2'])) : null,
+            ffFront: fx(m.ffFront / Math.max(1, m.ffN), 2), ddPre: fx(m.pre / Math.max(1, m.preN), 2), ddPost: fx(m.post / Math.max(1, m.postN), 2), wasOn: fx(m.wasOn), hamFire: fx(m.hamFire),
+            back: fx(m.back), mww: m.mww, left: fx(m.left), guard: fx(m.guard / Math.max(1, m.guardN), 2), far: on ? team.map((L, k) => fx(L[1].pos.distanceTo(L[1].home) - m.far0[k])) : null,
+            hit: on ? fx(R.hitAt) : null, lost: on ? fx(R.lostAt) : null, idle: fx(m.idle), out: fx(m.out), y: fx(m.y), end: fx(m.end) }); }
+        /* the hammer with no mist (its assault ship gone at the start): it waits 20 minutes, holding its fire, then goes */
+        const F = start(true, 3), mist = F('霧 揚陸'), ham = F('鎚 重巡'); mist.alive = false; mist.el.remove(); r.t20 = null; r.fire20 = null;
+        for (let i = 0; i < 1200; i++) { step(.05); if (r.t20 == null && packs[1].step === 1) r.t20 = +opMin().toFixed(2);
+          if (r.fire20 == null && ham.fireTarget && gap(ham, ham.fireTarget) <= ham.range * 1.08) r.fire20 = +opMin().toFixed(2); }
+        OP.packs = undefined; r.none = WOS_DATA.operations.every(o => o === OP || !o.packs);
+      } finally { WOS_DATA.operations.pop(); Math.random = rand0; end = end0; }
+      return r; });
+    const avgD = (L, k) => L.reduce((s, x) => s + x[k], 0) / L.length;
+    check(dc.on.every(x => x.arr === 6 && x.spread <= 15 && x.angle >= 60),
+      'ドクトリン（型）: 槍の隊は別の向き（上下も含む）から、作戦の時計で15分以内にそろって着く（遅い隊に速さを合わせる。2026-10-22）', JSON.stringify([dc.on, dc.off].map(L => L.map(x => [x.arr, x.spread, x.angle]))));
+    check(dc.on.every(x => x.ffFront >= .8) && avgD(dc.on, 'ffFront') > avgD(dc.off, 'ffFront') + .2,
+      'ドクトリン（型）: 槍の突撃では、フリゲートが組の揚陸艦の前に並ぶ（2026-10-22）', JSON.stringify([dc.on, dc.off].map(L => L.map(x => x.ffFront))));
+    check(dc.on.every(x => x.ddPre <= .2 && x.ddPost >= .5) && avgD(dc.on, 'ddPost') > avgD(dc.off, 'ddPost'),
+      'ドクトリン（型）: 槍の駆逐艦は W.A.S. が目標に取り付くまで待ち、取り付いたら目標の横か上下へ回る（2026-10-22）', JSON.stringify([dc.on, dc.off].map(L => L.map(x => [x.ddPre, x.ddPost]))));
+    check(dc.on.every(x => x.wasOn != null && x.hamFire != null && x.hamFire >= x.wasOn) && dc.t20 >= 20 && dc.t20 < 21 && (dc.fire20 == null || dc.fire20 >= 20),
+      'ドクトリン（型）: 霧と鎚の重巡洋艦は W.A.S. が取り付くまで撃たず、合図がなければ20分で出る（2026-10-22）', JSON.stringify({ on: dc.on.map(x => [x.wasOn, x.hamFire]), t20: dc.t20, fire20: dc.fire20 }));
+    check(dc.on.every(x => x.back != null && x.mww === 0 && x.left <= 1.5 && x.guard >= .6 && x.far.every(d => d == null || d < -20)),
+      'ドクトリン（型）: 槍はフリゲートが半分沈むと退く。揚陸艦は W.A.S. を戻してから先に下がり（置き去りにしない）、フリゲートと駆逐艦が後ろを守る（2026-10-22）', JSON.stringify(dc.on.map(x => [x.back, x.mww, x.left, x.guard, x.far])));
+    check(dc.on.every(x => x.hit != null && x.lost != null && x.idle <= 6 && x.out >= 20 && x.y >= 10 && x.end != null && x.end <= 6),
+      'ドクトリン（型）: 岩の盾の予備は陰で待ち、守るものが撃たれると上か下を回って出て、落ちると陰へ戻る（2026-10-22）', JSON.stringify(dc.on.map(x => [x.hit, x.lost, x.idle, x.out, x.y, x.end])));
+    check(dc.none && dc.off.every(x => x.hit == null && x.back == null),
+      'ドクトリン（型）: packs のない作戦（第1〜5節・演習）には型が効かない（2026-10-22）', JSON.stringify(dc.none));
     /* holding Ctrl fast-forwards the conversation */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);

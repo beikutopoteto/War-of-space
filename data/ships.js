@@ -126,3 +126,28 @@ WOS_DATA.roles={
     crafts:{was:{prefer:['mas','bb','dd'], avoid:['ff'], guard:true}},
   },
 };
+
+/* ドクトリンの型（ユーザー決定 2026-10-22。docs/spec.md「CPU の行動規範」、型の一覧は docs/story.md 6.1「型」。数値はすべて仮で docs/menu.md「ドクトリン（型）」）。
+   作戦データの packs（data/operations.js の先頭）で隊の組に型を当てたときだけ、共和国の隊に効く。仕組みは battle/sim.js の「ドクトリンの型」。
+   slots: 役の枠 → 入る艦種（隊のいちばん上位の艦種で入る。WOS_DATA.roles.rank）。同じ枠の k 番目の隊は、ほかの枠の k 番目と組（from の向き、盾と揚陸艦の組）
+   steps: 段の並び。各段は 枠 → 動き（all は全部の枠）、next（次へ進む合図）、after（その段の始まりから作戦の時計で何分で進むか。next と早い方）
+     動き: approach（goal のまわりの from の向き、gather の距離へ。そろって着く）　charge（goal へ。how の形で）　hold（持ち場で、holdR 以内に来た敵だけと戦う）
+       hide（持ち場で撃たずに待つ。小型機は戻す）　back（退き際。母艦は小型機を戻してから先に退き、ほかは母艦と敵の間で後ろを守る）
+     合図: sync（approach の隊がみな着いた）　wasOn（組の W.A.S. が母艦の目標に取り付いた）　hit（守るもの ward が撃たれた）　lost（ward が落ちた）
+   how: charge の形。screen（組の揚陸艦の前 front に並ぶ）　flank（組の揚陸艦から見て目標の横か上下へ回る）　edge（射程の端 WOS_DATA.roles.mars.cl.stand から撃つ。
+     ほかの敵に寄られたら艦種別の動きに任せる）　antiAir（prey の艦種の順に目標を選ぶ）　over（ward か天体の上か下を回って、ward を撃った敵へ）
+   at: hold・hide の持ち場。front（ward の敵側 front）　rim（ward の横 ±70度、rim）　shadow（天体か ward の陰、shadow）。書かなければその段の始めにいた所
+   breakOff: 退き際 {slot, below, was}: slot の隻数が below を切るか、組の W.A.S. が was を切ると、全部の隊が back になる
+   gather / sync: approach の距離と、着く時刻の差の目安（分。遅い隊に速さを合わせ、着いた隊は待つ）。slowest: 速さを合わせるときのいちばん遅い割合 */
+WOS_DATA.doctrines={
+  mars:{
+    spear:{slots:{shield:['ff'], mother:['mas','masc'], knife:['dd']}, how:{shield:'screen', knife:'flank'},
+      steps:[{all:'approach', next:'sync'}, {shield:'charge', mother:'charge', knife:'hold', next:'wasOn'}, {all:'charge'}],
+      breakOff:{slot:'shield', below:.5, was:.3}, gather:55, sync:15, slowest:.2, front:8, holdR:30},
+    mistHammer:{slots:{mist:['mas','masc'], hammer:['cl']}, how:{mist:'antiAir', hammer:'edge'}, prey:['cvb','masc','ff','cl'],
+      steps:[{mist:'charge', hammer:'hide', next:'wasOn', after:20}, {all:'charge'}], holdR:30},
+    rockShield:{slots:{wall:['ff'], rim:['cl'], reserve:['mas','masc']}, how:{reserve:'over'}, at:{wall:'front', rim:'rim', reserve:'shadow'},
+      steps:[{wall:'hold', rim:'hold', reserve:'hide', next:'hit'}, {wall:'hold', rim:'hold', reserve:'charge', next:'lost'}, {wall:'hold', rim:'hold', reserve:'hide'}],
+      front:10, rim:28, shadow:30, over:15, holdR:30},
+  },
+};
