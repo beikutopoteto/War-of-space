@@ -21,8 +21,6 @@ const taper=(r0,r1,l,seg=8)=>{ const g=new THREE.CylinderGeometry(r1,r0,l,seg); 
 const HEX=[[0,1],[1,.38],[1,-.38],[0,-1],[-1,-.38],[-1,.38]], RECT=[[1,1],[1,-1],[-1,-1],[-1,1]];
 /* a box whose sides slope in toward the top (the stealth house of the surface guns) */
 const TRAP=[[.6,1],[1,-1],[-1,-1],[-.6,1]];
-/* how far the thrusters' nozzles lean back from the rock's face (radians, 仮) */
-const THR_TILT=.45;
 function loft(secs,prof=HEX){
   const ring=s=>prof.map(([px,py])=>new THREE.Vector3(px*s[1],py*s[2]+(s[3]||0),s[0])), rings=secs.map(ring), P=[];
   const tri=(a,b,c,out)=>{ const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)); if(n.dot(out)<0) P.push(a,c,b); else P.push(a,b,c); };
@@ -97,18 +95,18 @@ const SHAPES={
       at(box(.06,.2,.1),0,G+.32,.36),
       ...[at(tube(.036,1.15,10),0,0,.58), at(taper(.044,.036,.08,10),0,0,1.18), at(box(.06,.08,.3),0,0,.1)].map(g=>at(g,0,G+.32,.22,-EL))]; },
   /* 推進器 (第6節): the Republic's big thruster on Denali, the type that moved the rock of Februaria, firing rock from the mine with fusion
-     (user decision 2026-10-23: 見本 B at 1.5 times the sample's size; drawn at scale 1). A hexagonal pad held to the rock by three legs, the feed
-     duct from the mine along the rock behind it, a tapering hexagonal reactor, and a magnetic nozzle with no bell: four octagonal coils
-     widening upward, tied by three thin beams, with a radiator panel on each side. The nozzle leans back (THR_TILT) from the rock's face:
-     all of them face the way that slowed Denali. The rock is at y -.34 as for the guns */
-  thr:()=>{ const K=1.5, P=1, top=1.9, legs=[], duct=[at(tube(.2,3.6,8),0,.15,-3.2)], lean=[];
-    for(let i=0;i<3;i++){ const a=Math.PI/3+i*Math.PI*2/3, s=Math.sin(a), c=Math.cos(a); legs.push(limb([s*1.1,.1,c*1.1],[s*2.1,-.25,c*2.1],.1,.08), at(new THREE.CylinderGeometry(.22,.28,.12,6),s*2.1,-.25,c*2.1)); }
-    for(let i=0;i<3;i++) duct.push(at(new THREE.CylinderGeometry(.28,.28,.14,8),0,.15,-1.8-i*1.2,Math.PI/2));
-    lean.push(at(new THREE.CylinderGeometry(.5,.95,1.9,6),0,.95,0), at(taper(.3,.5,.4,8),0,top+.1,0,-Math.PI/2), at(box(.05,1.5,1.1),.98,1,0), at(box(.05,1.5,1.1),-.98,1,0));
-    for(const [y,r] of [[2.1,.75],[2.65,1],[3.2,1.28],[3.75,1.56]]){ const g=new THREE.TorusGeometry(r,.11,4,8); g.rotateX(Math.PI/2); g.rotateY(Math.PI/8); lean.push(at(g,0,y,0)); }
-    for(let i=0;i<3;i++){ const a=i*Math.PI*2/3+.3; lean.push(limb([Math.sin(a)*.45,top,Math.cos(a)*.45],[Math.sin(a)*1.6,3.85,Math.cos(a)*1.6],.06,.05)); }
-    lean.forEach(g=>{ g.translate(0,-P,0); g.rotateX(-THR_TILT); g.translate(0,P,0); });
-    const p=[at(new THREE.CylinderGeometry(1.35,1.51,.45,6),0,-.1,0), ...legs, ...duct, ...lean]; p.forEach(g=>{ g.scale(K,K,K); g.translate(0,-.34,0); }); return p; },
+     (user decision 2026-10-23: 見本 B at 1.5 times the sample's size, its foot as 見本 B2; drawn at scale 1). A tapering hexagonal reactor
+     sunk in a low hexagonal berm on the rock, the feed duct from the mine running out of the berm, and a magnetic nozzle with no bell: four
+     octagonal coils widening upward, tied by three thin beams, with a radiator panel on each side. The nozzle stands straight on its axis
+     (+y): set it with +y pointing out from the body's centre, so its push goes through the centre and does not spin the rock (user
+     decision 2026-10-23). The rock is at y -.34 as for the guns */
+  thr:()=>{ const K=1.5, S=1.15, top=1.9, p=[at(new THREE.CylinderGeometry(.6,1.05,3.6,6),0,.15,0), at(taper(.3,.5,.4,8),0,top+.1,0,-Math.PI/2),
+      at(box(.05,1.5,1.1),.98,1,0), at(box(.05,1.5,1.1),-.98,1,0), at(new THREE.CylinderGeometry(1.25,2.3,1.3,6),0,.95,0), at(new THREE.CylinderGeometry(1.3,1.3,.12,6),0,1.62,0),
+      at(tube(.2,3.4,8),0,1.3,-3.3)];
+    for(let i=0;i<3;i++) p.push(at(new THREE.CylinderGeometry(.28,.28,.14,8),0,1.3,-2-i*1.1,Math.PI/2));
+    for(const [y,r] of [[2.1,.75],[2.65,1],[3.2,1.28],[3.75,1.56]]){ const g=new THREE.TorusGeometry(r,.11,4,8); g.rotateX(Math.PI/2); g.rotateY(Math.PI/8); p.push(at(g,0,y,0)); }
+    for(let i=0;i<3;i++){ const a=i*Math.PI*2/3+.3; p.push(limb([Math.sin(a)*.45,top,Math.cos(a)*.45],[Math.sin(a)*1.6,3.85,Math.cos(a)*1.6],.06,.05)); }
+    p.forEach(g=>{ g.translate(0,-S,0); g.scale(K,K,K); g.translate(0,-.34,0); }); return p; },
   /* fleets without a class (the old cone) */
   gen:()=>[at(new THREE.ConeGeometry(.45,2,5),0,0,0,Math.PI/2)],
 };
