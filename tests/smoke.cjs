@@ -1103,7 +1103,7 @@ function check(ok, label, detail = '') {
         r.spread = sp.every(p => p && p.distanceTo(E.ring) <= E.r && p.distanceTo(E.ring) > 3) && md > 3; }
       /* Alvarez's two (2026-10-18, user decision; 2026-10-21 both hunt, named 試験強襲 of the Advanced Equipment Development Bureau): they hunt on the front line (prey:'front'): the nearest of
          our ships north of the gates, not one by the gates, and its W.A.S. are not counted as able to take the base */
-      { const ev = op.win.surge.events.map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 試験強襲')), a8 = ev.find(f => f.name.startsWith('第8 試験強襲'));
+      { const ev = [...op.events, ...op.win.surge.events].map(e => e.fleet).filter(Boolean), a7 = ev.find(f => f.name.startsWith('第7 試験強襲')), a8 = ev.find(f => f.name.startsWith('第8 試験強襲'));   // 2026-10-23: they come at 全線 (op.events)
         const w0 = wasLeft(), hn = makeFleet(1, { name: '試験 敵狩り', sub: '', type: 'mas', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [420, 110], alt: 80, ai: 'hunt', prey: 'front', watch: { pos: [0, -38], alt: 40 }, hangar: { was: 40 }, vis: 1, stl: 9 }); fleets.push(hn);
         const mk = z => { const a = makeFleet(0, { name: '試験 的' + z, sub: '', type: 'cl', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [420, z], alt: 80, ally: true, vis: 6, stl: 4 }); a.seen = true; a.ward = true; fleets.push(a); return a; };
         const byGate = mk(115), onFront = mk(60); enemyAI();   // off at the east edge, away from the rest: the one by the gates (z over FRONT_LINE) is nearer
@@ -1190,7 +1190,7 @@ function check(ok, label, detail = '') {
       const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
       r.ace = ace.length === 2 && ace.every(f => f.prey === 'front' && f.ai === 'hunt' && !f.drop && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 80)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line (2026-10-20: 80 W.A.S. each)
         && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
-        && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
+        && A.hp === 1.5 && near(ace[0].hp, plain.hp * A.hp * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
         && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
@@ -1326,6 +1326,56 @@ function check(ok, label, detail = '') {
     check(f4.drain && f4.retreat && f4.noLand && f4.won && Math.abs(f4.secs - 20) <= 1, 'フェブルアーリア防衛戦: W.A.S. と強化歩兵で守備隊を削りきれなくなると共和国が退き（全部の敵が撃たずに北へ。最後のゲートのそばの揚陸艦も守備隊を削らない）、約20秒あとに勝利（2026-10-14、きっかけは 2026-10-18）', JSON.stringify(f4));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.screenshot({ path: 'test-results/februaria-retreat.png' }).catch(() => {});
+    await page.click('#toMenu');
+    /* 2026-10-23 (user decision): Alvarez's two come at 全線 with the main force from the north; each goes once its ships' hit points fall
+       under 20% of its full (W.A.S. not counted), into the cloud to the north at once, its W.A.S. called home and following it (recall:0:
+       it does not wait for them; those not yet home when it is gone go with it. User decision 2026-10-23) (not sunk), and comes again whole at the next landing wave (the second time at the all-out attack); the third time it goes
+       under 10% and does not come again. Coming again counts as W.A.S. still to come (wasShort); gone for good counts none */
+    await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
+    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#talkSkip').catch(() => {});
+    await page.click('#deployGo').catch(() => {});
+    const rt = await page.evaluate(() => {
+      const r = {}, R = op.rotate.alvarez, at = m => { gameSec = m / CLOCK_RATE; step(.05); }, name = '第7 試験強襲 エスカドラ';
+      const said = [], logE = logEvent; logEvent = (a, b) => { said.push(b); logE(a, b); };
+      const a7 = () => fleets.find(f => f.alive && f.name === name), was = f => f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + (q.state === 'out' ? (q.wing && q.wing.alive ? q.wing.n : 0) : q.n), 0);
+      const hurt = (f, k) => { f.ships.splice(0, f.ships.length - 1); f.hpPool = f.rot.full * k; };
+      const cloudIn = f => { const T = f.rot; enemyAI(); f.pos.copy(T.to.p); enemyAI(); };   // on its way out: put it in its cloud
+      at(99.9); r.notYet = !a7() && !surged;
+      at(100.01); let f = a7();
+      r.first = !!f && f.rot.k === 1 && f.ai === 'hunt' && f.prey === 'front' && f.ace && f.pos.z < -300 && was(f) === 80 && f.ships.length === 4;
+      /* not yet under 20%: it stays */
+      f.hpPool = f.rot.full * .25; enemyAI(); r.stay = !f.rot.leaving;
+      /* a squadron out: called home; the unit does not wait (recall:0) but makes for the cloud at once, its W.A.S. following */
+      const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [f.pos.x, f.pos.z + 10], alt: f.pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
+      f.hangars[0].next = 0; f.hangars[0].squads.forEach(q => { q.ready = 0; }); launchCheck(f); const w = wings.filter(x => x.alive && x.carrier === f)[0];
+      t0.alive = false; t0.el.remove(); fleets.splice(fleets.indexOf(t0), 1);
+      const wl0 = wasLeft(); hurt(f, .12); w.pos.x += 300; enemyAI();
+      r.noWait = R.recall === 0 && !!w && w.alive && w.state === 'return' && f.rot.leaving && !f.rot.last && f.alive && f.stance === 'evade' && f.order && f.order.type === 'move'
+        && f.rot.to && f.rot.to.p.z < -250 && said.includes(R.leaveLog[1]) && wasLeft() === wl0 - was(f) + 80;
+      const wl1 = wasLeft(); f.pos.copy(f.rot.to.p); enemyAI();
+      r.gone = !f.alive && f.left && !w.alive && w.squad.state !== 'lost' && rotOut.length === 1 && rotOut[0].k === 2 && wasLeft() === wl1 && !a7();
+      /* the second time no earlier than the all-out attack */
+      r.waitSurge = rotDue(rotOut[0]) === null; at(300); r.stillAway = !a7() && rotOut.length === 1;
+      at(op.win.surge.at); f = a7();
+      r.second = surged && !!f && f.rot.k === 2 && f.ships.length === 4 && f.hpPool === f.rot.full && was(f) === 80 && f.pos.z < -300 && rotOut.length === 0 && said.includes(R.backLog[1])
+        && opEvents.slice(nextEvent).some(e => e.log && e.log[1].includes('赤い W.A.S.') && Math.abs(e.after - surgeMin - 6) < 1e-6);
+      /* the next wave after it went: a wave of the all-out attack (surgeWaves), or a time wave after it; none left: `wait` minutes on */
+      const P = (k, left) => ({ T: f.rot, k, left });
+      r.next = rotDue(P(2, surgeMin + 10)) === surgeMin + 20 && rotDue(P(3, surgeMin + 3)) === surgeMin + 8 && rotDue(P(3, 1000)) === 1000 + R.wait && rotDue(P(2, surgeMin - 50)) === surgeMin;
+      hurt(f, .12); cloudIn(f); const due = rotDue(rotOut[0]);
+      r.twice = !f.alive && rotOut.length === 1 && rotOut[0].k === 3 && due === surgeMin + R.surgeWaves[0];
+      at(due - .05); r.notBack = !a7(); at(due + .01); f = a7();
+      r.third = !!f && f.rot.k === 3 && f.ships.length === 4 && was(f) === 80;
+      /* the third time: 10%, then gone for good (its W.A.S. no longer counted) */
+      hurt(f, .12); enemyAI(); r.hold3 = !f.rot.leaving;
+      const wl2 = wasLeft(), w3 = was(f); f.hpPool = f.rot.full * .08; enemyAI();
+      r.last = f.rot.leaving && f.rot.last && said.includes(R.lastLog[1]) && wasLeft() === wl2 - w3;
+      f.pos.copy(f.rot.to.p); enemyAI(); at(surgeMin + 200);
+      r.never = !f.alive && f.left && rotOut.length === 0 && !a7();
+      logEvent = logE; gameSec = op.win.until / CLOCK_RATE; step(.05); return r; });
+    check(Object.values(rt).every(Boolean), 'フェブルアーリア防衛戦: アルバレス隊は全線で北から出て、艦の耐久が20%を切ると W.A.S. の収容を待たずに北の雲へ下がり（W.A.S. は後を追う）、次の波で全快して戻る（2回目は総攻撃より前に戻らない）。3回目は10%で退き、もう戻らない。戻る隊の W.A.S. はこれから来る分に数え、戻らない隊は数えない（2026-10-23）', JSON.stringify(rt));
+    await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* 2026-10-18 (user decision): the landing craft (a new class, the enemy's) set armoured infantry down by a gun; theirs and ours fight it
        out, they wear the gun down once its infantry are gone, wait out of reach of a gate held by more of ours, and go in by the last gate

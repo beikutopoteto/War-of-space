@@ -68,14 +68,15 @@ WOS_DATA.crafts={
      作戦データの side:'earth' の敵は全部地球の表（鹵獲艦の隊）。crafts は小型機の最大（W.A.S. は地球の1.5倍、回避0.55）。
      ships の was: 1隻に積む W.A.S.（2026-10-21、ユーザー決定: 揚陸艦そのものの性能。12から8に（同じ日）。どの作戦でも。作戦データに hangar を書かない共和国の隊は、
      その艦種の隻数×was を積む。地球の突撃揚陸艦は上の WOS_DATA.ships の hangar で10）。
-     ace: 惑星先進装備開発局の隊（ace:true、アルバレス隊）は、その段階の値の ship 倍（耐久・打撃・回避・射程・速さ。小型機も）、W.A.S. の打撃は wasDmg 倍 */
+     ace: 惑星先進装備開発局の隊（ace:true、アルバレス隊）は、その段階の値の ship 倍（耐久・打撃・回避・射程・速さ。小型機も）、W.A.S. の打撃は wasDmg 倍。
+       艦の耐久だけは hp 倍（ユーザー決定 2026-10-23: 第5節で砲台の1発で退く前に沈んでいたので艦を硬く。W.A.S. の耐久は ship 倍のまま） */
 WOS_DATA.sides={
   earth:{base:.3},
   mars:{base:.45,
     ships:{cv:{atk:3, def:1.5, eva:10, rng:3, spd:11}, ff:{atk:4, def:2.5, eva:8, rng:4, spd:9}, dd:{atk:6, def:3.5, eva:7, rng:5, spd:8},
       cl:{atk:8, def:7, eva:4, rng:6.5, spd:6}, mas:{atk:6, def:3, eva:6, rng:2.5, spd:8, was:8}},
     crafts:{was:{hp:15, dmg:1, eva:.55}},
-    ace:{ship:1.25, wasDmg:3}},
+    ace:{ship:1.25, hp:1.5, wasDmg:3}},
 };
 
 /* 艦種別の動き（ユーザー決定 2026-10-22。docs/spec.md「CPU の行動規範」。数値はすべて仮で docs/menu.md「艦種別の動き」）。

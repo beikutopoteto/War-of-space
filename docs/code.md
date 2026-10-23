@@ -45,6 +45,7 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 
 第5節で足したもの（2026-10-14）: 敵の `fallBack`（隻数がこの割合を切ると雲へ下がる。下がった艦は撃沈に数えない）、events の `ai.drops`（予備を守りの薄い降下点へ。`sim.js` の `weakDrop`）、`win.retreat`（5割で全部の敵が退き、少し見せてから勝利。`sim.js` の `stepRepel` と `repelT`）。2026-10-20: events の `ai.post`・`stack`・`gateFirst`（総攻撃の戦艦の戦線。1か所に2隊まで。`sim.js` の `frontPost`）。書き方は `data/operations.js` の先頭のコメント。
 第5節で足したもの（2026-10-20〜21）: 総攻撃で戦艦が戦線の前の持ち場へ（`battle/sim.js` の `frontPost`、1か所2隊まで）。友軍の後退とゲートの守り（作戦データの `allyFall`・`guardGate`、ゲートが残り一つで全隊が集まる）。強化歩兵は4分の1点きざみで数える（`infQ`・`infR`。1点＝1個中隊）。艦砲が歩兵を撃つ射程は組の中心かいちばん近い点まで（`troopGap`）。`op.wipeLose:false` で自軍の全滅を負けにしない。共和国の突撃揚陸艦の W.A.S. は、データに `hangar` がなければ艦種の表（`sides.mars.ships.mas.was`）から `techFleet` が積む。退くかどうかの揚陸の量（`wasLeft`）もこれを数え、アルバレス隊（`ace`）の分も入れる
+第5節で足したもの（2026-10-23）: 隊の出入り（作戦データの `rotate`、艦隊の `rotate:'名前'`。`battle/sim.js` の `rotHurt`・`rotStep`・`stepRotate`・`rotDue`。アルバレス隊が傷むと北の雲へ退き、次の揚陸の波で全快して戻る）。`wasLeft` は戻ってくる隊の W.A.S. を全部、これから来る分に数える
 
 ## 確認
 `npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る。`package.json` は確認用の道具だけ。

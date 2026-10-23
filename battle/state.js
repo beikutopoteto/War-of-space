@@ -57,14 +57,15 @@ function techFleet(team,o){
   const tot=Object.values(by).reduce((a,b)=>a+b,0)||1, st={atk:0,def:0,eva:0,rng:0,spd:99};
   Object.entries(by).forEach(([t,c])=>{ const M=side==='mars'&&SIDES.mars.ships[t], s=M||CLASS_MAX[t], r=techRate(M?'mars':'earth',p);
     ['atk','def','eva','rng'].forEach(k=>st[k]+=s[k]*r*c/tot); st.spd=Math.min(st.spd,s.spd); });
-  /* the Advanced Equipment Development Bureau's fleets (ace): k times the stage's values, their W.A.S. hitting wasDmg times as hard */
+  /* the Advanced Equipment Development Bureau's fleets (ace): k times the stage's values, their W.A.S. hitting wasDmg times as hard,
+     their ships' hit points hp times (2026-10-23, user decision: harder hulls only) */
   const A=o.ace&&SIDES.mars.ace, k=A?A.ship:1, r=techRate(side,p), craft={};
   /* the W.A.S. a Republic assault ship carries are the class's own (2026-10-21, user decision): a fleet with no hangar in the data loads its count of them */
   let hangar=o.hangar;
   if(!hangar&&side==='mars'){ const w=Object.entries(by).reduce((s,[t,c])=>s+(SIDES.mars.ships[t]&&SIDES.mars.ships[t].was||0)*(o.comp?c:o.n),0); if(w) hangar={was:w}; }
   Object.keys(hangar||{}).forEach(c=>{ const W=WING[c], F={...W,...(side==='mars'&&SIDES.mars.crafts[c]||{})};
     craft[c]={hp:F.hp/W.hp*r*k, dmg:F.dmg/W.dmg*r*(A&&c==='was'?A.wasDmg:k), eva:F.eva/W.eva*r*k, ...(A?{speed:k, range:k}:{})}; });
-  return {hp:(6+st.def*5)*k, dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft, ...(hangar?{hangar}:{})};
+  return {hp:(6+st.def*5)*(A&&A.hp||k), dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft, ...(hangar?{hangar}:{})};
 }
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
@@ -379,7 +380,7 @@ function reset(cfg=lastCfg){
     hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||18,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
   garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null; troops=[]; troopsSaid=null; troopsWent=0;   // the enemy's infantry on the rock (sim.js)
-  surged=false; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={};
+  surged=false; surgeMin=null; rotOut=[]; rotSaid={}; rotDone={}; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={};
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;

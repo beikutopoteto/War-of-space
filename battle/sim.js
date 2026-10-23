@@ -134,7 +134,7 @@ function damage(t,amt,src){
     const want=Math.max(0,Math.ceil(t.hpPool/t.hp)), had=t.ships.length;
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(t.convoy&&want<had&&want>0) logEvent('輸送船 撃沈',`${src.name}の攻撃で輸送船を失った。残り${want}隻。`);
-    if(want===0) destroyFleet(t,src);
+    if(want===0) destroyFleet(t,src); else if(t.rot) rotHurt(t);   // 第5節 (2026-10-23): a unit that comes and goes starts to go at once
   } else if(t.defend){
     /* the station we defend: its armour slows the evacuation (stepDefend); at 0 it falls and the operation is lost */
     const pct=t.hpPool/t.max;
@@ -912,6 +912,7 @@ function enemyAI(){
     if(f.team!==1||!f.alive||f.fixed) continue;
     if(f.roleSpot) f.roleSpot=null;
     if(f.packSpot) f.packSpot=null;
+    if(f.rot&&rotStep(f)) continue;   // 第5節 (2026-10-23): a unit that comes and goes, on its way out (stepRotate brings it again)
     /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
        Ships that leave are not counted as sunk (mainSunk counts only the ships lost) */
     if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
@@ -1570,12 +1571,12 @@ function stepFronts(){
    retreat {sec, text, log} (user decision 2026-10-14): once `share` is sunk the enemy falls back first: every enemy fleet withdraws
    (no fire, its craft called back, north; an assault ship in a ring puts nothing down), nothing more comes, and after `sec` seconds
    of the battle the result follows. text goes in the goal panel meanwhile */
-let mainTotal=0, surged=false, repelBy=null, repelT=null;
+let mainTotal=0, surged=false, surgeMin=null, repelBy=null, repelT=null;   // surgeMin: when the all-out attack came (operation minutes)
 function mainSunk(){ let s=0; for(const f of fleets) if(f.team===1&&f.main) s+=f.n-f.ships.length; return mainTotal?s/mainTotal:0; }
 function stepRepel(){
   const W=op.win; if(!W||W.type!=='repel'||over) return;
   const k=mainSunk(), now=gameSec*CLOCK_RATE, S=W.surge;
-  if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true;
+  if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true; surgeMin=now;
     const by=k>=S.share?'share':'time', add=(S.events||[]).filter(e=>!e.by||e.by===by).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
     opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
   if(repelT!=null){ if(gameSec-repelT>=W.retreat.sec) end(true); return; }
@@ -1593,7 +1594,11 @@ function wasLeft(){ let n=0;
   /* the W.A.S. of the ships that land (ai:'land', or a reserve given its gate: drop / drops), and of Alvarez's hunters (ace; user decision 2026-10-21).
      A fleet still to come with no hangar in the data carries its class's W.A.S. (data/ships.js sides.mars, techFleet) */
   const lands=f=>f.ai==='land'||!!(f.drop||f.drops)||!!f.ace, of=f=>lands(f)&&((f.hangar||(f.hp==null?techFleet(1,f).hangar:null)||{}).was||0)||0;
-  for(const f of fleets) if(f.alive&&f.team===1&&lands(f)) for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0);
+  /* a unit that comes and goes (rotate, 2026-10-23): one on its way out that will come again counts as still to come, whole (its data's
+     W.A.S.); one going for good counts none; one away waiting to come again (rotOut) counts whole too */
+  for(const f of fleets) if(f.alive&&f.team===1&&lands(f)){ if(f.rot&&f.rot.leaving){ if(!f.rot.last) n+=of(f.rot.spec); continue; }
+    for(const h of f.hangars) if(h.type==='was') n+=h.reserve+h.squads.reduce((s,q)=>s+(q.state==='out'?(q.wing&&q.wing.alive?q.wing.n:0):q.n),0); }
+  for(const P of rotOut) n+=of(P.T.spec);
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(E.fleet&&!E.fleet.ally) n+=of(E.fleet); }
   const S=op.win&&op.win.surge; if(S&&!surged) for(const E of S.events||[]) if(E.fleet&&!E.fleet.ally) n+=of(E.fleet);
   return n; }
@@ -1606,6 +1611,57 @@ function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?infR((o.troops||0)*o.n
   return n; }
 /* 2026-10-18 (user decision): the W.A.S. and the armoured infantry left together cannot wear the garrison down: the enemy falls back */
 function wasShort(){ const G=op.base&&op.base.garrison; return !!(G&&garrison&&wasLeft()*(G.was||5)+troopsLeft()*(G.troop||0)<garrison.hp); }
+/* units that come and go (op.rotate; 第5節 Alvarez's two, user decision 2026-10-23). A unit with rotate:'<key>' (its rules op.rotate[key])
+   goes once the hit points of its ships (W.A.S. not counted) fall under leave[k-1] of its full at its coming, on its k-th coming: it holds
+   its fire, calls its W.A.S. home and waits for them, at most `recall` minutes (those still out then are lost; recall:0, it does not wait: it
+   makes for the cloud at once, its W.A.S. follow it home, and those not yet home when it is gone go with it), then makes for the nearest
+   cloud to the north and is gone from the battle there (not counted as sunk). Unless that was its last coming (leave.length of them), it
+   comes again whole (ships and W.A.S. as in the data: repaired and filled up in the clouds) where it first came, at the next landing wave
+   after it went: the earliest of `waves` (operation minutes) and, once the all-out attack has come, of `surgeWaves` (minutes from it), not
+   before it went. surgeFirst: its second coming is no earlier than the all-out attack, which then counts as a wave. No wave left: `wait`
+   minutes after it went. leaveLog / backLog / lastLog: said as one goes / comes again / goes for good (a line once in ROT_SAY minutes);
+   backEvents[k-2]: events (the form of op.events, after: minutes from then) when the first of them comes for the k-th time. 数値は仮 */
+const ROT_SAY=20, ROT_CLOUD=.6;
+let rotOut=[], rotSaid={}, rotDone={};
+function rotJoin(f,o,arrow){ const R=op.rotate&&op.rotate[o.rotate]; if(R) f.rot={key:o.rotate,R,spec:o,arrow,k:1,full:f.hpPool,leaving:false}; }
+function rotSay(L){ if(!L) return; const now=gameSec*CLOCK_RATE; if(now-(rotSaid[L[1]]??-1e9)<ROT_SAY) return; rotSaid[L[1]]=now; logEvent(...L); }
+/* it starts to go once under the mark (checked on each hit, damage(), and in enemyAI) */
+function rotHurt(f){ const T=f.rot, R=T.R;
+  if(T.leaving||repelT!=null||f.hpPool>=T.full*R.leave[Math.min(T.k,R.leave.length)-1]) return false;
+  T.leaving=true; T.last=T.k>=R.leave.length; T.at=gameSec*CLOCK_RATE; f.stance='evade'; f.order=null; f.queue=[]; f.strike=null;
+  for(const w of wings) if(w.alive&&w.carrier===f&&w.state==='attack'){ w.state='return'; w.target=null; }
+  rotSay(T.last?R.lastLog:R.leaveLog); return true; }
+/* enemyAI: true while the unit is on its way out (it does nothing else) */
+function rotStep(f){
+  const T=f.rot, R=T.R, now=gameSec*CLOCK_RATE;
+  if(!T.leaving&&!rotHurt(f)) return false;
+  if(R.recall!==0){ const out=wings.filter(w=>w.alive&&w.carrier===f);   // recall:0 (Alvarez's, 2026-10-23): it goes at once, its W.A.S. catch it up
+    if(out.length&&now-T.at<(R.recall??6)){ if(f.order) f.order=null; return true; }   // waiting for its W.A.S.
+    for(const w of out){ w.alive=false; w.squad.n=0; w.squad.state='lost'; w.squad.wing=null; } }   // cut off: left behind
+  if(!T.to){ const k=clouds.filter(c=>c.c.z<fieldC.z).sort((a,b)=>a.c.distanceTo(f.pos)-b.c.distanceTo(f.pos))[0];
+    T.to=k?{p:k.c.clone(),r:k.r*ROT_CLOUD}:{p:new THREE.Vector3(f.pos.x,f.pos.y,fieldC.z-FIELD_R-WITHDRAW_OUT*3),r:0}; }
+  if(T.to.r?f.pos.distanceTo(T.to.p)<T.to.r:Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z)>FIELD_R+WITHDRAW_OUT){ rotGone(f); return true; }
+  moveTo(f,T.to.p.x,T.to.p.y,T.to.p.z); return true;
+}
+function rotGone(f){ const T=f.rot;
+  for(const w of wings) if(w.alive&&w.carrier===f){ w.alive=false; w.squad.state='docked'; w.squad.wing=null; }   // the W.A.S. not yet home go with it
+  f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); updateRoster();
+  if(!T.last&&repelT==null) rotOut.push({T,k:T.k+1,left:gameSec*CLOCK_RATE}); }
+/* when one away comes again (operation minutes), or null while it waits for the all-out attack */
+function rotDue(P){ const R=P.T.R, c=(R.waves||[]).filter(t=>t>=P.left);
+  if(surgeMin!=null) c.push(...(R.surgeWaves||[]).map(t=>surgeMin+t).filter(t=>t>=P.left));
+  if(P.k===2&&R.surgeFirst){ if(surgeMin==null) return null; if(surgeMin>=P.left) return surgeMin; }
+  if(c.length) return Math.min(...c);
+  if(surgeMin==null&&(R.surgeWaves||[]).length&&op.win&&op.win.surge) return null;   // the all-out attack's waves are still to come
+  return P.left+(R.wait??20); }
+function stepRotate(){
+  if(!rotOut.length||repelT!=null||over) return; const now=gameSec*CLOCK_RATE;
+  for(const P of rotOut.slice()){ const t=rotDue(P); if(t==null||now<t) continue; rotOut.splice(rotOut.indexOf(P),1);
+    const f=spawnEnemy(P.T.spec,P.T.arrow); f.rot.k=P.k; rotSay(P.T.R.backLog);
+    const id=P.T.key+':'+P.k, ev=P.T.R.backEvents&&P.T.R.backEvents[P.k-2];
+    if(ev&&!rotDone[id]){ rotDone[id]=true; const add=ev.map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
+      opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); } }
+}
 /* timeUp {at, until, warn, lose, loseLog} (user decision 2026-10-13: doing nothing must lose): at `at` minutes, if what it waits for
    has not happened (until 'fortress': the fortress destroyed; 'land': the carrier landed), the operation is lost. warn {at, log}: said once before */
 function stepTimeUp(){
@@ -1678,6 +1734,7 @@ function spawnEnemy(o,arrow,rel){
   const jp=[o.pos[0]+(Math.random()-.5)*6,o.pos[1]+(Math.random()-.5)*6], r=makeFleet(1,{leash:0,...o,pos:rel?relPos(jp):jp}); fleets.push(r);
   if(gates.length) watchOffSealed(r);   // 第5節: not at a gate already sealed
   if(arrow){ const [ax,az]=rel?relPos(arrow.pos):arrow.pos; makeArrow(r.pos,new THREE.Vector3(ax,arrow.alt||0,az),TEAM_COL[1],{life:6}); }
+  if(o.rotate) rotJoin(r,o,arrow);   // a unit that comes and goes (第5節 Alvarez's two, 2026-10-23)
   return r;
 }
 /* mass (第4節の後半; user decision 2026-10-15): the enemy comes all at once, as many units as ours still in the battle (our own and
@@ -1764,7 +1821,7 @@ function step(dt){
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts(); stepAllyFall();}
-  stepDefend(dt); stepBase(dt); stepRepel(); stepPhases(dt); stepTimeUp();
+  stepDefend(dt); stepBase(dt); stepRepel(); stepRotate(); stepPhases(dt); stepTimeUp();
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();
