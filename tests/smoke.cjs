@@ -1328,8 +1328,8 @@ function check(ok, label, detail = '') {
     await page.screenshot({ path: 'test-results/februaria-retreat.png' }).catch(() => {});
     await page.click('#toMenu');
     /* 2026-10-23 (user decision): Alvarez's two come at 全線 with the main force from the north; each goes once its ships' hit points fall
-       under 15% of its full (W.A.S. not counted), its W.A.S. called home first (waited for at most `recall` minutes), into the cloud to the
-       north (not sunk), and comes again whole at the next landing wave (the second time at the all-out attack); the third time it goes
+       under 20% of its full (W.A.S. not counted), into the cloud to the north at once, its W.A.S. called home and following it (recall:0:
+       it does not wait for them; those not yet home when it is gone go with it. User decision 2026-10-23) (not sunk), and comes again whole at the next landing wave (the second time at the all-out attack); the third time it goes
        under 10% and does not come again. Coming again counts as W.A.S. still to come (wasShort); gone for good counts none */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]');
     await page.click('#goBattle'); await page.waitForTimeout(800);
@@ -1346,16 +1346,15 @@ function check(ok, label, detail = '') {
       r.first = !!f && f.rot.k === 1 && f.ai === 'hunt' && f.prey === 'front' && f.ace && f.pos.z < -300 && was(f) === 80 && f.ships.length === 4;
       /* not yet under 20%: it stays */
       f.hpPool = f.rot.full * .25; enemyAI(); r.stay = !f.rot.leaving;
-      /* a squadron out: called home and waited for, then left behind after `recall` minutes */
+      /* a squadron out: called home; the unit does not wait (recall:0) but makes for the cloud at once, its W.A.S. following */
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [f.pos.x, f.pos.z + 10], alt: f.pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
       f.hangars[0].next = 0; f.hangars[0].squads.forEach(q => { q.ready = 0; }); launchCheck(f); const w = wings.filter(x => x.alive && x.carrier === f)[0];
       t0.alive = false; t0.el.remove(); fleets.splice(fleets.indexOf(t0), 1);
-      const wl0 = wasLeft(); hurt(f, .12); w.pos.x += 300; const p0 = f.pos.clone(); enemyAI();
-      r.recall = !!w && f.rot.leaving && !f.rot.last && w.state === 'return' && f.alive && !f.order && f.stance === 'evade' && said.includes(R.leaveLog[1]) && wasLeft() === wl0 - was(f) + 80;
-      gameSec += (R.recall + .1) / CLOCK_RATE; enemyAI();
-      r.cut = !w.alive && f.alive && f.order && f.order.type === 'move' && f.rot.to && f.rot.to.p.z < -250 && p0.distanceTo(f.pos) < 1;
+      const wl0 = wasLeft(); hurt(f, .12); w.pos.x += 300; enemyAI();
+      r.noWait = R.recall === 0 && !!w && w.alive && w.state === 'return' && f.rot.leaving && !f.rot.last && f.alive && f.stance === 'evade' && f.order && f.order.type === 'move'
+        && f.rot.to && f.rot.to.p.z < -250 && said.includes(R.leaveLog[1]) && wasLeft() === wl0 - was(f) + 80;
       const wl1 = wasLeft(); f.pos.copy(f.rot.to.p); enemyAI();
-      r.gone = !f.alive && f.left && rotOut.length === 1 && rotOut[0].k === 2 && wasLeft() === wl1 && !a7();
+      r.gone = !f.alive && f.left && !w.alive && w.squad.state !== 'lost' && rotOut.length === 1 && rotOut[0].k === 2 && wasLeft() === wl1 && !a7();
       /* the second time no earlier than the all-out attack */
       r.waitSurge = rotDue(rotOut[0]) === null; at(300); r.stillAway = !a7() && rotOut.length === 1;
       at(op.win.surge.at); f = a7();
@@ -1375,7 +1374,7 @@ function check(ok, label, detail = '') {
       f.pos.copy(f.rot.to.p); enemyAI(); at(surgeMin + 200);
       r.never = !f.alive && f.left && rotOut.length === 0 && !a7();
       logEvent = logE; gameSec = op.win.until / CLOCK_RATE; step(.05); return r; });
-    check(Object.values(rt).every(Boolean), 'フェブルアーリア防衛戦: アルバレス隊は全線で北から出て、艦の耐久が20%を切ると W.A.S. を収容して（打ち切りあり）北の雲へ下がり、次の波で全快して戻る（2回目は総攻撃より前に戻らない）。3回目は10%で退き、もう戻らない。戻る隊の W.A.S. はこれから来る分に数え、戻らない隊は数えない（2026-10-23）', JSON.stringify(rt));
+    check(Object.values(rt).every(Boolean), 'フェブルアーリア防衛戦: アルバレス隊は全線で北から出て、艦の耐久が20%を切ると W.A.S. の収容を待たずに北の雲へ下がり（W.A.S. は後を追う）、次の波で全快して戻る（2回目は総攻撃より前に戻らない）。3回目は10%で退き、もう戻らない。戻る隊の W.A.S. はこれから来る分に数え、戻らない隊は数えない（2026-10-23）', JSON.stringify(rt));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* 2026-10-18 (user decision): the landing craft (a new class, the enemy's) set armoured infantry down by a gun; theirs and ours fight it

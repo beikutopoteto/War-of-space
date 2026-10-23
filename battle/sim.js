@@ -1613,7 +1613,8 @@ function troopsLeft(){ let n=0; const of=o=>o.ai==='drop'?infR((o.troops||0)*o.n
 function wasShort(){ const G=op.base&&op.base.garrison; return !!(G&&garrison&&wasLeft()*(G.was||5)+troopsLeft()*(G.troop||0)<garrison.hp); }
 /* units that come and go (op.rotate; 第5節 Alvarez's two, user decision 2026-10-23). A unit with rotate:'<key>' (its rules op.rotate[key])
    goes once the hit points of its ships (W.A.S. not counted) fall under leave[k-1] of its full at its coming, on its k-th coming: it holds
-   its fire, calls its W.A.S. home and waits for them, at most `recall` minutes (those still out then are lost), then makes for the nearest
+   its fire, calls its W.A.S. home and waits for them, at most `recall` minutes (those still out then are lost; recall:0, it does not wait: it
+   makes for the cloud at once, its W.A.S. follow it home, and those not yet home when it is gone go with it), then makes for the nearest
    cloud to the north and is gone from the battle there (not counted as sunk). Unless that was its last coming (leave.length of them), it
    comes again whole (ships and W.A.S. as in the data: repaired and filled up in the clouds) where it first came, at the next landing wave
    after it went: the earliest of `waves` (operation minutes) and, once the all-out attack has come, of `surgeWaves` (minutes from it), not
@@ -1634,15 +1635,16 @@ function rotHurt(f){ const T=f.rot, R=T.R;
 function rotStep(f){
   const T=f.rot, R=T.R, now=gameSec*CLOCK_RATE;
   if(!T.leaving&&!rotHurt(f)) return false;
-  const out=wings.filter(w=>w.alive&&w.carrier===f);
-  if(out.length&&now-T.at<(R.recall??6)){ if(f.order) f.order=null; return true; }   // waiting for its W.A.S.
-  for(const w of out){ w.alive=false; w.squad.n=0; w.squad.state='lost'; w.squad.wing=null; }   // cut off: left behind
+  if(R.recall!==0){ const out=wings.filter(w=>w.alive&&w.carrier===f);   // recall:0 (Alvarez's, 2026-10-23): it goes at once, its W.A.S. catch it up
+    if(out.length&&now-T.at<(R.recall??6)){ if(f.order) f.order=null; return true; }   // waiting for its W.A.S.
+    for(const w of out){ w.alive=false; w.squad.n=0; w.squad.state='lost'; w.squad.wing=null; } }   // cut off: left behind
   if(!T.to){ const k=clouds.filter(c=>c.c.z<fieldC.z).sort((a,b)=>a.c.distanceTo(f.pos)-b.c.distanceTo(f.pos))[0];
     T.to=k?{p:k.c.clone(),r:k.r*ROT_CLOUD}:{p:new THREE.Vector3(f.pos.x,f.pos.y,fieldC.z-FIELD_R-WITHDRAW_OUT*3),r:0}; }
   if(T.to.r?f.pos.distanceTo(T.to.p)<T.to.r:Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z)>FIELD_R+WITHDRAW_OUT){ rotGone(f); return true; }
   moveTo(f,T.to.p.x,T.to.p.y,T.to.p.z); return true;
 }
 function rotGone(f){ const T=f.rot;
+  for(const w of wings) if(w.alive&&w.carrier===f){ w.alive=false; w.squad.state='docked'; w.squad.wing=null; }   // the W.A.S. not yet home go with it
   f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); updateRoster();
   if(!T.last&&repelT==null) rotOut.push({T,k:T.k+1,left:gameSec*CLOCK_RATE}); }
 /* when one away comes again (operation minutes), or null while it waits for the all-out attack */
