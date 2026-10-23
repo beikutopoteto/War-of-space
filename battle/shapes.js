@@ -97,11 +97,11 @@ const SHAPES={
       at(box(.06,.2,.1),0,G+.32,.36),
       ...[at(tube(.036,1.15,10),0,0,.58), at(taper(.044,.036,.08,10),0,0,1.18), at(box(.06,.08,.3),0,0,.1)].map(g=>at(g,0,G+.32,.22,-EL))]; },
   /* 推進器 (第6節): the Republic's big thruster on Denali, the type that moved the rock of Februaria, firing rock from the mine with fusion
-     (user decision 2026-10-23: 見本 B at twice the sample's size; drawn at scale 1). A hexagonal pad held to the rock by three legs, the feed
+     (user decision 2026-10-23: 見本 B at 1.5 times the sample's size; drawn at scale 1). A hexagonal pad held to the rock by three legs, the feed
      duct from the mine along the rock behind it, a tapering hexagonal reactor, and a magnetic nozzle with no bell: four octagonal coils
      widening upward, tied by three thin beams, with a radiator panel on each side. The nozzle leans back (THR_TILT) from the rock's face:
      all of them face the way that slowed Denali. The rock is at y -.34 as for the guns */
-  thr:()=>{ const K=2, P=1, top=1.9, legs=[], duct=[at(tube(.2,3.6,8),0,.15,-3.2)], lean=[];
+  thr:()=>{ const K=1.5, P=1, top=1.9, legs=[], duct=[at(tube(.2,3.6,8),0,.15,-3.2)], lean=[];
     for(let i=0;i<3;i++){ const a=Math.PI/3+i*Math.PI*2/3, s=Math.sin(a), c=Math.cos(a); legs.push(limb([s*1.1,.1,c*1.1],[s*2.1,-.25,c*2.1],.1,.08), at(new THREE.CylinderGeometry(.22,.28,.12,6),s*2.1,-.25,c*2.1)); }
     for(let i=0;i<3;i++) duct.push(at(new THREE.CylinderGeometry(.28,.28,.14,8),0,.15,-1.8-i*1.2,Math.PI/2));
     lean.push(at(new THREE.CylinderGeometry(.5,.95,1.9,6),0,.95,0), at(taper(.3,.5,.4,8),0,top+.1,0,-Math.PI/2), at(box(.05,1.5,1.1),.98,1,0), at(box(.05,1.5,1.1),-.98,1,0));
