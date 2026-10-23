@@ -21,7 +21,7 @@ description: War of Space の CPU（敵 AI と友軍 AI、自軍の自動交戦�
 
 1. `docs/spec.md`（ユーザーが決めた戦闘の決まり。特に操作、自動交戦／命令優先、索敵）と `docs/menu.md` の「敵 AI」（仮の数値と、ユーザーが決めた「目標を分け、囲み、毎回少し変える」）
 2. `docs/maps.md` の「動きの種類」と「つまずいたこと」「確かめ方」
-3. `battle/sim.js` の AI: `enemyAI`、`allyAI`、`pickFoe`、`claimsOn`、`slotOf`、`pincers`、`protectAI`、`fireTargetOf`、`nearestFoe`、`stepToward`。自軍の自動交戦は `fireTargetOf` と命令の処理
+3. `battle/sim.js` の AI: `enemyAI`、`allyAI`、`pickFoe`、`claimsOn`、`slotOf`、`pincers`、`protectAI`、`fireTargetOf`、`nearestFoe`、`stepToward`。自軍の自動交戦は `fireTargetOf` と命令の処理。第6節からの作戦は CPU の行動規範の3段（作戦 → ドクトリンの型 `stepPacks`・`packAI`（作戦の `packs`）→ 艦種別の動き `roleOf` ほか（作戦の `roleAI`）。`docs/spec.md`「CPU の行動規範」、`docs/menu.md` の「艦種別の動き」「ドクトリン（型）」）
 4. 対象の作戦の `data/operations.js` と `docs/campaign.md` の実装メモ
 
 ## 進め方
