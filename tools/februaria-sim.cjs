@@ -9,7 +9,8 @@
    en=敵の隻数（西/真上/東/北） al=友軍の隻数（西/真上/東） me=駐屯隊の隻数（西/真上/東/北） id=友軍の棒立ちの隊/隊の数（西/中/東。2026-10-20）。
    最後に勝ち負け「over outcome loseWhy repelBy」、ゲートが破られた時刻、守備隊の耐久、総攻撃と退却の時刻、
    敵の主力に与えた打撃の割合と沈めた隻数（me 自軍 / ally 友軍の艦 / battery 地表の砲台 / inf 強化歩兵。艦載機はその母艦に数える。2026-10-14）、
-   敵がいない（撃っていない）時間の割合、場にいる敵の平均と最多、揚陸艦の行き先、押されている知らせの通信 */
+   敵がいない（撃っていない）時間の割合、場にいる敵の平均と最多、揚陸艦の行き先、押されている知らせの通信、
+   アルバレス隊の出た・退き始めた（残りの隻数と耐久）・退いた・沈んだ時刻（2026-10-23） */
 const { openGame, toStage } = require('./browser.cjs');
 const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).map(a=>a.split('=')));
 (async () => {
@@ -69,12 +70,17 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
     const anchor=new THREE.Vector3(0,0,125);
     if(strat==='q'||strat==='auto') autoMode=true;   // 2026-10-19: the quick response is the debug auto mode itself (sim.js autoAI), so the two stay the same
     let n=0, retreatAt='', surgeAt=''; const gateAt={}, fellAt={};
+    const aceSt=new Map(), aceLog=[];
     while(!over&&n++<60000){ step(.05);
       for(const g of gates) if((g.sealed||g.breached)&&!gateAt[g.name]){ gateAt[g.name]=`${clockStr()}${g.sealed?'塞いだ':'破られた（最後）'}`; L(`${g.name} ${g.sealed?'sealed':'breached'}`); }
       if(surged&&!surgeAt){ surgeAt=clockStr(); L('総攻撃'); }
       for(const F of fronts) if(F.fell&&!fellAt[F.name]){ fellAt[F.name]=clockStr(); L(`${F.name} の戦線が崩れた（allyFall）`); }   // 2026-10-20
       if(typeof lastGate!=='undefined'&&lastGate&&!fellAt.last){ fellAt.last=clockStr(); L(`友軍すべて ${lastGate.name} のまわりへ`); }
       if(repelT!=null&&!retreatAt) retreatAt=clockStr();
+      /* 2026-10-23: Alvarez's two (ace) as they come, start to go, are gone (left) or sunk; the rest of their ships as they go */
+      for(const f of fleets){ if(!f.ace) continue; const k=f.rot?f.rot.k:1, st=aceSt.get(f)||'';
+        const now=!f.alive?(f.left?'gone':'sunk'):f.rot&&f.rot.leaving?'going':'on';
+        if(now!==st){ aceSt.set(f,now); aceLog.push(`${clockStr()} ${f.name.replace(/ 試験強襲 エスカドラ/,'')}${k}回目 ${{on:'出た',going:`退き始め（${f.ships.length}隻・耐久${Math.round(100*f.hpPool/(f.rot?f.rot.full:f.n*f.hp))}%）`,gone:'退いた',sunk:'沈んだ'}[now]}`); } }
       if(n%20) continue;
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen), land=en.filter(e=>e.ai==='land'||e.ai==='drop'&&!e.unloaded);
       const onField=fleets.filter(x=>x.team===1&&x.alive&&x.pos.z>-60).reduce((s,f)=>s+f.ships.length,0);
@@ -86,7 +92,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
       if(n%200===0) L();
     }
     L('end'); const tot=Object.values(dmgBy).reduce((a,b)=>a+b,0)||1;
-    return {retreatAt, surgeAt, log, said, over, outcome, loseWhy, repelBy, sec:Math.round(gameSec), share:Object.entries(dmgBy).map(([k,v])=>`${k}:${Math.round(v/tot*100)}%`).join(' '), sinkBy:JSON.stringify(sinkBy),
+    return {retreatAt, surgeAt, log, said, aceLog, over, outcome, loseWhy, repelBy, sec:Math.round(gameSec), share:Object.entries(dmgBy).map(([k,v])=>`${k}:${Math.round(v/tot*100)}%`).join(' '), sinkBy:JSON.stringify(sinkBy),
       gates:gates.map(g=>`${g.name} ${gateAt[g.name]||Math.round(100*g.hp/g.max)+'%'}`).join('・'), gar:garrison?`${Math.ceil(garrison.hp)}/${garrison.max}`:'-', clock:clockStr(),
       idle:Math.round(100*idle/Math.max(1,samples)), ...Object.fromEntries([['still',still],['hitStill',hitStill]].map(([key,S])=>[key,['pre','surge','seal1','last'].filter(k=>S[k]).map(k=>`${k} `+R3.map(r=>{ const [a,b]=S[k][r]; return `${r}${b?Math.round(100*a/b):'-'}%`; }).join('/')).join('　')+'　全体 '+R3.map(r=>{ let a=0,b=0; for(const k in S){ a+=S[k][r][0]; b+=S[k][r][1]; } return `${r}${b?Math.round(100*a/b):'-'}%`; }).join('/')])), avgOn:Math.round(onSum/Math.max(1,samples)), maxOn,
       tg:JSON.stringify(troops.map(g=>[Math.round(g.pos.x),Math.round(g.pos.z),g.n,g.goal&&g.goal.name,troopFoe(g)&&troopFoe(g).name])),
@@ -98,5 +104,6 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
   console.log(`${r.sec}秒 打撃 ${r.share} 撃沈 ${r.sinkBy}`);
   console.log(`敵がいない（撃っていない）時間 ${r.idle}%　場の敵 平均 ${r.avgOn}隻 最多 ${r.maxOn}隻`); console.log(`友軍の棒立ち（撃たず動かない隊の割合。はじめの持ち場で西/中/東）\n  場に敵がいる時 ${r.still}\n  持ち場のいちばん近いゲートのシールドが削られている時 ${r.hitStill}`); console.log(`揚陸艦 ${r.drops}`); console.log(r.tp); if(process.env.TROOPS) console.log(r.tg);
   console.log('押されている知らせ:\n'+r.said.join('\n'));
+  console.log('アルバレス隊（第7・第8。数字は何回目の登場か）:\n'+r.aceLog.join('\n'));
   await browser.close();
 })();
