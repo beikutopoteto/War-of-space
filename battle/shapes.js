@@ -19,6 +19,10 @@ const taper=(r0,r1,l,seg=8)=>{ const g=new THREE.CylinderGeometry(r1,r0,l,seg); 
 /* a hull lofted through cross-sections [z, half-width, half-height, y-offset?] from stern to bow.
    The default cross-section is a flattened hexagon, which gives the hull a keel and a spine; a half-width of 0 ends in a point */
 const HEX=[[0,1],[1,.38],[1,-.38],[0,-1],[-1,-.38],[-1,.38]], RECT=[[1,1],[1,-1],[-1,-1],[-1,1]];
+/* a box whose sides slope in toward the top (the stealth house of the surface guns) */
+const TRAP=[[.6,1],[1,-1],[-1,-1],[-.6,1]];
+/* how far the thrusters' nozzles lean back from the rock's face (radians, 仮) */
+const THR_TILT=.45;
 function loft(secs,prof=HEX){
   const ring=s=>prof.map(([px,py])=>new THREE.Vector3(px*s[1],py*s[2]+(s[3]||0),s[0])), rings=secs.map(ring), P=[];
   const tri=(a,b,c,out)=>{ const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)); if(n.dot(out)<0) P.push(a,c,b); else P.push(a,b,c); };
@@ -83,8 +87,28 @@ const SHAPES={
       at(loft([[-.35,.1,.06],[-.1,.11,.11,.04],[.15,0,0,.02]]),0,.17,-.25), ...pod, ...engines([.14,-.14],0,-.9,.075), ...legs]; },
   /* 輸送船: a long cargo spine with containers and a tank, the civilian ship of escort operations */
   tr:()=>[at(box(.5,.5,1.9),0,0,0), at(box(.7,.42,.5),0,.05,.45), at(box(.7,.42,.5),0,.05,-.15), at(tube(.3,.7,10),0,0,-.85), at(box(.36,.3,.32),0,.36,.8)],
-  /* 対空砲台 (第4節): a fixed anti-air battery on the surface of a body — a hexagonal base, a mount and twin long barrels */
-  aa:()=>[at(new THREE.CylinderGeometry(.55,.72,.28,6),0,-.22,0), at(box(.62,.34,.66),0,.08,-.05), ...pair(at(tube(.06,1.25,6),.16,.14,.62))],
+  /* 対空砲台 (第4節・第6節): a fixed battery on the surface of a body, built by the Earth to keep raiders off Denali and taken by the
+     Republic (user decision 2026-10-23, 見本 B: a small single gun like a destroyer's, not the twin battleship guns of 第5節). An octagonal
+     pad and a turntable; a faceted stealth house, pointed at the front, its sides sloping in to the roof, with a low step on the roof; one
+     slim barrel out of a slot in its front, held a little raised. The rock is at y -.34 (the gun stands .34 × scale over it, state.js) */
+  aa:()=>{ const oct=(r0,r1,h,y)=>{ const g=new THREE.CylinderGeometry(r0,r1,h,8); g.rotateY(Math.PI/8); return at(g,0,y,0); }, G=-.34, EL=.26;
+    return [oct(.66,.76,.32,G-.12), oct(.5,.52,.06,G+.06), at(new THREE.CylinderGeometry(.42,.46,.1,16),0,G+.14,0),
+      at(loft([[-.44,.26,.13],[-.12,.31,.15],[.16,.27,.13,-.01],[.5,.05,.04,-.08]],TRAP),0,G+.33,0), at(loft([[-.4,.14,.05],[-.2,.15,.05],[-.08,.1,.03]],TRAP),0,G+.52,0),
+      at(box(.06,.2,.1),0,G+.32,.36),
+      ...[at(tube(.036,1.15,10),0,0,.58), at(taper(.044,.036,.08,10),0,0,1.18), at(box(.06,.08,.3),0,0,.1)].map(g=>at(g,0,G+.32,.22,-EL))]; },
+  /* 推進器 (第6節): the Republic's big thruster on Denali, the type that moved the rock of Februaria, firing rock from the mine with fusion
+     (user decision 2026-10-23: 見本 B at twice the sample's size; drawn at scale 1). A hexagonal pad held to the rock by three legs, the feed
+     duct from the mine along the rock behind it, a tapering hexagonal reactor, and a magnetic nozzle with no bell: four octagonal coils
+     widening upward, tied by three thin beams, with a radiator panel on each side. The nozzle leans back (THR_TILT) from the rock's face:
+     all of them face the way that slowed Denali. The rock is at y -.34 as for the guns */
+  thr:()=>{ const K=2, P=1, top=1.9, legs=[], duct=[at(tube(.2,3.6,8),0,.15,-3.2)], lean=[];
+    for(let i=0;i<3;i++){ const a=Math.PI/3+i*Math.PI*2/3, s=Math.sin(a), c=Math.cos(a); legs.push(limb([s*1.1,.1,c*1.1],[s*2.1,-.25,c*2.1],.1,.08), at(new THREE.CylinderGeometry(.22,.28,.12,6),s*2.1,-.25,c*2.1)); }
+    for(let i=0;i<3;i++) duct.push(at(new THREE.CylinderGeometry(.28,.28,.14,8),0,.15,-1.8-i*1.2,Math.PI/2));
+    lean.push(at(new THREE.CylinderGeometry(.5,.95,1.9,6),0,.95,0), at(taper(.3,.5,.4,8),0,top+.1,0,-Math.PI/2), at(box(.05,1.5,1.1),.98,1,0), at(box(.05,1.5,1.1),-.98,1,0));
+    for(const [y,r] of [[2.1,.75],[2.65,1],[3.2,1.28],[3.75,1.56]]){ const g=new THREE.TorusGeometry(r,.11,4,8); g.rotateX(Math.PI/2); g.rotateY(Math.PI/8); lean.push(at(g,0,y,0)); }
+    for(let i=0;i<3;i++){ const a=i*Math.PI*2/3+.3; lean.push(limb([Math.sin(a)*.45,top,Math.cos(a)*.45],[Math.sin(a)*1.6,3.85,Math.cos(a)*1.6],.06,.05)); }
+    lean.forEach(g=>{ g.translate(0,-P,0); g.rotateX(-THR_TILT); g.translate(0,P,0); });
+    const p=[at(new THREE.CylinderGeometry(1.35,1.51,.45,6),0,-.1,0), ...legs, ...duct, ...lean]; p.forEach(g=>{ g.scale(K,K,K); g.translate(0,-.34,0); }); return p; },
   /* fleets without a class (the old cone) */
   gen:()=>[at(new THREE.ConeGeometry(.45,2,5),0,0,0,Math.PI/2)],
 };
