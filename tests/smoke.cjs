@@ -1190,7 +1190,7 @@ function check(ok, label, detail = '') {
       const ace = fleets.filter(f => f.ace && f.alive), A = WOS_DATA.sides.mars.ace, plain = techFleet(1, { type: 'mas', hangar: { was: 1 } }), PC = plain.craft.was, AC = ace.length && ace[0].craft.was, near = (x, y) => Math.abs(x - y) < 1e-9;
       r.ace = ace.length === 2 && ace.every(f => f.prey === 'front' && f.ai === 'hunt' && !f.drop && f.hangars[0].reserve + f.hangars[0].squads.reduce((s, q) => s + q.n, 0) === 80)   // 2026-10-18: 第7 to the middle gate, 第8 hunts on the front line (2026-10-20: 80 W.A.S. each)
         && near(AC.hp, PC.hp * A.ship) && near(AC.eva, PC.eva * A.ship) && near(AC.dmg, PC.dmg * A.wasDmg) && AC.speed === A.ship && AC.range === A.ship
-        && near(ace[0].hp, plain.hp * A.ship * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
+        && A.hp === 1.5 && near(ace[0].hp, plain.hp * A.hp * HP_K) && near(ace[0].dmg, plain.dmg * A.ship) && near(ace[0].range, plain.range * A.ship)
         && near(ace[0].speed, plain.speed * A.ship * SPEED_K) && near(ace[0].eva, plain.eva * A.ship);
       const e1 = makeFleet(1, { name: '試験 敵', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 15, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z - 10], alt: ace[0].pos.y, vis: 9, stl: 0 });
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ace[0].pos.x, ace[0].pos.z + 10], alt: ace[0].pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
@@ -1344,8 +1344,8 @@ function check(ok, label, detail = '') {
       at(99.9); r.notYet = !a7() && !surged;
       at(100.01); let f = a7();
       r.first = !!f && f.rot.k === 1 && f.ai === 'hunt' && f.prey === 'front' && f.ace && f.pos.z < -300 && was(f) === 80 && f.ships.length === 4;
-      /* not yet under 15%: it stays */
-      f.hpPool = f.rot.full * .2; enemyAI(); r.stay = !f.rot.leaving;
+      /* not yet under 20%: it stays */
+      f.hpPool = f.rot.full * .25; enemyAI(); r.stay = !f.rot.leaving;
       /* a squadron out: called home and waited for, then left behind after `recall` minutes */
       const t0 = makeFleet(0, { name: '試験 的', sub: '', type: 'dd', n: 1, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [f.pos.x, f.pos.z + 10], alt: f.pos.y, vis: 9, stl: 0 }); t0.seen = true; fleets.push(t0);
       f.hangars[0].next = 0; f.hangars[0].squads.forEach(q => { q.ready = 0; }); launchCheck(f); const w = wings.filter(x => x.alive && x.carrier === f)[0];
@@ -1375,7 +1375,7 @@ function check(ok, label, detail = '') {
       f.pos.copy(f.rot.to.p); enemyAI(); at(surgeMin + 200);
       r.never = !f.alive && f.left && rotOut.length === 0 && !a7();
       logEvent = logE; gameSec = op.win.until / CLOCK_RATE; step(.05); return r; });
-    check(Object.values(rt).every(Boolean), 'フェブルアーリア防衛戦: アルバレス隊は全線で北から出て、艦の耐久が15%を切ると W.A.S. を収容して（打ち切りあり）北の雲へ下がり、次の波で全快して戻る（2回目は総攻撃より前に戻らない）。3回目は10%で退き、もう戻らない。戻る隊の W.A.S. はこれから来る分に数え、戻らない隊は数えない（2026-10-23）', JSON.stringify(rt));
+    check(Object.values(rt).every(Boolean), 'フェブルアーリア防衛戦: アルバレス隊は全線で北から出て、艦の耐久が20%を切ると W.A.S. を収容して（打ち切りあり）北の雲へ下がり、次の波で全快して戻る（2回目は総攻撃より前に戻らない）。3回目は10%で退き、もう戻らない。戻る隊の W.A.S. はこれから来る分に数え、戻らない隊は数えない（2026-10-23）', JSON.stringify(rt));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* 2026-10-18 (user decision): the landing craft (a new class, the enemy's) set armoured infantry down by a gun; theirs and ours fight it
