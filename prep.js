@@ -11,7 +11,7 @@ const STATS = [
 const D=window.WOS_DATA;
 const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations, BRANCHES=D.branches, TREE=D.techTree;
 /* the campaign: the operations with a chapter, in order. Each opens when the one before it is cleared */
-const CAMP=OPS.filter(o=>o.chapter);
+const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made (第6節, 2026-10-24); not in the menus, opened only by WOS.start({op})
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
 /* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */
@@ -459,13 +459,13 @@ document.addEventListener('wheel',e=>{ const sc=e.target.closest&&e.target.close
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function renderSortie(){
   /* the campaign first, then the exercises; a locked operation shows how it opens. At first the next one to play is chosen */
-  const list=[...CAMP,...OPS.filter(o=>!o.chapter)];
+  const list=[...CAMP,...OPS.filter(o=>!o.chapter&&!o.hidden)];
   if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(CAMP.find(o=>!cleared(o.id)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${scaleText(o)}${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
-  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter).map(card).join('')}`;
+  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter&&!o.hidden).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const load=document.getElementById('sgLoad'); load.innerHTML='';
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).

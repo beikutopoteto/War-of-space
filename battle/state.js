@@ -71,6 +71,7 @@ function techFleet(team,o){
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
   if(o.hp==null) o={...o,...techFleet(team,o)};
+  if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
   if(o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
@@ -381,7 +382,7 @@ function reset(cfg=lastCfg){
     hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||18,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
   garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null; troops=[]; troopsSaid=null; troopsWent=0;   // the enemy's infantry on the rock (sim.js)
-  surged=false; surgeMin=null; rotOut=[]; rotSaid={}; rotDone={}; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={};
+  surged=false; surgeMin=null; rotOut=[]; rotSaid={}; rotDone={}; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={}; breached=null;
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
@@ -423,7 +424,8 @@ function reset(cfg=lastCfg){
   if(BD) for(const f of fleets) if(f.fixed){ if(f.pit){ pitBuild(f); continue; }   // 第5節: the base's guns in their holes (base.js)
     const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
     /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
-    f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=h.normal; s.base=h.point.clone().addScaledVector(h.normal,.34*f.scale); s.pos.copy(s.base); }); }
+    /* a thruster (第6節, type thr; user decision 2026-10-23): its nozzle points straight out from the body's centre, not along the rock's face */
+    f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=f.type==='thr'?h.point.clone().sub(bodyC).normalize():h.normal; s.base=h.point.clone().addScaledVector(s.up,.34*f.scale); s.pos.copy(s.base); }); }
   setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';
