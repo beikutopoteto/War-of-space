@@ -773,12 +773,13 @@ function rolePlace(f,R,threat,foes){ f.roleWard=null;
     if(f.pos.distanceTo(s)>2) moveTo(f,s.x,s.y,s.z); else if(f.order&&f.order.type==='move') f.order=null; return true; }
   if(R.role==='mother'&&threat&&wings.some(w=>w.alive&&w.carrier===f)){ const F=friendOf(f,f.pos,['ff'],f.launchR,x=>x.roleWard===f);
     if(F){ _rv.subVectors(F.pos,threat.pos); if(_rv.lengthSq()>1e-6) f.roleSpot=_rv.setLength(roleStand(f,R,threat)??standOff(f,threat)).add(threat.pos).clone(); } return false; }
-  if(threat) { if(R.stay) f.roleWard=friendOf(f,f.pos,R.stay.of); return false; }
+  if(threat) { if(R.stay&&!f.ownPost) f.roleWard=friendOf(f,f.pos,R.stay.of); return false; }
   if(R.ahead){ const M=friendOf(f,f.pos,['mas','masc']); if(!M) return false; const e=nearFoe(M,foes);
     if(e) _rv.subVectors(e.pos,M.pos).setY(0); else _rv.copy(M.heading).setY(0); if(_rv.lengthSq()<1e-6) _rv.set(0,0,1);
     const s=_rv.setLength(R.ahead).add(M.pos).clone(); if(e&&s.distanceTo(e.pos)<(e.range||0)+4) s.sub(e.pos).setLength((e.range||0)+4).add(e.pos);
     if(f.pos.distanceTo(s)>2) moveTo(f,s.x,s.y,s.z); else if(f.order&&f.order.type==='move') f.order=null; return true; }
-  if(R.stay){ const W=f.roleWard=friendOf(f,f.pos,R.stay.of); if(!W) return false; if(f.order&&f.order.type==='attack') f.order=null;
+  /* ownPost (第6節, 2026-10-24): a unit the operation gives a post of its own (a flank) does not keep by a battleship */
+  if(R.stay&&!f.ownPost){ const W=f.roleWard=friendOf(f,f.pos,R.stay.of); if(!W) return false; if(f.order&&f.order.type==='attack') f.order=null;
     if(f.pos.distanceTo(W.pos)>R.stay.r){ _rv.subVectors(f.pos,W.pos); if(_rv.lengthSq()<1e-6) _rv.set(1,0,0); const s=_rv.setLength(R.stay.r*.6).add(W.pos); moveTo(f,s.x,s.y,s.z); }
     else if(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(W.pos)>R.stay.r) f.order=null;
     return true; }
@@ -796,35 +797,50 @@ function roleClamp(f,R,p){ let held=false;
    fallBack and events before this, and a guard goes nowhere past its leash); the doctrine's goal and spots come before the role's
    (roleFirst / rolePlace are skipped); which foe the guns fire on is left to the role (fireTargetOf). No signal is told by talk or marks */
 const DOCTRINES=WOS_DATA.doctrines&&WOS_DATA.doctrines.mars||{}, _pk=new THREE.Vector3();
-let packs=[];
-function initPacks(){ packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false})); }
+let packs=[], packCue={};
+/* start may be a cue's name instead of minutes (第6節, 2026-10-24: 'ignite', 'descend', 'land'): the pack waits until packCue[name] is set
+   (nothing sets one yet: the nuclear battleships come in the next step) */
+function initPacks(){ packCue={}; packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false})); }
 const opMin=()=>gameSec*CLOCK_RATE, packVec=a=>new THREE.Vector3(a[0],a[2]||0,a[1]);
 const packMove=f=>{ const P=f.pack, S=P.D.steps[P.step]; return P.back?'back':S[f.packSlot]||S.all||'hold'; };
 const packMates=(f,ok)=>f.pack.mem.filter(x=>x!==f&&x.alive&&ok(x));
+/* spare:[艦種…] (第6節, 2026-10-24: the line does not go for the battleships): the pack's hold (wall and rim) never picks these classes
+   (its guns still fire on them in reach, by the role; the reserve goes for what hit the ward, a battleship too: 予備の W.A.S. に削られる) */
+const packSpares=(P,e)=>!!(P.spare&&e.kind==='fleet'&&P.spare.includes(topClass(e)));
 /* the goal: the first of op.packs[].goal (a unit's name or a class) that is there, the one it had while that still holds */
 function packGoal(P,c){ for(const g of [].concat(P.goal||[])){ const L=fleets.filter(x=>x.team===0&&x.alive&&!x.convoy&&!x.ghost&&(x.name===g||!x.fixed&&topClass(x)===g));
   if(L.length) return L.includes(P.G)?P.G:L.reduce((a,b)=>a.pos.distanceTo(c)<=b.pos.distanceTo(c)?a:b); } return null; }
 function approachSpot(f){ const P=f.pack, F=P.from&&P.from[f.packK%P.from.length]; if(F) _pk.set(F[0],F[2]||0,F[1]); else _pk.subVectors(f.pos,P.G.pos);
   if(_pk.lengthSq()<1e-6) _pk.set(0,0,-1); return _pk.setLength(P.D.gather||55).add(P.G.pos).clone(); }
-/* hold / hide: the doctrine's spot round the ward (front, rim, shadow), else where it was when the step began */
+/* hold / hide: the doctrine's spot round the ward (front, rim, shadow), else where it was when the step began.
+   The shadow is behind the body when there is one, else behind the ward; shade:'ward' (第6節, 2026-10-24: the line out in empty space,
+   far from Denali) puts it behind the ward even with a body, and the reserve goes over or under the ward, not the rock (packOverC) */
+const packShade=P=>op.body&&P.shade!=='ward';
 function packAt(f){ const P=f.pack, D=P.D, A=D.at&&D.at[f.packSlot], W=P.wardPos, d=P.face;
   if(!A||!W) return f.packAt||(f.packAt=f.pos.clone());
   if(A==='front') return d.clone().setLength(D.front||10).add(W);
   if(A==='rim') return d.clone().applyAxisAngle(_up,(f.packK%2?-70:70)*Math.PI/180).setLength(D.rim||28).add(W);
-  const C=op.body?bodyC:W; return d.clone().setLength(-((op.body?op.body.r*BODY_OUT:0)+(D.shadow||30))).add(C); }
+  const C=packShade(P)?bodyC:W; return d.clone().setLength(-((packShade(P)?op.body.r*BODY_OUT:0)+(D.shadow||30))).add(C); }
 function callHome(f){ f.strike=null; if(f.order&&f.order.type==='attack') f.order=null; let out=false;
   for(const w of wings) if(w.alive&&w.carrier===f){ out=true; if(w.state==='attack'){ w.state='return'; w.target=null; } } return out; }
 const packStay=(f,p)=>{ if(f.pos.distanceTo(p)>2) moveTo(f,p.x,p.y,p.z); else if(f.order&&f.order.type==='move') f.order=null; };
 /* once a round (enemyAI): members, goal, ward, the signals, the break-off, and the speeds of those coming in together (sync) */
 function stepPacks(all){
-  for(const P of packs){ const D=P.D; if(opMin()<(P.start||0)) continue; if(P.t0==null) P.t0=opMin();
+  for(const P of packs){ const D=P.D; if(typeof P.start==='string'?!packCue[P.start]:opMin()<(P.start||0)) continue; if(P.t0==null) P.t0=opMin();
     for(const f of fleets) if(f.team===1&&f.alive&&!f.pack&&!f.fixed&&P.fleets.includes(f.name)){ const s=Object.keys(D.slots).find(k=>D.slots[k].includes(topClass(f))); if(!s) continue;
       Object.assign(f,{pack:P,packSlot:s,packK:P.mem.filter(x=>x.packSlot===s).length,packN0:f.n,packW0:craftN(f)}); P.mem.push(f); }
     const live=P.mem.filter(f=>f.alive); if(!live.length) continue;
     const c=live.reduce((s,f)=>s.add(f.pos),new THREE.Vector3()).multiplyScalar(1/live.length); P.G=packGoal(P,c);
-    /* the ward (a unit, gate or block by name, or a point [x,z,alt]): hit when it loses hit points, lost when it falls */
-    const W=typeof P.ward==='string'?[...fleets,...gates,...blocks].find(x=>x.name===P.ward):null; P.wardPos=W?W.pos:P.ward?packVec(P.ward):null;
-    if(W){ const hp=W.hpPool??W.hp; if(P.wardHp!=null&&hp<P.wardHp-1e-9){ P.hitAt=opMin(); P.hitBy=all.find(e=>e.fireTarget===W)||nearestOf(W,all)||P.hitBy; } P.wardHp=hp; if(!W.alive&&P.lostAt==null) P.lostAt=opMin(); }
+    /* the ward (a unit, gate or block by name, or a point [x,z,alt]): hit when it loses hit points, lost when it falls.
+       A list of names (第6節, 2026-10-24: three thrusters): the first of them still there; hit when any of them loses hit points, lost
+       when all have fallen. A point: hit when a unit of the pack within holdR of it loses hit points (it is never lost) */
+    const pt=Array.isArray(P.ward)&&typeof P.ward[0]==='number', names=pt||!P.ward?[]:[].concat(P.ward);
+    const Ws=names.map(n=>[...fleets,...gates,...blocks].find(x=>x.name===n)).filter(Boolean), W=Ws.find(x=>x.alive)||null;
+    if(W) P.wardPos=W.pos; else if(pt) P.wardPos=packVec(P.ward); else if(!Ws.length) P.wardPos=null;
+    const by=Ws.length?Ws:pt?P.mem.filter(f=>f.alive&&f.pos.distanceTo(P.wardPos)<(D.holdR||30)):null;
+    if(by){ const hp=by.reduce((s,x)=>s+Math.max(0,x.hpPool??x.hp),0), lost=by.filter(x=>!x.alive);
+      if(P.wardHp!=null&&(hp<P.wardHp-1e-9||lost.some(x=>!P.gone||!P.gone.has(x)))){ P.hitAt=opMin(); P.hitBy=all.find(e=>by.includes(e.fireTarget))||nearestOf(W||{pos:P.wardPos},all)||P.hitBy; }
+      P.wardHp=hp; P.gone=new Set(lost); if(Ws.length&&!W&&P.lostAt==null) P.lostAt=opMin(); }
     if(P.wardPos){ const fc=all.filter(e=>!e.fixed); if(fc.length){ const m=fc.reduce((s,e)=>s.add(e.pos),new THREE.Vector3()).multiplyScalar(1/fc.length).sub(P.wardPos).setY(0); if(m.lengthSq()>1) P.face=m.normalize(); } if(!P.face) P.face=new THREE.Vector3(0,0,1); }
     const B=D.breakOff, sum=(L,g)=>L.reduce((s,f)=>s+g(f),0);
     if(B&&!P.back){ const sh=P.mem.filter(f=>f.packSlot===B.slot), n0=sum(sh,f=>f.packN0), w0=sum(P.mem,f=>f.packW0);
@@ -846,7 +862,7 @@ function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) retur
     if(f.packArr==null&&f.pos.distanceTo(s)<6) f.packArr=opMin(); packStay(f,s); return true; }
   if(mv==='hold'||mv==='hide'){ const s=packAt(f); if(!free(s)) return false; f.packOver=false; f.packWp=null;
     if(mv==='hide'){ hush(); if(callHome(f)) f.order=null; else packStay(f,s); return true; }
-    const near=foes.filter(e=>e.pos.distanceTo(s)<(D.holdR||30)), t=near.length?pickFoe(f,near,true):null;
+    const near=foes.filter(e=>e.pos.distanceTo(s)<(D.holdR||30)&&!packSpares(P,e)), t=near.length?pickFoe(f,near,true):null;
     if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); } else packStay(f,s); return true; }
   if(mv==='back'){ if(mom){ hush(); if(callHome(f)) f.order=null; else { if(P.goneAt==null) P.goneAt=opMin(); packStay(f,home); } return true; }
     const M=nearestOf(f,packMates(f,x=>x.hangars.length&&x.pos.distanceTo(P.backTo?home:x.home)>8)); if(!M){ packStay(f,home); return true; }   // the mothers still on their way
@@ -858,11 +874,13 @@ function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) retur
   if(how==='antiAir'){ t=f.packPrey&&f.packPrey.alive&&f.packPrey.seen?f.packPrey:null;
     for(const c of D.prey||[]){ if(t) break; t=nearFoe(f,foes,e=>classOf(e)===c); } t=f.packPrey=t||G; }
   if(how==='over'){ t=P.hitBy&&P.hitBy.alive?P.hitBy:P.wardPos&&nearFoe({pos:P.wardPos},foes); }
+  /* 第6節 (2026-10-24): a reserve held on a leash (ai:'guard') with what it would go for out of it waits in its shadow, not at its post */
+  if(how==='over'&&t&&!free(t.pos)&&P.wardPos){ f.packOver=false; f.packWp=null; packStay(f,packAt(f)); return true; }
   if(!t||!free(t.pos)) return false;
   const edge=ROLES.mars.cl.stand||.92;
   if(how==='edge'&&nearFoe(f,foes,e=>e!==t&&gap(f,e)<f.range*edge)) return false;   // closed on: the role's way (it backs off)
   /* the reserve goes over (or under) the ward or the rock first, then for what hit the ward */
-  if(how==='over'&&!f.packOver){ const C=op.body?bodyC:P.wardPos||t.pos, R=op.body?op.body.r*BODY_OUT:12;
+  if(how==='over'&&!f.packOver){ const C=packShade(P)?bodyC:P.wardPos||t.pos, R=packShade(P)?op.body.r*BODY_OUT:12;
     if(!f.packWp){ f.packWp=C.clone().setY(C.y+(f.packK%2?-1:1)*(R+(D.over||15)));
       f.order={type:'move',dest:_pk.subVectors(f.packWp,t.pos).setLength(standOff(f,t)).add(t.pos).clone(),via:[f.packWp]}; return true; }
     if(f.order&&f.order.type==='move'&&f.pos.distanceTo(f.packWp)>=10) return true; f.packOver=true; }
@@ -1487,11 +1505,12 @@ function stepTroops(dt){
    an arrow points our fleets there and its events (after: minutes from the stage's start) follow. Our fleets left outside the moved
    field may stay where they are but cannot go further out (keepInFieldSoft) */
 /* gate (2026-10-16): the stage's place is by that gate of the base; if it is sealed by then, by the gate left (sealGate also moves it) */
-let stageAt=0, stageText='', slideFrom=null, slideTo=null, slideT=0, slideDur=1, stageGate=null;
+/* linear (第6節, 2026-10-24): the centre slides at an even speed (the slowest battleships keep up), not easing in and out */
+let stageAt=0, stageText='', slideFrom=null, slideTo=null, slideT=0, slideDur=1, stageGate=null, slideLin=false;
 function startStage(S){
   let C=S.centre; stageText=S.text||''; stageGate=S.gate&&gates.find(g=>g.name===S.gate)||null;
   if(stageGate&&stageGate.sealed){ const t=gateNear(stageGate.pos,openGates()); C=[C[0]+t.pos.x-stageGate.pos.x,C[1]+t.pos.z-stageGate.pos.z]; stageText=stageText.split(stageGate.name).join(t.name); stageGate=t; }
-  setPhase(S.name); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(C[0],0,C[1]); slideT=0; slideDur=S.slide||4;
+  setPhase(S.name); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(C[0],0,C[1]); slideT=0; slideDur=S.slide||4; slideLin=!!S.linear;
   spotObj.visible=true; spotObj.position.set(C[0],.3,C[1]);
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
   const now=gameSec*CLOCK_RATE, add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
@@ -1510,10 +1529,26 @@ function keepInFieldSoft(f,sliding){
   const r=Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z); f.outR=sliding?Math.max(f.outR??FIELD_R,r):Math.max(FIELD_R,Math.min(f.outR??r,r));
   if(r>f.outR){ const k=f.outR/r; f.pos.x=fieldC.x+(f.pos.x-fieldC.x)*k; f.pos.z=fieldC.z+(f.pos.z-fieldC.z)*k; }
 }
+/* the line breached (第6節, op.breach {packs:[名前…], below, fall:{名前:[守るもの…]}}; user decision 2026-10-23): once the ships of any one of
+   these packs (op.packs[].name) fall under `below` of what it had, the line is breached. A stage with when:'breach' then begins (whatever
+   its time), events with unless:'breach' no longer happen, and each pack of the line still standing falls back to guard what fall gives it
+   (its ward, its shadow behind the rock again, from its first step; its units' posts by the new ward) */
+let breached=null;
+function stepBreach(){ const B=op.breach; if(!B||breached) return;
+  const line=packs.filter(P=>B.packs.includes(P.name)&&P.mem.length), n0=P=>P.mem.reduce((s,f)=>s+f.packN0,0), left=P=>P.mem.reduce((s,f)=>s+(f.alive?f.ships.length:0),0);
+  const P=line.find(P=>n0(P)&&left(P)<n0(P)*B.below); if(!P) return;
+  breached={pack:P,at:opMin()};
+  for(const Q of line){ const to=B.fall&&B.fall[Q.name]; if(Q===P||!to) continue;
+    Object.assign(Q,{ward:to,shade:null,step:0,t0:opMin(),hitAt:null,hitBy:null,lostAt:null,wardHp:null,gone:null,back:false});
+    const W=[...fleets].find(x=>x.alive&&[].concat(to).includes(x.name));
+    /* off the line's leash: by the rock the shadow is far from the ward (the thruster guards hold no leash either) */
+    for(const f of Q.mem){ if(!f.alive) continue; f.packAt=null; f.packOver=false; f.packWp=null; f.order=null; if(f.ai==='guard') f.ai=null; if(W){ f.post.copy(W.pos); f.home.copy(W.pos); } } }
+}
 function stepPhases(dt){
   const P=op.phases; if(!P||over||repelT!=null) return;
-  while(stageAt<P.length&&gameSec*CLOCK_RATE>=P[stageAt].at) startStage(P[stageAt++]);
-  if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=k*k*(3-2*k);
+  stepBreach();
+  while(stageAt<P.length&&(P[stageAt].when==='breach'?!!breached:P[stageAt].when?false:gameSec*CLOCK_RATE>=P[stageAt].at)) startStage(P[stageAt++]);
+  if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=slideLin?k:k*k*(3-2*k);
     _fd.copy(slideFrom).lerp(slideTo,e).sub(fieldC); _fd.y=0; fieldC.add(_fd); shiftView(_fd); if(slideT>=slideDur) slideTo=null; }
   for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInFieldSoft(f,!!slideTo);
 }
@@ -1793,6 +1828,7 @@ function step(dt){
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   /* nothing more comes once the enemy falls back (stepRepel) */
   while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
+    if(E.unless==='breach'&&breached) continue;   // 第6節: what happens only while the line holds (stepBreach)
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
     /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
     /* fleet.drops (第5節, 2026-10-16): an assault ship picks, as it comes in, the open gate among these held thinnest (weakDrop); {drop} in the log */

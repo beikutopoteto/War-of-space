@@ -112,13 +112,32 @@ function skyHalo(r){ return new THREE.Mesh(new THREE.SphereGeometry(r*1.046,64,3
   transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.BackSide,
   vertexShader:'varying vec3 vN;varying vec3 vV;void main(){vN=normalize(mat3(modelMatrix)*normal);vec4 w=modelMatrix*vec4(position,1.);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}',
   fragmentShader:'uniform vec3 uSun;varying vec3 vN;varying vec3 vV;void main(){float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),3.);float l=smoothstep(-.3,.4,dot(normalize(vN),uSun));gl_FragColor=vec4(vec3(.4,.7,1.)*f*l*1.3,f*l);}'})); }
+/* 第6節 (user decision 2026-10-24, 見本の案C: 案B with the long shape): a body coming closer (b.grow) is a unit sphere scaled to its radius
+   (b.sq the three axes' ratio, b.rot its turn [x,y,z] in radians), with a faint glow round it (b.glow: an additive sprite, a radial
+   gradient, SKY_GLOW times the radius across and never under SKY_GLOW_MIN) so it reads as a point of light, not a star, while it is small.
+   Its radius at clock hour t is 1050 × tan(θ/2), θ = grow.deg × grow.d ÷ (grow.d − grow.v × (t − grow.from)) × 4 (docs/maps.md 6.5);
+   growSky(t) sets it (loop.js, every frame). 第4節's quiet point (no grow) is drawn as before */
+const SKY_GLOW=5, SKY_GLOW_MIN=14;
+let skyGrow=[], skyGlowTex=null;
+function glowTex(){ if(skyGlowTex) return skyGlowTex; const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'), g=x.createRadialGradient(64,64,0,64,64,64);
+  g.addColorStop(0,'rgba(255,248,235,.85)'); g.addColorStop(.18,'rgba(240,235,225,.35)'); g.addColorStop(1,'rgba(240,235,225,0)'); x.fillStyle=g; x.fillRect(0,0,128,128);
+  return skyGlowTex=new THREE.CanvasTexture(c); }
+function growR(G,t){ const k=Math.max(G.d*.01,G.d-G.v*(t-G.from)); return 1050*Math.tan(G.deg*G.d/k*4/2*Math.PI/180); }
+function growSky(t){ for(const o of skyGrow){ const r=growR(o.G,t), q=o.sq; o.m.scale.set(r*q[0],r*q[1],r*q[2]); if(o.glow){ const s=Math.max(SKY_GLOW_MIN,r*SKY_GLOW); o.glow.scale.set(s,s,1); } } }
 function buildSky(S){
   for(const m of [...skyObj.children]){ skyObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
+  skyGrow=[];
   farPlanet.visible=!S; sun.position.copy(S&&S.sun?new THREE.Vector3(...S.sun):SUN0); if(!S) return;
   const sd=sun.position.clone().normalize();
   [['earth',0,96],['moon',1,48],['februaria',1,16],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
-    const m=new THREE.Mesh(new THREE.SphereGeometry(b.r,seg,seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
-    if(kind===0){ const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); } });
+    const G=b.grow, m=new THREE.Mesh(new THREE.SphereGeometry(G?1:b.r,G?48:seg,G?24:seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
+    if(kind===0){ const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); }
+    if(!G) return;
+    if(b.rot) m.rotation.set(...b.rot);
+    let glow=null; if(b.glow){ glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+      glow.position.copy(m.position); glow.renderOrder=-1; skyObj.add(glow); }
+    skyGrow.push({m,glow,G,sq:b.sq||[1,1,1]}); });
+  if(skyGrow.length) growSky(skyGrow[0].G.from);
 }
 
 /* tactical grid plane */
@@ -359,9 +378,10 @@ function buildBody(B,zoneR){
       if((p+q)%2) tube(new THREE.Vector3(a.x,.05,a.z),new THREE.Vector3(b.x,.05,b.z),.12);   // a round tube low between neighbours
       else { const y=Math.min(a.h,b.h)-.3+.06; const br=new THREE.Mesh(new THREE.BoxGeometry(.16,.1,d),dark); br.position.set((a.x+b.x)/2,y,(a.z+b.z)/2);   // a bridge across the tops
         br.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); g.add(br); } }));
-    const n=46,p=new Float32Array(n*3); for(let k=0;k<n;k++){ const m=mods[k%mods.length]; p.set([m.x+(Math.random()-.5)*.6,Math.random()*m.h-.25,m.z+(Math.random()-.5)*.6],k*3); }
-    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
-    g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.42,transparent:true,blending:THREE.AdditiveBlending})));
+    /* B.dark (第6節, 2026-10-24): the people are gone and the windows are dark */
+    if(!B.dark){ const n=46,p=new Float32Array(n*3); for(let k=0;k<n;k++){ const m=mods[k%mods.length]; p.set([m.x+(Math.random()-.5)*.6,Math.random()*m.h-.25,m.z+(Math.random()-.5)*.6],k*3); }
+      const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+      g.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffc27a,size:.42,transparent:true,blending:THREE.AdditiveBlending}))); }
     /* the town sits on the floor of its crater, facing out from the centre */
     const on=bodyShape.towns[i]; g.position.copy(on).multiplyScalar(bodyShape.R(on)-.25); g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),on); bodyObj.add(g);
     /* where the railway trenches leave the crater, a dark tunnel mouth in the crater wall */
@@ -387,12 +407,12 @@ function buildBody(B,zoneR){
       bodyObj.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),96,rad,6,false),w?dark:hull));
       for(let k=4;k<48;k+=6){ const p=pts[k], up=p.clone().normalize(), post=new THREE.Mesh(new THREE.BoxGeometry(.14,.6,.14),dark);
         post.scale.y=(p.length()-bodyShape.R(up)+.3)/.6; post.position.copy(up).multiplyScalar((p.length()+bodyShape.R(up)-.3)/2); post.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),up); bodyObj.add(post); } }); }));
-  /* the open-pit mine: work lights on its terraces and a few machines on the floor */
+  /* the open-pit mine: work lights on its terraces (none on a dark body, B.dark) and a few machines on the floor */
   if(bodyShape.mine){ const M=bodyShape.mine, n=70, p=new Float32Array(n*3), q=new THREE.Quaternion(), v=new THREE.Vector3();
     const ax=new THREE.Vector3().crossVectors(M.d,new THREE.Vector3(0,1,0)).normalize();
-    for(let k=0;k<n;k++){ q.setFromAxisAngle(M.d,Math.random()*Math.PI*2); v.copy(M.d).applyAxisAngle(ax,Math.random()*M.a*.95).applyQuaternion(q); v.multiplyScalar(bodyShape.R(v)+.3); p.set([v.x,v.y,v.z],k*3); }
-    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
-    bodyObj.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd27a,size:.45,transparent:true,blending:THREE.AdditiveBlending})));
+    if(!B.dark){ for(let k=0;k<n;k++){ q.setFromAxisAngle(M.d,Math.random()*Math.PI*2); v.copy(M.d).applyAxisAngle(ax,Math.random()*M.a*.95).applyQuaternion(q); v.multiplyScalar(bodyShape.R(v)+.3); p.set([v.x,v.y,v.z],k*3); }
+      const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(p,3));
+      bodyObj.add(new THREE.Points(pg,new THREE.PointsMaterial({color:0xffd27a,size:.45,transparent:true,blending:THREE.AdditiveBlending}))); }
     for(let k=0;k<5;k++){ q.setFromAxisAngle(M.d,k*1.3); v.copy(M.d).applyAxisAngle(ax,M.a*(.15+.12*k)).applyQuaternion(q);
       const m=new THREE.Mesh(new THREE.BoxGeometry(.9,.6,1.5),k%2?hull:dark); m.position.copy(v).multiplyScalar(bodyShape.R(v)+.3); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v); bodyObj.add(m); } }
   if(B.port){ const P=B.port, at=new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]).sub(bodyC);
@@ -400,7 +420,7 @@ function buildBody(B,zoneR){
     const toward=(B.c?at.clone():at.clone().setY(0)).normalize(), base=toward.clone().multiplyScalar(bodyShape.R(toward)-1);
     const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.4,at.distanceTo(base)),dark); arm.position.copy(base).lerp(at,.5); arm.lookAt(at); bodyObj.add(arm);
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(P.r*.55,P.r*.62,.6,8),hull); pad.position.copy(at).setY(at.y-1.6); bodyObj.add(pad);
-    const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); }
+    if(!B.dark){ const l=ring(P.r-.4,P.r,0x9fe8c8,.7); l.position.set(at.x,at.y+.1,at.z); bodyObj.add(l); } }   // the landing ring's light: off on a dark body
 }
 /* mining debris (op.debris, 第4節): gravel and slag from Denali's mines along its orbit, a thick, curved, lumpy mass made of
    overlapping clouds that no line of sight passes through (user decision 2026-10-09). It is tilted from the battle plane
