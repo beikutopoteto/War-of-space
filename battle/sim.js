@@ -173,9 +173,11 @@ function end(win,quit=false,full=false){
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
   const why=!win&&loseWhy==='time'&&op.timeUp?{lose:op.timeUp.lose,loseLog:op.timeUp.loseLog}:!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
-    :!win&&loseWhy==='garrison'&&op.result.loseGarrison?{lose:op.result.loseGarrison,loseLog:op.result.loseGarrisonLog}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:win&&repelBy==='was'&&op.result.winWas?{win:op.result.winWas,winLog:op.result.winWasLog||op.result.winLog}:{};
+    :!win&&loseWhy==='garrison'&&op.result.loseGarrison?{lose:op.result.loseGarrison,loseLog:op.result.loseGarrisonLog}
+    :!win&&loseWhy&&op.result.loseBy&&op.result.loseBy[loseWhy]?{lose:op.result.loseBy[loseWhy][0],loseLog:op.result.loseBy[loseWhy].slice(1)}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:win&&repelBy==='was'&&op.result.winWas?{win:op.result.winWas,winLog:op.result.winWasLog||op.result.winLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
     op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。${gates.length?`塞いだゲート ${gates.filter(g=>g.sealed).length}/${gates.length}。基地守備隊 ${garrison?Math.ceil(100*garrison.hp/garrison.max):0}%。`:''}残存艦 ${left}隻。`:
+    op.win&&op.win.type==='deflect'&&nuke?(nuke.fireAt!=null?`着弾予想点 ${nuke.km.toFixed(1)} km（23:00 の見込み ${Math.max(0,nukeEst()).toFixed(1)} km）。`:'')+`残存艦 ${left}隻。`:
     opCarrier?`${opCarrier.name}に乗せた住民 ${(opCarrier.cs.boarded||0).toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
   /* the menu records the progress and the reward (prep.js) and tells what was gained */
@@ -1016,6 +1018,7 @@ function allyAI(){
   for(const f of fleets){
     if(!f.ally||!f.alive||f.fixed) continue;   // a battery on the rock (第5節) only shoots
     if(f.mode!=='guard') f.aim=f.waitAt=null;
+    if(nuke&&nukeAI(f)) continue;   // 第6節: the battleships with the warheads, and the units with their crews after the blast (stepNukes)
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
       /* the retreat: it escorts the (slow, laden) carrier, a little ahead of it toward the exit and to one side, until the carrier is out */
       if(opCarrier.alive){ const mates=fleets.filter(a=>a.ally&&a.alive&&a.mode==='leave'), k=mates.indexOf(f);
@@ -1707,6 +1710,88 @@ function stepTimeUp(){
   if(now>=T.at){ loseWhy='time'; end(false); }
 }
 
+/* 第6節「デナリ破砕」: the battleships that carry the warheads and where Denali will strike (op.nukes, allies with nuke:N, op.win type 'deflect';
+   user decision 2026-10-23/24, docs/campaign.md 第6節「核を積んだ戦艦」「着弾予想点と推進器」. 数値は仮).
+   wait: the battleships stay in their units. Once `restore` of the thrusters that can pull the aim back (restore:true) are down, or at `at`
+   minutes, the crews cross over (board): each battleship becomes a unit of its own (an ally the operation moves, not the player), and it and
+   its unit's cruisers and frigates stop where they are for `board` minutes. descend: the empty battleships (no crews: they do not fire) make
+   for the floor of the mine (body.mine) at the battleship's own speed and settle once within mineR of it (landed; they move no more). armed: when
+   every battleship still afloat has settled, `fuse` minutes on, the warheads go off, once (the clock does not wait for hits). The settled
+   ones are gone; the aim moves shift km for each of them for every hour left until `end`; from then on each restoring thruster still there
+   pulls it back pull km an hour until `stop`. The units with the crews aboard fall back south (back, from the field's centre).
+   Won once the strike at 23:00 (the aim now less what the thrusters left will pull back by `stop`) is need km or more; lost once the aim now
+   is under need (nothing can push it out again), when nothing has gone off by `due`, or when every battleship is sunk.
+   Cues for the packs (packCue): 'descend', 'land' (the first settles), 'ignite' (the warheads go off: the thrusters fire) */
+const NUKE_UP=3, NUKE_SLOT=3.5;   // 仮: how high over the mine's floor a battleship settles, and how far apart (they settle round its middle)
+let nuke=null;
+const restoreLeft=()=>fleets.reduce((s,f)=>s+(f.team===1&&f.restore&&f.alive?1:0),0);
+const bbIn=G=>G.alive?G.ships.reduce((s,x)=>s+(x.type==='bb'?1:0),0):0;
+function initNukes(){ nuke=null; const N=op.nukes; if(!N) return;
+  const G=fleets.filter(f=>f.ally&&f.nuke), M=bodyShape&&bodyShape.mine;
+  nuke={G, nb0:G.map(bbIn), thr0:restoreLeft(), state:'wait', bbs:[], at:null, fuseAt:null, fireAt:null, km:0, lastMin:0, landN:0, text:'', M,
+    mine:M?M.d.clone().multiplyScalar(bodyShape.R(M.d)+NUKE_UP).add(bodyC):new THREE.Vector3()}; }
+/* where the k-th battleship settles: round the middle of the mine's floor, NUKE_SLOT apart, over the rock there */
+function mineSlot(k){ const M=nuke.M; if(!M) return nuke.mine.clone();
+  const a=new THREE.Vector3().crossVectors(M.d,_up0).normalize(), b=new THREE.Vector3().crossVectors(M.d,a), t=k*Math.PI*2/5, s=NUKE_SLOT/bodyShape.R(M.d);
+  const d=M.d.clone().addScaledVector(a,Math.cos(t)*s).addScaledVector(b,Math.sin(t)*s).normalize(); return d.multiplyScalar(bodyShape.R(d)+NUKE_UP).add(bodyC); }
+/* the crews cross over: each battleship left becomes a unit of its own (its own share of its unit's hit points), the rest of the unit keeps its name */
+function nukeBoard(now){ const S=nuke, N=op.nukes; S.state='board'; S.at=now; S.bbs=[]; S.text=N.text&&N.text.board||'';
+  S.G.forEach((G,gi)=>{ const live=bbIn(G), gone=S.nb0[gi]-live;
+    if(live){ const bb=G.ships.filter(s=>s.type==='bb'), avg=G.hpPool/G.ships.length, spd=techFleet(0,{type:'bb',n:1}).speed;
+      const q=new THREE.Quaternion().setFromAxisAngle(_up0,Math.atan2(G.heading.x,G.heading.z));   // where the ship stands in its unit's disc (as loop.js draws it)
+      bb.forEach((s,k)=>{ const p=s.off.clone().applyQuaternion(q).add(G.pos);
+        const f=makeFleet(0,{name:`${G.name} ${k+1}番艦`, sub:`戦艦　核弾頭${G.nuke}発　移乗中`, type:'bb', n:1, hp:G.hp/HP_K, dmg:G.dmg, range:G.range, eva:G.eva||0,
+          speed:spd, scale:G.scale, pos:[p.x,p.z], alt:p.y, vis:G.vis, stl:G.stl, ally:true, nuke:G.nuke});
+        s.off.set(0,0,0); f.ships=[s]; f.hpPool=avg; f.heading.copy(G.heading); f.march.copy(G.march); f.ward=true; f.mode='nuke'; f.nukeSt='board'; f.locked=true; f.home=f.post.clone();
+        fleets.push(f); S.bbs.push({f}); });
+      G.ships=G.ships.filter(s=>s.type!=='bb'); G.hpPool-=avg*bb.length; G.n-=bb.length; G.comp={...G.comp}; delete G.comp.bb; G.roleCls=undefined; }
+    for(let i=0;i<gone;i++) S.bbs.push({f:null});
+    if(!G.alive) return;
+    if(!G.ships.length){ G.alive=false; G.left=true; G.el.remove(); unselect(G); return; }   // only battleships were left: no one to take the crews
+    G.locked=true; G.order=null; G.crew=true; });
+  if(N.logs&&N.logs.board) logEvent(...N.logs.board); }
+function nukeDescend(){ const S=nuke, N=op.nukes; S.state='descend'; S.text=N.text&&N.text.descend||''; packCue.descend=true; let k=0;
+  for(const b of S.bbs){ if(!b.f) continue; b.slot=mineSlot(k++); const f=b.f; if(!f.alive) continue;
+    f.nukeSt='descend'; f.locked=false; f.silent=true; f.sub=`戦艦　核弾頭${f.nuke}発　無人　鉱山へ`; moveTo(f,b.slot.x,b.slot.y,b.slot.z); }
+  for(const G of S.G) if(G.alive&&G.crew){ G.locked=false; G.sub=`${G.sub}　戦艦の乗員を乗せている`; }
+  if(N.logs&&N.logs.descend) logEvent(...N.logs.descend); }
+function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed');
+  S.state='fired'; S.fireAt=S.lastMin=now; S.landN=L.length; S.km=L.length*N.shift*Math.max(0,N.end-now)/60; S.text=N.text&&N.text.fired||'';
+  for(const b of L){ const f=b.f; for(let i=0;i<14;i++) burst(f.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,40,14,1.6);
+    f.alive=false; f.left=true; f.nukeSt='gone'; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); }
+  if(L.length) blast([S.mine.x,S.mine.z,S.mine.y]);
+  packCue.ignite=true;
+  for(const G of S.G) if(G.alive&&G.crew){ G.mode='nukeBack'; G.order=null; }
+  if(N.logs&&N.logs.fire) logEvent(N.logs.fire[0],N.logs.fire[1].replace('{n}',L.length).replace('{km}',S.km.toFixed(1))); }
+/* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
+function nukeEst(now=opMin()){ const N=op.nukes; return nuke.km-N.pull*restoreLeft()*Math.max(0,N.stop-Math.max(now,nuke.lastMin))/60; }
+/* the shift the battleships settled now would give, going off `fuse` minutes after the last settles (or when they are set to) */
+function nukePreview(now=opMin()){ const N=op.nukes, n=nuke.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed').length;
+  return {n, at:nuke.fuseAt??now+N.fuse, km:n*N.shift*Math.max(0,N.end-(nuke.fuseAt??now+N.fuse))/60}; }
+function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) return; const now=opMin();
+  if(S.state!=='fired'){
+    const live=S.state==='wait'?S.G.reduce((s,G)=>s+bbIn(G),0):S.bbs.filter(b=>b.f&&b.f.alive).length;
+    if(!live){ loseWhy='sunk'; end(false); return; }
+    if(W&&W.due!=null&&now>=W.due){ loseWhy='late'; end(false); return; } }
+  if(S.state==='wait'){ if(S.thr0-restoreLeft()>=N.restore||now>=N.at) nukeBoard(now); return; }
+  if(S.state==='board'){ if(now>=S.at+N.board) nukeDescend(); return; }
+  if(S.state==='descend'||S.state==='armed'){
+    for(const b of S.bbs){ const f=b.f; if(!f||!f.alive||f.nukeSt!=='descend') continue;
+      if(f.pos.distanceTo(S.mine)<=N.mineR){ f.nukeSt='landed'; f.locked=true; f.order=null; dropArrow(f.arrow); f.arrow=null; f.sub=`戦艦　核弾頭${f.nuke}発　着底`; packCue.land=true; }
+      else if(!f.order) moveTo(f,b.slot.x,b.slot.y,b.slot.z); }
+    if(S.state==='descend'&&!S.bbs.some(b=>b.f&&b.f.alive&&b.f.nukeSt==='descend')){ S.state='armed'; S.fuseAt=now+N.fuse; S.text=N.text&&N.text.armed||'';
+      if(N.logs&&N.logs.armed) logEvent(N.logs.armed[0],N.logs.armed[1].replace('{min}',N.fuse)); }
+    if(S.state==='armed'&&now>=S.fuseAt) nukeFire(now);
+    if(S.state!=='fired') return; }
+  /* after the blast: the thrusters left pull the aim back (until stop); decided once the strike at 23:00 is need or more, or the aim under need */
+  const R=restoreLeft(), t=Math.min(now,N.stop); if(t>S.lastMin){ S.km=Math.max(0,S.km-N.pull*R*(t-S.lastMin)/60); S.lastMin=t; }
+  if(nukeEst(now)>=W.need) end(true);
+  else if(S.km<W.need){ loseWhy='short'; end(false); }
+}
+/* the allies that carry the crews fall back south once the warheads have gone off; the battleships are moved by stepNukes */
+function nukeAI(f){ if(f.mode==='nuke') return true; if(f.mode!=='nukeBack') return false;
+  const B=op.nukes.back||[0,170], i=nuke?nuke.G.indexOf(f):0; moveTo(f,fieldC.x+B[0]+(i%2?14:-14),f.pos.y,fieldC.z+B[1]); return true; }
+
 /* debug auto mode (user decision 2026-10-15: a switch in the title's debug panel). Our own fleets fight and do the operation's goal by
    themselves, built on how the fast-forward tools play (tools/*-sim.cjs); the talk and the deploy step go on by themselves (hud.js, loop.js).
    Each fleet goes for the nearest enemy in sight around what it guards (enemies in a civilian zone are left alone), else waits around it:
@@ -1857,7 +1942,7 @@ function step(dt){
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts(); stepAllyFall();}
-  stepDefend(dt); stepBase(dt); stepRepel(); stepRotate(); stepPhases(dt); stepTimeUp();
+  stepDefend(dt); stepBase(dt); stepRepel(); stepRotate(); stepPhases(dt); stepTimeUp(); stepNukes(dt);
   stepWings(dt);
   if(fortress.alive&&fortress.hangars&&fortress.hangars.length) launchCheck(fortress);
   stepSorties();

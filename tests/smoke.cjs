@@ -1640,6 +1640,73 @@ function check(ok, label, detail = '') {
     check(Math.abs(db.slide - 502) <= 3 && db.push, '第6節: 作戦フィールドは一定の速さで北へ滑り（linear）、崩れていなければ 14:30 にウォン中将が戦艦を中の拠点へ出す（2026-10-24）', JSON.stringify([db.slide, db.push]));
     check(db.breach.by === '西の拠点' && db.breach.phase === '取り付き' && db.breach.ward === '推進器 西の上2,推進器 西の上1,推進器 西の上3' && db.breach.ai === null && db.breach.fc === 40 && db.noPush,
       '第6節: 拠点が4割を切ると突破。デナリへ滑り（z40）、崩れなかった中の拠点は西の上の推進器の守りへ。押し出しは起きない（2026-10-24）', JSON.stringify([db.breach, db.noPush]));
+    /* 第6節の核を積んだ戦艦と着弾予想点（2026-10-27）: 戻せる推進器が3基壊れると移乗（15分止まる）→ 空の戦艦が鉱山へ降りて着底 → そろって15分で起爆、
+       予想点は着底した数 × 23:00 までの残り時間ずれる。起爆のあと、戻せる推進器1基が1時間2.4 km 戻す。見込みが15 km 以上で勝ち、予想点が15を割る・18:30 までに
+       起爆できない・戦艦が全部沈む で負け。16:45 になれば推進器が残っていても移乗。任務欄に目盛りと推進器・戦艦の印 */
+    const nk = await page.evaluate(() => {
+      const F = n => fleets.find(f => f.name === n), now = () => gameSec * CLOCK_RATE, mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
+      const kill = n => { const f = F(n); while (f && f.alive) damage(f, f.hpPool + 1, fleets[0]); };
+      const start = () => { WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); };
+      const r = {};
+      start(); const N = op.nukes, G = nuke.G;
+      r.init = { G: G.map(f => f.nuke).join(','), nb0: nuke.nb0.join(','), thr0: nuke.thr0, state: nuke.state, mine: +nuke.mine.distanceTo(bodyC).toFixed(1), R: +bodyShape.R(nuke.M.d).toFixed(1) };
+      mins(2); ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); step(.05);
+      const n1 = G[0].ships.length; ['推進器 東1', '推進器 東2'].forEach(kill); step(.05); r.wait2 = nuke.state;
+      kill('推進器 東3'); step(.05); const t0 = now();
+      r.board = { state: nuke.state, bbs: nuke.bbs.length, alive: nuke.bbs.filter(b => b.f && b.f.alive).length, bbLeft: G.reduce((s, f) => s + f.ships.filter(x => x.type === 'bb').length, 0),
+        gn: G[0].n, cut: n1 - G[0].ships.length, locked: nuke.bbs.every(b => !b.f || b.f.locked) && G[0].locked, ally: nuke.bbs.every(b => !b.f || b.f.ally && b.f.ward) };
+      const p0 = nuke.bbs[0].f.pos.clone(); mins(t0 + 14); r.board.still = +nuke.bbs[0].f.pos.distanceTo(p0).toFixed(2); r.board.st14 = nuke.state;
+      mins(t0 + 15.5); r.descend = { state: nuke.state, cue: !!packCue.descend, silent: nuke.bbs.every(b => !b.f || !b.f.alive || b.f.silent), unlock: !G[0].locked, crew: G[0].sub.includes('乗員') };
+      /* bring the battleships over the mine (a fast-forward of the way down) and let them settle */
+      nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.hpPool = b.f.hp * 50; b.f.pos.copy(b.slot); b.f.order = null; } });   // hard to sink while they wait (the test is of the clock)
+      step(.05); step(.05); const tl = now(), nl = nuke.bbs.filter(b => b.f && b.f.alive && b.f.nukeSt === 'landed').length;
+      r.land = { state: nuke.state, n: nl, cue: !!packCue.land, fuse: +(nuke.fuseAt - tl).toFixed(1), pv: +nukePreview().km.toFixed(2), want: +(nl * (600 - nuke.fuseAt) / 60).toFixed(2) };
+      updateGoal();
+      const gg = document.getElementById('goalGates'); r.hud0 = { scale: !!gg.querySelector('svg.nks'), dash: gg.innerHTML.includes('stroke-dasharray="1.6 1.2"'), bb: gg.querySelectorAll('svg.nb').length, thr: gg.querySelectorAll('.nkr svg:not(.nb)').length };
+      mins(nuke.fuseAt + .2); const fa = nuke.fireAt;
+      r.fire = { state: nuke.state, km: +nuke.km.toFixed(2), want: +(nl * (600 - fa) / 60).toFixed(2), gone: nuke.bbs.filter(b => b.f && b.f.nukeSt === 'gone' && !b.f.alive).length, cue: !!packCue.ignite,
+        back: G.filter(f => f.alive).every(f => f.mode === 'nukeBack') };
+      /* the restoring thrusters pull the aim back 2.4 km an hour each; one more down raises the strike at 23:00 */
+      const R0 = restoreLeft(), k0 = nuke.km, e0 = nukeEst(); mins(fa + 30.2);
+      r.pull = { R: R0, per: +((k0 - nuke.km) / (30 / 60) / Math.max(1, restoreLeft())).toFixed(2), sameR: restoreLeft() === R0 };
+      const e1 = nukeEst(), alive = fleets.filter(f => f.restore && f.alive); kill(alive[0].name); step(.05);
+      r.pull.up = +(nukeEst() - e1).toFixed(2); r.pull.want = +(N.pull * Math.max(0, N.stop - now()) / 60).toFixed(2);
+      updateGoal(); r.hud1 = { circle: !!document.querySelector('#goalGates svg.nks circle'), label: document.getElementById('goalLabel').textContent };
+      /* win: the strike at 23:00 is 15 km or more once the thrusters left are down */
+      fleets.filter(f => f.restore && f.alive).forEach(f => kill(f.name)); step(.05);
+      r.win = { over, outcome, est: +nukeEst().toFixed(1), rp: document.getElementById('rp').textContent };
+      /* lose: the aim under 15 km */
+      start(); mins(2); Object.assign(nuke, { state: 'fired', fireAt: now(), lastMin: now(), km: 15.05 }); step(.05); const kept = !over; nuke.km = 14.9; step(.05);
+      r.short = { kept, over, outcome, why: loseWhy };
+      /* lose: nothing gone off by 18:30 */
+      start(); gameSec = (op.win.due - .01) / CLOCK_RATE; step(.05); step(.05); r.late = { over, outcome, why: loseWhy };
+      /* lose: every battleship sunk */
+      start(); mins(2); nuke.G.forEach(f => kill(f.name)); step(.05); r.sunk = { over, outcome, why: loseWhy, rp: document.getElementById('rp').textContent };
+      /* the crews cross over at 16:45 with the thrusters all there */
+      start(); gameSec = (N.at - .1) / CLOCK_RATE; step(.05); const s1 = nuke.state; mins(N.at + .05); r.time = [s1, nuke.state, restoreLeft()];
+      /* an operation without op.nukes: nothing */
+      WOS.start({ op: 'februaria' }); setSpeed(0); if (talking) endTalk(); r.none = nuke === null && !document.querySelector('#goalGates svg.nks');
+      return r;
+    });
+    check(nk.init.G === '3,3' && nk.init.nb0 === '3,2' && nk.init.thr0 === 6 && nk.init.state === 'wait' && Math.abs(nk.init.mine - nk.init.R - 3) < .01,
+      '第6節: 核を積んだ戦艦は第1・第2打撃群の5隻（3発ずつ）、戻せる推進器6基、着底する所は鉱山の底の上（2026-10-27）', JSON.stringify(nk.init));
+    check(nk.wait2 === 'wait' && nk.board.state === 'board' && nk.board.bbs === 5 && nk.board.alive === 5 && nk.board.bbLeft === 0 && nk.board.cut === 3 && nk.board.gn === 4 && nk.board.locked && nk.board.ally
+      && nk.board.still < .01 && nk.board.st14 === 'board',
+      '第6節: 戻せる推進器が3基壊れると移乗。戦艦は1隻ずつの友軍に分かれ、隊と一緒に15分その場で止まる（2026-10-27）', JSON.stringify([nk.wait2, nk.board]));
+    check(nk.descend.state === 'descend' && nk.descend.cue && nk.descend.silent && nk.descend.unlock && nk.descend.crew,
+      '第6節: 移乗のあと空の戦艦は鉱山へ降りる（撃たない、合図 descend）。巡洋艦とフリゲートは乗員を乗せて動き出す（2026-10-27）', JSON.stringify(nk.descend));
+    check(nk.land.state === 'armed' && nk.land.n >= 4 && nk.land.cue && Math.abs(nk.land.fuse - 15) < .1 && Math.abs(nk.land.pv - nk.land.want) < .01
+      && nk.hud0.scale && nk.hud0.dash && nk.hud0.bb === 5 && nk.hud0.thr === 6,
+      '第6節: 鉱山の輪で着底し、生きている戦艦がそろうと15分後に起爆。任務欄に目盛り・起爆でのずれ（破線の◆）・推進器6と戦艦5の印（2026-10-27）', JSON.stringify([nk.land, nk.hud0]));
+    check(nk.fire.state === 'fired' && nk.fire.km > 15 && Math.abs(nk.fire.km - nk.fire.want) < .05 && nk.fire.gone === nk.land.n && nk.fire.cue && nk.fire.back,
+      '第6節: 起爆で予想点が 着底した数 × 23:00 までの残り時間 km ずれ、着底した戦艦は消え、乗員を乗せた隊は南へ下がる（2026-10-27）', JSON.stringify(nk.fire));
+    check((!nk.pull.sameR || Math.abs(nk.pull.per - 2.4) < .1) && Math.abs(nk.pull.up - nk.pull.want) < .05 && nk.pull.up > 0 && nk.hud1.circle && nk.hud1.label.includes('23:00'),
+      '第6節: 起爆のあと戻せる推進器1基が1時間2.4 km 戻し、1基壊すと 23:00 の見込みが上がる（2026-10-27）', JSON.stringify([nk.pull, nk.hud1]));
+    check(nk.win.over && nk.win.outcome === true && nk.win.est >= 15 && nk.win.rp.includes('着弾予想点'), '第6節: 戻せる推進器が尽きて見込みが15 km 以上になると、その時点で勝ち（2026-10-27）', JSON.stringify(nk.win));
+    check(nk.short.kept && nk.short.over && nk.short.outcome === false && nk.short.why === 'short' && nk.late.over && nk.late.outcome === false && nk.late.why === 'late'
+      && nk.sunk.over && nk.sunk.outcome === false && nk.sunk.why === 'sunk' && nk.sunk.rp.includes('沈んだ'),
+      '第6節: 負けは、予想点が15 km を割る・18:30 までに起爆できない・戦艦が全部沈む（2026-10-27）', JSON.stringify([nk.short, nk.late, nk.sunk]));
+    check(nk.time[0] === 'wait' && nk.time[1] === 'board' && nk.time[2] === 6 && nk.none, '第6節: 推進器が残っていても 16:45 で移乗。op.nukes のない作戦には効かない（2026-10-27）', JSON.stringify([nk.time, nk.none]));
     await shot('25-denali-break');
     await page.evaluate(() => openMenu());
     /* holding Ctrl fast-forwards the conversation */

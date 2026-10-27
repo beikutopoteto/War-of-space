@@ -65,6 +65,19 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #goal .gx .gar .g{height:3px;background:rgba(143,232,192,.13);position:relative}
 #goal .gx .gar .g i{position:absolute;inset:0 auto 0 0;background:var(--ally)}
 #goal .gx .gar .v{font-family:var(--f-num);font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums}
+/* 第6節 (見本の案B, user decision 2026-10-24; sizes 仮): the scale of the aim (0–30 km) takes the gauge's place, the numbers under it
+   (the folded panel keeps them as its label), the restoring thrusters and the five battleships with the warheads, and a word */
+#goal[data-mode="deflect"] .gauge,#goal[data-mode="deflect"]:not(.fold) .gl{display:none}
+#goal .gx .nks{width:100%;height:auto;display:block}
+#goal .gx .nks text{font-family:var(--f-num);font-size:7.5px;fill:var(--ink-dim)}
+#goal .gx .nkn{font-family:var(--f-num);font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:-2px}
+#goal .gx .nkr{display:flex;align-items:center;gap:2px;font-size:10.5px;color:var(--ink-dim)}
+#goal .gx .nkr svg{width:11px;height:11px;display:block}
+#goal .gx .nkr svg.nb{width:19px;height:10px;margin-right:1px}
+#goal .gx .nkr .nw{margin:0 3px 0 0}
+#goal .gx .nkr svg+.nw{margin-left:6px}
+#goal .gx .nkr .v{margin-left:auto;font-family:var(--f-num);font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums}
+#goal .gx .nkw{font-size:11px;color:#ffd27a}
 #speed{display:flex;gap:4px;margin-top:2px}
 #speed button{flex:1;white-space:nowrap;font-family:var(--f-num);font-size:12px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:4px 6px;cursor:pointer}
 #speed button[aria-pressed="true"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
