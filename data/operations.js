@@ -179,7 +179,7 @@ window.WOS_DATA=window.WOS_DATA||{};
      （天体から離れた所の拠点）。spare:[艦種…]: 壁と縁がその艦種を相手に選ばない（砲は届けば撃つ。予備はその艦種でも守るものを撃った相手へ行く）。
      ward の並び [名前, 名前, …]: いちばん前の残っているものを守り、どれかが撃たれたら「撃たれた」、全部落ちたら「落ちた」。
      ward の点 [x, z, alt]: 組の隊のうち点から型の holdR 以内にいる隊が撃たれたら「撃たれた」（点は落ちない）。
-     start:'名前': その合図（packCue。'ignite' 点火・'descend' 降下・'land' 着底）まで動かない（合図を出す仕組みは次の段階。今は出ない）。
+     start:'名前': その合図（packCue。'ignite' 点火・'descend' 降下・'land' 着底）まで動かない（合図は核を積んだ戦艦の仕組みが出す）。
      ai:'guard' の予備は、向かう相手が leash の外なら陰で待つ
    敵の type:'thr'（推進器、fixed）: 地表の砲台と同じく岩の面に付けるが、軸（形の上）はデナリの中心から外の向き。restore:true は「戻せる推進器」（東と北。印だけ）
    友軍の hurt: 艦の耐久をその割合にして始める（隻数は減らさない。第5節の損害を見せる）。ownPost:true: 艦種別の動きの「戦艦のそばにいる」を使わず、自分の持ち場を守る（脇の隊）
@@ -191,7 +191,13 @@ window.WOS_DATA=window.WOS_DATA||{};
    nukes:{restore, at, board, mineR, fuse, shift, end, pull, stop, back, text, logs}: 核を積んだ戦艦の移乗・降下・着底・起爆と着弾予想点。書き方は第6節の作戦のコメント。
      移乗で戦艦は1隻ずつの友軍の隊に分かれ（名前は「隊の名前 N番艦」）、作戦が動かす（プレイヤーは動かせない。空になったら撃たない）。合図 packCue の
      'descend'（降下）・'land'（初めの着底）・'ignite'（起爆）を出す
-   win:{type:'deflect', need, due, text}: 着弾予想点の勝ち負け（決まった時点で終える）。result.loseBy:{理由:[結果の文, 通知の見出し, 通知の本文]} */
+   win:{type:'deflect', need, due, text}: 着弾予想点の勝ち負け（決まった時点で終える）。result.loseBy:{理由:[結果の文, 通知の見出し, 通知の本文]}
+   ここから下は第6節の型の切り替えと砲撃線で足したもの（2026-10-27。数値は仮。書かなければ今までどおり）:
+   packs の goal の 'nuke': 隊を離れた核を積んだ戦艦（鉱山へ降りている途中か着底）。packs の turns:[{on, doctrine, ward, rest?, backTo?}]: 合図（on: 'breach' か
+     packCue の名前）で型と守るものを替える（並びの順。型も守るものも同じなら何もしない）。替えるとすぐ最初の段から動き、隊は新しい型の枠に艦種で入り直す
+     （枠のない艦種は rest の枠、なければ最初の枠）。ai:'guard' は外れ、持ち場は守るものの位置（battle/sim.js の packTurn）。槍の「そろう」は型の sync 分（15）で打ち切る
+   events の ai の ai:'shell' と targets:[名前…]（友軍）: 並べた目標の残っている最初のものを、射程の端（0.9）から撃つ。立つ所は目標から持ち場の側で、
+     岩の面から外へ寄せる（岩に隠れないように）。それより前へは出ない。目標が尽きたら ai:'guard' に戻る（battle/sim.js の shellAI） */
 /* 戦闘の規模（ユーザー決定 2026-10-12: 4つ。1倍速での長さの目安）。作戦の scale に書く。
    min / max: 1倍速の長さ（分）　sec: 作戦の時計を合わせる目標の秒数（span ÷ sec で時計の速さが決まる。仮）
    cap: 自分の戦区軍で出撃できる艦の合計（全兵科、選んだ戦区軍すべて。ユーザー決定 2026-10-12: 規模で出撃の上限を制限する。数は仮） */
@@ -1370,8 +1376,9 @@ WOS_DATA.operations=[
   },
 ];
 
-/* 第一章 第6節「デナリ破砕」（2026-10-24、作りかけ。舞台・動く作戦フィールド・防衛線、2026-10-27 に核を積んだ戦艦と着弾予想点・勝ち負け。仕様は docs/campaign.md の第6節。数値はすべて仮）。
-   友軍の ai:'shell'、型の切り替え（槍2と霧と鎚）、会話は次の段階で入れる。
+/* 第一章 第6節「デナリ破砕」（2026-10-24、作りかけ。舞台・動く作戦フィールド・防衛線、2026-10-27 に核を積んだ戦艦と着弾予想点・勝ち負け、
+   同じ日に型の切り替え（槍2・霧と鎚、突破と起爆で推進器の守りへ）とウォン中将の砲撃線 ai:'shell'。仕様は docs/campaign.md の第6節。数値はすべて仮）。
+   会話は次の段階で入れる。
    それまでは hidden:true で出撃画面とキャンペーンの流れに出さない（WOS.start({op:'denaliBreak'}) でだけ開ける）。
    第4節のデナリの天体（形・町・鉱山）をそのまま使う（灯は消す: body.dark）。北がデナリの裏、南が地球。 */
 WOS_DATA.operations.push((()=>{
@@ -1379,7 +1386,7 @@ WOS_DATA.operations.push((()=>{
   /* デナリの中心から見た向き（方位は南から東へ、高さは上が正、度）と距離 → 置き場所 {pos:[x,z], alt}。地表の砲台と推進器は reset() で岩の面に付く */
   const at=(az,el,r=30)=>{ const a=az*Math.PI/180, e=el*Math.PI/180, k=v=>Math.round(v*10)/10; return {pos:[k(r*Math.sin(a)*Math.cos(e)), k(r*Math.cos(a)*Math.cos(e))], alt:k(r*Math.sin(e))}; };
   /* 推進器12基（ユーザー決定 2026-10-24、docs/maps.md 5.1 の案A）: 西（方位−90度・高さ0度）、西の上（−90度・40度）、東（こぶの下）、北（裏）に3基ずつ。
-     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す。予想点の計算は次の段階）。耐久40、武器なし。
+     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久40、武器なし。
      3基の並びと東・北の向きは仮。西は居住区B のクレーター（方位−80度）にかからないよう、少し北（−97度のまわり）へ寄せた */
   const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:40, dmg:0, eva:0, range:0, speed:0, scale:1,
     ...at(az,el), leash:0, vis:5, stl:2, fixed:true, ...(restore?{restore:true}:{})});
@@ -1395,14 +1402,23 @@ WOS_DATA.operations.push((()=>{
     return [{name:`第${n} 南線護衛 戦闘隊`, sub:`防衛線 ${w}の拠点 フリゲート（壁）`, type:'ff', n:3, scale:.75, pos:[x,z+10], alt, stl:6, ...g},
       {name:`第${n+1} 南線巡洋 戦闘隊`, sub:`防衛線 ${w}の拠点 重巡洋艦（縁）`, type:'cl', n:3, scale:1.1, pos:[x+26,z+10], alt, stl:4, ...g},
       {name:`第${n+2} 南線揚陸 戦闘隊`, sub:`防衛線 ${w}の拠点 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, pos:[x,z-30], alt, stl:5, ...g}]; };
-  /* 推進器の守り（岩の盾 A 西・B 東・C 北）。C は点火まで動かない（start:'ignite'。点火は次の段階なので、今は ai:'guard' で持ち場にいるだけ） */
+  /* 推進器の守り（岩の盾 A 西・B 東・C 北）。C は点火まで動かない（start:'ignite'。それまでは ai:'guard' で持ち場にいるだけ） */
   const shield=(w,ff,cl,mas,nCl,p,q,extra={})=>[{name:`第${ff} 護衛警衛 戦闘隊`, sub:`${w}の推進器の守り フリゲート`, type:'ff', n:3, scale:.75, ...p, vis:6, stl:6, ...extra},
     {name:`第${cl} 巡洋阻止 戦闘隊`, sub:`${w}の推進器の守り 重巡洋艦`, type:'cl', n:nCl, scale:1.1, ...p, vis:6, stl:4, ...extra},
     {name:`第${mas} 突撃揚陸 戦闘隊`, sub:`${w}の推進器の守り 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, ...q, vis:6, stl:5, ...extra}];
-  /* 槍1（2組。13:35 に線の両端の陰から出て、線の後ろで待つ戦艦へ。組の内訳は仮）。出るまでは ai なしでその場にいる */
-  const spear=(k,x,z,alt)=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:'槍 フリゲート（盾）', type:'ff', n:2, scale:.75, pos:[x,z], alt, vis:6, stl:6},
-    {name:`第${22+k} 突撃揚陸 戦闘隊`, sub:'槍 突撃揚陸艦', type:'mas', n:2, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
-    {name:`第${8+k} 駆逐強襲 戦闘隊`, sub:'槍 駆逐艦', type:'dd', n:2, scale:.85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:6}];
+  /* 槍1（2組。13:35 に線の両端の陰から出て、線の後ろで待つ戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと、デナリの東の下と北西の上から。
+     1組フリゲート2・突撃揚陸艦1・駆逐艦1、計8。待つ所と内訳は仮）。出るまでは ai なしでその場にいる */
+  const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:2, scale:.75, pos:[x,z], alt, vis:6, stl:6},
+    {name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
+    {name:`第${dd} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nd, scale:.85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:6}];
+  const S2=[[2,at(90,-45,70),10],[3,at(-150,40,70),7]].flatMap(([k,p,dd])=>spear(k,p.pos[0],p.pos[1],p.alt,dd,1,1,'槍2'));
+  /* 霧と鎚（着底した戦艦を狙う。W.A.S. の突撃揚陸艦2隊と重巡洋艦2隊、計8。待つ所はデナリの西の上の陰。内訳と位置は仮） */
+  const HAM=[{name:'第26 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-70,55,62), vis:6, stl:5},
+    {name:'第27 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-80,62,66), vis:6, stl:5},
+    {name:'第17 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(-100,50,58), vis:6, stl:4},
+    {name:'第18 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(-110,42,60), vis:6, stl:4}];
+  /* 起爆のあと（合図 ignite）、槍と鎚の残りは残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る）。槍1は突破で北の守りへ（docs/campaign.md「両軍の動き」） */
+  const guardThr=(on,...w)=>({on, doctrine:'rockShield', ward:w.flatMap(names), rest:'rim'});
   const BB=['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群'], ALLY=[...BB,'第29 前衛巡洋 支隊','第30 護衛 支隊'];
   return {
     id:'denaliBreak',
@@ -1434,10 +1450,11 @@ WOS_DATA.operations.push((()=>{
         /* 友軍は線の約80後ろへ（作戦フィールドと一緒に進む） */
         events:[{after:0, ai:{fleets:ALLY, ai:'guard', shift:[0,-305]}}]},
       /* 拠点が崩れたら（op.breach）: フィールドはデナリへ。友軍は取り付いたあとの持ち場へ（戦艦の列は東の推進器の南東、第29は回廊（南西から鉱山への道）の中ほど、第30は戦艦の脇。
-         位置は仮。戦艦は東の推進器から約60（岩の盾B の外。射程の端から撃つ ai:'shell' は次の段階）。14:30 の押し出しで戦艦の持ち場が中の拠点へ動いていても
+         位置は仮。戦艦の post は砲撃線の撃つ側（東の推進器から約60。射程は約16なので、撃つときは推進器から射程の端まで寄る）。14:30 の押し出しで戦艦の持ち場が中の拠点へ動いていても
          同じ所へ行くよう、shift でなく post で書いた） */
+      /* 戦艦の2隊は ai:'shell' で東の推進器を東2・東1・東3の順に、射程の端から撃つ（砲撃線。post は撃つ向きの側。北は届かないので駐屯隊に任せる） */
       {when:'breach', name:'取り付き', centre:[0,40], slide:55, linear:true, text:'デナリに取り付く。推進器を減らせ（狙いを戻せるのは東と北）',
-        events:[{after:0, ai:{fleets:['第1 主力戦艦 打撃群'], ai:'guard', post:[62,52,-12]}}, {after:0, ai:{fleets:['第2 主力戦艦 打撃群'], ai:'guard', post:[80,34,-18]}},
+        events:[{after:0, ai:{fleets:['第1 主力戦艦 打撃群'], ai:'shell', targets:names('東'), post:[62,52,-12]}}, {after:0, ai:{fleets:['第2 主力戦艦 打撃群'], ai:'shell', targets:names('東'), post:[80,34,-18]}},
           {after:0, ai:{fleets:['第29 前衛巡洋 支隊'], ai:'guard', post:[-42,70,14]}}, {after:0, ai:{fleets:['第30 護衛 支隊'], ai:'guard', post:[46,68,-6]}}]},
     ],
     /* 突破（ユーザー決定 2026-10-23）: 拠点のどれか1つが4割を切ると突破。崩れなかった拠点は推進器の守りへ（西→西、中→西の上、東→東） */
@@ -1480,18 +1497,24 @@ WOS_DATA.operations.push((()=>{
       ...shield('西','14','11','19',2,at(-97,0,46),at(180,0,78)),
       ...shield('東','15','12','20',2,at(80,-40,52),at(180,0,78)),
       ...shield('北','16','13','21',3,at(172,0,48),at(180,8,80),{ai:'guard', leash:40}),
-      ...spear(0,-185,215,-18), ...spear(1,185,205,20),
+      ...spear(0,-185,215,-18), ...spear(1,185,205,20), ...S2, ...HAM,
       ...GUNS, ...THR,
     ],
     /* ドクトリンの型（wos-strategy の案）。防衛線の拠点は名前（breach で使う）を持ち、陰を拠点の後ろにする（shade:'ward'。天体の裏に隠れないように）。
-       spare:['bb']: 拠点は戦艦を狙いに行かない（寄られたら砲と W.A.S. は撃つ）。槍2と霧と鎚（start:'descend' / 'land'）は次の段階 */
+       spare:['bb']: 拠点は戦艦を狙いに行かない（寄られたら砲と W.A.S. は撃つ）。goal の 'nuke' は隊を離れた核を積んだ戦艦（降りている途中か着底）。
+       turns: 合図（breach・ignite）で型と守るものを替える（battle/sim.js の packTurn） */
     packs:[
       ...LINE.map(([w,x,z,alt,n])=>({doctrine:'rockShield', name:`${w}の拠点`, fleets:[`第${n} 南線護衛 戦闘隊`,`第${n+1} 南線巡洋 戦闘隊`,`第${n+2} 南線揚陸 戦闘隊`], ward:[x,z,alt], shade:'ward', spare:['bb']})),
       {doctrine:'rockShield', name:'岩の盾A', fleets:['第14 護衛警衛 戦闘隊','第11 巡洋阻止 戦闘隊','第19 突撃揚陸 戦闘隊'], ward:names('西')},
       {doctrine:'rockShield', name:'岩の盾B', fleets:['第15 護衛警衛 戦闘隊','第12 巡洋阻止 戦闘隊','第20 突撃揚陸 戦闘隊'], ward:names('東')},
       {doctrine:'rockShield', name:'岩の盾C', fleets:['第16 護衛警衛 戦闘隊','第13 巡洋阻止 戦闘隊','第21 突撃揚陸 戦闘隊'], ward:names('北'), start:'ignite'},
       /* 槍1: 線の後ろで待つ戦艦へ、西の下と東の上から。退く先はデナリの北 */
-      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], start:35, backTo:[0,-70,0]},
+      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], start:35, backTo:[0,-70,0],
+        turns:[guardThr('breach','北'), guardThr('ignite','北')]},
+      /* 槍2: 戦艦が鉱山へ向かうと（合図 descend）、東の下と北西の上から */
+      {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], start:'descend', backTo:[0,-70,0], turns:[guardThr('ignite','東','北')]},
+      /* 霧と鎚: 戦艦が着底すると（合図 land）。W.A.S. が母艦とフリゲートを襲い、重巡洋艦は W.A.S. が取り付くか20分で縁から着底した戦艦を撃つ */
+      {doctrine:'mistHammer', name:'霧と鎚', fleets:HAM.map(o=>o.name), goal:['nuke'], start:'land', turns:[guardThr('ignite','北','東')]},
     ],
     events:[
       /* 14:30 になっても崩れていなければ、ウォン中将が戦艦を中の拠点へ出す（何もしないときの膠着を解く。unless:'breach' は突破していれば起きない） */
