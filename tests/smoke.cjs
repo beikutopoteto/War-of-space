@@ -1717,14 +1717,15 @@ function check(ok, label, detail = '') {
       const run = (m, each) => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); if (each) each(); } };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
       const r = {}, B1 = F('第1 主力戦艦 打撃群'), order = [], fired = new Set();
-      mins(2); ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); step(.05); step(.05);
+      const later = (sec, ok) => { const t = gameSec + sec; while (gameSec < t && !over) { step(.05); tough(); if (ok) ok(); } };   // the packs turn in the next round of enemyAI (every half second)
+      mins(2); ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); later(.6);
       const s1 = P('槍1'); r.breach = { mode: B1.mode, shell: (B1.shell || []).join(','), s1: s1.doctrine, s1ward: [].concat(s1.ward).join(','), s1ai: s1.mem.every(f => !f.alive || f.ai !== 'guard'),
         s2: P('槍2').t0, ham: P('霧と鎚').t0 };
       let gapMax = 0;
-      run(240, () => { const t = B1.shellT; if (t && !order.includes(t.name)) order.push(t.name); if (B1.fireTarget && B1.fireTarget.type === 'thr') { fired.add(B1.fireTarget.name); if (t) gapMax = Math.max(gapMax, gap(B1, t) / B1.range); }
-        if (!r.desc && packCue.descend) r.desc = { s2: P('槍2').t0 != null, ham: P('霧と鎚').t0 != null, goal: P('槍2').G && P('槍2').G.nukeSt || null };
-        if (!r.land && packCue.land) r.land = { ham: P('霧と鎚').t0 != null, goal: P('霧と鎚').G && P('霧と鎚').G.nukeSt || null };
-        if (nuke.state === 'fired') gameSec = 1e9; });
+      run(240, () => { const t = B1.shellT; if (t && !order.includes(t.name)) order.push(t.name); if (B1.fireTarget && B1.fireTarget.type === 'thr') { fired.add(B1.fireTarget.name); if (B1.retarget > .35) gapMax = Math.max(gapMax, gap(B1, B1.fireTarget) / B1.range); }   // as it picks it (every 0.4 s)
+        if (r.cueD == null && packCue.descend) r.cueD = gameSec; if (!r.desc && r.cueD != null && gameSec >= r.cueD + .6) r.desc = { s2: P('槍2').t0 != null, ham: P('霧と鎚').t0 != null, goal: P('槍2').G && P('槍2').G.nukeSt || null };
+        if (r.cueL == null && packCue.land) r.cueL = gameSec; if (!r.land && r.cueL != null && gameSec >= r.cueL + .6) r.land = { ham: P('霧と鎚').t0 != null, goal: P('霧と鎚').G && P('霧と鎚').G.nukeSt || null };
+        if (nuke.state === 'fired' && r.fireT == null) r.fireT = gameSec; if (r.fireT != null && gameSec >= r.fireT + .6) gameSec = 1e9; });
       const s2 = P('槍2'), hm = P('霧と鎚');
       r.shell = { order: order.join(','), fired: [...fired].sort().join(','), gapMax: +gapMax.toFixed(2), after: B1.alive ? B1.mode : 'x' };
       r.ignite = { state: nuke.state, s2: s2.doctrine, s2ward: [].concat(s2.ward).slice(0, 4).join(','), dd: s2.mem.filter(f => f.alive && f.type === 'dd').map(f => f.packSlot).join(','),
