@@ -1747,6 +1747,34 @@ function check(ok, label, detail = '') {
       && sw.ignite.hamWard === '推進器 北2' && sw.ignite.post && (sw.ignite.dd === '' || sw.ignite.dd.split(',').every(x => x === 'rim')) && sw.ignite.step === '0,0',
       '第6節: 起爆で槍2と霧と鎚は残った戻せる推進器の守り（岩の盾）へ。駆逐艦は縁、持ち場は残っている推進器（2026-10-27）', JSON.stringify(sw.ignite));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
+    /* 第6節のオートモード（2026-10-28、battle/sim.js の autoDenali）: 突破までは中の拠点、突破のあとは砲台、砲台が尽きたら戻せる推進器を東2から。
+       一部（対空の強い隊）は核を積んだ戦艦のそばにつく。西の推進器は撃たない。ほかの作戦には効かない（op.auto は第6節だけ） */
+    const dauto = await page.evaluate(() => {
+      const F = n => fleets.find(f => f.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
+      const kill = n => { const f = F(n); while (f && f.alive) damage(f, f.hpPool + 1, fleets[0]); };
+      const later = sec => { const t = gameSec + sec; while (gameSec < t && !over) step(.05); };
+      const mine = () => fleets.filter(f => f.team === 0 && f.alive && !f.ward && !f.ally && !f.fixed && !f.isCarrier);
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); autoMode = true;
+      const r = {}; mins(18);
+      const mid = packs.find(P => P.name === '中の拠点').mem, at = mine().filter(f => f.order && f.order.type === 'attack');
+      r.line = { n: at.length, mid: at.every(f => mid.includes(f.order.target)) };
+      ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); later(1);
+      r.gun = { breach: !!breached, obj: autoObj && autoObj.type };
+      const bbs = () => nuke.G.filter(G => G.alive);
+      r.esc = mine().filter(f => f.order && f.order.type === 'move' && bbs().some(b => f.order.dest.distanceTo(b.pos) < op.auto.escortR + 1.5)).length;
+      fleets.filter(f => f.team === 1 && f.fixed && f.type === 'aa').forEach(f => kill(f.name)); later(1);
+      r.thr = autoObj && autoObj.name;
+      /* a fleet of ours right by 推進器 西1, with it in sight and in reach: it does not fire on it in the auto mode */
+      const w = F('推進器 西1'), f = mine()[0]; w.seen = true; f.order = null;
+      f.pos.copy(w.pos).sub(bodyC).setLength(w.pos.distanceTo(bodyC) + f.range * .4).add(bodyC);
+      const others = fleets.filter(x => x.team === 1 && x.alive && x !== w); others.forEach(x => { x.alive = false; });
+      r.west = { auto: (fireTargetOf(f) || {}).name || null }; autoMode = false; r.west.off = (fireTargetOf(f) || {}).name || null;
+      others.forEach(x => { x.alive = true; });
+      r.ops = WOS_DATA.operations.filter(o => o.auto).map(o => o.id).join(',');
+      return r;
+    });
+    check(dauto.line.mid && dauto.gun.breach && dauto.gun.obj === 'aa' && dauto.esc >= 1 && dauto.thr === '推進器 東2' && dauto.west.auto !== '推進器 西1' && dauto.west.off === '推進器 西1' && dauto.ops === 'denaliBreak',
+      '第6節のオートモード: 突破までは中の拠点、そのあと砲台、次に戻せる推進器（東2から）。一部は戦艦のそば。西の推進器は撃たない。op.auto は第6節だけ（2026-10-28）', JSON.stringify(dauto));
     await shot('25-denali-break');
     await page.evaluate(() => openMenu());
     /* holding Ctrl fast-forwards the conversation */
