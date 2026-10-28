@@ -22,6 +22,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   5. `state.js` 状態・艦隊生成・ロスター・`reset()`・戻す
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
   7. `sim.js` 索敵・戦闘・小型機・出来事・敵 AI・`step()`。天体の陰と回り込み（`bodyBlocks` / `detour`、`makePath` が経由点を足す）、敵の目標選び（`pickFoe`）と立つ位置（`slotOf`）、挟撃（`pincers`）、デバッグのオートモード（`autoAI`）、小型機と母艦をつなぐ（`tetherCarriers`。`step()` で艦が動いたあと、出ている隊を発艦の距離の外に残さないよう母艦を止める。2026-10-22）、艦種別の動き（2026-10-22。作戦の `roleAI` だけ。`roleOf` で隊の役目（いちばん上位の艦種と陣営、表は `data/ships.js` の `WOS_DATA.roles`）を出し、`pickFoe` の係数 `aimK`、撃つ相手 `roleFoe`（`fireTargetOf`）、小型機の `roleCraftFoe`（`craftTarget`）、立つ距離 `roleStand`（`standOff`）、下がるか `backsOff`（`stepFight`・`fallBack`）、AI の `roleFirst`（退き際・逃げる）と `rolePlace`（盾・母体・目・傘の位置）、`roleClamp`（戦艦と傘の持ち場）。自軍の隊は `roleMove` が null で狙いだけ）、ドクトリンの型（2026-10-22。作戦の `packs` だけ、共和国だけ。`initPacks`（`reset()` から）で組を作り、`enemyAI` の中で `stepPacks` が組・目標・守るもの・合図・退き際・そろって着く速さを決め、`packAI` が隊ごとの動き（approach・charge・hold・hide・back）を出す。作戦の `ai` の分岐のあと、艦種別の動きの前。立つ点は `f.packSpot`（`step()` の `stepFight`））
+  7.5 `cut.js` 会話の後ろに出す絵（第6節のかすめる場面。2026-10-28）。会話の行の4つ目の要素で `showCut`、出ているあいだは `loop.js` が戦場の代わりに描く
   8. `loop.js` 描画ループと起動。挟撃の矢じり（`pinchMarks`）
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。

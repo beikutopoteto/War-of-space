@@ -1761,7 +1761,7 @@ const restoreLeft=()=>fleets.reduce((s,f)=>s+(f.team===1&&f.restore&&f.alive?1:0
 const bbIn=G=>G.alive?G.ships.reduce((s,x)=>s+(x.type==='bb'?1:0),0):0;
 function initNukes(){ nuke=null; const N=op.nukes; if(!N) return;
   const G=fleets.filter(f=>f.ally&&f.nuke), M=bodyShape&&bodyShape.mine;
-  nuke={G, nb0:G.map(bbIn), thr0:restoreLeft(), state:'wait', bbs:[], at:null, fuseAt:null, fireAt:null, km:0, lastMin:0, landN:0, text:'', M,
+  nuke={G, nb0:G.map(bbIn), thr0:restoreLeft(), thrN:restoreLeft(), bbN:G.reduce((s,G)=>s+bbIn(G),0), state:'wait', bbs:[], at:null, fuseAt:null, fireAt:null, km:0, lastMin:0, landN:0, text:'', M,
     mine:M?M.d.clone().multiplyScalar(bodyShape.R(M.d)+NUKE_UP).add(bodyC):new THREE.Vector3()}; }
 /* where the k-th battleship settles: round the middle of the mine's floor, NUKE_SLOT apart, over the rock there */
 function mineSlot(k){ const M=nuke.M; if(!M) return nuke.mine.clone();
@@ -1782,12 +1782,15 @@ function nukeBoard(now){ const S=nuke, N=op.nukes; S.state='board'; S.at=now; S.
     if(!G.alive) return;
     if(!G.ships.length){ G.alive=false; G.left=true; G.el.remove(); unselect(G); return; }   // only battleships were left: no one to take the crews
     G.locked=true; G.order=null; G.crew=true; });
-  if(N.logs&&N.logs.board) logEvent(...N.logs.board); }
+  nukeSay(N.logs&&N.logs.board); }
+/* a line of op.nukes.logs, or several [[who, text], …]; rep fills {n}, {km}, {min}. scene: the lines pause the battle (playScene, story on) */
+function nukeSay(L,rep={},scene=false){ if(!L) return; const ls=(Array.isArray(L[0])?L:[L]).map(l=>[l[0],l[1].replace(/\{(\w+)\}/g,(m,k)=>rep[k]??m)]);
+  if(scene) playScene(ls); else ls.forEach(l=>logEvent(...l)); }
 function nukeDescend(){ const S=nuke, N=op.nukes; S.state='descend'; S.text=N.text&&N.text.descend||''; packCue.descend=true; let k=0;
   for(const b of S.bbs){ if(!b.f) continue; b.slot=mineSlot(k++); const f=b.f; if(!f.alive) continue;
     f.nukeSt='descend'; f.locked=false; f.silent=true; f.sub=`戦艦　核弾頭${f.nuke}発　無人　鉱山へ`; moveTo(f,b.slot.x,b.slot.y,b.slot.z); }
   for(const G of S.G) if(G.alive&&G.crew){ G.locked=false; G.sub=`${G.sub}　戦艦の乗員を乗せている`; }
-  if(N.logs&&N.logs.descend) logEvent(...N.logs.descend); }
+  nukeSay(N.logs&&N.logs.descend); }
 function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed');
   S.state='fired'; S.fireAt=S.lastMin=now; S.landN=L.length; S.km=L.length*N.shift*Math.max(0,N.end-now)/60; S.text=N.text&&N.text.fired||'';
   for(const b of L){ const f=b.f; for(let i=0;i<14;i++) burst(f.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,40,14,1.6);
@@ -1795,15 +1798,19 @@ function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.ali
   if(L.length) blast([S.mine.x,S.mine.z,S.mine.y]);
   packCue.ignite=true;
   for(const G of S.G) if(G.alive&&G.crew){ G.mode='nukeBack'; G.order=null; }
-  if(N.logs&&N.logs.fire) logEvent(N.logs.fire[0],N.logs.fire[1].replace('{n}',L.length).replace('{km}',S.km.toFixed(1))); }
+  nukeSay(N.logs&&N.logs.fire,{n:L.length,km:S.km.toFixed(1)},true);
+  if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
 /* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
 function nukeEst(now=opMin()){ const N=op.nukes; return nuke.km-N.pull*restoreLeft()*Math.max(0,N.stop-Math.max(now,nuke.lastMin))/60; }
 /* the shift the battleships settled now would give, going off `fuse` minutes after the last settles (or when they are set to) */
 function nukePreview(now=opMin()){ const N=op.nukes, n=nuke.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed').length;
   return {n, at:nuke.fuseAt??now+N.fuse, km:n*N.shift*Math.max(0,N.end-(nuke.fuseAt??now+N.fuse))/60}; }
 function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) return; const now=opMin();
+  /* told on the radio: a restoring thruster destroyed ({n} left), a battleship lost before the blast ({n} left) */
+  const R0=restoreLeft(); if(R0<S.thrN){ S.thrN=R0; nukeSay(N.logs&&(S.state==='fired'?N.logs.thrAfter:N.logs.thr),{n:R0}); }
   if(S.state!=='fired'){
     const live=S.state==='wait'?S.G.reduce((s,G)=>s+bbIn(G),0):S.bbs.filter(b=>b.f&&b.f.alive).length;
+    if(live<S.bbN){ S.bbN=live; if(live) nukeSay(N.logs&&N.logs.lost,{n:live}); }
     if(!live){ loseWhy='sunk'; end(false); return; }
     if(W&&W.due!=null&&now>=W.due){ loseWhy='late'; end(false); return; } }
   if(S.state==='wait'){ if(S.thr0-restoreLeft()>=N.restore||now>=N.at) nukeBoard(now); return; }
@@ -1813,7 +1820,7 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
       if(f.pos.distanceTo(S.mine)<=N.mineR){ f.nukeSt='landed'; f.locked=true; f.order=null; dropArrow(f.arrow); f.arrow=null; f.sub=`戦艦　核弾頭${f.nuke}発　着底`; packCue.land=true; }
       else if(!f.order) moveTo(f,b.slot.x,b.slot.y,b.slot.z); }
     if(S.state==='descend'&&!S.bbs.some(b=>b.f&&b.f.alive&&b.f.nukeSt==='descend')){ S.state='armed'; S.fuseAt=now+N.fuse; S.text=N.text&&N.text.armed||'';
-      if(N.logs&&N.logs.armed) logEvent(N.logs.armed[0],N.logs.armed[1].replace('{min}',N.fuse)); }
+      nukeSay(N.logs&&N.logs.armed,{min:N.fuse}); }
     if(S.state==='armed'&&now>=S.fuseAt) nukeFire(now);
     if(S.state!=='fired') return; }
   /* after the blast: the thrusters left pull the aim back (until stop); decided once the strike at 23:00 is need or more, or the aim under need */
@@ -1947,6 +1954,7 @@ function step(dt){
   /* nothing more comes once the enemy falls back (stepRepel) */
   while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     if(E.unless==='breach'&&breached) continue;   // 第6節: what happens only while the line holds (stepBreach)
+    if(E.unless==='fired'&&nuke&&nuke.state==='fired') continue;   // 第6節: what happens only before the warheads go off (stepNukes)
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
     /* an enemy that comes in appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮) */
     /* fleet.drops (第5節, 2026-10-16): an assault ship picks, as it comes in, the open gate among these held thinnest (weakDrop); {drop} in the log */

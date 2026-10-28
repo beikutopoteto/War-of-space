@@ -116,7 +116,7 @@ function frame(now){
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
   controls.update();
-  if(composer) composer.render(); else renderer.render(scene,camera);
+  if(cutOn) cutTick(rdt); else if(composer) composer.render(); else renderer.render(scene,camera);   // a still scene behind the talk (cut.js)
 
   // labels
   for(const u of units()){ if(!u.alive||!u.el) continue;
