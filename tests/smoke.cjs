@@ -1707,6 +1707,22 @@ function check(ok, label, detail = '') {
       && nk.sunk.over && nk.sunk.outcome === false && nk.sunk.why === 'sunk' && nk.sunk.rp.includes('沈んだ'),
       '第6節: 負けは、予想点が15 km を割る・18:30 までに起爆できない・戦艦が全部沈む（2026-10-27）', JSON.stringify([nk.short, nk.late, nk.sunk]));
     check(nk.time[0] === 'wait' && nk.time[1] === 'board' && nk.time[2] === 6 && nk.none, '第6節: 推進器が残っていても 16:45 で移乗。op.nukes のない作戦には効かない（2026-10-27）', JSON.stringify([nk.time, nk.none]));
+    /* 第6節: 核を積んだ隊と戦艦の名札に印と琥珀の縁（見本の案A）、任務欄の戦艦の印を押すとその戦艦へ視点が飛ぶ（案D、2026-10-28） */
+    const nm = await page.evaluate(() => {
+      const kill = n => { const f = fleets.find(f => f.name === n); while (f && f.alive) damage(f, f.hpPool + 1, fleets[0]); };
+      const r = {}; WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      const G = nuke.G, others = fleets.filter(f => f.alive && !G.includes(f));
+      r.wait = G.every(nukeCarrier) && !others.some(nukeCarrier);
+      updateGoal(); const press = i => { const m = document.querySelector(`#goalGates svg.nb[data-nb="${i}"]`); m.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); m.dispatchEvent(new MouseEvent('click', { bubbles: true })); return camAnim && camAnim.tT; };
+      const fold0 = goalEl.classList.contains('fold'), t = press(3); r.fly0 = !!t && t.distanceTo(G[1].pos) < .01 && goalEl.classList.contains('fold') === fold0;
+      ['推進器 東1', '推進器 東2', '推進器 東3'].forEach(kill); step(.05);
+      r.board = nuke.state === 'board' && nuke.bbs.every(b => nukeCarrier(b.f)) && !G.some(nukeCarrier);
+      updateGoal(); const t1 = press(4); r.fly1 = !!t1 && t1.distanceTo(nuke.bbs[4].f.pos) < .01;
+      const b0 = nuke.bbs[0].f; while (b0.alive) damage(b0, b0.hpPool + 1, fleets[0]); updateGoal();
+      r.sunk = !nukeCarrier(b0) && !document.querySelector('#goalGates svg.nb[data-nb="0"]').classList.contains('go');
+      return r;
+    });
+    check(nm.wait && nm.fly0 && nm.board && nm.fly1 && nm.sunk, '第6節: 核を積んだ隊・戦艦の名札に印（案A）、任務欄の戦艦の印を押すとその戦艦へ視点が飛ぶ（案D、2026-10-28）', JSON.stringify(nm));
     /* 第6節の型の切り替えと砲撃線（2026-10-27）: 突破のあと、戦艦の2隊は東の推進器を東2・東1・東3の順に射程の端から撃つ（ai:'shell'。尽きたら guard）。
        槍1は突破で北の推進器の守り（岩の盾）へ。槍2は戦艦が鉱山へ向かうと（descend）降りる戦艦を狙い、霧と鎚は着底（land）で動き出す。起爆（ignite）で
        槍2と霧と鎚は残った戻せる推進器の守りへ（駆逐艦は縁）。槍の「そろう」は15分で打ち切る */
