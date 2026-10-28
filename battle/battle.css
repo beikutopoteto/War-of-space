@@ -277,6 +277,7 @@ body.noui .hud:not(#legend):not(#tl),body.noui #legend>:not(#view),body.noui #tl
   #roster{width:auto}
 }
 #talk{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brass);padding:8px 12px;backdrop-filter:blur(6px);cursor:pointer;z-index:6}
+body.incut #labels{display:none}
 #talk b{font-size:12px;color:var(--brass);letter-spacing:.05em}
 #talk.narr{border-left-color:#ff6a45}
 #talk.narr p{color:var(--ink-dim);font-style:italic}
