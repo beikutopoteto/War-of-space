@@ -1900,7 +1900,8 @@ function autoAI(){
    the warheads (in their units, crossing over, going down or settled): it goes for the W.A.S. on one (their carriers send them from behind
    the rock, out of sight), then a foe within nukeR of one, then the main body's objective when it is by them, else stands by one.
    The main body, in turn:
-   1 a foe within nukeR of a battleship (the carriers first), or a carrier in sight whose W.A.S. are on one;
+   1 a foe within nukeR of a battleship or (while they are in their units) of the thruster their line shoots at, so its guards are
+     gone before they come up (the carriers first), or a carrier in sight whose W.A.S. are on one;
    2 a carrier within craftR of its middle whose W.A.S. are on one of ours (or they wear us down while we shoot at the rock);
    3 one objective for all (concentration): the gun on the rock nearest the battleships (else our fleets), then the first of `thr` still there. The foes within
      objR of it first (clear its guards, then knock it down). One out of sight is gone to, from outside the rock. A target that takes no
@@ -1920,7 +1921,9 @@ function autoDenali(mine,ships,attack){
   const bbs=nuke.state==='fired'?[]:nuke.state==='wait'?nuke.G.filter(G=>G.alive&&bbIn(G)):nuke.bbs.map(b=>b.f).filter(f=>f&&f.alive);
   /* the carriers whose W.A.S. are on what pick takes */
   const craftOn=pick=>[...new Set(wings.filter(w=>w.alive&&w.team===1&&w.state==='attack'&&w.target&&pick(w.target)&&w.carrier&&w.carrier.alive&&w.carrier.seen).map(w=>w.carrier))];
-  const near=ships.filter(e=>!skip(e)&&bbs.some(b=>e.pos.distanceTo(b.pos)<A.nukeR));
+  /* where they are, and (still in their units) the thruster their line shoots at: its guards are cleared before they come up */
+  const spots=[...bbs.map(b=>b.pos),...(nuke.state==='wait'?bbs.map(G=>G.shellT).filter(t=>t&&t.alive).map(t=>t.pos):[])];
+  const near=ships.filter(e=>!skip(e)&&spots.some(p=>e.pos.distanceTo(p)<A.nukeR));
   const threat=breached?[...new Set([...near,...craftOn(t=>bbs.includes(t)).filter(c=>!skip(c))])]:[];
   const craft=breached?craftOn(t=>mine.includes(t)).filter(c=>!skip(c)&&c.pos.distanceTo(cen)<A.craftR):[];
   const raid=wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&bbs.includes(w.target));   // W.A.S. on a battleship (the escort's first)
