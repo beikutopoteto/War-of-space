@@ -165,7 +165,7 @@ function check(ok, label, detail = '') {
 
     /* sortie with the first army group */
     await page.click('[data-go="sortie"]');
-    check(await page.locator('#opList [data-op]').count() === data.shown && !(await page.locator('#opList [data-op="denaliBreak"]').count()), '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない）', `${data.shown}作戦`);
+    check(await page.locator('#opList [data-op]').count() === data.shown && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
     await page.click('[data-op="charybdis"]');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
     const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一支隊を含みます') })));
@@ -1614,7 +1614,7 @@ function check(ok, label, detail = '') {
       'ドクトリン（型）: packs のない作戦（第1〜5節・演習）には型が効かない（2026-10-22）', JSON.stringify(dc.none));
     /* 第6節「デナリ破砕」の舞台（2026-10-24、作りかけ。hidden で出撃画面に出さず、WOS.start({op}) で開く）: 推進器12基（戻せるのは東と北の6基）と砲台6基、
        友軍の耐久を最初から減らす（hurt）、フェブルアーリアが時刻で大きくなる、作戦フィールドが一定の速さで北へ滑る（linear）。何もしないと 14:30 に
-       ウォン中将の押し出し。拠点を1つ崩すと突破（when:'breach'）でデナリへ滑り、崩れなかった拠点は推進器の守りへ、押し出しは起きない */
+       ウォン中将の押し出しがあったが、2026-10-28 にやめた（起きないことを確かめる）。拠点を1つ崩すと突破（when:'breach'）でデナリへ滑り、崩れなかった拠点は推進器の守りへ、押し出しは起きない */
     const db = await page.evaluate(() => {
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
       const start = () => { WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); said.length = 0; };
@@ -1625,7 +1625,7 @@ function check(ok, label, detail = '') {
           up: T.every(f => f.ships.every(s => Math.abs(s.up.dot(s.base.clone().sub(bodyC).normalize()) - 1) < 1e-6)), hurt: +(W.hp / (techFleet(0, op.allies[0]).hp * HP_K)).toFixed(2),
           fe: [+skyGrow[0].m.scale.x.toFixed(2), +growR(skyGrow[0].G, 21).toFixed(1)], packs: packs.length };
         mins(1); const t0 = gameSec; while (gameSec < t0 + 12.5) step(.05); r.slide = Math.round(fieldC.z);   // a quarter of 50 s: 502.5 even, 524 eased
-        gameSec = 89.9 / CLOCK_RATE; mins(90.3); r.push = said.some(t => t.includes('待てない')) && W.post.z === 258 && !breached;
+        gameSec = 89.9 / CLOCK_RATE; mins(90.3); r.push = !said.some(t => t.includes('待てない')) && W.post.z !== 258 && !breached;
         start(); mins(2); for (const n of ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊']) { const f = F(n); while (f.alive) damage(f, f.hpPool + 1, fleets[0]); }
         step(.05); step(.05); const mid = P('中の拠点');
         r.breach = { by: breached && breached.pack.name, phase: phaseName, ward: [].concat(mid.ward).join(','), ai: F('第34 南線護衛 戦闘隊').ai || null };
@@ -1634,10 +1634,10 @@ function check(ok, label, detail = '') {
         return r;
       } finally { logEvent = logE; }
     });
-    check(db.stage.fc === 560 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 6 && db.stage.up && db.stage.hurt === .7 && db.stage.packs === 9
+    check(db.stage.fc === 560 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 6 && db.stage.up && db.stage.hurt === .9 && db.stage.packs === 9
       && db.stage.fe[0] === 2.2 && Math.abs(db.stage.fe[1] - 10.5) < .1,
-      '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台6基、友軍の耐久7割、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
-    check(Math.abs(db.slide - 502) <= 3 && db.push, '第6節: 作戦フィールドは一定の速さで北へ滑り（linear）、崩れていなければ 14:30 にウォン中将が戦艦を中の拠点へ出す（2026-10-24）', JSON.stringify([db.slide, db.push]));
+      '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台6基、友軍の耐久9割（2026-10-28 に7割から）、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
+    check(Math.abs(db.slide - 502) <= 3 && db.push, '第6節: 作戦フィールドは一定の速さで北へ滑り（linear）、14:30 になってもウォン中将は戦艦を出さない（押し出しは 2026-10-28 にやめた）', JSON.stringify([db.slide, db.push]));
     check(db.breach.by === '西の拠点' && db.breach.phase === '取り付き' && db.breach.ward === '推進器 西の上2,推進器 西の上1,推進器 西の上3' && db.breach.ai === null && db.breach.fc === 40 && db.noPush,
       '第6節: 拠点が4割を切ると突破。デナリへ滑り（z40）、崩れなかった中の拠点は西の上の推進器の守りへ。押し出しは起きない（2026-10-24）', JSON.stringify([db.breach, db.noPush]));
     /* 第6節の核を積んだ戦艦と着弾予想点（2026-10-27）: 戻せる推進器が3基壊れると移乗（15分止まる）→ 空の戦艦が鉱山へ降りて着底 → そろって15分で起爆、
@@ -1716,6 +1716,7 @@ function check(ok, label, detail = '') {
       const tough = () => { for (const f of fleets) if (f.ally && f.alive) f.hpPool = Math.max(f.hpPool, f.hp * f.ships.length); };
       const run = (m, each) => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); if (each) each(); } };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      for (const f of fleets) if (f.restore) f.hpPool = Math.min(f.hpPool, 40 * HP_K);   // the thrusters as soft as before 2026-10-28 (2400 / 2000 now): this checks the order, not the time
       const r = {}, B1 = F('第1 主力戦艦 打撃群'), order = [], fired = new Set();
       const later = (sec, ok) => { const t = gameSec + sec; while (gameSec < t && !over) { step(.05); tough(); if (ok) ok(); } };   // the packs turn in the next round of enemyAI (every half second)
       mins(2); ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); later(.6);
