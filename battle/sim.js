@@ -367,7 +367,7 @@ function fireTargetOf(f){
   /* 第6節: the battleships' line (ai:'shell') fires on its thruster whenever it is in reach */
   if(f.mode==='shell'&&f.shellT){ const t=f.shellT; if(t.alive&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)) return t; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):null;   // the batteries on the rock are fair game
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
@@ -1884,9 +1884,66 @@ function autoAI(){
        (by a sealed gate too: before, it wrecked the guns there with no one going for it) */
     const inf=troops.filter(g=>g.n>0&&(toGate(g)<AUTO_R.gate||g.goal&&g.goal.kind==='fleet'&&g.goal.alive));
     mine.forEach((f,i)=>{ const e=landing[0]||by(f,inHot,dist)||by(f,near(f.pos,AUTO_R.near,ahead),dist)||by(f,inf,dist); if(e) attack(f,e); else wait(f,fieldC,i); }); return; }
+  /* 第6節 */
+  if(op.nukes&&nuke&&op.auto){ autoDenali(mine,ships,attack); return; }
   /* the exercise: the fortress */
   if(chase&&chase.fleet.alive&&chase.fleet.seen){ mine.forEach(f=>attack(f,chase.fleet)); return; }
   mine.forEach((f,i)=>{ const e=by(f,ships,dist)||(fortress&&fortress.alive&&fortress.team===1?fortress:null); if(e) attack(f,e); else wait(f,fieldC,i); });
+}
+/* 第6節「デナリ破砕」 in the auto mode (2026-10-28, the user's request: first the Republic's guns on the rock, then the thrusters, the
+   restoring east and north first; the west ones, the jet side that must fire, are never touched; and keep the battleships with the
+   warheads afloat). op.auto {line, thr, nukeR, objR, craftR, escort}, 数値は仮.
+   Before the breach every fleet goes for the nearest unit of the stronghold `line` (op.packs[].name): breaking through fast is what keeps
+   the battleships afloat (the spear makes for them while they wait behind the line, and turns away at the breach).
+   From the breach on (economy of force): an escort of the fleets best at anti-air, `escort` of our ships (all of them once the crews cross
+   over, till the warheads go off: the battleships on their way down and settled are what the day hangs on), keeps by the battleships with
+   the warheads (in their units, crossing over, going down or settled): it goes for the W.A.S. on one (their carriers send them from behind
+   the rock, out of sight), then a foe within nukeR of one, then the main body's objective when it is by them, else stands by one.
+   The main body, in turn:
+   1 a foe within nukeR of a battleship (the carriers first), or a carrier in sight whose W.A.S. are on one;
+   2 a carrier within craftR of its middle whose W.A.S. are on one of ours (or they wear us down while we shoot at the rock);
+   3 one objective for all (concentration): the gun on the rock nearest the battleships (else our fleets), then the first of `thr` still there. The foes within
+     objR of it first (clear its guards, then knock it down). One out of sight is gone to, from outside the rock. A target that takes no
+     harm for AUTO_STUCK seconds while we are on it (out of reach behind the rock, say) is left for AUTO_SKIP seconds;
+   with nothing of that left, the nearest foe in sight. Our fleets never fire on the west thrusters (fireTargetOf) */
+const AUTO_STUCK=20, AUTO_SKIP=60;   // 仮: seconds of the battle
+let autoObj=null, autoTry=new Map();
+function autoDenali(mine,ships,attack){
+  const A=op.auto, by=(f,list,key=e=>e.pos.distanceTo(f.pos))=>list.reduce((b,e)=>!b||key(e)<key(b)?e:b,null);
+  const carrierFirst=f=>e=>(e.hangars&&e.hangars.length?0:100)+e.pos.distanceTo(f.pos);   // by a battleship, the carriers first: before their W.A.S. are out
+  /* a target we are on that takes no harm is left for a while */
+  const now=gameSec, skip=t=>{ const T=autoTry.get(t); return !!(T&&T.skip>now); };
+  for(const [t,T] of autoTry){ if(!t.alive) autoTry.delete(t); else if(!(T.skip>now)&&!mine.some(f=>f.order&&f.order.target===t)) autoTry.delete(t);
+    else if(!(T.skip>now)&&now-T.at>AUTO_STUCK){ if(t.hpPool>=T.hp*.98) T.skip=now+AUTO_SKIP; T.at=now; T.hp=t.hpPool; } }
+  const hit=(f,e)=>{ if(!autoTry.has(e)) autoTry.set(e,{at:now,hp:e.hpPool}); attack(f,e); };
+  const cen=new THREE.Vector3(); mine.forEach(f=>cen.add(f.pos)); if(mine.length) cen.multiplyScalar(1/mine.length);
+  const bbs=nuke.state==='fired'?[]:nuke.state==='wait'?nuke.G.filter(G=>G.alive&&bbIn(G)):nuke.bbs.map(b=>b.f).filter(f=>f&&f.alive);
+  /* the carriers whose W.A.S. are on what pick takes */
+  const craftOn=pick=>[...new Set(wings.filter(w=>w.alive&&w.team===1&&w.state==='attack'&&w.target&&pick(w.target)&&w.carrier&&w.carrier.alive&&w.carrier.seen).map(w=>w.carrier))];
+  const near=ships.filter(e=>!skip(e)&&bbs.some(b=>e.pos.distanceTo(b.pos)<A.nukeR));
+  const threat=breached?[...new Set([...near,...craftOn(t=>bbs.includes(t)).filter(c=>!skip(c))])]:[];
+  const craft=breached?craftOn(t=>mine.includes(t)).filter(c=>!skip(c)&&c.pos.distanceTo(cen)<A.craftR):[];
+  const raid=wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&bbs.includes(w.target));   // W.A.S. on a battleship (the escort's first)
+  let list=[], obj=null;
+  if(!breached){ const P=packs.find(P=>P.name===A.line); list=P?P.mem.filter(x=>x.alive&&x.seen):[]; autoObj=null; }
+  else { if(!(autoObj&&autoObj.alive&&!skip(autoObj))){ const ok=e=>e.alive&&!skip(e), guns=fleets.filter(e=>e.team===1&&e.fixed&&e.type==='aa'&&ok(e));
+      const ref=bbs.length?bbs.reduce((v,b)=>v.add(b.pos),new THREE.Vector3()).multiplyScalar(1/bbs.length):cen;   // nearest the battleships: the main body stays within reach of them
+      autoObj=guns.sort((a,b)=>a.pos.distanceTo(ref)-b.pos.distanceTo(ref))[0]||A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null; }
+    obj=autoObj; if(obj) list=ships.filter(e=>!skip(e)&&e.pos.distanceTo(obj.pos)<A.objR); }
+  /* the escort: the best at anti-air first, till it has `escort` of our ships */
+  const esc=new Set(); if(breached&&bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(nuke.state==='wait'?A.escort:1); let n=0;
+    for(const f of mine.slice().sort((a,b)=>(b.aa??AA.std)-(a.aa??AA.std)||a.id-b.id)){ if(n>=all) break; esc.add(f); n+=f.ships.length; } }
+  /* to a spot out from the rock over a target out of sight, inside our guns' reach; by a battleship, each on its own side */
+  const goTo=(f,p)=>{ if(f.order&&f.order.type==='attack') f.order=null;
+    if(f.pos.distanceTo(p)>3&&!(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(p)<3)) order(f,{type:'move',dest:p.clone()}); };
+  const over=(f,o)=>_w.subVectors(o.pos,bodyC).setLength(_w.length()+f.range*.6).add(bodyC);
+  let k=0;
+  for(const f of mine){
+    if(esc.has(f)){ const e=by(f,raid)||by(f,near,carrierFirst(f)); if(e){ hit(f,e); continue; }
+      if(obj&&obj.seen&&bbs.some(b=>b.pos.distanceTo(obj.pos)<A.nukeR+A.escortR*2)){ hit(f,obj); continue; }   // the objective by the battleships: on it too
+      const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR)); continue; }
+    const e=by(f,threat,carrierFirst(f))||by(f,craft)||by(f,list);
+    if(e) hit(f,e); else if(obj) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
 }
 /* an enemy fleet that comes in (events' fleet). It appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮).
    rel: its pos and its arrow are relative to the field centre (a field that moves with the convoy) */
