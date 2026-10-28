@@ -1771,7 +1771,8 @@ function check(ok, label, detail = '') {
       const later = sec => { const t = gameSec + sec; while (gameSec < t && !over) step(.05); };
       const mine = () => fleets.filter(f => f.team === 0 && f.alive && !f.ward && !f.ally && !f.fixed && !f.isCarrier);
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); autoMode = true;
-      const r = {}; mins(18);
+      const r = {}; mins(2); r.start = mine().length > 0 && mine().every(f => f.order && f.order.type === 'move') && !packs.find(P => P.name === '中の拠点').mem.some(x => x.seen);
+      mins(18);
       const mid = packs.find(P => P.name === '中の拠点').mem, at = mine().filter(f => f.order && f.order.type === 'attack');
       r.line = { n: at.length, mid: at.every(f => mid.includes(f.order.target)) };
       ['第31 南線護衛 戦闘隊', '第32 南線巡洋 戦闘隊'].forEach(kill); later(1);
@@ -1789,8 +1790,8 @@ function check(ok, label, detail = '') {
       r.ops = WOS_DATA.operations.filter(o => o.auto).map(o => o.id).join(',');
       return r;
     });
-    check(dauto.line.mid && dauto.gun.breach && dauto.gun.obj === 'aa' && dauto.esc >= 1 && dauto.thr === '推進器 東2' && dauto.west.auto !== '推進器 西1' && dauto.west.off === '推進器 西1' && dauto.ops === 'denaliBreak',
-      '第6節のオートモード: 突破までは中の拠点、そのあと砲台、次に戻せる推進器（東2から）。一部は戦艦のそば。西の推進器は撃たない。op.auto は第6節だけ（2026-10-28）', JSON.stringify(dauto));
+    check(dauto.start && dauto.line.mid && dauto.gun.breach && dauto.gun.obj === 'aa' && dauto.esc >= 1 && dauto.thr === '推進器 東2' && dauto.west.auto !== '推進器 西1' && dauto.west.off === '推進器 西1' && dauto.ops === 'denaliBreak',
+      '第6節のオートモード: 突破までは中の拠点（見える前から向かう）、そのあと砲台、次に戻せる推進器（東2から）。一部は戦艦のそば。西の推進器は撃たない。op.auto は第6節だけ（2026-10-28）', JSON.stringify(dauto));
     await shot('25-denali-break');
     await page.evaluate(() => openMenu());
     /* holding Ctrl fast-forwards the conversation */

@@ -1925,7 +1925,9 @@ function autoDenali(mine,ships,attack){
   const craft=breached?craftOn(t=>mine.includes(t)).filter(c=>!skip(c)&&c.pos.distanceTo(cen)<A.craftR):[];
   const raid=wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&bbs.includes(w.target));   // W.A.S. on a battleship (the escort's first)
   let list=[], obj=null;
-  if(!breached){ const P=packs.find(P=>P.name===A.line); list=P?P.mem.filter(x=>x.alive&&x.seen):[]; autoObj=null; }
+  let lineC=null;   // before the breach, the line's strongpoint: go for it even before it is in sight (2026-10-28: else no one moved till 13:12)
+  if(!breached){ const P=packs.find(P=>P.name===A.line), L=P?P.mem.filter(x=>x.alive):[]; list=L.filter(x=>x.seen); autoObj=null;
+    if(L.length) lineC=L.reduce((v,x)=>v.add(x.pos),new THREE.Vector3()).multiplyScalar(1/L.length); }
   else { if(!(autoObj&&autoObj.alive&&!skip(autoObj))){ const ok=e=>e.alive&&!skip(e), guns=fleets.filter(e=>e.team===1&&e.fixed&&e.type==='aa'&&ok(e));
       const ref=bbs.length?bbs.reduce((v,b)=>v.add(b.pos),new THREE.Vector3()).multiplyScalar(1/bbs.length):cen;   // nearest the battleships: the main body stays within reach of them
       autoObj=guns.sort((a,b)=>a.pos.distanceTo(ref)-b.pos.distanceTo(ref))[0]||A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null; }
@@ -1943,7 +1945,8 @@ function autoDenali(mine,ships,attack){
       if(obj&&obj.seen&&bbs.some(b=>b.pos.distanceTo(obj.pos)<A.nukeR+A.escortR*2)){ hit(f,obj); continue; }   // the objective by the battleships: on it too
       const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR)); continue; }
     const e=by(f,threat,carrierFirst(f))||by(f,craft)||by(f,list);
-    if(e) hit(f,e); else if(obj) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
+    if(e) hit(f,e); else if(obj) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n);
+      else if(lineC){ const a=k++*2.4; goTo(f,_v.set(lineC.x+Math.cos(a)*AUTO_WAIT,lineC.y,lineC.z+Math.sin(a)*AUTO_WAIT)); } } }
 }
 /* an enemy fleet that comes in (events' fleet). It appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮).
    rel: its pos and its arrow are relative to the field centre (a field that moves with the convoy) */
