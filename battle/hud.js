@@ -359,6 +359,12 @@ const nkDia=(x,c,dash)=>`<polygon points="${x},9 ${(+x+4.2).toFixed(1)},13.5 ${x
 function nukeMarks(){ const S=nuke;
   if(S.state==='wait') return S.G.flatMap((G,i)=>{ const n=bbIn(G); return [...Array(n).fill('wait'),...Array(S.nb0[i]-n).fill('sunk')]; });
   return S.bbs.map(b=>!b.f||!b.f.alive&&b.f.nukeSt!=='gone'?'sunk':b.f.nukeSt==='gone'?'landed':b.f.nukeSt==='board'?'wait':b.f.nukeSt); }
+/* the fleet each mark stands for (見本の案D, user decision 2026-10-28): its unit before the crews cross over, then the battleship itself */
+function nukeMarkFleet(i){ const S=nuke; if(!S) return null;
+  if(S.state==='wait'){ for(const G of S.G){ const n=bbIn(G); if(i<n) return G.alive?G:null; i-=n; } return null; }
+  const f=S.bbs[i]&&S.bbs[i].f; return f&&f.alive?f:null; }
+/* a unit or a battleship that still carries warheads gets the mark and the amber edge on its label (見本の案A, user decision 2026-10-28; loop.js) */
+const nukeCarrier=f=>!!(nuke&&f.nuke&&f.alive&&(f.nukeSt?f.nukeSt!=='gone':nuke.state==='wait'&&bbIn(f)>0));
 function nukeHtml(){
   const S=nuke, N=op.nukes, W=op.win, now=gameSec*CLOCK_RATE, fired=S.fireAt!=null;
   let h='';
@@ -386,9 +392,9 @@ function nukeHtml(){
   const side=w=>`<span class="nw">${w}</span>${T.filter(f=>f.name.includes(` ${w}`)).map(thr).join('')}`;
   h+=`<div class="nkr" title="戻せる推進器（東と北）。起爆のあと、1基で1時間に${N.pull} km 予想点を戻す">${side('東')}${side('北')}<span class="v">${live}/${T.length}</span></div>`;
   /* the five battleships */
-  const M=nukeMarks(), bb=m=>{ const c=m==='sunk'?NK_GREY:m==='descend'?NK_AMBER:NK_BLUE, fill=m==='descend'?NK_AMBER:m==='landed'?NK_BLUE:'none';
-    return `<svg class="nb" viewBox="0 0 20 10" aria-hidden="true"><polygon points="1,5 5,1.5 17,1.5 19,5 17,8.5 5,8.5" fill="${fill}" fill-opacity="${m==='landed'?.75:.45}" stroke="${c}" stroke-width="1"${m==='sunk'?' stroke-dasharray="1.6 1.2"':''}/>${m==='sunk'?`<path d="M7 2.5L13 7.5M13 2.5L7 7.5" stroke="${NK_GREY}" stroke-width="1"/>`:''}</svg>`; };
-  h+=`<div class="nkr" title="核を積んだ戦艦（線: 待機、琥珀: 降下中、青: 着底、灰のばつ: 沈没）"><span class="nw">戦艦</span>${M.map(bb).join('')}<span class="v">${M.filter(m=>m!=='sunk').length}/${M.length}</span></div>`;
+  const M=nukeMarks(), bb=(m,i)=>{ const c=m==='sunk'?NK_GREY:m==='descend'?NK_AMBER:NK_BLUE, fill=m==='descend'?NK_AMBER:m==='landed'?NK_BLUE:'none';
+    return `<svg class="nb${m==='sunk'||m==='landed'&&fired?'':' go'}" data-nb="${i}" viewBox="0 0 20 10" aria-hidden="true"><polygon points="1,5 5,1.5 17,1.5 19,5 17,8.5 5,8.5" fill="${fill}" fill-opacity="${m==='landed'?.75:.45}" stroke="${c}" stroke-width="1"${m==='sunk'?' stroke-dasharray="1.6 1.2"':''}/>${m==='sunk'?`<path d="M7 2.5L13 7.5M13 2.5L7 7.5" stroke="${NK_GREY}" stroke-width="1"/>`:''}</svg>`; };
+  h+=`<div class="nkr" title="核を積んだ戦艦（線: 待機、琥珀: 降下中、青: 着底、灰のばつ: 沈没）。押すとその戦艦へ視点が飛ぶ"><span class="nw">戦艦</span>${M.map(bb).join('')}<span class="v">${M.filter(m=>m!=='sunk').length}/${M.length}</span></div>`;
   /* a word on what is left */
   let say='';
   if(fired){ if(est>=W.need) say='勝ちが決まった';
@@ -403,7 +409,11 @@ function nukeHtml(){
 function nukeLabel(){ const S=nuke, now=gameSec*CLOCK_RATE;
   if(S.fireAt!=null) return `予想点 ${S.km.toFixed(1)} → 23:00 に ${Math.max(0,nukeEst(now)).toFixed(1)} km`;
   const pv=nukePreview(now); return `起爆で ${pv.km.toFixed(1)} km（着底 ${pv.n}隻）`; }
-goalEl.addEventListener('click',()=>goalEl.classList.toggle('fold'));
+/* on press, not click: the panel's html is rebuilt as the numbers change, so a click may lose its mark; the click after it does not fold the panel */
+let nbPress=0;
+goalEl.addEventListener('pointerdown',e=>{ const nb=e.target.closest&&e.target.closest('svg.nb.go'); if(!nb) return; nbPress=performance.now();
+  const f=nukeMarkFleet(+nb.dataset.nb); if(f){ const d=camera.position.clone().sub(controls.target); flyTo(f.pos,d,Math.min(d.length(),120)); } });
+goalEl.addEventListener('click',()=>{ if(performance.now()-nbPress<800) return; goalEl.classList.toggle('fold'); });
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
   if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
