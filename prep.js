@@ -11,7 +11,7 @@ const STATS = [
 const D=window.WOS_DATA;
 const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations, BRANCHES=D.branches, TREE=D.techTree;
 /* the campaign: the operations with a chapter, in order. Each opens when the one before it is cleared */
-const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made (第6節, 2026-10-24); not in the menus, opened only by WOS.start({op})
+const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made; not in the menus, opened only by WOS.start({op})
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
 /* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */

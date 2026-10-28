@@ -165,7 +165,7 @@ function check(ok, label, detail = '') {
 
     /* sortie with the first army group */
     await page.click('[data-go="sortie"]');
-    check(await page.locator('#opList [data-op]').count() === data.shown && !(await page.locator('#opList [data-op="denaliBreak"]').count()), '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない）', `${data.shown}作戦`);
+    check(await page.locator('#opList [data-op]').count() === data.shown && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
     await page.click('[data-op="charybdis"]');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
     const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一支隊を含みます') })));
