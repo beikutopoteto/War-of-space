@@ -196,6 +196,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    packs の doctrine:'screen'（方角守備隊。data/ships.js の WOS_DATA.doctrines.mars.screen）: ward は推進器の名前と点 [x, z, alt] を混ぜた並び、post:[x, z, alt] は持ち場の中心。
      say:[話し手, 台詞] は友軍の陽動が初めて守るものの reach に入ったときに一度だけ（battle/sim.js の screenSpot・screenAI）
    友軍の ai:'feint'・feint:'側'・touch:true と feints:{側:{screen, via, lane, from, dwell, ring, end, assault:{min, lost}}}: 友軍の陽動（battle/sim.js の feintAI。書き方は第6節の作戦のコメント）
+   友軍の ai:'escort'（2026-10-29）: 核を積んだ戦艦の護衛（battle/sim.js の escortAI。待つあいだは戦艦の隊、移乗からは1隻ずつの戦艦、起爆のあとは乗員を乗せた隊のそば。戦艦を狙う W.A.S. と揚陸艦を先に）
    lure:{packs:[組の名前…], out, share, from, at, phase, logs:{share, time}}: 第二段階の合図（battle/sim.js の stepLure）。合図の前は推進器（type:'thr'）の印を出さない。
      packCue の 'lure' も出す。events の unless:'lure': 合図のあとなら起きない
    nukes の route:[[x, z, alt]…]（降りる道の経由点）・max（ずれの上限 km）・allOut（起爆の前にこの隻数の戦艦を失うと陽動が本気の攻撃へ。logs.allOut）。
@@ -1429,18 +1430,22 @@ WOS_DATA.operations.push((()=>{
     {name:'第18 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(25,58,60), vis:6, stl:4}];
   /* 起爆のあと（合図 ignite）、正面の残り（拠点・槍・鎚）は残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る） */
   const guardThr=(on,...w)=>({on, doctrine:'rockShield', ward:w.flatMap(names), rest:'rim'});
-  /* 友軍（ユーザー決定 2026-10-28）: 核を積んだ本軍の戦艦の2隊（今のまま）と、総基地の艦隊の動ける約100隻のうち陽動の2つ（左上・右下に46隻ずつ。巡洋艦12・駆逐艦12・フリゲート12・
-     コルベット6・戦闘母艦4。戦艦なし）。陽動は第5節の生き残りで傷んでいる（hurt。docs/spec.md「両陣営の技術と強さ」の例外。割合は仮）。touch:true は触れる隊（駆逐艦） */
+  /* 友軍（ユーザー決定 2026-10-28・29）: 核を積んだ本軍の戦艦の2隊（今のまま）と、総基地の艦隊の動ける約100隻のうち陽動の2つ（左上・右下に40隻ずつ。巡洋艦12・駆逐艦12・フリゲート8・
+     コルベット4・戦闘母艦4。戦艦なし）と、陽動から割いた戦艦の護衛の第29・第30 支隊（ESCORT。2026-10-29 に戻した。陽動の護送護衛の4隊を9隻から6隻に）。陽動は第5節の生き残りで傷んでいる（hurt。docs/spec.md「両陣営の技術と強さ」の例外。割合は仮）。touch:true は触れる隊（駆逐艦） */
   const BB=['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群'];
   const feint=(side,k,x,dz,alt)=>{ const w=side==='左上'?'左上の陽動':'右下の陽動', g={ai:'feint', feint:side, hurt:.8, leash:40};
     return [{name:`第${k} 前衛巡洋 支隊`, sub:`${w} 巡洋艦（総基地の艦隊）`, type:'cl', n:6, scale:1.1, pos:[x,370+dz], alt, vis:6, stl:5, ...g},
       {name:`第${k+1} 前衛巡洋 支隊`, sub:`${w} 巡洋艦（総基地の艦隊）`, type:'cl', n:6, scale:1.1, pos:[x*1.3,376+dz], alt, vis:6, stl:5, ...g},
       {name:`第${k+2} 駆逐突撃 支隊`, sub:`${w} 駆逐艦（先頭の隊${side==='左上'?'。オリヴェイラ少佐':''}）`, type:'dd', n:6, scale:.91, pos:[x*.8,362+dz], alt, vis:6, stl:6, touch:true, ...g},
       {name:`第${k+3} 駆逐突撃 支隊`, sub:`${w} 駆逐艦（総基地の艦隊）`, type:'dd', n:6, scale:.91, pos:[x*1.1,360+dz], alt, vis:6, stl:6, touch:true, ...g},
-      {name:`第${k+4} 護送護衛 支隊`, sub:`${w} フリゲート・コルベット（総基地の艦隊）`, comp:{ff:6, cv:3}, n:9, scale:.82, pos:[x*.9,382+dz], alt, vis:7, stl:7, ...g},
-      {name:`第${k+5} 護送護衛 支隊`, sub:`${w} フリゲート・コルベット（総基地の艦隊）`, comp:{ff:6, cv:3}, n:9, scale:.82, pos:[x*1.2,388+dz], alt, vis:7, stl:7, ...g},
+      {name:`第${k+4} 護送護衛 支隊`, sub:`${w} フリゲート・コルベット（総基地の艦隊）`, comp:{ff:4, cv:2}, n:6, scale:.82, pos:[x*.9,382+dz], alt, vis:7, stl:7, ...g},
+      {name:`第${k+5} 護送護衛 支隊`, sub:`${w} フリゲート・コルベット（総基地の艦隊）`, comp:{ff:4, cv:2}, n:6, scale:.82, pos:[x*1.2,388+dz], alt, vis:7, stl:7, ...g},
       {name:`第${k+6} 航空戦闘 支隊`, sub:`${w} 戦闘母艦（総基地の艦隊）`, type:'cvb', n:4, scale:1.3, pos:[x,394+dz], alt, vis:5, stl:4, hangar:{ftr:160}, ...g}]; };
   const FEINTS=[...feint('左上',41,-50,0,8), ...feint('右下',51,50,0,-8)];
+  /* 戦艦の護衛（ai:'escort'。battle/sim.js の escortAI。ユーザー決定 2026-10-29）: 戦艦の待つ所のそばに立ち、第二段階は戦艦について道を降り、戦艦を狙う W.A.S. と揚陸艦を先に叩く。
+     陽動と同じく傷んでいる（hurt。割合は仮）。初めの位置は戦艦の脇（仮） */
+  const ESCORT=[{name:'第29 前衛巡洋 支隊', sub:'戦艦の護衛 巡洋艦・駆逐艦（総基地の艦隊）', comp:{cl:3, dd:3}, n:6, scale:1.1, pos:[-34,340], alt:4, vis:6, stl:5, ai:'escort', hurt:.8, leash:40},
+    {name:'第30 護衛 支隊', sub:'戦艦の護衛 フリゲート・コルベット（総基地の艦隊）', comp:{ff:4, cv:2}, n:6, scale:.82, pos:[34,346], alt:-4, vis:7, stl:7, ai:'escort', hurt:.8, leash:40}];
   return {
     id:'denaliBreak',
     scale:'L',   // 大規模（span 600 = 13:00〜23:00）
@@ -1482,10 +1487,10 @@ WOS_DATA.operations.push((()=>{
       '右下':{screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[125,50,-55],[118,-25,-60],[75,-95,-55]], from:22, dwell:25, ring:12, end:480, assault:{min:60, lost:.3}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
-       share になったら（一番早くて from 分 = 13:50）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 半分を切った、time: 時刻で） */
+       share になったら（一番早くて from 分 = 13:50）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 半分を切った、time: 時刻で。time の「剥がれきらないが、時間だ」はユーザー決定 2026-10-29、文は仮） */
     lure:{packs:['西上守備隊','東下守備隊'], out:60, share:.5, from:50, at:120, phase:'第二段階',
       logs:{share:[['ハッダード曹長','「方角守備隊が半分を切りました！」'], ['ウォン中将','「移乗にかかれ。左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。戻せるのは東と北の6基です」']],
-        time:[['ウォン中将','「移乗にかかれ。左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。戻せるのは東と北の6基です」']]}},
+        time:[['ウォン中将','「剥がれきらないが、時間だ。移乗にかかれ」'], ['ウォン中将','「左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。戻せるのは東と北の6基です」']]}},
     sectors:[
       {name:'正面', sub:'共和国の拠点3つ', pos:[0,275]},
       {name:'地球側', sub:'総基地の艦隊が来た方向', pos:[0,420]},
@@ -1531,7 +1536,7 @@ WOS_DATA.operations.push((()=>{
     allies:[
       {name:BB[0], sub:'本軍 戦艦・巡洋艦・フリゲート（ウォン中将。核弾頭を積む。耐久9割）', comp:{bb:3, cl:2, ff:2}, n:7, scale:1.45, pos:[-18,345], alt:0, vis:6, stl:3, leash:20, hurt:.9, nuke:3},
       {name:BB[1], sub:'本軍 戦艦・巡洋艦・フリゲート（核弾頭を積む。耐久8割）', comp:{bb:2, cl:2, ff:2}, n:6, scale:1.45, pos:[18,350], alt:-6, vis:6, stl:3, leash:20, hurt:.8, nuke:3},
-      ...FEINTS,
+      ...ESCORT, ...FEINTS,
     ],
     enemies:[
       ...LINE.flatMap(lineFleet),

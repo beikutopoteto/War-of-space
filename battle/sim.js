@@ -1107,6 +1107,39 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     _w.subVectors(f.pos,t.pos); if(_w.lengthSq()<1e-6) _w.subVectors(L,t.pos); f.packSpot=_w.setLength(f.range*FEINT_EDGE+(t.radius||0)).add(t.pos).clone(); return true; }
   const p=P&&(P.scr?P.scr.s:P.postV); if(!p){ back(); return true; }
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
+/* 戦艦の護衛 (escort; 第6節, user decision 2026-10-29: 第29・第30 支隊, cut from the feints. 数値は仮). An allied unit with ai:'escort' keeps by the
+   battleships with the warheads (op.nukes): while they wait, by their units (nuke.G); from the crossing over, by the battleships on their own
+   (nuke.bbs: crossing over, on the way down along the route, settled); after the blast, by the units with the crews. It goes first for what is on
+   them, never further than ESC_R from them: the W.A.S. on one of them and the assault ship (or carrier) whose W.A.S. they are (a frigate or corvette
+   unit the W.A.S. first, the others their mother first), then a foe ship within ESC_R of one (the assault ships first), then on the way down a gun
+   on the rock within ESC_GUN of one. With nothing, it stands ESC_GAP out from their middle toward the foe (or the way ahead), ESC_SIDE aside of the
+   other escorts */
+const ESC_R=35, ESC_GUN=24, ESC_GAP=8, ESC_SIDE=7;
+function escortAI(f,foes){ const S=nuke; if(!S) return false;
+  const W=S.state==='wait'||S.state==='fired'?S.G.filter(G=>G.alive&&(S.state==='fired'||bbIn(G))):S.bbs.map(b=>b.f).filter(x=>x&&x.alive);
+  if(!W.length) return false;
+  const by=(p,R)=>W.some(w=>w.pos.distanceTo(p)<R+(w.radius||0)), cen=W.reduce((v,w)=>v.add(w.pos),new THREE.Vector3()).multiplyScalar(1/W.length);
+  const near=list=>list.reduce((b,e)=>!b||e.pos.distanceTo(f.pos)<b.pos.distanceTo(f.pos)?e:b,null);
+  const raid=S.state==='fired'?[]:wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&W.includes(w.target)&&by(w.pos,ESC_R));
+  const moms=[...new Set(raid.map(w=>w.carrier).filter(c=>c&&c.alive&&c.seen&&by(c.pos,ESC_R*1.5)))];
+  const close=foes.filter(e=>!e.fixed&&e.seen&&by(e.pos,ESC_R)), mas=close.filter(e=>e.hangars&&e.hangars.length);
+  const guns=S.state==='descend'||S.state==='armed'?foes.filter(e=>e.fixed&&e.type==='aa'&&e.seen&&by(e.pos,ESC_GUN)):[];
+  const aa=['ff','cv'].includes(topClass(f)), t=(aa?near(raid)||near(moms):near(moms)||near(raid))||near(mas)||near(close)||near(guns);
+  f.aim=t;
+  if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); return true; }
+  if(f.order&&f.order.type==='attack') f.order=null;
+  /* where to stand: toward the foe round them (or the way ahead of them, or their heading), turning slowly */
+  const seen=foes.filter(e=>!e.fixed&&e.seen&&e.pos.distanceTo(cen)<90), lead=W.find(w=>w.order&&w.order.type==='move');
+  if(seen.length){ _w.set(0,0,0); seen.forEach(e=>_w.add(e.pos)); _w.multiplyScalar(1/seen.length).sub(cen); }
+  else if(lead) _w.copy(lead.heading);
+  else _w.copy(W[0].heading);
+  if(_w.lengthSq()<1e-6) _w.set(0,0,-1); _w.normalize();
+  if(!f.escDir) f.escDir=_w.clone(); else f.escDir.lerp(_w,.08).normalize(); _w.copy(f.escDir);
+  const mates=fleets.filter(x=>x.ally&&x.alive&&x.mode==='escort'), k=mates.indexOf(f);
+  _v.set(-_w.z,0,_w.x); if(_v.lengthSq()<1e-6) _v.set(1,0,0); _v.normalize().multiplyScalar((k%2?-1:1)*Math.ceil((k+1)/2)*ESC_SIDE);
+  const R=Math.max(...W.map(discR))+discR(f)+ESC_GAP; _w.multiplyScalar(R).add(cen).add(_v);
+  if(op.body){ const B=bodySurface(_w,op.body.r)+4; if(_w.distanceTo(bodyC)<B) _w.sub(bodyC).setLength(B).add(bodyC); }
+  moveTo(f,_w.x,_w.y,_w.z); return true; }
 function allyAI(){
   /* the foes: enemy ships in sight and outside the civilian zones, and the enemy's guns on the rock (第4節), whose places are known
      (user decision 2026-10-13: the batteries are foes too, and count in the share-out) */
@@ -1117,6 +1150,7 @@ function allyAI(){
     if(f.packSpot) f.packSpot=null;
     if(nuke&&nukeAI(f)) continue;   // 第6節: the battleships with the warheads, and the units with their crews after the blast (stepNukes)
     if(f.feint&&feintAI(f,foes)) continue;   // 第6節: the feints on the screens (and their all-out attack)
+    if(f.mode==='escort'&&escortAI(f,foes)) continue;   // 第6節: the escort of the battleships with the warheads
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
       /* the retreat: it escorts the (slow, laden) carrier, a little ahead of it toward the exit and to one side, until the carrier is out */
       if(opCarrier.alive){ const mates=fleets.filter(a=>a.ally&&a.alive&&a.mode==='leave'), k=mates.indexOf(f);
@@ -1841,7 +1875,9 @@ function mineSlot(k){ const M=nuke.M; if(!M) return nuke.mine.clone();
 /* the crews cross over: each battleship left becomes a unit of its own (its own share of its unit's hit points), the rest of the unit keeps its name */
 function nukeBoard(now){ const S=nuke, N=op.nukes; S.state='board'; S.at=now; S.bbs=[]; S.text=N.text&&N.text.board||'';
   S.G.forEach((G,gi)=>{ const live=bbIn(G), gone=S.nb0[gi]-live;
-    if(live){ const bb=G.ships.filter(s=>s.type==='bb'), avg=G.hpPool/G.ships.length, spd=techFleet(0,{type:'bb',n:1}).speed;
+    /* each battleship takes its class's share of what its unit has left (by the classes' hit points: a battleship more than a frigate. 2026-10-29,
+       before the unit's average, which left a battleship as weak as the frigates) */
+    if(live){ const bb=G.ships.filter(s=>s.type==='bb'), hpOf=t=>techFleet(0,{type:t,n:1}).hp, w=G.ships.reduce((a,s)=>a+hpOf(s.type),0), avg=G.hpPool*hpOf('bb')/(w||1), spd=techFleet(0,{type:'bb',n:1}).speed;
       const q=new THREE.Quaternion().setFromAxisAngle(_up0,Math.atan2(G.heading.x,G.heading.z));   // where the ship stands in its unit's disc (as loop.js draws it)
       bb.forEach((s,k)=>{ const p=s.off.clone().applyQuaternion(q).add(G.pos);
         const f=makeFleet(0,{name:`${G.name} ${k+1}番艦`, sub:`戦艦　核弾頭${G.nuke}発　移乗中`, type:'bb', n:1, hp:G.hp/HP_K, dmg:G.dmg, range:G.range, eva:G.eva||0,
