@@ -1625,6 +1625,9 @@ function check(ok, label, detail = '') {
         fe: [+skyGrow[0].m.scale.x.toFixed(2), +growR(skyGrow[0].G, 21).toFixed(1)], packs: packs.length,
         en: fleets.filter(f => f.team === 1 && !f.fixed).reduce((s, f) => s + f.n, 0), front: ['西の拠点', '中の拠点', '東の拠点', '槍1', '槍2', '霧と鎚'].reduce((s, n) => s + cnt(P(n).fleets), 0),
         side: ['西上守備隊', '東下守備隊', '北守備隊'].map(n => cnt(P(n).fleets)).join(','), feint: [comp('左上'), comp('右下')], ally: fleets.filter(f => f.ally).length,
+        esc: fleets.filter(f => f.ally && f.mode === 'escort').map(f => `${f.name}:${Object.entries(f.comp).map(([t, k]) => t + k).join('')}`).join(','), allyN: fleets.filter(f => f.ally).reduce((s, f) => s + f.n, 0),
+        was: fleets.filter(f => f.team === 1 && f.type === 'mas').every(f => f.hangars.reduce((s, h) => s + h.reserve + h.squads.reduce((a, q) => a + q.n, 0), 0) === 3 * f.n),
+        thrHp: fleets.filter(f => f.restore).map(f => f.hp / HP_K).join(','),
         cap: op.cap, gone: typeof shellAI === 'undefined' && typeof stepBreach === 'undefined' && !op.breach && op.phases.length === 2 };
       mins(1); const t0 = gameSec; while (gameSec < t0 + 13) step(.05); r.slide = Math.round(fieldC.z);   // a quarter of 52 s: 260 even
       mins(40); r.stop = Math.round(fieldC.z);
@@ -1633,8 +1636,11 @@ function check(ok, label, detail = '') {
     check(db.stage.fc === 300 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 6 && db.stage.up && db.stage.hurt === .9 && db.stage.packs === 9
       && db.stage.fe[0] === 2.2 && Math.abs(db.stage.fe[1] - 10.5) < .1,
       '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台6基、本軍の耐久9割、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
-    check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,12,6,4,0') && db.stage.ally === 16 && db.stage.cap === 60 && db.stage.gone,
-      '第6節（陽動の形、2026-10-28）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に46隻ずつ（戦艦なし）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
+    check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,8,4,4,0') && db.stage.ally === 18 && db.stage.cap === 60 && db.stage.gone
+      && db.stage.esc === '第29 前衛巡洋 支隊:cl3dd3,第30 護衛 支隊:ff4cv2' && db.stage.allyN === 105,
+      '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
+    check(db.stage.was && db.stage.thrHp === '520,520,520,430,430,430',
+      '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻3機、戻せる推進器の耐久は東520・北430', JSON.stringify([db.stage.was, db.stage.thrHp]));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
     /* 方角守備隊（型 screen）: 守るものから130以内に見えた敵と守るものの間（敵の40手前）に割り込み、持ち場の中心から100の外へは出ない。敵がいなければ戻る。
        予備の揚陸艦は持ち場で待つ。北守備隊と正面は追わない */
@@ -1675,11 +1681,11 @@ function check(ok, label, detail = '') {
         let n = 0; for (const f of S) { if (n >= 9) break; n += f.ships.length; kill(f); }
         r.count = lureCount(); mins(49.5); r.early = { lured: !!lured, state: nuke.state };
         mins(50.6); r.share = { by: lured && lured.by, state: nuke.state, phase: phaseName, cue: !!packCue.lure, known: fleets.filter(f => f.type === 'thr').every(f => f.known && f.seen), off: thrOff(T),
-          said: said.some(t => t.includes('方角守備隊が半分を切りました')) && said.some(t => t.includes('推進器、12基')), wait: !said.some(t => t.includes('15:00 に出る')) };
+          said: said.some(t => t.includes('方角守備隊が半分を切りました')) && said.some(t => t.includes('推進器、12基')) && !said.some(t => t.includes('剥がれきらない')), wait: !said.some(t => t.includes('15:00 に出る')) };
         /* nothing drawn out: at 15:00 by the clock, after the word at 14:45 */
         start(); gameSec = 104.9 / CLOCK_RATE; mins(105.2); const w1 = said.some(t => t.includes('15:00 に出る'));
         mins(119.8); const s0 = nuke.state; mins(120.2);
-        r.time = { w1, s0, by: lured && lured.by, state: nuke.state, half: said.some(t => t.includes('半分を切りました')), move: said.some(t => t.includes('移乗にかかれ')) };
+        r.time = { w1, s0, by: lured && lured.by, state: nuke.state, half: said.some(t => t.includes('半分を切りました')), move: said.some(t => t.includes('移乗にかかれ')), late: said.some(t => t.includes('剥がれきらないが、時間だ')) };
         /* drawn out (more than 60 from the post) counts like sunk */
         start(); mins(51); const E = P('東下守備隊'); E.mem.filter(f => f.packSlot !== 'reserve').forEach(f => { f.pos.add(new THREE.Vector3(0, 0, -75)); f.home.copy(f.pos); });
         const out = lureCount(); step(.05); r.out = { out: out.out, n0: out.n0, lured: !!lured };
@@ -1689,8 +1695,8 @@ function check(ok, label, detail = '') {
     check(lu.mark.off && lu.mark.cls && lu.mark.tg === '東2' && lu.mark.hex && lu.count.n0 === 18 && lu.count.out >= 9 && !lu.early.lured && lu.early.state === 'wait'
       && lu.share.by === 'share' && lu.share.state === 'board' && lu.share.phase === '第二段階' && lu.share.cue && lu.share.known && !lu.share.off && lu.share.said && lu.share.wait,
       '第6節: 西上・東下の守備隊18隻の半分が沈むか持ち場の60の外へ出ると、13:50 を待って第二段階（移乗、推進器の印は六角と短い名前でここから。西は薄く）（2026-10-28）', JSON.stringify(lu));
-    check(lu.time.w1 && lu.time.s0 === 'wait' && lu.time.by === 'time' && lu.time.state === 'board' && !lu.time.half && lu.time.move && lu.out.out === 7 && !lu.out.lured,
-      '第6節: 守りが剥がれなくても 15:00 で第二段階（14:45 にウォン中将「15:00 に出る」）。持ち場の60の外へ出た艦も数える（2026-10-28）', JSON.stringify([lu.time, lu.out]));
+    check(lu.time.w1 && lu.time.s0 === 'wait' && lu.time.by === 'time' && lu.time.state === 'board' && !lu.time.half && lu.time.move && lu.time.late && lu.out.out === 7 && !lu.out.lured,
+      '第6節: 守りが剥がれなくても 15:00 で第二段階（14:45 にウォン中将「15:00 に出る」、15:00 に「剥がれきらないが、時間だ」2026-10-29）。持ち場の60の外へ出た艦も数える（2026-10-28）', JSON.stringify([lu.time, lu.out]));
     /* 第6節の核を積んだ戦艦と着弾予想点（2026-10-27。2026-10-28 に移乗は第二段階の合図で、降りる道は左上、ずれの上限30 km）: 移乗（15分止まる）→ 空の戦艦が左上の道で鉱山へ降りて着底
        → そろって15分で起爆、予想点は着底した数 × 23:00 までの残り時間（上限30 km）ずれる。起爆のあと、戻せる推進器1基が1時間2.4 km 戻す。見込みが15 km 以上で勝ち、
        予想点が15を割る・18:30 までに起爆できない・戦艦が全部沈む で負け。任務欄に目盛りと推進器・戦艦の印 */
@@ -1771,8 +1777,8 @@ function check(ok, label, detail = '') {
       return r;
     });
     check(nm.wait && nm.fly0 && nm.board && nm.fly1 && nm.sunk, '第6節: 核を積んだ隊・戦艦の名札に印（案A）、任務欄の戦艦の印を押すとその戦艦へ視点が飛ぶ（案D、2026-10-28）', JSON.stringify(nm));
-    /* 第6節の型の切り替え（2026-10-27）: 槍2は戦艦が鉱山へ向かうと（descend）降りる戦艦を狙い、霧と鎚は着底（land）で動き出す。起爆（ignite）で正面の残り
-       （拠点・槍1・槍2・霧と鎚）は残った戻せる推進器の守りへ（駆逐艦は縁）。方角守備隊はそのまま。槍の「そろう」は15分で打ち切る */
+    /* 第6節の型の切り替え（2026-10-27）: 槍2は戦艦が鉱山へ向かうと（descend）降りる戦艦を狙い、霧と鎚は着底（land）で動き出す。起爆（ignite）で
+       槍1・槍2・霧と鎚の残りは残った戻せる推進器の守りへ（駆逐艦は縁）。拠点は正面に残る（2026-10-29）。方角守備隊はそのまま。槍の「そろう」は15分で打ち切る */
     const sw = await page.evaluate(() => {
       const F = n => fleets.find(f => f.name === n), P = n => packs.find(x => x.name === n), now = () => gameSec * CLOCK_RATE, mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
       const tough = () => { for (const f of fleets) if (f.ally && f.alive) f.hpPool = Math.max(f.hpPool, f.hp * f.ships.length * 20); };
@@ -1788,7 +1794,7 @@ function check(ok, label, detail = '') {
       const s2 = P('槍2'), hm = P('霧と鎚'), mid = P('中の拠点'), s1 = P('槍1');
       r.ignite = { state: nuke.state, s2: s2.doctrine, s2ward: [].concat(s2.ward).slice(0, 4).join(','), dd: s2.mem.filter(f => f.alive && f.type === 'dd').map(f => f.packSlot).join(','),
         ham: hm.doctrine, hamWard: [].concat(hm.ward)[0], post: s2.mem.filter(f => f.alive).every(f => f.post.distanceTo(F('推進器 東2').pos) < .01), step: [s2.step, hm.step].join(','),
-        mid: mid.doctrine + ':' + [].concat(mid.ward)[0] + ':' + mid.mem.every(f => f.ai !== 'guard'), s1: s1.doctrine + ':' + [].concat(s1.ward)[0], north: P('北守備隊').t0 != null, scr: P('西上守備隊').doctrine };
+        mid: mid.doctrine + ':' + [].concat(mid.ward).some(w => typeof w === 'string') + ':' + mid.mem.every(f => !f.alive || f.ai === 'guard'), s1: s1.doctrine + ':' + [].concat(s1.ward)[0], north: P('北守備隊').t0 != null, scr: P('西上守備隊').doctrine };
       /* the spears' wait for each other ends after `sync` minutes */
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); mins(35.5); const q = P('槍1'); q.mem.forEach(f => { f.packArr = null; f.speed = 1e-4; }); const t0 = q.t0;
       mins(t0 + 14.5); const st14 = q.step; mins(t0 + 15.6); r.sync = [st14, q.step, WOS_DATA.doctrines.mars.spear.sync];
@@ -1798,8 +1804,8 @@ function check(ok, label, detail = '') {
       '第6節: 槍2は戦艦が鉱山へ向かうと、霧と鎚は着底すると動き出し、隊を離れた核を積んだ戦艦を狙う（2026-10-27）', JSON.stringify([sw.wait, sw.desc, sw.land]));
     check(sw.ignite.state === 'fired' && sw.ignite.s2 === 'rockShield' && sw.ignite.s2ward.startsWith('推進器 東2,推進器 東1,推進器 東3,推進器 北2') && sw.ignite.ham === 'rockShield'
       && sw.ignite.hamWard === '推進器 北2' && sw.ignite.post && (sw.ignite.dd === '' || sw.ignite.dd.split(',').every(x => x === 'rim')) && sw.ignite.step === '0,0'
-      && sw.ignite.mid === 'rockShield:推進器 東2:true' && sw.ignite.s1 === 'rockShield:推進器 北2' && sw.ignite.north && sw.ignite.scr === 'screen',
-      '第6節: 起爆で正面の残り（拠点・槍・霧と鎚）は残った戻せる推進器の守り（岩の盾）へ。駆逐艦は縁、持ち場は推進器。北守備隊が動き出し、方角守備隊はそのまま（2026-10-28）', JSON.stringify(sw.ignite));
+      && sw.ignite.mid === 'rockShield:false:true' && sw.ignite.s1 === 'rockShield:推進器 北2' && sw.ignite.north && sw.ignite.scr === 'screen',
+      '第6節: 起爆で槍と霧と鎚の残りは残った戻せる推進器の守り（岩の盾）へ。駆逐艦は縁、持ち場は推進器。拠点は正面に残る（2026-10-29）。北守備隊が動き出し、方角守備隊はそのまま（2026-10-28）', JSON.stringify(sw.ignite));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
     /* 友軍の陽動（ai:'feint'、2026-10-28）: 本隊は撃たず小型機も出さない。触れる隊（駆逐艦）は方角守備隊の見える艦（予備でない）を射程の端から撃ち、内側に入られると20秒下がる。
        推進器は撃たない。核の戦艦を3隻失うと（起爆の前）艦だけを撃つ本気の攻撃に移り（台詞）、60分で下がる。2隻なら移らない。21:00 に下がる */
@@ -1846,6 +1852,36 @@ function check(ok, label, detail = '') {
       '第6節: 陽動の本隊は撃たず小型機も出さない。触れる隊は方角守備隊の艦を射程の端から撃ち、内側に入られると20秒下がる。推進器は撃たない（2026-10-28）', JSON.stringify(fe));
     check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun === null && fe.three.after && fe.end,
       '第6節: 核の戦艦を3隻失うと陽動は艦だけを撃つ本気の攻撃へ（ウォン中将とオリヴェイラ少佐の台詞）、60分で下がる。2隻では移らない。21:00 に陽動は下がる（2026-10-28）', JSON.stringify([fe.two, fe.three, fe.end]));
+    /* 第6節の戦艦の護衛（ユーザー決定 2026-10-29: 陽動から割いた第29・第30 支隊。battle/sim.js の escortAI）: 待つあいだは戦艦の隊のそばに立ち、戦艦に寄る揚陸艦を
+       近くのほかの艦より先に叩く。第二段階は1隻ずつになった戦艦について道を降りる。移乗で分かれた戦艦の耐久は艦種の割合（隊の平均でなく、2026-10-29） */
+    const esc6 = await page.evaluate(() => {
+      const F = n => fleets.find(f => f.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
+      const tough = () => { for (const f of fleets) if (f.ally && f.alive) f.hpPool = Math.max(f.hpPool, f.hp * f.ships.length * 20); };
+      const run = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); } };
+      const r = {};
+      /* the battleships' share when they split (no damage yet) */
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); mins(1); lured = { at: opMin(), by: 'test' }; step(.05); step(.05);
+      const bb = techFleet(0, { type: 'bb', n: 1 }).hp * HP_K, b1 = nuke.bbs.map(b => b.f).filter(Boolean);
+      r.share = { k: b1.map(f => +(f.hpPool / bb).toFixed(2)).join(','), crew: nuke.G.map(G => G.alive ? +(G.hpPool / G.ships.length / G.hp).toFixed(2) : null).join(',') };
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      const E = ['第29 前衛巡洋 支隊', '第30 護衛 支隊'].map(F), G = nuke.G;
+      const mid = L => L.reduce((v, g) => v.add(g.pos), new THREE.Vector3()).multiplyScalar(1 / L.length);
+      run(20); r.mode = E.map(f => f.mode).join(','); r.wait = E.map(f => Math.round(f.pos.distanceTo(mid(G.filter(g => g.alive)))));
+      /* an assault ship and, nearer the escorts, a frigate by the battleships: both go for the assault ship */
+      const M = F('第22 突撃揚陸 戦闘隊'), Q = F('第22 護衛警衛 戦闘隊'), c = mid(E);
+      M.pos.copy(G[0].pos).add(new THREE.Vector3(-22, 0, -12)); Q.pos.copy(c).add(new THREE.Vector3(-4, 0, -4)); [M, Q].forEach(x => { x.seen = true; x.order = null; });
+      allyAI(); r.mas = E.map(f => !!(f.order && f.order.type === 'attack' && f.order.target === M)).join(',');
+      M.pos.set(0, 0, -300); Q.pos.set(0, 0, -300); M.seen = Q.seen = false;
+      /* the second stage: with the battleships on their way down */
+      const p0 = E.map(f => f.pos.clone()); lured = { at: opMin(), by: 'test' }; run(opMin() + 15.5); r.desc = nuke.state;
+      run(opMin() + 8); const B = nuke.bbs.map(b => b.f).filter(f => f && f.alive);
+      r.follow = { gap: E.map(f => Math.round(f.pos.distanceTo(mid(B)))), moved: E.map((f, i) => Math.round(f.pos.distanceTo(p0[i]))), bbMoved: Math.round(mid(B).distanceTo(p0[0])) };
+      nuke.state = 'wait'; drawRoute();   // the way down off the screen for the next check
+      return r;
+    });
+    check(esc6.share.k === '0.9,0.9,0.9,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every(d => d <= 25) && esc6.mas === 'true,true'
+      && esc6.desc === 'descend' && esc6.follow.gap.every(d => d <= 30) && esc6.follow.moved.every(d => d >= 40),
+      '第6節の戦艦の護衛（2026-10-29）: 第29・第30 は戦艦のそばで待ち、寄る揚陸艦を先に叩き、第二段階は降りる戦艦について行く。分かれた戦艦の耐久は戦艦の分（9割・8割）', JSON.stringify(esc6));
     /* 第6節の任務欄（見本の案B）と切り替え（目標更新中）、戦艦の道（案A）、推進器の印（案C）: 第一段階は西上・東下の守備隊ごとに六角9つ（持ち場にいる艦を塗る）・戦艦・
        「半分を切れば第二段階（遅くとも 15:00）」。合図で一瞬「目標更新中」、そのあと目盛りと推進器。戦艦の道は第二段階で出る */
     const hd = await page.evaluate(() => {
@@ -1879,13 +1915,14 @@ function check(ok, label, detail = '') {
       const mine = () => fleets.filter(f => f.team === 0 && f.alive && !f.ward && !f.ally && !f.fixed && !f.isCarrier);
       const tough = () => { for (const f of fleets) if (f.team === 0 && f.alive) f.hpPool = Math.max(f.hpPool, f.hp * f.ships.length * 20); };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); autoMode = true; tough();
-      const r = {}; mins(1.5); r.start = mine().length > 0 && mine().every(f => f.order);
       const bbs = () => nuke.G.filter(G => G.alive);
+      const r = {}; mins(1.5); r.start = mine().length > 0 && mine().every(f => f.order || bbs().some(b => f.pos.distanceTo(b.pos) < op.auto.escortR * 2 + 4));   // moving, or by the battleships already
       r.esc = mine().filter(f => f.order && f.order.type === 'move' && bbs().some(b => f.order.dest.distanceTo(b.pos) < op.auto.escortR + 1.5)).length;
-      r.help = mine().filter(f => f.order && f.order.type === 'move' && f.order.dest.distanceTo(packVec(op.auto.helpVia)) < 1).length;
+      r.help = mine().filter(f => f.order && f.order.type === 'move' && f.order.dest.distanceTo(packVec(op.auto.helpVia[0])) < 1).length;   // the west way round the front (2026-10-29)
       lured = { at: opMin(), by: 'test' }; mins(opMin() + 1); tough();
       const near = g => g.pos.distanceTo(nuke.mine) < op.auto.mineR;
-      r.p2 = { obj: mine().filter(f => f.order && (f.order.target ? near(f.order.target) && f.order.target.fixed : false) || f.order && f.order.type === 'move' && f.order.dest.distanceTo(nuke.mine) < op.auto.mineR + 25).length,
+      const west = d => op.auto.helpVia.some(v => d.distanceTo(packVec(v)) < 1);   // to the mine by the west way round the front (2026-10-29)
+      r.p2 = { obj: mine().filter(f => f.order && (f.order.target ? near(f.order.target) && f.order.target.fixed : false) || f.order && f.order.type === 'move' && (f.order.dest.distanceTo(nuke.mine) < op.auto.mineR + 25 || west(f.order.dest))).length,
         esc: mine().filter(f => f.order && f.order.type === 'move' && nuke.bbs.some(b => b.f && f.order.dest.distanceTo(b.f.pos) < op.auto.escortR + 1.5)).length };
       Object.assign(nuke, { state: 'fired', fireAt: opMin(), lastMin: opMin(), km: 30 }); packCue.ignite = true; mins(opMin() + 1);
       r.fired = autoObj && autoObj.name;
