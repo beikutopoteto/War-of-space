@@ -1,0 +1,113 @@
+# Claude と Codex の共同作業
+
+Claude Code（Claude）と OpenAI Codex Cloud（Codex）が同じ GitHub リポジトリで作業するときの共通ルール（ユーザー決定 2026-10-29）。Claude の利用上限に達したときも、Codex が続きを拾えるようにするのが目的。入口は Claude が `CLAUDE.md`、Codex が `AGENTS.md`。ゲームの仕様と進め方の決まりはどちらも同じ（`docs/spec.md`、`docs/requests.md`）。
+
+## 分担（ユーザー決定 2026-10-29）
+- **Claude**:
+  - 会話、指示の読み取り、仕様と計画、物語、見た目の見本。
+  - 作業票を書く。
+  - Codex の PR をレビューしてマージする。
+  - 資料に記録する。
+  - 試遊ページを更新する。
+  - 小さな修正は直接やる。
+- **Codex**:
+  - 作業票1つ分の実装、テスト、PR。
+  - 作業票に結果を書いたら止まる。次の作業票は新しい作業で始める。
+  - 資料の整理はしない。例外は、ユーザーが「Claude はしばらく休み」と言ったあいだだけで、そのときは `AGENTS.md` の「Claude がいないとき」に従う。
+
+## 作業票（GitHub の Issue）
+Claude が書く。題は「作業票: <話題>」。本文の型:
+
+```
+## 目的
+## 触ってよいファイル
+## 変えてはいけないもの（ユーザーが決めた仕様、全作戦で共通の値など）
+## 完了の条件（例: オートモードで半分以上勝つ、npm test が通る）
+## 確かめ方（コマンド、見る数字）
+## 参考（読む資料の場所。必要な部分だけ）
+```
+
+Codex は終えたら、最後のコミットの本文に結果を書く（Claude は `git log` で読む。Issue にコメントできるならそこにも）:
+
+```
+## 結果
+- PR: #番号（ブランチ codex/<話題>）
+- やったこと:
+- 測った数字:
+- 作業票と違うこと・その理由:
+- 自分で置いた仮の数値:
+- 残った問題・わからないこと:
+- テスト: npm test の結果
+- 試遊ページの更新: 要る / 要らない
+```
+
+Claude はこれを読んでレビューとマージを行い、仮の数値と決まったことを資料（`docs/menu.md`、`docs/roadmap.md` ほか）に書いてから、Issue を閉じる。
+
+## Codex への渡し方（手動。ユーザー決定 2026-10-29）
+1. Claude が作業票（Issue）を書き、ブランチ `codex/<話題>` と下書きの PR を先に作って見張る（最初のコミットは `docs/PROJECT_STATUS.md` の行）。
+2. Claude が、Codex に貼る短い文をユーザーに渡す（リポジトリ、ブランチ、作業票の番号、「このブランチに push する」「新しい PR は作らない」）。
+3. ユーザーがそれを Codex に貼る。手で行うのはここだけ。
+4. Codex がそのブランチに push すると Claude が起こされ、CI → レビュー → マージ → 資料 → 試遊ページまで進める。
+
+`@codex`（PR のコメントで頼む）は今は使わない。わかったこと（2026-10-29、PR #230〜#232）:
+- Claude が書いた `@codex` にも Codex のボットは返事をする。「確かめて」のような頼み方だとコードレビューとして動いた。
+- 実装を頼むと、Codex Cloud に環境（`beikutopoteto/War-of-space`、共有は「非公開」）があっても「create an environment for this repo」が返るだけで動かなかった。1回の `@codex` に返事が2つ来るので、GitHub に Codex の連携が2つ（ワークスペースが2つ）つながっていて、どちらからも環境が見えていない疑いがある。未解決。
+- Codex は Issue に結果をコメントしなかった。結果はコミットの本文で受け取る（上の「作業票」）。
+
+## セットアップ
+- Node.js 22（CI と同じ）。`npm ci`（ロックファイルどおり。`npm install` でもよい）。
+- Playwright は `1.56.1` に固定。その版の Chromium を `npx playwright install chromium` で入れる（CI は `--with-deps` 付き）。
+  - Codex: 環境のセットアップで導入済み（2026-10-29、Node 22.23.4）。
+  - Claude のクラウド環境: 入っている Chromium の版が合わないことがある（`Executable doesn't exist at …headless_shell-1194` と出る）。そのときはリポジトリを変えず、スクラッチパッドに置いた読み込み用の小さなスクリプトで、`chromium.launch` の `executablePath` を `/opt/pw-browsers/chromium` にして `node -r <そのスクリプト> tests/smoke.cjs` で走らせる。
+- 秘密の値（API キーなど）は要らない。`.env` は作らない。秘密の値はコミットにもログにも出さない。
+
+## 起動
+ビルド不要。リポジトリ直下の `index.html` をブラウザで開く（`file://` でよい）。three.js は CDN から読む。
+
+## テスト
+- `npm test`: `tests/smoke.cjs`。ヘッドレス Chromium で画面と戦闘を一通り動かす（約20分。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても走る）。最後の行が「すべての確認に通りました。」なら成功。
+- `npm run check-docs`: 資料の確認（`CLAUDE.md` の大きさ、資料に書いたファイルがあるか、古い名前）。
+- PR ごとに GitHub Actions（`.github/workflows/check.yml`）が `npm run check-docs`（先に、すぐ終わる）と `npm test` を走らせる（check-docs は 2026-10-29、作業票 #229）。
+- テストを消したり飛ばしたりして通さない。
+
+## ブランチと担当
+- `main` へ直接 push しない。1つの話題に1ブランチ・1担当。
+- 名前: Claude は `claude/<話題>`、Codex は `codex/<話題>`。2026-10-29 より前のブランチは名前の決まりがない（`feat/…` など）。
+- いま誰がどのブランチを持っているかは `docs/PROJECT_STATUS.md`。
+- マージ:
+  - Claude: CI が通ったら squash でマージしてよい（ユーザー決定 2026-10-02）。手順は `/ship`。
+  - Codex: PR を作るところまで。マージは Claude かユーザーが行う。
+
+## 変更の受け渡し
+- 止まる前（区切りごと、利用上限が近いとき、セッションを終えるとき）に、作業中の変更を「作業中: …」のコミットにして push する。未コミットのまま残さない。
+- PR を作る（できあがっていなければ下書きの PR）。本文の最後に「引き継ぎ」の欄を書く:
+
+```
+## 引き継ぎ
+- 担当: Claude / Codex
+- 状態: どこまでできたか（最後のコミット）
+- 次の一手:
+- 未確認・気になること:
+- テスト: npm test の結果（未実行ならそう書く）
+- 試遊ページの更新: 要る / 要らない
+```
+
+- 受け取る側（Claude が上限で止まった作業を Codex が続けるときなど）: `git fetch origin` → `git switch <ブランチ>` → `git merge origin/main` → PR の「引き継ぎ」と `docs/PROJECT_STATUS.md` を読んでから続ける。引き継ぐときは PR の担当の行を書き換える。
+- マージしたら `docs/PROJECT_STATUS.md` の「作業中のブランチ」から消す。
+
+## 変更を失わないために
+- 作業を始める前に `git status` と `git fetch origin`。未コミットの変更があれば、何のものか確かめてからにする（消さない）。
+- push したブランチで rebase、amend、force-push をしない。`main` は `git merge origin/main` で取り込む。
+- 相手が担当しているブランチには、引き継いだときだけコミットする。
+- 食い違いやすいのは資料（`docs/history.md`、`docs/roadmap.md`、`docs/menu.md`、`docs/campaign.md`）と `tests/smoke.cjs`。資料への追記は、マージの直前にまとめて行うと食い違いが減る。
+- `package-lock.json` は手で直さず、`npm install` で作り直す。
+- `git reset --hard`、`git clean`、`git checkout -- .` は、未コミットの変更がないことを確かめてからだけ使う。
+
+## 試遊ページ（ユーザー決定 2026-10-29）
+- 更新は Claude だけができる（claude.ai の非公開ページ）。Codex がゲームの中身を変えたときは、PR と作業票の結果に「試遊ページの更新が要る」と書く。
+- Claude はセッションの最初に、試遊ページに載っているファイル（Artifact の `read`）と `main` を比べ、違えば載せ直す。Claude がいないあいだの遅れは、これで取り戻す。
+- 待たずに遊ぶときは、GitHub でブランチを選び「Code → Download ZIP」で落とし、展開した `index.html` を開く。ビルド不要なので、`main` でも作業中のブランチでもそのまま動く（three.js を CDN から読むのでネット接続は要る）。
+
+## Claude だけができること
+- サブエージェント（`.claude/agents/`）とスキル（`/ship`、`/tidy-docs`、`/story-draft`）。Codex は同じ資料を読んで、同じ手順を手で行う。
+- PR の見張り（CI とレビューの通知）。

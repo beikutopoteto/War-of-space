@@ -53,4 +53,4 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 第6節の釣り合わせ（2026-10-29）: 戦艦の護衛の友軍 `ai:'escort'`（`battle/sim.js` の `escortAI`、`allyAI` から）。移乗で分かれた戦艦の耐久は艦種の割合（`nukeBoard`）。オートモードの西の道（`op.auto.helpVia` を点の並びに、`frontZ`）と、第二段階で鉱山が空いたら戻せる推進器へ（`autoThr`）
 
 ## 確認
-`npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。
+`npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。Codex と併用するときのセットアップとテストの手順は `docs/collaboration.md`。

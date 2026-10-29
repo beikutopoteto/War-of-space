@@ -9,4 +9,5 @@
 - `tools/`: 確認用の道具（天体の見本の画像、第2・4・5節の早送り、友軍の狙う相手の表）。
 - `docs/`: 仕様とデザインの方向性（`spec.md`）、操作と仮の数値（`menu.md`）、コードの構成（`code.md`）、天体とマップの作り方（`maps.md`）、ロードマップ、キャンペーン、ストーリー、設定。`docs/icons/` にアイコンの案（SVG）。
 - `CLAUDE.md`: 作業の進め方と資料の案内（Claude Code が毎回読む）。`.claude/` にサブエージェントとスキル（`/ship`、`/tidy-docs`、`/story-draft`）。
+- `AGENTS.md`: OpenAI Codex の入口。Claude と Codex の共通のルール（セットアップ、テスト、ブランチ、引き継ぎ）は `docs/collaboration.md`、作業中のブランチは `docs/PROJECT_STATUS.md`、設計の判断は `docs/DECISIONS.md`。
 - 陣営: 自軍「地球連合」、敵「惑星共和国」（オリジナル設定）。

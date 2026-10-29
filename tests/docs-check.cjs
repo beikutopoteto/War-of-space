@@ -4,7 +4,7 @@
    - old names that were replaced must not come back */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
-const DOCS = ['CLAUDE.md', 'README.md', ...fs.readdirSync(path.join(ROOT, 'docs')).filter(f => f.endsWith('.md')).map(f => 'docs/' + f),
+const DOCS = ['CLAUDE.md', 'AGENTS.md', 'README.md', ...fs.readdirSync(path.join(ROOT, 'docs')).filter(f => f.endsWith('.md')).map(f => 'docs/' + f),
   ...fs.readdirSync(path.join(ROOT, '.claude/agents')).map(f => '.claude/agents/' + f), ...fs.readdirSync(path.join(ROOT, '.claude/skills')).map(d => `.claude/skills/${d}/SKILL.md`)];
 const CLAUDE_MAX = 7000;   // bytes
 /* names replaced by user decisions: [old, allowed only on lines that also contain this] */
@@ -22,8 +22,10 @@ for (const f of DOCS) {
   lines.forEach((line, i) => {
     for (const [, ref] of line.matchAll(/`([\w./-]+\.(?:md|js|cjs|css|html|json|yml))`/g)) {
       if (ref.includes('*') || /[a-z][NM]\./.test(ref) || ref.startsWith('node_modules')) continue;
-      const rel = ref.startsWith(ROOT + '/') ? ref.slice(ROOT.length + 1) : ref;
-      const cands = [rel, 'docs/' + rel, 'battle/' + rel, 'data/' + rel, 'tests/' + rel];
+      /* an absolute path (e.g. in /ship) names this repo on some machine: accept it if any tail of it exists here */
+      const parts = ref.split('/').filter(Boolean);
+      const rels = ref.startsWith('/') ? parts.map((_, k) => parts.slice(k).join('/')) : [ref];
+      const cands = rels.flatMap(rel => [rel, 'docs/' + rel, 'battle/' + rel, 'data/' + rel, 'tests/' + rel]);
       if (!cands.some(c => fs.existsSync(path.join(ROOT, c)))) fail(`${f}:${i + 1} のファイル \`${ref}\` が見つからない`);
     }
     for (const [old, ok] of OLD_NAMES) if (line.includes(old) && !line.includes(ok)) fail(`${f}:${i + 1} に古い名前「${old}」`);
