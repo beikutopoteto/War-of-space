@@ -1390,9 +1390,9 @@ WOS_DATA.operations.push((()=>{
   const at=(az,el,r=30)=>{ const a=az*Math.PI/180, e=el*Math.PI/180, k=v=>Math.round(v*10)/10; return {pos:[k(r*Math.sin(a)*Math.cos(e)), k(r*Math.cos(a)*Math.cos(e))], alt:k(r*Math.sin(e))}; };
   const pt=(az,el,r)=>{ const p=at(az,el,r); return [p.pos[0],p.pos[1],p.alt]; };   // 同じ向きを点 [x, z, alt] で
   /* 推進器12基（ユーザー決定 2026-10-24、docs/maps.md 5.1 の案A）: 西（方位−90度・高さ0度）、西の上（−90度・40度）、東（こぶの下）、北（裏）に3基ずつ。
-     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東550・北450、ほかは40（2026-10-29 の釣り合わせ、仮。前は wos-balance の案A の東2400・北2000）。武器なし。
+     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東520・北430、ほかは40（2026-10-29 の釣り合わせ、仮。前は wos-balance の案A の東2400・北2000）。武器なし。
      3基の並びと東・北の向きは仮。西は居住区B のクレーター（方位−80度）にかからないよう、少し北（−97度のまわり）へ寄せた。印は第二段階から（見本の案C） */
-  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?(name[0]==='北'?450:550):40, dmg:0, eva:0, range:0, speed:0, scale:1,
+  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?(name[0]==='北'?430:520):40, dmg:0, eva:0, range:0, speed:0, scale:1,
     ...at(az,el), leash:0, vis:5, stl:2, fixed:true, ...(restore?{restore:true}:{})});
   const THR=[['西1',-94,11],['西2',-99,0],['西3',-94,-11], ['西の上1',-100,44],['西の上2',-90,36],['西の上3',-80,44],
     ['東1',72,-36,1],['東2',80,-45,1],['東3',88,-36,1], ['北1',176,7,1],['北2',171,-4,1],['北3',165,7,1]].map(([n,az,el,r])=>thr(n,az,el,!!r));
@@ -1532,7 +1532,7 @@ WOS_DATA.operations.push((()=>{
     /* オートモード（battle/sim.js の autoDenali。ユーザーの依頼 2026-10-28、陽動の形に作り直した）: 第一段階は対空の強い隊から自軍の escort が戦艦の護衛、ほかは戦艦に寄る敵、
        いなければ help（西上守備隊）のうち岩の砲台から gunR より離れた（陽動が引き出した）隊を叩いて左上の陽動を助ける（正面の南からは helpVia を回る）。第二段階は escort2 が戦艦の護衛、ほかは先に鉱山へ行き、鉱山から mineR の中の砲台と敵を払う（いなければ護衛）。起爆のあとは thr の順に戻せる推進器（そばの砲台から）。
        西と西の上は噴射の側なので撃たない。数値は仮（docs/menu.md「第6節の舞台」） */
-    auto:{help:'西上守備隊', helpVia:[-160,240,35], gunR:30, thr:[...names('東'), ...names('北')], nukeR:30, objR:25, craftR:60, escort:.5, escort2:.5, mineR:40, escortR:7},
+    auto:{help:'西上守備隊', helpVia:[[-170,300,30],[-190,190,40]], frontZ:200, gunR:30, thr:[...names('東'), ...names('北')], nukeR:30, objR:25, craftR:60, escort:.5, escort2:.5, mineR:40, escortR:7},
     win:{type:'deflect', need:15, due:330, text:'着弾予想点を総基地から15 km 以上ずらす'},
     /* 友軍。初めは駐屯隊の北側。本軍の戦艦は陽動の段階で正面の後ろへ（上の phases の post）。待つあいだ持ち場から leash 20 の外の敵は追わない（仮。前へ出て道が正面にかからないように）。
        陽動は初めから lane へ向かう */

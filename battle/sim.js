@@ -2006,10 +2006,13 @@ function autoAI(){
    spear comes for them while they wait): the W.A.S. on one, then a foe within nukeR of one (the carriers first), else stands by one. The rest go
    for a foe within nukeR of a battleship (the carriers first) or a carrier whose W.A.S. are on one; with none, they help the feint on the left
    upper side: the nearest unit of the screen `help` (op.packs[].name) not within gunR of a gun on the rock (drawn out by the feint), by way of
-   helpVia round the front while still south of it; with none, they keep by the battleships too.
+   helpVia round the front while still south of it; with none, they wait on that way (north of the front), or keep by the battleships.
+   (2026-10-29: helpVia is a way of points round the west of the front, A.frontZ its line; every crossing of the front, there and back and to the
+   mine in the second stage, goes by it, not through the strongholds.)
    The second stage (crossing over, the way down, settled): the escort is `escort2` of our ships, with the gun on the rock nearest the battleships
    once it is by them; the rest go ahead to the mine and clear it: the guns on the rock within mineR of it, then the foes there (the nearest the
-   mine first); with nothing there they are the escort too.
+   mine first); with nothing there they go on to the restoring thrusters as after the blast (2026-10-29: before, they joined the escort, and
+   came to the thrusters only after the blast; the restoring thrusters are shown from the second stage).
    After the blast: the carriers whose W.A.S. are on us within craftR of our middle, then one objective for all: the first of `thr` still there
    (a gun on the rock within objR of it first), the foes within objR of it first; one out of sight is gone to from outside the rock. A target
    that takes no harm for AUTO_STUCK seconds while we are on it (out of reach behind the rock, say) is left for AUTO_SKIP seconds; with nothing
@@ -2054,20 +2057,25 @@ function autoDenali(mine,ships,attack){
   const goTo=(f,p)=>{ if(f.order&&f.order.type==='attack') f.order=null;
     if(f.pos.distanceTo(p)>3&&!(f.order&&f.order.type==='move'&&f.order.dest.distanceTo(p)<3)) order(f,{type:'move',dest:p.clone()}); };
   const over=(f,o)=>_w.subVectors(o.pos,bodyC).setLength(_w.length()+f.range*.6).add(bodyC);
-  const via=A.helpVia&&packVec(A.helpVia);
+  /* the west way round the front (helpVia, 2026-10-29: before one point, and the way back went through the strongholds): going from the south of
+     the front (z over A.frontZ) to the north of it or back, by the points of helpVia in turn (from the nearest on); null when no crossing */
+  const vias=(A.helpVia||[]).map(packVec), south=p=>p.z>(A.frontZ??200);
+  const cross=(f,p)=>{ if(!vias.length||south(f.pos)===south(p)) return null; const L=south(f.pos)?vias:vias.slice().reverse();
+    let i=0; L.forEach((v,j)=>{ if(v.distanceTo(f.pos)<L[i].distanceTo(f.pos)) i=j; }); if(L[i].distanceTo(f.pos)<15) i++; return i<L.length?L[i]:null; };
+  const reach=(f,e)=>{ const v=cross(f,e.pos); if(v) goTo(f,v); else if(e.kind!=='fleet'||e.seen) hit(f,e); else goTo(f,over(f,e)); };
+  const near2=(f,p)=>{ const v=cross(f,p); goTo(f,v||p); };
   let k=0;
   for(const f of mine){
-    if(esc.has(f)){ const e=by(f,raid)||by(f,near,carrierFirst(f)); if(e){ hit(f,e); continue; }
+    if(esc.has(f)){ const e=by(f,raid)||by(f,near,carrierFirst(f)); if(e){ first?reach(f,e):hit(f,e); continue; }
       if(obj&&obj.seen&&!fired&&bbs.some(b=>b.pos.distanceTo(obj.pos)<A.nukeR+A.escortR*2)){ hit(f,obj); continue; }   // the gun by the battleships: on it too
-      const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR)); continue; }
-    if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ hit(f,e); continue; }
-      /* south of the front, round it by helpVia first (2026-10-29: an attack on one in sight went straight through the middle stronghold) */
-      const h=by(f,help); if(h&&via&&f.pos.z>via.z-20&&f.pos.distanceTo(via)>15){ goTo(f,via); continue; }
-      if(h&&h.seen){ hit(f,h); continue; }
-      if(h){ goTo(f,h.pos); continue; }
-      if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
-    if(!first&&!fired){ const e=list[0]; if(e){ e.seen?hit(f,e):goTo(f,over(f,e)); continue; }   // the mine cleared ahead of the battleships
-      if(tObj){ const t=by(f,craft)||by(f,tList); if(t){ hit(f,t); continue; } tObj.seen?hit(f,tObj):goTo(f,over(f,tObj)); continue; } }   // then a restoring thruster
+      const b=bbs[k%bbs.length], a=k++*2.4, p=new THREE.Vector3(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR); first?near2(f,p):goTo(f,p); continue; }
+    if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ reach(f,e); continue; }
+      const h=by(f,help); if(h){ reach(f,h); continue; }
+      /* none to help: wait on the west way (north of the front) rather than come back through it */
+      if(vias.length&&!south(f.pos)){ near2(f,vias[vias.length-1]); continue; }
+      if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; near2(f,new THREE.Vector3(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
+    if(!first&&!fired){ const e=list[0]; if(e){ reach(f,e); continue; }   // the mine cleared ahead of the battleships
+      if(tObj){ const t=by(f,craft)||by(f,tList); if(t){ reach(f,t); continue; } reach(f,tObj); continue; } }   // then a restoring thruster
     const e=by(f,craft)||by(f,list);
     if(e) hit(f,e); else if(obj&&fired) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
 }
