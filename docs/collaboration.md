@@ -43,6 +43,17 @@ Codex は終えたら、その Issue に結果をコメントする:
 
 Claude はこれを読んでレビューとマージを行い、仮の数値と決まったことを資料（`docs/menu.md`、`docs/roadmap.md` ほか）に書いてから、Issue を閉じる。
 
+## 自動でつなぐ（`@codex`。試している途中、2026-10-29）
+1. Claude が作業票（Issue）を書き、ブランチ `codex/<話題>` と下書きの PR を先に作って見張る（最初のコミットは `docs/PROJECT_STATUS.md` の行）。
+2. Claude がその PR に「`@codex 作業票 #N のとおり実装して…`」とコメントする。
+3. Codex がそのブランチに push すると Claude が起こされ、CI → レビュー → マージ → 資料 → 試遊ページまで進める。
+
+わかったこと（作業票 #229 / PR #230）:
+- Claude が書いた `@codex` のコメントにも Codex のボット（`chatgpt-codex-connector`）は返事をする。
+- このリポジトリの Codex の**クラウド**の環境がないと「create an environment for this repo」と返るだけで動かない（ローカル用の環境では足りないらしい）。
+- 今回の実装は、ユーザーが Codex に直接頼んで push された（コミットの作者はユーザー）。`@codex` だけで最後まで動くかは、まだ確かめていない。
+- Issue への結果のコメントは来なかった。Codex が GitHub にコメントできないときは、PR の本文か、ユーザーから結果を受け取る。
+
 ## セットアップ
 - Node.js 22（CI と同じ）。`npm ci`（ロックファイルどおり。`npm install` でもよい）。
 - Playwright は `1.56.1` に固定。その版の Chromium を `npx playwright install chromium` で入れる（CI は `--with-deps` 付き）。
@@ -56,7 +67,7 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 ## テスト
 - `npm test`: `tests/smoke.cjs`。ヘッドレス Chromium で画面と戦闘を一通り動かす（約20分。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても走る）。最後の行が「すべての確認に通りました。」なら成功。
 - `npm run check-docs`: 資料の確認（`CLAUDE.md` の大きさ、資料に書いたファイルがあるか、古い名前）。
-- PR ごとに GitHub Actions（`.github/workflows/check.yml`）が `npm test` を走らせる。`check-docs` は CI に入っていないので、資料を変えたら手で走らせる。
+- PR ごとに GitHub Actions（`.github/workflows/check.yml`）が `npm run check-docs`（先に、すぐ終わる）と `npm test` を走らせる（check-docs は 2026-10-29、作業票 #229）。
 - テストを消したり飛ばしたりして通さない。
 
 ## ブランチと担当
