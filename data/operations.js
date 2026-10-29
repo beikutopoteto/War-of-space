@@ -1399,8 +1399,6 @@ WOS_DATA.operations.push((()=>{
   const names=w=>[2,1,3].map(i=>`推進器 ${w}${i}`);   // 守るものの並び（前ほど先。真ん中から）
   /* 共和国が奪った砲台6基（もとは地球連合の賊よけの砲台。第4節と同じ形、射程22。ユーザー決定 2026-10-23）: 鉱山の縁に2、西の上・西・東・北に1ずつ（向きは仮） */
   const GUNS=[at(-64,30),at(0,20),at(-112,46),at(-112,-14),at(104,-22),at(156,16)].map((p,i)=>({name:`第${i+1} デナリ砲台`, sub:'共和国が奪った砲台', type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scale:1.1, ...p, aa:9, leash:0, vis:6, stl:5, fixed:true}));
-  /* 突撃揚陸艦の W.A.S. はこの節だけ1隻3機（2026-10-29 の釣り合わせ、仮。定数は8（data/ships.js）。第5節で W.A.S. の多くを失い、積みきれていない）。隊の hangar に書く */
-  const WAS=n=>({hangar:{was:3*n}});
   /* 共和国 74隻＋砲台6基（ユーザー決定 2026-10-28: 65/35）。正面48（拠点3つ20、槍1 12、槍2 8、霧と鎚 8）、方角守備隊26（西上9・東下9・北8）。
      正面の拠点（デナリから約200南、z 230〜240）。岩の盾の型で、壁フリゲート・縁の重巡洋艦2・予備の突撃揚陸艦2（西と東は7、中は6。内訳は仮）。
      ai:'guard' で持ち場（拠点の点）から leash 60 の外へは出ない。壁と縁は立つ点から30以内（型の holdR）の相手とだけ戦う。初めの位置は南を向いたときの型の立つ点 */
@@ -1408,26 +1406,26 @@ WOS_DATA.operations.push((()=>{
   const lineFleet=([w,x,z,alt,n,ff])=>{ const g={postAt:[x,z], postAlt:alt, ai:'guard', leash:60, vis:6};
     return [{name:`第${n} 南線護衛 戦闘隊`, sub:`正面 ${w}の拠点 フリゲート（壁）`, type:'ff', n:ff, scale:.75, pos:[x,z+10], alt, stl:6, ...g},
       {name:`第${n+1} 南線巡洋 戦闘隊`, sub:`正面 ${w}の拠点 重巡洋艦（縁）`, type:'cl', n:2, scale:1.1, pos:[x+26,z+10], alt, stl:4, ...g},
-      {name:`第${n+2} 南線揚陸 戦闘隊`, sub:`正面 ${w}の拠点 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, pos:[x,z-30], alt, stl:5, ...WAS(2), ...g}]; };
+      {name:`第${n+2} 南線揚陸 戦闘隊`, sub:`正面 ${w}の拠点 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, pos:[x,z-30], alt, stl:5, ...g}]; };
   /* 方角守備隊（呼び名。ユーザー決定 2026-10-28）。西上守備隊（西の上の推進器と鉱山の西の縁）と東下守備隊（東の推進器）は型 screen: フリゲート3・重巡洋艦2×2・突撃揚陸艦2（予備）。
      持ち場の中心 post（陽動が引き出すと、ここから60の外へ出た艦を合図 lure で数える）。北守備隊は岩の盾で、点火まで動かない（start:'ignite'。それまでは ai:'guard'）。位置は仮 */
   const SCR=[['西上',-78,38,'14','11','41','19'],['東下',80,-42,'15','12','42','20']];
   const screen=([w,az,el,ff,c1,c2,mas])=>[{name:`第${ff} 護衛警衛 戦闘隊`, sub:`${w}守備隊 フリゲート`, type:'ff', n:3, scale:.75, ...at(az,el,58), vis:6, stl:6},
     {name:`第${c1} 巡洋阻止 戦闘隊`, sub:`${w}守備隊 重巡洋艦`, type:'cl', n:2, scale:1.1, ...at(az+8,el+2*Math.sign(el),58), vis:6, stl:4},
     {name:`第${c2} 巡洋阻止 戦闘隊`, sub:`${w}守備隊 重巡洋艦`, type:'cl', n:2, scale:1.1, ...at(az-8,el-2*Math.sign(el),58), vis:6, stl:4},
-    {name:`第${mas} 突撃揚陸 戦闘隊`, sub:`${w}守備隊 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, ...at(az,el+2*Math.sign(el),44), vis:6, stl:5, ...WAS(2)}];
+    {name:`第${mas} 突撃揚陸 戦闘隊`, sub:`${w}守備隊 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, ...at(az,el+2*Math.sign(el),44), vis:6, stl:5}];
   const NORTH=[{name:'第16 護衛警衛 戦闘隊', sub:'北守備隊 フリゲート', type:'ff', n:3, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
     {name:'第13 巡洋阻止 戦闘隊', sub:'北守備隊 重巡洋艦', type:'cl', n:3, scale:1.1, ...at(172,0,48), vis:6, stl:4, ai:'guard', leash:40},
-    {name:'第21 突撃揚陸 戦闘隊', sub:'北守備隊 突撃揚陸艦（予備）', type:'mas', n:2, scale:.9, ...at(180,8,80), vis:6, stl:5, ai:'guard', leash:40, ...WAS(2)}];
+    {name:'第21 突撃揚陸 戦闘隊', sub:'北守備隊 突撃揚陸艦（予備）', type:'mas', n:2, scale:.9, ...at(180,8,80), vis:6, stl:5, ai:'guard', leash:40}];
   /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート2・突撃揚陸艦1・駆逐艦1、計8。
      待つ所は陽動とぶつからないデナリの南の下と北の上（2026-10-28。前は東の下と北西の上）。内訳と位置は仮）。出るまでは ai なしでその場にいる */
   const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:2, scale:.75, pos:[x,z], alt, vis:6, stl:6},
-    {name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5, ...WAS(nm)},
+    {name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
     {name:`第${dd} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nd, scale:.85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:6}];
   const S2=[[2,at(30,-55,65),10],[3,at(160,60,70),7]].flatMap(([k,p,dd])=>spear(k,p.pos[0],p.pos[1],p.alt,dd,1,1,'槍2'));
   /* 霧と鎚（着底した戦艦を狙う。W.A.S. の突撃揚陸艦2隊と重巡洋艦2隊、計8。待つ所はデナリの南の上の陰（2026-10-28。前は西の上で、左上の陽動とぶつかった）。内訳と位置は仮） */
-  const HAM=[{name:'第26 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-20,62,60), vis:6, stl:5, ...WAS(2)},
-    {name:'第27 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(10,66,62), vis:6, stl:5, ...WAS(2)},
+  const HAM=[{name:'第26 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-20,62,60), vis:6, stl:5},
+    {name:'第27 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(10,66,62), vis:6, stl:5},
     {name:'第17 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(-35,58,58), vis:6, stl:4},
     {name:'第18 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(25,58,60), vis:6, stl:4}];
   /* 起爆のあと（合図 ignite）、槍と霧と鎚の残りは残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る）。拠点は正面に残る（2026-10-29） */
