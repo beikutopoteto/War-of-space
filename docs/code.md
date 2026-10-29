@@ -51,4 +51,4 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 第6節で足したもの（2026-10-27、核を積んだ戦艦と着弾予想点）: 友軍の `nuke`、作戦の `nukes`、勝ち負けの `win.type:'deflect'` と `result.loseBy`（`battle/sim.js` の `stepNukes`。移乗で戦艦を1隻ずつの隊に分ける `nukeBoard`、予想点 `nuke.km` と 23:00 の見込み `nukeEst`、友軍の動き `nukeAI`。`packCue` の `descend`・`land`・`ignite` を出す）、任務欄の目盛りと印（`battle/hud.js` の `nukeHtml`・`nukeLabel`）
 
 ## 確認
-`npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。
+`npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。Codex と併用するときのセットアップとテストの手順は `docs/collaboration.md`。
