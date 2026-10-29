@@ -36,8 +36,8 @@ OpenAI Codex 向けの入口。宇宙艦隊戦の 3D リアルタイムストラ
 
 ## 作業票の終え方
 1. `npm test` と `npm run check-docs` を通す。
-2. PR を作る。
-3. 作業票の Issue に結果をコメントする（型は `docs/collaboration.md`「作業票」）。
+2. 指示されたブランチに push する（PR は Claude が先に作ってある。なければ作る）。
+3. 結果を最後のコミットの本文に書く（型は `docs/collaboration.md`「作業票」の「結果」）。Issue にコメントできるならそこにも。
 4. 止まる。次の作業を自分で始めない。
 
 資料（`docs/roadmap.md`、`docs/history.md`、`docs/menu.md`、`docs/PROJECT_STATUS.md`、`CLAUDE.md`）は書かない。マージのときに Claude が書く。
