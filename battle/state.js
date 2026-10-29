@@ -92,6 +92,10 @@ function makeFleet(team,o){
   f.el=mkUnitLabel(o.ally?2:team,o.name,'');
   /* a gun on the base (第5節, pit): a small square with a dot, the turret seen from above (user decision 2026-10-18: 見本 B); its name only when selected.
      The enemy's guns on the rock (第4節・第6節, type aa) are marked the same, in their colour (user decision 2026-10-23) */
+  /* a thruster (第6節): a small hexagon and its short name only (見本の案C, user decision 2026-10-28), the name and its hit points when selected;
+     the restoring ones (east and north) in full, the others faint. Shown from the second stage on (loop.js, sim.js thrOff) */
+  if(o.type==='thr'){ f.el.classList.add('thr',o.restore?'rs':'dim'); f.el.querySelector('.emb').innerHTML=`<svg viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.3,3.5 10.3,8.5 6,11 1.7,8.5 1.7,3.5" fill="currentColor" fill-opacity="${o.restore?.3:.15}" stroke="currentColor" stroke-width="1.2"/></svg>`;
+    const tg=document.createElement('i'); tg.className='tg'; tg.textContent=o.name.replace(/^推進器\s*/,''); f.el.appendChild(tg); }
   if(o.pit||o.fixed&&o.type==='aa'){ f.el.classList.add('gun'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>'; }
   return f;
 }
@@ -382,7 +386,7 @@ function reset(cfg=lastCfg){
     hp:GB.shield*HP_K,max:GB.shield*HP_K,alive:true,sealed:false,breached:false,seen:true,everSeen:true,ships:[],marks:new Set(),boomT:0,inf:(GB.infantry&&GB.infantry.n)||18,
     infSrc:{kind:'wing',inf:true,team:0,id:-200-i,name:`${L.name}の強化歩兵`}}));
   garrison=GB&&GB.garrison?{hp:GB.garrison.hp,max:GB.garrison.hp,marks:new Set(),said:false}:null; troops=[]; troopsSaid=null; troopsWent=0;   // the enemy's infantry on the rock (sim.js)
-  surged=false; surgeMin=null; rotOut=[]; rotSaid={}; rotDone={}; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={}; breached=null; autoObj=null; autoTry=new Map(); initNukes();   // 第6節: the battleships with the warheads (sim.js)
+  surged=false; surgeMin=null; rotOut=[]; rotSaid={}; rotDone={}; repelBy=null; repelT=null; detailFocus=null; stageGate=null; initFronts(); initPacks(); massAt={}; lured=null; feintAll=null; autoObj=null; autoThr=null; autoStage=null; autoTry=new Map(); initNukes();   // 第6節: the battleships with the warheads (sim.js)
   mainTotal=[...op.enemies,...[...(op.events||[]),...(op.reinforcements||[]),...(op.win&&op.win.surge&&op.win.surge.events||[]),...(op.phases||[]).flatMap(S=>S.events||[])].map(e=>e.fleet)].filter(o=>o&&o.main).reduce((s,o)=>s+o.n,0);
   /* an operation in stages (op.phases): the field starts at the first stage's place; the later ones slide it (sim.js stepPhases) */
   stageAt=0; stageText=''; slideTo=null; spotObj.visible=false;
