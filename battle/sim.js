@@ -2048,7 +2048,7 @@ function autoDenali(mine,ships,attack){
     list=[...guns.filter(g=>g.pos.distanceTo(M)<A.mineR).sort(byM),...ships.filter(e=>!skip(e)&&e.pos.distanceTo(M)<A.mineR).sort(byM)]; }
   else { autoObj=null; const P=packs.find(P=>P.name===A.help); help=P?P.mem.filter(x=>x.alive&&!skip(x)&&!guns.some(g=>g.pos.distanceTo(x.pos)<A.gunR)):[]; }   // not under the guns on the rock
   /* the escort: the best at anti-air first, till it has `escort` of our ships (all of them in the second stage) */
-  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(first?A.escort:list.length||A.early&&tObj?A.escort2:1); let n=0;
+  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(first?A.escort:list.length||tObj?A.escort2:1); let n=0;
     for(const f of mine.slice().sort((a,b)=>(b.aa??AA.std)-(a.aa??AA.std)||a.id-b.id)){ if(n>=all) break; esc.add(f); n+=f.ships.length; } }
   /* to a spot (a move, no target); out from the rock over a target out of sight, inside our guns' reach */
   const goTo=(f,p)=>{ if(f.order&&f.order.type==='attack') f.order=null;
@@ -2067,7 +2067,7 @@ function autoDenali(mine,ships,attack){
       if(h){ goTo(f,h.pos); continue; }
       if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
     if(!first&&!fired){ const e=list[0]; if(e){ e.seen?hit(f,e):goTo(f,over(f,e)); continue; }   // the mine cleared ahead of the battleships
-      if(A.early&&tObj){ const t=by(f,craft)||by(f,tList); if(t){ hit(f,t); continue; } tObj.seen?hit(f,tObj):goTo(f,over(f,tObj)); continue; } }   // then a restoring thruster
+      if(tObj){ const t=by(f,craft)||by(f,tList); if(t){ hit(f,t); continue; } tObj.seen?hit(f,tObj):goTo(f,over(f,tObj)); continue; } }   // then a restoring thruster
     const e=by(f,craft)||by(f,list);
     if(e) hit(f,e); else if(obj&&fired) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
 }
