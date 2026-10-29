@@ -1767,7 +1767,7 @@ function check(ok, label, detail = '') {
       const r = {}; WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
       const G = nuke.G, others = fleets.filter(f => f.alive && !G.includes(f));
       r.wait = G.every(nukeCarrier) && !others.some(nukeCarrier);
-      updateGoal(); const press = i => { const m = document.querySelector(`#goalGates svg.nb[data-nb="${i}"]`); m.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); m.dispatchEvent(new MouseEvent('click', { bubbles: true })); return camAnim && camAnim.tT; };
+      goalFlashT = 0; updateGoal(); const press = i => { const m = document.querySelector(`#goalGates svg.nb[data-nb="${i}"]`); m.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); m.dispatchEvent(new MouseEvent('click', { bubbles: true })); return camAnim && camAnim.tT; };
       const fold0 = goalEl.classList.contains('fold'), t = press(3); r.fly0 = !!t && t.distanceTo(G[1].pos) < .01 && goalEl.classList.contains('fold') === fold0;
       lured = { at: opMin(), by: 'test' }; step(.05);
       r.board = nuke.state === 'board' && nuke.bbs.every(b => nukeCarrier(b.f)) && !G.some(nukeCarrier);
