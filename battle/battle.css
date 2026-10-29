@@ -77,6 +77,12 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #goal .gx .nkr svg.nb.go{cursor:pointer}   /* 見本の案D: a click flies the view to that battleship (hud.js nukeMarkFleet) */
 #goal .gx .nkr svg.nb.go:hover polygon{fill-opacity:.8}
 #goal .gx .nkr .nw{margin:0 3px 0 0}
+#goal .gx .nkr svg.hx{width:10px;height:10px}   /* 第6節の第一段階（見本の案B, 2026-10-28）: 方角守備隊の艦（持ち場にいる艦を塗る） */
+#goal .gx .nkr .v{margin-left:auto;font-family:var(--f-num);font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums}
+/* 目標更新中 (第6節, user decision 2026-10-28): for a moment as the second stage begins, only this in the panel */
+#goal.upd b,#goal.upd .gauge,#goal.upd .gl,#goal.upd .gs{display:none}
+#goal.upd .gx{display:grid}
+#goal .gx .upd{font-size:13px;color:#ffd27a;letter-spacing:.2em;text-align:center;padding:8px 0}
 #goal .gx .nkr svg+.nw{margin-left:6px}
 #goal .gx .nkr .v{margin-left:auto;font-family:var(--f-num);font-size:11px;color:var(--ink);font-variant-numeric:tabular-nums}
 #goal .gx .nkw{font-size:11px;color:#ffd27a}
@@ -140,6 +146,22 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .unit.lost .flag span{display:block}
 .flag{position:absolute;left:22px;top:-44px;border-left:3px solid currentColor;padding:3px 10px 4px 8px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 38%,transparent),color-mix(in srgb,currentColor 6%,transparent));white-space:nowrap;color:var(--ink)}
 .flag b{display:block;font-size:13px;font-weight:700;letter-spacing:.03em}
+/* 第6節: a thruster (見本の案C, user decision 2026-10-28): a 12px hexagon and its short name; its full name and hit points when selected; the ones
+   that cannot pull the aim back faint and unnamed */
+.unit.thr .flag{display:none}
+.unit.thr.sel .flag{display:block}
+.unit.thr .emb,.unit.thr.sel .emb{width:auto;height:auto;border:0;background:none;box-shadow:none;filter:drop-shadow(0 0 3px currentColor)}
+.unit.thr .emb svg{width:12px;height:12px;display:block}
+.unit.thr .tg{position:absolute;left:8px;top:-6px;font:600 10px/1 var(--f-ui),sans-serif;font-style:normal;color:#ffb39f;text-shadow:0 0 3px #000;white-space:nowrap}
+.unit.thr.dim{opacity:.45}
+.unit.thr.dim .tg,.unit.thr.sel .tg{display:none}
+/* 第6節: the battleships' way down to the mine (見本の案A, user decision 2026-10-28; hud.js drawRoute) */
+#nkRoute{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+#nkRoute .ln{fill:none;stroke:#ffd27a;stroke-width:1.3;stroke-dasharray:3 4;opacity:.9}
+#nkRoute .ch path{fill:none;stroke:#ffd27a;stroke-width:1.2}
+#nkRoute circle{stroke:#ffd27a;stroke-width:1.2}
+#nkRoute circle.dot{fill:#ffd27a;stroke:none}
+#nkRoute text{fill:#ffd27a;font:10px var(--f-ui),sans-serif}
 /* 第6節: a unit or battleship with the warheads (見本の案A, user decision 2026-10-28): the mark before the name and an amber edge */
 .unit.nk .flag{box-shadow:inset 0 0 0 1px rgba(255,210,122,.7)}
 .unit.nk .flag::before{--k:#ffd27a}

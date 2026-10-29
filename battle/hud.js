@@ -179,7 +179,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||!shown(f)||f.ward) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&fortress.team===1&&Math.hypot(fs.x-x,fs.y-y)<46};   // our own station is not a target
 }
@@ -347,8 +347,9 @@ function gatesHtml(){
   const gar=garrison?Math.max(0,garrison.hp/garrison.max):0;
   return `<div class="gr">${gates.map((g,i)=>{ const L=front(g); return `<div class="gc ${cls(g)}${L?' p'+Math.min(2,L.level):''}" title="${tip(g,L)}">${icon(g,i)}<span>${g.name.replace(/ゲート$/,'')}</span><span class="v">${pct(g)}</span>${chev(L)}</div>`; }).join('')}</div>`+
     (garrison?`<div class="gar" title="基地の中の守備隊。最後のゲートのシールドが尽きると、そばの揚陸艦が降ろす W.A.S. に削られる。0で失敗"><span>基地守備隊</span><span class="g"><i style="width:${(gar*100).toFixed(1)}%"></i></span><span class="v">${Math.ceil(gar*100)}%</span></div>`:''); }
-/* 第6節 (見本の案B, user decision 2026-10-24; docs/menu.md「任務欄」. Sizes and colours 仮): while the line holds, its three strongpoints as hexagons
-   filled to their ships left (amber at 60%, red at 40%: the line breaks under 40%). Then a scale of 0–30 km under the order, red inside 15 km with
+/* 第6節 (見本の案B, user decision 2026-10-24; docs/menu.md「任務欄」. Sizes and colours 仮). The first stage (before the lure, 見本の案B of
+   2026-10-28): for each screen the lure counts (op.lure.packs), a hexagon for each of its ships, filled for those still in place (within out of
+   its post), N in place / all; the battleships; and a word on when the second stage comes. From the second stage on: a scale of 0–30 km under the order, red inside 15 km with
    an amber dotted line at 15: the aim now ◆ (blue) joined by a dotted line to the strike at 23:00 ○ (blue at 15 km or more, red under it); before
    the blast, a dashed ◆ where the battleships settled now would send it. A line of numbers, the restoring thrusters (east and north, three each;
    a broken one grey and dashed), the five battleships (waiting: an outline; going down: amber; settled: filled blue; sunk: grey, dashed, crossed)
@@ -365,16 +366,23 @@ function nukeMarkFleet(i){ const S=nuke; if(!S) return null;
   const f=S.bbs[i]&&S.bbs[i].f; return f&&f.alive?f:null; }
 /* a unit or a battleship that still carries warheads gets the mark and the amber edge on its label (見本の案A, user decision 2026-10-28; loop.js) */
 const nukeCarrier=f=>!!(nuke&&f.nuke&&f.alive&&(f.nukeSt?f.nukeSt!=='gone':nuke.state==='wait'&&bbIn(f)>0));
+const NK_HX='6,1 10.3,3.5 10.3,8.5 6,11 1.7,8.5 1.7,3.5';
+/* the screens the lure counts: name, ships in place, ships they had */
+function lureRows(){ const L=op.lure; return L.packs.map(n=>packs.find(P=>P.name===n)).filter(Boolean).map(P=>{
+  let n0=0, home=0; for(const f of lureUnits(P)){ n0+=f.n; if(f.alive&&(!P.postV||f.pos.distanceTo(P.postV)<=L.out)) home+=f.ships.length; }
+  return {name:P.name.replace(/守備隊$/,''), n0, home}; }); }
 function nukeHtml(){
   const S=nuke, N=op.nukes, W=op.win, now=gameSec*CLOCK_RATE, fired=S.fireAt!=null;
   let h='';
-  /* the line's strongpoints, until it is breached */
-  if(op.breach&&!breached){ const L=packs.filter(P=>op.breach.packs.includes(P.name));
-    h+=`<div class="gr">${L.map((P,i)=>{ const n0=P.mem.reduce((s,f)=>s+f.packN0,0)||1, k=Math.max(0,P.mem.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n0);
-      const c=k<=op.breach.below?NK_RED:k<=.6?NK_AMBER:NK_BLUE, top=(21.6-19.2*k).toFixed(2);
-      return `<div class="gc${k<=.6?' warn':''}" title="防衛線 ${P.name}（残り${op.breach.below*10}割で突破）"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><clipPath id="nk${i}"><rect x="0" y="${top}" width="24" height="24"/></clipPath></defs>`+
-        `<polygon points="${NK_HEX}" fill="${c}" fill-opacity=".38" clip-path="url(#nk${i})"/><polygon points="${NK_HEX}" fill="none" stroke="${c}" stroke-width="1"/></svg>`+
-        `<span>${P.name.replace(/の拠点$/,'')}</span><span class="v">${Math.ceil(k*100)}%</span></div>`; }).join('')}</div>`; }
+  /* the five battleships */
+  const M=nukeMarks(), bb=(m,i)=>{ const c=m==='sunk'?NK_GREY:m==='descend'?NK_AMBER:NK_BLUE, fill=m==='descend'?NK_AMBER:m==='landed'?NK_BLUE:'none';
+    return `<svg class="nb${m==='sunk'||m==='landed'&&fired?'':' go'}" data-nb="${i}" viewBox="0 0 20 10" aria-hidden="true"><polygon points="1,5 5,1.5 17,1.5 19,5 17,8.5 5,8.5" fill="${fill}" fill-opacity="${m==='landed'?.75:.45}" stroke="${c}" stroke-width="1"${m==='sunk'?' stroke-dasharray="1.6 1.2"':''}/>${m==='sunk'?`<path d="M7 2.5L13 7.5M13 2.5L7 7.5" stroke="${NK_GREY}" stroke-width="1"/>`:''}</svg>`; };
+  const bbRow=`<div class="nkr" title="核を積んだ戦艦（線: 待機、琥珀: 降下中、青: 着底、灰のばつ: 沈没）。押すとその戦艦へ視点が飛ぶ"><span class="nw">戦艦</span>${M.map(bb).join('')}<span class="v">${M.filter(m=>m!=='sunk').length}/${M.length}</span></div>`;
+  /* the first stage: the screens drawn out, the battleships, when the second stage comes */
+  if(op.lure&&!lured){ const L=op.lure, hx=(on)=>`<svg class="hx" viewBox="0 0 12 12" aria-hidden="true"><polygon points="${NK_HX}" fill="${on?NK_RED:'none'}" fill-opacity=".55" stroke="${on?NK_RED:NK_GREY}" stroke-width="1.1"${on?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
+    h+=lureRows().map(r=>`<div class="nkr" title="${r.name}守備隊: 持ち場（中心から${L.out}）にいる艦。陽動が引き出すと減る"><span class="nw">${r.name}</span>${Array.from({length:r.n0},(_,i)=>hx(i<r.home)).join('')}<span class="v">${r.home}/${r.n0}</span></div>`).join('');
+    h+=bbRow+`<div class="nkw">半分を切れば第二段階（遅くとも ${clockStr(L.at)}）</div>`;
+    return h; }
   /* the scale */
   const est=fired?nukeEst(now):null, pv=fired?null:nukePreview(now), x0=nkX(0), x15=nkX(W.need), x30=nkX(30);
   let sc=`<rect x="${x0}" y="8" width="${(x15-x0).toFixed(1)}" height="11" fill="${NK_RED}" fill-opacity=".13"/><line x1="${x0}" y1="13.5" x2="${x30}" y2="13.5" stroke="#9fb3c8" stroke-opacity=".55" stroke-width="1"/>`;
@@ -386,20 +394,17 @@ function nukeHtml(){
   else { if(pv.n) sc+=`<line x1="${x0}" y1="13.5" x2="${nkX(pv.km)}" y2="13.5" stroke="#cfe3f5" stroke-width="1" stroke-dasharray="1 2"/>`+nkDia(nkX(pv.km),NK_BLUE,true); sc+=nkDia(x0,NK_BLUE); }
   h+=`<svg class="nks" viewBox="0 0 212 32" aria-hidden="true">${sc}</svg>`;
   h+=`<div class="nkn">${nukeLabel()}</div>`;
-  /* the restoring thrusters, east and north */
+  /* the restoring thrusters, east and north (the same mark as on the map, 見本の案C) */
   const T=fleets.filter(f=>f.team===1&&f.restore), live=T.filter(f=>f.alive).length;
-  const thr=f=>`<svg viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.3,3.5 10.3,8.5 6,11 1.7,8.5 1.7,3.5" fill="${f.alive?NK_RED:'none'}" fill-opacity=".3" stroke="${f.alive?NK_RED:NK_GREY}" stroke-width="1"${f.alive?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
+  const thr=f=>`<svg viewBox="0 0 12 12" aria-hidden="true"><polygon points="${NK_HX}" fill="${f.alive?NK_RED:'none'}" fill-opacity=".3" stroke="${f.alive?NK_RED:NK_GREY}" stroke-width="1"${f.alive?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
   const side=w=>`<span class="nw">${w}</span>${T.filter(f=>f.name.includes(` ${w}`)).map(thr).join('')}`;
   h+=`<div class="nkr" title="戻せる推進器（東と北）。起爆のあと、1基で1時間に${N.pull} km 予想点を戻す">${side('東')}${side('北')}<span class="v">${live}/${T.length}</span></div>`;
-  /* the five battleships */
-  const M=nukeMarks(), bb=(m,i)=>{ const c=m==='sunk'?NK_GREY:m==='descend'?NK_AMBER:NK_BLUE, fill=m==='descend'?NK_AMBER:m==='landed'?NK_BLUE:'none';
-    return `<svg class="nb${m==='sunk'||m==='landed'&&fired?'':' go'}" data-nb="${i}" viewBox="0 0 20 10" aria-hidden="true"><polygon points="1,5 5,1.5 17,1.5 19,5 17,8.5 5,8.5" fill="${fill}" fill-opacity="${m==='landed'?.75:.45}" stroke="${c}" stroke-width="1"${m==='sunk'?' stroke-dasharray="1.6 1.2"':''}/>${m==='sunk'?`<path d="M7 2.5L13 7.5M13 2.5L7 7.5" stroke="${NK_GREY}" stroke-width="1"/>`:''}</svg>`; };
-  h+=`<div class="nkr" title="核を積んだ戦艦（線: 待機、琥珀: 降下中、青: 着底、灰のばつ: 沈没）。押すとその戦艦へ視点が飛ぶ"><span class="nw">戦艦</span>${M.map(bb).join('')}<span class="v">${M.filter(m=>m!=='sunk').length}/${M.length}</span></div>`;
+  h+=bbRow;
   /* a word on what is left */
   let say='';
   if(fired){ if(est>=W.need) say='勝ちが決まった';
     else { let k=0; const R=restoreLeft(); while(k<R&&S.km-N.pull*(R-k-1)*Math.max(0,N.stop-now)/60<W.need) k++; say=`あと${k+1}基で勝ちが決まる`; } }
-  else if(S.state==='wait'){ const left=Math.max(0,N.restore-(S.thr0-restoreLeft())); say=`移乗: 戻せる推進器あと${left}基か ${clockStr(N.at)}`; }
+  else if(S.state==='wait') say=`移乗は ${clockStr(N.at)}`;
   else if(S.state==='board') say=`乗員が移乗中　${clockStr(S.at+N.board)} に降下`;
   else if(S.state==='descend') say=`戦艦が鉱山へ降下中（起爆の期限 ${clockStr(W.due)}）`;
   else if(S.state==='armed') say=`${clockStr(S.fuseAt)} に起爆（期限 ${clockStr(W.due)}）`;
@@ -407,6 +412,7 @@ function nukeHtml(){
   return h; }
 /* the numbers under the scale (the folded panel keeps them) */
 function nukeLabel(){ const S=nuke, now=gameSec*CLOCK_RATE;
+  if(op.lure&&!lured) return '持ち場 '+lureRows().map(r=>`${r.name} ${r.home}/${r.n0}`).join('・');
   if(S.fireAt!=null) return `予想点 ${S.km.toFixed(1)} → 23:00 に ${Math.max(0,nukeEst(now)).toFixed(1)} km`;
   const pv=nukePreview(now); return `起爆で ${pv.km.toFixed(1)} km（着底 ${pv.n}隻）`; }
 /* on press, not click: the panel's html is rebuilt as the numbers change, so a click may lose its mark; the click after it does not fold the panel */
@@ -414,6 +420,26 @@ let nbPress=0;
 goalEl.addEventListener('pointerdown',e=>{ const nb=e.target.closest&&e.target.closest('svg.nb.go'); if(!nb) return; nbPress=performance.now();
   const f=nukeMarkFleet(+nb.dataset.nb); if(f){ const d=camera.position.clone().sub(controls.target); flyTo(f.pos,d,Math.min(d.length(),120)); } });
 goalEl.addEventListener('click',()=>{ if(performance.now()-nbPress<800) return; goalEl.classList.toggle('fold'); });
+/* 目標更新中 (第6節, user decision 2026-10-28): for a moment (GOAL_FLASH ms, 仮) as the second stage begins, the panel says only that */
+const GOAL_FLASH=1500; let goalFlashT=0;
+function goalFlash(){ goalFlashT=performance.now()+GOAL_FLASH; updateGoal(); }
+/* the battleships' way down to the mine (第6節, 見本の案A, user decision 2026-10-28): a thin amber dotted line with › along it and ◎ at the mine,
+   from the crossing over until the blast (sim.js nukeBoard: nuke.route). Drawn over the battle every frame (loop.js) */
+const routeEl=document.createElementNS('http://www.w3.org/2000/svg','svg'); routeEl.id='nkRoute'; routeEl.setAttribute('aria-hidden','true'); labelsEl.prepend(routeEl);
+const ROUTE_N=64, ROUTE_CHEV=46;
+function drawRoute(){
+  const S=nuke, on=!!(S&&S.route&&!over&&['board','descend','armed'].includes(S.state));
+  if(!on){ if(routeEl._on){ routeEl._on=false; routeEl.innerHTML=''; } return; } routeEl._on=true;
+  let d='', ch='', prev=null, acc=ROUTE_CHEV*.5;
+  for(let i=0;i<=ROUTE_N;i++){ const p=proj(S.route.getPointAt(i/ROUTE_N)); if(p.z>1){ prev=null; continue; }
+    if(!prev) d+=`M${p.x.toFixed(1)} ${p.y.toFixed(1)}`;
+    else { d+=`L${p.x.toFixed(1)} ${p.y.toFixed(1)}`; const dx=p.x-prev.x, dy=p.y-prev.y, L=Math.hypot(dx,dy), a=Math.atan2(dy,dx)*180/Math.PI;
+      for(acc+=L;acc>=ROUTE_CHEV;acc-=ROUTE_CHEV){ const k=1-(acc-ROUTE_CHEV)/Math.max(L,1e-6), x=prev.x+dx*Math.min(1,Math.max(0,k)), y=prev.y+dy*Math.min(1,Math.max(0,k));
+        if(x<-20||y<-20||x>W+20||y>H+20) continue;   // only those on the screen
+        ch+=`<path d="M-2.2 -3.2L1.8 0L-2.2 3.2" transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${a.toFixed(0)})"/>`; } }
+    prev=p; }
+  const m=proj(S.mine), ring=m.z>1?'':`<circle cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="9" fill="none"/><circle class="dot" cx="${m.x.toFixed(1)}" cy="${m.y.toFixed(1)}" r="2.5"/><text x="${(m.x+11).toFixed(1)}" y="${(m.y+15).toFixed(1)}">鉱山</text>`;
+  routeEl.innerHTML=`<path class="ln" d="${d}"/><g class="ch">${ch}</g>${ring}`; }
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
   if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
@@ -456,7 +482,8 @@ function updateGoal(){
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?(perfect?'完全勝利':'任務達成'):'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
-  const gh=gates.length?gatesHtml():mode==='deflect'?nukeHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
+  const flash=!over&&performance.now()<goalFlashT; goalEl.classList.toggle('upd',flash);
+  const gh=flash?'<div class="upd">目標更新中</div>':gates.length?gatesHtml():mode==='deflect'?nukeHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
   goalEl.classList.toggle('gonly',!!(gh&&op.goalGatesOnly));   // 第5節: the panel shows the gates and the garrison only (op.goalGatesOnly)
 }
 

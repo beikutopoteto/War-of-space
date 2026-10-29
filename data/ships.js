@@ -137,9 +137,12 @@ WOS_DATA.roles={
      合図: sync（approach の隊がみな着いた）　wasOn（組の W.A.S. が母艦の目標に取り付いた）　hit（守るもの ward が撃たれた）　lost（ward が落ちた）
    how: charge の形。screen（組の揚陸艦の前 front に並ぶ）　flank（組の揚陸艦から見て目標の横か上下へ回る）　edge（射程の端 WOS_DATA.roles.mars.cl.stand から撃つ。
      ほかの敵に寄られたら艦種別の動きに任せる）　antiAir（prey の艦種の順に目標を選ぶ）　over（ward か天体の上か下を回って、ward を撃った敵へ）
-   at: hold・hide の持ち場。front（ward の敵側 front）　rim（ward の横 ±70度、rim）　shadow（天体か ward の陰、shadow）。書かなければその段の始めにいた所
+   at: hold・hide の持ち場。front（ward の敵側 front。敵側は ward から faceR 以内に見えている敵の真ん中の向き）　rim（ward の横 ±70度、rim）　shadow（天体か ward の陰、shadow）。書かなければその段の始めにいた所
    breakOff: 退き際 {slot, below, was}: slot の隻数が below を切るか、組の W.A.S. が was を切ると、全部の隊が back になる
-   gather / sync: approach の距離と、着く時刻の差の目安（分。遅い隊に速さを合わせ、着いた隊は待つ）。slowest: 速さを合わせるときのいちばん遅い割合 */
+   gather / sync: approach の距離と、着く時刻の差の目安（分。遅い隊に速さを合わせ、着いた隊は待つ）。slowest: 速さを合わせるときのいちばん遅い割合
+   方角守備隊 screen（第6節、ユーザー決定 2026-10-28。数値は仮）: 動きは screen だけ。守るもの ward（推進器の名前と点 [x, z, alt] の並び）から reach 以内に見えた敵の
+     真ん中（隻数の重み）と、いちばん近い守るものの間に割り込む（守るものから 敵までの距離 − gap の所。持ち場の中心 op.packs[].post から out まで）。隊は spread ずつ横に並ぶ。
+     立つ所の射程に入った敵を撃つ。敵がいなければ自分の持ち場へ戻る。予備（reserve）は持ち場で待ち、wasR 以内に入った敵へ W.A.S. を出す */
 WOS_DATA.doctrines={
   mars:{
     spear:{slots:{shield:['ff'], mother:['mas','masc'], knife:['dd']}, how:{shield:'screen', knife:'flank'},
@@ -149,6 +152,7 @@ WOS_DATA.doctrines={
       steps:[{mist:'charge', hammer:'hide', next:'wasOn', after:20}, {all:'charge'}], holdR:30},
     rockShield:{slots:{wall:['ff'], rim:['cl'], reserve:['mas','masc']}, how:{reserve:'over'}, at:{wall:'front', rim:'rim', reserve:'shadow'},
       steps:[{wall:'hold', rim:'hold', reserve:'hide', next:'hit'}, {wall:'hold', rim:'hold', reserve:'charge', next:'lost'}, {wall:'hold', rim:'hold', reserve:'hide'}],
-      front:10, rim:28, shadow:30, over:15, holdR:30},
+      front:10, rim:28, shadow:30, over:15, holdR:30, faceR:150},
+    screen:{slots:{wall:['ff','dd'], rim:['cl'], reserve:['mas','masc']}, steps:[{wall:'screen', rim:'screen', reserve:'screen'}], reach:130, gap:40, out:100, wasR:40, spread:9},
   },
 };

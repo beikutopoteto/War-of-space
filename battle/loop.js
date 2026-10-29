@@ -120,16 +120,19 @@ function frame(now){
 
   // labels
   for(const u of units()){ if(!u.alive||!u.el) continue;
+    if(thrOff(u)){ u.el.style.visibility='hidden'; continue; }   // 第6節: the thrusters' marks only from the second stage on
     const lost=!shown(u), at=lost?u.lastPos:u.pos;
     if(lost&&(!at||gameSec-u.lostAt>LOST_MEMORY)){ u.el.style.visibility='hidden'; continue; }
     if(u.el.classList.contains('lost')!==lost){ u.el.classList.toggle('lost',lost); u._sub=null; }
     const s=proj(_v.copy(at).add(_w.set(0,u.kind==='fortress'?7:4,0)));
     if(s.z>1||s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){u.el.style.visibility='hidden';continue;}
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
-    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`:subText(u);
+    const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`
+      :u.type==='thr'?`${u.restore?'狙いを戻せる　':''}耐久 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/(u.n*u.hp)))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
     if(u.kind==='fleet'){ pinchMarks(u,s,lost); const nk=nukeCarrier(u); if(u._nk!==nk){ u._nk=nk; u.el.classList.toggle('nk',nk); } }
   }
+  drawRoute();   // 第6節: the battleships' way down to the mine (hud.js)
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
   document.getElementById('date').textContent=dateStr()+'　'+clockStr();
   rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster(); updateGoal();}
