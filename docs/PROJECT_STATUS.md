@@ -2,14 +2,14 @@
 
 Claude と Codex が作業を受け渡すための短いメモ。詳しい「現在地」と「次にやること」の正本は `docs/roadmap.md`。ブランチを始めたとき・止めたとき・マージしたときに直す（運用は `docs/collaboration.md`）。
 
-最終更新: 2026-10-29（Claude。`main` は #227 まで）
+最終更新: 2026-10-29（Claude。`main` は #228 まで）
 
 ## 作業中のブランチ
 
 | ブランチ | 担当 | 中身 | 状態 | PR |
 |---|---|---|---|---|
 | `feat/denali-feint` | Claude | 第6節「デナリ破砕」を陽動の形に作り直す | 釣り合わせのやり直しの途中で止まっている。突撃揚陸艦の W.A.S. を1隻8機に戻した直後で、そのあとの早送りはまだ。`main` の #225・#226（資料）は取り込んでいない | なし |
-| `claude/codex-workflow` | Claude | Codex との分担・作業票・試遊ページの決まりを資料に | 確認中 | なし |
+| `codex/ci-check-docs` | Codex | 作業票 #229: `npm run check-docs` を CI に足す（自動連携の試し） | Codex の作業待ち | 下書き |
 
 ## 次の一手
 1. `feat/denali-feint` を仕上げてマージする。残りと目標は `docs/roadmap.md`「次にやること」の1:
