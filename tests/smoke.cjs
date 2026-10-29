@@ -1719,7 +1719,7 @@ function check(ok, label, detail = '') {
       nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.hpPool = b.f.hp * 50; b.f.pos.copy(b.slot); b.f.order = null; } });   // hard to sink while they wait (the test is of the clock)
       step(.05); step(.05); const tl = now(), nl = nuke.bbs.filter(b => b.f && b.f.alive && b.f.nukeSt === 'landed').length;
       r.land = { state: nuke.state, n: nl, cue: !!packCue.land, fuse: +(nuke.fuseAt - tl).toFixed(1), pv: +nukePreview().km.toFixed(2), want: +Math.min(30, nl * (600 - nuke.fuseAt) / 60).toFixed(2) };
-      updateGoal();
+      goalFlashT = 0; updateGoal();   // the 1.5 s "updating" flash (real time, goalFlash) draws no marks: on a slow runner it is still on here
       const gg = document.getElementById('goalGates'); r.hud0 = { scale: !!gg.querySelector('svg.nks'), dash: gg.innerHTML.includes('stroke-dasharray="1.6 1.2"'), bb: gg.querySelectorAll('svg.nb').length, thr: gg.querySelectorAll('.nkr svg:not(.nb)').length };
       mins(nuke.fuseAt + .2); const fa = nuke.fireAt;
       r.fire = { state: nuke.state, km: +nuke.km.toFixed(2), want: +Math.min(30, nl * (600 - fa) / 60).toFixed(2), raw: +(nl * (600 - fa) / 60).toFixed(1), gone: nuke.bbs.filter(b => b.f && b.f.nukeSt === 'gone' && !b.f.alive).length, cue: !!packCue.ignite,
@@ -1729,7 +1729,7 @@ function check(ok, label, detail = '') {
       r.pull = { R: R0, per: +((k0 - nuke.km) / (30 / 60) / Math.max(1, restoreLeft())).toFixed(2), sameR: restoreLeft() === R0 };
       const e1 = nukeEst(), alive = fleets.filter(f => f.restore && f.alive); kill(alive[0].name); step(.05);
       r.pull.up = +(nukeEst() - e1).toFixed(2); r.pull.want = +(N.pull * Math.max(0, N.stop - now()) / 60).toFixed(2);
-      updateGoal(); r.hud1 = { circle: !!document.querySelector('#goalGates svg.nks circle'), label: document.getElementById('goalLabel').textContent };
+      goalFlashT = 0; updateGoal(); r.hud1 = { circle: !!document.querySelector('#goalGates svg.nks circle'), label: document.getElementById('goalLabel').textContent };
       /* win: the strike at 23:00 is 15 km or more once the thrusters left are down */
       fleets.filter(f => f.restore && f.alive).forEach(f => kill(f.name)); step(.05);
       r.win = { over, outcome, est: +nukeEst().toFixed(1), rp: document.getElementById('rp').textContent };
@@ -1772,7 +1772,7 @@ function check(ok, label, detail = '') {
       lured = { at: opMin(), by: 'test' }; step(.05);
       r.board = nuke.state === 'board' && nuke.bbs.every(b => nukeCarrier(b.f)) && !G.some(nukeCarrier);
       goalFlashT = 0; updateGoal(); const t1 = press(4); r.fly1 = !!t1 && t1.distanceTo(nuke.bbs[4].f.pos) < .01;
-      const b0 = nuke.bbs[0].f; while (b0.alive) damage(b0, b0.hpPool + 1, fleets[0]); updateGoal();
+      const b0 = nuke.bbs[0].f; while (b0.alive) damage(b0, b0.hpPool + 1, fleets[0]); goalFlashT = 0; updateGoal();
       r.sunk = !nukeCarrier(b0) && !document.querySelector('#goalGates svg.nb[data-nb="0"]').classList.contains('go');
       return r;
     });
@@ -1888,7 +1888,7 @@ function check(ok, label, detail = '') {
       const P = n => packs.find(x => x.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
       const kill = f => { while (f && f.alive) damage(f, f.hpPool + 1, fleets[0]); };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); for (const f of fleets) if (f.feint) { f.alive = false; f.el.remove(); }
-      mins(3); updateGoal(); const gg = document.getElementById('goalGates'), r = {};
+      mins(3); goalFlashT = 0; updateGoal(); const gg = document.getElementById('goalGates'), r = {};
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
       const S = P('東下守備隊').mem.find(f => f.packSlot === 'wall'); kill(S); updateGoal(); r.p1.v2 = [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(',');
