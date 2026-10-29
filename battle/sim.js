@@ -2015,7 +2015,7 @@ function autoAI(){
    that takes no harm for AUTO_STUCK seconds while we are on it (out of reach behind the rock, say) is left for AUTO_SKIP seconds; with nothing
    of that left, the nearest foe in sight. Our fleets never fire on the west thrusters (fireTargetOf) */
 const AUTO_STUCK=20, AUTO_SKIP=60;   // 仮: seconds of the battle
-let autoObj=null, autoTry=new Map(), autoStage=null;
+let autoObj=null, autoThr=null, autoTry=new Map(), autoStage=null;
 function autoDenali(mine,ships,attack){
   const A=op.auto, by=(f,list,key=e=>e.pos.distanceTo(f.pos))=>list.reduce((b,e)=>!b||key(e)<key(b)?e:b,null);
   const carrierFirst=f=>e=>(e.hangars&&e.hangars.length?0:100)+e.pos.distanceTo(f.pos);   // by a battleship, the carriers first: before their W.A.S. are out
@@ -2035,17 +2035,20 @@ function autoDenali(mine,ships,attack){
   const craft=fired?craftOn(t=>mine.includes(t)).filter(c=>!skip(c)&&c.pos.distanceTo(cen)<A.craftR):[];
   const raid=wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&bbs.includes(w.target));   // W.A.S. on a battleship (the escort's first)
   const ok=e=>e.alive&&!skip(e), guns=fleets.filter(e=>e.team===1&&e.fixed&&e.type==='aa'&&ok(e));
-  let list=[], obj=null, help=[];
-  if(fired){ if(!(autoObj&&autoObj.alive&&!skip(autoObj))){ const t=A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null;
-      autoObj=t&&guns.find(g=>g.pos.distanceTo(t.pos)<A.objR)||t; }
-    obj=autoObj; if(obj) list=ships.filter(e=>!skip(e)&&e.pos.distanceTo(obj.pos)<A.objR); }
+  let list=[], obj=null, help=[], tObj=null, tList=[];
+  /* the restoring thruster to go for: the first of `thr` still there (a gun on the rock by it first). After the blast for all; in the second stage
+     for the rest once the mine is clear (2026-10-29: shown from the second stage, one destroyed before the blast pulls nothing back) */
+  if(!first){ if(!(autoThr&&autoThr.alive&&!skip(autoThr))){ const t=A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null;
+      autoThr=t&&guns.find(g=>g.pos.distanceTo(t.pos)<A.objR)||t; }
+    tObj=autoThr; if(tObj) tList=ships.filter(e=>!skip(e)&&e.pos.distanceTo(tObj.pos)<A.objR); }
+  if(fired){ obj=autoObj=tObj; list=tList; }
   else if(!first){ const ref=bbs.length?bbs.reduce((v,b)=>v.add(b.pos),new THREE.Vector3()).multiplyScalar(1/bbs.length):cen;
     obj=autoObj=guns.sort((a,b)=>a.pos.distanceTo(ref)-b.pos.distanceTo(ref))[0]||null;
     const M=nuke.mine, byM=(a,b)=>a.pos.distanceTo(M)-b.pos.distanceTo(M);
     list=[...guns.filter(g=>g.pos.distanceTo(M)<A.mineR).sort(byM),...ships.filter(e=>!skip(e)&&e.pos.distanceTo(M)<A.mineR).sort(byM)]; }
   else { autoObj=null; const P=packs.find(P=>P.name===A.help); help=P?P.mem.filter(x=>x.alive&&!skip(x)&&!guns.some(g=>g.pos.distanceTo(x.pos)<A.gunR)):[]; }   // not under the guns on the rock
   /* the escort: the best at anti-air first, till it has `escort` of our ships (all of them in the second stage) */
-  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(first?A.escort:list.length?A.escort2:1); let n=0;
+  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(first?A.escort:list.length||A.early&&tObj?A.escort2:1); let n=0;
     for(const f of mine.slice().sort((a,b)=>(b.aa??AA.std)-(a.aa??AA.std)||a.id-b.id)){ if(n>=all) break; esc.add(f); n+=f.ships.length; } }
   /* to a spot (a move, no target); out from the rock over a target out of sight, inside our guns' reach */
   const goTo=(f,p)=>{ if(f.order&&f.order.type==='attack') f.order=null;
@@ -2058,10 +2061,13 @@ function autoDenali(mine,ships,attack){
       if(obj&&obj.seen&&!fired&&bbs.some(b=>b.pos.distanceTo(obj.pos)<A.nukeR+A.escortR*2)){ hit(f,obj); continue; }   // the gun by the battleships: on it too
       const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR)); continue; }
     if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ hit(f,e); continue; }
-      const h=by(f,help); if(h&&h.seen){ hit(f,h); continue; }
-      if(h){ goTo(f,via&&f.pos.z>via.z-20&&f.pos.distanceTo(via)>15?via:h.pos); continue; }
+      /* south of the front, round it by helpVia first (2026-10-29: an attack on one in sight went straight through the middle stronghold) */
+      const h=by(f,help); if(h&&via&&f.pos.z>via.z-20&&f.pos.distanceTo(via)>15){ goTo(f,via); continue; }
+      if(h&&h.seen){ hit(f,h); continue; }
+      if(h){ goTo(f,h.pos); continue; }
       if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; goTo(f,_v.set(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
-    if(!first&&!fired){ const e=list[0]; if(e){ e.seen?hit(f,e):goTo(f,over(f,e)); continue; } }   // the mine cleared ahead of the battleships
+    if(!first&&!fired){ const e=list[0]; if(e){ e.seen?hit(f,e):goTo(f,over(f,e)); continue; }   // the mine cleared ahead of the battleships
+      if(A.early&&tObj){ const t=by(f,craft)||by(f,tList); if(t){ hit(f,t); continue; } tObj.seen?hit(f,tObj):goTo(f,over(f,tObj)); continue; } }   // then a restoring thruster
     const e=by(f,craft)||by(f,list);
     if(e) hit(f,e); else if(obj&&fired) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
 }
