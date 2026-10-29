@@ -1417,18 +1417,21 @@ WOS_DATA.operations.push((()=>{
   const NORTH=[{name:'第16 護衛警衛 戦闘隊', sub:'北守備隊 フリゲート', type:'ff', n:3, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
     {name:'第13 巡洋阻止 戦闘隊', sub:'北守備隊 重巡洋艦', type:'cl', n:3, scale:1.1, ...at(172,0,48), vis:6, stl:4, ai:'guard', leash:40},
     {name:'第21 突撃揚陸 戦闘隊', sub:'北守備隊 突撃揚陸艦（予備）', type:'mas', n:2, scale:.9, ...at(180,8,80), vis:6, stl:5, ai:'guard', leash:40}];
-  /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート2・突撃揚陸艦1・駆逐艦1、計8。
-     待つ所は陽動とぶつからないデナリの南の下と北の上（2026-10-28。前は東の下と北西の上）。内訳と位置は仮）。出るまでは ai なしでその場にいる */
-  const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:2, scale:.75, pos:[x,z], alt, vis:6, stl:6},
-    {name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
+  /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート2・駆逐艦2（2隊）、計8。
+     待つ所は陽動とぶつからないデナリの南の下と北の上（2026-10-28。前は東の下と北西の上）。内訳と位置は仮）。出るまでは ai なしでその場にいる。
+     槍2の突撃揚陸艦は駆逐艦に替えた（2026-10-29 の釣り合わせ、仮。W.A.S. は1隻8機のまま。降りる戦艦への打撃の多くが槍2の W.A.S. で、鉱山に2〜3隻しか着かなかった）。mt: 2つ目の隊の艦種 */
+  const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍',mt='mas')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:2, scale:.75, pos:[x,z], alt, vis:6, stl:6},
+    mt==='dd'?{name:`第${22+k} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nm, scale:.85, pos:[x,z-6], alt, vis:6, stl:6}
+      :{name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
     {name:`第${dd} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nd, scale:.85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:6}];
-  const S2=[[2,at(30,-55,65),10],[3,at(160,60,70),7]].flatMap(([k,p,dd])=>spear(k,p.pos[0],p.pos[1],p.alt,dd,1,1,'槍2'));
+  const S2=[[2,at(30,-55,65),10],[3,at(160,60,70),7]].flatMap(([k,p,dd])=>spear(k,p.pos[0],p.pos[1],p.alt,dd,1,1,'槍2','dd'));
   /* 霧と鎚（着底した戦艦を狙う。W.A.S. の突撃揚陸艦2隊と重巡洋艦2隊、計8。待つ所はデナリの南の上の陰（2026-10-28。前は西の上で、左上の陽動とぶつかった）。内訳と位置は仮） */
   const HAM=[{name:'第26 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-20,62,60), vis:6, stl:5},
     {name:'第27 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(10,66,62), vis:6, stl:5},
     {name:'第17 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(-35,58,58), vis:6, stl:4},
     {name:'第18 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(25,58,60), vis:6, stl:4}];
-  /* 起爆のあと（合図 ignite）、槍と霧と鎚の残りは残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る）。拠点は正面に残る（2026-10-29） */
+  /* 起爆のあと（合図 ignite）、霧と鎚の残りは残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る）。拠点は正面に残る（2026-10-29）。
+     槍1・槍2は推進器の守りに回らず、デナリの北へ退く（2026-10-29 の釣り合わせ、仮。前は回り、推進器を壊しに来た自軍を守りの W.A.S. と一緒に削った） */
   const guardThr=(on,...w)=>({on, doctrine:'rockShield', ward:w.flatMap(names), rest:'rim'});
   /* 友軍（ユーザー決定 2026-10-28・29）: 核を積んだ本軍の戦艦の2隊（今のまま）と、総基地の艦隊の動ける約100隻のうち陽動の2つ（左上・右下に40隻ずつ。巡洋艦12・駆逐艦12・フリゲート8・
      コルベット4・戦闘母艦4。戦艦なし）と、陽動から割いた戦艦の護衛の第29・第30 支隊（ESCORT。2026-10-29 に戻した。陽動の護送護衛の4隊を9隻から6隻に）。陽動は第5節の生き残りで傷んでいる（hurt。docs/spec.md「両陣営の技術と強さ」の例外。割合は仮）。touch:true は触れる隊（駆逐艦） */
@@ -1555,10 +1558,9 @@ WOS_DATA.operations.push((()=>{
         ward:w==='西上'?[...names('西の上'), pt(-64,30,30)]:names('東'), post:pt(az,el,58), ...(w==='西上'?{say:['ハッダード曹長','「左上の陽動、接触。守りが出てきます」']}:{})})),
       {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), ward:names('北'), start:'ignite'},
       /* 槍1: 待っている戦艦へ、西の下と東の上から。退く先はデナリの北 */
-      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], start:35, backTo:[0,-70,0],
-        turns:[guardThr('ignite','北')]},
+      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], start:35, backTo:[0,-70,0]},
       /* 槍2: 戦艦が鉱山へ向かうと（合図 descend）、南の下と北の上から */
-      {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], start:'descend', backTo:[0,-70,0], turns:[guardThr('ignite','東','北')]},
+      {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], start:'descend', backTo:[0,-70,0]},
       /* 霧と鎚: 戦艦が着底すると（合図 land）。W.A.S. が母艦とフリゲートを襲い、重巡洋艦は W.A.S. が取り付くか20分で縁から着底した戦艦を撃つ */
       {doctrine:'mistHammer', name:'霧と鎚', fleets:HAM.map(o=>o.name), goal:['nuke'], start:'land', turns:[guardThr('ignite','北','東')]},
     ],
