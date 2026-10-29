@@ -2,6 +2,47 @@
 
 Claude Code（Claude）と OpenAI Codex Cloud（Codex）が同じ GitHub リポジトリで作業するときの共通ルール（ユーザー決定 2026-10-29）。Claude の利用上限に達したときも、Codex が続きを拾えるようにするのが目的。入口は Claude が `CLAUDE.md`、Codex が `AGENTS.md`。ゲームの仕様と進め方の決まりはどちらも同じ（`docs/spec.md`、`docs/requests.md`）。
 
+## 分担（ユーザー決定 2026-10-29）
+- **Claude**:
+  - 会話、指示の読み取り、仕様と計画、物語、見た目の見本。
+  - 作業票を書く。
+  - Codex の PR をレビューしてマージする。
+  - 資料に記録する。
+  - 試遊ページを更新する。
+  - 小さな修正は直接やる。
+- **Codex**:
+  - 作業票1つ分の実装、テスト、PR。
+  - 作業票に結果を書いたら止まる。次の作業票は新しい作業で始める。
+  - 資料の整理はしない。例外は、ユーザーが「Claude はしばらく休み」と言ったあいだだけで、そのときは `AGENTS.md` の「Claude がいないとき」に従う。
+
+## 作業票（GitHub の Issue）
+Claude が書く。題は「作業票: <話題>」。本文の型:
+
+```
+## 目的
+## 触ってよいファイル
+## 変えてはいけないもの（ユーザーが決めた仕様、全作戦で共通の値など）
+## 完了の条件（例: オートモードで半分以上勝つ、npm test が通る）
+## 確かめ方（コマンド、見る数字）
+## 参考（読む資料の場所。必要な部分だけ）
+```
+
+Codex は終えたら、その Issue に結果をコメントする:
+
+```
+## 結果
+- PR: #番号（ブランチ codex/<話題>）
+- やったこと:
+- 測った数字:
+- 作業票と違うこと・その理由:
+- 自分で置いた仮の数値:
+- 残った問題・わからないこと:
+- テスト: npm test の結果
+- 試遊ページの更新: 要る / 要らない
+```
+
+Claude はこれを読んでレビューとマージを行い、仮の数値と決まったことを資料（`docs/menu.md`、`docs/roadmap.md` ほか）に書いてから、Issue を閉じる。
+
 ## セットアップ
 - Node.js 22（CI と同じ）。`npm ci`（ロックファイルどおり。`npm install` でもよい）。
 - Playwright は `1.56.1` に固定。その版の Chromium を `npx playwright install chromium` で入れる（CI は `--with-deps` 付き）。
@@ -40,7 +81,7 @@ Claude Code（Claude）と OpenAI Codex Cloud（Codex）が同じ GitHub リポ�
 - 試遊ページの更新: 要る / 要らない
 ```
 
-- 受け取る側: `git fetch origin` → `git switch <ブランチ>` → `git merge origin/main` → PR の「引き継ぎ」と `docs/PROJECT_STATUS.md` を読んでから続ける。引き継ぐときは PR の担当の行を書き換える。
+- 受け取る側（Claude が上限で止まった作業を Codex が続けるときなど）: `git fetch origin` → `git switch <ブランチ>` → `git merge origin/main` → PR の「引き継ぎ」と `docs/PROJECT_STATUS.md` を読んでから続ける。引き継ぐときは PR の担当の行を書き換える。
 - マージしたら `docs/PROJECT_STATUS.md` の「作業中のブランチ」から消す。
 
 ## 変更を失わないために
@@ -51,7 +92,11 @@ Claude Code（Claude）と OpenAI Codex Cloud（Codex）が同じ GitHub リポ�
 - `package-lock.json` は手で直さず、`npm install` で作り直す。
 - `git reset --hard`、`git clean`、`git checkout -- .` は、未コミットの変更がないことを確かめてからだけ使う。
 
+## 試遊ページ（ユーザー決定 2026-10-29）
+- 更新は Claude だけができる（claude.ai の非公開ページ）。Codex がゲームの中身を変えたときは、PR と作業票の結果に「試遊ページの更新が要る」と書く。
+- Claude はセッションの最初に、試遊ページに載っているファイル（Artifact の `read`）と `main` を比べ、違えば載せ直す。Claude がいないあいだの遅れは、これで取り戻す。
+- 待たずに遊ぶときは、GitHub でブランチを選び「Code → Download ZIP」で落とし、展開した `index.html` を開く。ビルド不要なので、`main` でも作業中のブランチでもそのまま動く（three.js を CDN から読むのでネット接続は要る）。
+
 ## Claude だけができること
-- 試遊ページ（claude.ai の非公開ページ）の更新。Codex がゲームの中身を変えたときは、PR に「試遊ページの更新が要る」と書く。マージのあと Claude が載せる。
 - サブエージェント（`.claude/agents/`）とスキル（`/ship`、`/tidy-docs`、`/story-draft`）。Codex は同じ資料を読んで、同じ手順を手で行う。
 - PR の見張り（CI とレビューの通知）。
