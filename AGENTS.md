@@ -4,8 +4,8 @@ OpenAI Codex 向けの入口。宇宙艦隊戦の 3D リアルタイムストラ
 
 ## 呼ばれ方（2026-10-30）
 ふだんは、Claude がユーザーの Mac で `codex exec` から呼ぶ（`docs/collaboration.md`「Codex を手元から呼ぶ」）。このときは:
-- 渡された作業フォルダ（`git worktree`）の中だけを直す。コミット・push・PR はしない（サンドボックスで `.git` に書けない。Claude がする）。
-- 早送りの道具と `npm test` はサンドボックスで Chromium が起動しないので回らない。`node --check` と `npm run check-docs` で確かめ、測ってほしいこと（コマンドと見る数）を結果に書く。Claude が回して数を返す。
+- 渡された作業フォルダ（`git worktree`）の中だけを直す。コミット・push・PR はしない（Claude がする）。
+- `node --check`、`npm run check-docs`、早送りの道具（`tools/*.cjs`）、`npm test` を自分で回して確かめ、測った数を結果に書く（サンドボックスは `danger-full-access`。ユーザー決定 2026-10-30）。テストの直しも Codex がする。
 - 結果（`docs/collaboration.md`「作業票」の「結果」の型）を最後の返事に書いて止まる。
 下の「作業票の終え方」と「Git」は、Codex Cloud で動くときのもの。
 
