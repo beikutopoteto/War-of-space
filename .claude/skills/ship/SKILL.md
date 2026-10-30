@@ -7,7 +7,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 
 毎回同じ手順なので、考え直さずにこの順で進める。
 
-ユーザーの Mac（2026-10-30〜）では GitHub MCP の代わりに `~/.local/bin/gh` を使う: PR は `gh pr create`、見張りは `gh pr checks <番号> --watch`（後ろで走らせる）、マージは `gh pr merge <番号> --squash --delete-branch`。Codex の作業はコミットする前に必ず差分を読み、自分でテストを回す（`docs/collaboration.md`「Codex を手元から呼ぶ」）。
+ユーザーの Mac（2026-10-30〜）では GitHub MCP の代わりに `~/.local/bin/gh` を使う: PR は `gh pr create`、見張りは `gh pr checks <番号> --watch`（後ろで走らせる）、マージは `gh pr merge <番号> --squash --delete-branch`。Codex の作業はコミットする前に必ず差分を読み、Codex が回したテストの結果を確かめ、大事な数は自分でも早送りで確かめる（テストを回すのも Codex に任せてよい。2026-10-30）（`docs/collaboration.md`「Codex を手元から呼ぶ」）。
 
 ## 1. 確かめる
 - `npm test` を走らせ、最後が「すべての確認に通りました。」であることを見る（`| tail -1` で足りる）。
