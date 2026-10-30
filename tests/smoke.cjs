@@ -1712,7 +1712,7 @@ function check(ok, label, detail = '') {
         en: fleets.filter(f => f.team === 1 && !f.fixed).reduce((s, f) => s + f.n, 0), front: ['西の拠点', '中の拠点', '東の拠点', '槍1', '槍2', '霧と鎚'].reduce((s, n) => s + cnt(P(n).fleets), 0),
         side: ['西上守備隊', '東下守備隊', '北守備隊'].map(n => cnt(P(n).fleets)).join(','), feint: [comp('左上'), comp('右下')], ally: fleets.filter(f => f.ally).length,
         esc: fleets.filter(f => f.ally && f.mode === 'escort').map(f => `${f.name}:${Object.entries(f.comp).map(([t, k]) => t + k).join('')}`).join(','), allyN: fleets.filter(f => f.ally).reduce((s, f) => s + f.n, 0),
-        was: fleets.filter(f => f.team === 1 && f.type === 'mas').every(f => f.hangars.reduce((s, h) => s + h.reserve + h.squads.reduce((a, q) => a + q.n, 0), 0) === 8 * f.n), s2mas: P('槍2').fleets.filter(n => F(n).type === 'mas').length,
+        was: fleets.filter(f => f.team === 1 && f.type === 'mas').every(f => f.hangars.reduce((s, h) => s + h.reserve + h.squads.reduce((a, q) => a + q.n, 0), 0) === 8 * f.n), s2mas: P('槍2').fleets.filter(n => F(n).type === 'mas').length, s2masN: cnt(P('槍2').fleets.filter(n => F(n).type === 'mas')),
         thrHp: fleets.filter(f => f.restore).map(f => f.hp / HP_K).join(','),
         cap: op.cap, gone: typeof shellAI === 'undefined' && typeof stepBreach === 'undefined' && !op.breach && op.phases.length === 2 };
       mins(1); const t0 = gameSec; while (gameSec < t0 + 13) step(.05); r.slide = Math.round(fieldC.z);   // a quarter of 52 s: 260 even
@@ -1725,8 +1725,8 @@ function check(ok, label, detail = '') {
     check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,8,4,4,0') && db.stage.ally === 18 && db.stage.cap === 60 && db.stage.gone
       && db.stage.esc === '第29 前衛巡洋 支隊:cl3dd3,第30 護衛 支隊:ff4cv2' && db.stage.allyN === 105,
       '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
-    check(db.stage.was && db.stage.s2mas === 2 && db.stage.thrHp === '600,600,600,600,600,600',
-      '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2の突撃揚陸艦は1隻ずつ2隊（2026-10-30 に駆逐艦から戻した）、誘導の推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.thrHp]));
+    check(db.stage.was && db.stage.s2mas === 4 && db.stage.s2masN === 6 && db.stage.thrHp === '600,600,600,600,600,600',
+      '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2の突撃揚陸艦は4隊6隻（作業票 #251 の仮の調整）、誘導の推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.s2masN, db.stage.thrHp]));
     /* 第4節と第6節の砲台は同じもの（ユーザー決定 2026-10-30）: どちらも WOS_DATA.denaliGun の強さ */
     const dg = await page.evaluate(() => { const G = WOS_DATA.denaliGun, o = id => WOS_DATA.operations.find(x => x.id === id);
       return ['denali', 'denaliBreak'].map(id => o(id).enemies.filter(f => f.type === 'aa').map(f => Object.keys(G).every(k => f[k] === G[k]))); });
