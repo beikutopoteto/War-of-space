@@ -1788,7 +1788,7 @@ function check(ok, label, detail = '') {
         mins(119.8); const s0 = nuke.state; mins(120.2);
         r.time = { w1, s0, by: lured && lured.by, state: nuke.state, half: said.some(t => t.includes('3分の2が剥がれました')), move: said.some(t => t.includes('移乗にかかれ')), late: said.some(t => t.includes('剥がれきらないが、時間だ')) };
         /* drawn out (more than 60 from the post) counts like sunk */
-        start(); mins(51); const E = P('東下守備隊'); E.mem.filter(f => f.packSlot !== 'reserve').forEach(f => { f.pos.add(new THREE.Vector3(0, 0, -75)); f.home.copy(f.pos); });
+        start(); mins(91); const E = P('東下守備隊'); E.mem.filter(f => f.packSlot !== 'reserve').forEach(f => { f.pos.add(new THREE.Vector3(0, 0, -75)); f.home.copy(f.pos); });
         const out = lureCount(); step(.05); r.out = { out: out.out, n0: out.n0, lured: !!lured };
         return r;
       } finally { logEvent = logE; }
@@ -1991,7 +1991,7 @@ function check(ok, label, detail = '') {
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
       const S = P('東下守備隊').mem.find(f => f.packSlot === 'wall'); kill(S); updateGoal(); r.p1.v2 = [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(',');
-      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(50.6);
+      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(90.6);
       r.flash = { upd: goalEl.classList.contains('upd') && gg.textContent === '目標更新中', lured: !!lured };
       return r;
     });
