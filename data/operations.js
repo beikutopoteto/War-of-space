@@ -1495,13 +1495,12 @@ WOS_DATA.operations.push((()=>{
         /* 本軍の戦艦は正面の約95後ろ（拠点の予備の W.A.S. の届かない所）で待つ */
         events:[{after:0, ai:{fleets:[BB[0]], ai:'guard', post:[-14,328,0]}}, {after:0, ai:{fleets:[BB[1]], ai:'guard', post:[14,334,-6]}}]},
     ],
-    /* 陽動（ai:'feint'。battle/sim.js の feintAI）: via を回って lane へ。本隊は撃たずに lane の点（from 分から dwell 分ごとに次へ、端まで行って戻る）のまわり ring に、
-       触れる隊は screen の組の見える艦を射程の端から撃ち、内側に入られたら20秒下がる。推進器は撃たない。assault: 核の戦艦を nukes.allOut 隻失ったあとの本気の攻撃
-       （艦だけ。min 分か、そのときの lost を失うと下がる）。end 分（21:00）に下がる。lane は守るものから約95〜105（方角守備隊の reach 130 の中。2026-10-29 に前の110〜120 の0.88倍へ寄せた: 陽動だけでは半分剥がれず、
-       何もしないと 15:00 の時刻で第二段階に入る）。位置と時間は仮 */
+    /* 陽動（2026-10-30 #248）: press は全隊で迫る→撃つ→外へ引く。同じ側で射撃・離脱の合図をそろえる。
+       lane は dwell ごとに点を飛ばさず連続補間。仮: fire 2.5秒、withdraw 80秒、pullOut は持ち場中心から170、
+       orbit 7秒/ラジアン、ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
     feints:{
-      '左上':{screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{min:60, lost:.3}},
-      '右下':{screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{min:60, lost:.3}},
+      '左上':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{min:60, lost:.3}},
+      '右下':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{min:60, lost:.3}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
        share になったら（一番早くて from 分 = 13:50）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 半分を切った、time: 時刻で。time の「剥がれきらないが、時間だ」はユーザー決定 2026-10-29、文は仮） */
@@ -1565,17 +1564,17 @@ WOS_DATA.operations.push((()=>{
        spare:['bb']: 拠点は戦艦を狙いに行かない（寄られたら砲と W.A.S. は撃つ）。goal の 'nuke' は隊を離れた核を積んだ戦艦（降りている途中か着底）。
        方角守備隊は型 screen（post: 持ち場の中心。say: 陽動が初めて触れたときの台詞）。turns: 合図（ignite）で型と守るものを替える（battle/sim.js の packTurn） */
     packs:[
-      /* 拠点は起爆のあとも正面に残る（南の地球の艦隊に備える。2026-10-29 の釣り合わせ、仮。前は戻せる推進器の守りへ移り、残った自軍を押しつぶした） */
-      ...LINE.map(([w,x,z,alt,n])=>({doctrine:'rockShield', name:`${w}の拠点`, fleets:[`第${n} 南線護衛 戦闘隊`,`第${n+1} 南線巡洋 戦闘隊`,`第${n+2} 南線揚陸 戦闘隊`], ward:[x,z,alt], shade:'ward', spare:['bb']})),
+      /* 仮（#248）: 西・東は対応する守備隊の34%以上が持ち場外か沈没なら、縁2隻と予備2隻を一度だけ配置換え。　壁は残す。lure の18隻には配置換えした艦を加えない。watch 半径7で合図前も3点を回る。 */
+      ...LINE.map(([w,x,z,alt,n])=>({doctrine:'rockShield', name:`${w}の拠点`, fleets:[`第${n} 南線護衛 戦闘隊`,`第${n+1} 南線巡洋 戦闘隊`,`第${n+2} 南線揚陸 戦闘隊`], ward:[x,z,alt], shade:'ward', spare:['bb'], watch:{r:7}, ...(w==='中'?{}:{relief:{to:w==='西'?'西上守備隊':'東下守備隊',share:.34,slots:['rim','reserve']}})})),
       ...SCR.map(([w,az,el,ff,c1,c2,mas])=>({doctrine:'screen', name:`${w}守備隊`, fleets:[`第${ff} 護衛警衛 戦闘隊`,`第${c1} 巡洋阻止 戦闘隊`,`第${c2} 巡洋阻止 戦闘隊`,`第${mas} 突撃揚陸 戦闘隊`],
-        ward:w==='西上'?[...names('西の上'), pt(-64,30,30)]:names('東'), post:pt(az,el,58), ...(w==='西上'?{say:['ハッダード曹長','「左上の陽動、接触。守りが出てきます」']}:{})})),
-      {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), ward:names('北'), start:'ignite'},
+        chase:true, ward:w==='西上'?[...names('西の上'), pt(-64,30,30)]:names('東'), post:pt(az,el,58), ...(w==='西上'?{say:['ハッダード曹長','「左上の陽動、接触。守りが出てきます」']}:{})})),
+      {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), ward:names('北'), start:'ignite', watch:{r:7}},
       /* 槍1: 待っている戦艦へ、西の下と東の上から。退く先はデナリの北 */
-      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], start:35, backTo:[0,-70,0]},
+      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], watch:{r:7}, start:35, backTo:[0,-70,0]},
       /* 槍2: 戦艦が鉱山へ向かうと（合図 descend）、南の下と北の上から */
-      {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], start:'descend', backTo:[0,-70,0]},
+      {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], watch:{r:7}, start:'descend', backTo:[0,-70,0]},
       /* 霧と鎚: 戦艦が着底すると（合図 land）。W.A.S. が母艦とフリゲートを襲い、重巡洋艦は W.A.S. が取り付くか20分で縁から着底した戦艦を撃つ */
-      {doctrine:'mistHammer', name:'霧と鎚', fleets:HAM.map(o=>o.name), goal:['nuke'], start:'land', turns:[guardThr('ignite','北','東')]},
+      {doctrine:'mistHammer', name:'霧と鎚', fleets:HAM.map(o=>o.name), goal:['nuke'], watch:{r:7}, start:'land', turns:[guardThr('ignite','北','東')]},
     ],
     events:[
       /* 13:35 に槍1が出る（packs の start:35） */
