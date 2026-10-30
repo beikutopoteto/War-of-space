@@ -1117,6 +1117,7 @@ function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Ma
   const p=k=>packVec(F.lane[k<n?k:per-k]); return F.press?p(i).lerp(p((i+1)%per),at%1):p(i); }
 function feintAssault(now){ const sides={};
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
+  if(op.win.type==='shatter') for(const w of wings) if(w.alive&&w.carrier.feint&&op.feints[w.carrier.feint].assault?.role==='cover'){ w.state='return'; w.target=w.fireTarget=null; }
   feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
@@ -1126,7 +1127,16 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
   if(f.mode==='gone'){ const d=Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z);
     if(d>FIELD_R+FEINT_GONE){ f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; return true; }
     moveTo(f,f.pos.x,f.pos.y,fieldC.z+FIELD_R+FEINT_GONE*2); return true; }
-  if(f.mode==='assault'){ const ships=foes.filter(e=>e.seen&&(op.win.type==='shatter'?(e.restore||e.fixed&&e.type==='aa'&&fleets.some(t=>t.restore&&t.alive&&t.pos.distanceTo(e.pos)<35)):!e.fixed)), t=nearestOf(f,ships); f.aim=t;
+  if(f.mode==='assault'){ const A=F.assault||{};
+    if(op.win.type==='shatter'&&A.role==='cover'){
+      const mates=fleets.filter(x=>x.ally&&x.alive&&x.feint===A.support&&x.mode==='assault'), thr=fleets.filter(x=>x.alive&&x.restore);
+      const ships=foes.filter(e=>e.seen&&!e.fixed&&(mates.some(m=>e.pos.distanceTo(m.pos)<A.near||e.fireTarget===m||e.order&&e.order.target===m)||thr.some(t=>e.pos.distanceTo(t.pos)<A.near)||wings.some(w=>w.alive&&w.carrier===e&&mates.includes(w.target))));
+      const t=nearestOf(f,ships); f.aim=t; f.stance='evade';
+      if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
+      else { f.strike=null; const m=nearestOf(f,mates); if(m) moveTo(f,m.pos.x,m.pos.y,m.pos.z); else f.order=null; }
+      return true;
+    }
+    const ships=foes.filter(e=>e.seen&&(op.win.type==='shatter'?(e.restore||e.fixed&&e.type==='aa'&&fleets.some(t=>t.restore&&t.alive&&t.pos.distanceTo(e.pos)<35)):!e.fixed)), t=nearestOf(f,ships); f.aim=t;
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
     else { const objective=op.win.type==='shatter'&&nearestOf(f,fleets.filter(e=>e.restore&&e.alive)); const P=packs.find(P=>P.name===F.screen), p=objective?objective.pos:P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
     return true; }
