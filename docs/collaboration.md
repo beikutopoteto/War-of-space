@@ -1,19 +1,21 @@
 # Claude と Codex の共同作業
 
-Claude Code（Claude）と OpenAI Codex Cloud（Codex）が同じ GitHub リポジトリで作業するときの共通ルール（ユーザー決定 2026-10-29）。Claude の利用上限に達したときも、Codex が続きを拾えるようにするのが目的。入口は Claude が `CLAUDE.md`、Codex が `AGENTS.md`。ゲームの仕様と進め方の決まりはどちらも同じ（`docs/spec.md`、`docs/requests.md`）。
+Claude Code（Claude）と OpenAI Codex（Codex。Codex Cloud か、ユーザーの Mac の Codex CLI）が同じ GitHub リポジトリで作業するときの共通ルール（ユーザー決定 2026-10-29。手元の CLI は 2026-10-30 から）。Claude の利用上限に達したときも、Codex が続きを拾えるようにするのが目的。入口は Claude が `CLAUDE.md`、Codex が `AGENTS.md`。ゲームの仕様と進め方の決まりはどちらも同じ（`docs/spec.md`、`docs/requests.md`）。
 
-## 分担（ユーザー決定 2026-10-29）
+## 分担（ユーザー決定 2026-10-29。2026-10-30 に手元の Codex CLI 向けに変えた）
+ふだんは、ユーザーの Mac で Claude が Codex CLI を直接呼ぶ（下の「Codex を手元から呼ぶ」）。ユーザーが間に立って作業票を貼る形（「Codex への渡し方（手動）」）は、Codex Cloud を使うときだけ。
 - **Claude**:
   - 会話、指示の読み取り、仕様と計画、物語、見た目の見本。
-  - 作業票を書く。
-  - Codex の PR をレビューしてマージする。
-  - 資料に記録する。
-  - 試遊ページを更新する。
-  - 小さな修正は直接やる。
-- **Codex**:
-  - 作業票1つ分の実装、テスト、PR。
-  - 作業票に結果を書いたら止まる。次の作業票は新しい作業で始める。
-  - 資料の整理はしない。例外は、ユーザーが「Claude はしばらく休み」と言ったあいだだけで、そのときは `AGENTS.md` の「Claude がいないとき」に従う。
+  - 作業票（Issue）を書き、Codex の作業フォルダ（`git worktree`）を作って `codex exec` で呼ぶ。
+  - **git は Claude**: コミット、push、PR、マージ。Codex の差分を読み、Codex が測った数のうち大事なものは Claude も早送りで確かめる（下の「Codex への渡し方」のレビュー）。
+  - Codex の差分をレビューし、直しが要れば Codex に返して直させる（`codex exec resume`）。
+  - 資料に記録する。試遊ページを更新する。
+  - **小さな直しも Codex に任せる**（ユーザーの指示 2026-10-30「簡単なテストなども任せてみてください」）: テストの直し、数行のコードの直し、早送りやテストを回すことも Codex に頼む。Claude が自分でやるのは、頼む手間のほうが明らかに大きいとき（1行の打ち間違いなど）と資料だけ。
+- **Codex**（`gpt-6.1-terra`、推論の強さ medium。ユーザー決定 2026-10-30）:
+  - 作業票1つ分のコードとデータの変更。作業フォルダの中だけを直す。
+  - 構文の確認（`node --check`）、`npm run check-docs`、早送りの道具（`tools/*.cjs`）、`npm test` を自分で回し、測った数を結果に書く（サンドボックスを緩めた。ユーザー決定 2026-10-30）。
+  - 結果（下の「結果」の型）を最後の返事に書いて止まる。コミット・push・PR はしない。
+  - 資料の整理はしない（`docs/menu.md` の仮の数値は書いてよい）。
 
 ## 作業票（GitHub の Issue）
 Claude が書く。題は「作業票: <話題>」。本文の型:
@@ -50,7 +52,22 @@ Codex は終えたら、最後のコミットの本文に結果を書く（Claud
 
 Claude はこれを読んでレビューとマージを行い、仮の数値と決まったことを資料（`docs/menu.md`、`docs/roadmap.md` ほか）に書いてから、Issue を閉じる。
 
-## Codex への渡し方（手動。ユーザー決定 2026-10-29）
+## Codex を手元から呼ぶ（2026-10-30。ユーザーの Mac）
+ユーザーの Mac では、Claude が Codex CLI を直接呼べる（作業票を貼る手間がない）。手動の渡し方（下）は、Codex Cloud を使うときに残す。
+- 置き場所: リポジトリは `~/dev/War-of-space`。Codex CLI は `~/.npm-global/bin/codex`（ChatGPT でログイン済み）、`gh` は `~/.local/bin/gh`（PATH は通していないのでフルパスで）。push はこのリポジトリだけの設定（`credential.https://github.com.helper` に `gh auth git-credential`）。
+- モデル: 基本 `gpt-6.1-terra`、推論の強さ medium（ユーザー決定 2026-10-30）。変えるのはユーザーが言ったときだけ。
+- 手順:
+  1. Claude が作業票を書く（GitHub の Issue。型は上の「作業票」）。
+  2. Claude が `git worktree add -b codex/<話題> ~/dev/wos-codex-<話題> origin/main` で Codex 専用の作業フォルダを作る（Claude の作業と混ざらない）。
+  3. Claude が後ろで走らせる: `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s danger-full-access -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
+  4. **コミットは Claude がする**: Codex は作業フォルダを直し、早送りとテストを自分で回して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、大事な数は早送りで確かめる。
+     - サンドボックスは `danger-full-access`（ユーザー決定 2026-10-30「緩めます」）。前の `workspace-write` では Chromium が起動せず（`browserType.launch` が閉じる）、`.git` にも書けなかった（`index.lock` を作れない）。緩めても、作業フォルダの外を直すこと・コミット・push は作業票で禁じる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
+  5. 終わったら `git worktree remove` で作業フォルダを片付ける。
+- `npm test`（約20分）と早送りの道具は、Claude と Codex で同時に回さない（実時間に頼る確認が落ちる）。Codex に走らせる回は、Claude は待つ。
+- 続きを頼む `codex exec resume --last` は `-s` を受け付けない（2026-10-30 に起動せず終わった）。作業フォルダの中で `-c sandbox_mode="danger-full-access"` を付けて呼ぶ。
+- Codex が上限に当たったら、作業フォルダに残った変更を Claude が「作業中」のコミットで退避して push し、続きを同じ作業フォルダで呼び直す（`codex exec resume --last` も使える）。
+
+## Codex への渡し方（手動。Codex Cloud を使うときだけ。ユーザー決定 2026-10-29）
 1. Claude が作業票（Issue）を書き、ブランチ `codex/<話題>` と下書きの PR を先に作って見張る（最初のコミットは `docs/PROJECT_STATUS.md` の行）。
 2. Claude が、Codex に貼る短い文をユーザーに渡す（リポジトリ、ブランチ、作業票の番号、「このブランチに push する」「新しい PR は作らない」「作業票の本文と、その下の Claude の追記コメントも読む」（追記がないときは「追記はなし」と書く。2026-10-30、Codex が追記を探して聞き返した）「目標に届かなければ、理由と試した数を書いて止まる」）。ブランチは、同じファイルを触る Claude の PR をマージしてから作る（食い違わないように）。
 3. ユーザーがそれを Codex に貼る。手で行うのはここだけ。

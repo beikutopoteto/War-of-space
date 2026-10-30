@@ -38,7 +38,7 @@
 
 ## 開発環境の改善（ゲームの本筋とは別。ユーザー 2026-10-30）
 
-- 手元の環境（`claude remote-control` と Codex CLI）を試すか決める（ユーザーと相談中 2026-10-30）。Claude が Codex を直接呼べれば（`codex exec`、未確かめ）、作業票を貼る手間がなくなる。作業フォルダは `git worktree` で分け、`npm test` は順に回す。
+- 手元の環境（ユーザーの Mac）で、Claude が Codex CLI を直接呼べるようにした（2026-10-30。`codex exec`、モデルは gpt-6.1-terra の medium）。手順は `docs/collaboration.md`「Codex を手元から呼ぶ」。コミットは Claude がする（Codex のサンドボックスは `.git` に書けない）。
 
 ## 注意点（2026-10-30 に更新。次のセッションの前に読む）
 
