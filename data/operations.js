@@ -751,7 +751,7 @@ WOS_DATA.operations=[
        本軍の戦艦の6割が沈むか、ユーコンの耐久が6割を切ると、ウォン中将が切り上げを命じる（cut。2026-10-16 に7割・半分から早めた。ユーザー決定: 本軍が持たなくなったら。乗せられたのは約5,000人）。
        7時間で必ず切り上げる（仮） */
     carrier:{
-      fleet:{name:'ユーコン', sub:'戦闘母艦　住民を乗せる', type:'cvb', n:1, hp:160, dmg:.8, eva:.04, range:12, speed:8, scale:1.4, hangar:{ftr:40}, vis:7, stl:3, aa:6},
+      fleet:{name:'ユーコン', sub:'戦闘母艦　住民を乗せる', type:'cvb', n:1, hp:160, dmg:.8, eva:.04, range:12, speed:4, scale:1.4, hangar:{ftr:40}, vis:7, stl:3, aa:6},
       at:[14,124],
       /* 着陸は宇宙港を押さえるため（占領）。ウォン中将が作戦を変え、住民を乗せて逃がす（ユーザー決定 2026-10-10: 着陸＝占領、そのあと避難）。
          2026-10-17（ユーザー決定）: 敵の奇襲（着陸で戻る奇襲部隊）が始まったら収容する。着陸と同時に作戦変更（evac を書かない）。
@@ -765,7 +765,14 @@ WOS_DATA.operations=[
          撤退では、ユーコンにいちばん近い本軍の1隊がユーコンにつき、残りはすべて残って敵を食い止める（ユーザー決定 2026-10-17）。
          収容は330分（5.5時間。max、仮）で必ず切り上げる（3,000人なら160分で満員になるので、ほぼ効かない。1,000人のときは5,500人）（2026-10-12、wos-strategy の案: 研究ありで満員になるのを防ぐ）。
          本軍が長く持つほど多く乗せられる（ユーザー決定 2026-10-10: 守り方しだいで変わる。早送りではふつう約4,600人、3,600〜5,500人） */
-      people:8000, rate:3000, cut:{max:330},
+      /* #241: r(t)=6000 exp(-t/35) 人/時、t は収容開始からの分。積分は3500(1-exp(-t/35))人。数は仮。 */
+      people:8000, rate:6000, rateDecay:35, cut:{max:330},
+      /* after/release は着陸からの分。港から outR 以上、ほかの本軍から isolateR 以上離れるまで狩らない。位置と数は仮。 */
+      patrol:{fleet:'第6 巡洋護衛 支隊', after:20, pos:[-65,-75], alt:65, outR:85, isolateR:45, release:39,
+        outLogs:[['ウォン中将', '「第6 巡洋護衛、港の外を回れ。雲の縁まで見てこい。戻ってくる者がいるなら、先に知りたい」'], ['第6 巡洋護衛', '「第6、了解。雲の縁へ」']],
+        attackLogs:[['第6 巡洋護衛', '「雲の中に赤い光……数は──」'], ['ハッダード曹長', '「第6 との通信、途切れました」'], ['傍受', 'アルバレス大尉「群れから離れた艦からだ。急ぐな、一隻ずつだ」']],
+        lostLogs:[['ハッダード曹長', '「第6 巡洋護衛、反応なし。……全滅です」'], ['ウォン中将', '「……誰も港の外へ出るな。まわりを固めろ」']],
+        safeLogs:[['ウォン中将', '「第6、警戒を終えて戻れ。港のまわりを固めろ」']]},
       /* 乗せた人数に比例して遅くなる。満員で70%遅い（ユーザー決定 2026-10-10） */
       slowFull:.7,
       /* 離脱点は西南（2026-10-12 に [-100,100] から遠くした。撤退に回り込む駆逐艦を見せるため。仮） */
@@ -811,10 +818,10 @@ WOS_DATA.operations=[
         {after:0, ai:{fleets:['第11 巡洋阻止 戦闘隊','第12 巡洋阻止 戦闘隊','第14 巡洋阻止 戦闘隊','第15 機動駆逐 戦闘隊','第16 巡洋阻止 戦闘隊','第17 機動駆逐 戦闘隊','第13 巡洋阻止 戦闘隊','第19 機動駆逐 戦闘隊','第20 巡洋阻止 戦闘隊'], ai:'hunt', spare:['carrier'], keepOut:true}},
         /* 強襲母艦は第一章ではまだ出さない（ユーザー決定 2026-10-09: 敵も味方も開発していない）。アルバレスの隊は突撃揚陸艦だけ */
         {after:0, fleet:{name:'第7 試験強襲 エスカドラ', sub:'惑星先進装備開発局 アルバレス隊 突撃揚陸艦', type:'mas', n:4, scale:1.1,
-          hangar:{was:40}, ace:true, spare:['carrier'], prey:'ally', keepOut:true, pos:[-16,-89], alt:62, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
+          hangar:{was:40}, ace:true, patrolHunter:true, spare:['carrier'], prey:'ally', keepOut:true, pos:[-16,-89], alt:62, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
         /* 重巡洋艦はこちらの艦を狙う（ユーザー決定 2026-10-10）。居住区を撃つのは「初撃」だけ（ユーザー決定 2026-10-10: 脅しだけで初撃だけ） */
         /* 2026-10-17（ユーザー決定: 着陸から後の波には、ユーコンを狙う隊を1隊ずつ）: 第5 重巡洋艦がユーコンを狙う（prey:'carrier'） */
-        {after:0, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+        {after:35, fleet:{name:'第5 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[20,-91], alt:64, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:7, log:['ハッダード曹長', '「岩くずの雲の北西の端から反応、多数！　突撃揚陸艦です。月面へ向かったはずの……」']},
         {after:9, log:['ハッダード曹長', '「雲の中ほど、北の上からも！　同時です。居住区A の上へ」']},
         /* 敵が来たら、本軍の各隊は受け持ちのユーコンか居住区の前へ出て守る（ユーザー決定 2026-10-10。ai:'protect'。受け持ちは本軍の protect） */
@@ -824,9 +831,9 @@ WOS_DATA.operations=[
         /* アルバレスの指揮の下の第8（色はふつうの赤。居住区とユーコンは狙わず、撤退も追わない letGo。W.A.S. は第7 の半分の40、仮）と第4 重巡洋艦。
            2026-10-12 から27分後の第2波だったのを、2026-10-14 に第7・第5 と同時にした（ユーザー決定: 後半の奇襲のタイミングを合わせ、同時に出す） */
         {after:0, fleet:{name:'第8 試験強襲 エスカドラ', sub:'惑星先進装備開発局 アルバレス隊 突撃揚陸艦', type:'mas', n:4, scale:1.1,
-          hangar:{was:20}, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
+          hangar:{was:20}, patrolHunter:true, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
           arrow:{pos:[-12,-50]}},
-        {after:0, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[-8,-125], alt:82, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
+        {after:35, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[-8,-125], alt:82, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:36, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊が去らない限り、居住区への砲撃を続ける。これは警告だ」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'raid'}},
         {after:38, log:['ハッダード曹長', '「居住区に着弾！　第5 重巡洋艦が、居住区を撃っています！」']},
         {after:40, log:['ハッダード曹長', '「砲撃が止みました。……今のは、見せしめです」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'hunt'}},
@@ -873,7 +880,7 @@ WOS_DATA.operations=[
           own:[{name:'第18 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:2, scale:1.25, pos:[130,-20], alt:-25, ai:'hunt', prey:'carrier', keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4},
             {name:'第17 重巡洋 エスカドラ', sub:'共和国主力 重巡洋艦', type:'cl', n:2, scale:1.25, pos:[60,-150], alt:-40, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}],
           types:[
-            {n:8, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
+            {n:4, nums:[20,21,22,23,24,25,26,27,28,29,30], fleet:{name:'第{n} 局地強襲 エスカドラ', sub:'共和国主力 突撃揚陸艦', type:'mas', scale:1.1,
               spare:['carrier'], keepOut:true, ai:'detail', watch:{pos:[20,60], alt:0}, vis:7, stl:6, }},
           ],
           at:[[-118,-25,-45],[140,60,10],[-30,-200,35],[130,-20,-25],[-110,-120,70],[20,-190,50],[-150,-60,-30]]}},
@@ -914,7 +921,7 @@ WOS_DATA.operations=[
       /* 本軍の隊の数は2倍（ユーザー決定 2026-10-10）。足した3隊の位置は仮 */
       {name:'第2 主力戦艦 打撃群', sub:'本軍 戦艦・巡洋艦', comp:{bb:4, cl:4}, n:8, scale:1.45, pos:[4,72], alt:-8, vis:6, stl:3, leash:300, hold:true, protect:'block:2'},
       {name:'第20 ドナウ前衛 支隊', sub:'本軍 戦艦・巡洋艦（ドナウ残存隊）', comp:{bb:3, cl:3}, n:6, scale:1.45, pos:[64,94], alt:8, vis:6, stl:3, leash:300, hold:true, protect:'block:0'},
-      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:300, hold:true, protect:'block:2'},
+      {name:'第6 巡洋護衛 支隊', sub:'本軍 巡洋艦・駆逐艦', comp:{cl:3, dd:2}, n:5, scale:1.1, pos:[70,100], alt:0, vis:6, stl:5, leash:35, hold:true, protect:'block:2'},
     ],
     /* 守備隊（盾）: 損害が半分を超えると持ち場の居住区のそばへ下がる。着陸すると、こちらの艦を狙いに出る（ai:'hunt'。ユーザー決定 2026-10-10: 居住区は撃たない）。
        対空砲台: デナリの表面に置く動かない敵（ユーザー決定 2026-10-09）。艦載機をよく落とす。撃っても住民に被害は出ない（岩の上。ユーザー決定 2026-10-10）。

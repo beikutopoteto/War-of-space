@@ -17,6 +17,9 @@ const { openGame, toStage } = require('./browser.cjs');
   const strat=process.argv[2]||'a';
   if (process.env.STAGE) await toStage(page);   // STAGE=1: our own fleets researched as far as the operation's stage (2026-10-20)
   const r = await page.evaluate((strat) => {
+    const metrics={}, stamp=()=>({clock:clockStr(),min:gameSec*CLOCK_RATE,sec:gameSec}), main=()=>{
+      const a=fleets.filter(f=>f.ally&&!f.fixed&&f.alive); return {ships:a.reduce((s,f)=>s+f.ships.length,0),hp:a.reduce((s,f)=>s+f.hpPool,0)}; };
+    const land=landCarrier; landCarrier=function(){ metrics.land={...stamp(),...main(),patrolShips:(fleets.find(f=>f.ally&&f.name==='第6 巡洋護衛 支隊')||{ships:[]}).ships.length}; return land(); };
     const log=[]; const L=(t='')=>log.push(`${clockStr()} ${phaseName} cas=${Math.round(casualties)} yk=${opCarrier.alive?Math.round(opCarrier.hpPool):'x'} al=${fleets.filter(f=>f.ally).map(f=>f.alive?f.ships.length:(f.left?'L':'-')).join('/')} me=${fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier).map(f=>f.alive?f.ships.length:'-').join('/')} en=${fleets.filter(f=>f.team===1&&f.alive&&!f.fixed).map(f=>f.name.slice(0,5)+f.ships.length).join(',')} aa=${fleets.filter(f=>f.fixed&&f.alive).length} ${t}`);
     const mine=()=>fleets.filter(f=>f.team===0&&!f.ward&&!f.isCarrier&&f.alive);
     L('start '+mine().map(f=>`${f.name.slice(0,6)}:${f.n}x${f.hp.toFixed(1)} d${f.dmg.toFixed(2)} r${f.range.toFixed(0)} s${f.speed}`).join(' '));
@@ -30,9 +33,13 @@ const { openGame, toStage } = require('./browser.cjs');
     let n=0, sent=false, flee=false; if(strat==='auto') autoMode=true;
     while(!over&&n++<40000){ step(.05);
       if(n%20) continue;
-      if(opCarrier.cs.landed&&!window._land){ window._land=1; L('LAND alliesAtLand='+(opCarrier.cs.alliesAtLand??'未記録')); }
-      if(massAt.w1!=null&&!window._first){ window._first=1; L('FIRST'); }
-      if(opCarrier.cs.lastCame&&!window._lw){ window._lw=1; L('LAST '+lost()); }
+      if(opCarrier.cs.landed&&!window._land){ window._land=1; L('LAND alliesAtLand='+(opCarrier.cs.alliesAtLand??'未記録')+' hp='+metrics.land.hp.toFixed(1)); }
+      if(opCarrier.cs.patrolStarted&&!metrics.patrol){ metrics.patrol=stamp(); L('PATROL'); }
+      if(opCarrier.cs.patrolEngaged&&!metrics.ambush){ metrics.ambush=stamp(); L('AMBUSH'); }
+      if(opCarrier.cs.patrolReleased&&!metrics.patrolEnd){ metrics.patrolEnd={...stamp(),lost:!!opCarrier.cs.patrolLost,base:opCarrier.cs.alliesAtLand,...main()}; L((opCarrier.cs.patrolLost?'PATROL_LOST':'PATROL_SAFE')+' base='+opCarrier.cs.alliesAtLand); }
+      if(massAt.w1!=null&&!window._first){ window._first=1; metrics.first=stamp(); L('FIRST'); }
+      if(opCarrier.cs.lastCame&&!window._lw){ window._lw=1; metrics.last=stamp(); L('LAST '+lost()); }
+      if(opCarrier.cs.done&&!metrics.retreat) metrics.retreat=stamp();
       if(strat==='auto'){ if(phaseName==='撤退'&&!window._rt){ window._rt=1; L('RETREAT '+lost()); } if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); } continue; }
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen);
       if(phaseName==='奪還'||phaseName==='交戦'){
@@ -52,8 +59,9 @@ const { openGame, toStage } = require('./browser.cjs');
       if(n%160===0) L(`A1=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.find(x=>x.ally))} A3=${(f=>f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+":"+f.mode:"x")(fleets.filter(x=>x.ally)[1])} ALV=${(f=>f?f.alive?Math.round(f.pos.x)+","+Math.round(f.pos.z)+(f.seen?"":"?"):"dead":"-")(fleets.find(x=>x.ace))} W=${wings.filter(w=>w.team===1).reduce((s,w)=>s+w.n,0)}`);
     }
     L('hold '+JSON.stringify(Object.fromEntries(Object.entries(hold).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[k,Math.round(v)]))));
-    L('boarded='+(opCarrier.cs.boarded)+' '+lost()+' end '+JSON.stringify(Object.fromEntries(Object.entries(dmgBy).map(([k,v])=>[k,Math.round(v)])))); return {log, over, outcome, loseWhy, sec:gameSec};
+    L('boarded='+(opCarrier.cs.boarded)+' '+lost()+' end '+JSON.stringify(Object.fromEntries(Object.entries(dmgBy).map(([k,v])=>[k,Math.round(v)])))); return {log, over, outcome, loseWhy, sec:gameSec,metrics:{...metrics,boarded:opCarrier.cs.boarded,win:outcome,sec:gameSec}};
   }, strat);
   console.log(r.log.join('\n')); console.log(r.over, r.outcome, r.loseWhy, errors.slice(0, 3)); console.log(`実時間 ${Math.round(r.sec)}秒`);
+  console.log('METRICS '+JSON.stringify(r.metrics));
   await browser.close();
 })();
