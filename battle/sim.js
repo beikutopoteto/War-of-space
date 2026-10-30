@@ -217,7 +217,7 @@ function enemyCraft(u,maxD){
    go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){
   if(patrolHunting(u)){ const t=opCarrier.cs.patrolTarget; return t&&t.alive&&t.seen&&!spares(u,t)&&gap(u,t)<maxD?t:null; }
-  const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
+  const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD&&(!feintCover(u.carrier||u)||craftMayHit(u,o))) return o;
   if((u.carrier||u).stance==='evade') return null;
   /* 第5節 (2026-10-17, the enemy's priorities; 数値は仮): Alvarez's W.A.S. (prey:'mine') go for our own army's ships first, the rival;
      every other W.A.S. first for what is firing on its own ship (the assault ships come in with their W.A.S. as their guard) */
@@ -303,7 +303,7 @@ function tetherCarriers(dt){
 }
 function stepWings(dt){
   for(const w of wings){ if(!w.alive) continue;
-    const c=w.carrier;
+    const c=w.carrier, cover=feintCover(c);
     if(w.state==='attack'){
       w.fuel-=dt;
       const o=orderedTarget(w); if(o&&o!==w.target&&o.alive&&o.seen&&gap(w,o)<w.launchR&&leashed(w,o)) w.target=o;   // a new attack order turns them at once
@@ -323,9 +323,10 @@ function stepWings(dt){
         if(c.alive) keepWithin(w.pos,_tw0,c.pos,w.launchR); }   // the squadron does not go out of its carrier's launch distance
     }
     if(w.state!=='attack') continue;
-    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range?t:nearestFoe(w,w.range); }
+    /* 第6節 cover: both the nearby fallback and a cached firing target must obey the carrier's restriction. */
+    w.retarget-=dt; if(w.retarget<=0){ w.retarget=.4; const t=w.target; w.fireTarget=t&&t.alive&&t.seen&&gap(w,t)<=w.range&&(!cover||craftMayHit(w,t))?t:nearestFoe(w,w.range,cover?t=>craftMayHit(w,t):null); }
     const ft=w.fireTarget;
-    if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08){
+    if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08&&(!cover||craftMayHit(w,ft))){
       damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL; if(ft.kind==='fleet') ft.slowT=.5;
       if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randShip(w),randShip(ft),TEAM_COL[colOf(w)],.18);
     }
@@ -362,7 +363,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)?t:null;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||!t.fixed&&t.type!=='thr')?t:null;
   if(patrolHunting(f)) return opCarrier.cs.patrolEngaged?inRange(opCarrier.cs.patrolTarget):null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
@@ -2296,7 +2297,8 @@ function step(dt){
     if(!f.alive) continue;
     if(f.hangars.length){ (f.tp||(f.tp=new THREE.Vector3())).copy(f.pos); f.tOrd=f.order; f.tS=f.order&&f.order.path?f.order.path.s:0; }   // for tetherCarriers
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
-    f.retarget-=dt; if(f.retarget<=0){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
+    /* 第6節 cover: discard a battery cached before the switch without waiting for the next retarget. */
+    f.retarget-=dt; if(f.retarget<=0||feintCover(f)&&f.fireTarget&&(f.fireTarget.fixed||f.fireTarget.type==='thr')){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
     let goal=null, moving=false;
     if(f.locked&&f.order){ f.order=null; f.queue=[]; dropArrow(f.arrow); f.arrow=null; }   // the carrier on the pad does not move
     if(f.order){
