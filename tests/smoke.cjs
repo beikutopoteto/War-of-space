@@ -2016,7 +2016,7 @@ function check(ok, label, detail = '') {
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); autoMode = true; tough();
       const bbs = () => nuke.G.filter(G => G.alive);
       const r = {}; mins(1.5); r.start = mine().length > 0 && mine().every(f => f.order || bbs().some(b => f.pos.distanceTo(b.pos) < op.auto.escortR * 2 + 4));   // moving, or by the battleships already
-      r.esc = mine().filter(f => f.order && f.order.type === 'move' && bbs().some(b => f.order.dest.distanceTo(b.pos) < op.auto.escortR + 1.5)).length;
+      r.esc = mine().filter(f => f.order && f.order.type === 'move' ? bbs().some(b => f.order.dest.distanceTo(b.pos) < op.auto.escortR + 1.5) : !f.order && bbs().some(b => f.pos.distanceTo(b.pos) < op.auto.escortR * 2 + 4)).length;   // on the way, or there already (2026-10-30)
       r.help = mine().filter(f => f.order && f.order.type === 'move' && f.order.dest.distanceTo(packVec(op.auto.helpVia[0])) < 1).length;   // the west way round the front (2026-10-29)
       lured = { at: opMin(), by: 'test' }; mins(opMin() + 1); tough();
       const near = g => g.pos.distanceTo(nuke.mine) < op.auto.mineR;
