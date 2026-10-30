@@ -1119,13 +1119,14 @@ function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Ma
 /* 作業票 #254: the feint side told off (assault.role 'cover') to keep the other side's way to the thrusters clear fires on ships only */
 const feintCover=f=>f.feint&&f.mode==='assault'&&op.win.type==='shatter'&&op.feints[f.feint].assault?.role==='cover';
 function feintAssault(now){ const sides={};
+  if(op.win.type==='shatter') packCue.allOut=true;
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
   if(op.win.type==='shatter') for(const w of wings) if(w.alive&&w.carrier.feint&&op.feints[w.carrier.feint].assault?.role==='cover'){ w.state='return'; w.target=w.fireTarget=null; }
   feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
   if(f.mode!=='gone'&&f.mode!=='assault'&&F.end!=null&&now>=F.end) feintLeave(f);
-  if(f.mode==='assault'&&feintAll&&op.win.type!=='shatter'){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
+  if(f.mode==='assault'&&feintAll&&(op.win.type!=='shatter'||F.assault?.withdraw)){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
     if(now-feintAll.at>=(A.min??60)||n<n0*(1-(A.lost??.3))) for(const x of fleets) if(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault') feintLeave(x); }
   if(f.mode==='gone'){ const d=Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z);
     if(d>FIELD_R+FEINT_GONE){ f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; return true; }
