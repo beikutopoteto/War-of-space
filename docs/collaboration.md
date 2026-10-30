@@ -2,18 +2,19 @@
 
 Claude Code（Claude）と OpenAI Codex（Codex。Codex Cloud か、ユーザーの Mac の Codex CLI）が同じ GitHub リポジトリで作業するときの共通ルール（ユーザー決定 2026-10-29。手元の CLI は 2026-10-30 から）。Claude の利用上限に達したときも、Codex が続きを拾えるようにするのが目的。入口は Claude が `CLAUDE.md`、Codex が `AGENTS.md`。ゲームの仕様と進め方の決まりはどちらも同じ（`docs/spec.md`、`docs/requests.md`）。
 
-## 分担（ユーザー決定 2026-10-29）
+## 分担（ユーザー決定 2026-10-29。2026-10-30 に手元の Codex CLI 向けに変えた）
+ふだんは、ユーザーの Mac で Claude が Codex CLI を直接呼ぶ（下の「Codex を手元から呼ぶ」）。ユーザーが間に立って作業票を貼る形（「Codex への渡し方（手動）」）は、Codex Cloud を使うときだけ。
 - **Claude**:
   - 会話、指示の読み取り、仕様と計画、物語、見た目の見本。
-  - 作業票を書く。
-  - Codex の PR をレビューしてマージする。
-  - 資料に記録する。
-  - 試遊ページを更新する。
-  - 小さな修正は直接やる。
-- **Codex**:
-  - 作業票1つ分の実装、テスト、PR。
-  - 作業票に結果を書いたら止まる。次の作業票は新しい作業で始める。
-  - 資料の整理はしない。例外は、ユーザーが「Claude はしばらく休み」と言ったあいだだけで、そのときは `AGENTS.md` の「Claude がいないとき」に従う。
+  - 作業票（Issue）を書き、Codex の作業フォルダ（`git worktree`）を作って `codex exec` で呼ぶ。
+  - **測ることと git は Claude**: 早送りの道具、`npm test`、コミット、push、PR、マージ。Codex のサンドボックスでは Chromium が起動せず（早送りもテストも回らない）、`.git` にも書けないため（2026-10-30 に試した）。
+  - Codex の差分をレビューし、測った数を Codex に返して直させる（`codex exec resume`）。
+  - 資料に記録する。試遊ページを更新する。小さな修正は直接やる。
+- **Codex**（`gpt-6.1-terra`、推論の強さ medium。ユーザー決定 2026-10-30）:
+  - 作業票1つ分のコードとデータの変更。作業フォルダの中だけを直す。
+  - 構文の確認（`node --check`）と `npm run check-docs` はサンドボックスでも回る。早送り・`npm test` は回らないので、確かめたいことは結果に書けば Claude が回して数を返す。
+  - 結果（下の「結果」の型）を最後の返事に書いて止まる。コミット・push・PR はしない。
+  - 資料の整理はしない（`docs/menu.md` の仮の数値は書いてよい）。
 
 ## 作業票（GitHub の Issue）
 Claude が書く。題は「作業票: <話題>」。本文の型:
@@ -58,12 +59,12 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
   1. Claude が作業票を書く（GitHub の Issue。型は上の「作業票」）。
   2. Claude が `git worktree add -b codex/<話題> ~/dev/wos-codex-<話題> origin/main` で Codex 専用の作業フォルダを作る（Claude の作業と混ざらない）。
   3. Claude が後ろで走らせる: `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s workspace-write -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
-  4. **コミットは Claude がする**: Codex のサンドボックスは `.git` に書けない（2026-10-30 に試した。`index.lock` を作れずコミットが失敗）。Codex は作業フォルダを直して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、早送りとテストで確かめてから、Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
+  4. **コミットと測ることは Claude がする**: Codex のサンドボックスは `.git` に書けず（`index.lock` を作れない）、Chromium も起動しない（`browserType.launch` が閉じる）。2026-10-30 に試した。Codex は作業フォルダを直して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、早送りとテストで確かめる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
   5. 終わったら `git worktree remove` で作業フォルダを片付ける。
 - `npm test`（約20分）と早送りの道具は、Claude と Codex で同時に回さない（実時間に頼る確認が落ちる）。Codex に走らせる回は、Claude は待つ。
 - Codex が上限に当たったら、作業フォルダに残った変更を Claude が「作業中」のコミットで退避して push し、続きを同じ作業フォルダで呼び直す（`codex exec resume --last` も使える）。
 
-## Codex への渡し方（手動。ユーザー決定 2026-10-29）
+## Codex への渡し方（手動。Codex Cloud を使うときだけ。ユーザー決定 2026-10-29）
 1. Claude が作業票（Issue）を書き、ブランチ `codex/<話題>` と下書きの PR を先に作って見張る（最初のコミットは `docs/PROJECT_STATUS.md` の行）。
 2. Claude が、Codex に貼る短い文をユーザーに渡す（リポジトリ、ブランチ、作業票の番号、「このブランチに push する」「新しい PR は作らない」「作業票の本文と、その下の Claude の追記コメントも読む」（追記がないときは「追記はなし」と書く。2026-10-30、Codex が追記を探して聞き返した）「目標に届かなければ、理由と試した数を書いて止まる」）。ブランチは、同じファイルを触る Claude の PR をマージしてから作る（食い違わないように）。
 3. ユーザーがそれを Codex に貼る。手で行うのはここだけ。
