@@ -6,7 +6,7 @@
 - `data/`: 艦種、編成ボーナス、作戦（マップ）、解放・報酬・技術ツリーのデータ。コードを触らずに数値と作戦を足せます。
 - `prep.js` / `prep.css`: メインメニュー、出撃、艦隊編集（戦区軍・打撃群・支隊）、技術ツリー、艦艇データ、デバッグ欄。編成と進行はブラウザの localStorage に保存します。
 - `tests/smoke.cjs`: 自動確認。`npm install` のあと `npm test` で、ヘッドレスのブラウザが主な画面と戦闘を一通り動かします。PR ごとに GitHub Actions でも走ります。
-- `tools/`: 確認用の道具（天体の見本の画像、第2・4・5節の早送り、友軍の狙う相手の表）。
+- `tools/`: 確認用の道具（天体の見本の画像、第2・4・5節の早送り、どの作戦でも早送りする `op-sim`、第1〜6節の長さの表 `length-sim`、友軍の狙う相手の表）。
 - `docs/`: 仕様とデザインの方向性（`spec.md`）、操作と仮の数値（`menu.md`）、コードの構成（`code.md`）、天体とマップの作り方（`maps.md`）、ロードマップ、キャンペーン、ストーリー、設定。`docs/icons/` にアイコンの案（SVG）。
 - `CLAUDE.md`: 作業の進め方と資料の案内（Claude Code が毎回読む）。`.claude/` にサブエージェントとスキル（`/ship`、`/tidy-docs`、`/story-draft`）。
 - `AGENTS.md`: OpenAI Codex の入口。Claude と Codex の共通のルール（セットアップ、テスト、ブランチ、引き継ぎ）は `docs/collaboration.md`、作業中のブランチは `docs/PROJECT_STATUS.md`、設計の判断は `docs/DECISIONS.md`。
