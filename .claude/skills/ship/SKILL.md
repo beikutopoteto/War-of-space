@@ -19,7 +19,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 - `subscribe_pr_activity` で PR を見張る。
 
 ## 3. CI とマージ
-- CI（`smoke`）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。
+- CI（`smoke`）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。通知の `head_sha` が PR の最新のコミットか見る（前のコミットの CI の知らせも届く）。
 - 成功なら `merge_pull_request`（`merge_method: squash`）。失敗なら原因を直して push する（テストを消したり飛ばしたりしない）。
 - 先に別の PR をマージしたせいで食い違いが出たら、`git merge origin/main` で取り込み、テストしてから push する。
 - マージ後: `git fetch origin main -q && git checkout -q main && git reset -q --hard origin/main`。
@@ -36,6 +36,12 @@ description: War of Space の変更を出す手順。テスト、コミット、
 ```
 
 `battle/` や `data/` にファイルを足したら、この表にも足す。
+
+### 公開が断られたとき
+- 「前に載せたファイルを読んでいない」と断られたら、`action:"read"` の `paths` で出ているファイルを読み、中身が前の `main` と同じこと（`git show <前のmain>:<file> | sha256sum`）を確かめてから載せ直す。
+
+### マージの前に試したいと言われたとき（2026-10-30）
+- いつもの試遊ページは `main` のまま。PR の版はスクラッチパッドに `index.html`・`battle/`・`data/`・`prep.js`・`prep.css` を写し、試しのページ `https://claude.ai/artifact/Li9c2FJ8dknwPJzMJWTpHW` に `root` をその場所にして載せる（`url` を付ける。作り直すときは新しいページになる）。直したら同じ所へ載せ直す。マージしたら、いつものページを更新する。
 
 ## 5. 報告
 - ユーザーへは日本語で短く: 何が変わったか、PR 番号、試遊ページを更新したか。

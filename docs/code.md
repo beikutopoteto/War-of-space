@@ -52,5 +52,9 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 第6節を陽動の形に作り直したとき（2026-10-28）: 方角守備隊の型 `screen`（`data/ships.js`、`battle/sim.js` の `screenSpot`・`screenAI`）、友軍の陽動 `ai:'feint'` と作戦の `feints`（`feintAI`、3隻失ったときの `feintAssault`）、第二段階の合図 `lure`（`stepLure`・`lureCount`、合図の前は推進器の印を出さない `thrOff`）、`nukes.route`・`max`・`allOut`、作戦の `cap`、任務欄の第一段階と「目標更新中」（`battle/hud.js` の `nukeHtml`・`lureRows`・`goalFlash`）、戦艦の道の矢印（`drawRoute`、`loop.js` から毎フレーム）、推進器の印（`battle/state.js` の `makeFleet`、`.unit.thr`）、オートモードの作り直し（`autoDenali`）。やめたもの: 防衛線の突破（`breach`・`stepBreach`・`when:'breach'`）と砲撃線（`ai:'shell'`・`shellAI`）
 第6節の釣り合わせ（2026-10-29）: 戦艦の護衛の友軍 `ai:'escort'`（`battle/sim.js` の `escortAI`、`allyAI` から）。移乗で分かれた戦艦の耐久は艦種の割合（`nukeBoard`）。オートモードの西の道（`op.auto.helpVia` を点の並びに、`frontZ`）と、第二段階で鉱山が空いたら戻せる推進器へ（`autoThr`）
 
+第4節の警戒の隊と収容（2026-10-30、#240・#242）: 撤退の基準 `alliesAtLand`（着陸か警戒の隊の全滅の時点の本軍の隻数。`alliesLost`）、警戒の隊 `carrier.patrol`（`stepPatrol`・`finishPatrol`、狩る側は `patrolHunter` と `patrolHunting`）、収容の曲線 `rate`・`rateDecay`（`boardingTotal`、積分で計算）、2つ目の波は1つ目のあと（`stepLastWave`）。第4節と第6節の砲台は `WOS_DATA.denaliGun`（`data/operations.js` の先頭）。
+
 ## 確認
+- テストで任務欄（`#goalGates`）を読む前は `goalFlashT = 0` にする。合図や段階の切り替えのあと実時間1.5秒は「目標更新中」だけが出て、CI の速さによって印が見つからず落ちた（2026-10-29、#235）。
+- 早送りの道具（`tools/`）は回すたびに `data/` を読み込む。回しているあいだにデータを書き換えない（途中から別の値で測ることになる）。数を試すときは `PATCH=` を使う。
 `npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。Codex と併用するときのセットアップとテストの手順は `docs/collaboration.md`。
