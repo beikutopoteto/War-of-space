@@ -896,9 +896,9 @@ function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) retur
   if(mv==='approach'){ if(!G) return false; const s=approachSpot(f); if(!free(s)) return false;
     if(f.packArr==null&&f.pos.distanceTo(s)<6) f.packArr=opMin(); packStay(f,s); return true; }
   if(mv==='hold'||mv==='hide'){ const s=packAt(f); if(!free(s)) return false; f.packOver=false; f.packWp=null;
-    if(mv==='hide'){ hush(); if(callHome(f)) f.order=null; else packStay(f,s); return true; }
+    if(mv==='hide'){ hush(); if(callHome(f)) f.order=null; else if(!packWatch(f,P,s)) packStay(f,s); return true; }
     const near=foes.filter(e=>e.pos.distanceTo(s)<(D.holdR||30)&&!packSpares(P,e)), t=near.length?pickFoe(f,near,true):null;
-    if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); } else packStay(f,s); return true; }
+    if(t){ if(!(f.order&&f.order.target===t)) order(f,{type:'attack',target:t}); } else if(!packWatch(f,P,s)) packStay(f,s); return true; }
   if(mv==='back'){ if(mom){ hush(); if(callHome(f)) f.order=null; else { if(P.goneAt==null) P.goneAt=opMin(); packStay(f,home); } return true; }
     const M=nearestOf(f,packMates(f,x=>x.hangars.length&&x.pos.distanceTo(P.backTo?home:x.home)>8)); if(!M){ packStay(f,home); return true; }   // the mothers still on their way
     const e=foeSide(M,foes)||G&&G.pos.clone(); if(!e){ packStay(f,M.pos); return true; }
@@ -938,12 +938,36 @@ function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) retur
    foe within wasR of it. So a feint that keeps out at the edge of `reach` draws the screen away from its post (the lure, stepLure) */
 function screenSpot(P,all){ const D=P.D, Ws=[].concat(P.ward||[]).map(w=>typeof w==='string'?fleets.find(x=>x.alive&&x.name===w):Array.isArray(w)?{pos:packVec(w)}:null).filter(Boolean);
   if(!P.postV){ const L=P.mem.filter(f=>f.alive); if(!L.length) return null; P.postV=L.reduce((v,f)=>v.add(f.home),new THREE.Vector3()).multiplyScalar(1/L.length); }
+  if(op.feintRemake&&P.pursueFeint){ const C=D.chase, H=P.chasing;
+    /* 撃っている隊を追う。合図 lure の対象・分母は P.fleets の元の隊のまま。仮の追跡上限は doctrine.chase。 */
+    if(H&&!H.returning){ if(H.target.alive&&H.target.seen) H.last.copy(H.target.pos);
+      if(!H.target.alive||gameSec-H.at>=C.seconds||H.last.distanceTo(P.postV)>C.out){ H.returning=true; P.chaseRest=gameSec+C.cooldown; } }
+    if(H&&H.returning){ if(P.mem.filter(f=>f.alive).every(f=>f.pos.distanceTo(f.home)<D.spread+4)&&gameSec>=P.chaseRest) P.chasing=null;
+      else return null; }
+    if(!P.chasing&&!(P.chaseRest>gameSec)){
+      const defended=[...P.mem,...fleets.filter(f=>P.batteries&&P.batteries.includes(f.name))];
+      const fired=all.filter(e=>e.feint&&e.mode==='feint'&&defended.includes(e.fireTarget)&&e.fireTarget.alive&&e.stance!=='evade'&&gap(e,e.fireTarget)<=e.range*1.08&&!bodyBlocks(e.pos,e.fireTarget.pos));
+      const t=nearestOf({pos:P.postV},fired); if(t) P.chasing={target:t,last:t.pos.clone(),at:gameSec,returning:false}; }
+    const H1=P.chasing;
+    if(H1&&!H1.returning){ const a=H1.last.clone().sub(P.postV); if(a.lengthSq()<1e-6) a.set(0,0,1);
+      const s=H1.last.clone().addScaledVector(a.normalize(),-C.gap); if(s.distanceTo(P.postV)>C.out) s.sub(P.postV).setLength(C.out).add(P.postV);
+      return {C:H1.last.clone(),s,W:P.postV.clone(),near:[H1.target],chase:true}; }
+  }
   const near=Ws.length?all.filter(e=>!e.fixed&&Ws.some(w=>w.pos.distanceTo(e.pos)<D.reach)):[]; if(!near.length) return null;
   const n=near.reduce((s,e)=>s+e.ships.length,0), C=near.reduce((v,e)=>v.addScaledVector(e.pos,e.ships.length),new THREE.Vector3()).multiplyScalar(1/Math.max(1,n));
   const W=Ws.reduce((a,b)=>a.pos.distanceTo(C)<=b.pos.distanceTo(C)?a:b), d=W.pos.distanceTo(C);
   const s=C.clone().sub(W.pos).setLength(Math.max(0,d-D.gap)).add(W.pos); if(s.distanceTo(P.postV)>D.out) s.sub(P.postV).setLength(D.out).add(P.postV);
   return {C, s, W:W.pos.clone(), near}; }
 function screenAI(f,foes,hush){ const P=f.pack, D=P.D, S=P.scr;
+  if(op.feintRemake&&P.pursueFeint){
+    if(!S){ if(f.order&&f.order.type==='attack') f.order=null; packStay(f,f.home); return true; }
+    const a=S.C.clone().sub(S.W).normalize(), reserve=f.packSlot==='reserve', k=P.mem.filter(x=>x.alive&&x.packSlot!=='reserve').indexOf(f);
+    const w=reserve?0:(k<=0?0:(k%2?1:-1)*Math.ceil(k/2))*D.spread;
+    const s=S.s.clone().add(new THREE.Vector3(-a.z*w,0,a.x*w)); if(reserve) s.addScaledVector(a,-D.chase.reserve);
+    const t=nearFoe({pos:s},foes,e=>!e.fixed&&e.seen&&gap({pos:s},e)<(reserve?D.wasR:f.range));
+    f.stance='engage';
+    if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; }
+    else { if(f.order&&f.order.type==='attack') f.order=null; packStay(f,s); } return true; }
   if(f.packSlot==='reserve'){ const t=nearFoe(f,foes,e=>gap(f,e)<D.wasR);
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=f.home.clone(); return true; }
     hush(); if(callHome(f)) f.order=null; else packStay(f,f.home); return true; }
@@ -954,6 +978,24 @@ function screenAI(f,foes,hush){ const P=f.pack, D=P.D, S=P.scr;
   let t=null, bd=f.range; for(const e of foes){ if(!e.alive||e.fixed) continue; const d=e.pos.distanceTo(s)-(e.radius||0); if(d<bd){ bd=d; t=e; } }
   if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; } else packStay(f,s);
   return true; }
+/* 第6節の待機中だけの見回り。戦闘開始の合図・狙い・leashは変えない。点と半径は作戦の仮の値。 */
+function packWatch(f,P,center){ const W=P&&P.patrol; if(!op.feintRemake||!W||W.waitOnly&&P.t0!=null) return false;
+  if(f.watchPack!==P){ f.watchPack=P; f.watchPoint=f.id%3; }
+  const point=()=>{ const a=f.watchPoint*Math.PI*2/3, p=center.clone().add(new THREE.Vector3(Math.cos(a)*W.r,Math.sin(a)*W.h,Math.sin(a)*W.r));
+    if(f.leash&&p.distanceTo(f.post)>f.leash-2) p.sub(f.post).setLength(Math.max(1,f.leash-2)).add(f.post); return p; };
+  let p=point(); if(f.pos.distanceTo(p)<3){ f.watchPoint=(f.watchPoint+1)%3; p=point(); }
+  if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
+/* 兵力の配置換え（C）。元の P.fleets は残すので lure の18隻に増援を数えない。 */
+function feintReinforce(){ if(!op.feintRemake) return;
+  for(const P of packs){ const R=P.reinforce; if(!R||P.reinforced) continue; const Q=packs.find(x=>x.name===R.to); if(!Q||!Q.postV) continue;
+    const original=lureUnits(Q), n0=original.reduce((s,f)=>s+f.n,0), exposed=original.reduce((s,f)=>s+(!f.alive?f.n:f.n-f.ships.length+(f.pos.distanceTo(Q.postV)>op.lure.out?f.ships.length:0)),0);
+    if(exposed<n0*R.share) continue; P.reinforced=true;
+    for(const f of P.mem.slice()){ if(!f.alive||!R.fleets.includes(f.name)) continue;
+      P.mem.splice(P.mem.indexOf(f),1); f.pack=Q; f.packSlot=Object.keys(Q.D.slots).find(k=>Q.D.slots[k].includes(topClass(f))); f.packK=Q.mem.filter(x=>x.packSlot===f.packSlot).length; Q.mem.push(f);
+      f.redeployed={at:gameSec,from:P.name,to:Q.name,ships:f.ships.length}; f.post.copy(Q.postV); f.home.copy(Q.postV); f.ai=null;
+      f.stance='engage'; f.packSt0=null; f.packAt=f.packSpot=f.packWp=f.syncSpeed=f.order=null; f.packOver=false; }
+  }
+}
 /* press (第5節, user decision 2026-10-16: the lines push in on the base): a line unit (ai:'guard' with press {goal:[x,z,alt], slow, fast, hold})
    holds its post at the edge and moves it on toward its goal by the gates, `slow` a clock hour (operation minutes) while a gun on the base
    covers the post (within its range + PRESS_COVER), `fast` where none does any more, and not at all while our ships round the post
@@ -985,6 +1027,7 @@ function enemyAI(){
   const all=fleets.filter(f=>f.team===0&&f.alive&&f.seen&&!f.ghost);
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
   if(packs.length) stepPacks(all);   // ドクトリンの型 (operations with packs only)
+  feintReinforce();   // 第6節のデータに reinforce のある拠点だけ
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
     if(patrolHunting(f)){ const t=opCarrier.cs.patrolTarget;
@@ -1025,6 +1068,8 @@ function enemyAI(){
     if(f.ai==='withdraw'){ withdrawAI(f); continue; }
     if(f.ai==='escape'){ if(chase) moveTo(f,chase.exit.x,chase.exit.y,chase.exit.z); continue; }
     if(f.press&&f.ai==='guard') pressPost(f);   // 第5節: a line creeping toward the gates
+    const waiting=op.feintRemake&&packs.find(P=>P.patrol&&P.t0==null&&P.fleets.includes(f.name));
+    if(waiting&&!pickFoe(f,foes,f.ai==='hunt')&&packWatch(f,waiting,f.home)) continue;
     if(f.pack&&packAI(f,foes)) continue;   // ドクトリンの型: before the role
     const RL=roleMove(f); if(RL&&roleFirst(f,RL,foes)) continue;   // 艦種別の動き (roleAI operations only)
     const threat=pickFoe(f,foes,f.ai==='hunt');
@@ -1085,11 +1130,36 @@ function protectAI(f){
    its side has lost `assault.lost` of the ships it had then; then it leaves. At `end` minutes (21:00) every feint leaves: south, out of the field */
 const FEINT_IN=.6, FEINT_BACK=20, FEINT_EDGE=.95, FEINT_GONE=20;
 let feintAll=null;
-function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), i=Math.floor(Math.max(0,now-(F.from||0))/(F.dwell||10))%per; return packVec(F.lane[i<n?i:per-i]); }
+function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), t=Math.max(0,now-(F.from||0))/(F.dwell||10), i=Math.floor(t)%per;
+  const p=packVec(F.lane[i<n?i:per-i]); if(op.feintRemake&&F.probe){ const j=(i+1)%per; p.lerp(packVec(F.lane[j<n?j:per-j]),t-Math.floor(t)); } return p; }
 function feintAssault(now){ const sides={};
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
   feintAll={at:now, n0:sides}; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
+/* 第6節A: 全隊が砲台・守備隊を脅かし、短く撃ってから外へ引く。距離・秒は作戦データの仮の値。
+   laneは連続補間し、退避点でも小さく回る。推進器は狙いに入れない（砲と艦載機にも既存の禁止判定）。 */
+function feintProbe(f,F,foes,L){ const B=F.probe, P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return false;
+  f.stance='engage';
+  if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; return true; }
+    if(f.order&&f.order.type==='move') return true; f.feintOut=true; }
+  const mates=fleets.filter(x=>x.feint===f.feint&&x.alive), k=mates.indexOf(f), a=gameSec*Math.PI*2/B.orbitSec+k*Math.PI*2/Math.max(1,mates.length);
+  const orbit=(p,r)=>p.clone().add(new THREE.Vector3(Math.cos(a)*r,Math.sin(a)*3,Math.sin(a)*r));
+  const pull=()=>{ const d=L.clone().sub(P.postV); if(d.lengthSq()<1e-6) d.set(f.feint==='左上'?-1:1,0,0);
+    const p=d.setLength(Math.max(B.outer,d.length()+B.extra)).add(P.postV); const q=orbit(p,B.orbit);
+    if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,q.x,q.y,q.z); };
+  if(f.feintPullUntil>gameSec){ f.feintPhase='pull'; pull(); return true; }
+  if(f.feintFireAt!=null&&gameSec-f.feintFireAt>=B.fire){ f.feintFireAt=null; f.feintPullUntil=gameSec+B.back; f.feintPhase='pull'; callHome(f); pull(); return true; }
+  const targets=foes.filter(e=>e.alive&&e.type!=='thr'&&(P.mem.includes(e)||F.batteries.includes(e.name)));
+  const t=nearestOf(f,targets); f.aim=t;
+  if(!t){ f.feintPhase='sweep'; pull(); return true; }
+  f.feintPhase='approach';
+  if(t.seen){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t});
+    const d=L.clone().sub(t.pos); if(d.lengthSq()<1e-6) d.set(f.feint==='左上'?-1:1,0,0);
+    f.packSpot=orbit(d.setLength(f.range*B.close+(t.radius||0)).add(t.pos),B.orbit*.35);
+    if(f.fireTarget&&targets.includes(f.fireTarget)&&gap(f,f.fireTarget)<=f.range*1.08&&!bodyBlocks(f.pos,f.fireTarget.pos)){
+      f.feintPhase='fire'; if(f.feintFireAt==null) f.feintFireAt=gameSec; }
+  } else { const q=t.pos.clone().sub(bodyC).setLength(t.pos.distanceTo(bodyC)+f.range*B.close).add(bodyC); moveTo(f,q.x,q.y,q.z); }
+  return true; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
   if(f.mode!=='gone'&&F.end!=null&&now>=F.end) feintLeave(f);
   if(f.mode==='assault'&&feintAll){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
@@ -1099,10 +1169,12 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     moveTo(f,f.pos.x,f.pos.y,fieldC.z+FIELD_R+FEINT_GONE*2); return true; }
   if(f.mode==='assault'){ const ships=foes.filter(e=>!e.fixed&&e.seen), t=pickFoe(f,ships,true); f.aim=t;
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
-    else { const P=packs.find(P=>P.name===F.screen), p=P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
+    else { const P=packs.find(P=>P.name===F.screen), p=P&&(P.scr?P.scr.s:P.postV); if(p){ const a=gameSec*.35+f.id;
+      if(op.feintRemake) moveTo(f,p.x+12*Math.cos(a),p.y,p.z+12*Math.sin(a)); else moveTo(f,p.x,p.y,p.z); } }
     return true; }
   if(f.mode!=='feint') return false;
   const L=feintLane(F,now);
+  if(op.feintRemake&&F.probe) return feintProbe(f,F,foes,L);
   if(!f.touch) f.stance='evade';   // the main body fires on nothing and sends no craft out, on its way too
   /* out to the lane first, round the front */
   if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; return true; }
@@ -2101,7 +2173,18 @@ function autoDenali(mine,ships,attack){
   /* the west way round the front (helpVia, 2026-10-29: before one point, and the way back went through the strongholds): going from the south of
      the front (z over A.frontZ) to the north of it or back, by the points of helpVia in turn (from the nearest on); null when no crossing */
   const vias=(A.helpVia||[]).map(packVec), south=p=>p.z>(A.frontZ??200);
-  const cross=(f,p)=>{ if(!vias.length||south(f.pos)===south(p)) return null; const L=south(f.pos)?vias:vias.slice().reverse();
+  const cross=(f,p)=>{
+    if(A.rememberWay){
+      if(!vias.length) return null; let C=f.autoCross;
+      /* 通過中は最後の点まで終える。目標が変わっても、通過済みの点へ選び直さない。
+         到着後に目標が反対側なら新しい行程。逆向きは逆順。半径は仮の viaR（最後の点も frontZ を越える）。 */
+      if(!C||C.done){ if(south(f.pos)===south(p)) return null;
+        const L=south(f.pos)?vias:vias.slice().reverse(); let i=0; L.forEach((v,j)=>{ if(v.distanceTo(f.pos)<L[i].distanceTo(f.pos)) i=j; });
+        C=f.autoCross={points:L,index:i,toSouth:south(p),done:false,serial:(f.autoCrossSerial||0)+1}; f.autoCrossSerial=C.serial; }
+      while(C.index<C.points.length&&f.pos.distanceTo(C.points[C.index])<A.viaR) C.index++;
+      if(C.index>=C.points.length){ C.done=true; return null; } return C.points[C.index];
+    }
+    if(!vias.length||south(f.pos)===south(p)) return null; const L=south(f.pos)?vias:vias.slice().reverse();
     let i=0; L.forEach((v,j)=>{ if(v.distanceTo(f.pos)<L[i].distanceTo(f.pos)) i=j; }); if(L[i].distanceTo(f.pos)<15) i++; return i<L.length?L[i]:null; };
   const reach=(f,e)=>{ const v=cross(f,e.pos); if(v) goTo(f,v); else if(e.kind!=='fleet'||e.seen) hit(f,e); else goTo(f,over(f,e)); };
   const near2=(f,p)=>{ const v=cross(f,p); goTo(f,v||p); };
@@ -2113,7 +2196,9 @@ function autoDenali(mine,ships,attack){
     if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ reach(f,e); continue; }
       const h=by(f,help); if(h){ reach(f,h); continue; }
       /* none to help: wait on the west way (north of the front) rather than come back through it */
-      if(vias.length&&!south(f.pos)){ near2(f,vias[vias.length-1]); continue; }
+      if(A.joinFeint){ const touch=by(f,fleets.filter(x=>x.ally&&x.alive&&x.feint===A.joinFeint&&x.touch&&x.mode==='feint'&&x.feintOut));
+        if(touch){ near2(f,touch.pos.clone().add(new THREE.Vector3((f.id%2?1:-1)*A.escortR,0,A.escortR))); continue; } }
+      else { if(vias.length&&!south(f.pos)){ near2(f,vias[vias.length-1]); continue; } }
       if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; near2(f,new THREE.Vector3(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
     if(!first&&!fired){ const e=list[0]; if(e){ reach(f,e); continue; }   // the mine cleared ahead of the battleships
       if(tObj){ const t=by(f,craft)||by(f,tList); if(t){ reach(f,t); continue; } reach(f,tObj); continue; } }   // then a restoring thruster

@@ -153,6 +153,8 @@ WOS_DATA.doctrines={
     rockShield:{slots:{wall:['ff'], rim:['cl'], reserve:['mas','masc']}, how:{reserve:'over'}, at:{wall:'front', rim:'rim', reserve:'shadow'},
       steps:[{wall:'hold', rim:'hold', reserve:'hide', next:'hit'}, {wall:'hold', rim:'hold', reserve:'charge', next:'lost'}, {wall:'hold', rim:'hold', reserve:'hide'}],
       front:10, rim:28, shadow:30, over:15, holdR:30, faceR:150},
-    screen:{slots:{wall:['ff','dd'], rim:['cl'], reserve:['mas','masc']}, steps:[{wall:'screen', rim:'screen', reserve:'screen'}], reach:130, gap:40, out:100, wasR:40, spread:9},
+    screen:{slots:{wall:['ff','dd'], rim:['cl'], reserve:['mas','masc']}, steps:[{wall:'screen', rim:'screen', reserve:'screen'}], reach:130, gap:40, out:100, wasR:40, spread:9,
+      /* 仮（#248）: op.feintRemake と packs.pursueFeint のある第6節だけ。撃った隊を65 gameSec・postから175まで追い、戻って12秒置く。予備は壁の18後ろ。 */
+      chase:{out:175,seconds:65,gap:10,reserve:18,cooldown:12}},
   },
 };
