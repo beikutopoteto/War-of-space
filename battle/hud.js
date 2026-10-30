@@ -379,11 +379,17 @@ function nukeHtml(){
     return `<svg class="nb${m==='sunk'||m==='landed'&&fired?'':' go'}" data-nb="${i}" viewBox="0 0 20 10" aria-hidden="true"><polygon points="1,5 5,1.5 17,1.5 19,5 17,8.5 5,8.5" fill="${fill}" fill-opacity="${m==='landed'?.75:.45}" stroke="${c}" stroke-width="1"${m==='sunk'?' stroke-dasharray="1.6 1.2"':''}/>${m==='sunk'?`<path d="M7 2.5L13 7.5M13 2.5L7 7.5" stroke="${NK_GREY}" stroke-width="1"/>`:''}</svg>`; };
   const bbRow=`<div class="nkr" title="核を積んだ戦艦（線: 待機、琥珀: 降下中、青: 着底、灰のばつ: 沈没）。押すとその戦艦へ視点が飛ぶ"><span class="nw">戦艦</span>${M.map(bb).join('')}<span class="v">${M.filter(m=>m!=='sunk').length}/${M.length}</span></div>`;
   /* the first stage: the screens drawn out, the battleships, when the second stage comes */
-  if(op.lure&&!lured){ const L=op.lure, hx=(on)=>`<svg class="hx" viewBox="0 0 12 12" aria-hidden="true"><polygon points="${NK_HX}" fill="${on?NK_RED:'none'}" fill-opacity=".55" stroke="${on?NK_RED:NK_GREY}" stroke-width="1.1"${on?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
+  if(op.lure&&!lured&&!feintAll){ const L=op.lure, hx=(on)=>`<svg class="hx" viewBox="0 0 12 12" aria-hidden="true"><polygon points="${NK_HX}" fill="${on?NK_RED:'none'}" fill-opacity=".55" stroke="${on?NK_RED:NK_GREY}" stroke-width="1.1"${on?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
     h+=lureRows().map(r=>`<div class="nkr" title="${r.name}守備隊: 持ち場（中心から${L.out}）にいる艦。陽動が引き出すと減る"><span class="nw">${r.name}</span>${Array.from({length:r.n0},(_,i)=>hx(i<r.home)).join('')}<span class="v">${r.home}/${r.n0}</span></div>`).join('');
     const rs=lureRows(), n0=rs.reduce((s,r)=>s+r.n0,0), need=Math.ceil(n0*L.share-1e-9);
     h+=bbRow+`<div class="nkw">${need}隻を剥がせば第二段階（遅くとも ${clockStr(L.at)}）</div>`;
     return h; }
+  if(W.type==='shatter'){
+    const live=S.state==='wait'?S.G.reduce((s,g)=>s+bbIn(g),0):S.bbs.filter(b=>b.f&&b.f.alive).length;
+    if(feintAll){ const n=S.thr0-restoreLeft(); return `<div class="nkw">推進器 ${n}/${S.thr0}・${clockStr(W.due)}まで</div>`; }
+    const landed=S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed').length;
+    return bbRow+`<div class="nkw">3隻で破砕　着底 ${landed}/${W.breakN}</div>`;
+  }
   /* the scale */
   const est=fired?nukeEst(now):null, pv=fired?null:nukePreview(now), x0=nkX(0), x15=nkX(W.need), x30=nkX(30);
   let sc=`<rect x="${x0}" y="8" width="${(x15-x0).toFixed(1)}" height="11" fill="${NK_RED}" fill-opacity=".13"/><line x1="${x0}" y1="13.5" x2="${x30}" y2="13.5" stroke="#9fb3c8" stroke-opacity=".55" stroke-width="1"/>`;
@@ -413,7 +419,9 @@ function nukeHtml(){
   return h; }
 /* the numbers under the scale (the folded panel keeps them) */
 function nukeLabel(){ const S=nuke, now=gameSec*CLOCK_RATE;
+  if(op.win.type==='shatter'&&feintAll) return `推進器 ${nuke.thr0-restoreLeft()}/${nuke.thr0}・${clockStr(op.win.due)}まで`;
   if(op.lure&&!lured) return '持ち場 '+lureRows().map(r=>`${r.name} ${r.home}/${r.n0}`).join('・');
+  if(op.win.type==='shatter') return `着底 ${S.landN||S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed').length}/${op.win.breakN}`;
   if(S.fireAt!=null) return `予想点 ${S.km.toFixed(1)} → 23:00 に ${Math.max(0,nukeEst(now)).toFixed(1)} km`;
   const pv=nukePreview(now); return `起爆で ${pv.km.toFixed(1)} km（着底 ${pv.n}隻）`; }
 /* on press, not click: the panel's html is rebuilt as the numbers change, so a click may lose its mark; the click after it does not fold the panel */
@@ -465,7 +473,7 @@ function updateGoal(){
     label=W.share?`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`:`${clockStr(W.until)}まで`;
     const bt=fleets.filter(f=>f.ally&&f.fixed); if(bt.length) subT=`地表の砲台 ${bt.filter(f=>f.alive&&!f.silent).length}/${bt.length}`;
     const al=fleets.filter(f=>f.ally&&!f.fixed); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | (支隊|打撃群)$/g,'')} ${f.alive?f.ships.length:0}/${f.n}`).join('・'); }
-  else if(op.win&&op.win.type==='deflect'&&nuke){ text=nuke.text||stageText||op.win.text; mode='deflect'; label=nukeLabel(); }   // 第6節: the scale and the marks are in goalGates (nukeHtml)
+  else if(op.win&&(op.win.type==='deflect'||op.win.type==='shatter')&&nuke){ text=nuke.text||stageText||op.win.text; mode='deflect'; label=nukeLabel(); }   // 第6節: the scale and the marks are in goalGates (nukeHtml)
   else if(opCarrier){ const C=op.carrier, S=opCarrier.cs, hp=opCarrier.alive?Math.max(0,opCarrier.hpPool/(opCarrier.n*opCarrier.hp)):0;
     if(!S.landed){ text=C.landText; const P=op.body.port; p=0; label=`${op.body.port.name}まで ${Math.round(Math.max(0,opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))-P.r))}${portOpen()?'':'　管制 閉鎖中'}`; mode='board'; }
     else if(!S.evac){ p=0; text=C.occupyText||C.boardText; label=C.occupyLabel||'宇宙港を確保中'; mode='board'; }

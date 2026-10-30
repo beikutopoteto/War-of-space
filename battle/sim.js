@@ -182,6 +182,7 @@ function end(win,quit=false,full=false){
     :!win&&loseWhy&&op.result.loseBy&&op.result.loseBy[loseWhy]?{lose:op.result.loseBy[loseWhy][0],loseLog:op.result.loseBy[loseWhy].slice(1)}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:win&&repelBy==='was'&&op.result.winWas?{win:op.result.winWas,winLog:op.result.winWasLog||op.result.winLog}:{};
   const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
     op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。${gates.length?`塞いだゲート ${gates.filter(g=>g.sealed).length}/${gates.length}。基地守備隊 ${garrison?Math.ceil(100*garrison.hp/garrison.max):0}%。`:''}残存艦 ${left}隻。`:
+    op.win&&op.win.type==='shatter'&&nuke?`残存艦 ${left}隻。`:
     op.win&&op.win.type==='deflect'&&nuke?(nuke.fireAt!=null?`着弾予想点 ${nuke.km.toFixed(1)} km（23:00 の見込み ${Math.max(0,nukeEst()).toFixed(1)} km）。`:'')+`残存艦 ${left}隻。`:
     opCarrier?`${opCarrier.name}に乗せた住民 ${(opCarrier.cs.boarded||0).toLocaleString()}人。民間の被害 ${Math.round(casualties).toLocaleString()}人。残存艦 ${left-(opCarrier.alive?opCarrier.ships.length:0)}隻。`:`残存艦 ${left}隻。`;
   document.getElementById('rp').textContent=win?`${clockStr()}、${R.win}${tail}`:quit?`${clockStr()}、作戦を中止した。`:`${clockStr()}、${R.lose}`;
@@ -202,7 +203,7 @@ const FORT_MARGIN=6;
 function underGuns(t,team){ return fortress.alive&&!fortress.defend&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
 /* 第6節: the feints' craft never on a thruster (nor on the guns on the rock in their all-out attack) */
-function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&(t.type==='thr'||c0.mode==='assault'&&t.fixed)) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
+function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&t.type==='thr'&&!(c0.mode==='assault'&&t.restore)) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
   const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
 /* craft against craft: the enemy craft within reach that is closest to their own carrier. So the craft meet the enemy's
    in between and fight there (the front line), and when enemy craft press in toward the carrier the line falls back with them */
@@ -373,7 +374,7 @@ function fireTargetOf(f){
      nothing lower than PIT_EL[0] (pitCan) */
   if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>t.type!=='thr'&&!(f.mode==='assault'&&t.fixed)):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
@@ -901,7 +902,7 @@ function stepRelief(){ for(const P of packs){ const R=P.relief; if(!R||P.reliefA
     f.post.copy(Q.postV); f.home.copy(Q.postV); Q.mem.push(f); }
 } }
 /* 合図を待つ間も持ち場の中を見回る。第6節の watch フラグだけ。中心・leash・合図は変えない。 */
-function packWatch(f,P,c){ const W=P.watch; if(!W) return packStay(f,c);
+function packWatch(f,P,c){ const W=P.watch; if(!W||op.win&&op.win.type==='shatter') return packStay(f,c);
   const a=(f.id%3+(f.watchLeg||0))*Math.PI*2/3, p=c.clone().add(new THREE.Vector3(Math.cos(a)*W.r,0,Math.sin(a)*W.r));
   if(f.ai==='guard'&&p.distanceTo(f.post)>f.leash) p.sub(f.post).setLength(f.leash).add(f.post);
   if(f.pos.distanceTo(p)<3) f.watchLeg=(f.watchLeg||0)+1;
@@ -1116,18 +1117,18 @@ function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Ma
   const p=k=>packVec(F.lane[k<n?k:per-k]); return F.press?p(i).lerp(p((i+1)%per),at%1):p(i); }
 function feintAssault(now){ const sides={};
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
-  feintAll={at:now, n0:sides}; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
+  feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
-  if(f.mode!=='gone'&&F.end!=null&&now>=F.end) feintLeave(f);
-  if(f.mode==='assault'&&feintAll){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
+  if(f.mode!=='gone'&&f.mode!=='assault'&&F.end!=null&&now>=F.end) feintLeave(f);
+  if(f.mode==='assault'&&feintAll&&op.win.type!=='shatter'){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
     if(now-feintAll.at>=(A.min??60)||n<n0*(1-(A.lost??.3))) for(const x of fleets) if(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault') feintLeave(x); }
   if(f.mode==='gone'){ const d=Math.hypot(f.pos.x-fieldC.x,f.pos.z-fieldC.z);
     if(d>FIELD_R+FEINT_GONE){ f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; return true; }
     moveTo(f,f.pos.x,f.pos.y,fieldC.z+FIELD_R+FEINT_GONE*2); return true; }
-  if(f.mode==='assault'){ const ships=foes.filter(e=>!e.fixed&&e.seen), t=pickFoe(f,ships,true); f.aim=t;
+  if(f.mode==='assault'){ const ships=foes.filter(e=>e.seen&&(op.win.type==='shatter'?(e.restore||e.fixed&&e.type==='aa'&&fleets.some(t=>t.restore&&t.alive&&t.pos.distanceTo(e.pos)<35)):!e.fixed)), t=nearestOf(f,ships); f.aim=t;
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
-    else { const P=packs.find(P=>P.name===F.screen), p=P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
+    else { const objective=op.win.type==='shatter'&&nearestOf(f,fleets.filter(e=>e.restore&&e.alive)); const P=packs.find(P=>P.name===F.screen), p=objective?objective.pos:P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
     return true; }
   if(f.mode!=='feint') return false;
   const L=feintLane(F,now);
@@ -1150,11 +1151,12 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
 /* 第6節の迫る→撃つ→引く。全隊が射撃し、lane のさらに外へ引く。周期・距離は作戦ごとの仮の値。 */
 function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
-  const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=gameSec/F.orbit+k*Math.PI*2/Math.max(1,M.length);
+  const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
   const outward=L.clone().sub(P.postV).normalize(), side=new THREE.Vector3(-outward.z,0,outward.x);
   const C=P.feintCycle||(P.feintCycle={phase:'approach',at:gameSec});
   if(C.phase==='withdraw'&&gameSec-C.at>=F.withdraw){ C.phase='approach'; C.at=gameSec; }
-  const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
+  const advanced=!P.chasing&&P.mem.every(e=>!e.alive||e.pos.distanceTo(P.postV)<12);
+  const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||advanced&&!e.fixed&&(!e.pack||e.pack.name!=='北守備隊')&&e.pos.distanceTo(P.postV)<F.guns||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
   const t=nearestOf(f,targets);
   if(C.phase==='fire'&&gameSec-C.at>=F.fire){ C.phase='withdraw'; C.at=gameSec; }
   if(C.phase!=='withdraw'&&t&&gap(f,t)<=f.range*FEINT_EDGE){
@@ -1169,7 +1171,7 @@ function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P
   if(t){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t});
     const p=outward.clone().multiplyScalar(f.range*.8+(t.radius||0)).add(t.pos).addScaledVector(side,Math.sin(a)*F.ring*.5);
     p.y+=Math.cos(a)*F.ring*.5; f.packSpot=p; return true; }
-  const p=P.postV.clone().addScaledVector(outward,25).addScaledVector(side,Math.sin(a)*F.ring); p.y+=Math.cos(a)*F.ring;
+  const p=P.postV.clone().addScaledVector(outward,advanced?-15:25).addScaledVector(side,Math.sin(a)*F.ring); p.y+=Math.cos(a)*F.ring;
   moveTo(f,p.x,p.y,p.z); return true; }
 /* 戦艦の護衛 (escort; 第6節, user decision 2026-10-29: 第29・第30 支隊, cut from the feints. 数値は仮). An allied unit with ai:'escort' keeps by the
    battleships with the warheads (op.nukes): while they wait, by their units (nuke.G); from the crossing over, by the battleships on their own
@@ -1994,14 +1996,14 @@ function nukeDescend(){ const S=nuke, N=op.nukes; S.state='descend'; S.text=N.te
   for(const G of S.G) if(G.alive&&G.crew){ G.locked=false; G.sub=`${G.sub}　戦艦の乗員を乗せている`; }
   nukeSay(N.logs&&N.logs.descend); }
 function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed');
-  S.state='fired'; S.fireAt=S.lastMin=now; S.landN=L.length; S.km=Math.min(N.max??1e9,L.length*N.shift*Math.max(0,N.end-now)/60); S.text=N.text&&N.text.fired||'';
+  S.state='fired'; S.fireAt=S.lastMin=now; S.landN=L.length; S.km=op.win.type==='shatter'?0:Math.min(N.max??1e9,L.length*N.shift*Math.max(0,N.end-now)/60); S.text=N.text&&N.text.fired||'';
   for(const b of L){ const f=b.f; for(let i=0;i<14;i++) burst(f.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,40,14,1.6);
     f.alive=false; f.left=true; f.nukeSt='gone'; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); }
   if(L.length) blast([S.mine.x,S.mine.z,S.mine.y]);
   packCue.ignite=true;
   for(const G of S.G) if(G.alive&&G.crew){ G.mode='nukeBack'; G.order=null; }
   nukeSay(N.logs&&N.logs.fire,{n:L.length,km:S.km.toFixed(1)},true);
-  if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
+  if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
 /* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
 function nukeEst(now=opMin()){ const N=op.nukes; return nuke.km-N.pull*restoreLeft()*Math.max(0,N.stop-Math.max(now,nuke.lastMin))/60; }
 /* the shift the battleships settled now would give, going off `fuse` minutes after the last settles (or when they are set to) */
@@ -2010,10 +2012,12 @@ function nukePreview(now=opMin()){ const N=op.nukes, n=nuke.bbs.filter(b=>b.f&&b
 function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) return; const now=opMin();
   /* told on the radio: a restoring thruster destroyed ({n} left), a battleship lost before the blast ({n} left) */
   const R0=restoreLeft(); if(R0<S.thrN){ S.thrN=R0; nukeSay(N.logs&&(S.state==='fired'?N.logs.thrAfter:N.logs.thr),{n:R0}); }
+  if(W.type==='shatter'&&R0===0){ nukeSay(N.logs&&N.logs.destroyed); end(true); return; }
+  if(W.type==='shatter'&&now>=W.due){ loseWhy='late'; end(false); return; }
   if(S.state!=='fired'){
     const live=S.state==='wait'?S.G.reduce((s,G)=>s+bbIn(G),0):S.bbs.filter(b=>b.f&&b.f.alive).length;
-    if(live<S.bbN){ S.bbN=live; if(live) nukeSay(N.logs&&N.logs.lost,{n:live}); if(N.allOut&&!feintAll&&op.feints&&S.bbAll-live>=N.allOut&&live) feintAssault(now); }
-    if(!live){ loseWhy='sunk'; end(false); return; }
+    if(live<S.bbN){ S.bbN=live; if(live) nukeSay(N.logs&&N.logs.lost,{n:live}); if(N.allOut&&!feintAll&&op.feints&&S.bbAll-live>=N.allOut&&(live||W.type==='shatter')) feintAssault(now); }
+    if(!live&&W.type!=='shatter'){ loseWhy='sunk'; end(false); return; }
     if(W&&W.due!=null&&now>=W.due){ loseWhy='late'; end(false); return; } }
   if(S.state==='wait'){ if(op.lure?lured:now>=N.at) nukeBoard(now); return; }
   if(S.state==='board'){ if(now>=S.at+N.board) nukeDescend(); return; }
@@ -2026,6 +2030,7 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
     if(S.state==='armed'&&now>=S.fuseAt) nukeFire(now);
     if(S.state!=='fired') return; }
   /* after the blast: the thrusters left pull the aim back (until stop); decided once the strike at 23:00 is need or more, or the aim under need */
+  if(W.type==='shatter') return;
   const R=restoreLeft(), t=Math.min(now,N.stop); if(t>S.lastMin){ S.km=Math.max(0,S.km-N.pull*R*(t-S.lastMin)/60); S.lastMin=t; }
   if(nukeEst(now)>=W.need) end(true);
   else if(S.km<W.need){ loseWhy='short'; end(false); }
@@ -2126,7 +2131,8 @@ function autoDenali(mine,ships,attack){
   const bbs=fired?[]:first?nuke.G.filter(G=>G.alive&&bbIn(G)):nuke.bbs.map(b=>b.f).filter(f=>f&&f.alive);
   /* the carriers whose W.A.S. are on what pick takes */
   const craftOn=pick=>[...new Set(wings.filter(w=>w.alive&&w.team===1&&w.state==='attack'&&w.target&&pick(w.target)&&w.carrier&&w.carrier.alive&&w.carrier.seen).map(w=>w.carrier))];
-  const near=ships.filter(e=>!skip(e)&&bbs.some(b=>e.pos.distanceTo(b.pos)<A.nukeR));
+  const route=[...(op.nukes.route||[]).map(packVec),nuke.mine];
+  const near=ships.filter(e=>!skip(e)&&bbs.some(b=>e.pos.distanceTo(b.pos)<A.nukeR||route.some(p=>p.distanceTo(b.pos)<80&&e.pos.distanceTo(p)<35)));
   const threat=[...new Set([...near,...craftOn(t=>bbs.includes(t)).filter(c=>!skip(c))])];
   const craft=fired?craftOn(t=>mine.includes(t)).filter(c=>!skip(c)&&c.pos.distanceTo(cen)<A.craftR):[];
   const raid=wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&bbs.includes(w.target));   // W.A.S. on a battleship (the escort's first)
@@ -2134,17 +2140,17 @@ function autoDenali(mine,ships,attack){
   let list=[], obj=null, help=[], tObj=null, tList=[];
   /* the restoring thruster to go for: the first of `thr` still there (a gun on the rock by it first). After the blast for all; in the second stage
      for the rest once the mine is clear (2026-10-29: shown from the second stage, one destroyed before the blast pulls nothing back) */
-  if(!first){ if(!(autoThr&&autoThr.alive&&!skip(autoThr))){ const t=A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null;
+  if(!first||!bbs.length){ if(!(autoThr&&autoThr.alive&&!skip(autoThr))){ const t=A.thr.map(n=>fleets.find(x=>x.name===n&&x.team===1&&ok(x))).find(Boolean)||null;
       autoThr=t&&guns.find(g=>g.pos.distanceTo(t.pos)<A.objR)||t; }
     tObj=autoThr; if(tObj) tList=ships.filter(e=>!skip(e)&&e.pos.distanceTo(tObj.pos)<A.objR); }
-  if(fired){ obj=autoObj=tObj; list=tList; }
+  if(fired||!bbs.length){ obj=autoObj=tObj; list=tList; }
   else if(!first){ const ref=bbs.length?bbs.reduce((v,b)=>v.add(b.pos),new THREE.Vector3()).multiplyScalar(1/bbs.length):cen;
     obj=autoObj=guns.sort((a,b)=>a.pos.distanceTo(ref)-b.pos.distanceTo(ref))[0]||null;
     const M=nuke.mine, byM=(a,b)=>a.pos.distanceTo(M)-b.pos.distanceTo(M);
     list=[...guns.filter(g=>g.pos.distanceTo(M)<A.mineR).sort(byM),...ships.filter(e=>!skip(e)&&e.pos.distanceTo(M)<A.mineR).sort(byM)]; }
   else { autoObj=null; const P=packs.find(P=>P.name===A.help); help=P?P.mem.filter(x=>x.alive&&!skip(x)&&!guns.some(g=>g.pos.distanceTo(x.pos)<A.gunR)):[]; }   // not under the guns on the rock
   /* the escort: the best at anti-air first, till it has `escort` of our ships (all of them in the second stage) */
-  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(first?A.escort:list.length||tObj?A.escort2:1); let n=0;
+  const esc=new Set(); if(bbs.length){ const all=mine.reduce((s,f)=>s+f.ships.length,0)*(op.win.type==='shatter'?1:first?A.escort:list.length||tObj?A.escort2:1); let n=0;
     for(const f of mine.slice().sort((a,b)=>(b.aa??AA.std)-(a.aa??AA.std)||a.id-b.id)){ if(n>=all) break; esc.add(f); n+=f.ships.length; } }
   /* to a spot (a move, no target); out from the rock over a target out of sight, inside our guns' reach */
   const goTo=(f,p)=>{ if(f.order&&f.order.type==='attack') f.order=null;
@@ -2164,16 +2170,16 @@ function autoDenali(mine,ships,attack){
     if(esc.has(f)){ const e=by(f,raid)||by(f,near,carrierFirst(f)); if(e){ first?reach(f,e):hit(f,e); continue; }
       if(obj&&obj.seen&&!fired&&bbs.some(b=>b.pos.distanceTo(obj.pos)<A.nukeR+A.escortR*2)){ hit(f,obj); continue; }   // the gun by the battleships: on it too
       const b=bbs[k%bbs.length], a=k++*2.4, p=new THREE.Vector3(b.pos.x+Math.cos(a)*A.escortR,b.pos.y,b.pos.z+Math.sin(a)*A.escortR); first?near2(f,p):goTo(f,p); continue; }
-    if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ reach(f,e); continue; }
+    if(first&&bbs.length){ const e=by(f,threat,carrierFirst(f)); if(e){ reach(f,e); continue; }
       const h=by(f,help); if(h){ reach(f,h); continue; }
       /* 助ける相手がなければ、触れる隊に加わる。回り道の途中で待たない。 */
       const touch=by(f,fleets.filter(x=>x.ally&&x.alive&&x.touch&&x.feint&&op.feints[x.feint].screen===A.help&&x.mode==='feint'));
       if(touch){ near2(f,touch.pos); continue; }
       if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4; near2(f,new THREE.Vector3(b.pos.x+Math.cos(a)*A.escortR*2,b.pos.y,b.pos.z+Math.sin(a)*A.escortR*2)); continue; } }
-    if(!first&&!fired){ const e=list[0]; if(e){ reach(f,e); continue; }   // the mine cleared ahead of the battleships
+    if(!first&&!fired&&bbs.length){ const e=list[0]; if(e){ reach(f,e); continue; }   // the mine cleared ahead of the battleships
       if(tObj){ const t=by(f,craft)||by(f,tList); if(t){ reach(f,t); continue; } reach(f,tObj); continue; } }   // then a restoring thruster
     const e=by(f,craft)||by(f,list);
-    if(e) hit(f,e); else if(obj&&fired) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
+    if(e) hit(f,e); else if(obj&&(fired||!bbs.length)) obj.seen?hit(f,obj):goTo(f,over(f,obj)); else { const n=by(f,ships); if(n) attack(f,n); } }
 }
 /* an enemy fleet that comes in (events' fleet). It appears within ±3 of its spot, so no two games are quite alike (2026-10-10, 仮).
    rel: its pos and its arrow are relative to the field centre (a field that moves with the convoy) */
