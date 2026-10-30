@@ -381,7 +381,8 @@ function nukeHtml(){
   /* the first stage: the screens drawn out, the battleships, when the second stage comes */
   if(op.lure&&!lured){ const L=op.lure, hx=(on)=>`<svg class="hx" viewBox="0 0 12 12" aria-hidden="true"><polygon points="${NK_HX}" fill="${on?NK_RED:'none'}" fill-opacity=".55" stroke="${on?NK_RED:NK_GREY}" stroke-width="1.1"${on?'':' stroke-dasharray="1.6 1.2"'}/></svg>`;
     h+=lureRows().map(r=>`<div class="nkr" title="${r.name}守備隊: 持ち場（中心から${L.out}）にいる艦。陽動が引き出すと減る"><span class="nw">${r.name}</span>${Array.from({length:r.n0},(_,i)=>hx(i<r.home)).join('')}<span class="v">${r.home}/${r.n0}</span></div>`).join('');
-    h+=bbRow+`<div class="nkw">半分を切れば第二段階（遅くとも ${clockStr(L.at)}）</div>`;
+    const rs=lureRows(), n0=rs.reduce((s,r)=>s+r.n0,0), need=Math.ceil(n0*L.share-1e-9);
+    h+=bbRow+`<div class="nkw">${need}隻を剥がせば第二段階（遅くとも ${clockStr(L.at)}）</div>`;
     return h; }
   /* the scale */
   const est=fired?nukeEst(now):null, pv=fired?null:nukePreview(now), x0=nkX(0), x15=nkX(W.need), x30=nkX(30);
