@@ -7,12 +7,13 @@ Claude Code（Claude）と OpenAI Codex（Codex。Codex Cloud か、ユーザー
 - **Claude**:
   - 会話、指示の読み取り、仕様と計画、物語、見た目の見本。
   - 作業票（Issue）を書き、Codex の作業フォルダ（`git worktree`）を作って `codex exec` で呼ぶ。
-  - **測ることと git は Claude**: 早送りの道具、`npm test`、コミット、push、PR、マージ。Codex のサンドボックスでは Chromium が起動せず（早送りもテストも回らない）、`.git` にも書けないため（2026-10-30 に試した）。
-  - Codex の差分をレビューし、測った数を Codex に返して直させる（`codex exec resume`）。
-  - 資料に記録する。試遊ページを更新する。小さな修正は直接やる。
+  - **git は Claude**: コミット、push、PR、マージ。Codex の差分を読み、Codex が測った数のうち大事なものは Claude も早送りで確かめる（下の「Codex への渡し方」のレビュー）。
+  - Codex の差分をレビューし、直しが要れば Codex に返して直させる（`codex exec resume`）。
+  - 資料に記録する。試遊ページを更新する。
+  - **小さな直しも Codex に任せる**（ユーザーの指示 2026-10-30「簡単なテストなども任せてみてください」）: テストの直し、数行のコードの直し、早送りやテストを回すことも Codex に頼む。Claude が自分でやるのは、頼む手間のほうが明らかに大きいとき（1行の打ち間違いなど）と資料だけ。
 - **Codex**（`gpt-6.1-terra`、推論の強さ medium。ユーザー決定 2026-10-30）:
   - 作業票1つ分のコードとデータの変更。作業フォルダの中だけを直す。
-  - 構文の確認（`node --check`）と `npm run check-docs` はサンドボックスでも回る。早送り・`npm test` は回らないので、確かめたいことは結果に書けば Claude が回して数を返す。
+  - 構文の確認（`node --check`）、`npm run check-docs`、早送りの道具（`tools/*.cjs`）、`npm test` を自分で回し、測った数を結果に書く（サンドボックスを緩めた。ユーザー決定 2026-10-30）。
   - 結果（下の「結果」の型）を最後の返事に書いて止まる。コミット・push・PR はしない。
   - 資料の整理はしない（`docs/menu.md` の仮の数値は書いてよい）。
 
@@ -58,8 +59,9 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 - 手順:
   1. Claude が作業票を書く（GitHub の Issue。型は上の「作業票」）。
   2. Claude が `git worktree add -b codex/<話題> ~/dev/wos-codex-<話題> origin/main` で Codex 専用の作業フォルダを作る（Claude の作業と混ざらない）。
-  3. Claude が後ろで走らせる: `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s workspace-write -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
-  4. **コミットと測ることは Claude がする**: Codex のサンドボックスは `.git` に書けず（`index.lock` を作れない）、Chromium も起動しない（`browserType.launch` が閉じる）。2026-10-30 に試した。Codex は作業フォルダを直して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、早送りとテストで確かめる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
+  3. Claude が後ろで走らせる: `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s danger-full-access -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
+  4. **コミットは Claude がする**: Codex は作業フォルダを直し、早送りとテストを自分で回して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、大事な数は早送りで確かめる。
+     - サンドボックスは `danger-full-access`（ユーザー決定 2026-10-30「緩めます」）。前の `workspace-write` では Chromium が起動せず（`browserType.launch` が閉じる）、`.git` にも書けなかった（`index.lock` を作れない）。緩めても、作業フォルダの外を直すこと・コミット・push は作業票で禁じる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
   5. 終わったら `git worktree remove` で作業フォルダを片付ける。
 - `npm test`（約20分）と早送りの道具は、Claude と Codex で同時に回さない（実時間に頼る確認が落ちる）。Codex に走らせる回は、Claude は待つ。
 - Codex が上限に当たったら、作業フォルダに残った変更を Claude が「作業中」のコミットで退避して push し、続きを同じ作業フォルダで呼び直す（`codex exec resume --last` も使える）。
