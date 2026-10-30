@@ -982,8 +982,8 @@ function check(ok, label, detail = '') {
     /* the battle's scale: its name and length on the card, and a cap on all the ships together */
     const scl = await page.evaluate(() => ({ card: document.querySelector('[data-op="februaria"] em').textContent, row: (document.querySelector('#sgLoad tr.scale') || {}).textContent || '',
       small: document.querySelector('[data-op="charybdis"] em') && document.querySelector('[data-op="charybdis"] em').textContent }));
-    check(scl.card.startsWith('大規模（目安 15〜20分）') && /戦闘の規模（大規模）\d+ \/ 150隻/.test(scl.row) && scl.small.startsWith('小規模（目安 5〜10分）'),
-      '戦闘の規模: 出撃画面に規模と目安の長さが出て、出撃できる艦の合計に規模の上限が付く（第5節は作戦の cap で150。2026-10-18）', JSON.stringify(scl));
+    check(scl.card.startsWith('大規模　') && !scl.card.includes('目安') && /戦闘の規模（大規模）\d+ \/ 150隻/.test(scl.row) && scl.small.startsWith('小規模　'),
+      '戦闘の規模: 出撃画面に規模が出て（目安の長さは出さない、2026-10-30）、出撃できる艦の合計に規模の上限が付く（第5節は作戦の cap で150。2026-10-18）', JSON.stringify(scl));
     await page.click('#goBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
@@ -1442,7 +1442,7 @@ function check(ok, label, detail = '') {
        nothing loses. The exercise: the fortress (×3, half the fire, 60 fighters) must fall by 17:00 */
     await page.click('[data-go="sortie"]');
     const mScale = await page.evaluate(() => document.querySelector('[data-op="nile"] em').textContent);
-    check(mScale.startsWith('中規模（目安 5〜8分）'), '戦闘の規模: 目安の長さは pace で縮めた実際の長さ（第3節は中規模の9〜15分 × 0.5 で5〜8分。2026-10-15）', mScale);
+    check(mScale.startsWith('中規模') && !mScale.includes('目安'), '戦闘の規模: 出撃画面に目安の長さは出さない（ユーザー決定 2026-10-30。前は pace で縮めた長さを出した）', mScale);
     await page.click('[data-op="charybdis"]'); await page.click('#goQuick'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     const tu = await page.evaluate(() => {
@@ -1639,8 +1639,12 @@ function check(ok, label, detail = '') {
     check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,8,4,4,0') && db.stage.ally === 18 && db.stage.cap === 60 && db.stage.gone
       && db.stage.esc === '第29 前衛巡洋 支隊:cl3dd3,第30 護衛 支隊:ff4cv2' && db.stage.allyN === 105,
       '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
-    check(db.stage.was && db.stage.s2mas === 0 && db.stage.thrHp === '520,520,520,430,430,430',
-      '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2に突撃揚陸艦はない（駆逐艦）、戻せる推進器の耐久は東520・北430', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.thrHp]));
+    check(db.stage.was && db.stage.s2mas === 0 && db.stage.thrHp === '600,600,600,600,600,600',
+      '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2に突撃揚陸艦はない（駆逐艦）、戻せる推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.thrHp]));
+    /* 第4節と第6節の砲台は同じもの（ユーザー決定 2026-10-30）: どちらも WOS_DATA.denaliGun の強さ */
+    const dg = await page.evaluate(() => { const G = WOS_DATA.denaliGun, o = id => WOS_DATA.operations.find(x => x.id === id);
+      return ['denali', 'denaliBreak'].map(id => o(id).enemies.filter(f => f.type === 'aa').map(f => Object.keys(G).every(k => f[k] === G[k]))); });
+    check(dg.every(a => a.length === 6 && a.every(Boolean)), '第4節と第6節の砲台は同じもの。強さは WOS_DATA.denaliGun で連動する（2026-10-30）', JSON.stringify(dg));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
     /* 方角守備隊（型 screen）: 守るものから130以内に見えた敵と守るものの間（敵の40手前）に割り込み、持ち場の中心から100の外へは出ない。敵がいなければ戻る。
        予備の揚陸艦は持ち場で待つ。北守備隊と正面は追わない */

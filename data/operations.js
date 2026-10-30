@@ -218,6 +218,9 @@ WOS_DATA.scales={
    輸送船・避難船と砲台、小型機には掛けない */
 WOS_DATA.balance={hp:2, speed:1.2};
 
+/* デナリの砲台（第4節の「対空砲台」と第6節の「共和国が奪った砲台」は同じもの。強さは連動させる、ユーザー決定 2026-10-30）。
+   もとは地球連合が賊よけに作った単装の小型砲台（battle/shapes.js の aa）。2門、耐久20、打撃1、射程22、対空9。置き場所と名前は各節で */
+WOS_DATA.denaliGun={type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scale:1.1, aa:9, leash:0, vis:6, stl:5, fixed:true};
 WOS_DATA.operations=[
   {
     id:'charybdis',
@@ -921,7 +924,7 @@ WOS_DATA.operations=[
       {name:'第12 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[-88,12], alt:-2, ai:'shield', block:1, below:.5, leash:50, vis:6, stl:5},
       {name:'第14 巡洋阻止 戦闘隊', sub:'デナリ守備隊 重巡洋艦・駆逐艦', comp:{cl:2, dd:2}, n:4, scale:1.1, pos:[46,72], alt:2, ai:'shield', block:2, below:.5, leash:50, vis:6, stl:5},
       ...[[0,[-22,-25],4],[0,[2,-33],4],[1,[-32,-8],-2],[1,[-28,18],-2],[2,[5,33],2],[2,[26,20],2]].map(([b,pos,alt],i)=>(
-        {name:`第${i+1} デナリ対空砲台`, sub:'対空砲台', type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scale:1.1, pos, alt, aa:9, leash:0, vis:6, stl:5, fixed:true})),
+        {name:`第${i+1} デナリ対空砲台`, sub:'対空砲台', ...WOS_DATA.denaliGun, pos, alt})),   // 強さは WOS_DATA.denaliGun（第6節と同じ）
     ],
     /* 時刻の出来事（08:00 から何分後か）。着陸のあとの出来事は carrier.landEvents。
        大規模の長さにしたとき（2026-10-12、wos-strategy の案。時刻・位置・隻数は仮）: 守備隊は今の数のまま（ユーザー決定 2026-10-10）にし、外から戻る哨戒隊（駆逐艦）と
@@ -1390,15 +1393,15 @@ WOS_DATA.operations.push((()=>{
   const at=(az,el,r=30)=>{ const a=az*Math.PI/180, e=el*Math.PI/180, k=v=>Math.round(v*10)/10; return {pos:[k(r*Math.sin(a)*Math.cos(e)), k(r*Math.cos(a)*Math.cos(e))], alt:k(r*Math.sin(e))}; };
   const pt=(az,el,r)=>{ const p=at(az,el,r); return [p.pos[0],p.pos[1],p.alt]; };   // 同じ向きを点 [x, z, alt] で
   /* 推進器12基（ユーザー決定 2026-10-24、docs/maps.md 5.1 の案A）: 西（方位−90度・高さ0度）、西の上（−90度・40度）、東（こぶの下）、北（裏）に3基ずつ。
-     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東520・北430、ほかは40（2026-10-29 の釣り合わせ、仮。前は wos-balance の案A の東2400・北2000）。武器なし。
+     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東・北とも600（ユーザー決定 2026-10-30。前は 2026-10-29 の釣り合わせの東520・北430、その前は wos-balance の案A の東2400・北2000）、ほかは40。武器なし。
      3基の並びと東・北の向きは仮。西は居住区B のクレーター（方位−80度）にかからないよう、少し北（−97度のまわり）へ寄せた。印は第二段階から（見本の案C） */
-  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?(name[0]==='北'?430:520):40, dmg:0, eva:0, range:0, speed:0, scale:1,
+  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?600:40, dmg:0, eva:0, range:0, speed:0, scale:1,
     ...at(az,el), leash:0, vis:5, stl:2, fixed:true, ...(restore?{restore:true}:{})});
   const THR=[['西1',-94,11],['西2',-99,0],['西3',-94,-11], ['西の上1',-100,44],['西の上2',-90,36],['西の上3',-80,44],
     ['東1',72,-36,1],['東2',80,-45,1],['東3',88,-36,1], ['北1',176,7,1],['北2',171,-4,1],['北3',165,7,1]].map(([n,az,el,r])=>thr(n,az,el,!!r));
   const names=w=>[2,1,3].map(i=>`推進器 ${w}${i}`);   // 守るものの並び（前ほど先。真ん中から）
-  /* 共和国が奪った砲台6基（もとは地球連合の賊よけの砲台。第4節と同じ形、射程22。ユーザー決定 2026-10-23）: 鉱山の縁に2、西の上・西・東・北に1ずつ（向きは仮） */
-  const GUNS=[at(-64,30),at(0,20),at(-112,46),at(-112,-14),at(104,-22),at(156,16)].map((p,i)=>({name:`第${i+1} デナリ砲台`, sub:'共和国が奪った砲台', type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scale:1.1, ...p, aa:9, leash:0, vis:6, stl:5, fixed:true}));
+  /* 共和国が奪った砲台6基（もとは地球連合の賊よけの砲台。第4節と同じもの、強さは WOS_DATA.denaliGun で連動。ユーザー決定 2026-10-23・30）: 鉱山の縁に2、西の上・西・東・北に1ずつ（向きは仮） */
+  const GUNS=[at(-64,30),at(0,20),at(-112,46),at(-112,-14),at(104,-22),at(156,16)].map((p,i)=>({name:`第${i+1} デナリ砲台`, sub:'共和国が奪った砲台', ...WOS_DATA.denaliGun, ...p}));
   /* 共和国 74隻＋砲台6基（ユーザー決定 2026-10-28: 65/35）。正面48（拠点3つ20、槍1 12、槍2 8、霧と鎚 8）、方角守備隊26（西上9・東下9・北8）。
      正面の拠点（デナリから約200南、z 230〜240）。岩の盾の型で、壁フリゲート・縁の重巡洋艦2・予備の突撃揚陸艦2（西と東は7、中は6。内訳は仮）。
      ai:'guard' で持ち場（拠点の点）から leash 60 の外へは出ない。壁と縁は立つ点から30以内（型の holdR）の相手とだけ戦う。初めの位置は南を向いたときの型の立つ点 */
