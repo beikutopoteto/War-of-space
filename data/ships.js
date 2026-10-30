@@ -142,7 +142,8 @@ WOS_DATA.roles={
    gather / sync: approach の距離と、着く時刻の差の目安（分。遅い隊に速さを合わせ、着いた隊は待つ）。slowest: 速さを合わせるときのいちばん遅い割合
    方角守備隊 screen（第6節、ユーザー決定 2026-10-28。数値は仮）: 動きは screen だけ。守るもの ward（推進器の名前と点 [x, z, alt] の並び）から reach 以内に見えた敵の
      真ん中（隻数の重み）と、いちばん近い守るものの間に割り込む（守るものから 敵までの距離 − gap の所。持ち場の中心 op.packs[].post から out まで）。隊は spread ずつ横に並ぶ。
-     立つ所の射程に入った敵を撃つ。敵がいなければ自分の持ち場へ戻る。予備（reserve）は持ち場で待ち、wasR 以内に入った敵へ W.A.S. を出す */
+     立つ所の射程に入った敵を撃つ。敵がいなければ自分の持ち場へ戻る。予備（reserve）は wasR 以内の敵へ W.A.S. を出す。第6節の chase フラグでは reserveBack 後方で追い、chaseSec 秒か out の距離で戻る。
+     フラグなしでは予備は持ち場で待つ（従来の迎撃）。restSec は帰着後の間隔。数値は仮 */
 WOS_DATA.doctrines={
   mars:{
     spear:{slots:{shield:['ff'], mother:['mas','masc'], knife:['dd']}, how:{shield:'screen', knife:'flank'},
@@ -153,6 +154,7 @@ WOS_DATA.doctrines={
     rockShield:{slots:{wall:['ff'], rim:['cl'], reserve:['mas','masc']}, how:{reserve:'over'}, at:{wall:'front', rim:'rim', reserve:'shadow'},
       steps:[{wall:'hold', rim:'hold', reserve:'hide', next:'hit'}, {wall:'hold', rim:'hold', reserve:'charge', next:'lost'}, {wall:'hold', rim:'hold', reserve:'hide'}],
       front:10, rim:28, shadow:30, over:15, holdR:30, faceR:150},
-    screen:{slots:{wall:['ff','dd'], rim:['cl'], reserve:['mas','masc']}, steps:[{wall:'screen', rim:'screen', reserve:'screen'}], reach:130, gap:40, out:100, wasR:40, spread:9},
+    screen:{slots:{wall:['ff','dd'], rim:['cl'], reserve:['mas','masc']}, steps:[{wall:'screen', rim:'screen', reserve:'screen'}], reach:130, gap:40, out:190, wasR:40, spread:9,
+      chaseGap:12, chaseSec:100, restSec:12, reserveBack:16},   // 仮。追撃は作戦の chase フラグだけ。予備も壁・縁の後ろへ
   },
 };

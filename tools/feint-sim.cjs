@@ -1,5 +1,6 @@
-/* 作業票 #246: 第6節の調査だけ。ゲームのデータ・判断は変更しない。
+/* 作業票 #246・#248: 第6節の観測。ゲームのデータ・判断は変更しない。
    node tools/feint-sim.cjs <idle|auto> [runs=N]
+   FEINT_SHOTS=<リポジトリ外のディレクトリ> で14:20と第二段階の画像も保存する。
    stdout は JSONL: 5秒ごとの sample、変化時の event、各回の summary。
    距離・位置は3次元（位置の順は [x,z,alt]）、秒は gameSec。
    停止は1秒の位置差 < .5 かつその1秒に砲撃可能な瞬間がないこと。
@@ -35,7 +36,9 @@ async function trial(run, deadline) {
       await page.evaluate(() => { speed = 0; });
       if (await page.evaluate(() => deploying)) await page.click('#deployGo');
       if (strat === 'auto') await toStage(page);
-      const result = await page.evaluate(({ strat }) => {
+      const shots=run===1?process.env.FEINT_SHOTS:null;
+      if(shots){ require('fs').mkdirSync(shots,{recursive:true}); await page.exposeFunction('feintShot',label=>page.screenshot({path:require('path').join(shots,`${strat}-${run}-${label}.png`)})); }
+      const result = await page.evaluate(async ({ strat, shots }) => {
         if (gameSec !== 0) throw new Error(`観測前に ${gameSec} 秒進行した`);
         const own = () => fleets.filter(f => f.team === 0 && !f.ally && !f.ward && !f.fixed && f.alive);
         if (strat === 'idle' && (own().length !== 5 || own().reduce((s,f)=>s+f.n,0) !== 31)) throw new Error('クイック5隊31隻ではない');
@@ -52,13 +55,13 @@ async function trial(run, deadline) {
           }
           buildRoster(); updateRoster(); autoMode = true;
         }
-        const DT = .05, rows = [], metrics = new Map(), branch = new Map(), enemyBranch = new Map();
+        const DT = .05, rows = [], metrics = new Map(), branch = new Map(), enemyBranch = new Map(), routeIds = new WeakMap(); let routeId=0;
         const round = v => Math.round(v * 1000) / 1000;
         const xyz = p => p ? [p.x,p.z,p.y].map(round) : null;
         const stamp = () => ({ sec:round(gameSec), clock:clockStr(), opMin:round(opMin()) });
         const event = (what, more = {}) => rows.push({type:'event', what, ...stamp(), ...more});
         const identity = f => ({id:f.id,name:f.name,side:f.team === 1?'敵':f.ally?'友軍':'自軍',fixed:!!f.fixed});
-        const definedPack = f => packs.find(P => P.fleets.includes(f.name));
+        const definedPack = f => f.pack || packs.find(P => P.fleets.includes(f.name));
         const reason = f => {
           const P = definedPack(f);
           if (f.fixed) return '固定施設';
@@ -74,7 +77,7 @@ async function trial(run, deadline) {
             reasons:{}, intervals:[], current:null, longest:null,
             fired:0,craftFired:0,received:0,gunActive:0,autoSec:{},
             firstMove:null,firstDeparture:null,firstGun:null,firstHit:null,activation:null,
-            postMin:null,postMax:null,scrSec:0,outSec:0,wardRanges:{},modes:{},
+            postMin:null,postMax:null,scrSec:0,outSec:0,wardRanges:{},modes:{},crossings:[],
           });
         };
         register();
@@ -92,7 +95,7 @@ async function trial(run, deadline) {
         insert('if(esc.has(f)){', "if(first) observeAuto(f,'第一段階:その他'); if(esc.has(f)){ if(first) observeAuto(f,'esc');");
         insert('if(first){ const e=by(f,threat,carrierFirst(f)); if(e){', "if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ observeAuto(f,'threat');");
         insert('const h=by(f,help); if(h){', "const h=by(f,help); if(h){ observeAuto(f,'help');");
-        insert('if(vias.length&&!south(f.pos)){', "if(vias.length&&!south(f.pos)){ observeAuto(f,'vias:west wayで待つ');");
+        insert('if(touch){ near2(f,touch.pos);', "if(touch){ observeAuto(f,'触れる隊のそば'); near2(f,touch.pos);");
         insert('if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4;', "if(bbs.length){ observeAuto(f,'戦艦のそば'); const b=bbs[k%bbs.length], a=k++*2.4;");
         const originalAuto = autoDenali;
         autoDenali = eval('(' + source + ')');
@@ -108,6 +111,7 @@ async function trial(run, deadline) {
         insert('if(RL&&rolePlace(f,RL,threat,foes)) continue;', "if(RL&&adopted(f,'rolePlace',rolePlace(f,RL,threat,foes))) continue;");
         insert("if(threat){ if(!(f.order&&f.order.target===threat))", "if(threat){ observeEnemy(f,'後段:threat'); if(!(f.order&&f.order.target===threat))");
         insert("else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2)", "else if(!f.order||f.order.type!=='move'){ observeEnemy(f,'後段:postへ戻る/保持'); if(f.pos.distanceTo(f.post)>2)");
+        insert('if(waiting){ packWatch(f,waiting,f.home);', "if(waiting){ observeEnemy(f,'見回り:start待ち'); packWatch(f,waiting,f.home);");
         enemyAI = eval('(' + source + ')');
         const originalDamage = damage;
         let tickShot = new Set(), tickCraft = new Set(), tickHit = new Set(), secondActive = new Set();
@@ -162,13 +166,14 @@ async function trial(run, deadline) {
               wardDistances:W.map(([name,p])=>({name,distance:round(f.pos.distanceTo(p))})),
               fired:round(m.fired),craftFired:round(m.craftFired),received:round(m.received)};
           })});
-        const laneKey = new Map(), packState = new Map(), screenState = new Map(); let lureSeen=false, nukeState=nuke.state;
+        const laneKey = new Map(), packState = new Map(), screenState = new Map(), reliefSeen = new Set(), arrived = new Set(); let ignited=null; let lureSeen=false, nukeState=nuke.state;
         const changes = () => {
           for (const [side,F] of Object.entries(op.feints)) {
-            const p=xyz(feintLane(F,opMin())), k=JSON.stringify(p);
+            const p=xyz(feintLane(F,opMin())), k=Math.floor(Math.max(0,opMin()-(F.from||0))/(F.dwell||10));
             if(laneKey.get(side)!==k){ laneKey.set(side,k); event('lane',{side,pos:p}); }
           }
           for (const P of packs) {
+            if(P.reliefAt!=null&&!reliefSeen.has(P)){ reliefSeen.add(P); event('relief',{from:P.name,to:P.relief.to,units:P.reliefUnits}); }
             const s=`${P.t0 != null}:${P.step}:${!!P.back}:${!!P.scr}`;
             if(packState.get(P)!==s){ packState.set(P,s); event('pack',{pack:P.name,active:P.t0!=null,step:P.step,back:!!P.back,scr:!!P.scr,start:P.start}); }
           }
@@ -177,17 +182,24 @@ async function trial(run, deadline) {
             if(screenState.get(P)!==k){ screenState.set(P,k); event('screenCount',c); }
           }
           if(lured && !lureSeen){ lureSeen=true; event('lure',{by:lured.by,count:lureCount(),screens:screens().map(countScreen)}); }
+          for(const b of nuke.bbs||[]) if(b.f?.nukeSt==='landed'&&!arrived.has(b.f)){ arrived.add(b.f); event('land',{unit:b.f.name}); }
+          if(nuke.state==='fired'&&!ignited){ ignited={...stamp(),shift:nuke.km,forecast:nukeEst(),landN:nuke.landN}; event('ignite',ignited); }
           if(nuke.state!==nukeState){ nukeState=nuke.state; event('nuke',{state:nukeState}); }
         };
         snapshot(); changes();
         const initialShips=own().reduce((s,f)=>s+f.n,0);
-        let n=0;
+        let n=0, shot1=false, shot2=false;
         try {
           while(!over && n<60000){
             n++; tickShot.clear(); tickCraft.clear(); tickHit.clear();
             const before=new Map(fleets.filter(f=>f.alive).map(f=>[f,f.pos.clone()]));
             const firstBefore=nuke.state==='wait';
             step(DT); register();
+            if(shots&&(!shot1&&opMin()>=80||!shot2&&nuke.state==='descend')){
+              const label=!shot1&&opMin()>=80?'1420':'second'; if(label==='1420') shot1=true; else shot2=true;
+              controls.target.set(0,0,130); camera.position.set(75,300,640); controls.update();
+              await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))); await window.feintShot(label);
+            }
             if(strat==='auto' && firstBefore && activeAuto){ helpTotalSec+=DT; if(!activeAuto.help) helpEmptySec+=DT; }
             for(const [f,m] of metrics){
               if(f.packSlot) m.slot=f.packSlot;
@@ -213,20 +225,22 @@ async function trial(run, deadline) {
                 const d=f.pos.distanceTo(p), r=m.wardRanges[name] || (m.wardRanges[name]={min:d,max:d}); r.min=Math.min(r.min,d); r.max=Math.max(r.max,d);
               }
             }
+            for(const [f,m] of metrics){ const C=f.autoCross; if(C&&!routeIds.has(C)) routeIds.set(C,++routeId); const last=m.crossings[m.crossings.length-1], key=C?`${routeIds.get(C)}:${C.fromSouth}:${C.i}`:'none'; if((C||last&&last.key!=='none')&&key!==last?.key) m.crossings.push({...stamp(),key,pos:xyz(f.pos)}); }
             changes();
             if(n%20===0) second();
             if(n%100===0) snapshot();
           }
           if(n%100!==0) snapshot();
           for(const m of metrics.values()) closeInterval(m);
-          return {rows,summary:{type:'summary',strat,...stamp(),over,win:outcome===true,why:loseWhy,
+          return {rows,summary:{type:'summary',strat,...stamp(),over,win:outcome===true,why:loseWhy || (!fleets.some(f=>f.team===0&&f.alive&&!f.ward)?'army':null),
+            arrived:[...arrived].map(f=>f.name),ignited,relief:packs.filter(P=>P.reliefAt!=null).map(P=>({from:P.name,to:P.relief.to,at:P.reliefAt,units:P.reliefUnits})),
             initialShips,clockRate:CLOCK_RATE,steps:n,unmeasuredTail:round(gameSec%1),
             helpEmptySec:round(helpEmptySec),helpTotalSec:round(helpTotalSec),
             lure:lured?{by:lured.by,opMin:lured.at,sec:round(lured.at/CLOCK_RATE),clock:clockStr(lured.at)}:null,
             units:[...metrics].map(([f,m])=>{ const {lastPos,lastAlive,current,...out}=m;
-              return {...out,alive:f.alive,left:!!f.left,remaining:f.alive?f.ships.length:0,endPos:xyz(f.pos)}; })}};
+              return {...out,alive:f.alive,left:!!f.left,remaining:f.alive||f.left?f.ships.length:0,lost:m.initial-f.ships.length,endPos:xyz(f.pos)}; })}};
         } finally { damage=originalDamage; autoDenali=originalAuto; enemyAI=originalEnemy; }
-      }, { strat });
+      }, { strat, shots:!!shots });
       if(errors.length) throw new Error(errors.join('; '));
       for(const row of result.rows) emit({run,...row});
       emit({run,...result.summary});
