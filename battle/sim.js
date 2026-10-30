@@ -203,7 +203,7 @@ const FORT_MARGIN=6;
 function underGuns(t,team){ return fortress.alive&&!fortress.defend&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
 /* 第6節: the feints' craft never on a thruster (nor on the guns on the rock in their all-out attack) */
-function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&t.type==='thr'&&!(c0.mode==='assault'&&t.restore)) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
+function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&t.type==='thr'&&!(c0.mode==='assault'&&t.restore)) return false; if(feintCover(c0)&&(t.fixed||t.type==='thr')) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
   const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
 /* craft against craft: the enemy craft within reach that is closest to their own carrier. So the craft meet the enemy's
    in between and fight there (the front line), and when enemy craft press in toward the carrier the line falls back with them */
@@ -374,7 +374,7 @@ function fireTargetOf(f){
      nothing lower than PIT_EL[0] (pitCan) */
   if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
@@ -1115,6 +1115,8 @@ const FEINT_IN=.6, FEINT_BACK=20, FEINT_EDGE=.95, FEINT_GONE=20;
 let feintAll=null;
 function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Math.max(0,now-(F.from||0))/(F.dwell||10), i=Math.floor(at)%per;
   const p=k=>packVec(F.lane[k<n?k:per-k]); return F.press?p(i).lerp(p((i+1)%per),at%1):p(i); }
+/* 作業票 #254: the feint side told off (assault.role 'cover') to keep the other side's way to the thrusters clear fires on ships only */
+const feintCover=f=>f.feint&&f.mode==='assault'&&op.win.type==='shatter'&&op.feints[f.feint].assault?.role==='cover';
 function feintAssault(now){ const sides={};
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
   if(op.win.type==='shatter') for(const w of wings) if(w.alive&&w.carrier.feint&&op.feints[w.carrier.feint].assault?.role==='cover'){ w.state='return'; w.target=w.fireTarget=null; }

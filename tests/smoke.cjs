@@ -1902,9 +1902,11 @@ function check(ok, label, detail = '') {
         sink(); sink(); r.two = { mode: fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'feint'), all: !!feintAll };
         const run = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); } };
         sink(); run(opMin() + .6); const A = fleets.filter(f => f.feint && f.alive);
-        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.every(f => f.stance === 'engage'), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('帰り道は、デナリが知ってる')) };
-        const g = fleets.find(x => x.fixed && x.type === 'aa' && x.team === 1), c = A[0]; g.seen = true; const oth = fleets.filter(x => x.team === 1 && x.alive && x !== g); oth.forEach(x => { x.alive = false; });
-        c.order = null; c.pos.copy(g.pos).sub(bodyC).setLength(g.pos.distanceTo(bodyC) + c.range * .4).add(bodyC); r.three.gun = fireTargetOf(c) ? fireTargetOf(c).name : null; oth.forEach(x => { x.alive = true; });
+        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.every(f => f.stance === (f.feint === '左上' ? 'evade' : 'engage')), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('帰り道は、デナリが知ってる')) };
+        /* 作業票 #254: 右下（role thr）は推進器のそばの砲台を撃ち、左上（role cover）は艦だけを狙って砲台は撃たない */
+        const g = fleets.find(x => x.fixed && x.type === 'aa' && x.team === 1), oth = fleets.filter(x => x.team === 1 && x.alive && x !== g); g.seen = true; oth.forEach(x => { x.alive = false; });
+        const near = c => { c.order = null; c.pos.copy(g.pos).sub(bodyC).setLength(g.pos.distanceTo(bodyC) + c.range * .4).add(bodyC); return fireTargetOf(c) ? fireTargetOf(c).name : null; };
+        r.three.gun = near(A.find(f => f.feint === '右下')); r.three.cover = near(A.find(f => f.feint === '左上')); oth.forEach(x => { x.alive = true; });
         run(feintAll.at + 60.5); r.three.after = fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'gone');
         /* 21:00: the feints leave */
         WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); mins(3); gameSec = 480.1 / CLOCK_RATE; allyAI(); r.end = fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'gone');
@@ -1913,8 +1915,8 @@ function check(ok, label, detail = '') {
     });
     check(fe.main.engage && fe.main.out > 0 && fe.main.phases === 'approach,fire,withdraw' && fe.main.fired === 'main,touch' && fe.main.pull > 140 && fe.thr.every(x => x === null),
       '第6節: 陽動は迫る→撃つ→引くをくり返し、本隊も触れる隊も方角守備隊を撃って、lane の外へ引く。推進器は撃たない（2026-10-30）', JSON.stringify(fe));
-    check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && !fe.three.after && fe.end,
-      '第6節: 核の戦艦が2隻以下になると陽動は推進器と砲台を攻撃し、60分では下がらない。通常の陽動は21:00に下がる', JSON.stringify([fe.two, fe.three, fe.end]));
+    check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.cover === null && !fe.three.after && fe.end,
+      '第6節: 核の戦艦が2隻以下になると右下の陽動は推進器と砲台を攻撃し、左上は艦だけを狙う（作業票 #254）。60分では下がらない。通常の陽動は21:00に下がる', JSON.stringify([fe.two, fe.three, fe.end]));
     /* 第6節の戦艦の護衛（ユーザー決定 2026-10-29: 陽動から割いた第29・第30 支隊。battle/sim.js の escortAI）: 待つあいだは戦艦の隊のそばに立ち、戦艦に寄る揚陸艦を
        近くのほかの艦より先に叩く。第二段階は1隻ずつになった戦艦について道を降りる。移乗で分かれた戦艦の耐久は艦種の割合（隊の平均でなく、2026-10-29） */
     const esc6 = await page.evaluate(() => {
