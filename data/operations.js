@@ -1390,9 +1390,9 @@ WOS_DATA.operations.push((()=>{
   const at=(az,el,r=30)=>{ const a=az*Math.PI/180, e=el*Math.PI/180, k=v=>Math.round(v*10)/10; return {pos:[k(r*Math.sin(a)*Math.cos(e)), k(r*Math.cos(a)*Math.cos(e))], alt:k(r*Math.sin(e))}; };
   const pt=(az,el,r)=>{ const p=at(az,el,r); return [p.pos[0],p.pos[1],p.alt]; };   // 同じ向きを点 [x, z, alt] で
   /* 推進器12基（ユーザー決定 2026-10-24、docs/maps.md 5.1 の案A）: 西（方位−90度・高さ0度）、西の上（−90度・40度）、東（こぶの下）、北（裏）に3基ずつ。
-     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東520・北430、ほかは40（2026-10-29 の釣り合わせ、仮。前は wos-balance の案A の東2400・北2000）。武器なし。
+     restore:true は「戻せる推進器」（東と北。核のあとに着弾予想点を総基地へ戻す）。耐久は戻せる推進器が東・北とも600（ユーザー決定 2026-10-30。前は 2026-10-29 の釣り合わせの東520・北430、その前は wos-balance の案A の東2400・北2000）、ほかは40。武器なし。
      3基の並びと東・北の向きは仮。西は居住区B のクレーター（方位−80度）にかからないよう、少し北（−97度のまわり）へ寄せた。印は第二段階から（見本の案C） */
-  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?(name[0]==='北'?430:520):40, dmg:0, eva:0, range:0, speed:0, scale:1,
+  const thr=(name,az,el,restore)=>({name:`推進器 ${name}`, sub:restore?'共和国の推進器（狙いを戻せる）':'共和国の推進器', type:'thr', n:1, hp:restore?600:40, dmg:0, eva:0, range:0, speed:0, scale:1,
     ...at(az,el), leash:0, vis:5, stl:2, fixed:true, ...(restore?{restore:true}:{})});
   const THR=[['西1',-94,11],['西2',-99,0],['西3',-94,-11], ['西の上1',-100,44],['西の上2',-90,36],['西の上3',-80,44],
     ['東1',72,-36,1],['東2',80,-45,1],['東3',88,-36,1], ['北1',176,7,1],['北2',171,-4,1],['北3',165,7,1]].map(([n,az,el,r])=>thr(n,az,el,!!r));
