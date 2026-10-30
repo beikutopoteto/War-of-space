@@ -824,7 +824,10 @@ function check(ok, label, detail = '') {
       const gs = fleets.filter(f => f.team === 1 && f.alive && !f.fixed); gs.forEach(f => f.alive = false); a.order = null; allyAI();
       r.toBattery = !!a.order && (a.order.type === 'attack' ? a.order.target.fixed : fleets.some(f => f.fixed && f.alive && f.pos.distanceTo(a.order.dest) < 1));
       { const al = fleets.filter(f => f.ally && f.alive), aims = new Map(); al.forEach(f => aims.set(f.aim, (aims.get(f.aim) || 0) + 1));
-        r.batteryShare = al.every(f => f.aim && f.aim.fixed) && Math.max(...aims.values()) <= 2; al.forEach(f => { f.order = null; f.aim = null; }); }
+        const patrol = al.find(f => f.name === op.carrier.patrol.fleet);
+        r.batteryShare = al.filter(f => f !== patrol).every(f => f.aim && f.aim.fixed) && Math.max(...aims.values()) <= 2;
+        r.reserveGuard = !patrol.aim || patrol.aim.fixed && patrol.aim.pos.distanceTo(patrol.post) < patrol.leash;
+        al.forEach(f => { f.order = null; f.aim = null; }); }
       /* one foe left in reach (user decision 2026-10-14, op.allySplit): no more than two of the six go for it, the rest hold their posts */
       { const bs = fleets.filter(f => f.fixed && f.team === 1 && f.alive), one = gs[0], al = fleets.filter(f => f.ally && f.alive);
         bs.forEach(f => f.alive = false); one.alive = true; one.seen = true; al.forEach(f => { f.order = null; f.aim = null; f.pos.copy(f.post); });
@@ -849,7 +852,7 @@ function check(ok, label, detail = '') {
       r.noRaid = !fleets.some(f => f.team === 1 && f.alive && f.ai === 'raid') && fleets.filter(f => f.team === 1 && f.alive && !f.fixed).every(f => (f.prey === 'carrier' || spares(f, opCarrier)) && f.keepOut);   // but the one going for Yukon (2026-10-17)
       const kz = back[0], kp = kz.pos.clone(); kz.pos.copy(blocks[1].pos).add(new THREE.Vector3(4, 0, 0)); keepOutOfZones(kz); r.keptOut = !inZone(kz); kz.pos.copy(kp);
       /* no allied unit is left behind in the rear; told to protect, each takes what it is given (Wong's on Yukon), outside every zone */
-      r.noRear = fleets.filter(f => f.ally).every(f => f.leash >= 300);
+      r.noRear = fleets.filter(f => f.ally).every(f => f.name === op.carrier.patrol.fleet ? f.leash === 35 : f.leash >= 300);
       const pa = fleets.find(f => f.ally && f.alive), pb = fleets.find(f => f.name === '第20 ドナウ前衛 支隊');
       [pa, pb].forEach(f => { f.mode = 'protect'; protectAI(f); });
       r.protectOut = !!pa.order && blocks.every(b => Math.hypot(pa.order.dest.x - b.pos.x, pa.order.dest.z - b.pos.z) >= op.civil.r) && pa.protects === opCarrier && pb.protects === blocks[0];
@@ -870,13 +873,14 @@ function check(ok, label, detail = '') {
       opEvents.push(...keepEv);
       /* 24 minutes later the second wave comes for Yukon from the north-east */
       const t0 = gameSec; let n = 0; while (opCarrier.cs.board < 47 && n++ < 6000) step(.05);   // the first of the last waves: 40 minutes in (2026-10-17)
-      const w2 = fleets.find(f => f.team === 1 && f.alive && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
+      r.lateRaid = fleets.filter(f => f.alive && f.name === '第5 重巡洋 エスカドラ' && f.prey === 'carrier').length;
+      const w2 = fleets.find(f => f.team === 1 && f.alive && f.tag === 'w1' && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
       if (w2) { w2.alive = false; w2.el.remove(); }
       r.noLastYet = !opCarrier.cs.lastCame; fleets.forEach(f => { f.tag = null; });   // the loop below takes every enemy off: not the first wave's losses
       /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come);
          the last wave follows losses since landing, and cut.max always ends the boarding */
       while (opCarrier.cs.board < 120 && n++ < 6000) { step(.05); fleets.forEach(f => { if (f.team === 1 && f.alive && !f.fixed) { f.alive = false; f.el.remove(); } }); }
-      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 6000;
+      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 5000;
       { const S = opCarrier.cs, b = S.board; r.noCut = !cutBoarding(op.carrier, S); S.board = op.carrier.cut.max; r.cutMax = cutBoarding(op.carrier, S); S.board = b; }
       /* the later half (user decision 2026-10-15): the enemy comes all at once, as many units as ours still in the battle plus one,
          the same ships and W.A.S. as before; they break us one by one: two on the one that stands most alone, one on each of the
@@ -926,7 +930,7 @@ function check(ok, label, detail = '') {
         r.letGo = eAce.letGone && eLet.letGone && eAce.ai === 'guard' && !eRun.letGone && eRun.ai === 'chase' && !eRun.spare;
         const rear = left.find(f => f.mode === 'rear'); eRun.pos.copy(rear.pos).add(new THREE.Vector3(20, 0, 0)); rear.seen = true; eRun.order = null; enemyAI(); r.chaseNear = !!eRun.order && eRun.order.target !== opCarrier && eRun.order.target.team === 0;
         eRun.pos.set(opCarrier.pos.x + 100, opCarrier.pos.y + 60, opCarrier.pos.z); left.forEach(f => { f.seen = false; }); opCarrier.seen = true; eRun.order = null; enemyAI(); r.chaseYukon = !!eRun.order && eRun.order.target === opCarrier;
-        left.forEach(f => { f.seen = true; }); allyAI(); r.rearFights = !!rear.order && rear.order.type === 'attack' && rear.order.target.team === 1;
+        left.forEach(f => { f.seen = true; }); eRun.seen = true; allyAI(); r.rearFights = !!rear.order && rear.order.type === 'attack' && rear.order.target.team === 1;
         [eAce, eLet, eRun].forEach(e => { e.alive = false; e.el.remove(); }); }
       { const rest = opEvents.slice(nextEvent), d = rest.find(e => e.fleet && e.fleet.name === '第18 機動駆逐 戦闘隊');
         r.wavesGone = r.wavesLeft && !rest.some(e => e.wave); r.doneEv = !!d && Math.abs(d.after - (gameSec * CLOCK_RATE + op.carrier.doneEvents[0].after)) < 1; }
@@ -934,7 +938,7 @@ function check(ok, label, detail = '') {
       r.lost = fillText('{lost}'); r.lostWant = Math.max(1, Math.round(lineLost() * 10)) + '割';
       { const lf = fleets.find(f => op.carrier.line.includes(f.name) && f.ships.length); lf.alive = false; lf.left = true; r.lostLeft = fillText('{lost}') === r.lost; lf.alive = true; lf.left = false; }
       /* the more aboard, the slower Yukon goes: 30% of its speed when full (8,000) */
-      const b0 = opCarrier.cs.boarded; r.slow = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = 8000; r.slowFull = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = b0;
+      const b0 = opCarrier.cs.boarded; opCarrier.cs.boarded = 6000; r.slow = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = 8000; r.slowFull = +loadSlow(opCarrier).toFixed(2); opCarrier.cs.boarded = b0;
       r.retreat = phaseName === '撤退' && !opCarrier.locked && exitObj.visible;
       opCarrier.pos.copy(opCarrier.cs.exit); step(.05); r.over = over; r.win = outcome;
       return r; });
@@ -944,12 +948,12 @@ function check(ok, label, detail = '') {
     check(d1.rockHides && d1.roundRock, 'デナリ: 岩の向こうは見えず撃てない。岩を横切る移動は岩を回り込む（経由地の印は増えない）', JSON.stringify(d1));
     check(d1.pinch && d1.pinchMarks && d1.pinchOff, '挟撃: 2方向から撃たれると砲の打撃が0.8倍になり、紋章のまわりに矢じり2つと「×0.8」が出る。挟撃が解けると消える', JSON.stringify(d1));
     /* 5 × (1 − eva .16) × perDmg 2 ÷ the hit points multiplier 2 (2026-10-13: the same lives for twice the fire) */
-    check(d1.zoneCost === d1.zoneWant && d1.zoneCost > 0 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（砲台も目標を分け、1基に多くて2隊）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る（2026-10-14）', JSON.stringify(d1));
+    check(d1.zoneCost === d1.zoneWant && d1.zoneCost > 0 && d1.openFree && d1.allyHold && d1.allyBattery && d1.toBattery && d1.batteryShare && d1.reserveGuard && d1.split, 'デナリの盾: 民間区画の中の敵艦を撃つと住民に被害が出る（区画の外と、岩の上の対空砲台なら出ない）。本軍は区画の中の艦を撃たないが、守備隊を片付けると対空砲台を壊しに行く（1基に多くて2隊、第6 は近場だけ）。敵が1つでも向かうのは多くて2隊で、ほかは持ち場に残る', JSON.stringify(d1));
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
-    check(d1.raidYukon === 1, 'デナリの盾: 着陸で戻る奇襲部隊のうち1隊（アルバレスの隊ではない）がユーコンを狙う（2026-10-17）', JSON.stringify(d1));
+    check(d1.raidYukon === 0 && d1.lateRaid === 1, 'デナリの盾: 着陸ではアルバレス2隊が潜み、ユーコンを狙う第5 重巡洋は35分後に来る。警戒のあいだの本隊を急に襲わない', JSON.stringify(d1));
     check(d1.evacNow && d1.wave2, 'デナリの盾: 着陸で奇襲部隊が戻ると、すぐ作戦変更で収容が始まる（2026-10-17）。40分後に最後の波の1つ目（ユーコンを狙う第6 を含む）が来る', JSON.stringify(d1));
-    check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 着陸時に残った本軍の隻数の5割が沈むと最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う', JSON.stringify(d1));
-    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 警戒を終えた時点に残った本軍の隻数の5割が沈み、1つ目の波が来ると最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う', JSON.stringify(d1));
+    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 5000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は初め速くだんだん減速する（#241）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     /* the waves' ships and W.A.S. from the data (2026-10-20: the Republic's numbers were fitted to the two sides' tables) */
     const DW = await page.evaluate(() => { const C = WOS_DATA.operations.find(o => o.id === 'denali').carrier, E = C.evacEvents.find(e => e.mass).mass, L = C.lastWave.mass;
       const cnt = m => m.own.reduce((s, f) => s + f.n, 0) + m.types.reduce((s, t) => s + t.n, 0), was = m => m.types.reduce((s, t) => s + (t.was ?? ((WOS_DATA.sides.mars.ships[t.fleet.type] || {}).was || 0) * t.n), 0);   // the class's W.A.S. when the data gives none (2026-10-21)
@@ -965,7 +969,7 @@ function check(ok, label, detail = '') {
     check(d1.wait.all && d1.wait.blocks === 3 && d1.wait.most === 2 && d1.wait.sep >= 14 && d1.wait.heights >= 3 && d1.wait.notHome && d1.wait.goes,
       'デナリの盾: 本軍は敵（砲台も）を倒し終えると、持ち場へ戻らず、ばらけて居住区の近く（民間区画の縁の外）で待つ。3つの居住区に2隊ずつ、離れて、高さを変えて', JSON.stringify(d1.wait));
     check(d1.far >= 140 && d1.noRaid && d1.keptOut && d1.noRear && d1.protectOut, 'デナリの盾: 奇襲部隊は宇宙港から遠い雲の端から来て、こちらの艦を狙い（ユーコンを狙う1隊のほか）、民間区画には入らない。本軍は後ろに残らず、受け持ちのユーコンか居住区を区画の外で守る', JSON.stringify(d1));
-    check(Math.abs(d1.clock - 630 / (1050 * .85)) < 1e-9 && d1.boardSec === 170 && d1.back === 4, 'デナリの盾: 時計は大規模の長さに合わせて進み（span 630分を1,050秒の85%。2時間の収容に戦闘の170秒）、着陸すると4隊が同時に戻ってくる（2026-10-14）', JSON.stringify(d1));
+    check(Math.abs(d1.clock - 630 / (1050 * .85)) < 1e-9 && d1.boardSec === 170 && d1.back === 2, 'デナリの盾: 時計は大規模の長さに合わせて進む（span 630分を1,050秒の85%。2時間の収容に戦闘の170秒）。着陸ではアルバレスの2隊が戻る', JSON.stringify(d1));
     await page.waitForTimeout(2200);
     await page.click('#talkSkip').catch(() => {});
     await page.waitForTimeout(300);
@@ -986,14 +990,15 @@ function check(ok, label, detail = '') {
       remove(total - 20);
       const r = { before: alliesLost(), wiped: A.some(f => !f.alive) };
       landCarrier(); const C = op.carrier, S = opCarrier.cs; startEvac(C, S); if (talking) endTalk();
-      r.base = S.alliesAtLand; r.atLand = alliesLost();
+      r.base = S.alliesAtLand; r.atLand = alliesLost(); S.patrolReleased = true;   // isolate the original landing-baseline checks; patrol rebasing is checked below
       const cut = { cut: { allies: .5 } };   // also cover cut.allies, which Denali replaced with lastWave.allies
       r.atLandCut = cutBoarding(cut, S);
       remove(9); stepLastWave(C, S);
       r.below = { lost: alliesLost(), last: !!S.lastCame, cut: cutBoarding(cut, S) };
       const left = A.find(f => f.alive); left.alive = false; left.left = true;
       r.left = alliesLost() === r.below.lost; left.alive = true; left.left = false;
-      remove(1); r.halfCut = cutBoarding(cut, S); stepLastWave(C, S);
+      remove(1); r.halfCut = cutBoarding(cut, S); stepLastWave(C, S); r.waitFirst = !S.lastCame;
+      massAt.w1 = gameSec * CLOCK_RATE; stepLastWave(C, S);
       r.half = { lost: alliesLost(), last: S.lastCame, wait: !cutBoarding(C, S) };
       S.lastMin -= C.lastWave.after; r.after = cutBoarding(C, S);
       S.alliesAtLand = 0; r.empty = alliesLost() === 0;
@@ -1007,9 +1012,53 @@ function check(ok, label, detail = '') {
     });
     check(dlBase.before > .4 && dlBase.wiped && dlBase.base === 20 && dlBase.atLand === 0 && !dlBase.atLandCut
       && Math.abs(dlBase.below.lost - .45) < 1e-9 && !dlBase.below.last && !dlBase.below.cut && dlBase.left
-      && dlBase.halfCut && dlBase.half.lost === .5 && dlBase.half.last && dlBase.half.wait && dlBase.after
+      && dlBase.waitFirst && dlBase.halfCut && dlBase.half.lost === .5 && dlBase.half.last && dlBase.half.wait && dlBase.after
       && dlBase.empty && dlBase.reset && dlBase.other,
-      'デナリの盾 #239: 奪還中の損失を除き、着陸時の残存20隻のうち9隻では待ち、10隻で最後の波・20分後に撤退。cut.allies も同じ基準で、離脱・再出撃・ほかの作戦に影響しない', JSON.stringify(dlBase));
+      'デナリの盾 #239: 奪還中の損失を除き、着陸時の残存20隻のうち9隻では待ち、10隻でも1つ目を待って最後の波・20分後に撤退。cut.allies も同じ基準で、離脱・再出撃・ほかの作戦に影響しない', JSON.stringify(dlBase));
+    /* #241: waiting hunters cannot fire even in range; the patrol leaves, is ambushed alone, and resets the loss baseline.
+       Killing the hunters instead exercises a real rescue and the deadline, without forcing the patrol to die. */
+    const dp241 = await page.evaluate(() => {
+      const said = [], log = logEvent; logEvent = (...l) => { said.push(l[1]); log(...l); };
+      const start = () => { WOS.start({ op: 'denali' }); setSpeed(0); if (talking) endTalk(); landCarrier(); step(.01); if (talking) endTalk();
+        return { C: op.carrier, S: opCarrier.cs, H: fleets.filter(f => f.patrolHunter), T: fleets.find(f => f.name === op.carrier.patrol.fleet) }; };
+      let { C, S, H, T } = start(); const P = C.patrol, other = fleets.find(f => f.ally && f !== T), src = fleets.find(f => f.team === 0 && !f.ward);
+      const r = { hunters: H.length, linear: boardingTotal({rate:3000},120) === 6000, zero: boardingTotal(C,0) === 0 };
+      const curve = {rate:6000, rateDecay:35};
+      r.curve = Math.abs(boardingTotal(curve,35) - 3500 * (1 - Math.exp(-1))) < 1e-8;
+      const increments = [0,35,70].map(t => boardingTotal(curve,t+1) - boardingTotal(curve,t));
+      r.slows = increments[0] > increments[1] && increments[1] > increments[2] && increments[2] > 0;
+      const place = () => { T.pos.set(P.pos[0],P.alt,P.pos[1]); other.pos.copy(T.pos).add(new THREE.Vector3(1,0,0));
+        T.seen = other.seen = true; H.forEach(f => { f.pos.copy(T.pos).add(new THREE.Vector3(5,0,0)); f.seen = true; }); };
+      place(); const hp = other.hpPool;
+      H.forEach(f => damage(other,100,f));
+      r.waits = other.hpPool === hp && H.every(f => !fireTargetOf(f) && !craftTarget(f,'was',1000));
+      /* Close to the port first: even after departure, no attack until it has left the main force. */
+      const port = op.body.port; T.pos.set(port.pos[0],port.alt||0,port.pos[1]);
+      gameSec = (S.landMin + P.after) / CLOCK_RATE; stepPatrol(C,S); allyAI();
+      r.out = S.patrolStarted && !S.patrolEngaged && T.mode === 'patrol' && T.order.type === 'move'
+        && T.order.dest.distanceTo(new THREE.Vector3(P.pos[0],P.alt,P.pos[1])) < 1 && other.mode !== 'patrol';
+      place(); stepPatrol(C,S); r.supported = !S.patrolEngaged;
+      other.pos.copy(T.pos).add(new THREE.Vector3(80,0,0)); stepPatrol(C,S); place(); enemyAI();
+      r.only = S.patrolEngaged && H.every(f => f.order.target === T && fireTargetOf(f) === T && craftTarget(f,'was',1000) === T
+        && !craftMayHit({carrier:f,team:1,type:'was'},other) && spares(f,other));
+      other.ships.pop();   // damage before the patrol ends is excluded from the new baseline
+      const landBase = S.alliesAtLand;
+      while (T.alive) damage(T,T.hpPool+1,H[0]); stepPatrol(C,S);
+      const remaining = fleets.filter(f => f.ally && f.alive && !f.fixed).reduce((s,f) => s+f.ships.length,0);
+      r.lost = S.patrolLost && S.patrolReleased && S.alliesAtLand === remaining && remaining < landBase && alliesLost() === 0;
+      r.normal = H.every(f => !patrolHunting(f) && craftMayHit({carrier:f,team:1,type:'was'},other));
+      r.logs = ['雲の縁へ','赤い光','一隻ずつ','全滅です','誰も港の外へ'].every(t => said.some(s => s.includes(t)));
+      ({ C, S, H, T } = start()); const player = fleets.find(f => f.team === 0 && !f.ward);
+      for (const f of H) while (f.alive) damage(f,f.hpPool+1,player);
+      gameSec = (S.landMin + C.patrol.release) / CLOCK_RATE; stepPatrol(C,S);
+      r.rescue = T.alive && S.patrolReleased && !S.patrolLost && T.mode === 'protect' && alliesLost() === 0;
+      const rate = C.rate; C.rate = 1e6; stepCarrier(1); r.cap = S.boarded === 8000 && S.done; C.rate = rate;
+      logEvent = log; openMenu(); return r;
+    });
+    check(dp241.hunters === 2 && dp241.waits && dp241.out && dp241.supported && dp241.only && dp241.lost && dp241.normal && dp241.logs && dp241.rescue,
+      'デナリ #241: アルバレス2隊は雲で待ち、第6 巡洋護衛だけを襲う。全滅時に本軍の基準を取り直し、救出時は期限で通常の動きに戻る。台詞も出る', JSON.stringify(dp241));
+    check(dp241.linear && dp241.zero && dp241.curve && dp241.slows && dp241.cap,
+      'デナリ #241: 収容は指数曲線の積分で初め速く徐々に減速し、上限8,000人を守る。曲線なしの作戦は従来どおり', JSON.stringify(dp241));
     /* 第5節 フェブルアーリア防衛戦: a body far larger than the field to the south, the Earth behind it, a battleship lent from the yard,
        friendly batteries on the rock; the base's three gates under their shields (2026-10-16): a breached gate is blown shut, the last one
        open lets the assault ships wear the garrison down (0 loses); holding until 18:00 wins, and the battleship branch opens */
@@ -1497,13 +1546,14 @@ function check(ok, label, detail = '') {
     check(tu.warned && tu.early && tu.over && !tu.outcome && tu.why === 'time' && tu.clock === '17:00' && tu.rp.includes('時間切れ'), '演習: 17:00 までに要塞を落とせなければ時間切れで負け（警告の通信が先に入る）', JSON.stringify(tu));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
-    /* 第4節: the data of the main fleet's battleships is halved (275) so that with ×2 they fight as before; Yukon not landed by 12:00 loses */
+    /* 第4節: the stage's Earth tables without durability adjustments; Yukon not landed by 12:00 loses */
     await page.click('[data-go="sortie"]'); await page.click('[data-op="denali"]');
     await page.click('#goBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const dl = await page.evaluate(() => {
-      const w = fleets.find(f => f.name === '第1 主力戦艦 打撃群'), r = { main: op.allies[0].hp == null && Math.abs(w.hp - techFleet(0, op.allies[0]).hp * HP_K) < 1e-9 };   // the Earth's tables at the stage (2026-10-20)
+      const r = { main: op.allies.every(o => { const f = fleets.find(f => f.ally && f.name === o.name), v = techFleet(0,o);
+        return o.hp == null && o.hurt == null && Math.abs(f.hp - v.hp * HP_K) < 1e-9 && f.dmg === v.dmg; }) };
       fleets.filter(x => x.team === 0).forEach(x => { x.hpPool = 1e9; });
       const T = op.timeUp; gameSec = (T.at + 1) / CLOCK_RATE; opCarrier.cs.landed = true; stepTimeUp(); r.landedOk = !over; opCarrier.cs.landed = false;
       gameSec = (T.warn.at - 1) / CLOCK_RATE; step(.05); r.quiet = !over && !timeWarned;
@@ -1511,7 +1561,7 @@ function check(ok, label, detail = '') {
       let n = 0; while (!over && n++ < 400) step(.05);
       return { ...r, over, outcome, why: loseWhy, clock: clockStr(), rp: document.getElementById('rp').textContent }; });
     check(dl.main && dl.landedOk && dl.quiet && dl.warned && dl.over && !dl.outcome && dl.why === 'time' && dl.clock === '12:00' && dl.rp.includes('降りられなかった'),
-      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍の戦艦の隊は地球の艦種の表の、この節の技術の段階の値（2026-10-20）', JSON.stringify(dl));
+      'デナリの盾: 12:00 までにユーコンが宇宙港に着陸していなければ負け（着陸していれば続く）。本軍は地球の技術の段階の値のまま。耐久も攻撃力も調整しない', JSON.stringify(dl));
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     /* 艦種別の動き (user decision 2026-10-22): only in an operation marked roleAI (第6節 on; none yet, so a small battle of mixed units of both

@@ -89,7 +89,11 @@ function spotEarly(){
 }
 function nearestFoe(f,maxD,ok){ let best=null,bd=maxD; for(const u of units()){ if(!u.alive||u.team===f.team||!u.seen||u.ghost||spares(f,u)||ok&&!ok(u)) continue; const d=gap(f,u); if(d<bd&&!(f.kind!=='wing'&&bodyBlocks(f.pos,u.pos))){bd=d;best=u;} } return best; }
 /* a fleet with spare:['carrier'] (and its craft) leaves the carrier of the operation alone (第4節 Alvarez's unit, user decision 2026-10-09) */
-function spares(f,t){ const c=f.carrier||f; return !!(c.spare&&t.isCarrier&&c.spare.includes('carrier'))||!!(c.letGone&&t.mode==='leave'); }
+function spares(f,t){ const c=f.carrier||f;
+  if(patrolHunting(c)) return !opCarrier.cs.patrolEngaged||t!==opCarrier.cs.patrolTarget;
+  return !!(c.spare&&t.isCarrier&&c.spare.includes('carrier'))||!!(c.letGone&&t.mode==='leave'); }
+/* 第4節だけ: the marked hunters wait in the cloud, then fire only on the patrol, including their W.A.S. */
+function patrolHunting(u){ const c=u.carrier||u; return !!(c.patrolHunter&&op.carrier&&op.carrier.patrol&&opCarrier&&opCarrier.cs.landed&&!opCarrier.cs.patrolReleased); }
 /* the civilian zones (op.civil): within r of a habitat block. Our guns hitting an enemy ship in one cost lives, an enemy ship sunk in one
    costs more, and the raiders' fire on a block costs lives too (sim.js damage). Over op.civil.cap the operation is lost */
 function inZone(u){ const C=op.civil; if(!C) return false; for(const b of blocks) if(u.pos.distanceTo(b.pos)<C.r) return true; return false; }
@@ -102,6 +106,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
 
 function damage(t,amt,src){
   if(!t.alive) return;
+  if(patrolHunting(src)&&spares(src,t)) return;   // also reject a cached target when the ambush has not begun
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
   /* a gate's shield (第5節): no evasion, no lives */
   if(t.kind==='gate'){ gateHit(t,amt); return; }
@@ -210,6 +215,7 @@ function enemyCraft(u,maxD){
 /* the ordered target comes first; a carrier set to 命令優先 sends its craft at nothing else. Then enemy craft; then enemy W.A.S.
    go for the transports when they are within reach; otherwise the nearest foe */
 function craftTarget(u,type,maxD){
+  if(patrolHunting(u)){ const t=opCarrier.cs.patrolTarget; return t&&t.alive&&t.seen&&!spares(u,t)&&gap(u,t)<maxD?t:null; }
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD) return o;
   if((u.carrier||u).stance==='evade') return null;
   /* 第5節 (2026-10-17, the enemy's priorities; 数値は仮): Alvarez's W.A.S. (prey:'mine') go for our own army's ships first, the rival;
@@ -356,6 +362,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
   const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)?t:null;
+  if(patrolHunting(f)) return opCarrier.cs.patrolEngaged?inRange(opCarrier.cs.patrolTarget):null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
   /* one going for the carrier (prey:'carrier') puts about a quarter of its fire on it (one second in four) and the rest on a ship
@@ -980,6 +987,11 @@ function enemyAI(){
   if(packs.length) stepPacks(all);   // ドクトリンの型 (operations with packs only)
   for(const f of fleets){
     if(f.team!==1||!f.alive||f.fixed) continue;
+    if(patrolHunting(f)){ const t=opCarrier.cs.patrolTarget;
+      if(opCarrier.cs.patrolEngaged&&t&&t.alive){ if(t.seen){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t}); }
+        else moveTo(f,t.pos.x,t.pos.y,t.pos.z); }
+      else { f.order=null; f.fireTarget=null; if(f.pos.distanceTo(f.home)>2) moveTo(f,f.home.x,f.home.y,f.home.z); }
+      continue; }
     if(f.roleSpot) f.roleSpot=null;
     if(f.packSpot) f.packSpot=null;
     if(f.rot&&rotStep(f)) continue;   // 第5節 (2026-10-23): a unit that comes and goes, on its way out (stepRotate brings it again)
@@ -1146,6 +1158,8 @@ function allyAI(){
   const foes=fleets.filter(f=>f.team===1&&f.alive&&(f.fixed||f.seen&&!(op.civil&&inZone(f))));
   for(const f of fleets){
     if(!f.ally||!f.alive||f.fixed) continue;   // a battery on the rock (第5節) only shoots
+    if(opCarrier&&op.carrier.patrol&&opCarrier.cs.patrolStarted&&!opCarrier.cs.patrolReleased&&opCarrier.cs.patrolTarget===f){
+      const P=op.carrier.patrol; f.mode='patrol'; moveTo(f,P.pos[0],P.alt||0,P.pos[1]); continue; }
     if(f.mode!=='guard') f.aim=f.waitAt=null;
     if(f.packSpot) f.packSpot=null;
     if(nuke&&nukeAI(f)) continue;   // 第6節: the battleships with the warheads, and the units with their crews after the blast (stepNukes)
@@ -1231,9 +1245,10 @@ function stepCarrier(dt){
   const C=op.carrier; if(!C||!opCarrier||over) return; const S=opCarrier.cs, P=op.body&&op.body.port;
   if(!S.landed){ if(!opCarrier.alive||!P||!portOpen()) return;
     if(opCarrier.pos.distanceTo(_w.set(P.pos[0],P.alt||0,P.pos[1]))<=P.r&&(!opCarrier.order||opCarrier.order.type!=='move')) landCarrier(); return; }
+  stepPatrol(C,S);
   /* landed: the port is being taken (占領) until the main fleet is pushed back; then the plan changes to taking the people off */
   if(!S.evac){ if(evacDue(C,S)) startEvac(C,S); return; }
-  if(!S.done){ S.board+=dt*CLOCK_RATE; S.boarded=Math.min(C.people,Math.floor(C.rate*S.board/60/100)*100);
+  if(!S.done){ S.board+=dt*CLOCK_RATE; S.boarded=Math.min(C.people,Math.floor(boardingTotal(C,S.board)/100)*100);
     stepLastWave(C,S);
     for(const L of C.boardLogs||[]) if(S.boarded>=L[0]&&!S.logs.has(L[0])){ S.logs.add(L[0]); logEvent(L[1],L[2]); }
     const full=S.boarded>=C.people;
@@ -1259,6 +1274,28 @@ function stepCarrier(dt){
     return; }
   if(opCarrier.alive&&opCarrier.pos.distanceTo(S.exit)<=(C.exit.r||12)){ opCarrier.escaped=true; opCarrier.alive=false; opCarrier.el.remove(); unselect(opCarrier);
     logEvent(`${opCarrier.name} 離脱`,`${opCarrier.name}が離脱点を抜けた。`); updateRoster(); end(true); }
+}
+/* rateDecay is minutes: r(t)=rate*exp(-t/rateDecay) people/hour. Integrate analytically, so the result does not depend on step size.
+   A carrier without rateDecay keeps the existing constant rate. */
+function boardingTotal(C,t){ t=Math.max(0,t); return C.rate*(C.rateDecay>0?C.rateDecay*-Math.expm1(-t/C.rateDecay):t)/60; }
+/* 第4節 #241: the isolated patrol can be saved by the player. Loss, or the rescue deadline, releases the hunters and resets the loss baseline. */
+function stepPatrol(C,S){ const P=C.patrol; if(!P||S.patrolReleased||S.done) return;
+  const now=gameSec*CLOCK_RATE, elapsed=now-S.landMin;
+  const f=S.patrolTarget||(S.patrolTarget=fleets.find(f=>f.ally&&f.name===P.fleet));
+  if(!f||!f.alive){ finishPatrol(C,S,true); return; }
+  if(elapsed>=P.after&&!S.patrolStarted){ S.patrolStarted=true; S.patrolMin=now; f.order=null; f.queue=[]; dropArrow(f.arrow); f.arrow=null; f.mode='patrol'; playPatrolLogs(P.outLogs); }
+  if(S.patrolStarted&&!S.patrolEngaged){ const port=op.body.port;
+    const supported=fleets.some(a=>a!==f&&a.ally&&a.alive&&!a.fixed&&a.pos.distanceTo(f.pos)<P.isolateR);
+    if(!supported&&f.pos.distanceTo(_w.set(port.pos[0],port.alt||0,port.pos[1]))>=P.outR){ S.patrolEngaged=true; S.patrolAttackMin=now; playPatrolLogs(P.attackLogs); } }
+  if(elapsed>=P.release) finishPatrol(C,S,false);
+}
+function playPatrolLogs(lines){ for(const l of lines||[]) logEvent(...l); }
+function finishPatrol(C,S,lost){ S.patrolReleased=true; S.patrolLost=lost; S.patrolBaseMin=gameSec*CLOCK_RATE;
+  S.alliesAtLand=fleets.reduce((s,f)=>s+(f.ally&&!f.fixed&&(f.alive||f.left)?f.ships.length:0),0);
+  if(S.patrolTarget&&S.patrolTarget.alive){ S.patrolTarget.mode='protect'; S.patrolTarget.order=null; }
+  for(const f of fleets) if(f.patrolHunter){ f.order=f.strike=f.fireTarget=null; f.retarget=0; }
+  for(const w of wings) if(w.alive&&w.carrier.patrolHunter){ w.target=w.fireTarget=null; w.state='return'; }
+  playPatrolLogs(lost?C.patrol.lostLogs:C.patrol.safeLogs);
 }
 /* the share of the main fleet's battle line (op.carrier.line, fleet names) that is sunk (a unit that left at the exit is not) */
 function lineLost(){ const L=op.carrier.line||[], line=fleets.filter(f=>f.ally&&L.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0);
@@ -1297,6 +1334,7 @@ function cutBoarding(C,S){
 let massAt={};
 function stepLastWave(C,S){
   const L=C.lastWave; if(!L||S.lastCame) return;
+  if(C.patrol&&(!S.patrolReleased||massAt[L.of]==null)) return;   // 第4節: patrol resolved, and the first wave must have arrived
   if(L.allies!=null&&alliesLost()>=L.allies){ comeLastWave(L,S); return; }
   if(L.gap&&(massAt[L.of]==null||gameSec*CLOCK_RATE-massAt[L.of]<L.gap)) return;
   const U=fleets.filter(f=>f.team===1&&f.tag===L.of), n=U.reduce((s,f)=>s+f.n,0); if(!n) return;
