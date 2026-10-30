@@ -873,8 +873,8 @@ function check(ok, label, detail = '') {
       const w2 = fleets.find(f => f.team === 1 && f.alive && f.prey === 'carrier'); r.wave2 = !!w2 && w2.keepOut;
       if (w2) { w2.alive = false; w2.el.remove(); }
       r.noLastYet = !opCarrier.cs.lastCame; fleets.forEach(f => { f.tag = null; });   // the loop below takes every enemy off: not the first wave's losses
-      /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come); cut short once 60% of the
-         battle line is sunk, and always after cut.max minutes */
+      /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come);
+         the last wave follows losses since landing, and cut.max always ends the boarding */
       while (opCarrier.cs.board < 120 && n++ < 6000) { step(.05); fleets.forEach(f => { if (f.team === 1 && f.alive && !f.fixed) { f.alive = false; f.el.remove(); } }); }
       r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 6000;
       { const S = opCarrier.cs, b = S.board; r.noCut = !cutBoarding(op.carrier, S); S.board = op.carrier.cut.max; r.cutMax = cutBoarding(op.carrier, S); S.board = b; }
@@ -911,11 +911,12 @@ function check(ok, label, detail = '') {
       r.wavesLeft = opEvents.slice(nextEvent).some(e => e.wave);
       /* when the allied units have lost half their ships, the last wave comes, and 20 minutes later the retreat begins (user decision 2026-10-17); the unit nearest Yukon escorts it, the rest
          stay and hold the enemy off. The enemy comes after Yukon, beating what of ours is near first; only Alvarez's units let it go */
-      const al = fleets.filter(f => f.ally && f.alive && !f.fixed), alN = al.reduce((s, f) => s + f.n, 0);
+      const al = fleets.filter(f => f.ally && f.alive && !f.fixed);
       const mk = o => { const e = makeFleet(1, { sub: '', type: 'cl', n: 2, hp: 999, dmg: 0, eva: 0, range: 20, speed: 9, scale: 1, alt: 0, vis: 9, stl: 0, ai: 'detail', keepOut: true, ...o }); e.seen = true; fleets.push(e); return e; };
       const eAce = mk({ name: '試験 赤', pos: [100, -100], ace: true, spare: ['carrier'] }), eLet = mk({ name: '試験 部下', pos: [110, -100], letGo: true, spare: ['carrier'] }), eRun = mk({ name: '試験 追う', pos: [120, -100], spare: ['carrier'] });
       let cutN = 0; for (const f of al) { while (alliesLost() < .45 && f.ships.length > 1) { f.ships.pop(); cutN++; } }
-      step(.05); r.notYet = !opCarrier.cs.done; al[0].ships.splice(0, Math.ceil(alN * .02)); al.forEach(f => { if (!f.ships.length) f.alive = false; });
+      step(.05); r.notYet = !opCarrier.cs.done && !opCarrier.cs.lastCame;
+      for (const f of al) while (alliesLost() < .5 && f.ships.length) { f.ships.pop(); if (!f.ships.length) f.alive = false; }
       { const before = fleets.length; opCarrier.seen = true; step(.05); const W2 = fleets.slice(before).filter(f => f.team === 1);
         r.callsLast = opCarrier.cs.lastCame && W2.length === op.carrier.lastWave.mass.units && !opCarrier.cs.done;
         W2.forEach(f => { f.alive = false; f.el.remove(); }); wings = wings.filter(w => !W2.includes(w.carrier)); opCarrier.cs.lastMin -= op.carrier.lastWave.after; }
@@ -947,7 +948,7 @@ function check(ok, label, detail = '') {
     check(d1.shut && d1.landed && d1.ace && d1.spare && d1.stays, 'デナリの盾: 宇宙港は管制が開くまで降りられない（任務欄に「管制 閉鎖中」）。開くと、輪で止まったユーコンが着陸して港を押さえ（占領）、アルバレスの隊（鮮烈な赤）が戻る。アルバレスはユーコンを狙わず、着陸したユーコンは動かない', JSON.stringify(d1));
     check(d1.raidYukon === 1, 'デナリの盾: 着陸で戻る奇襲部隊のうち1隊（アルバレスの隊ではない）がユーコンを狙う（2026-10-17）', JSON.stringify(d1));
     check(d1.evacNow && d1.wave2, 'デナリの盾: 着陸で奇襲部隊が戻ると、すぐ作戦変更で収容が始まる（2026-10-17）。40分後に最後の波の1つ目（ユーコンを狙う第6 を含む）が来る', JSON.stringify(d1));
-    check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 本軍の隻数の5割が沈むと最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う（2026-10-17）', JSON.stringify(d1));
+    check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 着陸時に残った本軍の隻数の5割が沈むと最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う', JSON.stringify(d1));
     check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 6000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は1時間に3,000人（2026-10-16）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     /* the waves' ships and W.A.S. from the data (2026-10-20: the Republic's numbers were fitted to the two sides' tables) */
     const DW = await page.evaluate(() => { const C = WOS_DATA.operations.find(o => o.id === 'denali').carrier, E = C.evacEvents.find(e => e.mass).mass, L = C.lastWave.mass;
@@ -974,6 +975,41 @@ function check(ok, label, detail = '') {
     /* where the player has to take a ship (the carrier's exit) lies inside the clickable field, ring and all (2026-10-15: it was at 212) */
     const ex = await page.evaluate(() => WOS_DATA.operations.filter(o => o.carrier).map(o => { const E = o.carrier.exit; return { id: o.id, out: Math.hypot(E.pos[0], E.pos[1]) + (E.r || 12) }; }));
     check(ex.length && ex.every(e => e.out <= 200), '撤退の離脱点は、輪ごと作戦フィールドの中心から200以内（クリックできる範囲）', JSON.stringify(ex));
+    /* #239: losses before landing (including a wiped-out unit) do not call the last wave or cut boarding short.
+       Only the main fleet counts; a unit that left the field is still counted as surviving. */
+    const dlBase = await page.evaluate(() => {
+      WOS.start({ op: 'denali' }); setSpeed(0); if (talking) endTalk();
+      const A = fleets.filter(f => f.ally && !f.fixed), total = A.reduce((s, f) => s + f.n, 0);
+      const remove = count => { for (const f of A) while (count > 0 && f.ships.length) {
+        f.ships.pop(); count--; if (!f.ships.length) f.alive = false;
+      } };
+      remove(total - 20);
+      const r = { before: alliesLost(), wiped: A.some(f => !f.alive) };
+      landCarrier(); const C = op.carrier, S = opCarrier.cs; startEvac(C, S); if (talking) endTalk();
+      r.base = S.alliesAtLand; r.atLand = alliesLost();
+      const cut = { cut: { allies: .5 } };   // also cover cut.allies, which Denali replaced with lastWave.allies
+      r.atLandCut = cutBoarding(cut, S);
+      remove(9); stepLastWave(C, S);
+      r.below = { lost: alliesLost(), last: !!S.lastCame, cut: cutBoarding(cut, S) };
+      const left = A.find(f => f.alive); left.alive = false; left.left = true;
+      r.left = alliesLost() === r.below.lost; left.alive = true; left.left = false;
+      remove(1); r.halfCut = cutBoarding(cut, S); stepLastWave(C, S);
+      r.half = { lost: alliesLost(), last: S.lastCame, wait: !cutBoarding(C, S) };
+      S.lastMin -= C.lastWave.after; r.after = cutBoarding(C, S);
+      S.alliesAtLand = 0; r.empty = alliesLost() === 0;
+      WOS.start({ op: 'denali' }); setSpeed(0); if (talking) endTalk();
+      r.reset = opCarrier.cs.alliesAtLand == null;
+      WOS.start({ op: 'februaria' }); setSpeed(0); if (talking) endTalk();
+      const B = fleets.filter(f => f.ally && !f.fixed), n = B.reduce((s, f) => s + f.n, 0);
+      B.find(f => f.alive && f.ships.length).ships.pop();
+      r.other = Math.abs(alliesLost() - 1 / n) < 1e-9;
+      openMenu(); return r;
+    });
+    check(dlBase.before > .4 && dlBase.wiped && dlBase.base === 20 && dlBase.atLand === 0 && !dlBase.atLandCut
+      && Math.abs(dlBase.below.lost - .45) < 1e-9 && !dlBase.below.last && !dlBase.below.cut && dlBase.left
+      && dlBase.halfCut && dlBase.half.lost === .5 && dlBase.half.last && dlBase.half.wait && dlBase.after
+      && dlBase.empty && dlBase.reset && dlBase.other,
+      'デナリの盾 #239: 奪還中の損失を除き、着陸時の残存20隻のうち9隻では待ち、10隻で最後の波・20分後に撤退。cut.allies も同じ基準で、離脱・再出撃・ほかの作戦に影響しない', JSON.stringify(dlBase));
     /* 第5節 フェブルアーリア防衛戦: a body far larger than the field to the south, the Earth behind it, a battleship lent from the yard,
        friendly batteries on the rock; the base's three gates under their shields (2026-10-16): a breached gate is blown shut, the last one
        open lets the assault ships wear the garrison down (0 loses); holding until 18:00 wins, and the battleship branch opens */

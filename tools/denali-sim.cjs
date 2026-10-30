@@ -3,6 +3,7 @@
    a: 駐屯隊が奇襲部隊を叩きに行く  b: 着陸したら駐屯隊をすぐ離脱点へ逃がす  auto: デバッグのオートモード（sim.js の autoAI。港に近い敵から叩き、着陸後はユーコンのまわりを守る）。PATCH=ファイル.js を付けると、始める前にそのスクリプトをページで実行する（WOS_DATA を書き換えて数値を試す）。
    TECH=1 を付けると、研究をすべて終えた自軍で戦う
    行の読み方: 時刻 段階 cas=民間の被害 yk=ユーコンの耐久 al=本軍6隊の隻数（L=離脱） me=駐屯隊 en=敵 aa=残りの砲台。
+   LAND は着陸と基準の残存隻数 alliesAtLand、FIRST は最後の波の1つ目。EVAC・LAST・RETREAT と比べて順序を確かめる。
    最後に乗せた人数と、駐屯隊に打撃を与えた敵の内訳、撤退の始まりと終わりに沈んでいた味方（本軍と駐屯隊）の隻数（lost）。勝ち負けは「over outcome loseWhy」 */
 const { openGame, toStage } = require('./browser.cjs');
 (async () => {
@@ -29,6 +30,8 @@ const { openGame, toStage } = require('./browser.cjs');
     let n=0, sent=false, flee=false; if(strat==='auto') autoMode=true;
     while(!over&&n++<40000){ step(.05);
       if(n%20) continue;
+      if(opCarrier.cs.landed&&!window._land){ window._land=1; L('LAND alliesAtLand='+(opCarrier.cs.alliesAtLand??'未記録')); }
+      if(massAt.w1!=null&&!window._first){ window._first=1; L('FIRST'); }
       if(opCarrier.cs.lastCame&&!window._lw){ window._lw=1; L('LAST '+lost()); }
       if(strat==='auto'){ if(phaseName==='撤退'&&!window._rt){ window._rt=1; L('RETREAT '+lost()); } if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); } continue; }
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen);

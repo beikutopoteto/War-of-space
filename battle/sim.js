@@ -1281,7 +1281,7 @@ function startEvac(C,S){
 /* the boarding is cut short (op.carrier.cut, 第4節; user decision 2026-10-10): after `min` minutes of it, when the battle line has lost
    `sunk` of its ships or the carrier is down to `carrier` of its armour, and always after `max` minutes of it (2026-10-12).
    The more the main fleet holds, the more people get aboard */
-/* allies (2026-10-17, user decision): when the allied units (the main fleet's six) have lost that share of their ships, it is cut short
+/* allies (2026-10-17, user decision): when the allied units (the main fleet's six) have lost that share of their ships present at landing (2026-10-30), it is cut short
    (in place of sunk and carrier). 第4節 now has the last wave come then instead (lastWave.allies), and the retreat follows it */
 function cutBoarding(C,S){
   const K=C.cut; if(!K||S.board<(K.min||0)) return false;
@@ -1310,8 +1310,10 @@ function comeLastWave(L,S){ S.lastCame=true; S.lastMin=gameSec*CLOCK_RATE; const
 /* the ace unit and the units under him (letGo) draw back to where they came from and only answer what comes near; their craft come home */
 function letGoOf(f){ f.ai='guard'; f.post.copy(f.home); f.leash=35; f.order=null; f.strike=null; f.letGone=true; }
 function callCraftHome(){ for(const w of wings) if(w.alive&&w.carrier.letGone&&w.state==='attack'){ w.state='return'; w.target=null; } }
-/* the share of the allied units' ships (not the guns on a rock) that is sunk (a unit that left at the exit is not) */
-function alliesLost(){ const A=fleets.filter(f=>f.ally&&!f.fixed), n=A.reduce((s,f)=>s+f.n,0);
+/* the share of the allied units' ships (not the guns on a rock) that is sunk (a unit that left at the exit is not).
+   第4節 (user decision 2026-10-30): count only losses since landing, from the ships still present then */
+function alliesLost(){ const A=fleets.filter(f=>f.ally&&!f.fixed), S=opCarrier&&opCarrier.cs,
+    n=S&&S.alliesAtLand!=null?S.alliesAtLand:A.reduce((s,f)=>s+f.n,0);
   return n?1-A.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0)/n:0; }
 /* a scene of lines: a conversation that pauses the battle (story on), always kept in the log too */
 function playScene(lines){ if(!lines||!lines.length) return; lines.forEach(l=>logEvent(...l)); if(storyOn()) startTalk(lines); }
@@ -1321,6 +1323,7 @@ function keepOutOfZones(f){ const R=op.civil.r+.5;
   for(const b of blocks){ _w.subVectors(f.pos,b.pos); const d=_w.length(); if(d>=R) continue; if(d<1e-6) _w.set(0,0,1); f.pos.copy(b.pos).addScaledVector(_w.normalize(),R); } }
 function landCarrier(){
   const C=op.carrier, S=opCarrier.cs; S.landed=true; S.landMin=gameSec*CLOCK_RATE; opCarrier.locked=true; opCarrier.order=null; opCarrier.queue=[]; dropArrow(opCarrier.arrow); opCarrier.arrow=null;
+  if(C.lastWave||C.cut&&C.cut.allies!=null) S.alliesAtLand=fleets.reduce((s,f)=>s+(f.ally&&!f.fixed&&(f.alive||f.left)?f.ships.length:0),0);
   opCarrier.sub=C.landSub||'戦闘母艦　宇宙港を確保中'; if(C.landLog) logEvent(...C.landLog); if(C.landPhase) setPhase(C.landPhase);
   /* the landing's own events, timed from now */
   const add=(C.landEvents||[]).map(e=>({...e,after:S.landMin+e.after})), rest=opEvents.splice(nextEvent);
