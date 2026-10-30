@@ -880,7 +880,7 @@ function check(ok, label, detail = '') {
       /* 3,000 people an hour while the main fleet holds (user decision 2026-10-16; the later waves are taken off as they come);
          the last wave follows losses since landing, and cut.max always ends the boarding */
       while (opCarrier.cs.board < 120 && n++ < 6000) { step(.05); fleets.forEach(f => { if (f.team === 1 && f.alive && !f.fixed) { f.alive = false; f.el.remove(); } }); }
-      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 3300;
+      r.boardSec = Math.round(gameSec - t0); r.clock = CLOCK_RATE; step(.05); r.holds = !opCarrier.cs.done && opCarrier.cs.boarded === 5000;
       { const S = opCarrier.cs, b = S.board; r.noCut = !cutBoarding(op.carrier, S); S.board = op.carrier.cut.max; r.cutMax = cutBoarding(op.carrier, S); S.board = b; }
       /* the later half (user decision 2026-10-15): the enemy comes all at once, as many units as ours still in the battle plus one,
          the same ships and W.A.S. as before; they break us one by one: two on the one that stands most alone, one on each of the
@@ -953,7 +953,7 @@ function check(ok, label, detail = '') {
     check(d1.raidYukon === 0 && d1.lateRaid === 1, 'デナリの盾: 着陸ではアルバレス2隊が潜み、ユーコンを狙う第5 重巡洋は35分後に来る。警戒のあいだの本隊を急に襲わない', JSON.stringify(d1));
     check(d1.evacNow && d1.wave2, 'デナリの盾: 着陸で奇襲部隊が戻ると、すぐ作戦変更で収容が始まる（2026-10-17）。40分後に最後の波の1つ目（ユーコンを狙う第6 を含む）が来る', JSON.stringify(d1));
     check(d1.notYet && d1.callsLast && d1.escort && d1.letGo && d1.chaseNear && d1.chaseYukon && d1.rearFights, 'デナリの盾: 警戒を終えた時点に残った本軍の隻数の5割が沈み、1つ目の波が来ると最後の波の2つ目が来て、20分後に撤退。ユーコンにいちばん近い1隊がつき、残りは残って敵を食い止める。敵はアルバレスの隊だけ追わず、ほかは近くの味方を先に叩き、いなければユーコンを追う', JSON.stringify(d1));
-    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 3300 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は初め速くだんだん減速する（#241）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
+    check(d1.holds && d1.noCut && d1.cutMax && d1.cut && d1.boarded === 5000 && d1.retreat && d1.over && d1.win, 'デナリの盾: 収容は初め速くだんだん減速する（#241）。最後の波の2つ目から20分たつか（2026-10-17）、収容が cut.max 分になると切り上げて撤退に変わり、ユーコンが離脱点に着けば作戦は終わる', JSON.stringify(d1));
     /* the waves' ships and W.A.S. from the data (2026-10-20: the Republic's numbers were fitted to the two sides' tables) */
     const DW = await page.evaluate(() => { const C = WOS_DATA.operations.find(o => o.id === 'denali').carrier, E = C.evacEvents.find(e => e.mass).mass, L = C.lastWave.mass;
       const cnt = m => m.own.reduce((s, f) => s + f.n, 0) + m.types.reduce((s, t) => s + t.n, 0), was = m => m.types.reduce((s, t) => s + (t.was ?? ((WOS_DATA.sides.mars.ships[t.fleet.type] || {}).was || 0) * t.n), 0);   // the class's W.A.S. when the data gives none (2026-10-21)

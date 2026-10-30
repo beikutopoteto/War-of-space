@@ -42,7 +42,7 @@ const { openGame, toStage } = require('./browser.cjs');
       if(opCarrier.cs.done&&!metrics.retreat) metrics.retreat=stamp();
       if(strat==='auto'){ if(phaseName==='撤退'&&!window._rt){ window._rt=1; L('RETREAT '+lost()); } if(opCarrier.cs.evac&&!window._ev){ window._ev=1; L('EVAC'); } continue; }
       const en=fleets.filter(x=>x.team===1&&x.alive&&x.seen);
-      if(phaseName==='奪還'||phaseName==='交戦'){
+      if(phaseName==='突入'||phaseName==='奪還'||phaseName==='交戦'){
         const tgt=en.filter(e=>e.name.includes('第14')||e.name==='第5 デナリ対空砲台'||e.name==='第6 デナリ対空砲台');
         for(const f of mine()) if(!f.order){ const e=tgt.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]; if(e) order(f,{type:'attack',target:e}); }
         if(!sent&&!fleets.some(x=>x.alive&&(x.name.includes('第14')||x.name==='第5 デナリ対空砲台'||x.name==='第6 デナリ対空砲台'))){ sent=true; order(opCarrier,{type:'move',dest:port.clone()}); L('send carrier'); }

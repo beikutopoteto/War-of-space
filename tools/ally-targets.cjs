@@ -31,7 +31,7 @@ const opId=process.argv[2]||'nile', runs=+(process.argv[3]||1);
           const e=en.filter(e=>e.type!=='mas'&&e.pos.distanceTo(spot)<60).sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0];
           if(e){ if(!(f.order&&f.order.target===e)) order(f,{type:'attack',target:e}); } else if(f.pos.distanceTo(spot)>8&&!(f.order&&f.order.type==='move')) order(f,{type:'move',dest:spot}); });
         if(real==='denali'){
-          if(phaseName==='奪還'||phaseName==='交戦'){
+          if(phaseName==='突入'||phaseName==='奪還'||phaseName==='交戦'){
             const tgt=en.filter(e=>e.name.includes('第14')||e.name==='第5 デナリ対空砲台'||e.name==='第6 デナリ対空砲台');
             if(!idle) for(const f of mine()) if(!f.order){ const e=tgt.sort((a,b)=>a.pos.distanceTo(f.pos)-b.pos.distanceTo(f.pos))[0]; if(e) order(f,{type:'attack',target:e}); }
             if(!sent&&portOpen()&&!fleets.some(x=>x.alive&&(x.name.includes('第14')||x.name==='第5 デナリ対空砲台'||x.name==='第6 デナリ対空砲台'))){ sent=true; order(opCarrier,{type:'move',dest:port.clone()}); }
