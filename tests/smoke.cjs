@@ -1641,6 +1641,10 @@ function check(ok, label, detail = '') {
       '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
     check(db.stage.was && db.stage.s2mas === 0 && db.stage.thrHp === '600,600,600,600,600,600',
       '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2に突撃揚陸艦はない（駆逐艦）、戻せる推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.thrHp]));
+    /* 第4節と第6節の砲台は同じもの（ユーザー決定 2026-10-30）: どちらも WOS_DATA.denaliGun の強さ */
+    const dg = await page.evaluate(() => { const G = WOS_DATA.denaliGun, o = id => WOS_DATA.operations.find(x => x.id === id);
+      return ['denali', 'denaliBreak'].map(id => o(id).enemies.filter(f => f.type === 'aa').map(f => Object.keys(G).every(k => f[k] === G[k]))); });
+    check(dg.every(a => a.length === 6 && a.every(Boolean)), '第4節と第6節の砲台は同じもの。強さは WOS_DATA.denaliGun で連動する（2026-10-30）', JSON.stringify(dg));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
     /* 方角守備隊（型 screen）: 守るものから130以内に見えた敵と守るものの間（敵の40手前）に割り込み、持ち場の中心から100の外へは出ない。敵がいなければ戻る。
        予備の揚陸艦は持ち場で待つ。北守備隊と正面は追わない */
