@@ -64,6 +64,7 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
      - サンドボックスは `danger-full-access`（ユーザー決定 2026-10-30「緩めます」）。前の `workspace-write` では Chromium が起動せず（`browserType.launch` が閉じる）、`.git` にも書けなかった（`index.lock` を作れない）。緩めても、作業フォルダの外を直すこと・コミット・push は作業票で禁じる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
   5. 終わったら `git worktree remove` で作業フォルダを片付ける。
 - `npm test`（約20分）と早送りの道具は、Claude と Codex で同時に回さない（実時間に頼る確認が落ちる）。Codex に走らせる回は、Claude は待つ。
+- 続きを頼む `codex exec resume --last` は `-s` を受け付けない（2026-10-30 に起動せず終わった）。作業フォルダの中で `-c sandbox_mode="danger-full-access"` を付けて呼ぶ。
 - Codex が上限に当たったら、作業フォルダに残った変更を Claude が「作業中」のコミットで退避して push し、続きを同じ作業フォルダで呼び直す（`codex exec resume --last` も使える）。
 
 ## Codex への渡し方（手動。Codex Cloud を使うときだけ。ユーザー決定 2026-10-29）
