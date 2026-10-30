@@ -828,10 +828,11 @@ WOS_DATA.operations=[
         {after:12, log:['ウォン中将', '「全艦、受け持ちの居住区とユーコンの前へ。戦艦は硬い。居住区より硬い。それが理由だ」'],
           ai:{fleets:['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群','第13 ドナウ主力 支隊','第20 ドナウ前衛 支隊','第10 アマゾン残存 支隊','第6 巡洋護衛 支隊'], ai:'protect'}},
         {after:21, log:['傍受', 'アルバレス大尉「デナリの守備隊、よく持たせた。……ここからは俺たちの番だ。居住区には当てるなよ。狙うのは軍艦だけだ」']},
-        /* アルバレスの指揮の下の第8（色はふつうの赤。居住区とユーコンは狙わず、撤退も追わない letGo。W.A.S. は第7 の半分の40、仮）と第4 重巡洋艦。
+        /* アルバレスの指揮の下の第8（居住区とユーコンは狙わず、撤退も追わない letGo。W.A.S. は20、仮）と第4 重巡洋艦。
+           2026-10-30（ユーザー決定）: 第8も第5節と同じく開発局の補正（ace）を付ける（前はふつうの赤で補正なし）。
            2026-10-12 から27分後の第2波だったのを、2026-10-14 に第7・第5 と同時にした（ユーザー決定: 後半の奇襲のタイミングを合わせ、同時に出す） */
         {after:0, fleet:{name:'第8 試験強襲 エスカドラ', sub:'惑星先進装備開発局 アルバレス隊 突撃揚陸艦', type:'mas', n:4, scale:1.1,
-          hangar:{was:20}, patrolHunter:true, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
+          hangar:{was:20}, ace:true, patrolHunter:true, spare:['carrier'], prey:'ally', letGo:true, keepOut:true, pos:[10,-118], alt:78, ai:'hunt', watch:{pos:[20,60], alt:0}, vis:7, stl:6, },
           arrow:{pos:[-12,-50]}},
         {after:35, fleet:{name:'第4 重巡洋 エスカドラ', sub:'自治軍 重巡洋艦', type:'cl', n:3, scale:1.25, pos:[-8,-125], alt:82, ai:'hunt', spare:['carrier'], keepOut:true, watch:{pos:[20,60], alt:0}, vis:6, stl:4}},
         {after:36, log:['ソコロワ参謀大佐', '（放送）「地球連合の艦隊が去らない限り、居住区への砲撃を続ける。これは警告だ」'], ai:{fleets:['第5 重巡洋 エスカドラ'], ai:'raid'}},
