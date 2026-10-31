@@ -1500,8 +1500,8 @@ WOS_DATA.operations.push((()=>{
        lane は dwell ごとに点を飛ばさず連続補間。仮: 表面から110〜120、目標115、
        ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
     feints:{
-      '左上':{press:true, wait:3, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
-      '右下':{press:true, wait:3, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
+      '左上':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'西上守備隊', via:[[-140,260,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
+      '右下':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
        share になったら直ちに、遅くとも at 分（15:00）。2026-11-01 のユーザー指示で from 14:30 を廃止。 */
@@ -1522,7 +1522,7 @@ WOS_DATA.operations.push((()=>{
        （end − 起爆の時刻）時間 × shift km ずれ（上限 max）、そのあと生きている戻せる推進器1基につき1時間に pull km 戻る（stop 分まで）。乗員を乗せた隊は起爆のあと back
        （作戦フィールドの中心から [x, z]）へ下がる。起爆の前に戦艦を allOut 隻失うと、陽動が本気の攻撃に移る（logs.allOut）。at は lure のない作戦の移乗の時刻（使わない）。
        text は段ごとの任務欄の指示、logs は段ごとの通知（どちらも仮） */
-    nukes:{at:120, board:8, mineR:6, fuse:15, back:[0,170], allOut:3, route:[[-35,230,25],[-70,85,35],[-50,40,40]],
+    nukes:{at:120, board:8, mineR:6, fuse:15, back:[0,170], allOut:3, feintHalf:true, route:[[-35,230,25],[-70,85,35],[-50,40,40]],
       text:{board:'戦艦の乗員が巡洋艦とフリゲートへ移っている。戦艦を守れ', descend:'空の戦艦が左上の道で鉱山へ降りる。鉱山の縁の砲台を払え', armed:'起爆を待つ。着底した戦艦を守れ', fired:'誘導の推進器（東と北）を壊せ'},
       /* logs（docs/chapter1.md「第6節」の会話の案）: 一つの台詞か、いくつかの並び。fire は戦闘を止めて見せる（会話が入のとき）。
          thr・thrAfter は戻せる推進器を壊したとき（起爆の前・後。{n} は残り）、lost は核を積んだ戦艦が沈んだとき（起爆の前。{n} は残り）、pull は起爆のあと推進器が残っているとき、

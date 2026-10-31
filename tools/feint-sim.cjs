@@ -117,11 +117,13 @@ async function trial(run, deadline) {
         insert("else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2)", "else if(!f.order||f.order.type!=='move'){ observeEnemy(f,'後段:postへ戻る/保持'); if(f.pos.distanceTo(f.post)>2)");
         insert('if(waiting){ packWatch(f,waiting,f.home);', "if(waiting){ observeEnemy(f,'見回り:start待ち'); packWatch(f,waiting,f.home);");
         enemyAI = eval('(' + source + ')');
-        const chaseEnds=[], radial=new Map();
+        const chaseEnds=[], radial=new Map(), frontHits={}; let chargeSeen=false;
         const originalDamage = damage;
         let tickShot = new Set(), tickCraft = new Set(), tickHit = new Set(), secondActive = new Set();
         damage = function(t, amt, src) {
           if (amt > 0 && t.alive) {
+            const attacker=src?.carrier||src;
+            if(attacker?.feint&&!attacker.feintOut&&t.pack?.name) { const k=attacker.feint+':'+t.pack.name; frontHits[k]=(frontHits[k]||0)+amt; }
             if(t.feint&&metrics.has(t)){ const k=src?.kind==='wing'?'艦載機':src?.fixed&&src?.type==='aa'?'砲台':'艦など'; const m=metrics.get(t); m.damageSources[k]=(m.damageSources[k]||0)+amt; }
             if(noGunDamage&&t.feint&&src?.fixed&&src?.type==='aa') return;
             if (metrics.has(src)) tickShot.add(src);
@@ -177,6 +179,7 @@ async function trial(run, deadline) {
           })});
         const laneKey = new Map(), packState = new Map(), screenState = new Map(), reliefSeen = new Set(), arrived = new Set(); let ignited=null; let lureSeen=false, nukeState=nuke.state;
         const changes = () => {
+          if(nuke.feintCharge!=null&&!chargeSeen){ chargeSeen=true; event('feintCharge',{units:fleets.filter(f=>f.alive&&f.mode==='feintCharge').length}); }
           for (const [side,F] of Object.entries(op.feints)) {
             const p=xyz(feintLane(F,opMin())), k=Math.floor(Math.max(0,opMin()-(F.from||0))/(F.dwell||10));
             if(laneKey.get(side)!==k){ laneKey.set(side,k); event('lane',{side,pos:p}); }
@@ -246,7 +249,7 @@ async function trial(run, deadline) {
           if(n%100!==0) snapshot();
           for(const m of metrics.values()) closeInterval(m);
           return {rows,summary:{type:'summary',strat,...stamp(),over,win:outcome===true,why:loseWhy || (!fleets.some(f=>f.team===0&&f.alive&&!f.ward)?'army':null),
-            arrived:[...arrived].map(f=>f.name),ignited,relief:packs.filter(P=>P.reliefAt!=null).map(P=>({from:P.name,to:P.relief.to,at:P.reliefAt,units:P.reliefUnits})),
+            arrived:[...arrived].map(f=>f.name),ignited,frontHits,relief:packs.filter(P=>P.reliefAt!=null).map(P=>({from:P.name,to:P.relief.to,at:P.reliefAt,units:P.reliefUnits})),
             chaseEnds,radial:[...radial.values()].map(({name,maxBack,totalBack})=>({name,maxBack:round(maxBack),totalBack:round(totalBack)})),initialShips,clockRate:CLOCK_RATE,steps:n,unmeasuredTail:round(gameSec%1),
             helpEmptySec:round(helpEmptySec),helpTotalSec:round(helpTotalSec),
             lure:lured?{by:lured.by,opMin:lured.at,sec:round(lured.at/CLOCK_RATE),clock:clockStr(lured.at)}:null,

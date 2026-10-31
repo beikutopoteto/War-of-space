@@ -1147,6 +1147,7 @@ function feintAssault(now){ const sides={};
   feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
+  if(f.mode==='feintCharge'&&nuke.state==='fired'){ f.mode='feint'; f.order=null; }
   if(f.mode!=='gone'&&f.mode!=='assault'&&F.end!=null&&now>=F.end) feintLeave(f);
   if(f.mode==='assault'&&feintAll&&op.win.type!=='shatter'){ const A=F.assault||{}, n=fleets.reduce((s,x)=>s+(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault'?x.ships.length:0),0), n0=feintAll.n0[f.feint]||1;
     if(now-feintAll.at>=(A.min??60)||n<n0*(1-(A.lost??.3))) for(const x of fleets) if(x.ally&&x.feint===f.feint&&x.alive&&x.mode==='assault') feintLeave(x); }
@@ -1182,6 +1183,14 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
     else { const objective=op.win.type==='shatter'&&nearestOf(f,fleets.filter(e=>e.restore&&e.alive)); const P=packs.find(P=>P.name===F.screen), p=objective?objective.pos:P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
     return true; }
+  if(f.mode==='feintCharge'){
+    const P=packs.find(p=>p.name===F.screen); if(!P||!P.postV) return true;
+    const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&umbrellaContains(P,e.pos)&&(!e.fixed||e.type==='aa'));
+    const t=nearestOf(f,targets); f.stance='engage'; f.aim=t;
+    if(t){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t}); }
+    else { if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,P.postV.x,P.postV.y,P.postV.z); }
+    return true;
+  }
   if(f.mode!=='feint') return false;
   let L=feintLane(F,now);
   if(F.press){ const dir=L.clone().sub(bodyC); if(dir.lengthSq()<1e-6) dir.set(0,0,1); L=dir.normalize().multiplyScalar(bodySurface(L,op.body.r)+F.surfaceAt).add(bodyC); }
@@ -1205,23 +1214,17 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
 /* 第6節の陽動: 傘の外で戦い、半数を失った隊は帯へ退く。 */
 function feintPress(f,F,L,foes){ let P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
   const original=lureUnits(P), n0=original.reduce((n,x)=>n+x.n,0), live=original.reduce((n,x)=>n+(x.alive?x.ships.length:0),0);
-  if(n0&&live<=n0/3){
-    const mates=fleets.filter(x=>x.alive&&x.ally&&x.feint===f.feint&&x.mode==='feint');
-    const opponent=P.mem.some(e=>e.alive&&mates.some(m=>m.pos.distanceTo(e.pos)<60));
-    if(opponent) F.waitSince=null; else if(F.waitSince==null) F.waitSince=opMin();
-    if(f.feintJoined||F.waitSince!=null&&opMin()-F.waitSince>=F.wait){
-      const other=Object.values(op.feints).find(x=>x!==F); if(other){ P=packs.find(p=>p.name===other.screen)||P; L=feintLane(other,opMin()); f.feintJoined=true; }
-    }
-  }
+  const cleared=n0&&live<=n0/3;
 
   const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
   const dir=L.clone().sub(bodyC), side=new THREE.Vector3(-dir.z,0,dir.x).normalize();
   dir.addScaledVector(side,Math.sin(a)*F.ring); dir.y+=Math.cos(a)*F.ring; dir.normalize();
   let p=dir.clone().multiplyScalar(bodySurface(dir.clone().add(bodyC),op.body.r)+F.surfaceAt).add(bodyC);
-  const retreat=f.ships.length<=f.n*.5;
+  const retreat=!cleared&&f.ships.length<=f.n*.5;
   f.feintPhase=retreat?'withdraw':'hold';
   if(!retreat){ const outward=P.postV.clone().sub(bodyC).normalize();
-    p=outward.multiplyScalar(umbrellaEdge(P,outward)+3).add(P.postV); }
+    if(cleared) outward.addScaledVector(side,(k-(M.length-1)/2)*F.ring/300).normalize();
+    p=outward.multiplyScalar(umbrellaEdge(P,outward)+(cleared?10:3)).add(P.postV); }
   const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
   const t=nearestOf(f,targets);
   if(!t){ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
@@ -2075,6 +2078,13 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
   if(S.state==='wait'){ if(W.type==='shatter'&&feintAll&&!S.strike) nukeStrike(); if(!S.strike&&(op.lure?lured:now>=N.at)) nukeBoard(now); return; }
   if(S.state==='board'){ if(now>=S.at+N.board) nukeDescend(); return; }
   if(S.state==='descend'||S.state==='armed'){
+    if(N.feintHalf&&!S.feintCharge&&!feintAll){
+      const live=S.bbs.map(b=>b.f).filter(f=>f&&f.alive);
+      if(live.length&&live.some(f=>f.nukeSt==='landed'||f.order?.path&&f.order.path.s>f.order.path.L/2)){
+        S.feintCharge=now;
+        for(const f of fleets) if(f.alive&&f.ally&&f.feint&&f.mode==='feint'){ f.mode='feintCharge'; f.order=null; }
+      }
+    }
     for(const b of S.bbs){ const f=b.f; if(!f||!f.alive||f.nukeSt!=='descend') continue;
       if(f.pos.distanceTo(S.mine)<=N.mineR){ f.nukeSt='landed'; f.locked=true; f.order=null; dropArrow(f.arrow); f.arrow=null; f.sub=`戦艦　核弾頭${f.nuke}発　着底`; packCue.land=true; }
       else if(!f.order) moveTo(f,b.slot.x,b.slot.y,b.slot.z); }
