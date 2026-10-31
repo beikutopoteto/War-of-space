@@ -1434,19 +1434,19 @@ WOS_DATA.operations.push((()=>{
   /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート1・突撃揚陸艦3、計8。
      待つ所は東下守備隊付近と北の上（作業票 #251 の難しさ調整、仮）。内訳と位置は仮）。出るまでは ai なしでその場にいる。
      槍2の突撃揚陸艦は 2026-10-29 に駆逐艦に替え、2026-10-30 に突撃揚陸艦へ戻した（作業票 #251 の釣り合わせ、仮。勝ち負けが shatter になり、駆逐艦のままでは戦艦が毎回4〜5隻着いて 15:33 に勝った。戻すと着くのは2〜3隻）。mt: 2つ目の隊の艦種、nf: フリゲートの隻数、dt: 3つ目の隊の艦種 */
-  const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍',mt='mas',nf=2,dt='dd')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:nf, scale:.75, pos:[x,z], alt, vis:6, stl:6},
-    mt==='dd'?{name:`第${22+k} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nm, scale:.85, pos:[x,z-6], alt, vis:6, stl:6}
-      :{name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5},
-    {name:`第${dd} ${dt==='mas'?'突撃揚陸':'駆逐強襲'} 戦闘隊`, sub:`${w} ${dt==='mas'?'突撃揚陸艦':'駆逐艦'}`, type:dt, n:nd, scale:dt==='mas' ? .9 : .85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:dt==='mas' ? 5 : 6}];
+  const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍',mt='mas',nf=2,dt='dd')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:nf, scale:.75, pos:[x,z], alt, vis:6, stl:6, leash:90},
+    mt==='dd'?{name:`第${22+k} 駆逐強襲 戦闘隊`, sub:`${w} 駆逐艦`, type:'dd', n:nm, scale:.85, pos:[x,z-6], alt, vis:6, stl:6, leash:90}
+      :{name:`第${22+k} 突撃揚陸 戦闘隊`, sub:`${w} 突撃揚陸艦`, type:'mas', n:nm, scale:.9, pos:[x,z-6], alt, vis:6, stl:5, leash:90},
+    {name:`第${dd} ${dt==='mas'?'突撃揚陸':'駆逐強襲'} 戦闘隊`, sub:`${w} ${dt==='mas'?'突撃揚陸艦':'駆逐艦'}`, type:dt, n:nd, scale:dt==='mas' ? .9 : .85, pos:[x+(x<0?-6:6),z-3], alt, vis:6, stl:dt==='mas' ? 5 : 6, leash:90}];
   const S2=[[2,at(80,-42,58),10],[3,at(160,60,70),7]].flatMap(([k,p,dd])=>spear(k,p.pos[0],p.pos[1],p.alt,dd,2,1,'槍2','mas',1,'mas'));
   /* 霧と鎚（着底した戦艦を狙う。W.A.S. の突撃揚陸艦3隊と重巡洋艦1隊、計8。待つ所はデナリの南の上の陰（2026-10-28。前は西の上で、左上の陽動とぶつかった）。内訳と位置は仮） */
   const HAM=[{name:'第26 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(-20,62,60), vis:6, stl:5},
     {name:'第27 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(10,66,62), vis:6, stl:5},
     {name:'第17 巡洋阻止 戦闘隊', sub:'霧と鎚 重巡洋艦（鎚）', type:'cl', n:2, scale:1.1, ...at(-35,58,58), vis:6, stl:4},
-    {name:'第28 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(25,58,60), vis:6, stl:5}];
+    {name:'第28 突撃揚陸 戦闘隊', sub:'霧と鎚 突撃揚陸艦（霧）', type:'mas', n:2, scale:.9, ...at(25,58,60), vis:6, stl:5}].map(f=>({...f,leash:90}));
   /* 起爆のあと（合図 ignite）、霧と鎚の残りは残った戻せる推進器の守りへ（岩の盾。駆逐艦は縁に入る）。拠点は正面に残る（2026-10-29）。
      槍1・槍2は推進器の守りに回らず、デナリの北へ退く（2026-10-29 の釣り合わせ、仮。前は回り、推進器を壊しに来た自軍を守りの W.A.S. と一緒に削った） */
-  const guardThr=(on,...w)=>({on, doctrine:'rockShield', ward:w.flatMap(names), rest:'rim'});
+  const guardThr=(on,...w)=>({on, doctrine:'rockShield', ward:w.flatMap(names), rest:'rim', guardUmbrella:true});
   /* 友軍（ユーザー決定 2026-10-28・29）: 核を積んだ本軍の戦艦の2隊（今のまま）と、総基地の艦隊の動ける約100隻のうち陽動の2つ（左上・右下に40隻ずつ。巡洋艦12・駆逐艦12・フリゲート8・
      コルベット4・戦闘母艦4。戦艦なし）と、陽動から割いた戦艦の護衛の第29・第30 支隊（ESCORT。2026-10-29 に戻した。陽動の護送護衛の4隊を9隻から6隻に）。陽動は第5節の生き残りで傷んでいる（hurt。docs/spec.md「両陣営の技術と強さ」の例外。割合は仮）。touch:true は触れる隊（駆逐艦） */
   const BB=['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群'];
