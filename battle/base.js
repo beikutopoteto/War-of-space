@@ -236,7 +236,7 @@ function pitBuild(f){
 const _pl=new THREE.Vector3();
 /* 推進器の噴射 (第6節, user decision 2026-10-31: the restoring thrusters (east and north) fire all through the battle, the west ones are spent;
    the sample of docs/maps.md 5.1, made misty like plasma at the user's word the same day): soft additive puffs that stream out from the
-   nozzle's mouth along s.up, widening, white by the mouth to orange, fading out. Shown with the thruster (while it is in sight), gone with it.
+   nozzle's mouth along s.up, widening, white by the mouth to orange, fading out. Shown with the thruster even outside sight, gone with it.
    Sizes and numbers 仮 */
 const PLUME_MOUTH=3.56, PLUME_N=18, PLUME_L=15, PLUME_R0=1.6, PLUME_R1=7.5, PLUME_RATE=.35, PLUME_A=.12;   // the mouth over s.base at scale 1 (shapes.js SHAPES.thr); puffs, length, size at the mouth and at the end, flow per second (of the length), brightness
 const PLUME_TEX=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), g=x.createRadialGradient(32,32,0,32,32,32);
@@ -247,7 +247,7 @@ function plumeBuild(f){ const s=f.ships[0]; if(!s||!s.up) return;
   for(let i=0;i<PLUME_N;i++){ const m=new THREE.Sprite(new THREE.SpriteMaterial({map:PLUME_TEX,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
     m.userData.u0=i/PLUME_N; m.userData.j=[Math.random()-.5,Math.random()-.5]; m.renderOrder=4; g.add(m); }
   baseObj.add(g); f.plume=g; }
-function plumeDraw(f){ const g=f.plume; if(!g) return; g.visible=f.alive&&shown(f); if(!g.visible) return;
+function plumeDraw(f){ const g=f.plume; if(!g) return; g.visible=f.alive&&(f.type==='thr'||shown(f)); if(!g.visible) return;
   const t=performance.now()/1000;
   for(const m of g.children){ const u=(m.userData.u0+t*PLUME_RATE)%1, r=PLUME_R0+(PLUME_R1-PLUME_R0)*Math.sqrt(u), J=m.userData.j;
     m.position.set(J[0]*r*.35*u,u*PLUME_L,J[1]*r*.35*u); m.scale.setScalar(r*2);

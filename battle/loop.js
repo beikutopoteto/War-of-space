@@ -50,7 +50,7 @@ function frame(now){
   if(skyGrow.length) growSky(clockMin(gameSec*CLOCK_RATE)/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
-  for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=!shown(f), lk=landK(f);
+  for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }

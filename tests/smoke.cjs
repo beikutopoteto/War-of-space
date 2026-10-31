@@ -1712,6 +1712,15 @@ function check(ok, label, detail = '') {
     /* 第6節「デナリ破砕」（2026-10-28 に陽動の形に作り直した。docs/campaign.md 第6節「作り直しの案」、docs/spec.md「第6節の形」）の舞台: 推進器12基（戻せるのは東と北の6基）と砲台6基、
        共和国74隻（正面48、方角守備隊 西上9・東下9・北8）、友軍の陽動は左上・右下に46隻ずつ（巡洋艦12・駆逐艦12・フリゲート12・コルベット6・戦闘母艦4、戦艦なし）、
        出撃の上限60、作戦フィールドは近づくときに一度だけ一定の速さで北へ滑る（突破と2回目の滑り、砲撃線はやめた） */
+    const thrVisible = await page.evaluate(async () => {
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const T = fleets.filter(f => f.type === 'thr'), R = T.filter(f => f.restore);
+      return { unseen: T.every(f => !f.seen), count: shipMeshes[colOf(T[0])].thr.count,
+        plumes: R.filter(f => f.plume && f.plume.visible).length, marks: T.every(f => f.el.style.visibility === 'hidden') };
+    });
+    check(thrVisible.unseen && thrVisible.count === 12 && thrVisible.plumes === 6 && thrVisible.marks,
+      '第6節: 未発見の推進器12基と東・北の噴射6基は見え、印は第二段階まで隠れる', JSON.stringify(thrVisible));
     const db = await page.evaluate(() => {
       const F = n => fleets.find(f => f.name === n), P = n => packs.find(x => x.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
