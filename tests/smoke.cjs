@@ -1895,7 +1895,7 @@ function check(ok, label, detail = '') {
         const tough = () => { for (const G of nuke.G) if (G.alive) G.hpPool = Math.max(G.hpPool, G.hp * G.ships.length * 20); };
         mins(30); const S = P('西上守備隊'), all = [...main, ...touch], seen = new Set(), fired = new Set(); let pull = 0;
         /* the whole side presses in, fires (the main body too, and its craft), and pulls out past the lane (2026-10-30, 作業票 #248) */
-        for (let i = 0; i < 12000 && !over && !(seen.has('fire') && seen.has('withdraw') && pull > 0); i++) { step(.05); tough();
+        for (let i = 0; i < 12000 && !over && !(seen.has('approach') && seen.has('withdraw') && pull > 0); i++) { step(.05); tough();
           for (const f of all) if (f.alive) { seen.add(f.feintPhase); if (f.fireTarget && S.mem.includes(f.fireTarget)) fired.add(f.touch ? 'touch' : 'main');
             if (f.feintPhase === 'withdraw') pull = Math.max(pull, f.pos.distanceTo(S.postV)); } }
         r.main = { engage: main.every(f => !f.alive || f.stance === 'engage'), out: main.filter(f => f.alive && f.feintOut).length, phases: [...seen].filter(Boolean).sort().join(','), fired: [...fired].sort().join(','), pull: Math.round(pull) };
@@ -1943,8 +1943,8 @@ function check(ok, label, detail = '') {
         return r;
       } finally { logEvent = logE; }
     });
-    check(fe.main.engage && fe.main.out > 0 && fe.main.phases === 'approach,fire,withdraw' && fe.main.fired.includes('main') && fe.main.canTouch && fe.main.pull > 0 && fe.thr.every(x => x === null),
-      '第6節: 陽動は迫る→撃つ→引くをくり返し、本隊も触れる隊も方角守備隊を撃って、lane の外へ引く。推進器は撃たない（2026-10-30）', JSON.stringify(fe));
+    check(fe.main.engage && fe.main.out > 0 && fe.main.phases.includes('approach') && fe.main.phases.includes('withdraw') && fe.main.fired.includes('main') && fe.main.canTouch && fe.main.pull > 0 && fe.thr.every(x => x === null),
+      '第6節: 陽動は迫り、撃ちながら帯へ引く。本隊も触れる隊も射撃し、推進器は撃たない', JSON.stringify(fe));
     check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.wing && fe.three.ship && fe.three.after && fe.end && fe.priority && fe.fallback && fe.assaultEnd,
       '第6節: 核の戦艦が2隻以下になると右下の陽動は推進器と砲台を攻撃し、総攻撃を続け、切り替え前は21:00に離脱する', JSON.stringify([fe.two, fe.three, fe.end]));
     const portTest = await page.evaluate(() => {

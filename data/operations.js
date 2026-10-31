@@ -1514,12 +1514,7 @@ WOS_DATA.operations.push((()=>{
     ],
     /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す */
     body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:40}, launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
-    /* 岩くずの雲は噴射で吹き散らされて、薄く小さい（第4節の弧を、半分の数・4割の大きさで。仮） */
-    debrisTilt:35,
-    debris:(()=>{ const out=[], tt=Math.tan(35*Math.PI/180), N=9;
-      for(let i=0;i<N;i++){ const u=i/(N-1), th=(-3+125*u)*Math.PI/180, R=112-18*u, r=Math.max(4,Math.round((30-20*u)*.4*(1+.14*Math.sin(i*2.3))));
-        const x=Math.round(R*Math.cos(th)), z=Math.round(-R*Math.sin(th)); out.push({pos:[x,z], alt:Math.round(-z*tt), r}); }
-      return out; })(),
+    /* 第6節の岩くずの雲はなくした（ユーザー決定 2026-11-01）。 */
     /* 核を積んだ戦艦と着弾予想点（ユーザー決定 2026-10-23・24・28、docs/campaign.md「核を積んだ戦艦」「着弾予想点と推進器」「作り直しの案」。数値はすべて仮）。
        第二段階の合図（lure）で、友軍の nuke の印の隊の戦艦が移乗（board 分その場で止まる。隊の巡洋艦とフリゲートも一緒に止まる）。そのあと空の戦艦は route を通って
        （左上の道。正面拠点に近い [-35,230]+25 → [-70,85]+35 → [-50,40]+40。作業票 #251 の難しさ調整、仮）

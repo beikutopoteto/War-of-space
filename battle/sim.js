@@ -107,6 +107,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
 function damage(t,amt,src){
   if(!t.alive) return;
   if(patrolHunting(src)&&spares(src,t)) return;   // also reject a cached target when the ambush has not begun
+  if(amt>0&&t.ally&&t.feint&&t.mode==='feint'&&op.feints?.[t.feint]?.press&&src.team!==t.team) t.feintHit=true;
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
   /* a gate's shield (第5節): no evasion, no lives */
   if(t.kind==='gate'){ gateHit(t,amt); return; }
@@ -1204,12 +1205,20 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     _w.subVectors(f.pos,t.pos); if(_w.lengthSq()<1e-6) _w.subVectors(L,t.pos); f.packSpot=_w.setLength(f.range*FEINT_EDGE+(t.radius||0)).add(t.pos).clone(); return true; }
   const p=P&&(P.scr?P.scr.s:P.postV); if(!p){ back(); return true; }
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
-/* 第6節の陽動: 守備隊の方角で表面から一定の帯を保ち、届く相手を全隊で撃つ。 */
+/* 第6節の陽動: 持ち場に残る守備隊へ迫り、接近か被弾で帯へ戻る。 */
 function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
   const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
   const dir=L.clone().sub(bodyC), side=new THREE.Vector3(-dir.z,0,dir.x).normalize();
   dir.addScaledVector(side,Math.sin(a)*F.ring); dir.y+=Math.cos(a)*F.ring; dir.normalize();
-  const p=dir.clone().multiplyScalar(bodySurface(dir.clone().add(bodyC),op.body.r)+F.surfaceAt).add(bodyC);
+  let p=dir.clone().multiplyScalar(bodySurface(dir.clone().add(bodyC),op.body.r)+F.surfaceAt).add(bodyC);
+  const guards=P.mem.filter(x=>x.alive), remaining=guards.some(x=>!x.feintDrawn);
+  const surfaceDist=f.pos.distanceTo(bodyC)-bodySurface(f.pos,op.body.r);
+  if(f.feintHit||guards.some(x=>x.pos.distanceTo(f.pos)<=35)) f.feintReturning=true;
+  f.feintHit=false;
+  if(f.feintReturning&&surfaceDist>=F.surfaceMin&&surfaceDist<=F.surfaceMax) f.feintReturning=false;
+  f.feintPhase=f.feintReturning?'withdraw':remaining?'approach':'hold';
+  if(remaining&&!f.feintReturning){ const outward=p.clone().sub(P.postV); if(outward.lengthSq()<1e-6) outward.copy(dir); outward.normalize();
+    p=outward.multiplyScalar(Math.max(0,umbrellaEdge(P,outward)-5)).add(P.postV); }
   const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
   const t=nearestOf(f,targets);
   if(!t){ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
@@ -2383,10 +2392,6 @@ function step(dt){
     }
   }
   spreadAllies(dt);
-  if(op.body) for(const f of fleets) if(f.alive&&f.ally&&f.feint&&f.mode==='feint'&&op.feints[f.feint].press&&f.feintGo){
-    const F=op.feints[f.feint], d=f.pos.distanceTo(bodyC), surface=bodySurface(f.pos,op.body.r), min=surface+F.surfaceMin, max=surface+F.surfaceMax;
-    if(d>1e-6&&(d<min||f.feintOut&&d>max)) f.pos.sub(bodyC).setLength(Math.max(min,Math.min(max,d))).add(bodyC);
-  }
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
   if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
   tetherCarriers(dt);   // after the pushes off the rock and out of the zones (a path into the rock pushed a landing ship out past its W.A.S.)
