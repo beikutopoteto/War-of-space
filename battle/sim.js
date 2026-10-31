@@ -851,10 +851,13 @@ function umbrellaClamp(P,p){ const circles=umbrellaCircles(P); if(circles.some(c
   let best=null, bd=Infinity; for(const c of circles){ const d=c.pos.distanceTo(p)-c.r; if(d<bd){bd=d;best=c;} }
   return p.sub(best.pos).setLength(best.r-.001).add(best.pos); }
 function umbrellaAI(f,P,foes){ const near=foes.filter(e=>!e.fixed&&umbrellaContains(P,e.pos)), t=nearestOf(f,near);
-  if(t){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t});
+  if(t){ if(t.feint&&t.mode==='feint') f.feintDrawn=true; if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t});
     const d=f.pos.clone().sub(t.pos); if(d.lengthSq()<1e-6) d.subVectors(P.postV,t.pos); if(d.lengthSq()<1e-6) d.set(1,0,0);
     f.packSpot=umbrellaClamp(P,d.setLength(f.range*.8).add(t.pos)); }
-  else { if(f.order&&f.order.type==='attack') f.order=null; packStay(f,f.home); }
+  else { const bait=nearestOf(f,fleets.filter(x=>x.alive&&x.ally&&x.feint&&x.mode==='feint'&&op.feints[x.feint].screen===P.name));
+    if(!f.feintDrawn&&bait&&bait.seen&&P.postV.distanceTo(bait.pos)<=(P.D.reach||130)) f.feintDrawn=true;
+    if(f.order&&f.order.type==='attack') f.order=null;
+    if(f.feintDrawn&&bait){ const p=umbrellaClamp(P,bait.pos.clone()); packStay(f,p); } else { f.feintDrawn=false; packStay(f,f.home); } }
   return true; }
 /* 持ち場から外向きの半直線と砲台の傘の最外縁。 */
 function umbrellaEdge(P,dir){ let end=0; for(const c of umbrellaCircles(P)){ const q=P.postV.clone().sub(c.pos), b=q.dot(dir), disc=b*b-q.lengthSq()+c.r*c.r;
@@ -1129,7 +1132,7 @@ function protectAI(f){
   _w.y=P.pos.y; if(op.body){ const R=bodySurface(_w,op.body.r)+4; if(_w.distanceTo(bodyC)<R) _w.sub(bodyC).setLength(R).add(bodyC); }
   moveTo(f,_w.x,_w.y,_w.z); return true;
 }
-/* 陽動（第6節、2026-10-30 作業票 #248）。press のある側は全隊が迫る→撃つ→lane より外へ引く。
+/* 陽動（第6節）。press のある側は全隊が表面から一定の帯で動き、届く敵を撃つ。
    via で正面を避け、lane は連続補間。推進器は砲も艦載機も狙わない。
    press のないデータは従来の本隊待機・touch 射撃を保つ。
    戦艦を allOut 隻失うと艦だけへの総攻撃（assault.min 分か assault.lost 損失まで）。end 分には全隊離脱。 */
@@ -1182,7 +1185,8 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     else { const objective=op.win.type==='shatter'&&nearestOf(f,fleets.filter(e=>e.restore&&e.alive)); const P=packs.find(P=>P.name===F.screen), p=objective?objective.pos:P&&(P.scr?P.scr.s:P.postV); if(p) moveTo(f,p.x,p.y,p.z); }
     return true; }
   if(f.mode!=='feint') return false;
-  const L=feintLane(F,now);
+  let L=feintLane(F,now);
+  if(F.press){ const dir=L.clone().sub(bodyC); if(dir.lengthSq()<1e-6) dir.set(0,0,1); L=dir.normalize().multiplyScalar(bodySurface(L,op.body.r)+F.surfaceAt).add(bodyC); }
   if(F.press) f.stance='engage'; else if(!f.touch) f.stance='evade';
   /* out to the lane first, round the front */
   if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; return true; }
@@ -1200,22 +1204,15 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     _w.subVectors(f.pos,t.pos); if(_w.lengthSq()<1e-6) _w.subVectors(L,t.pos); f.packSpot=_w.setLength(f.range*FEINT_EDGE+(t.radius||0)).add(t.pos).clone(); return true; }
   const p=P&&(P.scr?P.scr.s:P.postV); if(!p){ back(); return true; }
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
-/* 第6節の迫る→撃つ→引く。全隊が射撃し、砲台の傘の境目で引く。周期・距離は作戦ごとの仮の値。 */
+/* 第6節の陽動: 守備隊の方角で表面から一定の帯を保ち、届く相手を全隊で撃つ。 */
 function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
   const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
-  const outward=L.clone().sub(P.postV), side=new THREE.Vector3(-outward.z,0,outward.x).normalize();
-  outward.addScaledVector(side,Math.sin(a)*F.ring); outward.y+=Math.cos(a)*F.ring; outward.normalize();
-  const C=P.feintCycle||(P.feintCycle={phase:'approach',at:gameSec});
-  const pursuers=P.mem.filter(e=>e.alive&&e.seen&&M.some(m=>m.pos.distanceTo(e.pos)<35));
-  if(C.phase==='withdraw'&&(!pursuers.length||gameSec-C.at>=F.withdraw)){ C.phase='approach'; C.at=gameSec; }
+  const dir=L.clone().sub(bodyC), side=new THREE.Vector3(-dir.z,0,dir.x).normalize();
+  dir.addScaledVector(side,Math.sin(a)*F.ring); dir.y+=Math.cos(a)*F.ring; dir.normalize();
+  const p=dir.clone().multiplyScalar(bodySurface(dir.clone().add(bodyC),op.body.r)+F.surfaceAt).add(bodyC);
   const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
   const t=nearestOf(f,targets);
-  if(C.phase==='fire'&&gameSec-C.at>=F.fire){ C.phase='withdraw'; C.at=gameSec; }
-  if(C.phase!=='withdraw'&&t&&gap(f,t)<=f.range*FEINT_EDGE){ if(C.phase!=='fire'){ C.phase='fire'; C.at=gameSec; }
-    if(gap(f,t)<f.range*FEINT_IN){ C.phase='withdraw'; C.at=gameSec; } }
-  f.feintPhase=C.phase;
-  const distance=umbrellaEdge(P,outward)+(C.phase==='withdraw'?F.edgeOut:-F.edgeIn), p=P.postV.clone().addScaledVector(outward,distance);
-  if(C.phase==='withdraw'||!t){ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
+  if(!t){ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
   if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t}); f.packSpot=p; return true; }
 /* 戦艦の護衛 (escort; 第6節, user decision 2026-10-29: 第29・第30 支隊, cut from the feints. 数値は仮). An allied unit with ai:'escort' keeps by the
    battleships with the warheads (op.nukes): while they wait, by their units (nuke.G); from the crossing over, by the battleships on their own
@@ -2379,13 +2376,17 @@ function step(dt){
       if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP) umbrellaClamp(UP,f.pos);
       if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
-      damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
-      const rate=Math.min(f.ships.length,12)*1.6;
+      damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft)/(f.reload||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
+      const rate=Math.min(f.ships.length,12)*1.6/(f.reload||1);
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
       if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
   spreadAllies(dt);
+  if(op.body) for(const f of fleets) if(f.alive&&f.ally&&f.feint&&f.mode==='feint'&&op.feints[f.feint].press&&f.feintGo){
+    const F=op.feints[f.feint], d=f.pos.distanceTo(bodyC), surface=bodySurface(f.pos,op.body.r), min=surface+F.surfaceMin, max=surface+F.surfaceMax;
+    if(d>1e-6&&(d<min||f.feintOut&&d>max)) f.pos.sub(bodyC).setLength(Math.max(min,Math.min(max,d))).add(bodyC);
+  }
   if(op.body) for(const f of fleets) if(f.alive&&!f.fixed) keepOffBody(f);
   if(op.civil) for(const f of fleets) if(f.alive&&f.keepOut) keepOutOfZones(f);
   tetherCarriers(dt);   // after the pushes off the rock and out of the zones (a path into the rock pushed a landing ship out past its W.A.S.)
