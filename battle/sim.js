@@ -203,7 +203,7 @@ const FORT_MARGIN=6;
 function underGuns(t,team){ return fortress.alive&&!fortress.defend&&fortress.team!==team&&(t===fortress||t.pos.distanceTo(fortress.pos)<=fortress.range+FORT_MARGIN); }
 function orderedTarget(u){ const c=u.carrier||u; if(!c.alive) return null; if(c.order&&c.order.type==='attack') return c.order.target; return c.strike&&c.strike.alive?c.strike:null; }
 /* 第6節: the feints' craft never on a thruster (nor on the guns on the rock in their all-out attack) */
-function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&t.type==='thr'&&!(c0.mode==='assault'&&t.restore)) return false; if(feintCover(c0)&&(t.fixed||t.type==='thr')) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
+function craftMayHit(u,t){ if(spares(u,t)) return false; const c0=u.carrier||u; if(c0.feint&&t.type==='thr'&&!(c0.mode==='assault'&&t.restore)) return false; if(feintCover(c0)&&(t.kind!=='fleet'||t.fixed||t.type==='thr')) return false; if(t===orderedTarget(u)) return true; if(t===fortress) return !!t.defend&&u.team!==t.team&&u.type==='was';   // enemy W.A.S. may go for the station we defend
   const c=u.carrier&&u.carrier.alive?u.carrier:u; return underGuns(t,u.team)===underGuns(c,u.team); }
 /* craft against craft: the enemy craft within reach that is closest to their own carrier. So the craft meet the enemy's
    in between and fight there (the front line), and when enemy craft press in toward the carrier the line falls back with them */
@@ -363,7 +363,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||!t.fixed&&t.type!=='thr')?t:null;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||t.kind==='fleet'&&!t.fixed&&t.type!=='thr')?t:null;
   if(patrolHunting(f)) return opCarrier.cs.patrolEngaged?inRange(opCarrier.cs.patrolTarget):null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
@@ -375,7 +375,7 @@ function fireTargetOf(f){
      nothing lower than PIT_EL[0] (pitCan) */
   if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?t.kind==='fleet'&&!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
@@ -2299,7 +2299,7 @@ function step(dt){
     if(f.hangars.length){ (f.tp||(f.tp=new THREE.Vector3())).copy(f.pos); f.tOrd=f.order; f.tS=f.order&&f.order.path?f.order.path.s:0; }   // for tetherCarriers
     if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
     /* 第6節 cover: discard a battery cached before the switch without waiting for the next retarget. */
-    f.retarget-=dt; if(f.retarget<=0||feintCover(f)&&f.fireTarget&&(f.fireTarget.fixed||f.fireTarget.type==='thr')){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
+    f.retarget-=dt; if(f.retarget<=0||feintCover(f)&&f.fireTarget&&(f.fireTarget.kind!=='fleet'||f.fireTarget.fixed||f.fireTarget.type==='thr')){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
     let goal=null, moving=false;
     if(f.locked&&f.order){ f.order=null; f.queue=[]; dropArrow(f.arrow); f.arrow=null; }   // the carrier on the pad does not move
     if(f.order){

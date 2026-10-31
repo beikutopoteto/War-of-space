@@ -1907,7 +1907,13 @@ function check(ok, label, detail = '') {
         /* 作業票 #254: 右下（role thr）は推進器のそばの砲台を撃ち、左上（role cover）は艦だけを狙って砲台は撃たない */
         const g = fleets.find(x => x.fixed && x.type === 'aa' && x.team === 1), oth = fleets.filter(x => x.team === 1 && x.alive && x !== g); g.seen = true; oth.forEach(x => { x.alive = false; });
         const near = c => { c.order = null; c.pos.copy(g.pos).sub(bodyC).setLength(g.pos.distanceTo(bodyC) + c.range * .4).add(bodyC); return fireTargetOf(c) ? fireTargetOf(c).name : null; };
-        r.three.gun = near(A.find(f => f.feint === '右下')); r.three.cover = near(A.find(f => f.feint === '左上')); oth.forEach(x => { x.alive = true; });
+        r.three.gun = near(A.find(f => f.feint === '右下')); r.three.cover = near(A.find(f => f.feint === '左上'));
+        /* Even an ordered enemy wing is excluded; an enemy ship remains a valid target for the covering side. */
+        const cover = A.find(f => f.feint === '左上'), enemy = oth.find(x => !x.fixed), wing = { kind:'wing', team:1, alive:true, seen:true, pos:cover.pos.clone(), radius:0 };
+        cover.stance = 'engage'; cover.order = { type:'attack', target:wing }; wings.push(wing);
+        r.three.wing = fireTargetOf(cover) === null && !craftMayHit({carrier:cover}, wing);
+        wings.pop(); enemy.alive = enemy.seen = true; enemy.pos.copy(cover.pos); cover.order = { type:'attack', target:enemy };
+        r.three.ship = fireTargetOf(cover) === enemy && craftMayHit({carrier:cover}, enemy); oth.forEach(x => { x.alive = true; });
         run(feintAll.at + 60.5); r.three.after = fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'gone');
         /* 21:00: the feints leave */
         WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); mins(3); gameSec = 480.1 / CLOCK_RATE; allyAI(); r.end = fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'gone');
@@ -1916,7 +1922,7 @@ function check(ok, label, detail = '') {
     });
     check(fe.main.engage && fe.main.out > 0 && fe.main.phases === 'approach,fire,withdraw' && fe.main.fired === 'main,touch' && fe.main.pull > 140 && fe.thr.every(x => x === null),
       '第6節: 陽動は迫る→撃つ→引くをくり返し、本隊も触れる隊も方角守備隊を撃って、lane の外へ引く。推進器は撃たない（2026-10-30）', JSON.stringify(fe));
-    check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.cover === null && fe.three.after && fe.end,
+    check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.cover === null && fe.three.wing && fe.three.ship && fe.three.after && fe.end,
       '第6節: 核の戦艦が2隻以下になると右下の陽動は推進器と砲台を攻撃し、左上は艦だけを狙う。30分または3割の損失で下がる', JSON.stringify([fe.two, fe.three, fe.end]));
     /* 第6節の戦艦の護衛（ユーザー決定 2026-10-29: 陽動から割いた第29・第30 支隊。battle/sim.js の escortAI）: 待つあいだは戦艦の隊のそばに立ち、戦艦に寄る揚陸艦を
        近くのほかの艦より先に叩く。第二段階は1隻ずつになった戦艦について道を降りる。移乗で分かれた戦艦の耐久は艦種の割合（隊の平均でなく、2026-10-29） */
@@ -1937,7 +1943,8 @@ function check(ok, label, detail = '') {
       const M = F('第22 突撃揚陸 戦闘隊'), Q = F('第22 護衛警衛 戦闘隊'), c = mid(E);
       M.pos.copy(G[0].pos).add(new THREE.Vector3(-22, 0, -12)); Q.pos.copy(c).add(new THREE.Vector3(-4, 0, -4)); [M, Q].forEach(x => { x.seen = true; x.order = null; });
       allyAI(); r.mas = E.map(f => !!(f.order && f.order.type === 'attack' && f.order.target === M)).join(',');
-      M.pos.set(0, 0, -300); Q.pos.set(0, 0, -300); M.seen = Q.seen = false;
+      /* Follow is measured without threats: the preceding check separately verifies that the escorts engage a lander. */
+      fleets.filter(f => f.team === 1 && f.type !== 'thr').forEach(f => { f.alive = false; }); wings.filter(w => w.team === 1).forEach(w => { w.alive = false; });
       /* the second stage: with the battleships on their way down */
       const p0 = E.map(f => f.pos.clone()); lured = { at: opMin(), by: 'test' }; run(opMin() + 15.5); r.desc = nuke.state;
       run(opMin() + 8); const B = nuke.bbs.map(b => b.f).filter(f => f && f.alive);
@@ -1946,7 +1953,7 @@ function check(ok, label, detail = '') {
       return r;
     });
     check(esc6.share.k === '0.9,0.9,0.9,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every(d => d <= 25) && esc6.mas === 'true,true'
-      && esc6.desc === 'descend' && esc6.follow.gap.every(d => d <= 40) && esc6.follow.moved.every(d => d >= 40),
+      && esc6.desc === 'descend' && esc6.follow.gap.every(d => d <= 30) && esc6.follow.moved.every(d => d >= 40),
       '第6節の戦艦の護衛（2026-10-29）: 第29・第30 は戦艦のそばで待ち、寄る揚陸艦を先に叩き、第二段階は降りる戦艦について行く。分かれた戦艦の耐久は戦艦の分（9割・8割）', JSON.stringify(esc6));
     /* 第6節の任務欄（見本の案B）と切り替え（目標更新中）、戦艦の道（案A）、推進器の印（案C）: 第一段階は西上・東下の守備隊ごとに六角9つ（持ち場にいる艦を塗る）・戦艦・
        「12隻を剥がせば第二段階（遅くとも 15:00）」（2026-10-30 に半分から3分の2へ）。合図で一瞬「目標更新中」、そのあと目盛りと推進器。戦艦の道は第二段階で出る */
