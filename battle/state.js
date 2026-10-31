@@ -432,7 +432,8 @@ function reset(cfg=lastCfg){
     const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
     /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
     /* a thruster (第6節, type thr; user decision 2026-10-23): its nozzle points straight out from the body's centre, not along the rock's face */
-    f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=f.type==='thr'?h.point.clone().sub(bodyC).normalize():h.normal; s.base=h.point.clone().addScaledVector(s.up,.34*f.scale); s.pos.copy(s.base); }); }
+    f.ships.forEach(s=>{ const h=bodyHit(_w.copy(f.pos).add(s.off),BD.r); s.up=f.type==='thr'?h.point.clone().sub(bodyC).normalize():h.normal; s.base=h.point.clone().addScaledVector(s.up,.34*f.scale); s.pos.copy(s.base); });
+    if(f.type==='thr'&&f.restore) plumeBuild(f); }   // the restoring thrusters fire (base.js)
   setPhase(op.phase||'布陣');
   document.getElementById('result').hidden=true;
   document.getElementById('log').innerHTML='';

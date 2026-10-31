@@ -234,6 +234,24 @@ function pitBuild(f){
   pitDraw(f,0); }
 /* every frame (loop.js): the gimbal turns and raises the barrels toward what the gun fires on; a lost gun lies dark with its barrels down */
 const _pl=new THREE.Vector3();
+/* 推進器の噴射 (第6節, user decision 2026-10-31: the restoring thrusters (east and north) fire all through the battle, the west ones are spent;
+   the sample of docs/maps.md 5.1, made misty like plasma at the user's word the same day): soft additive puffs that stream out from the
+   nozzle's mouth along s.up, widening, white by the mouth to orange, fading out. Shown with the thruster (while it is in sight), gone with it.
+   Sizes and numbers 仮 */
+const PLUME_MOUTH=3.56, PLUME_N=18, PLUME_L=15, PLUME_R0=1.6, PLUME_R1=7.5, PLUME_RATE=.35, PLUME_A=.12;   // the mouth over s.base at scale 1 (shapes.js SHAPES.thr); puffs, length, size at the mouth and at the end, flow per second (of the length), brightness
+const PLUME_TEX=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), g=x.createRadialGradient(32,32,0,32,32,32);
+  g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.35,'rgba(255,255,255,.45)'); g.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
+const _pc0=new THREE.Color(1,.95,.85), _pc1=new THREE.Color(1,.5,.18);
+function plumeBuild(f){ const s=f.ships[0]; if(!s||!s.up) return;
+  const g=new THREE.Group(); g.position.copy(s.base).addScaledVector(s.up,PLUME_MOUTH*f.scale); g.quaternion.setFromUnitVectors(_up0,s.up); g.scale.setScalar(f.scale);
+  for(let i=0;i<PLUME_N;i++){ const m=new THREE.Sprite(new THREE.SpriteMaterial({map:PLUME_TEX,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
+    m.userData.u0=i/PLUME_N; m.userData.j=[Math.random()-.5,Math.random()-.5]; m.renderOrder=4; g.add(m); }
+  baseObj.add(g); f.plume=g; }
+function plumeDraw(f){ const g=f.plume; if(!g) return; g.visible=f.alive&&shown(f); if(!g.visible) return;
+  const t=performance.now()/1000;
+  for(const m of g.children){ const u=(m.userData.u0+t*PLUME_RATE)%1, r=PLUME_R0+(PLUME_R1-PLUME_R0)*Math.sqrt(u), J=m.userData.j;
+    m.position.set(J[0]*r*.35*u,u*PLUME_L,J[1]*r*.35*u); m.scale.setScalar(r*2);
+    m.material.color.copy(_pc0).lerp(_pc1,Math.min(1,u*1.8)); m.material.opacity=PLUME_A*Math.pow(1-u,1.4)*Math.min(1,u*12+.3); } }
 function pitDraw(f,dt){ const P=f.pit; if(!P||P===true) return;
   if(!f.alive){ if(!P.dead){ P.dead=true; P.fix.material=P.turn.material=P.gun.material=PM.dead; P.lamps.visible=false; P.el=PIT_DEAD; P.pitch.rotation.x=-P.el; P.yaw.position.y=0; burst(f.pos,HOT,30,10,1.2); }
     P.inf.m.geometry.setDrawRange(0,0); return; }
