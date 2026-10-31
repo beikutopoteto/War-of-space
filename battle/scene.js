@@ -136,6 +136,17 @@ function glowTex(){ if(skyGlowTex) return skyGlowTex; const c=document.createEle
   return skyGlowTex=new THREE.CanvasTexture(c); }
 function growR(G,t){ const k=Math.max(G.d*.01,G.d-G.v*(t-G.from)); return 1050*Math.tan(G.deg*G.d/k*4/2*Math.PI/180); }
 function growSky(t){ for(const o of skyGrow){ const r=growR(o.G,t), q=o.sq; o.m.scale.set(r*q[0],r*q[1],r*q[2]); if(o.glow){ const s=Math.max(SKY_GLOW_MIN,r*SKY_GLOW); o.glow.scale.set(s,s,1); } } }
+/* UTC subsolar longitude and approximate declination. The projected north axis points up;
+   its component toward the sun is needed to place the subsolar point at that latitude. */
+function earthOrientation(m,sd,date,minutes){
+  const day=(date-Date.UTC(date.getUTCFullYear(),0,0))/86400000+Math.floor(minutes/1440);
+  const dec=23.44*Math.sin(2*Math.PI*(day-80)/365.2422)*Math.PI/180, lon=(12-minutes/60)*Math.PI/12;
+  const north=new THREE.Vector3(0,1,0).addScaledVector(sd,-sd.y).normalize().multiplyScalar(Math.cos(dec)).addScaledVector(sd,Math.sin(dec));
+  const noon=sd.clone().addScaledVector(north,-Math.sin(dec)).normalize(), east=new THREE.Vector3().crossVectors(north,noon);
+  const z=noon.multiplyScalar(Math.cos(lon)).addScaledVector(east,-Math.sin(lon));
+  const x=new THREE.Vector3().crossVectors(north,z);
+  m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,north,z));
+}
 function buildSky(S){
   for(const m of [...skyObj.children]){ skyObj.remove(m); m.geometry.dispose(); m.material.dispose(); }
   skyGrow=[];
@@ -143,7 +154,10 @@ function buildSky(S){
   const sd=sun.position.clone().normalize();
   [['earth',0,96],['moon',1,48],['februaria',1,16],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
     const G=b.grow, m=new THREE.Mesh(new THREE.SphereGeometry(G?1:b.r,G?48:seg,G?24:seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
-    if(kind===0){ m.rotation.y=Math.atan2(-b.pos[0],-b.pos[2])-(b.lon??20)*Math.PI/180;
+    if(kind===0){ if(b.r<10) m.rotation.y=Math.atan2(-b.pos[0],-b.pos[2])-20*Math.PI/180;
+      else { const parts=op.date.match(/A\.E\.\s*(\d+)\.(\d+)\.(\d+)/), date=new Date(Date.UTC(+parts[1]+2054,+parts[2]-1,+parts[3]));
+        const turn=()=>earthOrientation(m,sd,date,clockMin(gameSec*CLOCK_RATE)); turn();
+        m.onBeforeRender=()=>{ turn(); m.updateMatrixWorld(true); }; }
       const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); }
     if(!G) return;
     if(b.rot) m.rotation.set(...b.rot);
