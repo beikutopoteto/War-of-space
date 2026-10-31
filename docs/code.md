@@ -9,6 +9,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   - `bonuses.js` 編成ボーナス
   - `operations.js` 作戦。並びは 1. 演習「要塞カリュブディス攻略戦」（出撃画面のクイック出撃もこれ）、2. 第一章第1節「ネオ信濃奇襲」、3. 第2節「後退」、4. 第3節「ナイル防衛線」、5. 第4節「デナリの盾」、6. 第5節「フェブルアーリア防衛戦」、7. 第6節「デナリ破砕」（2026-10-24、作りかけ。`hidden:true` で出撃画面に出さず、`WOS.start({op:'denaliBreak'})` でだけ開く。第4節のデナリを使うので配列のあとに push で足す）
   - `tech.js` 解放・報酬・技術ツリー
+  - `earth.js` Natural Earth の地球の陸地マスク（`tools/earth-mask.cjs` で生成）
   - `WOS_DATA.balance`（`operations.js`）: 全体の釣り合い。耐久の倍率 `hp` と艦の速さの倍率 `speed` は全部の作戦で同じで、戦闘の生成のときに掛ける（`battle/state.js` の `HP_K`・`SPEED_K`）。データと準備画面の表示は元の値
   - `WOS_DATA.roles`（`ships.js`）: 艦種別の動きの表（2026-10-22、ユーザー決定。陣営ごとの役目・狙い・距離・退き際。作戦の `roleAI:true` だけで使う。`docs/menu.md`「艦種別の動き」）
   - `WOS_DATA.doctrines`（`ships.js`）: ドクトリンの型（2026-10-22、ユーザー決定。共和国の槍・霧と鎚・岩の盾の枠・段・合図・退き際。作戦の `packs` だけで使う。`docs/menu.md`「ドクトリン（型）」）

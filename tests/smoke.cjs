@@ -34,6 +34,17 @@ function check(ok, label, detail = '') {
   try {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
+    const earth = await page.evaluate(() => { const {w,h,bits}=WOS_DATA.earthLand, bin=atob(bits);
+      const at=(lat,lon)=>{ const i=Math.floor((lon+180)/360*w), j=Math.floor((90-lat)/180*h), k=j*w+i; return (bin.charCodeAt(k>>3)>>(k&7))&1; };
+      return {w,h,points:[at(0,20),at(0,-30),at(35,-100)]}; });
+    check(earth.w===256 && earth.h===128 && earth.points.join(',')==='1,0,1', '地球の陸地マスク: 寸法と3地点', JSON.stringify(earth));
+    const orientation = await page.evaluate(() => { WOS.start({op:'denaliBreak'}); setSpeed(0);
+      const m=skyObj.children.find(o=>o.material.uniforms && o.material.uniforms.uKind && o.material.uniforms.uKind.value===0), sd=new THREE.Vector3(...op.sky.sun).normalize();
+      const date=new Date(Date.UTC(2099,4,2)), point=(lat,lon)=>new THREE.Vector3(Math.cos(lat)*Math.sin(lon),Math.sin(lat),Math.cos(lat)*Math.cos(lon));
+      earthOrientation(m,sd,date,780); const q=m.quaternion.clone(), dot=point(15*Math.PI/180,-15*Math.PI/180).applyQuaternion(q).dot(sd);
+      earthOrientation(m,sd,date,840); return {dot, degrees:q.angleTo(m.quaternion)*180/Math.PI}; });
+    check(orientation.dot>=.98 && Math.abs(orientation.degrees-15)<.01, '地球の向き: 太陽直下と1時間の自転', JSON.stringify(orientation));
+    await page.reload();
     check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
     /* options: the story (conversations) is off by default; the rest of this test plays with it on */
     await page.click('#mainNav [data-go="opt"]');
