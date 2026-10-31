@@ -1513,7 +1513,7 @@ WOS_DATA.operations.push((()=>{
       {name:'地球側', sub:'総基地の艦隊が来た方向', pos:[0,420]},
     ],
     /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す */
-    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
+    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:40}, launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
     /* 岩くずの雲は噴射で吹き散らされて、薄く小さい（第4節の弧を、半分の数・4割の大きさで。仮） */
     debrisTilt:35,
     debris:(()=>{ const out=[], tt=Math.tan(35*Math.PI/180), N=9;
@@ -1560,7 +1560,7 @@ WOS_DATA.operations.push((()=>{
       ...LINE.flatMap(lineFleet),
       ...SCR.flatMap(screen), ...NORTH,
       ...spear(0,-185,215,-18,8,1,3), ...spear(1,185,205,20,9,1,3), ...S2, ...HAM,
-      ...GUNS, ...THR,
+      ...GUNS, ...[[18,46],[34,46],[26,38],[26,54]].map((pos,i)=>({name:`宇宙港砲台 ${i+1}`, sub:'宇宙港の砲台', ...WOS_DATA.denaliGun, pos, alt:0})), ...THR,
     ],
     /* ドクトリンの型（wos-strategy の案、2026-10-28 に陽動の形へ）。正面の拠点は陰を拠点の後ろにする（shade:'ward'。天体の裏に隠れないように）。
        spare:['bb']: 拠点は戦艦を狙いに行かない（寄られたら砲と W.A.S. は撃つ）。goal の 'nuke' は隊を離れた核を積んだ戦艦（降りている途中か着底）。

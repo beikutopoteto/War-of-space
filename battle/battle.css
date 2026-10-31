@@ -365,3 +365,11 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #roster button:disabled{--bk:#555}
 #roster .grpBtn,#roster #newGrp{--bk:var(--brass);--bs:8px}
 #roster button.evade{border-style:dashed}
+
+/* Small, data-selected marks for fixed sites. */
+.unit.site .flag{display:none}
+.unit.site.sel .flag{display:block}
+.unit.site .emb,.unit.site.sel .emb{width:auto;height:auto;border:0;background:none;box-shadow:none;filter:drop-shadow(0 0 3px currentColor)}
+.unit.site .emb svg{width:14px;height:14px;display:block}
+.unit.site .tg{position:absolute;left:8px;top:-6px;font:600 10px/1 var(--f-ui),sans-serif;font-style:normal;color:#ffb39f;text-shadow:0 0 3px #000;white-space:nowrap}
+.unit.site.sel .tg{display:none}

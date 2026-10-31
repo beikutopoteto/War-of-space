@@ -158,7 +158,8 @@ function destroyFleet(f,src){
   burst(f.pos,TEAM_COL[colOf(f)],40,10,1.3);
   unselect(f);
   if(f.team===1&&op.civil&&inZone(f)) civHit(op.civil.perSink,true);   // the wreck falls on the blocks
-  logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
+  if(f===portCarrier && op.body.port.destroyLog) logEvent(...op.body.port.destroyLog);
+  else logEvent(`${f.name} 全滅`, f.convoy?'輸送船団が全滅した。':f.rescue?`${src.name}の攻撃で${f.name}が沈んだ。`:f.team===0?`${src.name}の攻撃で${f.name}が失われた。残る艦隊で戦線を立て直せ。`:`${src.name}が${f.name}を撃破。${TEAM_NAME[1]}の防空網に穴が開いた。`);
   if(f.rescue&&rescue){ rescue.lost=true; if(op.rescue.lostLog) logEvent(...op.rescue.lostLog); }
   /* 第5節: the first gun on the base lost to the enemy (the escorts go for them, prey:'battery'): say what it means */
   if(f.fixed&&f.team===0&&op.base&&op.base.gunLostLog&&!gunLostSaid){ gunLostSaid=true; logEvent(...op.base.gunLostLog); }
@@ -1217,7 +1218,7 @@ function escortAI(f,foes){ const S=nuke; if(!S) return false;
   const by=(p,R)=>W.some(w=>w.pos.distanceTo(p)<R+(w.radius||0)), cen=W.reduce((v,w)=>v.add(w.pos),new THREE.Vector3()).multiplyScalar(1/W.length);
   const near=list=>list.reduce((b,e)=>!b||e.pos.distanceTo(f.pos)<b.pos.distanceTo(f.pos)?e:b,null);
   const raid=S.state==='fired'?[]:wings.filter(w=>w.alive&&w.team===1&&w.seen&&w.state==='attack'&&W.includes(w.target)&&by(w.pos,ESC_R));
-  const moms=[...new Set(raid.map(w=>w.carrier).filter(c=>c&&c.alive&&c.seen&&by(c.pos,ESC_R*1.5)))];
+  const moms=[...new Set(raid.map(w=>w.carrier).filter(c=>c&&c.alive&&c.seen&&c!==portCarrier&&by(c.pos,ESC_R*1.5)))];
   const close=foes.filter(e=>!e.fixed&&e.seen&&by(e.pos,ESC_R)), mas=close.filter(e=>e.hangars&&e.hangars.length);
   const guns=S.state==='descend'||S.state==='armed'?foes.filter(e=>e.fixed&&e.type==='aa'&&e.seen&&by(e.pos,ESC_GUN)):[];
   const aa=['ff','cv'].includes(topClass(f)), t=(aa?near(raid)||near(moms):near(moms)||near(raid))||near(mas)||near(close)||near(guns);
@@ -2160,7 +2161,7 @@ function autoDenali(mine,ships,attack){
   if(autoStage!==stage){ autoStage=stage; autoObj=null; }   // a new stage, a new objective
   const bbs=fired?[]:first?nuke.G.filter(G=>G.alive&&bbIn(G)):nuke.bbs.map(b=>b.f).filter(f=>f&&f.alive);
   /* the carriers whose W.A.S. are on what pick takes */
-  const craftOn=pick=>[...new Set(wings.filter(w=>w.alive&&w.team===1&&w.state==='attack'&&w.target&&pick(w.target)&&w.carrier&&w.carrier.alive&&w.carrier.seen).map(w=>w.carrier))];
+  const craftOn=pick=>[...new Set(wings.filter(w=>w.alive&&w.team===1&&w.state==='attack'&&w.target&&pick(w.target)&&w.carrier&&w.carrier.alive&&w.carrier.seen&&w.carrier!==portCarrier).map(w=>w.carrier))];
   const route=[...(op.nukes.route||[]).map(packVec),nuke.mine];
   const near=ships.filter(e=>!skip(e)&&bbs.some(b=>e.pos.distanceTo(b.pos)<A.nukeR||route.some(p=>p.distanceTo(b.pos)<80&&e.pos.distanceTo(p)<35)));
   const threat=[...new Set([...near,...craftOn(t=>bbs.includes(t)).filter(c=>!skip(c))])];
@@ -2313,7 +2314,7 @@ function step(dt){
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.hangars.length){ (f.tp||(f.tp=new THREE.Vector3())).copy(f.pos); f.tOrd=f.order; f.tS=f.order&&f.order.path?f.order.path.s:0; }   // for tetherCarriers
-    if(f.hangars.length&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
+    if(f.hangars.length&&(f!==portCarrier||lured)&&(f.stance!=='evade'||f.order&&f.order.type==='attack')) launchCheck(f);
     /* 第6節 cover: discard a battery cached before the switch without waiting for the next retarget. */
     f.retarget-=dt; if(f.retarget<=0||feintCover(f)&&f.fireTarget&&(f.fireTarget.kind!=='fleet'||f.fireTarget.fixed||f.fireTarget.type==='thr')){ f.retarget=.4; f.fireTarget=fireTargetOf(f); }
     let goal=null, moving=false;
