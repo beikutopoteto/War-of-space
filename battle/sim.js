@@ -106,6 +106,9 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
 
 function damage(t,amt,src){
   if(!t.alive) return;
+  if(amt>0&&t.feint&&t.mode==='feint'&&!t.feintOut&&src&&src.team!==t.team&&src.seen&&src.type!=='thr'){
+    const s=feintTransitState(t); s.hits.set(src,gameSec);
+  }
   if(patrolHunting(src)&&spares(src,t)) return;   // also reject a cached target when the ambush has not begun
   if(amt>0&&t.feint&&t.mode==='feint'&&umbrellaPack(src)) src.feintDrawn=true;
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
@@ -1148,6 +1151,35 @@ function protectAI(f){
    戦艦を allOut 隻失うと艦だけへの総攻撃（assault.min 分か assault.lost 損失まで）。end 分には全隊離脱。 */
 const FEINT_IN=.6, FEINT_BACK=20, FEINT_EDGE=.95, FEINT_GONE=20;
 let feintAll=null;
+/* All members share threats and retain their own remaining route while intercepting. */
+function feintTransitState(f){
+  if(f.feintTransit) return f.feintTransit;
+  const s={hits:new Map(),target:null};
+  for(const x of fleets) if(x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'&&!x.feintOut) x.feintTransit=s;
+  return s;
+}
+function feintTransitAI(f,foes){
+  const s=feintTransitState(f), mates=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'&&!x.feintOut);
+  const near=e=>mates.some(x=>gap(x,e)<=x.range+10);
+  for(const [e,at] of s.hits) if(!e.alive||!e.seen||(!near(e)&&gameSec-at>10)) s.hits.delete(e);
+  const threats=[...new Set([...s.hits.keys(),...foes,...wings.filter(w=>w.alive&&w.team!==f.team)])].filter(e=>e.alive&&e.seen&&e.type!=='thr'&&(s.hits.has(e)||near(e)));
+  if(!s.target||!threats.includes(s.target)) s.target=nearestOf(f,threats);
+  if(s.target){
+    if(!f.feintRoute&&f.order&&f.order.type==='move') f.feintRoute=pathLeft(f.order).map(p=>p.clone());
+    f.stance='evade';
+    if(!f.order||f.order.type!=='attack'||f.order.target!==s.target){
+      f.fireTarget=null; f.retarget=0;
+      for(const w of wings) if(w.carrier===f) w.target=w.fireTarget=null;
+      order(f,{type:'attack',target:s.target});
+    }
+    return true;
+  }
+  if(f.feintRoute){ const path=f.feintRoute; f.feintRoute=null; f.strike=null; f.fireTarget=null; f.retarget=0;
+    for(const w of wings) if(w.carrier===f) w.target=w.fireTarget=null;
+    if(path.length) f.order={type:'move',dest:path[path.length-1],via:path.slice(0,-1)}; else f.order=null;
+  }
+  return false;
+}
 function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Math.max(0,now-(F.from||0))/(F.dwell||10), i=Math.floor(at)%per;
   const p=k=>packVec(F.lane[k<n?k:per-k]); return F.press?p(i).lerp(p((i+1)%per),at%1):p(i); }
 /* 作業票 #254: the feint side told off (assault.role 'cover') to keep the other side's way to the thrusters clear fires on ships only */
@@ -1208,7 +1240,8 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
   if(F.press){ const dir=L.clone().sub(bodyC); if(dir.lengthSq()<1e-6) dir.set(0,0,1); L=dir.normalize().multiplyScalar(bodySurface(L,op.body.r)+F.surfaceAt).add(bodyC); }
   if(F.press) f.stance='engage'; else if(!f.touch) f.stance='evade';
   /* out to the lane first, round the front */
-  if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; return true; }
+  if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; }
+    if(feintTransitAI(f,foes)) return true;
     if(f.order&&f.order.type==='move') return true; f.feintOut=true; }
   if(F.press) return feintPress(f,F,L,foes);
   const mates=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&!x.touch&&x.mode==='feint'), back=()=>{ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,L.x,L.y,L.z); };

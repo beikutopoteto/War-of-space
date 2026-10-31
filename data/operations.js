@@ -1450,7 +1450,7 @@ WOS_DATA.operations.push((()=>{
   /* 友軍（ユーザー決定 2026-10-28・29）: 核を積んだ本軍の戦艦の2隊（今のまま）と、総基地の艦隊の動ける約100隻のうち陽動の2つ（左上・右下に40隻ずつ。巡洋艦12・駆逐艦12・フリゲート8・
      コルベット4・戦闘母艦4。戦艦なし）と、陽動から割いた戦艦の護衛の第29・第30 支隊（ESCORT。2026-10-29 に戻した。陽動の護送護衛の4隊を9隻から6隻に）。陽動は第5節の生き残りで傷んでいる（hurt。docs/spec.md「両陣営の技術と強さ」の例外。割合は仮）。touch:true は触れる隊（駆逐艦） */
   const BB=['第1 主力戦艦 打撃群','第2 主力戦艦 打撃群'];
-  const feint=(side,k,x,dz,alt)=>{ const w=side==='左上'?'左上の陽動':'右下の陽動', g={ai:'feint', feint:side, hurt:.8, leash:40};
+  const feint=(side,k,x,dz,alt)=>{ const w=side==='左上'?'左上の陽動':'右下の陽動', g={ai:'feint', feint:side, hurt:.9, leash:40};
     return [{name:`第${k} 前衛巡洋 支隊`, sub:`${w} 巡洋艦（総基地の艦隊）`, type:'cl', n:6, scale:1.1, pos:[x,370+dz], alt, vis:6, stl:5, ...g},
       {name:`第${k+1} 前衛巡洋 支隊`, sub:`${w} 巡洋艦（総基地の艦隊）`, type:'cl', n:6, scale:1.1, pos:[x*1.3,376+dz], alt, vis:6, stl:5, ...g},
       {name:`第${k+2} 駆逐突撃 支隊`, sub:`${w} 駆逐艦（先頭の隊${side==='左上'?'。オリヴェイラ少佐':''}）`, type:'dd', n:6, scale:.91, pos:[x*.8,362+dz], alt, vis:6, stl:6, touch:true, ...g},
@@ -1498,7 +1498,7 @@ WOS_DATA.operations.push((()=>{
     ],
     /* 陽動（2026-10-30 #248）: press は全隊で表面から110〜120の帯を動き、届く相手を撃つ。
        lane は dwell ごとに点を飛ばさず連続補間。仮: 表面から110〜120、目標115、
-       ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
+       ring 12、guns 65以内の砲台も脅かす。道中は襲撃者を同じ側の全隊で迎え撃ち、残りの via に戻る。推進器は狙わない。陽動の hurt は0.9。 */
     feints:{
       '左上':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'西上守備隊', via:[[-140,260,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
       '右下':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
