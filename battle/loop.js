@@ -87,6 +87,7 @@ function frame(now){
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBeams(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
   for(const g of gates) drawGate(g,dt>0?dt:0);   // 第5節: the gates' bands, lids and infantry (base.js)
   for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
+  for(const f of fleets) if(f.plume) plumeDraw(f);   // 第6節: the restoring thrusters' exhaust (base.js)
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */
