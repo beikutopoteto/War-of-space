@@ -814,7 +814,7 @@ const DOCTRINES=WOS_DATA.doctrines&&WOS_DATA.doctrines.mars||{}, _pk=new THREE.V
 let packs=[], packCue={};
 /* start may be a cue's name instead of minutes (第6節, 2026-10-24: 'ignite', 'descend', 'land'): the pack waits until packCue[name] is set
    (stepNukes sets them) */
-function initPacks(){ packCue={}; packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false,turned:{},postV:P.post?packVec(P.post):null})); }
+function initPacks(){ packCue={}; packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:P.holdR!=null?{...DOCTRINES[P.doctrine],holdR:P.holdR}:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false,turned:{},postV:P.post?packVec(P.post):null})); }
 const opMin=()=>gameSec*CLOCK_RATE;
 function packVec(a){ return new THREE.Vector3(a[0],a[2]||0,a[1]); }
 const packMove=f=>{ const P=f.pack, S=P.D.steps[P.step]; return P.back?'back':S[f.packSlot]||S.all||'hold'; };
@@ -851,7 +851,8 @@ function umbrellaContains(P,p){ return umbrellaCircles(P).some(c=>c.pos.distance
 function umbrellaClamp(P,p){ const circles=umbrellaCircles(P); if(circles.some(c=>c.pos.distanceTo(p)<=c.r)) return p;
   let best=null, bd=Infinity; for(const c of circles){ const d=c.pos.distanceTo(p)-c.r; if(d<bd){bd=d;best=c;} }
   return p.sub(best.pos).setLength(best.r-.001).add(best.pos); }
-function umbrellaAI(f,P,foes){ const near=foes.filter(e=>!e.fixed&&umbrellaContains(P,e.pos)), t=nearestOf(f,near);
+function umbrellaAI(f,P,foes){ if(f.northTransit){ if(!umbrellaContains(P,f.pos)){ packStay(f,P.postV); return true; } f.northTransit=false; }
+  const near=foes.filter(e=>!e.fixed&&umbrellaContains(P,e.pos)), t=nearestOf(f,near);
   if(t){ if(t.feint&&t.mode==='feint') f.feintDrawn=true; if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t});
     const d=f.pos.clone().sub(t.pos); if(d.lengthSq()<1e-6) d.subVectors(P.postV,t.pos); if(d.lengthSq()<1e-6) d.set(1,0,0);
     f.packSpot=umbrellaClamp(P,d.setLength(f.range*.8).add(t.pos)); }
@@ -912,7 +913,7 @@ function stepPacks(all){
     /* coming in together: the slower set the time, the others slow to arrive with them (and wait if they are there first) */
     const go=P.G&&!P.back?live.filter(f=>packMove(f)==='approach'&&f.packArr==null):[], eta=f=>f.pos.distanceTo(approachSpot(f))/f.speed, T=Math.max(1e-6,...go.map(eta));
     for(const f of live) f.syncSpeed=go.includes(f)?f.speed*Math.max(D.slowest||.2,eta(f)/T):null; }
-  stepRelief();
+  stepRelief(); stepNorthRelief();
 }
 /* 第6節だけ: 引き出された側へ正面から指定された隊を回す。数と条件は作戦データの仮の値。増援は生成しない。 */
 function stepRelief(){ for(const P of packs){ const R=P.relief; if(!R||P.reliefAt!=null) continue;
@@ -926,6 +927,19 @@ function stepRelief(){ for(const P of packs){ const R=P.relief; if(!R||P.reliefA
     Object.assign(f,{pack:Q,packSlot:slot,packK:Q.mem.filter(x=>x.packSlot===slot).length,packN0:f.n,packW0:craftN(f),ai:null,leash:0,order:null,packSpot:null,packAt:null,syncSpeed:null});
     f.post.copy(Q.postV); f.home.copy(Q.postV); Q.mem.push(f); }
 } }
+/* 元の守備隊の損耗で北の各半分を一度ずつ回す。合図の計数には加えない。 */
+function stepNorthRelief(){ const N=packs.find(p=>p.reinforcement); if(!N) return;
+  const R=N.reinforcement;
+  for(let i=0;i<op.lure.packs.length;i++){ const Q=packs.find(p=>p.name===op.lure.packs[i]); if(!Q||Q.northReliefAt!=null) continue;
+    const original=lureUnits(Q), total=original.reduce((n,f)=>n+f.n,0), live=original.reduce((n,f)=>n+(f.alive?f.ships.length:0),0);
+    if(!total||live>total*R.share) continue;
+    const moved=fleets.filter(f=>f.alive&&R.groups[i].includes(f.name)); Q.northReliefAt=opMin(); Q.northReliefUnits=moved.map(f=>f.name);
+    N.mem=N.mem.filter(f=>!moved.includes(f)); N.fleets=N.fleets.filter(name=>!R.groups[i].includes(name));
+    for(const f of moved){ const slot=Object.keys(Q.D.slots).find(s=>Q.D.slots[s].includes(topClass(f)));
+      Object.assign(f,{pack:Q,packSlot:slot,packK:Q.mem.filter(x=>x.packSlot===slot).length,packN0:f.n,packW0:craftN(f),ai:null,leash:0,order:null,packSpot:null,packAt:null,syncSpeed:null,feintDrawn:false,northTransit:true});
+      f.post.copy(Q.postV); f.home.copy(Q.postV); Q.mem.push(f); }
+  }
+}
 /* 合図を待つ間も持ち場の中を見回る。第6節の watch フラグだけ。中心・leash・合図は変えない。 */
 function packWatch(f,P,c){ const W=P.watch; if(!W||op.win&&op.win.type==='shatter') return packStay(f,c);
   const a=(f.id%3+(f.watchLeg||0))*Math.PI*2/3, p=c.clone().add(new THREE.Vector3(Math.cos(a)*W.r,0,Math.sin(a)*W.r));
@@ -1189,7 +1203,17 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
   const p=P&&(P.scr?P.scr.s:P.postV); if(!p){ back(); return true; }
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
 /* 第6節の陽動: 傘の外で戦い、半数を失った隊は帯へ退く。 */
-function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
+function feintPress(f,F,L,foes){ let P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
+  const original=lureUnits(P), n0=original.reduce((n,x)=>n+x.n,0), live=original.reduce((n,x)=>n+(x.alive?x.ships.length:0),0);
+  if(n0&&live<=n0/3){
+    const mates=fleets.filter(x=>x.alive&&x.ally&&x.feint===f.feint&&x.mode==='feint');
+    const opponent=P.mem.some(e=>e.alive&&mates.some(m=>m.pos.distanceTo(e.pos)<60));
+    if(opponent) F.waitSince=null; else if(F.waitSince==null) F.waitSince=opMin();
+    if(f.feintJoined||F.waitSince!=null&&opMin()-F.waitSince>=F.wait){
+      const other=Object.values(op.feints).find(x=>x!==F); if(other){ P=packs.find(p=>p.name===other.screen)||P; L=feintLane(other,opMin()); f.feintJoined=true; }
+    }
+  }
+
   const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
   const dir=L.clone().sub(bodyC), side=new THREE.Vector3(-dir.z,0,dir.x).normalize();
   dir.addScaledVector(side,Math.sin(a)*F.ring); dir.y+=Math.cos(a)*F.ring; dir.normalize();
@@ -1802,7 +1826,7 @@ function lureCount(){ const L=op.lure; let n0=0, out=0, home=0;
     for(const f of lureUnits(P)){ n0+=f.n; const left=f.alive?f.ships.length:0; out+=f.n-left; if(left&&P.postV&&f.pos.distanceTo(P.postV)>L.out) out+=left; else home+=left; } }
   return {n0, out, home}; }
 function stepLure(){ const L=op.lure; if(!L||lured||over) return; const now=opMin(), c=lureCount();
-  const by=now>=L.from&&c.n0&&c.out>=c.n0*L.share-1e-9?'share':now>=L.at?'time':null; if(!by) return;
+  const by=now>=(L.from??0)&&c.n0&&c.out>=c.n0*L.share-1e-9?'share':now>=L.at?'time':null; if(!by) return;
   lured={at:now, by}; packCue.lure=true; if(L.phase) setPhase(L.phase); if(L.text!=null) stageText=L.text;
   for(const f of fleets) if(f.type==='thr'&&f.alive){ f.known=true; f.everSeen=true; }
   if(typeof goalFlash==='function') goalFlash();
@@ -2354,14 +2378,14 @@ function step(dt){
         f.still=!stepFight(f,_w,goal,dt,RL&&roleClamp(f,RL,_w)); }
       else stepToward(f,goal.pos,bodyBlocks(f.pos,goal.pos)?0:stop,dt);
     }
-    const UP=umbrellaPack(f); if(UP) umbrellaClamp(UP,f.pos);
+    const UP=umbrellaPack(f); if(UP&&!f.northTransit) umbrellaClamp(UP,f.pos);
     const ft=f.fireTarget;
     /* a gun that fires one heavy shot every `every` seconds (第5節 the batteries on the base, user decision 2026-10-16): the fire of those
        seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
        a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
     if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
-      if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP) umbrellaClamp(UP,f.pos);
+      if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP&&!f.northTransit) umbrellaClamp(UP,f.pos);
       if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft)/(f.reload||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;

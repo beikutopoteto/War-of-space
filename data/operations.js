@@ -1414,9 +1414,9 @@ WOS_DATA.operations.push((()=>{
   const GUNS=[at(-64,30),at(0,20),at(-112,46),at(-112,-14),at(104,-22),at(156,16)].map((p,i)=>({name:`第${i+1} デナリ砲台`, sub:'共和国が改造した砲台', ...WOS_DATA.denaliGun, range:90, dmg:2, reload:2, ...p}));
   /* 共和国 74隻＋砲台6基（ユーザー決定 2026-10-28: 65/35）。正面48（拠点3つ20、槍1 12、槍2 8、霧と鎚 8）、方角守備隊26（西上9・東下9・北8）。
      正面の拠点（デナリから約200南、z 230〜240）。岩の盾の型で、壁フリゲート・縁の重巡洋艦2・予備の突撃揚陸艦2（西と東は7、中は6。内訳は仮）。
-     ai:'guard' で持ち場（拠点の点）から leash 60 の外へは出ない。壁と縁は立つ点から30以内（型の holdR）の相手とだけ戦う。初めの位置は南を向いたときの型の立つ点 */
+     ai:'guard' で持ち場（拠点の点）から leash 90 の外へは出ない。壁と縁は立つ点から80以内（型の holdR）の相手とだけ戦う。初めの位置は南を向いたときの型の立つ点 */
   const LINE=[['西',-95,240,15,31,3],['中',0,235,0,34,2],['東',95,230,-15,37,3]];
-  const lineFleet=([w,x,z,alt,n,ff])=>{ const g={postAt:[x,z], postAlt:alt, ai:'guard', leash:60, vis:6};
+  const lineFleet=([w,x,z,alt,n,ff])=>{ const g={postAt:[x,z], postAlt:alt, ai:'guard', leash:90, vis:6};
     return [{name:`第${n} 南線護衛 戦闘隊`, sub:`正面 ${w}の拠点 フリゲート（壁）`, type:'ff', n:ff, scale:.75, pos:[x,z+10], alt, stl:6, ...g},
       {name:`第${n+1} 南線巡洋 戦闘隊`, sub:`正面 ${w}の拠点 重巡洋艦（縁）`, type:'cl', n:2, scale:1.1, pos:[x+26,z+10], alt, stl:4, ...g},
       {name:`第${n+2} 南線揚陸 戦闘隊`, sub:`正面 ${w}の拠点 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, pos:[x,z-30], alt, stl:5, ...g}]; };
@@ -1427,7 +1427,8 @@ WOS_DATA.operations.push((()=>{
     {name:`第${c1} 巡洋阻止 戦闘隊`, sub:`${w}守備隊 重巡洋艦`, type:'cl', n:2, scale:1.1, ...at(az+8,el+2*Math.sign(el),58), vis:6, stl:4},
     {name:`第${c2} 巡洋阻止 戦闘隊`, sub:`${w}守備隊 重巡洋艦`, type:'cl', n:2, scale:1.1, ...at(az-8,el-2*Math.sign(el),58), vis:6, stl:4},
     {name:`第${mas} 突撃揚陸 戦闘隊`, sub:`${w}守備隊 突撃揚陸艦（予備）`, type:'mas', n:2, scale:.9, ...at(az,el+2*Math.sign(el),44), vis:6, stl:5}];
-  const NORTH=[{name:'第16 護衛警衛 戦闘隊', sub:'北守備隊 フリゲート', type:'ff', n:3, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
+  const NORTH=[{name:'第16 護衛警衛 戦闘隊', sub:'北守備隊 フリゲート', type:'ff', n:2, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
+    {name:'第16 護衛警衛 戦闘隊 分隊', sub:'北守備隊 フリゲート', type:'ff', n:1, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
     {name:'第13 巡洋阻止 戦闘隊', sub:'北守備隊 重巡洋艦', type:'cl', n:3, scale:1.1, ...at(172,0,48), vis:6, stl:4, ai:'guard', leash:40},
     {name:'第21 突撃揚陸 戦闘隊', sub:'北守備隊 突撃揚陸艦（予備）', type:'mas', n:2, scale:.9, ...at(180,8,80), vis:6, stl:5, ai:'guard', leash:40}];
   /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート1・突撃揚陸艦3、計8。
@@ -1499,13 +1500,12 @@ WOS_DATA.operations.push((()=>{
        lane は dwell ごとに点を飛ばさず連続補間。仮: 表面から110〜120、目標115、
        ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
     feints:{
-      '左上':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
-      '右下':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
+      '左上':{press:true, wait:3, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
+      '右下':{press:true, wait:3, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
-       share になったら（一番早くて from 分 = 14:30。2026-10-30 に 13:50 から遅らせた）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 3分の2が剥がれた、time: 時刻で。time の「剥がれきらないが、時間だ」はユーザー決定 2026-10-29、文は仮）。
-       share は 2026-10-30 に半分から3分の2（18隻のうち12隻）へ（ユーザー決定。陽動が守備隊を引き出すようになり、第二段階が 13:50〜14:06 に早まって作戦が約1分短くなったため）。それでも 14:07 に入って長さが変わらなかったので、一番早い時刻 from を 13:50 → 14:30 に（同日、ユーザー決定） */
-    lure:{packs:['西上守備隊','東下守備隊'], out:60, share:2/3, from:90, at:120, phase:'第二段階',
+       share になったら直ちに、遅くとも at 分（15:00）。2026-11-01 のユーザー指示で from 14:30 を廃止。 */
+    lure:{packs:['西上守備隊','東下守備隊'], out:60, share:2/3, at:120, phase:'第二段階',
       logs:{share:[['ハッダード曹長','「方角守備隊、3分の2が剥がれました！」'], ['ウォン中将','「移乗にかかれ。左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。誘導に使うのは東と北の6基です」']],
         time:[['ウォン中将','「剥がれきらないが、時間だ。移乗にかかれ」'], ['ウォン中将','「左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。誘導に使うのは東と北の6基です」']]}},
     sectors:[
@@ -1522,7 +1522,7 @@ WOS_DATA.operations.push((()=>{
        （end − 起爆の時刻）時間 × shift km ずれ（上限 max）、そのあと生きている戻せる推進器1基につき1時間に pull km 戻る（stop 分まで）。乗員を乗せた隊は起爆のあと back
        （作戦フィールドの中心から [x, z]）へ下がる。起爆の前に戦艦を allOut 隻失うと、陽動が本気の攻撃に移る（logs.allOut）。at は lure のない作戦の移乗の時刻（使わない）。
        text は段ごとの任務欄の指示、logs は段ごとの通知（どちらも仮） */
-    nukes:{at:120, board:15, mineR:6, fuse:15, back:[0,170], allOut:3, route:[[-35,230,25],[-70,85,35],[-50,40,40]],
+    nukes:{at:120, board:8, mineR:6, fuse:15, back:[0,170], allOut:3, route:[[-35,230,25],[-70,85,35],[-50,40,40]],
       text:{board:'戦艦の乗員が巡洋艦とフリゲートへ移っている。戦艦を守れ', descend:'空の戦艦が左上の道で鉱山へ降りる。鉱山の縁の砲台を払え', armed:'起爆を待つ。着底した戦艦を守れ', fired:'誘導の推進器（東と北）を壊せ'},
       /* logs（docs/chapter1.md「第6節」の会話の案）: 一つの台詞か、いくつかの並び。fire は戦闘を止めて見せる（会話が入のとき）。
          thr・thrAfter は戻せる推進器を壊したとき（起爆の前・後。{n} は残り）、lost は核を積んだ戦艦が沈んだとき（起爆の前。{n} は残り）、pull は起爆のあと推進器が残っているとき、
@@ -1562,10 +1562,10 @@ WOS_DATA.operations.push((()=>{
        方角守備隊は型 screen（post: 持ち場の中心。say: 陽動が初めて触れたときの台詞）。turns: 合図（ignite）で型と守るものを替える（battle/sim.js の packTurn） */
     packs:[
       /* 仮（#248）: 西・東は対応する守備隊の34%以上が持ち場外か沈没なら、縁2隻と予備2隻を一度だけ配置換え。　壁は残す。lure の18隻には配置換えした艦を加えない。watch 半径7で合図前も3点を回る。 */
-      ...LINE.map(([w,x,z,alt,n])=>({doctrine:'rockShield', name:`${w}の拠点`, fleets:[`第${n} 南線護衛 戦闘隊`,`第${n+1} 南線巡洋 戦闘隊`,`第${n+2} 南線揚陸 戦闘隊`], ward:[x,z,alt], shade:'ward', spare:['bb'], watch:{r:7}, ...(w==='中'?{}:{relief:{to:w==='西'?'西上守備隊':'東下守備隊',share:.34,slots:['rim','reserve']}})})),
+      ...LINE.map(([w,x,z,alt,n])=>({doctrine:'rockShield', name:`${w}の拠点`, fleets:[`第${n} 南線護衛 戦闘隊`,`第${n+1} 南線巡洋 戦闘隊`,`第${n+2} 南線揚陸 戦闘隊`], ward:[x,z,alt], shade:'ward', holdR:80, spare:['bb'], watch:{r:7}, ...(w==='中'?{}:{relief:{to:w==='西'?'西上守備隊':'東下守備隊',share:.34,slots:['rim','reserve']}})})),
       ...SCR.map(([w,az,el,ff,c1,c2,mas])=>({doctrine:'screen', name:`${w}守備隊`, fleets:[`第${ff} 護衛警衛 戦闘隊`,`第${c1} 巡洋阻止 戦闘隊`,`第${c2} 巡洋阻止 戦闘隊`,`第${mas} 突撃揚陸 戦闘隊`],
         umbrella:true, ward:w==='西上'?[...names('西の上'), pt(-64,30,30)]:names('東'), post:pt(az,el,58), ...(w==='西上'?{say:['ハッダード曹長','「左上の陽動、接触。守りが出てきます」']}:{})})),
-      {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), umbrella:true, post:pt(172,0,48), ward:names('北'), start:'ignite', watch:{r:7}},
+      {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), umbrella:true, reinforcement:{share:1/3, groups:[['第16 護衛警衛 戦闘隊','第21 突撃揚陸 戦闘隊'],['第16 護衛警衛 戦闘隊 分隊','第13 巡洋阻止 戦闘隊']]}, post:pt(172,0,48), ward:names('北'), start:'ignite', watch:{r:7}},
       /* 槍1: 待っている戦艦へ、西の下と東の上から。退く先はデナリの北 */
       {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], watch:{r:7}, start:35, backTo:[0,-70,0]},
       /* 槍2: 戦艦へ向かい、切り替え後は誘導の推進器を守る */
