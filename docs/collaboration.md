@@ -13,7 +13,7 @@ Claude Code（Claude）と OpenAI Codex（Codex。Codex Cloud か、ユーザー
   - **小さな直しも Codex に任せる**（ユーザーの指示 2026-10-30「簡単なテストなども任せてみてください」）: テストの直し、数行のコードの直し、早送りやテストを回すことも Codex に頼む。Claude が自分でやるのは、頼む手間のほうが明らかに大きいとき（1行の打ち間違いなど）と資料だけ。
   - **短い直しは Claude がそのまま直してよい**（ユーザーの指示 2026-10-31「短ければ今回のようにそのまま直して、テストしても構いません」）: 原因を調べるうちに直す場所が分かり、差分が短い（数十行まで）ときは、Codex に渡さず Claude が直してテストまで回す。長い実装・作業票1つ分の変更は今までどおり Codex。
   - **Codex に任せる量は変動制**（ユーザーの指示 2026-10-31）: Claude の週の上限の残りが15%を切ったら、Codex に回す量を増やす（短い直し・テストの直し・早送りも Codex へ。Claude は計画・差分のレビュー・git・資料に絞る）。Claude は残りを自分では見られないので、ユーザーが知らせたとき（`/usage` など）か、Claude Code に上限の警告が出たときに切り替える。
-- **Codex**（`gpt-6.1-terra`、推論の強さ medium。ユーザー決定 2026-10-30）:
+- **Codex**（推論の強さ medium。モデルは作業で選ぶ。下の「モデル」）:
   - 作業票1つ分のコードとデータの変更。作業フォルダの中だけを直す。
   - 構文の確認（`node --check`）、`npm run check-docs`、早送りの道具（`tools/*.cjs`）、`npm test` を自分で回し、測った数を結果に書く（サンドボックスを緩めた。ユーザー決定 2026-10-30）。
   - 結果（下の「結果」の型）を最後の返事に書いて止まる。コミット・push・PR はしない。
@@ -57,11 +57,11 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 ## Codex を手元から呼ぶ（2026-10-30。ユーザーの Mac）
 ユーザーの Mac では、Claude が Codex CLI を直接呼べる（作業票を貼る手間がない）。手動の渡し方（下）は、Codex Cloud を使うときに残す。
 - 置き場所: リポジトリは `~/dev/War-of-space`。Codex CLI は `~/.npm-global/bin/codex`（ChatGPT でログイン済み）、`gh` は `~/.local/bin/gh`（PATH は通していないのでフルパスで）。push はこのリポジトリだけの設定（`credential.https://github.com.helper` に `gh auth git-credential`）。
-- モデル: 基本 `gpt-6.1-terra`、推論の強さ medium（ユーザー決定 2026-10-30）。変えるのはユーザーが言ったときだけ。
+- モデル（ユーザー決定 2026-10-31）: 複数のファイルにまたがる大きな直しや込み入ったコードは `gpt-6.1-sol`、テストや比較的簡単なものは `gpt-6.1-terra`。推論の強さはどちらも medium。迷ったら、直すファイルが2つ以上でロジックを変えるなら sol。
 - 手順:
   1. Claude が作業票を書く（GitHub の Issue。型は上の「作業票」）。
   2. Claude が `git worktree add -b codex/<話題> ~/dev/wos-codex-<話題> origin/main` で Codex 専用の作業フォルダを作る（Claude の作業と混ざらない）。
-  3. Claude が後ろで走らせる: `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s danger-full-access -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
+  3. Claude が後ろで走らせる: `codex exec -m <gpt-6.1-sol か gpt-6.1-terra> -c model_reasoning_effort="medium" -C ~/dev/wos-codex-<話題> -s danger-full-access -o <結果のファイル> "<作業票の番号と、読むもの・守ること>" < /dev/null`。
   4. **コミットは Claude がする**: Codex は作業フォルダを直し、早送りとテストを自分で回して、結果（「結果」の型）を最後の返事に書いて止まる。Claude は差分を読み、大事な数は早送りで確かめる。
      - サンドボックスは `danger-full-access`（ユーザー決定 2026-10-30「緩めます」）。前の `workspace-write` では Chromium が起動せず（`browserType.launch` が閉じる）、`.git` にも書けなかった（`index.lock` を作れない）。緩めても、作業フォルダの外を直すこと・コミット・push は作業票で禁じる。直しが要れば、測った数を添えて `codex exec resume --last`（作業フォルダで）で続きを頼む。よければ Codex の結果を本文にしてコミット・push・PR・マージ・資料・試遊ページまで進める。
   5. 終わったら `git worktree remove` で作業フォルダを片付ける。
