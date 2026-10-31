@@ -39,6 +39,10 @@ description: War of Space の変更を出す手順。テスト、コミット、
 
 `battle/` や `data/` にファイルを足したら、この表にも足す。
 
+ユーザーの Mac（2026-10-31）: 載せるファイルは作業ディレクトリかスクラッチパッドの中に限られる。`git archive origin/main index.html battle data prep.js prep.css | tar -x -C <スクラッチパッド>/play` で写し、`file_path` を `<スクラッチパッド>/play/index.html`、`root` を `<スクラッチパッド>/play` にする。前の会話のページなので、先に `action:"read"` で読む。
+
+コミット・push・マージがオートモードの安全チェックで止まったら、回り道をせずユーザーに承認を聞く（`開発環境/.claude/settings.local.json` の許可は、セッションを開き直すと効く）。
+
 ### 公開が断られたとき
 - 「前に載せたファイルを読んでいない」と断られたら、`action:"read"` の `paths` で出ているファイルを読み、中身が前の `main` と同じこと（`git show <前のmain>:<file> | sha256sum`）を確かめてから載せ直す。
 

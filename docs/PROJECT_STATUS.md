@@ -16,7 +16,7 @@ Claude と Codex が作業を受け渡すための短いメモ。詳しい「現
 2. ユーザーが第4節（#242）を遊んで確かめる。第4節の長さ（約5.2分）はそのあとで決める。
 3. 第一章を通しで遊んでもらう。
 
-開発環境（2026-10-30）: ユーザーの Mac で、Claude が Codex CLI を `codex exec -s danger-full-access` で呼ぶ（`docs/collaboration.md`「Codex を手元から呼ぶ」、分担もそこ）。セッションはデスクトップの `開発環境` フォルダで開く（その CLAUDE.md がリポジトリの CLAUDE.md を読み込む）。リポジトリは `~/dev/War-of-space`（`main`）、Codex の作業フォルダは `~/dev/wos-codex-<話題>`（今はなし）。`gh` は `~/.local/bin/gh`、Codex は `~/.npm-global/bin/codex`（PATH は通していない）。
+開発環境（2026-10-30）: ユーザーの Mac で、Claude が Codex CLI を `codex exec -s danger-full-access` で呼ぶ（`docs/collaboration.md`「Codex を手元から呼ぶ」、分担もそこ）。セッションはデスクトップの `開発環境` フォルダで開く（その CLAUDE.md がリポジトリの CLAUDE.md を読み込む）。リポジトリは `~/dev/War-of-space`（いつも `main`。`開発環境/.claude` のスキルとエージェントのリンク先）、Codex の作業フォルダは `~/dev/wos-codex-<話題>`（今はなし）。`gh` は `~/.local/bin/gh`、Codex は `~/.npm-global/bin/codex`（PATH は通していない）。
 
 ## 既知の問題
 - `npm test` は約20分かかる。早送りの道具（`tools/`）を同時に回すと、実時間に頼る確認が落ちることがある。
