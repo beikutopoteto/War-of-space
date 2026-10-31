@@ -6,6 +6,7 @@ OpenAI Codex 向けの入口。宇宙艦隊戦の 3D リアルタイムストラ
 ふだんは、Claude がユーザーの Mac で `codex exec` から呼ぶ（`docs/collaboration.md`「Codex を手元から呼ぶ」）。このときは:
 - 渡された作業フォルダ（`git worktree`）の中だけを直す。コミット・push・PR はしない（Claude がする）。
 - `node --check`、`npm run check-docs`、早送りの道具（`tools/*.cjs`）、`npm test` を自分で回して確かめ、測った数を結果に書く（サンドボックスは `danger-full-access`。ユーザー決定 2026-10-30）。テストの直しも Codex がする。
+- 早送りとテストは終わるまで待つ1回のコマンドで回す。後ろで走らせて `sleep`・`tail` で見回らない（見回るたびに会話を読み直してトークンを使う。ユーザー決定 2026-10-31）。出すのは結果の表の行だけ。
 - 結果（`docs/collaboration.md`「作業票」の「結果」の型）を最後の返事に書いて止まる。
 下の「作業票の終え方」と「Git」は、Codex Cloud で動くときのもの。
 
