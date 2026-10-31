@@ -118,10 +118,6 @@ async function trial(run, deadline) {
         insert('if(waiting){ packWatch(f,waiting,f.home);', "if(waiting){ observeEnemy(f,'見回り:start待ち'); packWatch(f,waiting,f.home);");
         enemyAI = eval('(' + source + ')');
         const chaseEnds=[], radial=new Map();
-        const oldScreenSpot=screenSpot;
-        screenSpot=function(P,all){ const C=P.chasing; if(C && (!C.target.alive || gameSec-C.at>P.D.chaseSec || C.target.pos.distanceTo(P.postV)>P.D.out)) {
-          chaseEnds.push({clock:clockStr(),opMin:round(opMin()),pack:P.name,reason:!C.target.alive?'sunk':gameSec-C.at>P.D.chaseSec?'time':'distance'}); }
-          return oldScreenSpot.apply(this,arguments); };
         const originalDamage = damage;
         let tickShot = new Set(), tickCraft = new Set(), tickHit = new Set(), secondActive = new Set();
         damage = function(t, amt, src) {

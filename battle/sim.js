@@ -107,7 +107,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
 function damage(t,amt,src){
   if(!t.alive) return;
   if(patrolHunting(src)&&spares(src,t)) return;   // also reject a cached target when the ambush has not begun
-  if(amt>0&&t.ally&&t.feint&&t.mode==='feint'&&op.feints?.[t.feint]?.press&&src.team!==t.team) t.feintHit=true;
+  if(amt>0&&t.feint&&t.mode==='feint'&&umbrellaPack(src)) src.feintDrawn=true;
   /* a habitat block under a raider's guns: the people in it (op.civil.perRaid a point of damage) */
   /* a gate's shield (第5節): no evasion, no lives */
   if(t.kind==='gate'){ gateHit(t,amt); return; }
@@ -365,7 +365,7 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  const inRange=t=>t&&t.alive&&t.seen&&(!umbrellaPack(f)||umbrellaContains(umbrellaPack(f),t.pos))&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||t.kind==='fleet'&&!t.fixed&&t.type!=='thr')?t:null;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||t.kind==='fleet'&&!t.fixed&&t.type!=='thr')?t:null;
   if(patrolHunting(f)) return opCarrier.cs.patrolEngaged?inRange(opCarrier.cs.patrolTarget):null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
   if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
@@ -377,7 +377,7 @@ function fireTargetOf(f){
      nothing lower than PIT_EL[0] (pitCan) */
   if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
-  const ok=umbrellaPack(f)?(t=>umbrellaContains(umbrellaPack(f),t.pos)):f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?t.kind==='fleet'&&!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
+  const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?t.kind==='fleet'&&!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
@@ -845,7 +845,7 @@ const packStay=(f,p)=>{ if(f.pos.distanceTo(p)>2) moveTo(f,p.x,p.y,p.z); else if
 function umbrellaPack(f){ if(op.id!=='denaliBreak'||!f||f.team!==1||f.fixed) return null;
   if(f.pack&&f.pack.umbrella) return f.pack;
   return packs.find(P=>P.umbrella&&P.fleets.includes(f.name))||null; }
-function umbrellaCircles(P){ const guns=fleets.filter(g=>g.team===1&&g.fixed&&g.type==='aa'&&g.alive);
+function umbrellaCircles(P){ const guns=fleets.filter(g=>g.team===1&&g.fixed&&g.type==='aa'&&g.alive&&g.pos.distanceTo(P.postV)<=130);
   return guns.some(g=>g.pos.distanceTo(P.postV)<=g.range)?guns.map(g=>({pos:g.pos,r:g.range})):[{pos:P.postV,r:100}]; }
 function umbrellaContains(P,p){ return umbrellaCircles(P).some(c=>c.pos.distanceTo(p)<=c.r+1e-7); }
 function umbrellaClamp(P,p){ const circles=umbrellaCircles(P); if(circles.some(c=>c.pos.distanceTo(p)<=c.r)) return p;
@@ -856,7 +856,7 @@ function umbrellaAI(f,P,foes){ const near=foes.filter(e=>!e.fixed&&umbrellaConta
     const d=f.pos.clone().sub(t.pos); if(d.lengthSq()<1e-6) d.subVectors(P.postV,t.pos); if(d.lengthSq()<1e-6) d.set(1,0,0);
     f.packSpot=umbrellaClamp(P,d.setLength(f.range*.8).add(t.pos)); }
   else { const bait=nearestOf(f,fleets.filter(x=>x.alive&&x.ally&&x.feint&&x.mode==='feint'&&op.feints[x.feint].screen===P.name));
-    if(!f.feintDrawn&&bait&&bait.seen&&P.postV.distanceTo(bait.pos)<=(P.D.reach||130)) f.feintDrawn=true;
+    if(bait&&bait.seen&&!f.feintDrawn&&bait.pos.distanceTo(umbrellaClamp(P,bait.pos.clone()))<=5) f.feintDrawn=true;
     if(f.order&&f.order.type==='attack') f.order=null;
     if(f.feintDrawn&&bait){ const p=umbrellaClamp(P,bait.pos.clone()); packStay(f,p); } else { f.feintDrawn=false; packStay(f,f.home); } }
   return true; }
@@ -975,39 +975,22 @@ function packAI(f,foes){ const P=f.pack; if(!P||P.t0==null||!P.mem.length) retur
   const SH=mom&&packMates(f,x=>D.how&&D.how[x.packSlot]==='screen'&&x.packK===f.packK)[0]; f.syncSpeed=SH&&SH.pos.distanceTo(t.pos)>f.pos.distanceTo(t.pos)-1?f.speed*.6:null;
   if(!t.seen){ packStay(f,s); return true; }
   if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; f.packBk=how==='edge'; return true; }
-/* 方角守備隊。chase フラグ（第6節）では撃ってきた陽動の隊を一定時間・距離まで追い、持ち場へ戻る。
-   予備は壁・縁の後ろへ進んで W.A.S. を出す。フラグのない隊は従来どおり ward の前で迎撃する。 */
+/* 方角守備隊の通常の迎撃。 */
 function screenSpot(P,all){ const D=P.D, Ws=[].concat(P.ward||[]).map(w=>typeof w==='string'?fleets.find(x=>x.alive&&x.name===w):Array.isArray(w)?{pos:packVec(w)}:null).filter(Boolean);
   if(!P.postV){ const L=P.mem.filter(f=>f.alive); if(!L.length) return null; P.postV=L.reduce((v,f)=>v.add(f.home),new THREE.Vector3()).multiplyScalar(1/L.length); }
-  if(P.chase){
-    const now=gameSec, C=P.chasing;
-    if(C&&(!C.target.alive||now-C.at>D.chaseSec||C.target.pos.distanceTo(P.postV)>D.out)){
-      P.chasing=null; P.returning=true;
-    }
-    if(P.returning){ if(P.mem.some(f=>f.alive&&f.pos.distanceTo(f.home)>12)) return null; P.returning=false; P.restUntil=now+D.restSec; }
-    if(now<(P.restUntil||0)) return null;
-    if(!P.chasing){ const hit=all.filter(e=>e.feint&&e.fireTarget&&
-        (P.mem.includes(e.fireTarget)||e.fireTarget.fixed&&e.fireTarget.type!=='thr'&&Ws.some(w=>w.pos.distanceTo(e.fireTarget.pos)<D.gap)));
-      const t=nearestOf({pos:P.postV},hit); if(t) P.chasing={target:t,at:now}; }
-    if(P.chasing){ const t=P.chasing.target, c=t.pos.clone(), s=c.clone().sub(P.postV);
-      s.setLength(Math.max(0,s.length()-D.chaseGap)).add(P.postV);
-      if(s.distanceTo(P.postV)>D.out) s.sub(P.postV).setLength(D.out).add(P.postV);
-      return {C:c,s,W:P.postV.clone(),near:[t]}; }
-  }
   const near=Ws.length?all.filter(e=>!e.fixed&&Ws.some(w=>w.pos.distanceTo(e.pos)<D.reach)):[]; if(!near.length) return null;
   const n=near.reduce((s,e)=>s+e.ships.length,0), C=near.reduce((v,e)=>v.addScaledVector(e.pos,e.ships.length),new THREE.Vector3()).multiplyScalar(1/Math.max(1,n));
   const W=Ws.reduce((a,b)=>a.pos.distanceTo(C)<=b.pos.distanceTo(C)?a:b), d=W.pos.distanceTo(C);
   const s=C.clone().sub(W.pos).setLength(Math.max(0,d-D.gap)).add(W.pos); if(s.distanceTo(P.postV)>D.out) s.sub(P.postV).setLength(D.out).add(P.postV);
   return {C, s, W:W.pos.clone(), near}; }
 function screenAI(f,foes,hush){ const P=f.pack, D=P.D, S=P.scr;
-  if(f.packSlot==='reserve'&&!P.chase){ const t=nearFoe(f,foes,e=>gap(f,e)<D.wasR);
+  if(f.packSlot==='reserve'){ const t=nearFoe(f,foes,e=>gap(f,e)<D.wasR);
     if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=f.home.clone(); return true; }
     hush(); if(callHome(f)) f.order=null; else packStay(f,f.home); return true; }
   if(!S){ if(f.packSlot==='reserve'){ hush(); if(callHome(f)){ f.order=null; return true; } } packStay(f,f.home); return true; }
   const k=P.mem.filter(x=>x.alive&&x.packSlot!=='reserve').indexOf(f), a=_rv.subVectors(S.C,S.W).setY(0);
   if(a.lengthSq()<1e-6) a.set(0,0,1); a.normalize(); const w=(k<=0?0:(k%2?1:-1)*Math.ceil(k/2))*D.spread;
   const s=S.s.clone().add(_pk.set(-a.z*w,0,a.x*w));
-  if(P.chase&&f.packSlot==='reserve') s.addScaledVector(a,-D.reserveBack);
   let t=null, bd=f.packSlot==='reserve'?D.wasR:f.range; for(const e of foes){ if(!e.alive||e.fixed) continue; const d=e.pos.distanceTo(s)-(e.radius||0); if(d<bd){ bd=d; t=e; } }
   if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); f.packSpot=s; } else packStay(f,s);
   return true; }
@@ -1205,20 +1188,16 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
     _w.subVectors(f.pos,t.pos); if(_w.lengthSq()<1e-6) _w.subVectors(L,t.pos); f.packSpot=_w.setLength(f.range*FEINT_EDGE+(t.radius||0)).add(t.pos).clone(); return true; }
   const p=P&&(P.scr?P.scr.s:P.postV); if(!p){ back(); return true; }
   _w.subVectors(L,p); const q=_w.setLength(Math.min(_w.length(),25)).add(p); moveTo(f,q.x,q.y,q.z); return true; }
-/* 第6節の陽動: 持ち場に残る守備隊へ迫り、接近か被弾で帯へ戻る。 */
+/* 第6節の陽動: 傘の外で戦い、半数を失った隊は帯へ退く。 */
 function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P||!P.postV) return true;
   const M=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'), k=M.indexOf(f), a=k*Math.PI*2/Math.max(1,M.length);
   const dir=L.clone().sub(bodyC), side=new THREE.Vector3(-dir.z,0,dir.x).normalize();
   dir.addScaledVector(side,Math.sin(a)*F.ring); dir.y+=Math.cos(a)*F.ring; dir.normalize();
   let p=dir.clone().multiplyScalar(bodySurface(dir.clone().add(bodyC),op.body.r)+F.surfaceAt).add(bodyC);
-  const guards=P.mem.filter(x=>x.alive), remaining=guards.some(x=>!x.feintDrawn);
-  const surfaceDist=f.pos.distanceTo(bodyC)-bodySurface(f.pos,op.body.r);
-  if(f.feintHit||guards.some(x=>x.pos.distanceTo(f.pos)<=35)) f.feintReturning=true;
-  f.feintHit=false;
-  if(f.feintReturning&&surfaceDist>=F.surfaceMin&&surfaceDist<=F.surfaceMax) f.feintReturning=false;
-  f.feintPhase=f.feintReturning?'withdraw':remaining?'approach':'hold';
-  if(remaining&&!f.feintReturning){ const outward=p.clone().sub(P.postV); if(outward.lengthSq()<1e-6) outward.copy(dir); outward.normalize();
-    p=outward.multiplyScalar(Math.max(0,umbrellaEdge(P,outward)-5)).add(P.postV); }
+  const retreat=f.ships.length<=f.n*.5;
+  f.feintPhase=retreat?'withdraw':'hold';
+  if(!retreat){ const outward=P.postV.clone().sub(bodyC).normalize();
+    p=outward.multiplyScalar(umbrellaEdge(P,outward)+3).add(P.postV); }
   const targets=foes.filter(e=>e.seen&&e.type!=='thr'&&(P.mem.includes(e)||e.fixed&&e.type==='aa'&&e.pos.distanceTo(P.postV)<F.guns));
   const t=nearestOf(f,targets);
   if(!t){ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,p.x,p.y,p.z); return true; }
@@ -2381,7 +2360,7 @@ function step(dt){
        seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
        a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
-    if(ft&&ft.alive&&ft.seen&&!f.silent&&(!UP||umbrellaContains(UP,ft.pos))&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
+    if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP) umbrellaClamp(UP,f.pos);
       if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
