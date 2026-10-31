@@ -1213,7 +1213,7 @@ function feintPress(f,F,L,foes){ const P=packs.find(P=>P.name===F.screen); if(!P
    other escorts */
 const ESC_R=35, ESC_GUN=24, ESC_GAP=8, ESC_SIDE=7;
 function escortAI(f,foes){ const S=nuke; if(!S) return false;
-  const W=S.state==='wait'||S.state==='fired'?S.G.filter(G=>G.alive&&(S.state==='fired'||bbIn(G))):S.bbs.map(b=>b.f).filter(x=>x&&x.alive);
+  const W=S.state==='wait'||S.state==='fired'?S.G.filter(G=>G.alive&&(S.state==='fired'||S.strike||bbIn(G))):S.bbs.map(b=>b.f).filter(x=>x&&x.alive);
   if(!W.length) return false;
   const by=(p,R)=>W.some(w=>w.pos.distanceTo(p)<R+(w.radius||0)), cen=W.reduce((v,w)=>v.add(w.pos),new THREE.Vector3()).multiplyScalar(1/W.length);
   const near=list=>list.reduce((b,e)=>!b||e.pos.distanceTo(f.pos)<b.pos.distanceTo(f.pos)?e:b,null);
@@ -1247,7 +1247,7 @@ function allyAI(){
       const P=op.carrier.patrol; f.mode='patrol'; moveTo(f,P.pos[0],P.alt||0,P.pos[1]); continue; }
     if(f.mode!=='guard') f.aim=f.waitAt=null;
     if(f.packSpot) f.packSpot=null;
-    if(nuke&&nukeAI(f)) continue;   // 第6節: the battleships with the warheads, and the units with their crews after the blast (stepNukes)
+    if(nuke&&nukeAI(f,foes)) continue;   // 第6節: the battleships with the warheads, and the units with their crews after the blast (stepNukes)
     if(f.feint&&feintAI(f,foes)) continue;   // 第6節: the feints on the screens (and their all-out attack)
     if(f.mode==='escort'&&escortAI(f,foes)) continue;   // 第6節: the escort of the battleships with the warheads
     if(f.mode==='leave'&&opCarrier){ const x=opCarrier.cs.exit; if(f.pos.distanceTo(x)<(op.carrier.exit.r||12)){ f.alive=false; f.left=true; f.el.remove(); continue; }
@@ -1808,7 +1808,7 @@ function stepLure(){ const L=op.lure; if(!L||lured||over) return; const now=opMi
   lured={at:now, by}; packCue.lure=true; if(L.phase) setPhase(L.phase); if(L.text!=null) stageText=L.text;
   for(const f of fleets) if(f.type==='thr'&&f.alive){ f.known=true; f.everSeen=true; }
   if(typeof goalFlash==='function') goalFlash();
-  if(L.logs&&L.logs[by]) nukeSay(L.logs[by]); }
+  if(L.logs&&L.logs[by]&&!(nuke&&nuke.strike)) nukeSay(L.logs[by]); }   // no crossing over once the units strike (nukeStrike)
 function stepPhases(dt){
   const P=op.phases; if(!P||over||repelT!=null) return;
   while(stageAt<P.length&&gameSec*CLOCK_RATE>=P[stageAt].at) startStage(P[stageAt++]);
@@ -2032,7 +2032,7 @@ function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.ali
     f.alive=false; f.left=true; f.nukeSt='gone'; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); }
   if(L.length) blast([S.mine.x,S.mine.z,S.mine.y]);
   packCue.ignite=true;
-  for(const G of S.G) if(G.alive&&G.crew){ G.mode='nukeBack'; G.order=null; }
+  for(const G of S.G) if(G.alive&&G.crew){ G.mode=op.win.type==='shatter'?'strike':'nukeBack'; G.order=null; }
   nukeSay(N.logs&&N.logs.fire,{n:L.length,km:S.km.toFixed(1)},true);
   if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
 /* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
@@ -2050,7 +2050,7 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
     if(live<S.bbN){ S.bbN=live; if(live) nukeSay(N.logs&&N.logs.lost,{n:live}); if(N.allOut&&!feintAll&&op.feints&&S.bbAll-live>=N.allOut&&(live||W.type==='shatter')) feintAssault(now); }
     if(!live&&W.type!=='shatter'){ loseWhy='sunk'; end(false); return; }
     if(W&&W.due!=null&&now>=W.due){ loseWhy='late'; end(false); return; } }
-  if(S.state==='wait'){ if(op.lure?lured:now>=N.at) nukeBoard(now); return; }
+  if(S.state==='wait'){ if(W.type==='shatter'&&feintAll&&!S.strike) nukeStrike(); if(!S.strike&&(op.lure?lured:now>=N.at)) nukeBoard(now); return; }
   if(S.state==='board'){ if(now>=S.at+N.board) nukeDescend(); return; }
   if(S.state==='descend'||S.state==='armed'){
     for(const b of S.bbs){ const f=b.f; if(!f||!f.alive||f.nukeSt!=='descend') continue;
@@ -2066,8 +2066,21 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
   if(nukeEst(now)>=W.need) end(true);
   else if(S.km<W.need){ loseWhy='short'; end(false); }
 }
+/* shatter: once the feints go all out before the second stage (feintAll), there is no crossing over and no way down (user decision
+   2026-10-31): the units with the battleships make for the spaceport, then the restoring thrusters (a gun on the rock by them first), taking on
+   on the way only the foe ships within STRIKE_R that are firing on them (or whose W.A.S. are). After a blast that could not break the rock, the units with the crews do the same */
+const STRIKE_R=40;
+function nukeStrike(){ nuke.strike=true; for(const G of nuke.G) if(G.alive){ G.mode='strike'; G.order=null; G.locked=false; } }
+function strikeAI(f,foes){ const mates=nuke.G.filter(G=>G.alive&&G.mode==='strike');
+  const on=e=>mates.some(m=>e.fireTarget===m||e.order?.target===m||wings.some(w=>w.alive&&w.carrier===e&&w.target===m));
+  const threats=foes.filter(e=>e.seen&&!e.fixed&&on(e)&&mates.some(m=>e.pos.distanceTo(m.pos)<=STRIKE_R));
+  const obj=portCarrier&&portCarrier.alive?portCarrier:nearestOf(f,fleets.filter(x=>x.alive&&x.restore));
+  const guns=obj?foes.filter(e=>e.fixed&&e.type==='aa'&&e.pos.distanceTo(obj.pos)<=35):[];
+  const t=nearestOf(f,threats)||nearestOf(f,guns)||obj; f.aim=t; f.stance='engage';
+  if(t){ if(!(f.order&&f.order.type==='attack'&&f.order.target===t)) order(f,{type:'attack',target:t}); }
+  return true; }
 /* the allies that carry the crews fall back south once the warheads have gone off; the battleships are moved by stepNukes */
-function nukeAI(f){ if(f.mode==='nuke') return true; if(f.mode!=='nukeBack') return false;
+function nukeAI(f,foes){ if(f.mode==='nuke') return true; if(f.mode==='strike') return strikeAI(f,foes); if(f.mode!=='nukeBack') return false;
   const B=op.nukes.back||[0,170], i=nuke?nuke.G.indexOf(f):0; moveTo(f,fieldC.x+B[0]+(i%2?14:-14),f.pos.y,fieldC.z+B[1]); return true; }
 
 /* debug auto mode (user decision 2026-10-15: a switch in the title's debug panel). Our own fleets fight and do the operation's goal by

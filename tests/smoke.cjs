@@ -1991,6 +1991,7 @@ function check(ok, label, detail = '') {
       const P = n => packs.find(x => x.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
       const kill = f => { while (f && f.alive) damage(f, f.hpPool + 1, fleets[0]); };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); for (const f of fleets) if (f.feint) { f.alive = false; f.el.remove(); }
+      window.allOut0 = op.nukes.allOut; op.nukes.allOut = 99;   // 戦艦を3隻失っても切り替えない（切り替えると道は出ない。2026-10-31。hd3 で戻す）
       mins(3); goalFlashT = 0; updateGoal(); const gg = document.getElementById('goalGates'), r = {};
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
@@ -2003,8 +2004,8 @@ function check(ok, label, detail = '') {
     const hd2 = await page.evaluate(() => { updateGoal(); const gg = document.getElementById('goalGates');
       return { upd: goalEl.classList.contains('upd'), scale: !!gg.querySelector('svg.nks'), thr: gg.querySelectorAll('.nkr svg:not(.nb)').length, text: document.getElementById('goalText').textContent }; });
     await page.waitForTimeout(300);
-    const hd3 = await page.evaluate(() => ({ route: (document.querySelector('#nkRoute .ln') || { getAttribute: () => '' }).getAttribute('d').length > 20, mine: !!document.querySelector('#nkRoute circle.dot'),
-      chev: document.querySelectorAll('#nkRoute .ch path').length, thr: (() => { const T = fleets.find(f => f.name === '推進器 東2'); return !thrOff(T); })() }));
+    const hd3 = await page.evaluate(() => { op.nukes.allOut = window.allOut0; return { route: (document.querySelector('#nkRoute .ln') || { getAttribute: () => '' }).getAttribute('d').length > 20, mine: !!document.querySelector('#nkRoute circle.dot'),
+      chev: document.querySelectorAll('#nkRoute .ch path').length, thr: (() => { const T = fleets.find(f => f.name === '推進器 東2'); return !thrOff(T); })() }; });
     check(hd.p1.text === '陽動が方角守備隊を引き剥がすまで、戦艦を守る' && hd.p1.hx === 18 && hd.p1.rows === '西上,東下,戦艦' && hd.p1.v === '9/9,9/9,5/5' && hd.p1.v2 === '9/9,6/9,5/5'
       && hd.p1.say === '12隻を剥がせば第二段階（遅くとも 15:00）' && !hd.p1.scale && hd.p1.route,
       '第6節の任務欄（第一段階、見本の案B）: 西上・東下の守備隊ごとに六角9つ（持ち場にいる艦）と N/9、戦艦 N/5、「12隻を剥がせば第二段階（遅くとも 15:00）」。推進器と戦艦の道はまだ出ない（2026-10-28）', JSON.stringify(hd.p1));
