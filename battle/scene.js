@@ -76,7 +76,7 @@ const farPlanet=new THREE.Group(); scene.add(farPlanet);
 /* the sky of an operation (op.sky, user decision 2026-10-11: 案2, the Earth, Moon and Mars four times their true apparent size,
    docs/maps.md 6.5): {sun:[x,y,z] (the sunlight's direction), earth / moon / mars:{pos:[x,y,z], r}}. Positions are from the camera,
    so their apparent size does not change as the view zooms (the group follows the camera, loop.js). Each is lit by the sun only
-   (a dark night side; the Earth has city lights there), drawn by a small noise shader: no textures. februaria: the base seen from afar (第4節), a grey point like the Moon */
+   (a dark night side; the Earth has city lights there). The Earth uses an embedded land mask; the others use noise. februaria: the base seen from afar (第4節), a grey point like the Moon */
 const skyObj=new THREE.Group(); scene.add(skyObj);
 const SUN0=new THREE.Vector3(120,80,40);
 const skyNoise=`
@@ -85,15 +85,27 @@ float n3(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.-2.*f);
   return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
              mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z); }
 float fbm(vec3 p){ float v=0., a=.5; for(int i=0;i<6;i++){ v+=a*n3(p); p=p*2.03+vec3(1.7,9.2,3.1); a*=.5; } return v; }`;
-function skyMat(kind){ return new THREE.ShaderMaterial({uniforms:{uSun:{value:new THREE.Vector3(1,0,0)},uKind:{value:kind}},
+let earthLandTex=null;
+function earthTexture(){ if(earthLandTex) return earthLandTex;
+  const {w,h,bits}=WOS_DATA.earthLand, bin=atob(bits), pixels=new Uint8Array(w*h*4);
+  for(let i=0;i<w*h;i++){ const v=((bin.charCodeAt(i>>3)>>(i&7))&1)*255; pixels[i*4]=pixels[i*4+1]=pixels[i*4+2]=v; pixels[i*4+3]=255; }
+  earthLandTex=new THREE.DataTexture(pixels,w,h,THREE.RGBAFormat); earthLandTex.magFilter=earthLandTex.minFilter=THREE.LinearFilter;
+  earthLandTex.flipY=false; earthLandTex.needsUpdate=true; return earthLandTex;
+}
+function skyMat(kind){ const uniforms={uSun:{value:new THREE.Vector3(1,0,0)},uKind:{value:kind}};
+  if(kind===0) uniforms.uMask={value:earthTexture()};
+  return new THREE.ShaderMaterial({uniforms,
   vertexShader:'varying vec3 vN;varying vec3 vP;varying vec3 vV;void main(){vP=position;vN=normalize(mat3(modelMatrix)*normal);vec4 w=modelMatrix*vec4(position,1.);vV=normalize(cameraPosition-w.xyz);gl_Position=projectionMatrix*viewMatrix*w;}',
   fragmentShader:skyNoise+`
-uniform vec3 uSun; uniform float uKind; varying vec3 vN; varying vec3 vP; varying vec3 vV;
+uniform vec3 uSun; uniform float uKind; uniform sampler2D uMask; varying vec3 vN; varying vec3 vP; varying vec3 vV;
 void main(){ vec3 n=normalize(vN), p=normalize(vP); float l=dot(n,uSun), day=smoothstep(-.04,.18,l), lit=max(l,0.)*.9+.1*day;
   vec3 c;
   if(uKind<.5){   // the Earth: oceans, land, ice, clouds; city lights on the night side
-    float lan=fbm(p*2.3+vec3(3.,1.,7.)), land=smoothstep(.53,.56,lan), ice=smoothstep(.78,.86,abs(p.y)+.06*n3(p*9.));
-    vec3 sea=mix(vec3(.02,.07,.2),vec3(.04,.17,.36),smoothstep(.35,.53,lan));
+    vec2 uv=vec2(atan(p.x,p.z)/6.2831853+.5,acos(clamp(p.y,-1.,1.))/3.1415927);
+    float land=smoothstep(.35,.65,texture2D(uMask,uv).r+(fbm(p*18.)-.5)*.25);
+    float la=asin(clamp(p.y,-1.,1.))*57.29578, lo=atan(p.x,p.z)*57.29578;
+    float ice=max(max(smoothstep(80.,82.,la+2.*(n3(p*9.)-.5)),land*step(la,-72.)),land*step(66.,la)*step(-75.,lo)*step(lo,-15.));
+    vec3 sea=mix(vec3(.02,.07,.2),vec3(.04,.17,.36),.5);
     vec3 grd=mix(vec3(.36,.31,.2),vec3(.13,.24,.1),smoothstep(.4,.7,fbm(p*5.+2.)));
     c=mix(mix(sea,grd,land),vec3(.85,.9,.95),ice);
     float cl=smoothstep(.5,.78,fbm(p*3.4+vec3(fbm(p*1.5)*2.,0.,0.)));
@@ -131,7 +143,8 @@ function buildSky(S){
   const sd=sun.position.clone().normalize();
   [['earth',0,96],['moon',1,48],['februaria',1,16],['mars',2,32]].forEach(([k,kind,seg])=>{ const b=S[k]; if(!b) return;
     const G=b.grow, m=new THREE.Mesh(new THREE.SphereGeometry(G?1:b.r,G?48:seg,G?24:seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
-    if(kind===0){ const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); }
+    if(kind===0){ m.rotation.y=Math.atan2(-b.pos[0],-b.pos[2])-(b.lon??20)*Math.PI/180;
+      const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); }
     if(!G) return;
     if(b.rot) m.rotation.set(...b.rot);
     let glow=null; if(b.glow){ glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));

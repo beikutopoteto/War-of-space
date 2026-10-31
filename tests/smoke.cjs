@@ -34,6 +34,10 @@ function check(ok, label, detail = '') {
   try {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
+    const earth = await page.evaluate(() => { const {w,h,bits}=WOS_DATA.earthLand, bin=atob(bits);
+      const at=(lat,lon)=>{ const i=Math.floor((lon+180)/360*w), j=Math.floor((90-lat)/180*h), k=j*w+i; return (bin.charCodeAt(k>>3)>>(k&7))&1; };
+      return {w,h,points:[at(0,20),at(0,-30),at(35,-100)]}; });
+    check(earth.w===256 && earth.h===128 && earth.points.join(',')==='1,0,1', '地球の陸地マスク: 寸法と3地点', JSON.stringify(earth));
     check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
     /* options: the story (conversations) is off by default; the rest of this test plays with it on */
     await page.click('#mainNav [data-go="opt"]');
