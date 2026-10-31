@@ -1499,8 +1499,8 @@ WOS_DATA.operations.push((()=>{
        lane は dwell ごとに点を飛ばさず連続補間。仮: fire 2.5秒、withdraw 80秒、pullOut は持ち場中心から170、
        orbit 7秒/ラジアン、ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
     feints:{
-      '左上':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{min:30, lost:.3, withdraw:true, role:'cover', support:'右下', near:80}},
-      '右下':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{min:30, lost:.3, withdraw:true, role:'thr'}},
+      '左上':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
+      '右下':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
        share になったら（一番早くて from 分 = 14:30。2026-10-30 に 13:50 から遅らせた）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 3分の2が剥がれた、time: 時刻で。time の「剥がれきらないが、時間だ」はユーザー決定 2026-10-29、文は仮）。
@@ -1513,7 +1513,7 @@ WOS_DATA.operations.push((()=>{
       {name:'地球側', sub:'総基地の艦隊が来た方向', pos:[0,420]},
     ],
     /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す */
-    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
+    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:40}, launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
     /* 岩くずの雲は噴射で吹き散らされて、薄く小さい（第4節の弧を、半分の数・4割の大きさで。仮） */
     debrisTilt:35,
     debris:(()=>{ const out=[], tt=Math.tan(35*Math.PI/180), N=9;
@@ -1560,7 +1560,7 @@ WOS_DATA.operations.push((()=>{
       ...LINE.flatMap(lineFleet),
       ...SCR.flatMap(screen), ...NORTH,
       ...spear(0,-185,215,-18,8,1,3), ...spear(1,185,205,20,9,1,3), ...S2, ...HAM,
-      ...GUNS, ...THR,
+      ...GUNS, ...[[18,46],[34,46],[26,38],[26,54]].map((pos,i)=>({name:`宇宙港砲台 ${i+1}`, sub:'宇宙港の砲台', ...WOS_DATA.denaliGun, pos, alt:0})), ...THR,
     ],
     /* ドクトリンの型（wos-strategy の案、2026-10-28 に陽動の形へ）。正面の拠点は陰を拠点の後ろにする（shade:'ward'。天体の裏に隠れないように）。
        spare:['bb']: 拠点は戦艦を狙いに行かない（寄られたら砲と W.A.S. は撃つ）。goal の 'nuke' は隊を離れた核を積んだ戦艦（降りている途中か着底）。

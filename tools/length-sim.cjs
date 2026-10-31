@@ -8,7 +8,8 @@
 const { openGame, toStage } = require('./browser.cjs');
 const IDS = ['shinano', 'retreat', 'nile', 'denali', 'februaria', 'denaliBreak'];
 const args = process.argv.slice(2);
-const ids = args.filter(a => !a.startsWith('runs='));
+const ids = args.filter(a => !a.startsWith('runs=') && !a.startsWith('port='));
+const portArg = args.find(a => a.startsWith('port=')), portN = portArg ? Number(portArg.slice(5)) : null;   // port=N で宇宙港の W.A.S. の機数（省くとデータのまま）
 const runArgs = args.filter(a => a.startsWith('runs='));
 const runs = runArgs.length ? Number(runArgs[0].slice(5)) : 3;
 if (runArgs.length > 1 || !Number.isSafeInteger(runs) || runs < 1 || ids.some(id => !IDS.includes(id))) {
@@ -28,7 +29,8 @@ async function trial(id, strat) {
     await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#deployGo').catch(() => {});
     if (strat === 'auto') await toStage(page);
-    const result = await page.evaluate(({ strat }) => {
+    const result = await page.evaluate(({ strat, portN }) => {
+    if (portCarrier && portN != null) portCarrier.hangars = makeHangars({was:portN}, op.body.port.launchR);
 
     const own = () => fleets.filter(f => f.team === 0 && f.stats && f.alive);
     const scale = WOS_DATA.scales[op.scale];
@@ -51,8 +53,8 @@ async function trial(id, strat) {
         if (e) { if (!(f.order && f.order.target === e)) order(f, { type: 'attack', target: e }); }
         else if (n % 40 === 0) { const a = i * 1.57; order(f, { type: 'move', dest: convoy.pos.clone().add(new THREE.Vector3(Math.cos(a) * 12, 0, Math.sin(a) * 12 + 10)) }); } }); }
     return { over, win: outcome === true, sec: gameSec, why: loseWhy || '理由なし', target,
-      initialShips };
-    }, { strat });
+      initialShips, bbLost: nuke ? nuke.bbAll - nuke.bbN : null };
+    }, { strat, portN });
     if (errors.length) throw new Error(errors.join('; '));
     if (!result.over) return { ...result, failure: '3000ゲーム秒で未終結' };
     return result;
@@ -70,14 +72,14 @@ const median = a => { const b = [...a].sort((x,y) => x-y), m = Math.floor(b.leng
 const cell = s => String(s).replace(/\|/g, '／').replace(/[\r\n]/g, ' ');
 function report(rows) {
   console.log('\n分数は1倍速実時間。* は目安の範囲外。— は該当なし。失敗は長さの集計から除外。');
-  console.log('| 作戦 | 遊び方 | 回数 | 勝ち | 勝ち最短 | 勝ち中央値 | 勝ち最長 | 全回中央値 | 負けの理由 (loseWhy) | 失敗 | 目安（分） |');
-  console.log('|---|---|---:|---:|---:|---:|---:|---:|---|---|---|');
+  console.log('| 作戦 | 遊び方 | 回数 | 勝ち | 勝ち最短 | 勝ち中央値 | 勝ち最長 | 全回中央値 | 戦艦損失平均 | 負けの理由 (loseWhy) | 失敗 | 目安（分） |');
+  console.log('|---|---|---:|---:|---:|---:|---:|---:|---:|---|---|---|');
   for (const {id, strat, results} of rows) {
     const done = results.filter(r => !r.failure), wins = done.filter(r => r.win).map(r => r.sec / 60);
     const target = results.find(r => r.target)?.target;
     const fmt = n => n == null ? '—' : n.toFixed(2) + (target && (n < target.min || target.max != null && n > target.max) ? '*' : '');
     const counts = values => { const m = new Map(); for (const v of values) m.set(v, (m.get(v)||0)+1); return [...m].map(([k,v]) => `${k}: ${v}`).join('、') || '—'; };
-    console.log('| ' + [id, strat, results.length, wins.length, fmt(wins.length ? Math.min(...wins) : null), fmt(median(wins)), fmt(wins.length ? Math.max(...wins) : null), fmt(median(done.map(r => r.sec/60))), counts(done.filter(r => !r.win).map(r => r.why)), counts(results.filter(r => r.failure).map(r => r.failure)), target ? `${target.min}〜${target.max ?? ''}` : '—'].map(cell).join(' | ') + ' |');
+    console.log('| ' + [id, strat, results.length, wins.length, fmt(wins.length ? Math.min(...wins) : null), fmt(median(wins)), fmt(wins.length ? Math.max(...wins) : null), fmt(median(done.map(r => r.sec/60))), done.length && done[0].bbLost != null ? (done.reduce((s,r)=>s+r.bbLost,0)/done.length).toFixed(2) : '—', counts(done.filter(r => !r.win).map(r => r.why)), counts(results.filter(r => r.failure).map(r => r.failure)), target ? `${target.min}〜${target.max ?? ''}` : '—'].map(cell).join(' | ') + ' |');
   }
 }
 (async () => {

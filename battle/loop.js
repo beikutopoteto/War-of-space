@@ -50,7 +50,7 @@ function frame(now){
   if(skyGrow.length) growSky(clockMin(gameSec*CLOCK_RATE)/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
-  for(const f of fleets){ if(!f.alive) continue; const hide=!shown(f), lk=landK(f);
+  for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
@@ -128,7 +128,7 @@ function frame(now){
     if(s.z>1||s.x<-60||s.x>W+60||s.y<-60||s.y>H+60){u.el.style.visibility='hidden';continue;}
     u.el.style.visibility='visible'; u.el.style.transform=`translate(${s.x}px,${s.y}px)`;
     const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`
-      :u.type==='thr'?`${u.restore?'狙いを戻せる　':''}耐久 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/(u.n*u.hp)))}%</span>`:subText(u);
+      :u.type==='thr'||u.mark==='site'?`${u.restore?'狙いを戻せる　':''}耐久 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/(u.n*u.hp)))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
     if(u.kind==='fleet'){ pinchMarks(u,s,lost); const nk=nukeCarrier(u); if(u._nk!==nk){ u._nk=nk; u.el.classList.toggle('nk',nk); } }
   }

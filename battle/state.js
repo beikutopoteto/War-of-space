@@ -29,7 +29,7 @@ let chase=null, perfect=false;
 let HP_K=1;
 /* timeWarned: the time-up warning was said (sim.js stepTimeUp); gunLostSaid: the first lost gun on the base was told (第5節) */
 let timeWarned=false, gunLostSaid=false;
-let blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
+let portCarrier=null, blocks=[], casualties=0, civMarks=new Set(), civFirst=false, debris=[], opCarrier=null, loseWhy=null, shieldSaid=false;
 /* unit names 第N 役割 規模 (data/ships.js unitNames; user decision 2026-10-04). level: 'group' | 'army' | 'bg'.
    N starts at the main class's number and moves on past the numbers in used (a Set); with no class, there is no role */
 const UNAMES=WOS_DATA.unitNames, ULEVEL={group:0, army:1, bg:2};
@@ -96,6 +96,7 @@ function makeFleet(team,o){
      the restoring ones (east and north) in full, the others faint. Shown from the second stage on (loop.js, sim.js thrOff) */
   if(o.type==='thr'){ f.el.classList.add('thr',o.restore?'rs':'dim'); f.el.querySelector('.emb').innerHTML=`<svg viewBox="0 0 12 12" aria-hidden="true"><polygon points="6,1 10.3,3.5 10.3,8.5 6,11 1.7,8.5 1.7,3.5" fill="currentColor" fill-opacity="${o.restore?.3:.15}" stroke="currentColor" stroke-width="1.2"/></svg>`;
     const tg=document.createElement('i'); tg.className='tg'; tg.textContent=o.name.replace(/^推進器\s*/,''); f.el.appendChild(tg); }
+  if(o.mark==='site'){ f.el.classList.add('site'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.6" fill="currentColor"/></svg>'; const tg=document.createElement('i'); tg.className='tg'; tg.textContent=o.tag||''; f.el.appendChild(tg); }
   if(o.pit||o.fixed&&o.type==='aa'){ f.el.classList.add('gun'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>'; }
   return f;
 }
@@ -413,6 +414,8 @@ function reset(cfg=lastCfg){
   fortress=F?{kind:'fortress',team:1,id:0,name:F.name,pos:new THREE.Vector3(0,3,0),hpPool:F.hp*HP_K,max:F.hp*HP_K,dps:F.dps,range:F.range,radius:F.radius,alive:true,retarget:0,fireTarget:null,vis:F.vis,seen:true,everSeen:true,revealT:0}
     :S?{kind:'fortress',team:0,defend:true,id:0,name:S.name,pos:new THREE.Vector3(0,0,0),hpPool:S.hp*HP_K,max:S.hp*HP_K,dps:S.dps,range:S.range,radius:S.radius||8,alive:true,retarget:0,fireTarget:null,vis:S.vis??6,seen:true,everSeen:true,revealT:0}
     :{kind:'fortress',team:1,id:0,name:'',pos:new THREE.Vector3(0,3,0),alive:false,el:null};
+  const P=BD&&BD.port; portCarrier=P&&P.hangar?makeFleet(1,{...P,type:'site',n:1,hp:P.hp,dmg:0,eva:0,range:0,speed:0,scale:1,vis:6,stl:5,fixed:true}):null;
+  if(portCarrier){ portCarrier.hangars=makeHangars(P.hangar,P.launchR); portCarrier.launchR=P.launchR; fleets.push(portCarrier); }
   if(S){ fortress.el=mkUnitLabel(0,S.name,S.sub||''); fortress.el.classList.add('fort');
     /* the station's own fighters (S.hangar): they go out at enemies coming within S.launchR, like a carrier's */
     fortress.hangars=makeHangars(S.hangar,S.launchR); fortress.heading=new THREE.Vector3(0,0,-1); fortress.launchR=S.launchR||0; }
@@ -425,7 +428,7 @@ function reset(cfg=lastCfg){
   /* the enemy names the shield fleets guard (their block); kept for the AI */
   for(const f of fleets) if(f.team===1&&f.block!=null) f.blockAt=blocks[f.block]||null;
   /* fixed units (the batteries) stand on the body's surface, in the direction they are placed */
-  if(BD) for(const f of fleets) if(f.fixed){ if(f.pit){ pitBuild(f); continue; }   // 第5節: the base's guns in their holes (base.js)
+  if(BD) for(const f of fleets) if(f.fixed){ if(f.mark==='site') continue; if(f.pit){ pitBuild(f); continue; }   // 第5節: the base's guns in their holes (base.js)
     const R=bodySurface(f.pos,BD.r)+1.2; f.pos.sub(bodyC).setLength(R).add(bodyC); f.post.copy(f.pos);
     /* each gun sits with its base flat on the rock: where the rock is under it, turned to the rock's face (drawn in loop.js) */
     /* a thruster (第6節, type thr; user decision 2026-10-23): its nozzle points straight out from the body's centre, not along the rock's face */
@@ -438,7 +441,7 @@ function reset(cfg=lastCfg){
   /* a gate's name stands just north of the gate itself (its block's pos is only the way to its crater) */
   const gateLabel=b=>{ const g=gates.find(x=>x.name===b.name); return g?[g.pos.x,g.pos.z-6]:b.pos; };
   buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.gate?gateLabel(b):b.pos})),
-    ...(BD.port?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
+    ...(BD.port&&!BD.port.mark?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }
