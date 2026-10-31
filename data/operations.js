@@ -1499,8 +1499,8 @@ WOS_DATA.operations.push((()=>{
        lane は dwell ごとに点を飛ばさず連続補間。仮: fire 2.5秒、withdraw 80秒、pullOut は持ち場中心から170、
        orbit 7秒/ラジアン、ring 12、guns 65以内の砲台も脅かす。推進器は狙わない。via・隻数・傷みは変えない。 */
     feints:{
-      '左上':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{min:30, lost:.3, withdraw:true, role:'cover', support:'右下', near:80}},
-      '右下':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{min:30, lost:.3, withdraw:true, role:'thr'}},
+      '左上':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'西上守備隊', via:[[-170,280,20],[-185,150,45]], lane:[[-106,53,44],[-101,-26,51],[-62,-88,44]], from:22, dwell:25, ring:12, end:480, assault:{role:'cover', support:'右下'}},
+      '右下':{press:true, fire:2.5, withdraw:80, pullOut:170, orbit:7, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
        share になったら（一番早くて from 分 = 14:30。2026-10-30 に 13:50 から遅らせた）、遅くとも at 分（15:00）。推進器の印と任務欄はここから。logs は合図のとき（share: 3分の2が剥がれた、time: 時刻で。time の「剥がれきらないが、時間だ」はユーザー決定 2026-10-29、文は仮）。
