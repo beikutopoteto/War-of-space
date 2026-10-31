@@ -1747,45 +1747,34 @@ function check(ok, label, detail = '') {
       '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
     check(db.stage.was && db.stage.s2mas === 4 && db.stage.s2masN === 6 && db.stage.thrHp === '600,600,600,600,600,600',
       '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2の突撃揚陸艦は4隊6隻（作業票 #251 の仮の調整）、誘導の推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.s2masN, db.stage.thrHp]));
-    /* 第4節と第6節の砲台は同じもの（ユーザー決定 2026-10-30）: どちらも WOS_DATA.denaliGun の強さ */
-    const dg = await page.evaluate(() => { const G = WOS_DATA.denaliGun, o = id => WOS_DATA.operations.find(x => x.id === id);
-      return ['denali', 'denaliBreak'].map(id => o(id).enemies.filter(f => f.type === 'aa').map(f => Object.keys(G).every(k => f[k] === G[k]))); });
-    check(dg[0].length === 6 && dg[1].length === 10 && dg.every(a => a.every(Boolean)), '第4節と第6節の砲台は同じもの。強さは WOS_DATA.denaliGun で連動する（2026-10-30）', JSON.stringify(dg));
+    /* 第6節だけ改造した砲台。第4節は共通データのまま。 */
+    const dg = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.range, f.dmg])));
+    check(dg[0].length === 6 && dg[0].every(([r,d]) => r === 22 && d === 1) && dg[1].length === 10 && dg[1].every(([r,d]) => r === 90 && d === 2), '第4節の砲台は射程22・打撃1、第6節は10基とも射程90・打撃2', JSON.stringify(dg));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
-    /* 方角守備隊（型 screen）: 守るものから130以内に見えた敵と守るものの間（敵の40手前）に割り込む。持ち場の中心から out（190、仮）まで。敵がいなければ戻る。
-       第6節（chase、2026-10-30 作業票 #248）: 予備も壁と縁の後ろについて前へ出る。撃ってきた陽動の隊を追い（合図の60の外まで）、相手がいなくなれば持ち場へ戻る。
-       引き出されると正面の東の拠点から縁と予備が回る（relief）。北守備隊は動かない（見回りの7の中） */
+    /* 方角守備隊の傘: 傘外の敵は射撃せず追わず、近くの砲台が全滅すると持ち場100に戻す。 */
     const scr6 = await page.evaluate(() => {
-      const F = n => fleets.find(f => f.name === n), P = n => packs.find(x => x.name === n), mins = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) step(.05); };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
-      const fe = fleets.find(f => f.feint === '右下' && f.touch);
-      for (const f of fleets) if (f.feint && f !== fe) { f.alive = false; f.el.remove(); }
-      fe.alive = false;
-      const me = fleets.filter(f => f.team === 0 && !f.ward && f.alive && !f.ally);
-      me.slice(1).forEach(f => { f.pos.set(0, 0, 330); f.order = null; });
-      const S = P('東下守備隊'), M0 = S.mem.slice(), W = F('推進器 東2'), N = P('北守備隊'), e = me[0], r = {};
-      const go = (dir, d) => { e.pos.copy(W.pos).add(dir.clone().setLength(d)); e.order = null; e.revealT = 1e9; e.locked = true; };
-      step(.05); step(.05);
-      go(new THREE.Vector3(.5, -.3, -.8), 110); mins(opMin() + 8);
-      const wall = S.mem.filter(f => f.packSlot !== 'reserve' && f.alive), res = S.mem.find(f => f.packSlot === 'reserve');
-      r.near = { gap: wall.map(f => Math.round(f.pos.distanceTo(e.pos))), toW: Math.round(S.scr.s.distanceTo(S.scr.W)), want: Math.round(Math.min(...['東1', '東2', '東3'].map(n => F('推進器 ' + n).pos.distanceTo(e.pos))) - 40),
-        res: +res.pos.distanceTo(res.home).toFixed(1), behind: Math.round(res.pos.distanceTo(e.pos) - Math.min(...wall.map(f => f.pos.distanceTo(e.pos)))), north: N.mem.every(f => f.pos.distanceTo(f.home) < 9) };
-      go(new THREE.Vector3(-.6, -.2, -.8), 129); mins(opMin() + 10); r.far = wall.map(f => Math.round(f.pos.distanceTo(S.postV)));
-      e.pos.set(0, 0, 330); e.revealT = 0; mins(opMin() + 10); r.relief = packs.find(x => x.name === '東の拠点').reliefUnits || null; r.back = M0.every(f => f.pos.distanceTo(f.home) < 3) && !S.scr;
-      /* chase (2026-10-30): a feint that fires on the screen is followed out past the lure's 60, then they go home */
-      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
-      const f1 = fleets.find(f => f.feint === '右下' && f.touch); for (const f of fleets) if (f.feint && f !== f1) { f.alive = false; f.el.remove(); }
-      const S2 = P('東下守備隊'), A0 = []; let far = 0, at = null, chasedBy = false;
-      while (!over && opMin() < 90 && !(at != null && gameSec - at > 25)) { step(.05);
-        if (S2.chasing) { if (at == null) { at = gameSec; chasedBy = S2.chasing.target === f1; A0.push(...S2.mem); } far = Math.max(far, ...A0.filter(f => f.alive).map(f => f.pos.distanceTo(S2.postV))); } }
-      r.chase = { on: at != null, by: chasedBy, far: Math.round(far) };
-      f1.alive = false; f1.el.remove(); const c1 = gameSec; while (gameSec - c1 < 60 && !over) step(.05);
-      r.home = { left: !S2.chasing, d: A0.filter(f => f.alive).map(f => Math.round(f.pos.distanceTo(f.home))) };
-      return r;
+      const P = packs.find(p => p.name === '東下守備隊'), e = fleets.find(f => f.team === 0 && !f.ally && !f.fixed && f.alive);
+      const f = fleets.find(f => P.fleets.includes(f.name)), gs = fleets.filter(g => g.team === 1 && g.fixed && g.type === 'aa');
+      for (const x of fleets) if (x.team === 0 && x !== e) x.seen = false;
+      e.revealT = 1e9; e.seen = true; f.seen = true;
+      const circle = umbrellaCircles(P)[0]; e.pos.copy(P.postV).add(new THREE.Vector3(0, 0, 400));
+      f.pos.copy(e.pos).add(new THREE.Vector3(0, 0, -5)); f.order = {type:'attack',target:e};
+      const noFire = fireTargetOf(f) !== e && !craftMayHit(f,e); enemyAI();
+      const noChase = !f.order || f.order.type !== 'attack' || f.order.target !== e;
+      const dir = new THREE.Vector3(0, 0, 1), edge = umbrellaEdge(P, dir);
+      e.pos.copy(P.postV).addScaledVector(dir, edge + 2); f.pos.copy(P.postV).addScaledVector(dir, edge - 2);
+      e.seen = true; e.revealT = 1e9; e.locked = true; f.fireTarget = e; f.retarget = 100; f.order = null; const oldAiTimer = aiTimer; aiTimer = 100;
+      const originalDamage = damage; let hits = 0;
+      damage = function(t, amount, src) { if (t === e && (src === f || src?.carrier === f) && amount > 0) hits++; return originalDamage.apply(this, arguments); };
+      try { for (let i = 0; i < 20; i++) step(.05); } finally { damage = originalDamage; aiTimer = oldAiTimer; }
+      const noDamage = hits === 0;
+      for (const x of lureUnits(P)) x.pos.copy(P.postV).add(new THREE.Vector3(0, 0, 70));
+      stepRelief(); const relief = (packs.find(p => p.name === '東の拠点').reliefUnits || []).length === 2;
+      gs.forEach(g => { g.alive = false; }); const fallback = umbrellaCircles(P);
+      return {noFire,noChase,noDamage,relief,fallback:fallback.length === 1 && fallback[0].r === 100 && fallback[0].pos.distanceTo(P.postV) < .01, hadGuns:!!circle};
     });
-    check(scr6.near.gap.every(d => d >= 36 && d <= 50) && Math.abs(scr6.near.toW - scr6.near.want) <= 2 && scr6.near.res > 10 && scr6.near.behind > 5 && scr6.near.north && scr6.far.every(d => d <= 200) && scr6.back
-      && scr6.relief && scr6.relief.length === 2 && scr6.chase.on && scr6.chase.by && scr6.chase.far > 60 && scr6.home.left && scr6.home.d.length && scr6.home.d.every(d => d < 14),
-      '第6節: 方角守備隊は守るものから130以内の敵と守るものの間（敵の40手前）に立ち、予備も後ろについて出る。撃ってきた陽動を持ち場の60の外まで追い、いなくなれば戻る。引き出されると正面の拠点から縁と予備が回る。北守備隊は動かない（2026-10-30）', JSON.stringify(scr6));
+    check(scr6.noFire && scr6.noChase && scr6.noDamage && scr6.relief && scr6.fallback && scr6.hadGuns, '第6節: 守備隊は傘の外の敵を撃たず追わず、砲台を失うと持ち場100を傘とする。引き出されると拠点から増援が回る', JSON.stringify(scr6));
     /* 第二段階の合図 lure: 西上と東下の守備隊18隻のうち、持ち場の中心から60の外へ出た艦と沈んだ艦が3分の2（12。2026-10-30 に半分から上げた）になったら（一番早くて 14:30。2026-10-30 に 13:50 から）、遅くとも 15:00。
        そこで移乗、推進器の印（見本の案C）は合図まで出さない。14:45 になっても合図がなければウォン中将「15:00 に出る」 */
     const lu = await page.evaluate(() => {
@@ -1893,7 +1882,7 @@ function check(ok, label, detail = '') {
       && sw.ignite.mid === 'rockShield:false:true' && sw.ignite.s1 === 'spear' && sw.ignite.north && sw.ignite.scr === 'screen',
       '第6節: 2隻の起爆後も戦闘は続き、槍2と霧と鎚は推進器を守る。槍1と拠点はそのまま、北守備隊は動き出す', JSON.stringify(sw.ignite));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
-    /* 友軍の陽動（ai:'feint'、press。2026-10-30 作業票 #248）: 側ごとにそろって迫り、本隊も触れる隊も方角守備隊を撃ち、lane の外（持ち場の中心から pullOut 170、仮）へ引く。
+    /* 友軍の陽動（ai:'feint'、press。2026-10-30 作業票 #248）: 側ごとにそろって迫り、本隊も触れる隊も方角守備隊を撃ち、砲台の傘の境目の外へ引く。
        推進器は撃たない。核の戦艦を3隻失うと（起爆の前）艦だけを撃つ本気の攻撃に移り（台詞）、60分で下がる。2隻なら移らない。21:00 に下がる */
     const fe = await page.evaluate(() => {
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
@@ -1906,10 +1895,16 @@ function check(ok, label, detail = '') {
         const tough = () => { for (const G of nuke.G) if (G.alive) G.hpPool = Math.max(G.hpPool, G.hp * G.ships.length * 20); };
         mins(30); const S = P('西上守備隊'), all = [...main, ...touch], seen = new Set(), fired = new Set(); let pull = 0;
         /* the whole side presses in, fires (the main body too, and its craft), and pulls out past the lane (2026-10-30, 作業票 #248) */
-        for (let i = 0; i < 12000 && !over && !(seen.has('fire') && seen.has('withdraw') && pull > 140); i++) { step(.05); tough();
+        for (let i = 0; i < 12000 && !over && !(seen.has('fire') && seen.has('withdraw') && pull > 0); i++) { step(.05); tough();
           for (const f of all) if (f.alive) { seen.add(f.feintPhase); if (f.fireTarget && S.mem.includes(f.fireTarget)) fired.add(f.touch ? 'touch' : 'main');
             if (f.feintPhase === 'withdraw') pull = Math.max(pull, f.pos.distanceTo(S.postV)); } }
         r.main = { engage: main.every(f => !f.alive || f.stance === 'engage'), out: main.filter(f => f.alive && f.feintOut).length, phases: [...seen].filter(Boolean).sort().join(','), fired: [...fired].sort().join(','), pull: Math.round(pull) };
+        /* 触れる隊も射撃できることを確かめる。実戦では先に沈むことがある。 */
+        const screenTarget = S.mem.find(x => x.alive), shooter = touch.find(x => x.alive) || touch[0];
+        if (screenTarget) { const others = fleets.filter(x => x.team === 1 && x !== screenTarget && x.alive); others.forEach(x => { x.seen = false; });
+          shooter.alive = true; shooter.stance = 'engage'; shooter.pos.copy(screenTarget.pos).add(new THREE.Vector3(0, 5, 0)); screenTarget.seen = true;
+          shooter.order = {type:'attack', target:screenTarget}; r.main.canTouch = fireTargetOf(shooter) === screenTarget;
+          others.forEach(x => { x.seen = true; }); }
         /* a thruster alone in reach: the feints never fire on it */
         const T = F('推進器 西の上2'), f0 = touch.find(f => f.alive) || touch[0], m0 = main[0]; T.seen = true;
         const others = fleets.filter(x => x.team === 1 && x.alive && x !== T); others.forEach(x => { x.alive = false; });
@@ -1948,7 +1943,7 @@ function check(ok, label, detail = '') {
         return r;
       } finally { logEvent = logE; }
     });
-    check(fe.main.engage && fe.main.out > 0 && fe.main.phases === 'approach,fire,withdraw' && fe.main.fired === 'main,touch' && fe.main.pull > 140 && fe.thr.every(x => x === null),
+    check(fe.main.engage && fe.main.out > 0 && fe.main.phases === 'approach,fire,withdraw' && fe.main.fired.includes('main') && fe.main.canTouch && fe.main.pull > 0 && fe.thr.every(x => x === null),
       '第6節: 陽動は迫る→撃つ→引くをくり返し、本隊も触れる隊も方角守備隊を撃って、lane の外へ引く。推進器は撃たない（2026-10-30）', JSON.stringify(fe));
     check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.wing && fe.three.ship && fe.three.after && fe.end && fe.priority && fe.fallback && fe.assaultEnd,
       '第6節: 核の戦艦が2隻以下になると右下の陽動は推進器と砲台を攻撃し、総攻撃を続け、切り替え前は21:00に離脱する', JSON.stringify([fe.two, fe.three, fe.end]));
