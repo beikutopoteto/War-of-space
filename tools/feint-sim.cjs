@@ -12,6 +12,8 @@
    関数への観測呼び出しの挿入はページ内だけ。分岐式や返り値は変えない。
    挿入点が変わったら不正確な調査を続けず失敗する。 */
 const { openGame, toStage } = require('./browser.cjs');
+const baseline = process.env.FEINT_BASELINE ? require('child_process').execFileSync('git',['show','HEAD:battle/sim.js'],{encoding:'utf8'}) : null;
+const baseFunctions = baseline && ['nukeBoard','nukeDescend'].map((name,i) => { const end=['/* a line of op.nukes.logs','function nukeFire'][i]; return baseline.slice(baseline.indexOf('function '+name+'('),baseline.indexOf(end,baseline.indexOf('function '+name+'('))); });
 const args = process.argv.slice(2), strat = args[0];
 const runs = args[1] ? Number(args[1].slice(5)) : 3;
 if (!['idle', 'auto'].includes(strat) || args.length > 2 ||
@@ -38,7 +40,8 @@ async function trial(run, deadline) {
       if (strat === 'auto') await toStage(page);
       const shots=run===1?process.env.FEINT_SHOTS:null;
       if(shots){ require('fs').mkdirSync(shots,{recursive:true}); await page.exposeFunction('feintShot',label=>page.screenshot({path:require('path').join(shots,`${strat}-${run}-${label}.png`)})); }
-      const result = await page.evaluate(async ({ strat, shots }) => {
+      const result = await page.evaluate(async ({ strat, shots, baseFunctions, noGunDamage }) => {
+        if(baseFunctions){ nukeBoard=eval('('+baseFunctions[0]+')'); nukeDescend=eval('('+baseFunctions[1]+')'); }
         if (gameSec !== 0) throw new Error(`観測前に ${gameSec} 秒進行した`);
         const own = () => fleets.filter(f => f.team === 0 && !f.ally && !f.ward && !f.fixed && f.alive);
         if (strat === 'idle' && (own().length !== 5 || own().reduce((s,f)=>s+f.n,0) !== 31)) throw new Error('クイック5隊31隻ではない');
@@ -75,9 +78,10 @@ async function trial(run, deadline) {
             feint:f.feint || null,touch:!!f.touch,slot:f.packSlot || null,
             born:stamp(),initialPos:xyz(f.pos),lastPos:f.pos.clone(),lastAlive:f.alive,idleSec:0,
             reasons:{}, intervals:[], current:null, longest:null,
-            fired:0,craftFired:0,received:0,gunActive:0,autoSec:{},
+            noOpponentIdle:0,
+            fired:0,craftFired:0,received:0,gunActive:0,autoSec:{},damageSources:{},
             firstMove:null,firstDeparture:null,firstGun:null,firstHit:null,activation:null,
-            postMin:null,postMax:null,scrSec:0,outSec:0,wardRanges:{},modes:{},crossings:[],
+            postMin:null,postMax:null,scrSec:0,outSec:0,umbrellaOutSec:0,wardRanges:{},modes:{},crossings:[],
           });
         };
         register();
@@ -93,7 +97,7 @@ async function trial(run, deadline) {
         };
         insert('const esc=new Set();', 'if(first) observeHelp(help); const esc=new Set();');
         insert('if(esc.has(f)){', "if(first) observeAuto(f,'第一段階:その他'); if(esc.has(f)){ if(first) observeAuto(f,'esc');");
-        insert('if(first){ const e=by(f,threat,carrierFirst(f)); if(e){', "if(first){ const e=by(f,threat,carrierFirst(f)); if(e){ observeAuto(f,'threat');");
+        insert('if(first&&bbs.length){ const e=by(f,threat,carrierFirst(f)); if(e){', "if(first&&bbs.length){ const e=by(f,threat,carrierFirst(f)); if(e){ observeAuto(f,'threat');");
         insert('const h=by(f,help); if(h){', "const h=by(f,help); if(h){ observeAuto(f,'help');");
         insert('if(touch){ near2(f,touch.pos);', "if(touch){ observeAuto(f,'触れる隊のそば'); near2(f,touch.pos);");
         insert('if(bbs.length){ const b=bbs[k%bbs.length], a=k++*2.4;', "if(bbs.length){ observeAuto(f,'戦艦のそば'); const b=bbs[k%bbs.length], a=k++*2.4;");
@@ -113,10 +117,15 @@ async function trial(run, deadline) {
         insert("else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2)", "else if(!f.order||f.order.type!=='move'){ observeEnemy(f,'後段:postへ戻る/保持'); if(f.pos.distanceTo(f.post)>2)");
         insert('if(waiting){ packWatch(f,waiting,f.home);', "if(waiting){ observeEnemy(f,'見回り:start待ち'); packWatch(f,waiting,f.home);");
         enemyAI = eval('(' + source + ')');
+        const chaseEnds=[], radial=new Map(), frontHits={}; let chargeSeen=false;
         const originalDamage = damage;
         let tickShot = new Set(), tickCraft = new Set(), tickHit = new Set(), secondActive = new Set();
         damage = function(t, amt, src) {
           if (amt > 0 && t.alive) {
+            const attacker=src?.carrier||src;
+            if(attacker?.feint&&!attacker.feintOut&&t.pack?.name) { const k=attacker.feint+':'+t.pack.name; frontHits[k]=(frontHits[k]||0)+amt; }
+            if(t.feint&&metrics.has(t)){ const k=src?.kind==='wing'?'艦載機':src?.fixed&&src?.type==='aa'?'砲台':'艦など'; const m=metrics.get(t); m.damageSources[k]=(m.damageSources[k]||0)+amt; }
+            if(noGunDamage&&t.feint&&src?.fixed&&src?.type==='aa') return;
             if (metrics.has(src)) tickShot.add(src);
             if (src.kind === 'wing' && metrics.has(src.carrier)) tickCraft.add(src.carrier);
             if (metrics.has(t)) tickHit.add(t);
@@ -146,6 +155,7 @@ async function trial(run, deadline) {
             const moved=m.lastPos.distanceTo(f.pos), idle=m.born.sec<=gameSec-1+1e-8 && m.lastAlive && f.alive && moved<.5 && !secondActive.has(f);
             const why=reason(f); m.lastPos.copy(f.pos); m.lastAlive=f.alive;
             if (idle) {
+              if(f.feint && f.mode==='feint' && opMin()>=60 && opMin()<=150){ const P=packs.find(p=>p.name===op.feints[f.feint].screen); if(!P.mem.some(e=>e.alive&&e.seen&&gap(f,e)<=f.range*1.08)) m.noOpponentIdle++; }
               m.idleSec++; m.reasons[why]=(m.reasons[why] || 0)+1;
               if (!m.current) m.current={from:{sec:round(gameSec-1),clock:clockStr((gameSec-1)*CLOCK_RATE)},to:null,duration:0,pos:xyz(f.pos),reasons:{}};
               m.current.duration++; m.current.to=stamp(); m.current.endPos=xyz(f.pos);
@@ -155,7 +165,8 @@ async function trial(run, deadline) {
           secondActive.clear();
         };
         const snapshot = () => rows.push({type:'sample',...stamp(),phase:phaseName,nuke:nuke.state,
-          helpCount:activeAuto?.help ?? null,lure:lureCount(),screens:screens().map(countScreen),
+          helpCount:activeAuto?.help ?? null,lure:lureCount(),screens:screens().map(countScreen),mine:xyz(nuke.mine),
+          guns:fleets.filter(g=>g.team===1&&g.fixed&&g.type==='aa'&&g.alive).map(g=>({pos:xyz(g.pos),range:g.range})),
           units:[...metrics].map(([f,m]) => {
             const P=definedPack(f), W=f.feint?wardPoints(packs.find(p=>p.name===op.feints[f.feint].screen)):[];
             return {...identity(f),alive:f.alive,left:!!f.left,ships:f.alive?f.ships.length:0,pos:xyz(f.pos),
@@ -168,6 +179,7 @@ async function trial(run, deadline) {
           })});
         const laneKey = new Map(), packState = new Map(), screenState = new Map(), reliefSeen = new Set(), arrived = new Set(); let ignited=null; let lureSeen=false, nukeState=nuke.state;
         const changes = () => {
+          if(nuke.feintCharge!=null&&!chargeSeen){ chargeSeen=true; event('feintCharge',{units:fleets.filter(f=>f.alive&&f.mode==='feintCharge').length}); }
           for (const [side,F] of Object.entries(op.feints)) {
             const p=xyz(feintLane(F,opMin())), k=Math.floor(Math.max(0,opMin()-(F.from||0))/(F.dwell||10));
             if(laneKey.get(side)!==k){ laneKey.set(side,k); event('lane',{side,pos:p}); }
@@ -195,6 +207,9 @@ async function trial(run, deadline) {
             const before=new Map(fleets.filter(f=>f.alive).map(f=>[f,f.pos.clone()]));
             const firstBefore=nuke.state==='wait';
             step(DT); register();
+            for(const b of nuke.bbs||[]){ const f=b.f; if(!f||!f.alive||f.nukeSt!=='descend') continue;
+              const d=f.pos.distanceTo(nuke.mine), m=radial.get(f)||{name:f.name,last:d,min:d,maxBack:0,totalBack:0};
+              m.totalBack+=Math.max(0,d-m.last); m.min=Math.min(m.min,d); m.maxBack=Math.max(m.maxBack,d-m.min); m.last=d; radial.set(f,m); }
             if(shots&&(!shot1&&opMin()>=80||!shot2&&nuke.state==='descend')){
               const label=!shot1&&opMin()>=80?'1420':'second'; if(label==='1420') shot1=true; else shot2=true;
               controls.target.set(0,0,130); camera.position.set(75,300,640); controls.update();
@@ -221,6 +236,7 @@ async function trial(run, deadline) {
                 const d=f.pos.distanceTo(P.postV); m.postMin=m.postMin==null?d:Math.min(m.postMin,d); m.postMax=Math.max(m.postMax || 0,d);
                 if(P.scr) m.scrSec+=DT; if(d>op.lure.out) m.outSec+=DT;
               }
+              if(P&&['西上守備隊','東下守備隊','北守備隊'].includes(P.name)&&f.alive&&!(typeof umbrellaContains==='function'?umbrellaContains(P,f.pos):fleets.some(g=>g.team===1&&g.fixed&&g.type==='aa'&&g.alive&&g.pos.distanceTo(f.pos)<=g.range))) m.umbrellaOutSec+=DT;
               if(f.feint) for(const [name,p] of wardPoints(packs.find(P=>P.name===op.feints[f.feint].screen))){
                 const d=f.pos.distanceTo(p), r=m.wardRanges[name] || (m.wardRanges[name]={min:d,max:d}); r.min=Math.min(r.min,d); r.max=Math.max(r.max,d);
               }
@@ -233,14 +249,14 @@ async function trial(run, deadline) {
           if(n%100!==0) snapshot();
           for(const m of metrics.values()) closeInterval(m);
           return {rows,summary:{type:'summary',strat,...stamp(),over,win:outcome===true,why:loseWhy || (!fleets.some(f=>f.team===0&&f.alive&&!f.ward)?'army':null),
-            arrived:[...arrived].map(f=>f.name),ignited,relief:packs.filter(P=>P.reliefAt!=null).map(P=>({from:P.name,to:P.relief.to,at:P.reliefAt,units:P.reliefUnits})),
-            initialShips,clockRate:CLOCK_RATE,steps:n,unmeasuredTail:round(gameSec%1),
+            arrived:[...arrived].map(f=>f.name),ignited,frontHits,relief:packs.filter(P=>P.reliefAt!=null).map(P=>({from:P.name,to:P.relief.to,at:P.reliefAt,units:P.reliefUnits})),
+            chaseEnds,radial:[...radial.values()].map(({name,maxBack,totalBack})=>({name,maxBack:round(maxBack),totalBack:round(totalBack)})),initialShips,clockRate:CLOCK_RATE,steps:n,unmeasuredTail:round(gameSec%1),
             helpEmptySec:round(helpEmptySec),helpTotalSec:round(helpTotalSec),
             lure:lured?{by:lured.by,opMin:lured.at,sec:round(lured.at/CLOCK_RATE),clock:clockStr(lured.at)}:null,
             units:[...metrics].map(([f,m])=>{ const {lastPos,lastAlive,current,...out}=m;
               return {...out,alive:f.alive,left:!!f.left,remaining:f.alive||f.left?f.ships.length:0,lost:m.initial-f.ships.length,endPos:xyz(f.pos)}; })}};
         } finally { damage=originalDamage; autoDenali=originalAuto; enemyAI=originalEnemy; }
-      }, { strat, shots:!!shots });
+      }, { strat, shots:!!shots, baseFunctions, noGunDamage:!!process.env.FEINT_NO_GUN_DAMAGE });
       if(errors.length) throw new Error(errors.join('; '));
       for(const row of result.rows) emit({run,...row});
       emit({run,...result.summary});
