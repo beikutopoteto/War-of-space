@@ -1431,7 +1431,7 @@ WOS_DATA.operations.push((()=>{
     {name:'第16 護衛警衛 戦闘隊 分隊', sub:'北守備隊 フリゲート', type:'ff', n:1, scale:.75, ...at(172,0,48), vis:6, stl:6, ai:'guard', leash:40},
     {name:'第13 巡洋阻止 戦闘隊', sub:'北守備隊 重巡洋艦', type:'cl', n:3, scale:1.1, ...at(172,0,48), vis:6, stl:4, ai:'guard', leash:40},
     {name:'第21 突撃揚陸 戦闘隊', sub:'北守備隊 突撃揚陸艦（予備）', type:'mas', n:2, scale:.9, ...at(180,8,80), vis:6, stl:5, ai:'guard', leash:40}];
-  /* 槍1（2組。13:35 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート1・突撃揚陸艦3、計8。
+  /* 槍1（2組。14:00 に正面の両端の陰から出て、待っている戦艦へ。組の内訳は仮）、槍2（2組。戦艦が鉱山へ向かうと。1組フリゲート1・突撃揚陸艦3、計8。
      待つ所は東下守備隊付近と北の上（作業票 #251 の難しさ調整、仮）。内訳と位置は仮）。出るまでは ai なしでその場にいる。
      槍2の突撃揚陸艦は 2026-10-29 に駆逐艦に替え、2026-10-30 に突撃揚陸艦へ戻した（作業票 #251 の釣り合わせ、仮。勝ち負けが shatter になり、駆逐艦のままでは戦艦が毎回4〜5隻着いて 15:33 に勝った。戻すと着くのは2〜3隻）。mt: 2つ目の隊の艦種、nf: フリゲートの隻数、dt: 3つ目の隊の艦種 */
   const spear=(k,x,z,alt,dd=8+k,nm=2,nd=2,w='槍',mt='mas',nf=2,dt='dd')=>[{name:`第${22+k} 護衛警衛 戦闘隊`, sub:`${w} フリゲート（盾）`, type:'ff', n:nf, scale:.75, pos:[x,z], alt, vis:6, stl:6, leash:90},
@@ -1504,8 +1504,8 @@ WOS_DATA.operations.push((()=>{
       '右下':{press:true, surfaceMin:110, surfaceMax:120, surfaceAt:115, guns:65, screen:'東下守備隊', via:[[170,280,-20],[185,150,-45]], lane:[[110,44,-48],[104,-22,-53],[66,-84,-48]], from:22, dwell:25, ring:12, end:480, assault:{role:'thr'}},
     },
     /* 第二段階の合図（ユーザー決定 2026-10-28。battle/sim.js の stepLure）: packs の守備隊の艦のうち、持ち場の中心（packs の post）から out の外へ出た艦と沈んだ艦が
-       share になったら直ちに、遅くとも at 分（15:00）。2026-11-01 のユーザー指示で from 14:30 を廃止。 */
-    lure:{packs:['西上守備隊','東下守備隊'], out:60, share:2/3, at:120, phase:'第二段階',
+       share になれば from 分（14:30）以降に、遅くとも at 分（15:00）。 */
+    lure:{packs:['西上守備隊','東下守備隊'], out:60, share:2/3, from:90, at:120, phase:'第二段階',
       logs:{share:[['ハッダード曹長','「方角守備隊、3分の2が剥がれました！」'], ['ウォン中将','「移乗にかかれ。左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。誘導に使うのは東と北の6基です」']],
         time:[['ウォン中将','「剥がれきらないが、時間だ。移乗にかかれ」'], ['ウォン中将','「左上から鉱山へ降ろす」'], ['ハッダード曹長','「推進器、12基。誘導に使うのは東と北の6基です」']]}},
     sectors:[
@@ -1567,15 +1567,15 @@ WOS_DATA.operations.push((()=>{
         umbrella:true, ward:w==='西上'?[...names('西の上'), pt(-64,30,30)]:names('東'), post:pt(az,el,58), ...(w==='西上'?{say:['ハッダード曹長','「左上の陽動、接触。守りが出てきます」']}:{})})),
       {doctrine:'rockShield', name:'北守備隊', fleets:NORTH.map(o=>o.name), umbrella:true, reinforcement:{share:1/3, groups:[['第16 護衛警衛 戦闘隊','第21 突撃揚陸 戦闘隊'],['第16 護衛警衛 戦闘隊 分隊','第13 巡洋阻止 戦闘隊']]}, post:pt(172,0,48), ward:names('北'), start:'ignite', watch:{r:7}},
       /* 槍1: 待っている戦艦へ、西の下と東の上から。退く先はデナリの北 */
-      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], watch:{r:7}, start:35, backTo:[0,-70,0]},
+      {doctrine:'spear', name:'槍1', fleets:[...spear(0,0,0,0),...spear(1,0,0,0)].map(o=>o.name), goal:[...BB,'bb'], from:[[-1,-.3,-.5],[1,-.3,.6]], watch:{r:7}, start:60, backTo:[0,-70,0]},
       /* 槍2: 戦艦へ向かい、切り替え後は誘導の推進器を守る */
       {doctrine:'spear', name:'槍2', fleets:S2.map(o=>o.name), goal:['nuke'], from:[[.9,.3,-.6],[-.5,-.8,.8]], watch:{r:7}, start:'descend', backTo:[0,-70,0], turns:[guardThr('allOut','東','北')]},
       /* 霧と鎚: 着底した戦艦を襲い、切り替えまたは起爆後は誘導の推進器を守る */
       {doctrine:'mistHammer', name:'霧と鎚', fleets:HAM.map(o=>o.name), goal:['nuke'], watch:{r:7}, start:'land', turns:[guardThr('allOut','東','北'),guardThr('ignite','北','東')]},
     ],
     events:[
-      /* 13:35 に槍1が出る（packs の start:35） */
-      {after:35, log:['ハッダード曹長', '「線の両端の陰から、2方向！　本軍の戦艦へ向かっています」']},
+      /* 14:00 に槍1が出る（packs の start:60） */
+      {after:60, log:['ハッダード曹長', '「線の両端の陰から、2方向！　本軍の戦艦へ向かっています」']},
       /* 14:45 になっても第二段階でなければ（遅くとも 15:00） */
       {after:105, unless:'lure', log:['ウォン中将', '「15:00 に出る。待てない」']},
       /* 17:30 になっても起爆していなければ（期限は 18:30） */

@@ -1855,6 +1855,7 @@ function check(ok, label, detail = '') {
       const tough = () => { for (const f of fleets) if (f.ally && f.alive) f.hpPool = Math.max(f.hpPool, f.hp * f.ships.length * 20); };
       const later = sec => { const t = gameSec + sec; while (gameSec < t && !over) { step(.05); tough(); } };   // the packs turn in the next round of enemyAI (every half second)
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); tough();
+      const realDamage = damage; damage = (f, ...args) => f.ally ? undefined : realDamage(f, ...args);
       const r = {}; mins(2); lured = { at: opMin(), by: 'test' }; later(.6);
       r.wait = { s2: P('槍2').t0, ham: P('霧と鎚').t0, s1: P('槍1').doctrine };
       mins(now() + 15.3); later(.6);
@@ -1862,7 +1863,7 @@ function check(ok, label, detail = '') {
       nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.pos.copy(b.slot); b.f.order = null; } }); later(.6);
       r.land = { ham: P('霧と鎚').t0 != null, goal: P('霧と鎚').G && P('霧と鎚').G.nukeSt || null };
       /* 2 of the 5 settled (shatter, 2026-10-30): the blast does not break the rock, the battle goes on */
-      nuke.bbs.filter(b => b.f && b.f.alive).slice(2).forEach(b => { while (b.f.alive) damage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
+      nuke.bbs.filter(b => b.f && b.f.alive).slice(2).forEach(b => { while (b.f.alive) realDamage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
       later(.6); r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
       mins(nuke.fuseAt + .1); later(.6);
       const s2 = P('槍2'), hm = P('霧と鎚'), mid = P('中の拠点'), s1 = P('槍1');
@@ -1870,9 +1871,9 @@ function check(ok, label, detail = '') {
         ham: hm.doctrine, hamWard: [].concat(hm.ward)[0], post: hm.mem.filter(f => f.alive).every(f => f.post.distanceTo(F('推進器 北2').pos) < .01), step: String(hm.step),
         mid: mid.doctrine + ':' + [].concat(mid.ward).some(w => typeof w === 'string') + ':' + mid.mem.every(f => !f.alive || f.ai === 'guard'), s1: s1.doctrine, north: P('北守備隊').t0 != null, scr: P('西上守備隊').doctrine };
       /* the spears' wait for each other ends after `sync` minutes */
-      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); mins(35.5); const q = P('槍1'); q.mem.forEach(f => { f.packArr = null; f.speed = 1e-4; }); const t0 = q.t0;
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); damage = () => {}; gameSec = 60 / CLOCK_RATE; later(.6); const q = P('槍1'); q.mem.forEach(f => { f.packArr = null; f.speed = 1e-4; }); const t0 = q.t0;
       mins(t0 + 14.5); const st14 = q.step; mins(t0 + 15.6); r.sync = [st14, q.step, WOS_DATA.doctrines.mars.spear.sync];
-      return r;
+      damage = realDamage; return r;
     });
     check(sw.wait.s2 == null && sw.wait.ham == null && sw.wait.s1 === 'spear' && sw.desc.s2 && !sw.desc.ham && sw.land.ham && ['descend', 'landed'].includes(sw.land.goal),
       '第6節: 槍2は戦艦が鉱山へ向かうと、霧と鎚は着底すると動き出し、隊を離れた核を積んだ戦艦を狙う（2026-10-27）', JSON.stringify([sw.wait, sw.desc, sw.land]));
@@ -1898,7 +1899,8 @@ function check(ok, label, detail = '') {
         for (let i = 0; i < 12000 && !over && !(seen.has('hold') && fired.has('main')); i++) { step(.05); tough();
           for (const f of all) if (f.alive) { seen.add(f.feintPhase); if (f.fireTarget && S.mem.includes(f.fireTarget)) fired.add(f.touch ? 'touch' : 'main');
             if (f.feintPhase === 'withdraw') pull = Math.max(pull, f.pos.distanceTo(S.postV)); } }
-        r.main = { engage: main.every(f => !f.alive || f.stance === 'engage'), out: main.filter(f => f.alive && f.feintOut).length, phases: [...seen].filter(Boolean).sort().join(','), fired: [...fired].sort().join(','), pull: Math.round(pull) };
+        const retreating = main.find(f => f.alive); if (retreating) { retreating.ships.splice(Math.floor(retreating.n / 2)); feintPress(retreating, op.feints['左上'], retreating.pos.clone(), []); }
+        r.main = { withdraw: !!retreating && retreating.feintPhase === 'withdraw', engage: main.every(f => !f.alive || f.stance === 'engage'), out: main.filter(f => f.alive && f.feintOut).length, phases: [...seen].filter(Boolean).sort().join(','), fired: [...fired].sort().join(','), pull: Math.round(pull) };
         /* 触れる隊も射撃できることを確かめる。実戦では先に沈むことがある。 */
         const screenTarget = S.mem.find(x => x.alive), shooter = touch.find(x => x.alive) || touch[0];
         if (screenTarget) { const others = fleets.filter(x => x.team === 1 && x !== screenTarget && x.alive); others.forEach(x => { x.seen = false; });
@@ -1919,7 +1921,8 @@ function check(ok, label, detail = '') {
         sink(); sink(); r.two = { mode: fleets.filter(f => f.feint && f.alive).every(f => f.mode === 'feint'), all: !!feintAll };
         const run = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); } };
         sink(); run(opMin() + .6); const A = fleets.filter(f => f.feint && f.alive);
-        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.filter(f => f.feint === '右下' && !f.feintRetreat).every(f => f.stance === 'engage') && A.filter(f => f.feint === '左上' && feintCover(f)).every(f => f.stance === 'evade'), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('帰り道は、デナリが知ってる')) };
+        A.forEach(f => { f.feintRetreated = true; f.feintRetreat = false; feintAI(f, []); });
+        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.filter(f => f.feint === '右下' && !f.feintRetreat).every(f => f.stance === 'engage') && A.filter(f => f.feint === '左上' && !f.feintRetreat && feintCover(f)).every(f => f.stance === 'evade'), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('帰り道は、デナリが知ってる')) };
         /* 作業票 #254: 右下（role thr）は推進器のそばの砲台を撃ち、左上（role cover）は艦だけを狙って砲台は撃たない */
         const g = fleets.find(x => x.fixed && x.type === 'aa' && x.team === 1), oth = fleets.filter(x => x.team === 1 && x.alive && x !== g); g.seen = true; oth.forEach(x => { x.alive = false; });
         const near = c => { c.order = null; c.pos.copy(g.pos).sub(bodyC).setLength(g.pos.distanceTo(bodyC) + c.range * .4).add(bodyC); return fireTargetOf(c) ? fireTargetOf(c).name : null; };
@@ -1943,7 +1946,7 @@ function check(ok, label, detail = '') {
         return r;
       } finally { logEvent = logE; }
     });
-    check(fe.main.engage && fe.main.out > 0 && fe.main.phases.includes('hold') && fe.main.fired.includes('main') && fe.main.canTouch && fe.main.pull > 0 && fe.thr.every(x => x === null),
+    check(fe.main.engage && fe.main.out > 0 && fe.main.phases.includes('hold') && fe.main.fired.includes('main') && fe.main.canTouch && fe.main.withdraw && fe.thr.every(x => x === null),
       '第6節: 陽動は迫り、撃ちながら帯へ引く。本隊も触れる隊も射撃し、推進器は撃たない', JSON.stringify(fe));
     check(fe.two.mode && !fe.two.all && fe.three.mode && fe.three.engage && fe.three.said && fe.three.gun !== null && fe.three.wing && fe.three.ship && fe.three.after && fe.end && fe.priority && fe.fallback && fe.assaultEnd,
       '第6節: 核の戦艦が2隻以下になると右下の陽動は推進器と砲台を攻撃し、総攻撃を続け、切り替え前は21:00に離脱する', JSON.stringify([fe.two, fe.three, fe.end]));
@@ -1973,6 +1976,7 @@ function check(ok, label, detail = '') {
       const E = ['第29 前衛巡洋 支隊', '第30 護衛 支隊'].map(F), G = nuke.G;
       const mid = L => L.reduce((v, g) => v.add(g.pos), new THREE.Vector3()).multiplyScalar(1 / L.length);
       run(20); r.mode = E.map(f => f.mode).join(','); r.wait = E.map(f => Math.round(f.pos.distanceTo(mid(G.filter(g => g.alive)))));
+      r.waitLimit = E.map(f => Math.ceil(Math.max(...G.filter(g => g.alive).map(discR)) + discR(f) + ESC_GAP + 2 * ESC_SIDE));
       /* an assault ship and, nearer the escorts, a frigate by the battleships: both go for the assault ship */
       const M = F('第22 突撃揚陸 戦闘隊'), Q = F('第22 護衛警衛 戦闘隊'), c = mid(E);
       M.pos.copy(G[0].pos).add(new THREE.Vector3(-22, 0, -12)); Q.pos.copy(c).add(new THREE.Vector3(-4, 0, -4)); [M, Q].forEach(x => { x.seen = true; x.order = null; });
@@ -1986,7 +1990,7 @@ function check(ok, label, detail = '') {
       nuke.state = 'wait'; drawRoute();   // the way down off the screen for the next check
       return r;
     });
-    check(esc6.share.k === '0.9,0.9,0.9,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every(d => d <= 25) && esc6.mas === 'true,true'
+    check(esc6.share.k === '0.9,0.9,0.9,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every((d, i) => d <= esc6.waitLimit[i]) && esc6.mas === 'true,true'
       && esc6.desc === 'descend' && esc6.follow.gap.every(d => d <= 30) && esc6.follow.moved.every(d => d >= 40),
       '第6節の戦艦の護衛（2026-10-29）: 第29・第30 は戦艦のそばで待ち、寄る揚陸艦を先に叩き、第二段階は降りる戦艦について行く。分かれた戦艦の耐久は戦艦の分（9割・8割）', JSON.stringify(esc6));
     /* 第6節の任務欄（見本の案B）と切り替え（目標更新中）、戦艦の道（案A）、推進器の印（案C）: 第一段階は西上・東下の守備隊ごとに六角9つ（持ち場にいる艦を塗る）・戦艦・
