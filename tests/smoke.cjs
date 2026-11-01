@@ -1974,11 +1974,15 @@ function check(ok, label, detail = '') {
       r.share = { k: b1.map(f => +(f.hpPool / bb).toFixed(2)).join(','), crew: nuke.G.map(G => G.alive ? +(G.hpPool / G.ships.length / G.hp).toFixed(2) : null).join(',') };
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
       const E = ['第29 前衛巡洋 支隊', '第30 護衛 支隊'].map(F), G = nuke.G;
+      const M = F('第22 突撃揚陸 戦闘隊'), Q = F('第22 護衛警衛 戦闘隊');
+      /* Isolate the escort: other ships and their W.A.S. must not interrupt the wait or priority checks. */
+      fleets.filter(f => f.team === 1 && !f.fixed && f !== M && f !== Q).forEach(f => { f.alive = false; });
+      [M, Q].forEach(f => { f.pos.set(10000, 0, 10000); f.speed = 0; });
       const mid = L => L.reduce((v, g) => v.add(g.pos), new THREE.Vector3()).multiplyScalar(1 / L.length);
       run(20); r.mode = E.map(f => f.mode).join(','); r.wait = E.map(f => Math.round(f.pos.distanceTo(mid(G.filter(g => g.alive)))));
       r.waitLimit = E.map(f => Math.ceil(Math.max(...G.filter(g => g.alive).map(discR)) + discR(f) + ESC_GAP + 2 * ESC_SIDE));
       /* an assault ship and, nearer the escorts, a frigate by the battleships: both go for the assault ship */
-      const M = F('第22 突撃揚陸 戦闘隊'), Q = F('第22 護衛警衛 戦闘隊'), c = mid(E);
+      const c = mid(E);
       M.pos.copy(G[0].pos).add(new THREE.Vector3(-22, 0, -12)); Q.pos.copy(c).add(new THREE.Vector3(-4, 0, -4)); [M, Q].forEach(x => { x.seen = true; x.order = null; });
       allyAI(); r.mas = E.map(f => !!(f.order && f.order.type === 'attack' && f.order.target === M)).join(',');
       /* Follow is measured without threats: the preceding check separately verifies that the escorts engage a lander. */
