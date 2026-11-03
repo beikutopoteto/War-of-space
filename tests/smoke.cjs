@@ -1885,6 +1885,35 @@ function check(ok, label, detail = '') {
       && sw.ignite.mid === 'rockShield:false:true' && sw.ignite.s1 === 'spear' && sw.ignite.north && sw.ignite.scr === 'screen',
       '第6節: 2隻の起爆後も戦闘は続き、槍2と霧と鎚は推進器を守る。槍1と拠点はそのまま、北守備隊は動き出す', JSON.stringify(sw.ignite));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
+    const transitRoute = await page.evaluate(() => {
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      const f = fleets.find(x => x.ally && x.feint === '左上'), V = (x,y,z) => new THREE.Vector3(x,y,z);
+      const resume = (pos, points) => {
+        f.pos.copy(pos); f.feintTransit = { hits:new Map(), target:null }; f.feintRoute = points.map(p => p.clone());
+        f.order = { type:'attack', target:{alive:false} }; feintTransitAI(f, []);
+        return f.order;
+      };
+      const points = [V(0,0,0), V(10,0,0), V(20,0,0)];
+      const ahead = resume(V(12,5,0), points), retained = resume(V(-5,30,0), points);
+      const dest = resume(V(30,0,0), points);
+      return { ahead: ahead.via.length === 0 && ahead.dest.equals(points[2]) && ahead.dest.clone().sub(V(12,5,0)).dot(V(1,0,0)) >= 0,
+        retained: retained.via.length === 2 && retained.via[0].equals(points[0]),
+        dest: dest.dest.equals(points[2]) && dest.via.length === 0 };
+    });
+    check(transitRoute.ahead && transitRoute.retained && transitRoute.dest, '第6節: 陽動は敵を倒したあと越えた経由点へ戻らず、未通過の経由点と終点を保つ', JSON.stringify(transitRoute));
+    const transitSync = await page.evaluate(() => {
+      WOS.start({ op:'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      const side=fleets.filter(f=>f.ally&&f.feint==='左上'), [front,back]=side;
+      for(const f of side.slice(2)) f.alive=false;
+      for(const f of [front,back]) { f.feintTransit={hits:new Map(),target:null}; f.feintOut=false; f.mode='feint'; f.order={type:'move',dest:new THREE.Vector3(100,0,0)}; }
+      front.pos.set(60,0,0); back.pos.set(0,0,0); feintTransitAI(front,[]); feintTransitAI(back,[]);
+      const slowed=front.syncSpeed===front.speed*.2 && back.syncSpeed===null;
+      back.pos.set(40,0,0); feintTransitAI(front,[]); const released=front.syncSpeed===null;
+      const enemy={alive:true,seen:true,type:'frigate',pos:front.pos.clone(),team:1};
+      front.feintTransit.hits.set(enemy,gameSec); front.syncSpeed=front.speed*.2; feintTransitAI(front,[enemy]);
+      return {slowed,released,combat:front.syncSpeed===null&&front.order.type==='attack'};
+    });
+    check(transitSync.slowed && transitSync.released && transitSync.combat, '第6節: 陽動は道中で後続を待ち、追い付けば進み、戦闘では減速を解除する', JSON.stringify(transitSync));
     /* 友軍の陽動（ai:'feint'、press。2026-10-30 作業票 #248）: 側ごとにそろって迫り、本隊も触れる隊も方角守備隊を撃ち、砲台の傘の境目の外へ引く。
        推進器は撃たない。核の戦艦を3隻失うと（起爆の前）艦だけを撃つ本気の攻撃に移り（台詞）、60分で下がる。2隻なら移らない。21:00 に下がる */
     const fe = await page.evaluate(() => {

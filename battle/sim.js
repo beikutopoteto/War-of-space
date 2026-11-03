@@ -1160,6 +1160,7 @@ function feintTransitState(f){
 }
 function feintTransitAI(f,foes){
   const s=feintTransitState(f), mates=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&x.mode==='feint'&&!x.feintOut);
+  f.syncSpeed=null;
   const near=e=>mates.some(x=>gap(x,e)<=x.range+10);
   for(const [e,at] of s.hits) if(!e.alive||!e.seen||(!near(e)&&gameSec-at>10)) s.hits.delete(e);
   const threats=[...new Set([...s.hits.keys(),...foes,...wings.filter(w=>w.alive&&w.team!==f.team)])].filter(e=>e.alive&&e.seen&&e.type!=='thr'&&(s.hits.has(e)||near(e)));
@@ -1176,7 +1177,15 @@ function feintTransitAI(f,foes){
   }
   if(f.feintRoute){ const path=f.feintRoute; f.feintRoute=null; f.strike=null; f.fireTarget=null; f.retarget=0;
     for(const w of wings) if(w.carrier===f) w.target=w.fireTarget=null;
+    /* Do not return to waypoints passed while pursuing; makePath still adds body detours. */
+    while(path.length>1&&f.pos.clone().sub(path[0]).dot(path[1].clone().sub(path[0]))>0) path.shift();
     if(path.length) f.order={type:'move',dest:path[path.length-1],via:path.slice(0,-1)}; else f.order=null;
+  }
+  /* Compare the remaining route, not straight-line distance across the body. */
+  if(f.order?.type==='move'){
+    const left=x=>{ const p=pathLeft(x.order); let at=x.pos, d=0; for(const q of p){ d+=at.distanceTo(q); at=q; } return d; };
+    const moving=mates.filter(x=>x.order?.type==='move'), back=Math.max(...moving.map(left));
+    if(back-left(f)>30) f.syncSpeed=f.speed*.2;
   }
   return false;
 }
@@ -1186,10 +1195,10 @@ function feintLane(F,now){ const n=F.lane.length, per=Math.max(1,2*(n-1)), at=Ma
 const feintCover=f=>f.feint&&f.mode==='assault'&&op.win.type==='shatter'&&op.feints[f.feint].assault?.role==='cover'&&fleets.some(x=>x.alive&&x.ally&&x.feint===op.feints[f.feint].assault.support&&x.mode==='assault'&&!x.feintRetreat);
 function feintAssault(now){ const sides={};
   if(op.win.type==='shatter') packCue.allOut=true;
-  for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
+  for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.syncSpeed=null; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
   if(op.win.type==='shatter') for(const w of wings) if(w.alive&&w.carrier.feint&&op.feints[w.carrier.feint].assault?.role==='cover'){ w.state='return'; w.target=w.fireTarget=null; }
   feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
-function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.order=null; f.strike=null; }
+function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.syncSpeed=null; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
   if(f.mode==='feintCharge'&&nuke.state==='fired'){ f.mode='feint'; f.order=null; }
   if(f.mode!=='gone'&&f.mode!=='assault'&&F.end!=null&&now>=F.end) feintLeave(f);
@@ -1242,7 +1251,7 @@ function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return f
   /* out to the lane first, round the front */
   if(!f.feintOut){ if(!f.feintGo){ f.feintGo=true; f.order={type:'move',dest:L.clone(),via:(F.via||[]).map(packVec)}; }
     if(feintTransitAI(f,foes)) return true;
-    if(f.order&&f.order.type==='move') return true; f.feintOut=true; }
+    if(f.order&&f.order.type==='move') return true; f.syncSpeed=null; f.feintOut=true; }
   if(F.press) return feintPress(f,F,L,foes);
   const mates=fleets.filter(x=>x.ally&&x.alive&&x.feint===f.feint&&!x.touch&&x.mode==='feint'), back=()=>{ if(f.order&&f.order.type==='attack') f.order=null; moveTo(f,L.x,L.y,L.z); };
   if(!f.touch){ if(f.order&&f.order.type==='attack') f.order=null; const k=mates.indexOf(f), a=k*Math.PI*2/Math.max(1,mates.length), r=k?(F.ring||12):0;
@@ -2127,7 +2136,7 @@ function stepNukes(dt){ const N=op.nukes, S=nuke, W=op.win; if(!N||!S||over) ret
       const live=S.bbs.map(b=>b.f).filter(f=>f&&f.alive);
       if(live.length&&live.some(f=>f.nukeSt==='landed'||f.order?.path&&f.order.path.s>f.order.path.L/2)){
         S.feintCharge=now;
-        for(const f of fleets) if(f.alive&&f.ally&&f.feint&&f.mode==='feint'){ f.mode='feintCharge'; f.order=null; }
+        for(const f of fleets) if(f.alive&&f.ally&&f.feint&&f.mode==='feint'){ f.mode='feintCharge'; f.syncSpeed=null; f.order=null; }
       }
     }
     for(const b of S.bbs){ const f=b.f; if(!f||!f.alive||f.nukeSt!=='descend') continue;
