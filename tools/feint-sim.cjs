@@ -115,7 +115,7 @@ async function trial(run, deadline) {
         insert('if(RL&&rolePlace(f,RL,threat,foes)) continue;', "if(RL&&adopted(f,'rolePlace',rolePlace(f,RL,threat,foes))) continue;");
         insert("if(threat){ if(!(f.order&&f.order.target===threat))", "if(threat){ observeEnemy(f,'後段:threat'); if(!(f.order&&f.order.target===threat))");
         insert("else if(!f.order||f.order.type!=='move'){ if(f.pos.distanceTo(f.post)>2)", "else if(!f.order||f.order.type!=='move'){ observeEnemy(f,'後段:postへ戻る/保持'); if(f.pos.distanceTo(f.post)>2)");
-        insert('if(waiting){ packWatch(f,waiting,f.home);', "if(waiting){ observeEnemy(f,'見回り:start待ち'); packWatch(f,waiting,f.home);");
+        insert('if(waiting){ const t=op.id', "if(waiting){ observeEnemy(f,'見回り:start待ち'); const t=op.id");
         enemyAI = eval('(' + source + ')');
         const chaseEnds=[], radial=new Map(), frontHits={}; let chargeSeen=false;
         const originalDamage = damage;
@@ -169,7 +169,7 @@ async function trial(run, deadline) {
           guns:fleets.filter(g=>g.team===1&&g.fixed&&g.type==='aa'&&g.alive).map(g=>({pos:xyz(g.pos),range:g.range})),
           units:[...metrics].map(([f,m]) => {
             const P=definedPack(f), W=f.feint?wardPoints(packs.find(p=>p.name===op.feints[f.feint].screen)):[];
-            return {...identity(f),alive:f.alive,left:!!f.left,ships:f.alive?f.ships.length:0,pos:xyz(f.pos),
+            return {...identity(f),feint:f.feint || null,alive:f.alive,left:!!f.left,ships:f.alive?f.ships.length:0,pos:xyz(f.pos),
               ai:f.ai || null,pack:P?.name || null,slot:f.packSlot || null,mode:f.mode || null,
               reason:reason(f),order:f.order?.type || null,dest:xyz(f.order?.dest),target:f.order?.target?.name || null,
               fireTarget:f.fireTarget?.name || null,fireGap:f.fireTarget?round(gap(f,f.fireTarget)):null,range:round(f.range),
