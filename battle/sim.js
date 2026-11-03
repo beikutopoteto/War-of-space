@@ -1176,6 +1176,8 @@ function feintTransitAI(f,foes){
   }
   if(f.feintRoute){ const path=f.feintRoute; f.feintRoute=null; f.strike=null; f.fireTarget=null; f.retarget=0;
     for(const w of wings) if(w.carrier===f) w.target=w.fireTarget=null;
+    /* Do not return to waypoints passed while pursuing; makePath still adds body detours. */
+    while(path.length>1&&f.pos.clone().sub(path[0]).dot(path[1].clone().sub(path[0]))>0) path.shift();
     if(path.length) f.order={type:'move',dest:path[path.length-1],via:path.slice(0,-1)}; else f.order=null;
   }
   return false;
