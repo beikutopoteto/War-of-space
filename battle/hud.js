@@ -429,9 +429,10 @@ let nbPress=0;
 goalEl.addEventListener('pointerdown',e=>{ const nb=e.target.closest&&e.target.closest('svg.nb.go'); if(!nb) return; nbPress=performance.now();
   const f=nukeMarkFleet(+nb.dataset.nb); if(f){ const d=camera.position.clone().sub(controls.target); flyTo(f.pos,d,Math.min(d.length(),120)); } });
 goalEl.addEventListener('click',()=>{ if(performance.now()-nbPress<800) return; goalEl.classList.toggle('fold'); });
-/* 目標更新中 (第6節, user decision 2026-10-28): for a moment (GOAL_FLASH ms, 仮) as the second stage begins, the panel says only that */
-const GOAL_FLASH=1500; let goalFlashT=0;
-function goalFlash(){ goalFlashT=performance.now()+GOAL_FLASH; updateGoal(); }
+/* 目標更新中 (第6節, user decision 2026-10-28): for a moment (GOAL_FLASH ms, 仮) as the second stage begins, the panel says only that.
+   Also when the goal turns to the thrusters (user decision 2026-11-04). Held while a talk is on, so it is not over before the battle goes on */
+const GOAL_FLASH=1500; let goalFlashT=0, goalFlashWait=false;
+function goalFlash(){ goalFlashWait=true; updateGoal(); }
 /* the battleships' way down to the mine (第6節, 見本の案A, user decision 2026-10-28): a thin amber dotted line with › along it and ◎ at the mine,
    from the crossing over until the blast (sim.js nukeBoard: nuke.route). Drawn over the battle every frame (loop.js) */
 const routeEl=document.createElementNS('http://www.w3.org/2000/svg','svg'); routeEl.id='nkRoute'; routeEl.setAttribute('aria-hidden','true'); labelsEl.prepend(routeEl);
@@ -491,6 +492,7 @@ function updateGoal(){
   else if(op.fortress){ p=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0; text=`${op.fortress.name}の装甲を0にせよ`; label=`装甲 ${Math.ceil(p*100)}%`; mode='fort'; }
   if(over) text=outcome?(perfect?'完全勝利':'任務達成'):'任務失敗';
   goalEl.hidden=!text; goalText.textContent=text; goalBar.style.width=(p*100).toFixed(1)+'%'; goalLabel.textContent=label; goalSub.textContent=subT; goalEl.dataset.mode=mode;
+  if(goalFlashWait&&!talking){ goalFlashWait=false; goalFlashT=performance.now()+GOAL_FLASH; }
   const flash=!over&&performance.now()<goalFlashT; goalEl.classList.toggle('upd',flash);
   const gh=flash?'<div class="upd">目標更新中</div>':gates.length?gatesHtml():mode==='deflect'?nukeHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
   goalEl.classList.toggle('gonly',!!(gh&&op.goalGatesOnly));   // 第5節: the panel shows the gates and the garrison only (op.goalGatesOnly)
