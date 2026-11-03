@@ -1751,6 +1751,8 @@ function check(ok, label, detail = '') {
     const dg = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.range, f.dmg])));
     check(dg[0].length === 6 && dg[0].every(([r,d]) => r === 22 && d === 1) && dg[1].length === 10 && dg[1].every(([r,d]) => r === 90 && d === 2), '第4節の砲台は射程22・打撃1、第6節は10基とも射程90・打撃2', JSON.stringify(dg));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
+    const gunShapes = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.hp, f.shape || f.type])));
+    check(gunShapes[0].length === 6 && gunShapes[0].every(([hp,shape]) => hp === 20 && shape === 'aa') && gunShapes[1].length === 10 && gunShapes[1].every(([hp,shape]) => hp === 40 && shape === 'rgun'), '第4節の砲台は耐久20・形aa、第6節は10基とも耐久40・形rgun', JSON.stringify(gunShapes));
     /* 方角守備隊の傘: 傘外へは追わず射程内の敵を撃ち、近くの砲台が全滅すると持ち場100に戻す。 */
     const scr6 = await page.evaluate(() => {
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();

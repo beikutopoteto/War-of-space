@@ -85,7 +85,7 @@ const SHAPES={
       at(loft([[-.35,.1,.06],[-.1,.11,.11,.04],[.15,0,0,.02]]),0,.17,-.25), ...pod, ...engines([.14,-.14],0,-.9,.075), ...legs]; },
   /* 輸送船: a long cargo spine with containers and a tank, the civilian ship of escort operations */
   tr:()=>[at(box(.5,.5,1.9),0,0,0), at(box(.7,.42,.5),0,.05,.45), at(box(.7,.42,.5),0,.05,-.15), at(tube(.3,.7,10),0,0,-.85), at(box(.36,.3,.32),0,.36,.8)],
-  /* 対空砲台 (第4節・第6節): a fixed battery on the surface of a body, built by the Earth to keep raiders off Denali and taken by the
+  /* 対空砲台 (第4節): a fixed battery on the surface of a body, built by the Earth to keep raiders off Denali and taken by the
      Republic (user decision 2026-10-23, 見本 B: a small single gun like a destroyer's, not the twin battleship guns of 第5節). An octagonal
      pad and a turntable; a faceted stealth house, pointed at the front, its sides sloping in to the roof, with a low step on the roof; one
      slim barrel out of a slot in its front, held a little raised. The rock is at y -.34 (the gun stands .34 × scale over it, state.js) */
@@ -94,6 +94,17 @@ const SHAPES={
       at(loft([[-.44,.26,.13],[-.12,.31,.15],[.16,.27,.13,-.01],[.5,.05,.04,-.08]],TRAP),0,G+.33,0), at(loft([[-.4,.14,.05],[-.2,.15,.05],[-.08,.1,.03]],TRAP),0,G+.52,0),
       at(box(.06,.2,.1),0,G+.32,.36),
       ...[at(tube(.036,1.15,10),0,0,.58), at(taper(.044,.036,.08,10),0,0,1.18), at(box(.06,.08,.3),0,0,.1)].map(g=>at(g,0,G+.32,.22,-EL))]; },
+  /* 共和国の砲台 (第6節、見本 C6): vertical twin barrels held by curved arms, a sight and shield on an octagonal pad. */
+  rgun:()=>{ const G=-.34;
+    const OCT=[...Array(8)].map((_,i)=>[Math.cos((i+.5)*Math.PI/4),Math.sin((i+.5)*Math.PI/4)]), up=g=>{ g.rotateX(-Math.PI/2); return g; };
+    const arm=x=>at(up(loft([[0,.11,.26],[.3,.09,.22,-.04],[.5,.075,.17,-.08],[.6,.06,.12,-.1]],OCT)),x,G+.1,0);
+    const barrel=y=>[at(taper(.06,.046,1.5,12),0,G+y,1.05), at(taper(.068,.068,.12,12),0,G+y,1.1), at(taper(.05,.064,.28,12),0,G+y,1.91), at(taper(.064,.04,.08,12),0,G+y,2.09)];
+    const p=[at(new THREE.CylinderGeometry(.86,.9,.1,8),0,G-.22,0), at(new THREE.CylinderGeometry(.78,.86,.2,24),0,G-.07,0), at(new THREE.CylinderGeometry(.62,.66,.07,24),0,G+.07,0)];
+    for(let i=0;i<8;i++){ const a=i*Math.PI/4+Math.PI/8; p.push(at(box(.36,.12,.1),Math.sin(a)*.8,G+.02,Math.cos(a)*.8,0,a,0)); }
+    p.push(at(new THREE.CylinderGeometry(.46,.52,.1,24),0,G+.17,0), arm(.4), arm(-.4), at(tube(.1,.96,16),0,G+.56,0,0,Math.PI/2),
+      at(loft([[-.78,.1,.09,-.02],[-.6,.17,.16,-.01],[-.36,.27,.25],[-.1,.3,.27],[.12,.3,.26,.01],[.44,.18,.18,-.04]],TRAP),0,G+.52,0),
+      at(loft([[-.4,.08,.03,-.04],[-.26,.15,.07],[-.08,.1,.04]],TRAP),0,G+.82,0), at(box(.18,.48,.08),0,G+.5,.46), ...barrel(.62), ...barrel(.36));
+    return p; },
   /* 推進器 (第6節): the Republic's big thruster on Denali, the type that moved the rock of Februaria, firing rock from the mine with fusion
      (user decision 2026-10-23: 見本 B at 1.5 times the sample's size, its foot as 見本 B2; drawn at scale 1). A tapering hexagonal reactor
      sunk in a low hexagonal berm on the rock, the feed duct from the mine running out of the berm, and a magnetic nozzle with no bell: four
