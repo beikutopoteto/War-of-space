@@ -35,12 +35,12 @@ description: War of Space の変更を出す手順。テスト、コミット、
 - `files`:
 
 ```json
-{"battle/base.js":"battle/base.js","battle/battle.css":"battle/battle.css","battle/cut.js":"battle/cut.js","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/earth.js":"data/earth.js","data/operations.js":"data/operations.js","data/tech.js":"data/tech.js","data/ships.js":"data/ships.js","prep.js":"prep.js","prep.css":"prep.css"}
+{"battle/base.js":"battle/base.js","battle/battle.css":"battle/battle.css","battle/cut.js":"battle/cut.js","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/earth.js":"data/earth.js","data/operations.js":"data/operations.js","data/tech.js":"data/tech.js","data/ships.js":"data/ships.js","prep.js":"prep.js","prep.css":"prep.css","prep-bg.js":"prep-bg.js"}
 ```
 
-`battle/` や `data/` にファイルを足したら、この表にも足す。
+`battle/` や `data/` や最上位にファイルを足したら（2026-11-04 の `prep-bg.js` など）、この表と下の `git archive` にも足す。
 
-ユーザーの Mac（2026-10-31）: 載せるファイルは作業ディレクトリかスクラッチパッドの中に限られる。`git archive origin/main index.html battle data prep.js prep.css | tar -x -C <スクラッチパッド>/play` で写し、`file_path` を `<スクラッチパッド>/play/index.html`、`root` を `<スクラッチパッド>/play` にする。前の会話のページなので、先に `action:"read"` で読む。
+ユーザーの Mac（2026-10-31）: 載せるファイルは作業ディレクトリかスクラッチパッドの中に限られる。`git archive origin/main index.html battle data prep.js prep.css prep-bg.js | tar -x -C <スクラッチパッド>/play` で写し、`file_path` を `<スクラッチパッド>/play/index.html`、`root` を `<スクラッチパッド>/play` にする。前の会話のページなので、先に `action:"read"` で読む。
 
 コミット・push・マージがオートモードの安全チェックで止まったら、回り道をせずユーザーに承認を聞く（`開発環境/.claude/settings.local.json` の許可は、セッションを開き直すと効く）。
 
