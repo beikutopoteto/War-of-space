@@ -2113,8 +2113,8 @@ function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.ali
   packCue.ignite=true;
   for(const G of S.G) if(G.alive&&G.crew){ G.mode=op.win.type==='shatter'?'strike':'nukeBack'; G.order=null; }
   nukeSay(N.logs&&N.logs.fire,{n:L.length,km:S.km.toFixed(1)},true);
-  /* shatter: too few settled to break it, the goal turns to the thrusters (目標更新中) */
-  if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } else if(typeof goalFlash==='function') goalFlash(); } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
+  /* shatter: too few settled to break it, the goal turns to the thrusters (目標更新中; not again if it turned when 3 were lost, feintAssault) */
+  if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } else if(!feintAll&&typeof goalFlash==='function') goalFlash(); } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
 /* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
 function nukeEst(now=opMin()){ const N=op.nukes; return nuke.km-N.pull*restoreLeft()*Math.max(0,N.stop-Math.max(now,nuke.lastMin))/60; }
 /* the shift the battleships settled now would give, going off `fuse` minutes after the last settles (or when they are set to) */
