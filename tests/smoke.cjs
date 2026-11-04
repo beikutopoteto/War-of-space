@@ -143,31 +143,21 @@ function check(ok, label, detail = '') {
     /* ships per branch (all battle groups) against the sortie limit: the starting fleet has escorts 23, cruisers 6 */
     const orgCap = await page.evaluate(() => ({ text: document.getElementById('orgCap').textContent, cl: document.getElementById('orgCap').textContent.match(/巡洋艦 6\/(\d+)隻/) }));
     check(/護衛艦艇 23\/\d+隻/.test(orgCap.text) && !!orgCap.cl, '編成: 兵科ごとの隻数と出撃上限が出る', orgCap.text);
-    for (const [tab, sel] of [['bg', '[data-bg]'], ['army', '[data-army]'], ['group', '[data-grp]']]) {
+    for (const [tab, sel] of [['army', '[data-army]'], ['group', '[data-grp]']]) {
       await page.click(`[data-tab="${tab}"]`);
       check(await page.locator('#orgList ' + sel).count() > 0, `編成: ${tab} タブ`);
     }
-    /* a new battle group (駆逐艦 at first) is named 第N 駆逐突撃 支隊, N from 24 on to the next free number (the starting fleet has 24);
-       while its name is untouched it follows a change of class (前衛巡洋: from 9, the starting fleet has 9) */
-    await page.click('[data-tab="bg"]');
-    await page.click('#orgList [data-new]');
-    const newName = await page.inputValue('#bgName');
-    await page.click('#orgDetail [data-type="cl"]');
-    const clName = await page.inputValue('#bgName');
-    await page.fill('#bgName', '試験戦隊'); await page.click('#orgDetail [data-type="dd"]');
-    const kept = await page.inputValue('#bgName');
-    check(newName === '第25 駆逐突撃 支隊' && clName === '第10 前衛巡洋 支隊' && kept === '試験戦隊', '編成: 新しい支隊は「第N 役割 支隊」、名前を触るまでは艦種に合わせて付け直す', [newName, clName, kept].join(' / '));
-    /* an army of one battle group goes by its name; with two or more it is named 第N 役割 打撃群 after its main class
-       (the starting 第9 前衛巡洋 支隊 with 試験戦隊 added: 巡洋艦 6 to 駆逐艦 4, 第2 巡洋 打撃群), and goes back when one is taken out */
     await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a1"]');
-    await page.selectOption('#addBg', { label: '試験戦隊（駆逐艦×4）' });
+    await page.click('[data-count="bg1"][data-n="5"]');
+    check((await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).bgs.find(b=>b.id==='bg1').count)) === 5, '編成: マスで隻数を変える');
+    await page.click('[data-count="bg1"][data-n="6"]');
+    await page.selectOption('#addBg', 'new:dd');
     const armyTwo = await page.inputValue('#armyName');
     await page.click('#orgDetail [data-rm]:not([data-rm="bg1"])');
     const armyOne = await page.inputValue('#armyName');
-    /* a new army is 第N 打撃群 while empty; deleted again */
     await page.click('#orgList [data-new]');
     const armyNew = await page.inputValue('#armyName');
-    check(armyTwo === '第2 巡洋 打撃群' && armyOne === '第9 前衛巡洋 支隊' && armyNew === '第1 打撃群', '編成: 支隊1つの打撃群は支隊の名前、2つ以上なら主力の艦種で「第N 役割 打撃群」', [armyTwo, armyOne, armyNew].join(' / '));
+    check(armyTwo === '第2 巡洋 打撃群' && armyOne === '第9 前衛巡洋 支隊' && armyNew === '第1 打撃群', '編成: 空き行から支隊を追加し名前を更新', [armyTwo, armyOne, armyNew].join(' / '));
     /* the role comes from the highest class in the unit, whatever the numbers (user decision 2026-10-04) */
     const rank = await page.evaluate(() => [mainType({ dd: 4, cl: 1 }), mainType({ cv: 10, mas: 1 }), mainType({ dd: 6, mas: 2, ff: 3 }), mainType({ bb: 6, cvb: 1 }), mainType({ cvb: 3, masc: 1 }), mainType({ cl: 3, bb: 0 })]);
     check(rank.join() === 'cl,mas,mas,cvb,masc,cl', '名前: 役割は隻数でなく一番上位の艦種（コルベット < フリゲート < 駆逐艦 < 突撃揚陸艦 < 巡洋艦 < 戦艦 < 戦闘母艦 < 強襲母艦）', rank.join());
@@ -180,7 +170,7 @@ function check(ok, label, detail = '') {
     await page.click('#orgDetail [data-flag="0"]');
     await shot('03-org-group');
     /* a second army group holding an army of the first: the two cannot sortie together */
-    await page.click('#orgList [data-new]'); await page.selectOption('#addArmy', 'a1');
+    await page.click('#orgList [data-new]'); await page.click('[data-cx="2"][data-cz="2"]'); await page.click('[data-addarmy="a1"]');
     const grpName = await page.inputValue('#grpName');
     check(grpName === '第1 軌道制圧 戦区軍', '編成: 新しい戦区軍は主力の艦種で「第N 役割 戦区軍」になる', grpName);
     await page.click('[data-s="org"] .back');
@@ -579,8 +569,9 @@ function check(ok, label, detail = '') {
     await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
     await page.check('#dbgB [data-dbg="free"]');
     /* the starting fleet fits the limits, so push a battle group of escorts over its branch's limit */
-    const setBgCount = async v => { await page.click('[data-go="org"]'); await page.click('[data-tab="bg"]'); await page.click('#orgList [data-bg="bg2"]');
-      const n = await page.evaluate(v => { const r = document.getElementById('bgCount'), n = +r.value; r.value = v === 'max' ? r.max : v; r.dispatchEvent(new Event('input')); return n; }, v);
+    const setBgCount = async v => { await page.click('[data-go="org"]'); await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a2"]');
+      const n = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).bgs.find(b=>b.id==='bg2').count);
+      const cells = page.locator('[data-count="bg2"]'); await cells.nth(v === 'max' ? (await cells.count()) - 1 : v - 1).click();
       await page.click('[data-s="org"] .back'); return n; };
     const bgN = await setBgCount('max');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
@@ -726,8 +717,8 @@ function check(ok, label, detail = '') {
       '後退: 初めてのクリアで司令部からの緊急援助（資金 +1000）', rw2 + JSON.stringify(open2.prog));
     await shot('11-unlocked');
     /* the battle group screen offers only the classes whose branch is open (no locked ones with a lock mark) */
-    await page.click('[data-go="org"]'); await page.click('[data-tab="bg"]'); await page.click('#orgList [data-bg="bg1"]');
-    const types = await page.evaluate(() => ({ ids: [...document.querySelectorAll('#orgDetail [data-type]')].map(b => b.dataset.type).join(','), locks: document.querySelectorAll('#orgDetail .types .lock').length }));
+    await page.click('[data-go="org"]'); await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a1"]');
+    const types = await page.evaluate(() => ({ ids: [...document.querySelectorAll('#orgDetail [data-type="bg1"] option')].map(b => b.value).join(','), locks: document.querySelectorAll('#orgDetail .types .lock').length }));
     check(types.ids === 'cv,ff,dd,cl' && types.locks === 0, '編成: 支隊の艦種は開いている兵科だけ出す（鍵のマークは出さない）', JSON.stringify(types));
     await page.click('[data-s="org"] .back');
 
