@@ -1197,7 +1197,7 @@ function feintAssault(now){ const sides={};
   if(op.win.type==='shatter') packCue.allOut=true;
   for(const f of fleets) if(f.ally&&f.alive&&f.feint&&f.mode!=='gone'){ f.mode='assault'; f.stance='engage'; f.syncSpeed=null; f.order=null; sides[f.feint]=(sides[f.feint]||0)+f.ships.length; }
   if(op.win.type==='shatter') for(const w of wings) if(w.alive&&w.carrier.feint&&op.feints[w.carrier.feint].assault?.role==='cover'){ w.state='return'; w.target=w.fireTarget=null; }
-  feintAll={at:now, n0:sides}; if(op.win.type==='shatter') nuke.text='誘導の推進器（東と北）を壊せ'; nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
+  feintAll={at:now, n0:sides}; if(op.win.type==='shatter'){ nuke.text='誘導の推進器（東と北）を壊せ'; if(typeof goalFlash==='function') goalFlash(); } nukeSay(op.nukes.logs&&op.nukes.logs.allOut); }
 function feintLeave(f){ f.mode='gone'; f.stance='evade'; f.syncSpeed=null; f.order=null; f.strike=null; }
 function feintAI(f,foes){ const F=op.feints&&op.feints[f.feint]; if(!F) return false; const now=opMin();
   if(f.mode==='feintCharge'&&nuke.state==='fired'){ f.mode='feint'; f.order=null; }
@@ -2113,7 +2113,8 @@ function nukeFire(now){ const S=nuke, N=op.nukes, L=S.bbs.filter(b=>b.f&&b.f.ali
   packCue.ignite=true;
   for(const G of S.G) if(G.alive&&G.crew){ G.mode=op.win.type==='shatter'?'strike':'nukeBack'; G.order=null; }
   nukeSay(N.logs&&N.logs.fire,{n:L.length,km:S.km.toFixed(1)},true);
-  if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
+  /* shatter: too few settled to break it, the goal turns to the thrusters (目標更新中; not again if it turned when 3 were lost, feintAssault) */
+  if(op.win.type==='shatter'){ if(L.length>=op.win.breakN){ nukeSay(N.logs&&N.logs.shatter); end(true); } else if(!feintAll&&typeof goalFlash==='function') goalFlash(); } else if(restoreLeft()) nukeSay(N.logs&&N.logs.pull,{n:restoreLeft()}); }
 /* the aim at 23:00 if the restoring thrusters left now keep on until `stop` (with none left, the aim now) */
 function nukeEst(now=opMin()){ const N=op.nukes; return nuke.km-N.pull*restoreLeft()*Math.max(0,N.stop-Math.max(now,nuke.lastMin))/60; }
 /* the shift the battleships settled now would give, going off `fuse` minutes after the last settles (or when they are set to) */

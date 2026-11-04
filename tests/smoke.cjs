@@ -1865,13 +1865,20 @@ function check(ok, label, detail = '') {
       nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.pos.copy(b.slot); b.f.order = null; } }); later(.6);
       r.land = { ham: P('霧と鎚').t0 != null, goal: P('霧と鎚').G && P('霧と鎚').G.nukeSt || null };
       /* 2 of the 5 settled (shatter, 2026-10-30): the blast does not break the rock, the battle goes on */
+      goalFlashT = 0; goalFlashWait = false;
       nuke.bbs.filter(b => b.f && b.f.alive).slice(2).forEach(b => { while (b.f.alive) realDamage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
-      later(.6); r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
-      mins(nuke.fuseAt + .1); later(.6);
+      later(.6); r.flash = goalFlashWait || goalFlashT > 0;   // 3 lost before the blast: the goal turns to the thrusters (目標更新中)
+      r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
+      goalFlashT = 0; goalFlashWait = false; mins(nuke.fuseAt + .1); later(.6); r.flash2 = goalFlashWait || goalFlashT > 0;   // the blast of the 2 left: not again
       const s2 = P('槍2'), hm = P('霧と鎚'), mid = P('中の拠点'), s1 = P('槍1');
       r.ignite = { state: nuke.state, over, landN: nuke.landN, s2: s2.doctrine, hamWardAll: [].concat(hm.ward).slice(0, 6).join(','),
         ham: hm.doctrine, hamWard: [].concat(hm.ward)[0], post: hm.mem.filter(f => f.alive).every(f => f.post.distanceTo(F('推進器 北2').pos) < .01), step: String(hm.step),
         mid: mid.doctrine + ':' + [].concat(mid.ward).some(w => typeof w === 'string') + ':' + mid.mem.every(f => !f.alive || f.ai === 'guard'), s1: s1.doctrine, north: P('北守備隊').t0 != null, scr: P('西上守備隊').doctrine };
+      /* 3 of the 5 settled: the blast breaks the rock and the battle is won there (user 2026-11-04) */
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); tough(); mins(2); lured = { at: opMin(), by: 'test' }; later(.6); mins(now() + 15.3); later(.6);
+      nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.pos.copy(b.slot); b.f.order = null; } }); later(.6);
+      nuke.bbs.filter(b => b.f && b.f.alive).slice(3).forEach(b => { while (b.f.alive) realDamage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
+      mins(nuke.fuseAt + .1); r.three = { landN: nuke.landN, over, outcome };
       /* the spears' wait for each other ends after `sync` minutes */
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); damage = () => {}; gameSec = 60 / CLOCK_RATE; later(.6); const q = P('槍1'); q.mem.forEach(f => { f.packArr = null; f.speed = 1e-4; }); const t0 = q.t0;
       mins(t0 + 14.5); const st14 = q.step; mins(t0 + 15.6); r.sync = [st14, q.step, WOS_DATA.doctrines.mars.spear.sync];
@@ -1884,6 +1891,8 @@ function check(ok, label, detail = '') {
       && sw.ignite.hamWard === '推進器 北2' && sw.ignite.post && sw.ignite.step === '0'
       && sw.ignite.mid === 'rockShield:false:true' && sw.ignite.s1 === 'spear' && sw.ignite.north && sw.ignite.scr === 'screen',
       '第6節: 2隻の起爆後も戦闘は続き、槍2と霧と鎚は推進器を守る。槍1と拠点はそのまま、北守備隊は動き出す', JSON.stringify(sw.ignite));
+    check(sw.flash && !sw.flash2, '第6節: 起爆の前に3隻を失うと目標が推進器に切り替わり「目標更新中」を出す。残る2隻の起爆では2度出さない（2026-11-04）', JSON.stringify([sw.flash, sw.flash2]));
+    check(sw.three.landN === 3 && sw.three.over && sw.three.outcome === true, '第6節: 3隻が着底して起爆すると、その時点で勝ち', JSON.stringify(sw.three));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
     const transitRoute = await page.evaluate(() => {
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
@@ -2043,7 +2052,7 @@ function check(ok, label, detail = '') {
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
       const S = P('東下守備隊').mem.find(f => f.packSlot === 'wall'); kill(S); updateGoal(); r.p1.v2 = [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(',');
-      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(70.01);
+      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(70.01); if (talking) endTalk(); updateGoal();   // 目標更新中 waits for the talk to end (2026-11-04)
       r.flash = { upd: goalEl.classList.contains('upd') && gg.textContent === '目標更新中', lured: !!lured };
       return r;
     });
