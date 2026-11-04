@@ -1,4 +1,7 @@
-// フェブルアーリアの軍港（ゲートが開き、埠頭が伸びた形）の背景の見本。ゲームを開き、そのコード（艦の形・ゲートの部品・地球）で別の絵を描く
+/* フェブルアーリアの軍港の背景の見本（ユーザー決定 2026-11-05。出撃前の戦区軍の選択画面の背景）。ゲームを開き、その部品（艦の形 shapeGeo、
+   ゲートの部品 GATE_*、地球 skyMat）で別の絵を描いて PNG にする。ゲームは使わない。決まった形は COL=f（× の骨組み＋真ん中に昇降筒）。
+   使い方: node tools/dock-sample.cjs . <出力.png> [ふたの開き(度)=115] [視点 a=遠景/b=寄り/c=柱/t=真上] [段ごとの隻数 JSON か -] [柱の形 a〜f]
+   例: node tools/dock-sample.cjs . /tmp/dock.png 115 a '[1,0,5,10,0]' f   （段は下から 戦艦・戦闘母艦・巡洋艦・駆逐艦・フリゲート） */
 const { openGame } = require(process.argv[2] + '/tools/browser.cjs');
 const OPEN = +(process.argv[4] || 115), VIEW = process.argv[5] || 'a', FILL = process.argv[6] && process.argv[6] !== '-' ? JSON.parse(process.argv[6]) : null, COL = process.argv[7] || 'a';
 (async () => {
