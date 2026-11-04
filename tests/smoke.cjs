@@ -1865,9 +1865,11 @@ function check(ok, label, detail = '') {
       nuke.bbs.forEach(b => { if (b.f && b.f.alive) { b.f.pos.copy(b.slot); b.f.order = null; } }); later(.6);
       r.land = { ham: P('霧と鎚').t0 != null, goal: P('霧と鎚').G && P('霧と鎚').G.nukeSt || null };
       /* 2 of the 5 settled (shatter, 2026-10-30): the blast does not break the rock, the battle goes on */
+      goalFlashT = 0; goalFlashWait = false;
       nuke.bbs.filter(b => b.f && b.f.alive).slice(2).forEach(b => { while (b.f.alive) realDamage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
+      r.flash = goalFlashWait || goalFlashT > 0;   // 3 lost before the blast: the goal turns to the thrusters (目標更新中)
       later(.6); r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
-      goalFlashT = 0; goalFlashWait = false; mins(nuke.fuseAt + .1); later(.6); r.flash = goalFlashWait || goalFlashT > 0;   // 2 settled: the goal turns to the thrusters (目標更新中)
+      goalFlashT = 0; goalFlashWait = false; mins(nuke.fuseAt + .1); later(.6); r.flash2 = goalFlashWait || goalFlashT > 0;   // the blast of the 2 left: not again
       const s2 = P('槍2'), hm = P('霧と鎚'), mid = P('中の拠点'), s1 = P('槍1');
       r.ignite = { state: nuke.state, over, landN: nuke.landN, s2: s2.doctrine, hamWardAll: [].concat(hm.ward).slice(0, 6).join(','),
         ham: hm.doctrine, hamWard: [].concat(hm.ward)[0], post: hm.mem.filter(f => f.alive).every(f => f.post.distanceTo(F('推進器 北2').pos) < .01), step: String(hm.step),
@@ -1889,7 +1891,7 @@ function check(ok, label, detail = '') {
       && sw.ignite.hamWard === '推進器 北2' && sw.ignite.post && sw.ignite.step === '0'
       && sw.ignite.mid === 'rockShield:false:true' && sw.ignite.s1 === 'spear' && sw.ignite.north && sw.ignite.scr === 'screen',
       '第6節: 2隻の起爆後も戦闘は続き、槍2と霧と鎚は推進器を守る。槍1と拠点はそのまま、北守備隊は動き出す', JSON.stringify(sw.ignite));
-    check(sw.flash, '第6節: 2隻で起爆して砕けないとき、目標が推進器に切り替わり「目標更新中」を出す（2026-11-04）', JSON.stringify(sw.flash));
+    check(sw.flash && !sw.flash2, '第6節: 起爆の前に3隻を失うと目標が推進器に切り替わり「目標更新中」を出す。残る2隻の起爆では2度出さない（2026-11-04）', JSON.stringify([sw.flash, sw.flash2]));
     check(sw.three.landN === 3 && sw.three.over && sw.three.outcome === true, '第6節: 3隻が着底して起爆すると、その時点で勝ち', JSON.stringify(sw.three));
     check(sw.sync[0] === 0 && sw.sync[1] === 1 && sw.sync[2] === 15, 'ドクトリン（型）: 槍が着かなくても、そろう待ちは15分で打ち切る（2026-10-27）', JSON.stringify(sw.sync));
     const transitRoute = await page.evaluate(() => {
