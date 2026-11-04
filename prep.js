@@ -205,7 +205,7 @@ function armyToFleet(a){
 /* ---------- screens ---------- */
 const menu=document.getElementById('menu');
 /* the menu is laid out for a 1600×900 window and scaled to the real one (a little smaller than 1:1, user 2026-11-04) */
-const MENU_SCALE=.88;
+const MENU_SCALE=.93;
 function fitMenu(){ menu.style.setProperty('--k',(MENU_SCALE*Math.min(innerWidth/1600,innerHeight/900)).toFixed(4)); }
 addEventListener('resize',fitMenu); fitMenu();
 let orgPop=null;
@@ -391,7 +391,7 @@ let techForce='space', techBr=null, techSel=null;
 let tv=null, treeDragged=false, treeWired=false;
 const TREE_Z=[.4,1.8];
 function fitTree(br,cw,ch){ const box=document.getElementById('trScroll'), W=box.clientWidth||900, H=box.clientHeight||480;
-  const z=Math.max(TREE_Z[0],Math.min(1,(H-8)/ch,(W-8)/Math.min(cw,W/.6))); tv={br,x:8,y:Math.max(4,(H-ch*z)/2),z}; }
+  const z=Math.max(TREE_Z[0],Math.min(1,(H-8)/ch,(W-8)/cw)); tv={br,x:8,y:Math.max(4,(H-ch*z)/2),z}; }
 function placeTree(){ document.getElementById('trCv').style.transform=`translate(${tv.x}px,${tv.y}px) scale(${tv.z})`; }
 function wireTree(){
   if(treeWired) return; treeWired=true;
@@ -424,10 +424,13 @@ function renderTech(){
     crafts(b).map(c=>{ const o=craftOwner(c)||b; return `<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${o===b?CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join(''):`<i>機体の研究は${esc(o.name)}</i>`}`+
       `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`; }).join('');
   /* the web: nodes at (col,row), a curve from each requirement to the node */
-  const CW=168, RH=68, R=21, PADX=80, PADY=10;
-  const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
+  const RH=68, R=21, PADX=80, PADY=10;
   const NODES=nodesOf(b), ROWS=[...new Set(NODES.map(n=>n.row))].sort((x,y)=>x-y);
   const cols=Math.max(...NODES.map(n=>n.col))+1, rows=ROWS.length;
+  /* the columns spread to fill the box at the zoom its height allows (user 2026-11-04: use the room on the right) */
+  const box=document.getElementById('trScroll'), bh=PADY*2+(rows-1)*RH+R*2+30, bz=Math.max(TREE_Z[0],Math.min(1,((box.clientHeight||480)-8)/bh));
+  const CW=Math.max(168,(((box.clientWidth||900)-8)/bz-PADX*2)/Math.max(1,cols-1));
+  const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
   const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=q.x-R-Math.abs(q.y-p.y);
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
     return `<path d="M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');

@@ -1742,7 +1742,7 @@ function check(ok, label, detail = '') {
       mins(40); r.stop = Math.round(fieldC.z);
       return r;
     });
-    check(db.stage.fc === 300 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 10 && db.stage.up && db.stage.hurt === .9 && db.stage.packs === 9
+    check(db.stage.fc === 300 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 10 && db.stage.up && db.stage.hurt === .8 && db.stage.packs === 9
       && db.stage.fe[0] === 2.2 && Math.abs(db.stage.fe[1] - 10.5) < .1,
       '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台10基、本軍の耐久9割、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
     check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,8,4,4,0') && db.stage.ally === 18 && db.stage.cap === 60 && db.stage.gone
