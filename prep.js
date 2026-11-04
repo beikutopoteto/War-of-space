@@ -249,7 +249,7 @@ menu.innerHTML=`
     <div class="treebox">
       <div class="trsum" id="trSum"></div>
       <div class="trscroll" id="trScroll"><div class="trcv" id="trCv"></div></div>
-      <div class="tinfo" id="tInfo"></div>
+      <div class="tinfo" id="tInfo" role="dialog" aria-label="研究" hidden></div>
     </div>
   </div>
 </section>
@@ -351,7 +351,7 @@ document.addEventListener('click',e=>{ if(e.target.closest('#dbgT')){ dbgOpen=!d
 /* ---------- tech tree ----------
    tabs: 宇宙軍 / 地上軍 (地上軍 comes later). left: a thin bar of the branches the story has opened.
    right: the tree of the chosen branch, a web of ○ nodes linked by their requirements, scrolled sideways.
-   Click a node to see it below and research it there */
+   Click a node to open a small window beside it with the details, 研究する and × (user decision 2026-11-05) */
 const STAT_NAME={atk:'攻撃',def:'防御',eva:'回避',rng:'射程',aa:'対空照準',vis:'視界',stl:'隠蔽性',spd:'速度'};
 const CRAFT_NAME={dmg:'火力',hp:'耐久',eva:'回避'};
 const crafts=b=>[...new Set(b.types.flatMap(t=>Object.keys(SHIP[t].hangar||{})))];
@@ -392,7 +392,15 @@ let tv=null, treeDragged=false, treeWired=false;
 const TREE_Z=[.4,1.8];
 function fitTree(br,cw,ch){ const box=document.getElementById('trScroll'), W=box.clientWidth||900, H=box.clientHeight||480;
   const z=Math.max(TREE_Z[0],Math.min(1,(H-8)/ch,(W-8)/cw)); tv={br,x:8,y:Math.max(4,(H-ch*z)/2),z}; }
-function placeTree(){ document.getElementById('trCv').style.transform=`translate(${tv.x}px,${tv.y}px) scale(${tv.z})`; }
+function placeTree(){ document.getElementById('trCv').style.transform=`translate(${tv.x}px,${tv.y}px) scale(${tv.z})`; placeInfo(); }
+/* the node window sits right of its node, or left when there is no room, inside the tree box */
+function placeInfo(){ const info=document.getElementById('tInfo'), nd=techSel&&document.querySelector(`#trCv [data-node="${techSel}"] .orb`);
+  if(info.hidden||!nd) return; const pb=info.parentElement, sc=document.getElementById('trScroll'), w=info.offsetWidth, h=info.offsetHeight;
+  /* the menu is scaled with CSS zoom: screen rects are divided by it to get the box's own px */
+  const k=pb.getBoundingClientRect().width/pb.offsetWidth||1, box=pb.getBoundingClientRect(), o=nd.getBoundingClientRect();
+  const L=(o.left-box.left)/k, R=(o.right-box.left)/k, M=((o.top+o.bottom)/2-box.top)/k, x0=sc.offsetLeft, y0=sc.offsetTop;
+  info.style.left=(R+16+w<=x0+sc.offsetWidth-8?R+16:Math.max(x0+8,L-16-w))+'px';
+  info.style.top=Math.max(y0+8,Math.min(y0+sc.offsetHeight-h-8,M-h/2))+'px'; }
 function wireTree(){
   if(treeWired) return; treeWired=true;
   const box=document.getElementById('trScroll'); let drag=null;
@@ -424,9 +432,11 @@ function renderTech(){
     crafts(b).map(c=>{ const o=craftOwner(c)||b; return `<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${o===b?CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join(''):`<i>機体の研究は${esc(o.name)}</i>`}`+
       `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`; }).join('');
   /* the web: nodes at (col,row), a curve from each requirement to the node */
-  const RH=68, R=21, PADX=80, PADY=10;
+  const R=21, PADX=80, PADY=10;
   const NODES=nodesOf(b), ROWS=[...new Set(NODES.map(n=>n.row))].sort((x,y)=>x-y);
   const cols=Math.max(...NODES.map(n=>n.col))+1, rows=ROWS.length;
+  /* the rows spread to fill the box's height (user 2026-11-05: more room between the rows), at least 84 apart */
+  const RH=Math.min(130,Math.max(84,((document.getElementById('trScroll').clientHeight||480)-8-PADY*2-R*2-30)/Math.max(1,rows-1)));
   /* the columns spread to fill the box at the zoom its height allows (user 2026-11-04: use the room on the right) */
   const box=document.getElementById('trScroll'), bh=PADY*2+(rows-1)*RH+R*2+30, bz=Math.max(TREE_Z[0],Math.min(1,((box.clientHeight||480)-8)/bh));
   const CW=Math.max(168,(((box.clientWidth||900)-8)/bz-PADX*2)/Math.max(1,cols-1));
@@ -445,7 +455,7 @@ function renderTech(){
   cv.querySelectorAll('[data-node]').forEach(x=>x.onclick=()=>{ if(treeDragged) return; techSel=x.dataset.node; renderTech(); });
   /* the chosen node */
   const info=document.getElementById('tInfo'), n=nodeById(techSel);
-  if(!n){ info.innerHTML='<p class="dim">研究を選ぶと、ここに効果と必要な資金が出ます。左の列の研究は最初から始められます。</p>'; return; }
+  info.hidden=!n; if(!n) return;
   const done=nodeDone(b,n), can=nodeOpen(b,n), cost=nodeCost(b,n);
   const eff=n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
     :n.add&&n.add.out?crafts(b).map(c=>{ const now=craftOut(b,c), from=done?now-1:now; return `${D.crafts[c].name} 同時に出撃できる隊　${from} → ${from+1}`; }).join('<br>')
@@ -458,8 +468,10 @@ function renderTech(){
   /* prerequisites (all of them, marked done or not) and what this one leads to */
   const reqs=n.req.length?n.req.map(r=>{ const x=nodeById(r), ok=nodeDone(b,x); return `<span class="${ok?'ok':'ng'}">${ok?'✓':'✗'} ${esc(nodeName(b,x))}</span>`; }).join(''):'<span class="ok">なし（最初から研究できる）</span>';
   const leads=NODES.filter(c=>c.req.includes(n.id)).map(c=>esc(nodeName(b,c)));
-  info.innerHTML=`<div><b>${esc(nodeName(b,n))}</b><p>${eff}</p><p class="treq">前提の研究：${reqs}</p>${leads.length?`<p class="dim">この先：${leads.join('・')}</p>`:''}</div>`+
+  info.innerHTML=`<button class="tx" id="tClose" aria-label="閉じる">×</button><div><b>${esc(nodeName(b,n))}</b><p>${eff}</p><p class="treq">前提の研究：${reqs}</p>${leads.length?`<p class="dim">この先：${leads.join('・')}</p>`:''}</div>`+
     `<div class="tact">${done?'<em>研究済み</em>':`<span>資金 ${cost}</span><button id="tRes" ${can&&P.funds>=cost?'':'disabled'}>研究する</button>${can&&P.funds<cost?'<em class="dim">資金が足りません</em>':''}`}</div>`;
+  document.getElementById('tClose').onclick=()=>{ techSel=null; renderTech(); };
+  placeInfo();
   const r=document.getElementById('tRes'); if(r) r.onclick=()=>{ if(!nodeOpen(b,n)||P.funds<cost) return; P.funds-=cost; techOf(b).push(n.id); persist(); renderTech(); };
 }
 /* the mouse wheel scrolls the tree sideways */
