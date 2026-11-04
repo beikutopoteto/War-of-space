@@ -2050,7 +2050,7 @@ function check(ok, label, detail = '') {
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
       const S = P('東下守備隊').mem.find(f => f.packSlot === 'wall'); kill(S); updateGoal(); r.p1.v2 = [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(',');
-      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(70.01);
+      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(70.01); if (talking) endTalk(); updateGoal();   // 目標更新中 waits for the talk to end (2026-11-04)
       r.flash = { upd: goalEl.classList.contains('upd') && gg.textContent === '目標更新中', lured: !!lured };
       return r;
     });
