@@ -208,6 +208,7 @@ let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2
 
 function show(s){ screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
+  WOS_BG.screen(screen);
   menu.querySelectorAll('.scr').forEach(el=>el.hidden=el.dataset.s!==screen);
   if(screen==='sortie') renderSortie();
   if(screen==='org') renderOrg();
@@ -221,9 +222,9 @@ function render(){
 menu.innerHTML=`
 <section class="scr" data-s="title">
   <div class="ttl">
-    <p class="eyebrow">宙域艦隊戦　試作版</p>
-    <h1>WAR OF SPACE</h1>
-    <p class="lead">地球連合の司令官として艦隊を編成し、惑星共和国の要塞宙域へ出撃する。</p>
+    <p class="eyebrow">A.E. 45 — INTERPLANETARY WAR</p>
+    <h1>WAR OF <br><em>SPACE</em></h1>
+    <p class="title-sub">宙域艦隊戦　試作版</p>
   </div>
   <p class="tstat" id="tStat"></p>
   <nav class="mainnav" id="mainNav" aria-label="メインメニュー"></nav>
