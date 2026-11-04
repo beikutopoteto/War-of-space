@@ -5,6 +5,8 @@
 #menu button{font-family:var(--f-ui);cursor:pointer}
 #menu button:focus-visible,#menu input:focus-visible,#menu select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #menu .scr{max-width:1120px;margin:0 auto}
+/* every screen scales with the window (laid out for 1600×900, then x --k; prep.js fitMenu). User decision 2026-11-04: fixed sizes were too big */
+#menu>.scr{zoom:var(--k,1)}
 #menu h2,#menu h3,#menu h4{margin:0;font-weight:700;text-wrap:balance}
 #menu .dim{color:var(--ink-dim);font-weight:400}
 #menu .small{font-size:11px}
