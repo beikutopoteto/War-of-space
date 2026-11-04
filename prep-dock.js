@@ -2,7 +2,7 @@
 window.WOS_DOCK = (() => {
   let renderer, scene, rebuild;
   function init(canvas) {
-    const OPEN = 115, COL = 'f';
+    const OPEN = 115;
     const W = 1600, H = 900, r = new THREE.WebGLRenderer({ canvas, antialias: true });
     r.setSize(W, H); r.setPixelRatio(1); r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.outputEncoding = THREE.sRGBEncoding; r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = .62;
@@ -21,7 +21,7 @@ window.WOS_DOCK = (() => {
     sc.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xaab8d8, size: 1.3, sizeAttenuation: false })));
     // 地球: 南の地平線に半分かかる。視直径1.9度を、背景なので大きめに見せる
     const ER = 340, e = new THREE.Mesh(new THREE.SphereGeometry(ER, 96, 64), skyMat(0)); e.material.uniforms.uSun.value.copy(sun);
-    e.position.set(-4300, -1050, -3000); e.rotation.set(.4, 3.6, .2); sc.add(e);
+    e.position.set(-1435, 2383, -1416); e.rotation.set(.4, 3.6, .2); e.material.uniforms.uSun.value.set(.6, -.5, .6).normalize(); sc.add(e);
     const h = skyHalo(ER); h.material.uniforms.uSun.value.copy(sun); h.position.copy(e.position); sc.add(h);
     // 岩の地面: ゆるい起伏と小さなクレーター
     const RB = 2600, G = new THREE.SphereGeometry(RB, 360, 110, 0, Math.PI * 2, 0, .62);
@@ -58,31 +58,11 @@ window.WOS_DOCK = (() => {
     const pier = new THREE.Group(); sc.add(pier); let target = pier;
     const beam = (a, b, t, m) => { const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), L = A.distanceTo(B), g = new THREE.BoxGeometry(t, t, L), x = new THREE.Mesh(g, m);
       x.position.copy(A).add(B).multiplyScalar(.5); x.lookAt(B); x.castShadow = x.receiveShadow = true; target.add(x); return x; };
-    // 柱: 縦穴から真上へ高く伸びる太い柱（機材と人の往復用）。段ごとに四方へ桟橋が出て、艦は艦首を柱へ向けて水平に着く
-    // 本柱（機材と人の往復用）。COL で形を選ぶ。a: 円柱と帯 / b: 骨組みの塔の中に昇降筒 / c: 太細の筒を積んだ節 / d: 3本の柱をひねり合わせる
+    // 本柱（機材と人の往復用。ユーザー決定 2026-11-05、見本の案F）: 上から見て × の骨組み。真ん中に昇降筒（灯りの窓）。艦のいない桟橋は × の隙間に畳み込む
     const TOP = 480, CR = 8.5;
     const colM = new THREE.MeshStandardMaterial({ color: 0x737a85, metalness: .55, roughness: .5 }), litM = new THREE.MeshBasicMaterial({ color: 0xffd08a });
     const add = (m, y) => { m.position.y = y; m.castShadow = m.receiveShadow = true; pier.add(m); return m; };
-    if (COL === 'a') { add(new THREE.Mesh(new THREE.CylinderGeometry(CR, CR * 1.25, TOP + 12, 16), colM), TOP / 2 - 6);
-      for (let y = 10; y < TOP; y += 22) add(new THREE.Mesh(new THREE.CylinderGeometry(CR + .9, CR + .9, 1.6, 16), dark), y); }
-    else if (COL === 'b') { // 八角の骨組み。中に細い昇降筒（灯りの窓が並ぶ）
-      add(new THREE.Mesh(new THREE.CylinderGeometry(CR * .45, CR * .45, TOP + 12, 12), colM), TOP / 2 - 6);
-      const pts = [...Array(8)].map((_, k) => [Math.cos(k * Math.PI / 4) * CR, Math.sin(k * Math.PI / 4) * CR]);
-      pts.forEach(([x, z]) => beam([x, -10, z], [x, TOP, z], 1.1, steel));
-      for (let y = -6; y < TOP; y += 12) pts.forEach(([x, z], k) => { const [x2, z2] = pts[(k + 1) % 8]; beam([x, y, z], [x2, y, z2], .5, steel); beam([x, y, z], [x2, y + 12, z2], .35, dark); });
-      for (let y = 5; y < TOP; y += 9) add(new THREE.Mesh(new THREE.BoxGeometry(CR * .95, 1.2, .6), litM), y).position.z = CR * .45; }
-    else if (COL === 'c') { // 節: 太い筒（機材の階）と細い首を交互に。太い筒に窓の帯
-      for (let y = -8, k = 0; y < TOP; k++) { const fat = k % 2 === 0, h = fat ? 26 : 10;
-        add(new THREE.Mesh(new THREE.CylinderGeometry(fat ? CR : CR * .62, fat ? CR : CR * .62, h, fat ? 12 : 10), fat ? colM : dark), y + h / 2);
-        if (fat) add(new THREE.Mesh(new THREE.CylinderGeometry(CR + .15, CR + .15, 1.2, 12), litM), y + h / 2); y += h; } }
-    else if (COL === 'e') { // 上から見て × の角柱。腕のあいだの4つのくぼみに、畳んだ桟橋が収まる。芯に昇降筒、腕の面に灯りの窓
-      const XA = 17, XT = 5.5;   // 腕の半分の長さと厚さ（ゲートの口 46×74 に、畳んだ桟橋ごと収まる）
-      for (const r of [Math.PI / 4, -Math.PI / 4]) { const m = add(new THREE.Mesh(new THREE.BoxGeometry(XA * 2, TOP + 12, XT), colM), TOP / 2 - 6); m.rotation.y = r;
-        const tipA = new THREE.Mesh(new THREE.BoxGeometry(2.2, TOP + 12, XT + 1.4), dark); tipA.position.set(Math.cos(r) * XA, 0, -Math.sin(r) * XA); m.add(tipA); }
-      for (let y = 10; y < TOP; y += 22) for (const r of [Math.PI / 4, -Math.PI / 4]) { const b = add(new THREE.Mesh(new THREE.BoxGeometry(XA * 2 + 2, 1.6, XT + 1), dark), y); b.rotation.y = r; }
-      for (let y = 4; y < TOP; y += 7) for (const r of [Math.PI / 4, 3 * Math.PI / 4, -Math.PI / 4, -3 * Math.PI / 4]) { const w = add(new THREE.Mesh(new THREE.BoxGeometry(5, .8, .3), litM), y);
-        w.position.x = Math.cos(r) * XA * .6 + Math.sin(r) * (XT / 2 + .2) * 0; w.position.z = -Math.sin(r) * XA * .6; w.rotation.y = r; w.translateZ(XT / 2 + .2); } }
-    else if (COL === 'f') { // B と E の間: 上から見て × の骨組み。真ん中に昇降筒（灯りの窓）。艦のいない桟橋は × の隙間に畳み込む
+    { // 上から見て × の骨組み。真ん中に昇降筒（灯りの窓）。艦のいない桟橋は × の隙間に畳み込む
       const XA = 14, XT = 4, CORE = 5;
       add(new THREE.Mesh(new THREE.CylinderGeometry(CORE, CORE, TOP + 12, 12), colM), TOP / 2 - 6);
       for (let y = 3; y < TOP; y += 6) for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) { const w = add(new THREE.Mesh(new THREE.BoxGeometry(1.6, .9, .3), litM), y); w.position.x = Math.cos(a) * (CORE + .1); w.position.z = Math.sin(a) * (CORE + .1); w.rotation.y = -a + Math.PI / 2; }
@@ -92,13 +72,9 @@ window.WOS_DOCK = (() => {
         for (let y = -6; y < TOP; y += 11) { for (const f of [-1, 1]) { beam(P(CORE + .6, f, y), P(XA, f, y), .55, steel); beam(P(CORE + .6, f, y), P(XA, f, y + 11), .4, dark); }
           beam(P(XA, -1, y), P(XA, 1, y), .55, steel); } }
       for (let y = 10; y < TOP; y += 44) for (const r of [Math.PI / 4, -Math.PI / 4]) { const b = add(new THREE.Mesh(new THREE.BoxGeometry(XA * 2 + 1.5, 1.4, XT + .8), dark), y); b.rotation.y = r; } }
-    else { // 3本の柱をゆるくひねって組み、帯で束ねる。真ん中に昇降筒
-      add(new THREE.Mesh(new THREE.CylinderGeometry(CR * .4, CR * .4, TOP + 12, 10), colM), TOP / 2 - 6);
-      const tw = (y, k) => { const a = k * Math.PI * 2 / 3 + y * .006; return [Math.cos(a) * CR * .8, y, Math.sin(a) * CR * .8]; };
-      for (let k = 0; k < 3; k++) for (let y = -10; y < TOP; y += 10) beam(tw(y, k), tw(y + 10, k), 2.6, colM);
-      for (let y = 4; y < TOP; y += 26) add(new THREE.Mesh(new THREE.TorusGeometry(CR * .85, .9, 6, 18), dark), y).rotation.x = Math.PI / 2; }
-    if (COL !== 'e' && COL !== 'f') add(new THREE.Mesh(new THREE.CylinderGeometry(CR * 1.6, CR * 1.1, 10, 16), dark), TOP + 4);
-    cam.position.set(820, 330, 760); cam.lookAt(-140, 190, -60);
+    /* the camera (user decision 2026-11-05): close and slanting, turned 20° so the column runs across the picture */
+    const CP = [495, 20, 495], CL = [57, 400, -57];
+    cam.position.set(...CP); cam.lookAt(...CL); cam.rotateZ(THREE.MathUtils.degToRad(-60));
     cam.setViewOffset(W, H, -200, 0, W, H);
     renderer = r; scene = sc;
     let moving = null;
@@ -115,7 +91,7 @@ window.WOS_DOCK = (() => {
     // 段: [艦種, 高さ, 向きのずれ(度), 桟橋の数, 形]
     //   big: 大型艦。1段に2本だけ（向かい合わせ）、段ごとに向きを90度ずらし、上下の段の艦と重ならず、横へ離れる道をふさがない
     //   tree: 小型艦。桟橋から上下へ縦の枝を出し、枝の横に艦首を柱へ向けて止める。離れるときは横（桟橋と直角）へ
-    const levels = [['bb', 70, 0, 2, 'big'], ['cvb', 140, 90, 2, 'big'], ['cl', 230, COL >= 'e' ? 0 : 45, 4, 'tree'], ['dd', 330, 0, 4, 'tree'], ['ff', 420, COL >= 'e' ? 0 : 45, 4, 'tree']];
+    const levels = [['bb', 70, 0, 2, 'big'], ['cvb', 140, 90, 2, 'big'], ['cl', 230, 0, 4, 'tree'], ['dd', 330, 0, 4, 'tree'], ['ff', 420, 0, 4, 'tree']];
     const SZ = { bb: 22, cl: 13, cvb: 21, dd: 10, ff: 8 };
     const hinge = (x, y, z, r, h, axis) => { const g = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), hingeM); g.position.set(x, y, z); if (axis === 'h') g.rotation.z = Math.PI / 2; g.castShadow = true; target.add(g); return g; };
     // 折り畳める桟橋: 柱の付け根に太いヒンジ（柱に沿って上へ畳む）、節のつなぎ目に小さいヒンジ
@@ -130,12 +106,11 @@ window.WOS_DOCK = (() => {
     const putShip = (t, c, face, bridges) => { t = queues[levelIndex].shift(); const S = SZ[levelType], m = new THREE.Mesh(shapeGeo(t), ship); m.scale.setScalar(S); m.position.set(...c); m.rotation.y = Math.atan2(face[0], face[1]);
       m.castShadow = m.receiveShadow = true; target.add(m); counts[levelIndex]++; bridges.forEach(([A, B]) => { beam(A, B, Math.max(2, S * .16), tubeM); glow.push([A[0], A[1] + 1.8, A[2]]); }); };
     // 畳んだ桟橋: 柱の付け根のヒンジから、節を折り重ねて柱に沿わせる（アコーディオンのように）
-    const F0 = COL === 'e' ? 3.5 : COL === 'f' ? 6.2 : CR + 1.5, folded = (ux, uz, y, len, w) => { foldedCount++; const n = Math.max(1, Math.round(len / 20)); hinge(ux * (F0 - .5), y, uz * (F0 - .5), w * .7, w * 2.2, 'h').rotation.y = Math.atan2(ux, uz);
-      for (let i = 0; i < n; i++) { const two = COL === 'f', r = F0 + w * .6 + (two ? i >> 1 : i) * (w + .6), sx = two ? ((i & 1) - .5) * (w + .5) : 0, px = ux * r - uz * sx, pz = uz * r + ux * sx; beam([px, y + 1, pz], [px, y + 19, pz], w, steel); } };
+    const F0 = 6.2, folded = (ux, uz, y, len, w) => { foldedCount++; const n = Math.max(1, Math.round(len / 20)); hinge(ux * (F0 - .5), y, uz * (F0 - .5), w * .7, w * 2.2, 'h').rotation.y = Math.atan2(ux, uz);
+      for (let i = 0; i < n; i++) { const two = true, r = F0 + w * .6 + (two ? i >> 1 : i) * (w + .6), sx = two ? ((i & 1) - .5) * (w + .5) : 0, px = ux * r - uz * sx, pz = uz * r + ux * sx; beam([px, y + 1, pz], [px, y + 19, pz], w, steel); } };
     // 畳んだ枝: 桟橋の上に寝かせる
     const foldedBranch = (bx, bz, ux, uz, y, len) => { beam([bx + ux * 2, y + 2.6, bz + uz * 2], [bx + ux * (2 + len * .5), y + 2.6, bz + uz * (2 + len * .5)], 2, steel); beam([bx - ux * 2, y + 2.6, bz - uz * 2], [bx - ux * (2 + len * .5), y + 2.6, bz - uz * (2 + len * .5)], 2, steel); };
-    let levelIndex, levelType; levels.forEach(([t, y, d0, np, kind], li) => { levelIndex = li; levelType = t; const S = SZ[t], half = S * 1.4, L0 = COL === 'e' ? 3 : COL === 'f' ? 5.6 : CR + 2; let left = queues[li].length;
-      if (COL !== 'e' && COL !== 'f') { const deck = new THREE.Mesh(new THREE.CylinderGeometry(CR + 5, CR + 5, 2.4, 16), dark); deck.position.y = y; deck.castShadow = true; pier.add(deck); }
+    let levelIndex, levelType; levels.forEach(([t, y, d0, np, kind], li) => { levelIndex = li; levelType = t; const S = SZ[t], half = S * 1.4, L0 = 5.6; let left = queues[li].length;
       for (let k = 0; k < np; k++) { const a = THREE.MathUtils.degToRad(d0 + k * 360 / np), ux = Math.cos(a), uz = Math.sin(a), vx = -uz, vz = ux, inward = [-ux, -uz];
         if (kind === 'big') { const len = half * 2 + 14; if (left <= 0) { folded(ux, uz, y, len, 4.4); continue; } left--; const end = foldArm(L0, ux, uz, len, y, 4.4), rc = L0 + 6 + half, gap = S * .45 + 10;
           putShip(t, [ux * rc + vx * gap, y - S * .08, uz * rc + vz * gap], inward, [-.4, .3].map(f => { const r = rc + f * half; return [[ux * r + vx * 2.4, y + .5, uz * r + vz * 2.4], [ux * r + vx * (gap - S * .2), y + .5, uz * r + vz * (gap - S * .2)]]; }));

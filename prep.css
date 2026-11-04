@@ -379,7 +379,7 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .cell[data-on]{display:grid;grid-template-rows:1fr auto;place-items:center;padding:4px 2px 5px}.cell .mk{color:var(--void);width:40px;height:18px}.cell .mk .s{fill-opacity:.3}.cell .rl{font-size:11px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.02em}
 /* 出撃する戦区軍 */
 #menu .forces-screen{position:relative;overflow:hidden}
-.forces-screen #dockCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1}
+.forces-screen #dockCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1;filter:grayscale(1) sepia(1) hue-rotate(178deg) saturate(2.4) brightness(.6);opacity:.7}
 .forces-screen .sortie-heading small{font-size:15px;color:var(--ink-dim);margin-left:30px}
 .forces-left{position:absolute;left:110px;top:180px;width:650px;bottom:50px;overflow:auto}
 .forces-left .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
