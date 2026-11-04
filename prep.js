@@ -204,6 +204,10 @@ function armyToFleet(a){
 
 /* ---------- screens ---------- */
 const menu=document.getElementById('menu');
+/* the menu is laid out for a 1600×900 window and scaled to the real one (a little smaller than 1:1, user 2026-11-04) */
+const MENU_SCALE=.88;
+function fitMenu(){ menu.style.setProperty('--k',(MENU_SCALE*Math.min(innerWidth/1600,innerHeight/900)).toFixed(4)); }
+addEventListener('resize',fitMenu); fitMenu();
 let orgPop=null;
 let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=CAMP[0].id, confirmDel=null;
 
