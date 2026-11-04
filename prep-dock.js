@@ -19,9 +19,9 @@ window.WOS_DOCK = (() => {
     const sp = []; for (let i = 0; i < 3000; i++) { const v = new THREE.Vector3(R() - .5, R() * .6, R() - .5).normalize().multiplyScalar(5000); sp.push(v.x, v.y, v.z); }
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
     sc.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xaab8d8, size: 1.3, sizeAttenuation: false })));
-    // 地球: 南の地平線に半分かかる。視直径1.9度を、背景なので大きめに見せる
+    // 地球: 画面の左上、柱の先の向こう。視直径1.9度を、背景なので大きめに見せる
     const ER = 340, e = new THREE.Mesh(new THREE.SphereGeometry(ER, 96, 64), skyMat(0)); e.material.uniforms.uSun.value.copy(sun);
-    e.position.set(-1435, 2383, -1416); e.rotation.set(.4, 3.6, .2); e.material.uniforms.uSun.value.set(.6, -.5, .6).normalize(); sc.add(e);
+    e.position.set(599, 1295, -832); e.rotation.set(.4, 3.6, .2); e.material.uniforms.uSun.value.set(.6, -.5, .6).normalize(); sc.add(e);
     const h = skyHalo(ER); h.material.uniforms.uSun.value.copy(sun); h.position.copy(e.position); sc.add(h);
     // 岩の地面: ゆるい起伏と小さなクレーター
     const RB = 2600, G = new THREE.SphereGeometry(RB, 360, 110, 0, Math.PI * 2, 0, .62);
@@ -72,10 +72,9 @@ window.WOS_DOCK = (() => {
         for (let y = -6; y < TOP; y += 11) { for (const f of [-1, 1]) { beam(P(CORE + .6, f, y), P(XA, f, y), .55, steel); beam(P(CORE + .6, f, y), P(XA, f, y + 11), .4, dark); }
           beam(P(XA, -1, y), P(XA, 1, y), .55, steel); } }
       for (let y = 10; y < TOP; y += 44) for (const r of [Math.PI / 4, -Math.PI / 4]) { const b = add(new THREE.Mesh(new THREE.BoxGeometry(XA * 2 + 1.5, 1.4, XT + .8), dark), y); b.rotation.y = r; } }
-    /* the camera (user decision 2026-11-05): close and slanting, turned 20° so the column runs across the picture */
-    const CP = [495, 20, 495], CL = [57, 400, -57];
-    cam.position.set(...CP); cam.lookAt(...CL); cam.rotateZ(THREE.MathUtils.degToRad(-60));
-    cam.setViewOffset(W, H, -200, 0, W, H);
+    /* カメラ（ユーザー決定 2026-11-05、案 e）: 柱の横の引きから、柱が右下の根元から左上の地球へ長く伸びて見える。右下の端にフェブルアーリアの表面とゲート */
+    const CP = [-514, 247, 715], CL = [9, 391, 73];
+    cam.position.set(...CP); cam.lookAt(...CL); cam.rotateZ(THREE.MathUtils.degToRad(-67.2));
     renderer = r; scene = sc;
     let moving = null;
     const c = new THREE.Color(0x7fc8ff), ship = new THREE.MeshStandardMaterial({ color: 0x9aa7b8, emissive: c, emissiveIntensity: .05, metalness: .5, roughness: .42 });
