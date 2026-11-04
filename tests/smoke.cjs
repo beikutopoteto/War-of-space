@@ -152,11 +152,18 @@ function check(ok, label, detail = '') {
     check((await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).bgs.find(b=>b.id==='bg1').count)) === 5, '編成: マスで隻数を変える');
     await page.click('[data-count="bg1"][data-n="6"]');
     await page.selectOption('#addBg', 'new:dd');
-    const armyTwo = await page.inputValue('#armyName');
+    /* the stored name of the selected army (the name field shows the short form 第N打撃群, user decision 2026-11-04) */
+    const selName = () => page.evaluate(() => { const id = document.querySelector('#orgList .li.sel').dataset.army; return JSON.parse(localStorage.getItem('wos.save.v1')).armies.find(a => a.id === id).name; });
+    const armyTwo = await selName();
+    check(await page.inputValue('#armyName') === '第2打撃群', '編成: 名前の欄は「第N打撃群」', await page.inputValue('#armyName'));
     await page.click('#orgDetail [data-rm]:not([data-rm="bg1"])');
-    const armyOne = await page.inputValue('#armyName');
+    const armyOne = await selName();
     await page.click('#orgList [data-new]');
-    const armyNew = await page.inputValue('#armyName');
+    const armyNew = await selName();
+    /* a number keeps the role, anything else is a name of its own; the blue title follows (the options above chose 名前だけ, so it shows the stored name) */
+    await page.fill('#armyName', '第7打撃群'); const renum = [await selName(), await page.textContent('#orgDetail .tg')];
+    await page.fill('#armyName', 'アルバレス隊'); const named = [await selName(), await page.textContent('#orgDetail .tg')];
+    check(renum.join('|') === '第7 打撃群|第7 打撃群' && named.join('|') === 'アルバレス隊|アルバレス隊', '編成: 名前の欄で左上の名前を変える（番号なら役割を残す）', [...renum, ...named].join(' / '));
     check(armyTwo === '第2 巡洋 打撃群' && armyOne === '第9 前衛巡洋 支隊' && armyNew === '第1 打撃群', '編成: 空き行から支隊を追加し名前を更新', [armyTwo, armyOne, armyNew].join(' / '));
     /* the role comes from the highest class in the unit, whatever the numbers (user decision 2026-10-04) */
     const rank = await page.evaluate(() => [mainType({ dd: 4, cl: 1 }), mainType({ cv: 10, mas: 1 }), mainType({ dd: 6, mas: 2, ff: 3 }), mainType({ bb: 6, cvb: 1 }), mainType({ cvb: 3, masc: 1 }), mainType({ cl: 3, bb: 0 })]);
@@ -168,10 +175,13 @@ function check(ok, label, detail = '') {
     const flag = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups[0].flag);
     check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 戦区軍の旗艦を選べる', flag);
     await page.click('#orgDetail [data-flag="0"]');
+    /* grid cells: the main class's mark, the role, the name on hover */
+    const cell = await page.evaluate(() => { const c = document.querySelector('#orgDetail .cell[data-on]'); return c ? [!!c.querySelector('.mk svg'), c.querySelector('.rl').textContent, c.title] : []; });
+    check(cell[0] && cell[1] && /^第\d+打撃群$|./.test(cell[2]), '編成: 戦区軍のマスに艦種のマークと役割、マウスを載せると名前', cell.join(' / '));
     await shot('03-org-group');
     /* a second army group holding an army of the first: the two cannot sortie together */
     await page.click('#orgList [data-new]'); await page.click('[data-cx="2"][data-cz="2"]'); await page.click('[data-addarmy="a1"]');
-    const grpName = await page.inputValue('#grpName');
+    const grpName = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups.at(-1).name);
     check(grpName === '第1 軌道制圧 戦区軍', '編成: 新しい戦区軍は主力の艦種で「第N 役割 戦区軍」になる', grpName);
     await page.click('[data-s="org"] .back');
 
