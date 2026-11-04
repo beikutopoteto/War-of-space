@@ -91,7 +91,15 @@ function check(ok, label, detail = '') {
     /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 動員計画 and the gun are open from the start */
     await page.click('[data-go="tech"]');
     await page.click('#brBar [data-br="dd"]');
-    const res = async id => { await page.click(`#trCv [data-node="${id}"]`); const ok = !(await page.isDisabled('#tRes')); if (ok) await page.click('#tRes'); return ok; };
+    /* a node opens a window beside it with 研究する and × (user decision 2026-11-05); close it before the next node */
+    const res = async id => { await page.click(`#trCv [data-node="${id}"]`); const ok = !(await page.isDisabled('#tRes')); if (ok) await page.click('#tRes'); await page.click('#tClose'); return ok; };
+    const shut = await page.evaluate(() => document.getElementById('tInfo').hidden);
+    await page.click('#trCv [data-node="cap1"]');
+    const pop = await page.evaluate(() => { const i = document.getElementById('tInfo'), r = i.getBoundingClientRect(), o = document.querySelector('#trCv [data-node="cap1"] .orb').getBoundingClientRect();
+      return { open: !i.hidden, near: Math.abs((r.top + r.bottom) / 2 - (o.top + o.bottom) / 2) < 200 && r.left >= o.right, x: !!document.getElementById('tClose') }; });
+    await shot('02-tech-window');
+    await page.click('#tClose');
+    check(shut && pop.open && pop.near && pop.x && await page.evaluate(() => document.getElementById('tInfo').hidden), '技術ツリー: 研究を押すと横にウィンドウが出て、×で閉じる', JSON.stringify(pop));
     const early = await res('rng1');
     await res('cap1'); await res('gun1'); await res('rng1');
     const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]:not(:disabled)').length,
@@ -99,7 +107,7 @@ function check(ok, label, detail = '') {
     check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
       '技術ツリー: 左の列から研究し、つながる元を終えると次が開く。能力は数で出る', JSON.stringify(tech));
     /* Enter researches the chosen node; the tree is dragged with the left button and zoomed with the wheel; the screen needs no vertical scroll */
-    await page.click('#trCv [data-node="gun2"]'); await page.keyboard.press('Enter');
+    await page.click('#trCv [data-node="gun2"]'); await page.keyboard.press('Enter'); await page.click('#tClose');
     const entered = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog.tech.dd.includes('gun2'));
     const tf = () => page.evaluate(() => document.getElementById('trCv').style.transform);
     const box = await page.locator('#trScroll').boundingBox(), t0 = await tf();

@@ -122,10 +122,10 @@
 .trscroll.drag{cursor:grabbing}
 .trcv{position:absolute;left:0;top:0;transform-origin:0 0}
 /* the tech tree screen fits the window: no vertical scroll (user decision 2026-10-04) */
-.scr[data-s="tech"]:not([hidden]){display:flex;flex-direction:column;height:calc(100vh - 44px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+.scr[data-s="tech"]:not([hidden]){display:flex;flex-direction:column;height:calc((100vh - 44px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) / (var(--k,1) * 1.12))}
 .scr[data-s="tech"] .tabnote{margin-bottom:8px;font-size:14px}
 .scr[data-s="tech"] .techwrap{flex:1;min-height:0;align-items:stretch}
-.scr[data-s="tech"] .treebox{grid-template-rows:auto minmax(0,1fr) auto;min-height:0}
+.scr[data-s="tech"] .treebox{grid-template-rows:auto minmax(0,1fr);min-height:0;position:relative}
 .scr[data-s="tech"] .brbar{align-content:start}
 .tedges{position:absolute;inset:0}
 .tedges path{fill:none;stroke:rgba(127,200,255,.16);stroke-width:1.4}
@@ -152,7 +152,11 @@
 .tinfo .treq .ok{color:var(--blue)}
 .tinfo .treq .ng{color:var(--red)}
 .tn.sel .orb{box-shadow:0 0 0 3px rgba(5,8,15,.9),0 0 0 4.5px var(--ink)}
-.tinfo{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;min-height:52px;padding:8px 12px;background:rgba(8,14,26,.55);border:1px solid var(--line);font-size:14.5px}
+/* the node window (user decision 2026-11-05): opens beside the clicked node, closed with × */
+.tinfo{position:absolute;z-index:5;width:min(400px,calc(100% - 16px));box-sizing:border-box;display:grid;gap:10px;padding:14px 16px 12px;background:rgba(8,14,26,.96);border:1px solid var(--line);box-shadow:0 8px 28px rgba(0,0,0,.55);font-size:14.5px}
+.tinfo .tx{position:absolute;top:4px;right:6px;background:none;border:0;color:var(--ink-dim);font-size:20px;line-height:1;padding:4px 8px}
+.tinfo .tx:hover{color:var(--ink)}
+.tinfo>div:first-of-type{padding-right:24px}
 .tinfo b{font-size:16px}
 .tinfo p{margin:2px 0 0;color:var(--ink-dim);line-height:1.6}
 .tact{display:flex;align-items:center;gap:10px;font-family:var(--f-num)}
@@ -323,7 +327,7 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .scr[data-s="tech"] .scrhead,.scr[data-s="data"] .scrhead,.scr[data-s="opt"] .scrhead{border:0;margin-bottom:24px}
 .scr[data-s="tech"] .back,.scr[data-s="data"] .back,.scr[data-s="opt"] .back{position:absolute;top:8px;left:0;background:var(--panel);border:0;clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
 .optlist{width:700px;max-width:100%;clip-path:polygon(22px 0,100% 0,100% calc(100% - 22px),calc(100% - 22px) 100%,0 100%,0 22px)}.optrow b{font-size:18px}.sw{display:inline-flex;align-items:center;gap:12px}.sw input{appearance:none;margin:0;width:44px;height:18px;position:relative;cursor:pointer;background:rgba(127,200,255,.08);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}.sw input:after{content:"";position:absolute;top:3px;left:6px;width:14px;height:12px;background:var(--ink-dim);clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%)}.sw input:checked{background:rgba(127,200,255,.3)}.sw input:checked:after{left:24px;background:var(--blue)}
-.scr[data-s="tech"] .techwrap{grid-template-columns:300px minmax(0,1fr)}.trscroll,.tinfo{border:0}.ships td,.ships th{padding-top:5px;padding-bottom:5px}.np{border:0;position:relative}.np:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(currentColor,currentColor) 0 0/8px 1px no-repeat,linear-gradient(currentColor,currentColor) 0 0/1px 8px no-repeat,linear-gradient(currentColor,currentColor) 100% 100%/8px 1px no-repeat,linear-gradient(currentColor,currentColor) 100% 100%/1px 8px no-repeat}
+.scr[data-s="tech"] .techwrap{grid-template-columns:300px minmax(0,1fr)}.trscroll{border:0}.ships td,.ships th{padding-top:5px;padding-bottom:5px}.np{border:0;position:relative}.np:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(currentColor,currentColor) 0 0/8px 1px no-repeat,linear-gradient(currentColor,currentColor) 0 0/1px 8px no-repeat,linear-gradient(currentColor,currentColor) 100% 100%/8px 1px no-repeat,linear-gradient(currentColor,currentColor) 100% 100%/1px 8px no-repeat}
 #menu .scr[data-s="tech"]{box-sizing:border-box}
 /* fleet design */
 [data-s="org"] .tabs button{transform:skewX(-12deg)}
