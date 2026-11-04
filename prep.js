@@ -636,6 +636,14 @@ function unitDisplay(name, level){
   if(opt.unitFmt==='name') return `<b>${esc(name)}</b>`;
   return `<b>${esc(no)}</b>${opt.unitFmt==='both'&&role?`<small>${esc(role)}</small>`:''}`;
 }
+/* the name field shows the short form 第N打撃群 (user decision 2026-11-04): a 第N entry keeps the role in the stored name
+   第N 役割 打撃群, anything else is kept as a name of its own (named units such as アルバレス隊) */
+function shortName(name,level){ const m=/^第(\d+)(?:\s+(.+?))?\s+(支隊|打撃群|戦区軍)$/.exec(name); return m?`第${m[1]}${level}`:name; }
+function unitRole(name){ const m=/^第\d+\s+(.+?)\s+(支隊|打撃群|戦区軍)$/.exec(name||''); return m?m[1]:''; }
+function longName(v,level,role){ const m=new RegExp(`^第\\s*(\\d+)\\s*(?:${level})?$`).exec(v.trim()); return m?`第${m[1]} ${role?role+' ':''}${level}`:v.trim(); }
+/* the role shown under a strike group's mark on the theater army grid: from its name, or for a named one from its main class */
+function armyRole(a){ return unitRole(a.name)||(UNAMES.earth[armyMain(a)]||[])[1]?.[1]||''; }
+function relabel(li,name,level){ li.querySelectorAll(':scope>b,:scope>small').forEach(e=>e.remove()); li.insertAdjacentHTML('afterbegin',unitDisplay(name,level)); }
 function orgBars(st){ return `<dl class="orgstats">${[...STATS,{k:'spd',n:'速度'}].map(x=>`<div><dt>${x.n}</dt><dd><span class="seg" style="--v:${Math.min(100,Math.max(0,st[x.k]*10))}%"></span></dd><span>${st[x.k].toFixed(1)}</span></div>`).join('')}</dl>`; }
 function armyMarks(a){ return a.bgs.map(bgById).filter(Boolean).map(b=>mark(b.type)).join(''); }
 function renderArmyTab(){
@@ -650,8 +658,10 @@ function renderArmyTab(){
   const rows=Array.from({length:MAX_BG},(_,i)=>{ const b=bgById(a.bgs[i]);
     if(!b) return `<div class="tr empty"><div class="th">${i===a.bgs.length?`<select id="addBg" aria-label="支隊を加える"><option value="">＋ 支隊を加える</option><optgroup label="新しい支隊">${SHIPS.filter(s=>typeOpen(s.id)).map(s=>`<option value="new:${s.id}">${s.name}</option>`).join('')}</optgroup><optgroup label="未所属の支隊">${free.map(f=>`<option value="${f.id}">${esc(f.name)}（${SHIP[f.type].name}×${f.count}）</option>`).join('')}</optgroup></select>`:'空き'}</div></div>`;
     return `<div class="tr"><div class="th"><span class="no">${unitDisplay(b.name,'支隊')}</span><select data-type="${b.id}" aria-label="艦種">${options(b.type)}</select><button class="x" data-rm="${b.id}" aria-label="外す">×</button></div><div class="cells">${Array.from({length:12},(_,k)=>k>=SHIP[b.type].max?'<span class="sc nx"></span>':`<button class="sc ${k<b.count?'on':''}" data-count="${b.id}" data-n="${k+1}" aria-label="${k+1}隻にする">${k<b.count?mark(b.type):'＋'}</button>`).join('')}</div><span class="ct">${b.count}<small>/${SHIP[b.type].max}</small></span></div>`; }).join('');
-  det.innerHTML=`<div class="dzh"><div class="tg">${unitDisplay(a.name,'打撃群')}</div><label class="fld">名前（飾り）<input id="armyName" maxlength="20" value="${esc(a.name)}"></label><button data-copy>複製</button>${delBtn('army:'+a.id,'解散')}</div><div class="dzb"><div><h4>支隊　<span class="dim">マスを押して隻数を変える</span></h4>${rows}</div><div class="dpanel"><h4>打撃群の能力</h4><p>総数 ${ships}隻　搭載 ${hangarStr(hangar)||'なし'}</p>${orgBars(st)}<h4>編成ボーナス</h4><div class="bl">${BONUSES.map(bn=>`<div class="bon ${active.includes(bn)?'on':''}" title="${esc(bn.cond)}"><b>${bn.name}</b><em>${bn.eff}</em></div>`).join('')}</div></div></div>`;
-  det.querySelector('#armyName').oninput=e=>{ a.name=e.target.value||'無名の打撃群'; delete a.auto; persist(); };
+  det.innerHTML=`<div class="dzh"><div class="tg">${unitDisplay(a.name,'打撃群')}</div><label class="fld">名前<input id="armyName" maxlength="20" value="${esc(shortName(a.name,'打撃群'))}"></label><button data-copy>複製</button>${delBtn('army:'+a.id,'解散')}</div><div class="dzb"><div><h4>支隊　<span class="dim">マスを押して隻数を変える</span></h4>${rows}</div><div class="dpanel"><h4>打撃群の能力</h4><p>総数 ${ships}隻　搭載 ${hangarStr(hangar)||'なし'}</p>${orgBars(st)}<h4>編成ボーナス</h4><div class="bl">${BONUSES.map(bn=>`<div class="bon ${active.includes(bn)?'on':''}" title="${esc(bn.cond)}"><b>${bn.name}</b><em>${bn.eff}</em></div>`).join('')}</div></div></div>`;
+  const role=armyRole(a);
+  det.querySelector('#armyName').oninput=e=>{ a.name=longName(e.target.value,'打撃群',role)||'無名の打撃群'; delete a.auto; persist();
+    det.querySelector('.tg').innerHTML=unitDisplay(a.name,'打撃群'); relabel(list.querySelector(`[data-army="${a.id}"]`),a.name,'打撃群'); };
   const add=det.querySelector('#addBg'); if(add) add.onchange=()=>{ if(!add.value)return; let id=add.value; if(id.startsWith('new:')){const type=id.slice(4), b={id:newId('bg'),name:nextBgName(type),type,count:Math.min(4,SHIP[type].max),auto:true}; save.bgs.push(b); id=b.id;} a.bgs.push(id); persist(); renderOrg(); };
   det.querySelectorAll('[data-type]').forEach(x=>x.onchange=()=>{const b=bgById(x.dataset.type); b.type=x.value; b.count=Math.min(b.count,SHIP[b.type].max); if(b.auto)b.name=nextBgName(b.type,b); persist(); renderOrg();});
   det.querySelectorAll('[data-count]').forEach(x=>x.onclick=()=>{bgById(x.dataset.count).count=+x.dataset.n; persist(); renderOrg();});
@@ -677,12 +687,12 @@ function renderGroupTab(){
   const cells=[];
   for(let z=0;z<CUBE;z++) for(let x=0;x<CUBE;x++){
     const here=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);
-    const other=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y!==layer);
-    cells.push(`<button class="cell ${here>=0&&placing===here?'sel':''}" data-cx="${x}" data-cz="${z}" style="${here>=0?`--c:${GROUP_COLORS[here]}`:other>=0?`--o:${GROUP_COLORS[other]}`:''}" ${here>=0?'data-on':''} ${other>=0&&here<0?'data-other':''} aria-label="${'ABCDE'[x]}${z+1}">${here>=0?esc((()=>{const n=unitNo((armyById(g.members[here].army)||{}).name||'');return n?'第'+n:'';})()):''}</button>`);
+    const other=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y!==layer), ha=here>=0&&armyById(g.members[here].army);
+    cells.push(`<button class="cell ${here>=0&&placing===here?'sel':''}" data-cx="${x}" data-cz="${z}" style="${here>=0?`--c:${GROUP_COLORS[here]}`:other>=0?`--o:${GROUP_COLORS[other]}`:''}" ${here>=0?'data-on':''} ${other>=0&&here<0?'data-other':''} aria-label="${'ABCDE'[x]}${z+1}" ${ha?`title="${esc(shortName(ha.name,'打撃群'))}"`:''}>${ha?`${armyMain(ha)?mark(armyMain(ha)):''}<span class="rl">${esc(armyRole(ha))}</span>`:''}</button>`);
   }
   const slowest=g.members.map(m=>armyById(m.army)).filter(Boolean).map(a=>armyStats(a).st.spd).filter(v=>v>0);
   det.innerHTML=`
-    <div class="arow"><label class="fld">名前（飾り）<input id="grpName" maxlength="20" value="${esc(g.name)}"></label>
+    <div class="arow"><label class="fld">名前<input id="grpName" maxlength="20" value="${esc(shortName(g.name,'戦区軍'))}"></label>
     <label class="sw"><input type="checkbox" id="grpSync" ${g.sync?'checked':''}> 移動時は最も遅い艦に速度を合わせる <span class="dim">${slowest.length?`（この戦区軍では速度${Math.min(...slowest).toFixed(0)}）`:''}</span></label></div>
     <div class="cubeed">
       <div class="layer">
@@ -693,7 +703,8 @@ function renderGroupTab(){
     </div>
     <h4>所属する打撃群（${g.members.length}/${MAX_ARMY}）</h4><div class="chips">${chips}</div>
     <div class="row">${delBtn('grp:'+g.id,'この戦区軍を削除する')}</div>`;
-  det.querySelector('#grpName').oninput=e=>{ g.name=e.target.value||'無名の戦区軍'; delete g.auto; persist(); list.querySelector(`[data-grp="${g.id}"] b`).textContent=g.name; };
+  const grole=unitRole(g.name)||(UNAMES.earth[groupMain(g)]||[])[0]?.[1]||'';
+  det.querySelector('#grpName').oninput=e=>{ g.name=longName(e.target.value,'戦区軍',grole)||'無名の戦区軍'; delete g.auto; persist(); relabel(list.querySelector(`[data-grp="${g.id}"]`),g.name,'戦区軍'); };
   det.querySelector('#grpSync').onchange=e=>{ g.sync=e.target.checked; persist(); renderOrg(); };
   det.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>{ placing=+x.dataset.pick; layer=g.members[placing].y; orgPop=null; renderOrg(); });
   det.querySelectorAll('[data-out]').forEach(x=>x.onclick=()=>{ const [m]=g.members.splice(+x.dataset.out,1); if(m&&m.army===g.flag) delete g.flag; placing=null; orgPop=null; persist(); renderOrg(); });
