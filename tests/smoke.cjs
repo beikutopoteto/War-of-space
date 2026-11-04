@@ -317,12 +317,22 @@ function check(ok, label, detail = '') {
     check(alt.r === '8,15,30,-30,-15,5' && alt.d !== alt.d0, '高度: ▲▼は0から15ずつの段へ、バーとQ/Eは自由。日をまたぐと日付が進む', `${alt.r} / ${alt.d}`);
     /* the turn stick at the bottom: held to the right the view keeps turning, let go it springs back to the middle */
     const az0 = await page.evaluate(() => getAngles().az);
-    const tb = await page.locator('#azTrack').boundingBox();
+    const tb = await page.locator('#camPad').boundingBox();
     await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.down();
     await page.mouse.move(tb.x + tb.width - 4, tb.y + tb.height / 2); await page.waitForTimeout(500);
     const az1 = await page.evaluate(() => getAngles().az); await page.mouse.up(); await page.waitForTimeout(300);
     const back = await page.evaluate(() => stick.az === 0);
-    check(Math.abs(az1 - az0) > 20 && back, '視点: 下の横回転スティックを倒すと回り続け、離すと戻る', `${Math.round(az1 - az0)}°`);
+    check(Math.abs(az1 - az0) > 20 && back, '視点: スティックを右に倒すと回り続け、離すと戻る', `${Math.round(az1 - az0)}°`);
+    await page.evaluate(() => setAngles(null, 0));
+    const el0 = await page.evaluate(() => getAngles().el);
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.down();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 4); await page.waitForTimeout(500);
+    const el1 = await page.evaluate(() => getAngles().el); await page.mouse.up();
+    check(el1 - el0 > 10 && await page.evaluate(() => stick.az === 0 && stick.el === 0), '視点: スティックを上に倒すと上から見て、離すと戻る', `${Math.round(el1 - el0)}°`);
+    const tabs = await page.evaluate(() => { select(null); const tab = document.querySelector('#roster .rzone .gtab');
+      const was = tab.getAttribute('aria-expanded'); tab.click(); const closed = document.querySelector('#roster .rzone .gtab').getAttribute('aria-expanded');
+      document.querySelector('#roster .rzone .gtab').click(); return { was, closed, reopened: document.querySelector('#roster .rzone .gtab').getAttribute('aria-expanded') }; });
+    check(tabs.was === 'true' && tabs.closed === 'false' && tabs.reopened === 'true', '一覧: タブを閉じて開ける', JSON.stringify(tabs));
 
     /* queued waypoints: the fleet passes the first point and stops at the last (southward, away from the fortress and its fighters) */
     const route = await page.evaluate(() => {

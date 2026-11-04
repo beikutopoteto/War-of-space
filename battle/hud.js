@@ -31,7 +31,7 @@ function setSel(list,g=null){
   selected=(selGroup?groupFlag(selGroup):null)||(list.includes(selected)?selected:list[0])||null;
   if(!selected) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',list.includes(x)));
   if(selected){ setAlt(selected.order&&selected.order.type==='move'?selected.order.dest.y:selected.pos.y,false); }
-  document.getElementById('alt').hidden=!selected; updateRoster(); }
+  document.getElementById('alt').hidden=!selected; openSelectedRoster(list); updateRoster(); }
 function select(f){ setSel(f?[f]:[]); }
 /* a fleet that is lost leaves the selection */
 function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
@@ -130,8 +130,7 @@ function setView(i){ viewIdx=i; const a=getAngles();
   document.querySelectorAll('#camView button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===i))); }
 function cycleView(){ setView((viewIdx+1)%VIEWS.length); }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
-/* view angle: two spring sticks at the bottom, one turns the camera around the target, the other tilts it from above to below.
-   Push a stick and the view keeps turning, faster the further it is pushed; let go and it springs back. Arrow keys do the same */
+/* view angle: one spring stick turns and tilts the camera; arrow keys do the same. */
 const EL_MIN=-80, EL_MAX=88, _sph=new THREE.Spherical(), _off=new THREE.Vector3();
 function getAngles(){ _off.subVectors(camera.position,controls.target); _sph.setFromVector3(_off); return {az:THREE.MathUtils.radToDeg(_sph.theta), el:90-THREE.MathUtils.radToDeg(_sph.phi)}; }
 function setAngles(az,el){
@@ -141,17 +140,17 @@ function setAngles(az,el){
   _off.setFromSpherical(_sph); camera.position.copy(controls.target).add(_off);
 }
 const stick={az:0,el:0};
-function bindStick(tr,axis){
-  const kn=tr.querySelector('.kn'), h=axis==='az';
-  const put=v=>{ stick[axis]=v=Math.max(-1,Math.min(1,v)); kn.style[h?'left':'top']=(50+42*v)+'%'; };
-  const from=e=>{ const r=tr.getBoundingClientRect(); put(h?(e.clientX-r.left)/r.width*2-1:(e.clientY-r.top)/r.height*2-1); };
-  const free=()=>{ tr.classList.remove('held'); put(0); };
+function bindStick(tr){
+  const kn=tr.querySelector('.kn');
+  const put=(x,y)=>{ const length=Math.hypot(x,y); if(length>1){ x/=length; y/=length; }
+    stick.az=x; stick.el=y; kn.style.left=(50+42*x)+'%'; kn.style.top=(50+42*y)+'%'; };
+  const from=e=>{ const r=tr.getBoundingClientRect(); put((e.clientX-r.left)/r.width*2-1,(e.clientY-r.top)/r.height*2-1); };
+  const free=()=>{ tr.classList.remove('held'); put(0,0); };
   tr.addEventListener('pointerdown',e=>{ tr.setPointerCapture(e.pointerId); tr.classList.add('held'); from(e); });
   tr.addEventListener('pointermove',e=>{ if(tr.hasPointerCapture(e.pointerId)) from(e); });
   tr.addEventListener('pointerup',free); tr.addEventListener('pointercancel',free); tr.addEventListener('lostpointercapture',free);
 }
-bindStick(document.getElementById('azTrack'),'az');
-bindStick(document.getElementById('elTrack'),'el');
+bindStick(document.getElementById('camPad'));
 const rotKeys=new Set();
 addEventListener('keydown',e=>{ if(e.target===altTrack) return; if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){ rotKeys.add(e.key); e.preventDefault(); } });
 addEventListener('keyup',e=>rotKeys.delete(e.key));

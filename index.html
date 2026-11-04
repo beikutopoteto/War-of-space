@@ -10,7 +10,7 @@
 
 <div id="tl" class="hud">
   <div id="clock"><div class="date" id="date">宙暦0412.07.18　08:00</div><div class="phase" id="phase">布陣</div></div>
-  <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧">メニュー Esc</button></div>
+  <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧"><i>MENU</i>メニュー Esc</button></div>
   <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gx" id="goalGates" hidden></div><div class="gs" id="goalSub"></div></div>
   <div id="alt" hidden aria-label="高度">
     <span class="cap">高度</span>
@@ -34,11 +34,13 @@
     <button id="vUi" aria-pressed="true" title="パネルの表示切り替え（Hキー）">パネル H</button>
     <button id="vLb" aria-pressed="true" title="名札の表示切り替え（Lキー）">名札 L</button>
   </div>
+  <div class="eye">VIEW<span>視点</span></div>
   <div id="camView" role="group" aria-label="視点（Vキーで順に切り替え）">
     <button id="cv0" data-v="0" aria-pressed="true">斜め</button>
     <button id="cv1" data-v="1" aria-pressed="false">真上</button>
     <button id="cv2" data-v="2" aria-pressed="false">真横</button>
   </div>
+  <div class="eye">SPEED<span>速さ</span></div>
   <div id="speed" role="group" aria-label="進行速度">
     <button id="sp0" data-s="0" aria-pressed="false" title="一時停止（Spaceキーで切り替え）">停止</button>
     <button id="sp1" data-s="1" aria-pressed="true">1×</button>
@@ -48,11 +50,11 @@
 </div>
 
 <div id="deploy" class="hud" hidden><b>配置</b><p>戦区軍を選び、光る範囲の中をクリックすると、そこへ置けます。並べ終えたら作戦を始めます。</p><button id="deployGo">作戦開始</button></div>
-<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約、味方の艦隊ならまとめて選択（一覧の「＋ 戦区軍を作る」で戦区軍に）。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグか下のスティックで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
+<div id="hint" class="hud">青い艦隊をクリックで選び、宙域をクリックで移動、敵や要塞をクリックすると攻撃か移動を選べます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約、味方の艦隊ならまとめて選択（右下の一覧の「＋」で戦区軍に）。高度は左のバーか Q/E、R で自動交戦と命令優先の切り替え。ドラッグか下の視点のスティックで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。</div>
 
 <div id="camSticks" class="hud" aria-label="視点の回転">
-  <div class="stick h"><span>横回転</span><div id="azTrack" class="tr" role="slider" aria-label="視点の横回転（倒すと回り続ける。←→キーでも）"><span class="kn"></span></div></div>
-  <div class="stick v"><span>上下</span><div id="elTrack" class="tr" role="slider" aria-label="視点の上下（上へ倒すと上から見る。↑↓キーでも）"><span class="kn"></span></div></div>
+  <div id="camPad" role="slider" aria-label="視点の回転（左右に倒すと横回転、上下に倒すと上下の角度。離すと戻る。十字キーでも）"><svg class="fr" viewBox="0 0 100 100" aria-hidden="true"><polygon points="30,.5 70,.5 99.5,30 99.5,70 70,99.5 30,99.5 .5,70 .5,30" fill="none" stroke="rgba(226,197,138,.5)" stroke-width="1"/></svg><span class="a l">◀</span><span class="a r">▶</span><span class="a u">▲</span><span class="a d">▼</span><span class="kn"></span></div>
+  <div class="eye">VIEW<span>視点</span></div>
 </div>
 
 <div id="brief" class="hud" aria-live="polite">
@@ -71,12 +73,12 @@
   <table id="keys" hidden><tbody>
     <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で戦区軍の全軍（押すたびに次の戦区軍）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
     <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
-    <tr><th>戦区軍</th><td>まとめて選んで右下の「＋ 戦区軍を作る」。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き（出撃時の陣形・横陣・縦陣・輪形陣から選べる）、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで打撃群を出し入れ</td></tr>
+    <tr><th>戦区軍</th><td>まとめて選んで右下の一覧の「＋」。右下の一覧の左のタブを押すと、その戦区軍の打撃群を開く・閉じる（全部開くと全部見える）。マスにマウスを載せると残っている艦種と隻数。マスの右上の三角で自動交戦/命令優先。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き（出撃時の陣形・横陣・縦陣・輪形陣から選べる）、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで打撃群を出し入れ</td></tr>
     <tr><th>予約</th><td>Shift+クリックで経由地や攻撃を予約</td></tr>
     <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す</td></tr>
     <tr><th>高度</th><td>左の高度バー、Q / E</td></tr>
     <tr><th>自動交戦・命令優先</th><td>R、高度バーの下のボタン、右下の艦隊一覧。自動交戦は射程内の敵を撃ち、命令優先は攻撃を命じた敵だけを撃つ</td></tr>
-    <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーか下のスティック（横回転・上下）で回転、V で斜め/真上/真横</td></tr>
+    <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーか下の視点のスティック（左右で横回転、上下で上下の角度）で回転、V で斜め/真上/真横</td></tr>
     <tr><th>時間</th><td>Space で一時停止、停止・1×・2×・4×</td></tr>
     <tr><th>表示</th><td>H でパネル、L で名札</td></tr>
     <tr><th>会話</th><td>クリックか Enter で次へ、Ctrl 長押しで早送り、「とばす」で最後まで。オプションでストーリーをオフにすると会話を出さない</td></tr>
