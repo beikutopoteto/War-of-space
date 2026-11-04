@@ -71,8 +71,10 @@ function check(ok, label, detail = '') {
     await page.click('[data-s="online"] .back'); await page.click('[data-s="mode"] [data-go="sortie"]');
     const ops0 = await page.evaluate(() => ['shinano', 'retreat', 'charybdis'].map(id => document.querySelector(`[data-op="${id}"]`).disabled));
     check(!ops0[0] && ops0[1] && !ops0[2], '出撃: 最初は第1節と演習（クイック出撃）だけ選べる（第2節は鍵付き）', JSON.stringify(ops0));
-    await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
-    const q0 = { quick: await page.isVisible('#goQuick'), own: await page.isDisabled('#goBattle'), note: await page.textContent('#sgList') };
+    await page.click('[data-op="charybdis"]');
+    const quick0 = await page.isVisible('#goQuick'); await page.click('#goBattle');
+    const q0 = { quick: quick0, own: await page.isDisabled('#forcesBattle'), note: await page.textContent('#sgList') };
+    await page.click('[data-s=forces] .back');
     check(q0.quick && q0.own && q0.note.includes('後退'), '出撃: 演習は最初からクイック出撃でき、自分の戦区軍での出撃は第2節クリアまで鍵付き', JSON.stringify(q0));
     await page.click('[data-op="shinano"]');
     await page.waitForTimeout(2500); const firstDay = await page.textContent('#where');
@@ -194,12 +196,24 @@ function check(ok, label, detail = '') {
     await page.click('[data-s="org"] .back');
 
     /* sortie with the first army group */
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
     check(await page.locator('#opList [data-op]').count() === data.shown && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
-    await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
-    check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#goBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
+    await page.click('[data-op="charybdis"]');
+    await page.click('#goBattle');
+    check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#forcesBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
     const clash = await page.evaluate(() => [...document.querySelectorAll('#sgList [data-sg]')].map(b => ({ on: b.getAttribute('aria-pressed'), off: b.disabled, note: b.textContent.includes('同一支隊を含みます') })));
     check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ打撃群を含む戦区軍は一緒に選べず、暗くなって「同一支隊を含みます」と出る', JSON.stringify(clash));
+    const dockBefore = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
+    const dockCounts = JSON.parse(await page.locator('#dockCanvas').getAttribute('data-ship-counts'));
+    check(dockCounts.join(',') === '0,0,6,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
+    await page.locator('#sgList [data-sg][aria-pressed=true]').click();
+    const dockAfter = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
+    check(+dockAfter > +dockBefore && await page.isDisabled('#forcesBattle'), '軍港: 選択を外すと桟橋が畳まれ、出撃できない', dockBefore + ' → ' + dockAfter);
+    await page.locator('#sgList [data-sg]').first().click();
+    await page.click('#forcesOrg');
+    check((await page.textContent('[data-s=org] .back')).includes('出撃の準備へ'), '出撃: 艦隊編集から選択画面へ戻れる');
+    await page.click('[data-s=org] .back');
+    check(await page.locator('#sgList [data-sg][aria-pressed=true]').count() === 1, '出撃: 艦隊編集から戻っても選択が残る');
     await shot('04-sortie');
     await page.keyboard.press('Enter');   // Enter decides the sortie (same as the 出撃 button)
     await page.waitForTimeout(1500);
@@ -282,7 +296,7 @@ function check(ok, label, detail = '') {
 
     /* quick battle: クイック出撃 on the sortie screen (the exercise with its prepared fleets) */
     await page.evaluate(() => WOS.openMenu());
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true); await page.click('#goQuick');
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]');  await page.click('#goQuick');
     await page.waitForTimeout(3000);
     const legend = await page.textContent('#legend');
     check(legend.includes('地球連合') && legend.includes('惑星共和国'), 'クイック戦闘: 凡例の陣営名');
@@ -602,8 +616,10 @@ function check(ok, label, detail = '') {
       const cells = page.locator('[data-count="bg2"]'); await cells.nth(v === 'max' ? (await cells.count()) - 1 : v - 1).click();
       await page.click('[data-s="org"] .back'); return n; };
     const bgN = await setBgCount('max');
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
-    const over = { rows: await page.locator('#sgLoad tr.over').count(), warn: await page.textContent('#sgLoad').catch(() => ''), go: !(await page.isDisabled('#goBattle')) };
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]');
+    await page.click('#goBattle');
+    const over = { rows: await page.locator('#sgLoad tr.over').count(), warn: await page.textContent('#sgLoad').catch(() => ''), go: !(await page.isDisabled('#forcesBattle')) };
+    await page.click('[data-s=forces] .back');
     check(over.rows > 0 && over.warn.includes('デバッグ') && over.go, 'デバッグ: 自由に選ぶと、出撃上限を超えても出撃できる', JSON.stringify(over));
     /* a campaign operation fought with the player's army groups (ナイル防衛線) has no クイック出撃: only the exercise does (user decision 2026-10-05) */
     await page.click('[data-op="nile"]');
@@ -630,7 +646,7 @@ function check(ok, label, detail = '') {
       'デバッグ: 一節だけクリアで次の節が報酬つきでクリアになる', JSON.stringify([one1, one2]));
     await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
-    check((await page.textContent('#sgList')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
+    check((await page.textContent('#fixedNote')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
     const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
     check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
@@ -753,14 +769,17 @@ function check(ok, label, detail = '') {
     /* 第3節 ナイル防衛線: fought with the player's army group; we defend the station, allied fleets (AI) hold the line */
     check(open2.prog.flags['rescued:retreat'] === true, '後退: カワセミを助けたかどうかが保存される', JSON.stringify(open2.prog.flags));
     /* the exercise with the player's own army groups opens once something has been researched (user decision 2026-10-13); クイック出撃 is always there */
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true);
-    const exLock = { own: await page.isDisabled('#goBattle'), quick: await page.isVisible('#goQuick'), note: await page.textContent('#sgList') };
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="charybdis"]');
+    const exQuick = await page.isVisible('#goQuick'); await page.click('#goBattle');
+    const exLock = { own: await page.isDisabled('#forcesBattle'), quick: exQuick, note: await page.textContent('#sgList') };
+    await page.click('[data-s=forces] .back');
     check(exLock.own && exLock.quick && exLock.note.includes('研究'), '出撃: 自分の戦区軍での演習は、技術ツリーで研究を1つ終えるまで鍵付き（クイック出撃はできる）', JSON.stringify(exLock));
     await page.click('[data-s="sortie"] .back'); await page.click('[data-s="mode"] .back');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="nile"]');
-    const nSortie = { fixed: (await page.textContent('#sgList')).includes('決まった艦隊'), go: !(await page.isDisabled('#goBattle')) };
+    await page.click('#goBattle');
+    const nSortie = { fixed: (await page.textContent('#fixedNote')).includes('決まった艦隊'), go: !(await page.isDisabled('#forcesBattle')) };
     check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の戦区軍で出撃する', JSON.stringify(nSortie));
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#forcesBattle'); await page.waitForTimeout(800);
     const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[0]));
     check(nTalk.includes('ベケレ機関士'), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の会話にベケレ機関士が出る', nTalk.join(','));
     await page.click('#talkSkip').catch(() => {});
@@ -830,7 +849,7 @@ function check(ok, label, detail = '') {
        spaceport ring, the W.A.S. unit comes back, the boarding takes 5 hours, and getting the carrier to the exit ends it */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="denali"]');
     check(!(await page.isDisabled('#goBattle')), 'デナリの盾: 第3節のクリアで開き、自分の戦区軍で出撃する');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const d1 = await page.evaluate(() => {
@@ -1106,12 +1125,13 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]');
     check(!(await page.isDisabled('#goBattle')), 'フェブルアーリア防衛戦: 第4節のクリアで開き、自分の戦区軍で出撃する');
     /* the battle's scale: its name and length on the card, and a cap on all the ships together */
+    await page.click('#goBattle');
     const scl = await page.evaluate(() => ({ card: document.querySelector('#opDetail .thr').textContent, row: (document.querySelector('#sgLoad tr.scale') || {}).textContent || '',
       small: '' }));
-    await page.click('[data-op="charybdis"]'); scl.small = await page.textContent('#opDetail .thr'); await page.click('[data-op="februaria"]');
+    await page.click('[data-s=forces] .back'); await page.click('[data-op="charybdis"]'); scl.small = await page.textContent('#opDetail .thr'); await page.click('[data-op="februaria"]');
     check(scl.card.startsWith('大規模　') && !scl.card.includes('目安') && /戦闘の規模（大規模）\d+ \/ 150隻/.test(scl.row) && scl.small.startsWith('小規模　'),
       '戦闘の規模: 出撃画面に規模が出て（目安の長さは出さない、2026-10-30）、出撃できる艦の合計に規模の上限が付く（第5節は作戦の cap で150。2026-10-18）', JSON.stringify(scl));
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     await page.waitForTimeout(300);
@@ -1262,7 +1282,7 @@ function check(ok, label, detail = '') {
     await page.waitForTimeout(2200); await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#toMenu');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     /* falling back (user decision 2026-10-17 夜): with no order, a fleet that outranges its foe backs off at half speed, bow on the foe, firing in
@@ -1429,7 +1449,7 @@ function check(ok, label, detail = '') {
     /* 2026-10-14: the Republic falls back (2026-10-18: once what it has left cannot take the base): every enemy withdraws (an assault ship by
        the last gate wears the garrison down no more), nothing more comes, and after about 20 s the victory follows */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const f4 = await page.evaluate(() => {
@@ -1459,7 +1479,7 @@ function check(ok, label, detail = '') {
        it does not wait for them; those not yet home when it is gone go with it. User decision 2026-10-23) (not sunk), and comes again whole at the next landing wave (the second time at the all-out attack); the third time it goes
        under 10% and does not come again. Coming again counts as W.A.S. still to come (wasShort); gone for good counts none */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const rt = await page.evaluate(() => {
@@ -1508,7 +1528,7 @@ function check(ok, label, detail = '') {
        out, they wear the gun down once its infantry are gone, wait out of reach of a gate held by more of ours, and go in by the last gate
        once its shield is gone, each man taking garrison.troop off the garrison. They are red dots */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const lt = await page.evaluate(() => {
@@ -1570,7 +1590,7 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
     await page.click('[data-op="nile"]'); const mScale = await page.textContent('#opDetail .thr');
     check(mScale.startsWith('中規模') && !mScale.includes('目安'), '戦闘の規模: 出撃画面に目安の長さは出さない（ユーザー決定 2026-10-30。前は pace で縮めた長さを出した）', mScale);
-    await page.click('[data-op="charybdis"]'); await page.evaluate(() => document.getElementById('groupsPanel').open = true); await page.click('#goQuick'); await page.waitForTimeout(800);
+    await page.click('[data-op="charybdis"]');  await page.click('#goQuick'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     const tu = await page.evaluate(() => {
       const F = op.fortress, q = op.quick[0], f = fleets[0], cv = fleets.find(x => x.team === 0 && x.hangars.length);
@@ -1590,7 +1610,7 @@ function check(ok, label, detail = '') {
     await page.click('#toMenu');
     /* 第4節: the stage's Earth tables without durability adjustments; Yukon not landed by 12:00 loses */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="denali"]');
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
     const dl = await page.evaluate(() => {
@@ -2163,7 +2183,7 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="opt"]'); await page.click('[data-opt="story"]'); await page.click('[data-s="opt"] .back');
     if (!(await page.isVisible('#dbgB [data-dbg="auto"]'))) await page.click('#dbgT');
     await page.click('#dbgB [data-dbg="auto"]');
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="nile"]'); await page.click('#goBattle'); await page.waitForTimeout(400);
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="nile"]'); await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(400);
     const au0 = await page.evaluate(() => ({ auto: autoMode, left: talkQ.length, talking }));
     await page.waitForTimeout(2200);
     const au = await page.evaluate(() => { const r = { left: talkQ.length }; while (talking) nextTalk(); r.deploying = deploying;

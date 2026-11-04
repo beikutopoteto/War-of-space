@@ -377,3 +377,22 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 /* theater army grid: the main class's mark on top, the role below, the name on hover (user decision 2026-11-04) */
 [data-s="org"] .grid{grid-template-columns:repeat(5,58px);grid-auto-rows:58px}
 .cell[data-on]{display:grid;grid-template-rows:1fr auto;place-items:center;padding:4px 2px 5px}.cell .mk{color:var(--void);width:40px;height:18px}.cell .mk .s{fill-opacity:.3}.cell .rl{font-size:11px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.02em}
+/* 出撃する戦区軍 */
+#menu .forces-screen{position:relative;overflow:hidden}
+.forces-screen #dockCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:-1;filter:grayscale(1) sepia(1) hue-rotate(178deg) saturate(2.4) brightness(.6);opacity:.7}
+.forces-screen .sortie-heading small{font-size:15px;color:var(--ink-dim);margin-left:30px}
+.forces-left{position:absolute;left:110px;top:180px;width:650px;bottom:50px;overflow:auto}
+.forces-left .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.forces-left .sgcard{position:relative;min-height:120px;display:flex;flex-direction:column;gap:6px;text-align:left;padding:14px;background:rgba(8,14,26,.84)}
+.forces-left .sgcard.sel{background:rgba(19,48,83,.9)}
+.forces-left .sgcard[aria-pressed=true]::after{content:'☑';position:absolute;right:12px;top:10px;color:var(--blue)}
+.forces-marks{display:flex;gap:4px;flex-wrap:wrap}.forces-marks i{background:rgba(0,0,0,.35);padding:4px;font-style:normal}.forces-marks small{display:block}
+#forcesCreate{margin-top:8px;padding:25px;color:var(--blue)}
+.forces-right{position:absolute;right:50px;bottom:40px;width:380px;display:grid;gap:8px}.forces-right .plate{padding:16px}.forces-right h3{margin:3px 0}.forces-buttons{text-align:right}.forces-buttons button{padding:10px 16px}
+#menu .forces-screen{width:calc(100vw / (var(--k,1) * 1.12));height:calc(100vh / (var(--k,1) * 1.12))}
+
+#menu .forces-screen{margin:-20px -16px 0}
+.forces-right{bottom:52px;gap:6px}.forces-right .plate{padding:10px 14px}
+#menu .forces-right h3{font-size:15px;white-space:nowrap}.forces-right h3 i{font:italic 600 12px var(--f-num);color:var(--blue)}
+.forces-right p{margin:5px 0;font-size:13px;line-height:1.45}.forces-right .load{font-size:13px}.forces-right .load th,.forces-right .load td{padding:3px 4px}.forces-right .load td.note{font-size:11px}
+#sgLoad{margin-top:0;gap:3px}.forces-buttons button{padding:8px 15px}
