@@ -1867,8 +1867,8 @@ function check(ok, label, detail = '') {
       /* 2 of the 5 settled (shatter, 2026-10-30): the blast does not break the rock, the battle goes on */
       goalFlashT = 0; goalFlashWait = false;
       nuke.bbs.filter(b => b.f && b.f.alive).slice(2).forEach(b => { while (b.f.alive) realDamage(b.f, b.f.hpPool + 1, fleets.find(f => f.team === 1 && f.alive)); });
-      r.flash = goalFlashWait || goalFlashT > 0;   // 3 lost before the blast: the goal turns to the thrusters (目標更新中)
-      later(.6); r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
+      later(.6); r.flash = goalFlashWait || goalFlashT > 0;   // 3 lost before the blast: the goal turns to the thrusters (目標更新中)
+      r.switch = { s2: P('槍2').doctrine, ham: P('霧と鎚').doctrine, north: P('北守備隊').t0, s2Ward: P('槍2').ward[0], hamWard: P('霧と鎚').ward[0] };
       goalFlashT = 0; goalFlashWait = false; mins(nuke.fuseAt + .1); later(.6); r.flash2 = goalFlashWait || goalFlashT > 0;   // the blast of the 2 left: not again
       const s2 = P('槍2'), hm = P('霧と鎚'), mid = P('中の拠点'), s1 = P('槍1');
       r.ignite = { state: nuke.state, over, landN: nuke.landN, s2: s2.doctrine, hamWardAll: [].concat(hm.ward).slice(0, 6).join(','),
