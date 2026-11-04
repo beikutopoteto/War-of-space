@@ -93,7 +93,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #camView button{flex:1;white-space:nowrap;font-family:var(--f-ui);font-size:11px;padding:2px 6px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);cursor:pointer}
 #camView button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
 #camView button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-#speed button:focus-visible,#roster button:focus-visible,.again:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+#speed button:focus-visible,.again:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
 /* bottom-left: briefing / event panel */
 #brief{left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(560px,52vw);background:var(--panel);border-left:3px solid var(--brass);padding:12px 18px 14px;backdrop-filter:blur(6px)}
@@ -105,13 +105,6 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #log b{font-family:var(--f-num);color:var(--brass);font-weight:500;margin-right:8px}
 
 /* bottom-right: roster */
-#roster{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:6px;width:220px}
-#roster button{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;text-align:left;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:3px solid var(--blue);padding:7px 10px;font-family:var(--f-ui);font-size:13px;font-weight:700;cursor:pointer;backdrop-filter:blur(6px)}
-#roster button .n{font-family:var(--f-num);font-weight:500;color:var(--ink-dim);font-variant-numeric:tabular-nums}
-#roster button .bar{grid-column:1/-1;height:3px;background:rgba(127,200,255,.15)}
-#roster button .bar i{display:block;height:100%;background:var(--blue)}
-#roster button[aria-pressed="true"]{background:rgba(127,200,255,.22);border-color:var(--blue)}
-#roster button:disabled{opacity:.35;border-left-color:#555;cursor:default}
 
 #hint{top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:8px 14px;font-size:12.5px;color:var(--ink);max-width:min(460px,calc(100vw - 32px));text-align:center;line-height:1.6;transition:opacity .8s}
 #hint{cursor:pointer}
@@ -189,22 +182,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #alt #stance button.undo:disabled{opacity:.4;cursor:default}
 #alt #stance button[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue);font-weight:700}
 #alt #stance button[data-st="evade"][aria-pressed="true"]{background:var(--brass);border-color:var(--brass)}
-#roster button.evade{border-left-style:dashed}
 /* fleet rows and the army group header: the main button plus small switches */
-#roster .frow,#roster .ghead{display:grid;grid-template-columns:1fr auto;gap:3px;align-items:stretch}
-#roster .ghead{grid-template-columns:1fr 1fr 1fr}
-#roster .ghead .grpBtn{grid-column:1/3}
-#roster button#newGrp{border-left-color:var(--brass);font-weight:500;font-size:11.5px}
-#roster button#newGrp:disabled{opacity:.45;border-left-color:var(--brass)}
-#roster select.rgShape{grid-column:1/-1;font-family:var(--f-ui);font-size:11px;background:var(--panel);color:var(--ink);border:1px solid var(--blue);padding:2px 4px;cursor:pointer}
-#roster select.rgShape:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-#roster select.rgShape option{background:#0b1322;color:var(--ink)}
-#roster button.rgForm[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue)}
-#roster .ghead button.st{padding:3px 4px;white-space:nowrap}
-#roster button.st{display:block;border-left-width:1px;padding:0 6px;min-width:38px;font-size:11px;font-weight:500;text-align:center;color:var(--ink-dim)}
-#roster button.st[data-st="evade"]{color:var(--void);background:var(--brass);border-color:var(--brass)}
-#roster button.st[data-st="mixed"]{color:var(--brass);border-color:var(--brass)}
-#roster button.rgSync[aria-pressed="true"]{color:var(--void);background:var(--blue);border-color:var(--blue)}
 #altTrack{position:relative;width:34px;height:84px;cursor:ns-resize;touch-action:none}
 #altTrack::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(var(--blue),rgba(127,200,255,.15) 50%,var(--blue))}
 #altTrack .zero{position:absolute;left:4px;right:4px;top:50%;height:1px;background:var(--brass)}
@@ -217,28 +195,12 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
   #alt button{height:24px;width:30px}
   #alt .val{font-size:12px}
 }
-/* camera sticks (bottom, right of the briefing): one turns the view around, one tilts it; they spring back when let go */
-#camSticks{left:calc(min(400px,44vw) + 56px);bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;align-items:flex-end;gap:10px}
-.stick{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);padding:4px 8px;opacity:.85;font-size:10.5px;color:var(--ink-dim);backdrop-filter:blur(6px)}
-.stick.v{padding:4px 6px}
-.stick .tr{position:relative;touch-action:none;cursor:grab;border-radius:13px;background:rgba(226,197,138,.1);box-shadow:inset 0 0 0 1px rgba(226,197,138,.35)}
-.stick .tr::before,.stick .tr::after{position:absolute;color:rgba(226,197,138,.7);font-size:8px;line-height:1}
-.stick.h .tr::before{content:"◀";left:4px;top:50%;transform:translateY(-50%)} .stick.h .tr::after{content:"▶";right:4px;top:50%;transform:translateY(-50%)}
-.stick.v .tr::before{content:"▲";top:4px;left:50%;transform:translateX(-50%)} .stick.v .tr::after{content:"▼";bottom:4px;left:50%;transform:translateX(-50%)}
-.stick .kn{position:absolute;left:50%;top:50%;width:18px;height:18px;border-radius:50%;background:var(--brass);box-shadow:0 0 8px var(--brass);transform:translate(-50%,-50%);transition:left .18s ease-out,top .18s ease-out}
-.stick .tr.held{cursor:grabbing} .stick .tr.held .kn{transition:none}
-#azTrack{width:150px;height:26px}
-#elTrack{width:26px;height:58px}
-/* small screens: the sticks stack just left of the roster; on a phone held upright, at the right edge above the roster */
-@media (max-width:760px),(max-height:500px){ #camSticks{left:auto;right:194px;flex-direction:column;align-items:flex-end;gap:6px} #azTrack{width:96px;height:24px} #elTrack{width:24px;height:42px} .stick>span{display:none} .stick{padding:3px 5px} }
-@media (max-width:620px) and (min-height:501px){ #camSticks{right:16px;bottom:auto;top:40%} }
+/* the view stick: see the end of this file */
 @media (max-width:760px),(max-height:500px){
   #brief{width:min(380px,48vw);padding:8px 12px}
   #brief h2{font-size:15px}
   #brief p{font-size:11.5px;line-height:1.55}
   #log{display:none}
-  #roster{width:170px;gap:4px}
-  #roster button{font-size:11.5px;padding:5px 8px}
   #clock .phase{font-size:17px}
   .flag span{display:none}
   .flag b{font-size:11px}
@@ -247,7 +209,6 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 }
 @media (max-width:520px){
   #brief{left:16px;right:16px;width:auto;bottom:calc(104px + env(safe-area-inset-bottom,0px))}
-  #roster{left:16px;right:16px;width:auto;grid-template-columns:1fr 1fr}
   #legend{padding:6px 10px}
   #legend .row{font-size:12px}
   #hint{bottom:calc(230px + env(safe-area-inset-bottom,0px))}
@@ -280,8 +241,6 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #brief.open #log{display:grid}
 #brief .t::after{content:"　＋詳細";color:var(--ink-dim);font-family:var(--f-ui);font-weight:400;font-size:10.5px}
 #brief.open .t::after{content:"　－閉じる"}
-#roster{width:168px;gap:3px;max-height:calc(100vh - 190px);overflow-y:auto;scrollbar-width:thin}
-#roster button{font-size:11.5px;padding:4px 8px;opacity:.88}
 #alt{opacity:.88}
 .flag{top:-32px;left:18px;padding:1px 7px 2px 6px;background:linear-gradient(90deg,color-mix(in srgb,currentColor 26%,transparent),transparent)}
 .flag b{font-size:11px}
@@ -297,12 +256,8 @@ body.nolabels .flag,body.nolabels .sector{display:none}
 body.noui .hud:not(#legend):not(#tl),body.noui #legend>:not(#view),body.noui #tl>:not(#tlBtns){display:none!important}
 @media (max-width:760px),(max-height:500px){ #brief{width:40vw} }
 @media (max-width:520px){
-  #roster{max-height:34vh}
   #goal{width:min(230px,calc(100vw - 210px))}
   #brief{width:auto;bottom:calc(var(--rh,64px) + 24px + env(safe-area-inset-bottom,0px))}
-  #roster:has(.rzone){grid-template-columns:1fr}
-  .rzone .rhead{font-size:10px}
-  #roster{width:auto}
 }
 #talk{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brass);padding:8px 12px;backdrop-filter:blur(6px);cursor:pointer;z-index:6}
 body.incut #labels{display:none}
@@ -337,9 +292,8 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 
 /* ---------- windows: thin corner brackets instead of the left bar (案 B, user decision 2026-10-03) ----------
    --bk is the bracket colour, --bs its arm length. The brackets are drawn on ::before so the box needs no border */
-#clock,#goal,#result .card,#roster button{position:relative}
+#clock,#goal,#result .card{position:relative}
 #clock::before,#goal::before,#brief::before,#talk::before,#deploy::before,#result .card::before,.sector::before,.flag::before,
-#roster button[id^="fl"]::before,#roster .grpBtn::before,#roster #newGrp::before{
   content:"";position:absolute;inset:0;pointer-events:none;--k:var(--bk,var(--brass));--s:var(--bs,10px);
   background:
     linear-gradient(var(--k),var(--k)) left top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left top/1px var(--s) no-repeat,
@@ -359,12 +313,6 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
   linear-gradient(var(--k),var(--k)) left top/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) left top/1px var(--s) no-repeat,
   linear-gradient(var(--k),var(--k)) right bottom/var(--s) 1px no-repeat,linear-gradient(var(--k),var(--k)) right bottom/1px var(--s) no-repeat}
 .flag b,.flag span{color:var(--ink)}
-/* fleet list: a thin frame with blue brackets (the 命令優先 fleets keep a dashed frame) */
-#roster button{border-left-width:1px}
-#roster button[id^="fl"]{--bk:var(--blue);--bs:8px}
-#roster button:disabled{--bk:#555}
-#roster .grpBtn,#roster #newGrp{--bk:var(--brass);--bs:8px}
-#roster button.evade{border-style:dashed}
 
 /* Small, data-selected marks for fixed sites. */
 .unit.site .flag{display:none}
@@ -373,3 +321,80 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 .unit.site .emb svg{width:14px;height:14px;display:block}
 .unit.site .tg{position:absolute;left:8px;top:-6px;font:600 10px/1 var(--f-ui),sans-serif;font-style:normal;color:#ffb39f;text-shadow:0 0 3px #000;white-space:nowrap}
 .unit.site.sel .tg{display:none}
+
+/* ---------- bottom-right: the roster (見本の案H1, user decision 2026-11-05) ----------
+   a tab per army group down the left; an open tab shows its armies as tiles beside it, three to a row (state.js buildRoster) */
+#roster{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:4px;width:186px;max-height:calc(100vh - 190px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+#roster button{font-family:var(--f-ui);cursor:pointer;border:0;color:var(--ink)}
+#roster button:focus-visible,#roster select:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+#roster .rzone,#roster .rnew{display:grid;grid-template-columns:30px minmax(0,1fr);gap:4px;align-items:start;border:1px dashed transparent}
+#roster .rzone.drop{border-color:var(--brass);background:rgba(226,197,138,.08)}
+#roster .gtab{display:grid;place-items:center;width:30px;min-height:34px;padding:5px 0;background:rgba(8,14,26,.7);color:var(--ink-dim);
+  font-family:var(--f-num);clip-path:polygon(0 6px,100% 0,100% 100%,0 calc(100% - 6px));backdrop-filter:blur(6px)}
+#roster .gtab b{font-size:13px;font-weight:600;line-height:1} #roster .gtab small{font-size:9.5px;line-height:1.2}
+#roster .gtab[aria-expanded="true"]{background:var(--brass);color:var(--void)}
+#roster .rnew .gtab{min-height:26px} #roster .rnew .gtab:disabled{opacity:.4;cursor:default}
+#roster .rnew .n{align-self:center;font-size:10.5px;color:var(--brass)}
+#roster .rbody{display:grid;gap:3px}
+#roster .rbody .sum{display:block;align-self:center;padding:9px 6px;font-family:var(--f-num);font-size:11px;color:var(--ink-dim)}
+#roster .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+#roster .frow{position:relative}
+#roster button[id^="fl"]{position:relative;display:grid;grid-template-rows:17px auto 3px;place-items:center;gap:1px;width:100%;height:46px;padding:4px 3px 4px;
+  background:rgba(8,14,26,.72);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);backdrop-filter:blur(6px)}
+#roster button[id^="fl"] .mkw{display:flex;align-items:center;height:15px} #roster button[id^="fl"] .mk{width:28px;height:14px}
+#roster button[id^="fl"] .no{font-family:var(--f-num);line-height:1;white-space:nowrap} #roster button[id^="fl"] .no b{font-size:12.5px;font-weight:600}
+#roster button[id^="fl"] .no small{font-size:9.5px;color:var(--ink-dim);margin-left:1px}
+#roster button[id^="fl"] .bar{width:100%;height:3px;background:rgba(127,200,255,.15)} #roster button[id^="fl"] .bar i{display:block;height:100%;background:var(--blue)}
+#roster button[id^="fl"].lo .bar i{background:var(--red)}
+#roster button[id^="fl"][aria-pressed="true"]{background:rgba(127,200,255,.32);box-shadow:inset 0 0 0 1px var(--blue)}
+#roster button[id^="fl"]:disabled{opacity:.3;cursor:default}
+#roster button.dragging{opacity:.35}
+/* the corner triangle: 自動交戦 (an empty corner) or 命令優先 (gold) */
+#roster .frow .st{position:absolute;right:0;top:0;width:14px;height:14px;padding:0;background:rgba(226,197,138,.22);clip-path:polygon(0 0,100% 0,100% 100%)}
+#roster .frow .st[data-st="evade"]{background:var(--brass)}
+#roster .frow .st:hover{background:rgba(226,197,138,.6)} #roster .frow .st:disabled{display:none}
+/* an open army group: its name (selects the whole group), then its switches */
+#roster .ghead{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+#roster .ghead .grpBtn{grid-column:1/-1;text-align:left;font-size:11px;font-weight:700;color:var(--brass);background:rgba(8,14,26,.72);padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  clip-path:polygon(5px 0,100% 0,calc(100% - 5px) 100%,0 100%)}
+#roster .ghead .grpBtn[aria-pressed="true"]{background:var(--brass);color:var(--void)}
+#roster .ghead .st{font-size:10px;padding:2px 0;background:rgba(8,14,26,.72);color:var(--ink-dim);white-space:nowrap;clip-path:polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%)}
+#roster .ghead .st[aria-pressed="true"]{background:var(--blue);color:var(--void)}
+#roster .ghead .st[data-st="evade"]{background:var(--brass);color:var(--void)} #roster .ghead .st[data-st="mixed"]{color:var(--brass)}
+#roster .ghead .rgShape{grid-column:1/3;font-family:var(--f-ui);font-size:10px;background:rgba(8,14,26,.85);color:var(--ink);border:1px solid var(--blue);padding:1px 2px;cursor:pointer}
+#roster .ghead .rgShape option{background:#0b1322;color:var(--ink)}
+#roster .ghead .rgDel{grid-column:3}
+/* the window over a tile: the classes left */
+#rtip{position:fixed;z-index:8;width:176px;pointer-events:none;background:rgba(8,14,26,.94);box-shadow:inset 0 0 0 1px var(--line);padding:7px 10px;font-size:11.5px;line-height:1.55;
+  clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+#rtip b{display:block;font-size:12px} #rtip small{display:block;color:var(--ink-dim);font-size:10.5px;margin-bottom:2px}
+#rtip .r{display:grid;grid-template-columns:30px 1fr auto;gap:6px;align-items:center} #rtip .r .mk{width:28px;height:14px}
+#rtip .r em{font-style:normal;font-family:var(--f-num);color:var(--blue)} #rtip .r.z{opacity:.4} #rtip .r.z em{color:var(--red)}
+body.inmenu #rtip{display:none}
+
+/* ---------- the view stick (user decision 2026-11-05): one octagonal stick; left and right turn the view, up and down tilt it.
+   85px on a 900px-high screen, growing and shrinking with the screen ---------- */
+#camSticks{left:calc(min(400px,44vw) + 56px);bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;justify-items:center;gap:3px;--pad:clamp(64px,9.45vh,128px)}
+#camPad{position:relative;width:var(--pad);height:var(--pad);touch-action:none;cursor:grab;opacity:.88;
+  background:radial-gradient(circle,rgba(226,197,138,.08),rgba(8,14,26,.72) 70%);clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)}
+#camPad::before{content:"";position:absolute;inset:16%;border-radius:50%;border:1px dashed rgba(226,197,138,.28)}
+#camPad svg.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#camPad .a{position:absolute;color:rgba(226,197,138,.8);font-size:8px;line-height:1}
+#camPad .a.l{left:7%;top:50%;transform:translateY(-50%)} #camPad .a.r{right:7%;top:50%;transform:translateY(-50%)}
+#camPad .a.u{top:6%;left:50%;transform:translateX(-50%)} #camPad .a.d{bottom:6%;left:50%;transform:translateX(-50%)}
+#camPad .kn{position:absolute;left:50%;top:50%;width:28%;height:28%;border-radius:50%;background:var(--brass);box-shadow:0 0 9px var(--brass);transform:translate(-50%,-50%);transition:left .18s ease-out,top .18s ease-out}
+#camPad.held{cursor:grabbing} #camPad.held .kn{transition:none}
+.eye{font-family:var(--f-num);font-style:italic;font-weight:600;letter-spacing:.12em;color:var(--blue);font-size:10.5px;line-height:1.2}
+.eye span{font-family:var(--f-ui);font-style:normal;font-weight:500;letter-spacing:0;color:var(--ink-dim);margin-left:5px;font-size:10px}
+
+/* ---------- top corners: the menu's look (user decision 2026-11-05): a plate with cut corners, slanted tabs, italic English heads ---------- */
+#legend{border:0;padding:8px 12px 10px;clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+#legend .eye{margin-top:2px}
+#camView,#speed,#view{gap:3px}
+#camView button,#speed button,#view button{border:0;padding:3px 13px;font-size:11px;background:rgba(127,200,255,.08);color:var(--ink-dim);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+#camView button[aria-pressed="true"]{background:var(--blue);color:var(--void)}
+#speed button[aria-pressed="true"]{background:var(--brass);color:var(--void)}
+#view button[aria-pressed="true"]{background:rgba(127,200,255,.24);color:var(--ink)}
+#view button:disabled{opacity:.4}
+#tlBtns button{border:0;padding:3px 12px 3px 10px;font-size:11px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+#tlBtns button i{font-family:var(--f-num);font-style:italic;font-weight:600;letter-spacing:.08em;color:var(--blue);margin-right:6px}

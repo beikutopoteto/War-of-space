@@ -85,6 +85,7 @@ function makeFleet(team,o){
   for(let i=0;i<o.n;i++){ const rear=mixed&&CARRIERS.has(types[i]), rr=rear?Rc:R, a=Math.random()*Math.PI*2, r=rr*Math.sqrt(Math.random());
     const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*2.4*o.scale,Math.sin(a)*r-(rear?R+Rc+2*o.scale:0));
     f.ships.push({off,pos:f.pos.clone().add(off),wob:Math.random()*6,type:types[i]});}
+  f.types0=[...new Set(f.ships.map(s=>s.type))];   // the classes at the start (the roster's window keeps a class all sunk)
   f.hangars=makeHangars(o.hangar,0,o.craft);
   f.launchR=f.hangars.reduce((m,h)=>Math.max(m,h.launchR),0);
   f.launchMin=f.hangars.reduce((m,h)=>Math.min(m,h.launchR),Infinity);
@@ -134,30 +135,47 @@ function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　
 const rosterEl=document.getElementById('roster');
 /* keep the briefing panel above the roster on narrow screens */
 try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',rosterEl.offsetHeight+'px')).observe(rosterEl); }catch(e){}
-/* roster: a ＋ button to form an army group from the selected fleets, a section per army group, then the fleets acting alone.
-   Drag a button between sections to move an army into another group or take it out */
+/* roster (見本の案H1, user decision 2026-11-05): a tab per army group down the left (its number and the armies left, 独 for the
+   fleets acting alone, ＋ to form a group from the selected fleets). Each tab is a switch: an open one shows its armies as tiles
+   beside it, three to a row, so with every tab open every army is in view. A tile: the mark of its main class, the number, the
+   ships left and the hull bar; the corner triangle switches 自動交戦/命令優先 (gold: 命令優先). Hovering a tile shows the classes
+   left (rosterTip). Drag a tile between sections to move an army into another group or take it out */
 const GROUP_MAX=5;
+const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
+let freeOpen=true;
+function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
+  return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet)}</span>`:''; }
+/* the short label on a tile: the unit's number, or the start of a story unit's own name (アルバレス隊 → アル) */
+const tileNo=f=>unitNo(f.name)||f.name.slice(0,2);
 function buildRoster(){
   rosterEl.innerHTML='';
   const mine=fleets.filter(f=>f.team===0&&!f.ward);
   const mk=(f)=>{ const i=mine.indexOf(f);
-    const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); b.title=(i<9?`${i+1}キーで選択。`:'')+'Shift+クリックでまとめて選ぶ';
-    b.innerHTML=`<span>${f.name}</span><span class="n"></span><span class="bar"><i></i></span>`;
+    const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); b.setAttribute('aria-label',f.name);
+    b.innerHTML=`<span class="mkw"></span><span class="no"><b></b><small></small></span><span class="bar"><i></i></span>`;
     b.addEventListener('click',e=>{ if(b._dragged){ b._dragged=false; return; } if(!f.alive) return;
       if(e.shiftKey) toggleMulti(f); else { const t=orderTargets(); select(t.length===1&&t[0]===f?null:f); } });
     dragSource(b,f);
-    /* each row has a small 自動交戦/命令優先 switch for that fleet */
+    /* the corner triangle: 自動交戦/命令優先 for this fleet */
     const st=document.createElement('button'); st.className='st'; st.title='この艦隊の自動交戦/命令優先を切り替える';
     st.addEventListener('click',()=>{ if(f.alive) applyStance([f],f.stance==='evade'?'engage':'evade'); });
     const row=document.createElement('div'); row.className='frow'; row.append(b,st);
-    f.btn=b; f.stBtn=st; return row; };
-  const nb=document.createElement('button'); nb.id='newGrp'; nb.title='選んだ艦隊で新しい戦区軍を作る（Shift+クリックでまとめて選ぶ。最大5個の打撃群）';
-  nb.innerHTML='<span>＋ 戦区軍を作る</span><span class="n"></span>'; nb.addEventListener('click',newGroup);
-  rosterEl.appendChild(nb);
-  if(!groups.length){ mine.forEach(f=>rosterEl.appendChild(mk(f))); return; }
-  groups.forEach((g,gi)=>{
-    const gz=document.createElement('div'); gz.className='rzone'; gz.dataset.zone='group'; gz.dataset.g=gi;
-    const gb=document.createElement('button'); gb.className='grpBtn'; gb.textContent=`${g.name} 全軍`; gb.title='この戦区軍の全軍を選ぶ（Gキーで順に）';
+    row.addEventListener('pointerenter',()=>showTip(f,row)); row.addEventListener('pointerleave',hideTip);
+    f.btn=b; f.stBtn=st; f.mkKey=''; return row; };
+  /* a section: the tab, and beside it the tiles (open) or a one-line summary (closed) */
+  const section=(zone,label,list,open,flip,title)=>{
+    const z=document.createElement('div'); z.className='rzone'+(open?' open':''); z.dataset.zone=zone;
+    const tab=document.createElement('button'); tab.className='gtab'; tab.setAttribute('aria-expanded',String(open)); tab.title=title;
+    tab.innerHTML=`<b>${label}</b><small>${list.filter(f=>f.alive).length}</small>`; tab.addEventListener('click',flip);
+    const body=document.createElement('div'); body.className='rbody'; z.append(tab,body);
+    if(open){ const tl=document.createElement('div'); tl.className='tiles'; list.forEach(f=>tl.appendChild(mk(f))); body.appendChild(tl); }
+    else { list.forEach(f=>{ f.btn=null; f.stBtn=null; });
+      body.innerHTML=`<span class="sum">${list.length}群 ${list.reduce((s,f)=>s+f.ships.length,0)}隻</span>`; }
+    rosterEl.appendChild(z); return {z,body}; };
+  groups.forEach((g,gi)=>{ if(g.open==null) g.open=true;
+    const {z,body}=section('group',unitNo(g.name)||gi+1,mine.filter(f=>g.members.has(f)),g.open,()=>{ g.open=!g.open; buildRoster(); updateRoster(); },`${g.name}（押すと開く・閉じる）`);
+    z.dataset.g=gi;
+    const gb=document.createElement('button'); gb.className='grpBtn'; gb.textContent=g.name; gb.title=`${g.name}の全軍を選ぶ（Gキーで順に）`;
     gb.addEventListener('click',()=>selectGroup(g));
     const gx=document.createElement('button'); gx.className='st rgDel'; gx.textContent='解散'; gx.title='この戦区軍を解散し、各打撃群を独立行動にする';
     gx.addEventListener('click',()=>disband(g));
@@ -173,16 +191,29 @@ function buildRoster(){
     gk.setAttribute('aria-label',`${g.name}の陣形`);
     gk.innerHTML=(g.baseName?`<option value="base">${g.baseName}</option>`:'')+Object.entries(SHAPES_FORM).map(([k,v])=>`<option value="${k}">${v.name}</option>`).join('');
     gk.addEventListener('change',()=>setShape(g,gk.value));
-    const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gx,gs,gt,gf,gk);
-    gz.appendChild(gh); g.ui={gb,gs,gt,gf,gk};
-    mine.filter(f=>g.members.has(f)).forEach(f=>gz.appendChild(mk(f)));
-    rosterEl.appendChild(gz);
+    const gh=document.createElement('div'); gh.className='ghead'; gh.append(gb,gf,gs,gt,gk,gx);
+    if(g.open) body.prepend(gh); g.ui={gb,gs,gt,gf,gk};
   });
-  const fz=document.createElement('div'); fz.className='rzone'; fz.dataset.zone='free';
-  fz.innerHTML='<div class="rhead">独立行動（ここへドラッグで外す）</div>';
-  mine.filter(f=>!groupOf(f)).forEach(f=>fz.appendChild(mk(f)));
-  rosterEl.appendChild(fz);
+  const free=mine.filter(f=>!groupOf(f));
+  if(free.length||groups.length) section('free','独',free,freeOpen,()=>{ freeOpen=!freeOpen; buildRoster(); updateRoster(); },'独立行動の打撃群（押すと開く・閉じる。ここへドラッグで戦区軍から外す）');
+  const nz=document.createElement('div'); nz.className='rnew';
+  const nb=document.createElement('button'); nb.id='newGrp'; nb.className='gtab'; nb.title='選んだ艦隊で新しい戦区軍を作る（Shift+クリックでまとめて選ぶ。最大5個の打撃群）';
+  nb.innerHTML='<b>＋</b>'; nb.addEventListener('click',newGroup);
+  const nt=document.createElement('span'); nt.className='n'; nz.append(nb,nt);
+  rosterEl.appendChild(nz);
 }
+/* the small window over a tile: the army's name, the ships left of each class at the start (a class all sunk stays, faint),
+   the hull and the stance */
+const rosterTip=document.createElement('div'); rosterTip.id='rtip'; rosterTip.hidden=true; document.body.appendChild(rosterTip);
+let tipFleet=null, tipRow=null;
+function showTip(f,row){ tipFleet=f; tipRow=row; fillTip(); rosterTip.hidden=false;
+  const r=row.getBoundingClientRect(), w=rosterTip.offsetWidth, h=rosterTip.offsetHeight;
+  rosterTip.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px'; rosterTip.style.top=Math.max(8,r.top-h-6)+'px'; }
+function hideTip(){ tipFleet=null; tipRow=null; rosterTip.hidden=true; }
+function fillTip(){ const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
+  const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
+  rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
+    types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${SHIP_NAME[t]||t}</span><em>×${by[t]||0}</em></div>`).join(''); }
 function dragSource(b,f){
   let st=null,ghost=null;
   b.addEventListener('pointerdown',e=>{ st={x:e.clientX,y:e.clientY,id:e.pointerId}; });
@@ -322,18 +353,24 @@ function groupOrder(o){
 }
 function updateRoster(){
   const t=orderTargets();
-  fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f);
-    f.btn.querySelector('.n').textContent=(f.queue.length?`予約${f.queue.length} `:'')+'×'+f.ships.length;
-    f.btn.querySelector('span').textContent=(g&&f===groupFlag(g)?'★ ':'')+f.name; f.btn.classList.toggle('evade',f.stance==='evade');
-    f.btn.querySelector('.bar i').style.width=(100*f.ships.length/f.n)+'%';
+  /* a fleet picked (keys, the map) in a closed section opens that section */
+  const shut=t.map(groupOf).filter((g,i)=>g?!g.open:!freeOpen&&!t[i].btn);
+  if(shut.length){ shut.forEach(g=>{ if(g) g.open=true; else freeOpen=true; }); buildRoster(); }
+  fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f), hull=f.ships.length/f.n;
+    const mk=f.alive?fleetMark(f):''; if(mk!==f.mkKey){ f.mkKey=mk; f.btn.querySelector('.mkw').innerHTML=mk; }
+    f.btn.querySelector('.no b').textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
+    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+'×'+f.ships.length;
+    f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
+    f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
-    if(f.stBtn){ f.stBtn.textContent=f.stance==='evade'?'命令':'自動'; f.stBtn.dataset.st=f.stance; f.stBtn.disabled=!f.alive; }
+    if(f.stBtn){ f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.disabled=!f.alive; }
   });
-  const nb=document.getElementById('newGrp'); if(nb){ nb.disabled=!t.length||!!selGroup; nb.querySelector('.n').textContent=t.length&&!selGroup?`${t.length}隊`:''; }
+  if(tipFleet) fillTip();
+  const nb=document.getElementById('newGrp'); if(nb){ nb.disabled=!t.length||!!selGroup; nb.nextSibling.textContent=t.length&&!selGroup?`${t.length}隊で戦区軍を作る`:''; }
   groups.forEach(g=>{ if(!g.ui) return; const {gb,gs,gt,gf}=g.ui, m=groupAlive(g), ev=m.filter(f=>f.stance==='evade').length;
     gb.setAttribute('aria-pressed',String(selGroup===g)); gb.disabled=!m.length;
-    gs.textContent=g.sync?'速度同期':'速度個別'; gs.setAttribute('aria-pressed',String(g.sync));
-    gt.textContent='全軍'+(!m.length?'—':ev===m.length?'命令':ev?'混在':'自動'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length;
+    gs.textContent=g.sync?'同速':'個別'; gs.setAttribute('aria-pressed',String(g.sync));
+    gt.textContent='全'+(!m.length?'—':ev===m.length?'命令':ev?'混在':'自動'); gt.dataset.st=ev===m.length&&m.length?'evade':ev?'mixed':'engage'; gt.disabled=!m.length;
     gf.textContent=g.form?'陣形ON':'陣形OFF'; gf.setAttribute('aria-pressed',String(g.form));
     g.ui.gk.hidden=!g.form; g.ui.gk.value=g.kind; g.ui.gk.disabled=!m.length; });
   syncStance();
