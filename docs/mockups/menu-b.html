@@ -1,0 +1,1048 @@
+<title>WOS タイトル画面の見本</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,500;0,600;1,600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: a 1600x900 game frame scaled to the page width. The solar map is the bottom layer of every screen;
+   the sortie screen flies it to the chosen operation. Tokens are the game's own (battle/battle.css); dark only, like the game. */
+:root{
+  --void:#05080f; --panel:rgba(8,14,26,.66); --line:rgba(127,200,255,.22);
+  --ink:#e6edf6; --ink-dim:#93a3b8; --blue:#7fc8ff; --red:#ff6a45; --brass:#e2c58a; --ally:#8fe8c0;
+  --f-ui:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"Chakra Petch","Zen Kaku Gothic New",ui-monospace,monospace;
+  --cut:16px;
+  color-scheme:dark;
+}
+html,body{background:var(--void);color:var(--ink)}
+body{font-family:var(--f-ui);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 32px}
+.wrap{max-width:1400px;margin:0 auto;display:grid;gap:14px}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px}
+.top h1{margin:0;font-size:15px;font-weight:500;letter-spacing:.12em;color:var(--ink-dim)}
+.top h1 b{font-family:var(--f-num);color:var(--brass);font-weight:500;margin-right:10px}
+.crumbs{display:flex;flex-wrap:wrap;gap:0}
+.crumbs button{font-family:var(--f-ui);font-size:13px;letter-spacing:.06em;color:var(--ink-dim);background:transparent;border:0;padding:6px 18px 8px;cursor:pointer;
+  clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+.crumbs button[aria-current="true"]{color:var(--void);background:var(--blue)}
+.crumbs button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+.note{margin:0;font-size:13px;line-height:1.8;color:var(--ink-dim);max-width:64em}
+.note b{color:var(--ink);font-weight:500}
+.stagebox{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;overflow:hidden;background:var(--void)}
+.stage{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0}
+canvas{position:absolute;inset:0;width:1600px;height:900px;display:block}
+.ui{position:absolute;inset:0;pointer-events:none}
+.ui>*{pointer-events:auto}
+.ui[hidden]{display:none!important}
+.foot{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:12px;color:var(--ink-dim)}
+.foot i{font-style:normal;font-family:var(--f-num);color:var(--brass)}
+
+/* shared pieces */
+.lock{display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px}
+.stat{font-size:12px;color:var(--ink-dim);display:flex;gap:22px;position:absolute;right:110px;top:60px;margin:0}
+.stat b{font-family:var(--f-num);color:var(--ink);font-weight:500;margin-left:6px;font-variant-numeric:tabular-nums}
+.dbg{position:absolute;right:28px;bottom:22px;font-family:var(--f-num);font-size:11px;letter-spacing:.16em;color:var(--ink-dim);opacity:.6}
+:where(.stage) button{font-family:var(--f-ui);cursor:pointer;color:var(--ink);background:none;border:0;text-align:left;padding:0}
+.stage button:disabled{cursor:default}
+.stage button:focus-visible{outline:1px solid var(--brass);outline-offset:4px}
+/* the chamfered plate: two corners cut, a hairline on each cut */
+.plate{position:relative;background:var(--panel);clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+.plate::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(135deg,var(--blue) 0 1px,transparent 1px) 0 0/var(--cut) var(--cut) no-repeat,
+             linear-gradient(-45deg,var(--blue) 0 1px,transparent 1px) 100% 100%/var(--cut) var(--cut) no-repeat;opacity:.8}
+.back{position:absolute;left:110px;top:56px;--cut:9px;padding:6px 16px 6px 14px;font-size:13px;color:var(--ink-dim)!important;letter-spacing:.08em}
+.back:hover{color:var(--ink)!important}
+.scrh{position:absolute;left:110px;top:100px;margin:0;display:flex;align-items:baseline;gap:18px}
+.scrh b{font-family:var(--f-num);font-style:italic;font-weight:600;font-size:44px;letter-spacing:.06em}
+.scrh span{font-size:18px;letter-spacing:.2em;color:var(--ink-dim)}
+.scrh i{font-style:normal;color:var(--blue)}
+
+/* ---- title ---- */
+#sTitle .ttl{position:absolute;left:110px;top:120px}
+#sTitle .eyebrow{font-family:var(--f-num);font-size:13px;letter-spacing:.34em;color:var(--ink-dim);margin:0 0 6px}
+#sTitle h2{margin:0;font-family:var(--f-num);font-weight:600;font-size:92px;letter-spacing:.06em;line-height:.9;font-style:italic}
+#sTitle h2 em{color:transparent;-webkit-text-stroke:1px var(--blue);font-style:italic}
+#sTitle .sub{margin:14px 0 0;font-size:14px;color:var(--ink-dim);letter-spacing:.1em}
+.menu{position:absolute;left:110px;top:430px;display:grid;gap:8px}
+.menu button{--x:0px;margin-left:var(--x);width:420px;padding:9px 30px 9px 26px;display:flex;align-items:baseline;gap:16px;transition:background .2s,margin .2s}
+.menu b{font-size:19px;font-weight:500;letter-spacing:.12em;min-width:5.5em}
+.menu span{font-size:12px;color:var(--ink-dim)}
+.menu button:not(:disabled):hover{background:rgba(127,200,255,.16);margin-left:calc(var(--x) + 10px)}
+.menu button.lead{width:470px;padding:16px 30px 16px 26px;background:rgba(127,200,255,.14)}
+.menu button.lead b{font-size:26px;color:var(--blue)}
+.menu button.lead span{color:var(--ink)}
+
+/* ---- sortie: offline / online ---- */
+.modes{position:absolute;left:110px;top:250px;display:grid;gap:14px}
+.modes button{--cut:22px;width:560px;padding:26px 34px 24px 34px;display:grid;gap:8px;transition:background .2s,transform .2s}
+.modes button:hover{background:rgba(127,200,255,.14);transform:translateX(10px)}
+.modes .k{font-family:var(--f-num);font-size:12px;letter-spacing:.34em;color:var(--ink-dim)}
+.modes b{font-size:34px;font-weight:500;letter-spacing:.16em}
+.modes span{font-size:13px;color:var(--ink-dim);line-height:1.7}
+.modes .off b{color:var(--blue)}
+.modes .on{--blue:var(--ally)}
+.modes .on b{color:var(--ally)}
+.modes .tag{justify-self:start;font-size:11px;letter-spacing:.14em;color:var(--brass);border:1px solid rgba(226,197,138,.5);padding:1px 8px}
+.onpanel{position:absolute;left:110px;top:250px;width:620px;--cut:22px;--blue:var(--ally);padding:30px 34px;display:grid;gap:12px}
+.onpanel p{margin:0;font-size:14px;line-height:1.9;color:var(--ink-dim)}
+.onpanel b{font-size:22px;letter-spacing:.14em;color:var(--ally);font-weight:500}
+
+/* ---- sortie: operation select ---- */
+.ops{position:absolute;left:110px;top:186px;width:460px;display:grid;gap:6px}
+.ops .grp{margin:8px 0 2px;font-size:11px;letter-spacing:.3em;color:var(--brass);display:flex;align-items:center;gap:10px}
+.ops .grp::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(226,197,138,.4),transparent)}
+.ops button{--cut:10px;display:grid;grid-template-columns:4.2em 1fr auto;align-items:center;gap:10px;padding:8px 16px 8px 14px;transition:background .2s,margin .2s}
+.ops button .n{font-family:var(--f-num);font-size:12px;color:var(--ink-dim);letter-spacing:.06em}
+.ops button b{font-size:15px;font-weight:500;letter-spacing:.08em}
+.ops button .st{font-size:11px;color:var(--ink-dim)}
+.ops button .st.clr{color:var(--ally)}
+.ops button .st.nx{color:var(--brass)}
+.ops button:not(:disabled):hover{background:rgba(127,200,255,.12)}
+.ops button.sel{background:rgba(127,200,255,.2);margin-left:10px}
+.ops button.sel b{color:var(--blue)}
+.ops button:disabled{opacity:.5}
+.det{position:absolute;right:70px;bottom:56px;width:620px;--cut:20px;padding:20px 28px 22px;display:grid;gap:8px}
+.det .ch{font-size:12px;letter-spacing:.2em;color:var(--blue)}
+.det h3{margin:0;font-size:28px;font-weight:500;letter-spacing:.12em;text-wrap:balance}
+.det .when{font-family:var(--f-num);font-size:13px;color:var(--brass);letter-spacing:.08em}
+.det p{margin:0;font-size:13.5px;line-height:1.8;color:var(--ink)}
+.det .thr{font-size:12px;color:var(--ink-dim);line-height:1.7}
+.det .row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:6px}
+.det .rw{font-size:12px;color:var(--ink-dim)}
+.det .rw b{font-family:var(--f-num);color:var(--brass);font-weight:500;margin-left:6px}
+.det .go{display:flex;gap:8px}
+.det .go button{--cut:10px;padding:10px 26px;font-size:16px;letter-spacing:.2em;font-weight:500}
+.det .go .pri{background:var(--blue);color:var(--void)}
+.det .go .pri::before{display:none}
+.det .go .pri:hover{background:#a6d9ff}
+.det .go .sec:hover{background:rgba(127,200,255,.16)}
+.where{position:absolute;right:70px;top:60px;font-family:var(--f-num);font-size:12px;letter-spacing:.14em;color:var(--ink-dim);text-align:right;line-height:1.8}
+.where b{color:var(--ink);font-weight:500;font-family:var(--f-ui);letter-spacing:.1em}
+
+/* ---- shared by the editing screens ---- */
+.stabs{position:absolute;right:110px;top:112px;display:flex}
+.stabs button{font-size:14px;letter-spacing:.14em;color:var(--ink-dim)!important;padding:7px 24px 8px;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);margin-left:-6px;background:rgba(8,14,26,.5)!important}
+.stabs button[aria-selected="true"]{background:var(--blue)!important;color:var(--void)!important}
+.stabs button:not([aria-selected="true"]):hover{color:var(--ink)!important}
+.capline{position:absolute;left:112px;top:158px;margin:0;display:flex;gap:18px;font-size:12px;color:var(--ink-dim)}
+.capline b{color:var(--brass);font-weight:500}
+.capline i{font-style:normal;font-family:var(--f-num);color:var(--ink)}
+.capline .full i{color:var(--brass)}
+.side{position:absolute;left:110px;top:196px;width:300px;display:grid;gap:6px}
+.side .add{--cut:10px;padding:9px 16px;font-size:13px;letter-spacing:.12em;color:var(--blue)!important;background:transparent;outline:1px dashed rgba(127,200,255,.35);outline-offset:-1px;clip-path:none}
+.side .add:hover{background:rgba(127,200,255,.08)}
+.side .it{--cut:10px;padding:9px 16px 9px 30px;display:grid;gap:2px;transition:background .2s,margin .2s}
+.side .it::after{content:"";position:absolute;left:12px;top:15px;width:7px;height:7px;background:var(--c,var(--ink-dim));transform:rotate(45deg)}
+.side .it b{font-size:14px;font-weight:500;letter-spacing:.06em}
+.side .it span{font-size:11px;color:var(--ink-dim)}
+.side .it:hover{background:rgba(127,200,255,.1)}
+.side .it.sel{background:rgba(127,200,255,.2);margin-left:10px}
+.side .it.sel b{color:var(--blue)}
+.side .it:disabled{opacity:.5}
+.main{position:absolute;left:450px;right:110px;top:196px;bottom:52px;--cut:22px;padding:22px 30px}
+.fld{display:grid;gap:4px;max-width:420px}
+.fld label,.lab{font-size:11px;letter-spacing:.24em;color:var(--brass)}
+.fld input{font-family:var(--f-ui);font-size:20px;letter-spacing:.06em;color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--line);padding:4px 0 6px;outline:none}
+.fld input:focus{border-bottom-color:var(--blue)}
+.lab small{font-size:12px;letter-spacing:.04em;color:var(--ink-dim);margin-left:12px}
+/* an angular on/off switch */
+.sw{display:inline-flex;align-items:center;gap:12px;font-size:13px;cursor:pointer;user-select:none}
+.sw input{appearance:none;margin:0;width:44px;height:18px;position:relative;cursor:pointer;background:rgba(127,200,255,.08);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.sw input::after{content:"";position:absolute;top:3px;left:6px;width:14px;height:12px;background:var(--ink-dim);clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%);transition:left .2s,background .2s}
+.sw input:checked{background:rgba(127,200,255,.3)}
+.sw input:checked::after{left:24px;background:var(--blue)}
+.sw input:focus-visible{outline:1px solid var(--brass)}
+.sw small{color:var(--ink-dim)}
+/* segmented stat bar: ten slanted cells, lit up to the value */
+.bars{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 30px}
+.bar{display:grid;grid-template-columns:5.5em 1fr 2.6em;align-items:center;gap:10px;font-size:12px;color:var(--ink-dim)}
+.bar i{font-style:normal;font-family:var(--f-num);color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.seg{display:block;height:9px;position:relative;transform:skewX(-24deg);background:repeating-linear-gradient(90deg,rgba(127,200,255,.12) 0 calc(10% - 2px),transparent calc(10% - 2px) 10%)}
+.seg::after{content:"";position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--v)) 0 0);background:repeating-linear-gradient(90deg,var(--blue) 0 calc(10% - 2px),transparent calc(10% - 2px) 10%)}
+.seg.max::before{content:"";position:absolute;left:0;top:-2px;bottom:-2px;width:var(--m);border-right:1px solid var(--brass)}
+
+/* ---- fleet: theatre army ---- */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{--cut:9px;display:grid;grid-template-columns:8px 1fr auto auto;align-items:center;gap:0 10px;padding:6px 6px 6px 14px;width:calc((100% - 16px)/3)}
+.chip::after{content:"";width:8px;height:8px;background:var(--c);transform:rotate(45deg);grid-row:1/3;grid-column:1}
+.chip b{grid-column:2;grid-row:1;font-size:13px;font-weight:500;white-space:nowrap}
+.chip span{grid-column:2;grid-row:2;font-size:10.5px;color:var(--ink-dim);white-space:nowrap}
+.chip .fl,.chip .x{grid-row:1/3;font-size:11.5px;color:var(--ink-dim)!important;padding:4px 5px}.chip .fl{grid-column:3}.chip .x{grid-column:4}
+.chip .fl.on{color:var(--brass)!important}
+.chip .fl:hover,.chip .x:hover{color:var(--ink)!important}
+.chip.placing{background:rgba(127,200,255,.18)}
+.place{display:grid;grid-template-columns:auto auto 1fr;gap:26px;align-items:start;margin-top:4px}
+.layers{display:grid;gap:4px;margin-top:26px}
+.layers button{font-family:var(--f-num);font-size:13px;width:52px;padding:5px 0;text-align:center!important;color:var(--ink-dim)!important;background:rgba(8,14,26,.6)!important;clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%)}
+.layers button[aria-pressed="true"]{background:var(--brass)!important;color:var(--void)!important}
+.grid5{display:grid;grid-template-columns:repeat(5,46px);grid-template-rows:18px repeat(5,46px);gap:4px}
+.grid5 .front{grid-column:1/6;text-align:center;font-size:11px;letter-spacing:.2em;color:var(--red)}
+.cell{border:0;cursor:pointer;color:var(--void)!important;font-family:var(--f-ui);position:relative;background:rgba(127,200,255,.03);font-size:10px;line-height:1.25;color:var(--void);display:grid;place-items:center;text-align:center;padding:2px}
+.cell::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(var(--line),var(--line)) 0 0/8px 1px no-repeat,linear-gradient(var(--line),var(--line)) 0 0/1px 8px no-repeat,
+  linear-gradient(var(--line),var(--line)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--line),var(--line)) 100% 100%/1px 8px no-repeat}
+.cell.on{background:var(--c);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);font-weight:700}
+.cell.ghost{outline:1px dashed var(--c);outline-offset:-4px}
+.cell.free:hover{background:rgba(127,200,255,.12);cursor:pointer}
+.cube{display:grid;justify-items:center;gap:4px;font-size:11px;color:var(--ink-dim)}
+.cube canvas{position:static;width:330px;height:260px}
+.arow{display:flex;align-items:flex-end;gap:30px;flex-wrap:wrap}
+.arow .fld{flex:0 1 340px}
+.roster{display:grid;gap:3px}
+.rrow{display:grid;grid-template-columns:200px 150px 1fr 90px 110px 50px;align-items:center;gap:10px;padding:4px 10px 4px 24px;position:relative;background:rgba(127,200,255,.04);clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px)}
+.rrow::before{content:"";position:absolute;left:9px;top:50%;width:7px;height:7px;margin-top:-3.5px;background:var(--c);transform:rotate(45deg)}
+.rrow.sel{background:rgba(127,200,255,.16)}
+.rrow .rpick{display:flex;align-items:baseline;gap:8px}
+.rrow .rpick .un{display:inline;margin:0}
+.rrow .u{font-size:13.5px}
+.rrow.sel .u{color:var(--blue)}
+.rrow .cm .mk{width:26px;height:13px}
+.rrow .rs,.rrow .rp{font-size:11px;color:var(--ink-dim);white-space:nowrap}
+.rrow .fl,.rrow .x{font-size:11.5px;color:var(--ink-dim)!important;white-space:nowrap}
+.rrow .fl.on{color:var(--brass)!important}
+.rrow .fl:hover,.rrow .x:hover{color:var(--ink)!important}
+.gwrap{position:relative}
+.cell.sel{outline:1px solid var(--ink);outline-offset:2px}
+.cell.pick{background:rgba(127,200,255,.3)}
+.pop{position:absolute;z-index:5;--cut:10px;width:250px;padding:10px 12px;display:grid;gap:4px;background:rgba(8,14,26,.97)!important;box-shadow:0 0 0 1px var(--line)}
+.pop .pt{font-size:11px;letter-spacing:.2em;color:var(--brass);margin-bottom:2px}
+.pop button{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;font-size:12.5px;background:rgba(127,200,255,.06)!important}
+.pop button:hover:not(:disabled){background:rgba(127,200,255,.2)!important}
+.pop button:disabled{opacity:.45}
+.pop button .un{display:inline;margin-left:6px}
+.pop .cm .mk{width:24px;height:12px}
+.pop .mv{justify-content:center;color:var(--ink-dim)!important;font-size:12px}
+.pop .pn{font-size:11px;color:var(--ink-dim)}
+.danger{--blue:var(--red);--cut:9px;padding:7px 16px;font-size:12px;color:var(--red)!important;letter-spacing:.08em}
+.danger:hover{background:rgba(255,106,69,.12)}
+.foot-r{position:absolute;right:30px;bottom:22px}
+.fgrid{display:grid;gap:14px}
+
+/* ---- fleet: strike group ---- */
+.slots{display:grid;gap:4px}
+.slot{display:grid;grid-template-columns:2em 1fr auto auto;align-items:center;gap:12px;padding:7px 12px;font-size:13px;background:rgba(127,200,255,.04);clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.slot .n{font-family:var(--f-num);color:var(--ink-dim)}
+.slot.empty{color:var(--ink-dim);background:transparent;outline:1px dashed rgba(127,200,255,.18);outline-offset:-1px;clip-path:none}
+.slot .t{font-size:12px;color:var(--ink-dim)}
+.bons{display:grid;grid-template-columns:repeat(4,1fr);gap:6px 18px}
+.bon{display:grid;gap:1px;padding:4px 0 4px 16px;position:relative;font-size:11px;color:var(--ink-dim)}
+.bon::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border:1px solid var(--ink-dim);transform:rotate(45deg)}
+.bon b{font-size:13px;font-weight:500;color:var(--ink-dim)}
+.bon em{font-style:normal;color:var(--ink-dim)}
+.bon.on::before{background:var(--brass);border-color:var(--brass)}
+.bon.on b{color:var(--ink)}
+.bon.on em{color:var(--brass)}
+
+/* ---- fleet: squadron ---- */
+.kinds{display:flex;flex-wrap:wrap;gap:4px}
+.kinds button{font-size:13px;letter-spacing:.06em;padding:6px 18px;color:var(--ink-dim)!important;background:rgba(127,200,255,.05)!important;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+.kinds button[aria-pressed="true"]{background:var(--blue)!important;color:var(--void)!important}
+.kinds button:disabled{opacity:.4}
+.kinds button:not(:disabled):not([aria-pressed="true"]):hover{color:var(--ink)!important}
+.count{display:flex;align-items:center;gap:16px;max-width:560px}
+.count b{font-family:var(--f-num);font-size:30px;font-weight:500;min-width:1.6em}
+.count small{color:var(--ink-dim);font-size:12px;white-space:nowrap}
+.count input{flex:1;appearance:none;height:12px;background:repeating-linear-gradient(90deg,rgba(127,200,255,.25) 0 2px,transparent 2px calc(100%/6));cursor:pointer}
+.count input::-webkit-slider-thumb{appearance:none;width:14px;height:22px;background:var(--blue);clip-path:polygon(50% 0,100% 30%,100% 100%,0 100%,0 30%)}
+.count input::-moz-range-thumb{width:14px;height:22px;background:var(--blue);border:0;border-radius:0}
+
+/* ---- tech tree ---- */
+.funds{position:absolute;right:110px;top:66px;margin:0;font-size:13px;color:var(--ink-dim)}
+.funds b{font-family:var(--f-num);font-size:22px;color:var(--brass);font-weight:500;margin-left:8px}
+.bhead{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.bhead h3{margin:0;font-size:22px;font-weight:500;letter-spacing:.12em}
+.bhead .cap{font-size:13px;color:var(--brass)}
+.bhead .cap b{font-family:var(--f-num);font-weight:500}
+.bstat{display:grid;gap:2px;margin-top:6px;font-size:12px;color:var(--ink-dim)}
+.bstat span b{color:var(--ink);font-weight:500;margin-right:12px}
+.bstat i{font-style:normal;font-family:var(--f-num);color:var(--blue);margin:0 12px 0 4px}
+.tree{position:relative;margin-top:16px;height:420px}
+.tree svg.links{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.node{position:absolute;width:150px;margin-left:-75px;margin-top:-22px;display:grid;justify-items:center;gap:4px;text-align:center!important}
+.node .d{width:34px;height:34px;display:grid;place-items:center;position:relative}
+.node .d::before{content:"";position:absolute;inset:3px;transform:rotate(45deg);border:1px solid var(--k);background:var(--bgk);transition:background .2s}
+.node svg{width:17px;height:17px;position:relative;fill:none;stroke:var(--k);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.node b{font-size:10.5px;font-weight:500;letter-spacing:.02em;color:var(--k);line-height:1.3}
+.node{--k:rgba(147,163,184,.55);--bgk:rgba(8,14,26,.8)}
+.node.can{--k:var(--brass);--bgk:rgba(226,197,138,.08)}
+.node.done{--k:var(--blue);--bgk:rgba(127,200,255,.25)}
+.node.sel .d::after{content:"";position:absolute;inset:-6px;border:1px solid var(--k);transform:rotate(45deg);animation:spin 6s linear infinite}
+@keyframes spin{to{transform:rotate(405deg)}}
+.node:hover .d::before{background:rgba(127,200,255,.18)}
+.tdet{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-top:12px;border-top:1px solid var(--line);margin-top:6px}
+.tdet b{font-size:17px;font-weight:500;letter-spacing:.08em}
+.tdet p{margin:2px 0 0;font-size:12.5px;color:var(--ink-dim)}
+.tdet .pri{--cut:10px;padding:10px 26px;font-size:15px;letter-spacing:.18em;background:var(--blue)!important;color:var(--void)!important;white-space:nowrap}
+.tdet .pri::before{display:none}
+.tdet .pri:disabled{background:rgba(147,163,184,.3)!important;color:var(--ink-dim)!important}
+
+/* ---- ship data ---- */
+.dmain{position:absolute;left:110px;right:110px;top:180px;bottom:40px;--cut:22px;padding:18px 28px;display:grid;grid-template-rows:auto auto 1fr;gap:12px}
+.dmain .lead{margin:0;font-size:12px;line-height:1.75;color:var(--ink-dim);max-width:90em}
+.stbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.stbl th{font-weight:500;font-size:11px;letter-spacing:.14em;color:var(--brass);text-align:left;padding:0 8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+.stbl td{padding:7px 8px;border-bottom:1px solid rgba(127,200,255,.08);vertical-align:middle}
+.stbl td.nm{font-size:14px;font-weight:500;letter-spacing:.06em;white-space:nowrap}
+.stbl td.nm small{display:block;font-size:10.5px;color:var(--ink-dim);font-weight:400;letter-spacing:0}
+.stbl td.v{width:78px}
+.stbl td.v .seg{height:7px;margin-bottom:3px}
+.stbl td.v i{font-style:normal;font-family:var(--f-num);font-size:11.5px}
+.stbl td.n{font-family:var(--f-num);text-align:right;width:44px}
+.stbl td.hg{font-size:11.5px;color:var(--ink-dim);white-space:nowrap}
+.stbl tbody tr:hover td{background:rgba(127,200,255,.05)}
+.stbl th.sort{cursor:pointer}
+.stbl th.sort:hover,.stbl th[aria-sort]{color:var(--blue)}
+.dbons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 20px;align-content:start}
+.dbons .bon b{color:var(--ink)}
+.dbons .bon em{color:var(--brass)}
+.dbons .bon::before{border-color:var(--brass)}
+
+/* ---- options ---- */
+.omain{position:absolute;left:110px;top:196px;width:700px;--cut:22px;padding:26px 32px;display:grid;gap:10px}
+.omain .row{display:flex;justify-content:space-between;align-items:center;gap:20px}
+.omain .row b{font-size:18px;font-weight:500;letter-spacing:.14em}
+.omain p{margin:0;font-size:13px;line-height:1.85;color:var(--ink-dim)}
+.omain kbd{font-family:var(--f-num);font-size:11px;padding:1px 6px;border:1px solid var(--line);color:var(--ink)}
+
+/* ---- ship marks (side view, outline only) ---- */
+.mk{display:inline-block;vertical-align:middle;width:32px;height:16px;color:var(--c,var(--blue));flex:none}
+.mk svg{display:block;width:100%;height:100%;overflow:visible}
+.mk .ol{stroke-width:2.4}
+.mk .s{fill:currentColor;fill-opacity:.16;stroke:currentColor;stroke-width:1.2}
+.mk .l{fill:none;stroke:currentColor;stroke-width:1.2}
+.mk .f{fill:currentColor}
+.u{font-family:var(--f-num);font-weight:500;letter-spacing:.04em}
+.un{display:block;font-size:10.5px;color:var(--ink-dim);font-weight:400;letter-spacing:.02em}
+.cm{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.cm em{font-style:normal;font-size:11px;color:var(--ink-dim);margin-left:4px}
+.side .it .u{font-size:15px}
+.side .it .cm{margin-top:3px}
+.side .it.sel .u{color:var(--blue)}
+.side .mki{grid-template-columns:auto 1fr;column-gap:10px;padding-left:12px}
+.side .mki::after{display:none}
+.side .mki .cm{grid-row:1/3;flex-direction:column;gap:2px;width:34px;margin:0}
+.side .mki .mk{width:30px;height:15px}
+.chip.addg{justify-content:center;color:var(--blue)!important;font-size:13px;letter-spacing:.1em;background:transparent;outline:1px dashed rgba(127,200,255,.3);outline-offset:-1px;clip-path:none;display:flex;align-items:center;min-height:52px}
+.chip .cu{grid-column:2;grid-row:1}
+.chip .cu .u{font-size:14px}
+.chip .cm{grid-column:2;grid-row:2}
+.chip .cm .mk{width:26px;height:13px}
+.capline .over i,.capline .over{color:var(--red)}
+/* strike group designer: rows of squadrons, one cell per ship */
+.dz{display:grid;grid-template-rows:auto 1fr auto;gap:14px;height:100%}
+.dzh{display:flex;align-items:flex-end;gap:28px}
+.dzh .tg .u{font-size:34px;font-style:italic;font-weight:600;letter-spacing:.06em;display:block;line-height:1}
+.dzh .tg .un{font-size:12px;margin-top:4px}
+.dzh .fld{flex:1;max-width:320px}
+.dzh .fld input{font-size:14px}
+.dzh .acts{display:flex;gap:6px;margin-left:auto}
+.dz .sec,.dz .pri,.dz .danger{--cut:9px;padding:7px 18px;font-size:13px;letter-spacing:.12em}
+.dz .sec:hover{background:rgba(127,200,255,.14)}
+.dz .pri{background:var(--blue)!important;color:var(--void)!important}
+.dz .pri::before{display:none}
+.dzb{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;min-height:0}
+.dgrid{display:grid;align-content:start;gap:6px}
+.tr{display:grid;grid-template-columns:150px 1fr 44px;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(127,200,255,.08)}
+.tr .th{display:grid;grid-template-columns:1fr auto;gap:2px 6px;align-items:center}
+.tr .no{font-family:var(--f-num);font-size:13px;font-weight:500;letter-spacing:.04em;grid-column:1/3}
+.tr small{grid-column:1/3;font-size:10.5px;color:var(--ink-dim)}
+.tr select{font-family:var(--f-ui);font-size:12px;color:var(--ink);background:rgba(127,200,255,.08);border:0;padding:3px 6px;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);cursor:pointer}
+.tr select:focus-visible{outline:1px solid var(--brass)}
+.tr .rm{font-size:13px;color:var(--ink-dim)!important;padding:0 4px}
+.tr .rm:hover{color:var(--red)!important}
+.tr .dimt{font-size:12px;color:var(--ink-dim)}
+.tr.empty{opacity:.75}
+.cells{display:grid;grid-template-columns:repeat(12,1fr);gap:3px}
+.sc{height:30px;display:grid;place-items:center;background:rgba(127,200,255,.04);clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px)}
+.sc.on{background:rgba(127,200,255,.14)}
+.sc .mk{width:30px;height:15px}
+.sc i{font-style:normal;font-size:12px;color:rgba(147,163,184,.5)}
+.sc:not(.nx):hover{background:rgba(127,200,255,.26)}
+.sc.nx{background:transparent}
+.tr .ct{font-family:var(--f-num);font-size:16px;text-align:right}
+.tr .ct small{font-size:11px;color:var(--ink-dim)}
+.dpanel{display:grid;align-content:start;gap:8px;padding-left:22px;border-left:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12px;color:var(--ink-dim)}
+.kv i{font-style:normal;color:var(--ink);font-family:var(--f-num)}
+.bars.one{grid-template-columns:1fr;gap:5px}
+.hint{margin:0;font-size:10.5px;line-height:1.6;color:var(--ink-dim)}
+.bl{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px}
+.bl .bon{padding:2px 0 2px 14px}
+.bl .bon::before{top:7px}
+.bl .bon b{font-size:12px}
+.bl .bon em{font-size:10.5px}
+.dzf{display:flex;justify-content:flex-end;gap:8px}
+/* options: unit display */
+.omain .sepr{margin-top:12px;padding-top:16px;border-top:1px solid var(--line)}
+.segc{display:flex}
+.segc button{font-size:12.5px;letter-spacing:.06em;padding:6px 16px;margin-left:-4px;color:var(--ink-dim)!important;background:rgba(127,200,255,.06)!important;clip-path:polygon(9px 0,100% 0,calc(100% - 9px) 100%,0 100%)}
+.segc button[aria-checked="true"]{background:var(--blue)!important;color:var(--void)!important}
+.plates{display:flex;gap:10px;flex-wrap:wrap}
+.np{--c:var(--blue);display:inline-flex;align-items:center;gap:10px;padding:6px 12px;font-size:12px;position:relative;background:color-mix(in srgb,var(--c) 10%,transparent)}
+.np::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(var(--c),var(--c)) 0 0/8px 1px no-repeat,linear-gradient(var(--c),var(--c)) 0 0/1px 8px no-repeat,linear-gradient(var(--c),var(--c)) 100% 100%/8px 1px no-repeat,linear-gradient(var(--c),var(--c)) 100% 100%/1px 8px no-repeat}
+.np .mk{color:var(--c)}
+.np.ace{--c:#e8001c}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <h1><b>WAR OF SPACE</b>メニューの見本（B案）</h1>
+    <nav class="crumbs" aria-label="画面">
+      <button data-go="title">タイトル</button>
+      <button data-go="mode">出撃：オフライン／オンライン</button>
+      <button data-go="ops">出撃：作戦を選ぶ</button>
+      <button data-go="fleet">艦隊編集</button>
+      <button data-go="tech">技術ツリー</button>
+      <button data-go="data">艦艇データ</button>
+      <button data-go="opt">オプション</button>
+    </nav>
+  </div>
+
+  <div class="stagebox" id="box"><div class="stage" id="stage">
+    <canvas id="cv" width="1600" height="900" aria-label="太陽系の軌道図（地球・火星・中継ステーション・資源衛星がゆっくり回る）"></canvas>
+
+    <div class="ui" id="sTitle">
+      <div class="ttl"><p class="eyebrow">A.E. 45 — INTERPLANETARY WAR</p><h2>WAR OF<br><em>SPACE</em></h2><p class="sub">宙域艦隊戦　試作版</p></div>
+      <p class="stat">資金<b>1,240</b>進行<b>第一章 第3節まで完了</b></p>
+      <nav class="menu" aria-label="メインメニュー">
+        <button class="plate lead" style="--x:0px" data-go="mode"><b>出撃</b><span>次の作戦：第一章 第4節「デナリの盾」</span></button>
+        <button class="plate" style="--x:18px" data-go="fleet"><b>艦隊編集</b><span>支隊・打撃群・戦区軍を組む</span></button>
+        <button class="plate" style="--x:36px" data-go="tech"><b>技術ツリー</b><span>資金を使い、兵科ごとの出撃上限を上げる</span></button>
+        <button class="plate" style="--x:54px" data-go="data"><b>艦艇データ</b><span>8艦種の能力と編成ボーナス</span></button>
+        <button class="plate" style="--x:72px" data-go="opt"><b>オプション</b><span>ストーリーの表示などの設定</span></button>
+      </nav>
+      <div class="dbg">DEBUG</div>
+    </div>
+
+    <div class="ui" id="sMode" hidden>
+      <button class="plate back" data-go="title">← メニュー</button>
+      <h2 class="scrh"><b>SORTIE</b><span>出撃</span></h2>
+      <p class="stat">資金<b>1,240</b>進行<b>第一章 第3節まで完了</b></p>
+      <div class="modes">
+        <button class="plate off" data-go="ops"><i class="k">OFFLINE</i><b>オフライン</b><span>キャンペーンと演習。ひとりで、CPU の敵と戦う。<br>次の作戦：第一章 第4節「デナリの盾」</span></button>
+        <button class="plate on" data-go="online"><i class="k">ONLINE</i><b>オンライン</b><span>ほかのプレイヤーと遊ぶ。</span><i class="tag">準備中</i></button>
+      </div>
+    </div>
+
+    <div class="ui" id="sOnline" hidden>
+      <button class="plate back" data-go="mode">← 出撃</button>
+      <h2 class="scrh"><b>ONLINE</b><span>オンライン</span></h2>
+      <div class="plate onpanel"><b>準備中</b><p>オンラインで何を遊べるようにするか（人どうしの対戦、協力して CPU と戦う、など）は、まだ決まっていません。決まったら、この画面に入れます。</p></div>
+    </div>
+
+    <div class="ui" id="sOps" hidden>
+      <button class="plate back" data-go="mode">← 出撃</button>
+      <h2 class="scrh"><b>OFFLINE</b><span>作戦を選ぶ</span></h2>
+      <div class="ops" id="opList"></div>
+      <p class="where" id="where"></p>
+      <div class="plate det" id="det"></div>
+    </div>
+
+    <div class="ui" id="sFleet" hidden>
+      <button class="plate back" data-go="title">← メニュー</button>
+      <h2 class="scrh"><b>FLEET</b><span>艦隊編集</span></h2>
+      <div class="stabs" role="tablist" aria-label="艦隊編集の段">
+        <button role="tab" data-ft="army" aria-selected="true">戦区軍</button><button role="tab" data-ft="group" aria-selected="false">打撃群</button>
+      </div>
+      <p class="capline"><b>出撃上限（技術ツリー）</b><span>護衛艦艇 <i>23/24</i>隻</span><span>駆逐艦 <i>6/16</i>隻</span><span class="full">巡洋艦 <i>6/6</i>隻</span></p>
+      <div class="side" id="fSide"></div>
+      <div class="plate main" id="fMain"></div>
+    </div>
+
+    <div class="ui" id="sTech" hidden>
+      <button class="plate back" data-go="title">← メニュー</button>
+      <h2 class="scrh"><b>RESEARCH</b><span>技術ツリー</span></h2>
+      <p class="funds">資金<b>1,240</b></p>
+      <div class="stabs" role="tablist" aria-label="軍"><button role="tab" aria-selected="true">宇宙軍</button><button role="tab" aria-selected="false" title="地上戦（第二章〜）で導入予定">地上軍</button></div>
+      <div class="side" id="tSide"></div>
+      <div class="plate main" id="tMain"></div>
+    </div>
+
+    <div class="ui" id="sData" hidden>
+      <button class="plate back" data-go="title">← メニュー</button>
+      <h2 class="scrh"><b>DATA</b><span>艦艇データ</span></h2>
+      <div class="plate dmain" id="dMain"></div>
+    </div>
+
+    <div class="ui" id="sOpt" hidden>
+      <button class="plate back" data-go="title">← メニュー</button>
+      <h2 class="scrh"><b>OPTIONS</b><span>オプション</span></h2>
+      <div class="plate omain">
+        <div class="row"><b>ストーリー</b><label class="sw"><input type="checkbox" id="optStory" checked><span id="optStoryT">オン</span></label></div>
+        <p>作戦の前後の会話を出します。オフにすると会話をとばして、すぐ配置や結果へ進みます。会話はクリックか <kbd>Enter</kbd> で次へ、<kbd>Ctrl</kbd> 長押しで早送り、「とばす」で最後までとばせます。</p>
+        <div class="row sepr"><b>部隊の表示</b><span class="segc" role="radiogroup" aria-label="部隊の表示"><button role="radio" data-uf="both" aria-checked="true">番号＋名前</button><button role="radio" data-uf="no" aria-checked="false">番号だけ</button><button role="radio" data-uf="name" aria-checked="false">名前だけ</button></span></div>
+                <p>編成画面と戦闘画面の名札で、部隊をどう呼ぶか。番号＋名前は「第1打撃群」を大きく、「前衛巡洋」のような名前を小さく添えます。名前だけにすると「第1 前衛巡洋 打撃群」。アルバレス隊のような物語の隊は、いつも名前で出します。</p>
+        <div class="plates" id="ufPrev"></div>
+        <div class="row sepr"><b>艦種マーク</b><span class="segc" role="radiogroup" aria-label="艦種マーク"><button role="radio" data-ms="A" aria-checked="true">艦影</button><button role="radio" data-ms="B" aria-checked="false">部隊符号</button></span></div>
+        <p>編成画面・技術ツリー・戦闘画面の名札に出す、艦種の印。艦影は艦を横から見た形（大きさは艦の実際の比率）、部隊符号は役目の印と大きさの目盛り。</p>
+        <div class="plates" id="msPrev"></div>
+      </div>
+    </div>
+  </div></div>
+
+  <div class="foot">
+    <span>背景の日付 <i id="date">A.E. 45.04.12</i></span>
+    <span>資金・進行・クリアの印は見本用の値です</span>
+  </div>
+  <p class="note" id="note"></p>
+</div>
+
+<script>
+const NOTES={
+  title:'<b>タイトル。</b>開戦の日の配置から、1日を0.6秒で進めています。「出撃」を押すと次の画面へ進みます。',
+  mode:'<b>出撃：オフライン／オンライン。</b>大きな板を2枚並べます。オンラインは中身が決まるまで「準備中」です。オフラインを押すと作戦の選択へ進みます。',
+  online:'<b>オンライン（準備中）。</b>中身が決まるまでの仮の画面です。',
+  ops:'<b>出撃：作戦を選ぶ。</b>左の一覧か、地図の上の印を押すと、地図がその作戦の場所へ寄り、日付もその作戦の日へ進みます。下の板に作戦の説明と出撃のボタン。演習は架空の宙域なので、太陽系の全体を映します。',
+  fleet:'<b>艦隊編集。</b>部隊は「第1打撃群」のような番号が主で、「前衛巡洋」のような名前は小さく添えるだけ（オプションで変えられる）。戦区軍の段：上は所属の一覧（★で旗艦を選ぶ、外す）。格子の空いたマスを押すと、まだ所属していない打撃群を加えるか、選んでいる打撃群をそこへ移す窓が出ます。打撃群の段：支隊の行のマスに艦を並べて組みます（マスで隻数、行の左で艦種、空いた行から支隊を加える）。',
+  tech:'<b>技術ツリー。</b>研究の節点は角を立てたひし形で、研究済みは青、始められるものは金、まだのものは灰色です。節点を押すと下に効果と資金が出て、「研究する」で研究済みになります（見本の中だけ）。',
+  data:'<b>艦艇データ。</b>8艦種の能力を10目盛りの帯で並べます。見出しを押すとその能力の順に並べ替えます。下に編成ボーナス。',
+  opt:'<b>オプション。</b>ストーリーのオン／オフ、艦種マーク（艦影／部隊符号）、部隊の表示（番号＋名前／番号だけ／名前だけ）。マークと表示を変えると、艦隊編集・技術ツリーにもそのまま出ます。'
+};
+const LOCK='<svg class="lock" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1"><path d="M3 5.5V4l3-2.5L9 4v1.5"/><path d="M2 5.5h8l-1 5H3z" fill="currentColor" fill-opacity=".15"/></svg>';
+
+/* ---------- operations (data/operations.js; the clear marks are an example) ---------- */
+const OPS=[
+  {id:'shinano',n:'第1節',name:'ネオ信濃奇襲',day:0,time:'06:00',st:'clr',at:{st:7},reward:300,
+    sum:'開戦の日。中継ステーション「ネオ信濃」が惑星共和国の奇襲を受ける。司令は戦死。残った警備艦隊で、避難民を乗せた輸送船団を逃がす。',
+    thr:'敵戦力：前衛（増援多数）・W.A.S.・本隊／目標：輸送船団の護衛'},
+  {id:'retreat',n:'第2節',name:'後退',day:3,time:'04:00',st:'clr',at:{route:[7,0],f:.35},reward:400,
+    sum:'ネオ信濃を出て3日目。共和国の偵察と本隊が追ってくる。プラズマ雲に隠れながら、輸送船団をナイルまで護衛する。',
+    thr:'敵戦力：偵察隊6・本隊・追撃隊（W.A.S.）／目標：輸送船団の護衛（撤退）'},
+  {id:'nile',n:'第3節',name:'ナイル防衛線',day:8,time:'06:00',st:'clr',at:{st:0},reward:500,
+    sum:'ナイルに集まった友軍と防衛線を引く。避難が終わるまで、ジャディード・ナイルを共和国の先遣艦隊から守る。',
+    thr:'敵戦力：先遣艦隊・突破隊・主力（W.A.S.）／目標：避難が終わるまでステーションを守る（防衛）'},
+  {id:'denali',n:'第4節',name:'デナリの盾',day:12,time:'08:00',st:'nx',at:{body:'デナリ'},reward:600,
+    sum:'臨時部隊として本軍に入り、共和国に占拠された資源衛星デナリへ向かう。採掘公社の幹部と技術者を救い出し、住民を避難させる。',
+    thr:'敵戦力：守備隊・対空砲台・帰ってくる W.A.S. 部隊／目標：要人と住民を乗せたユーコンを離脱点へ（撤退）'},
+  {id:'februaria',n:'第5節',name:'フェブルアーリア防衛戦',day:14,time:'06:00',st:'lk',at:{body:'フェブルアーリア'},reward:700,
+    sum:'地球に残る最後の資源惑星フェブルアーリア。地球連合宇宙軍の総基地を、共和国の主力から守る。初めて戦艦を預かる。',
+    thr:'敵戦力：共和国の主力・鹵獲した戦艦・突撃揚陸艦・揚陸艇（強化歩兵）'},
+  {id:'denaliBreak',n:'第6節',name:'デナリ破砕',day:20,time:'13:00',st:'lk',at:{body:'デナリ'},reward:800,
+    sum:'陽動で守備隊を引き出し、核を積んだ戦艦を鉱山へ送り、デナリを砕く。',
+    thr:'敵戦力：正面の拠点3つ・槍・方角守備隊／目標：デナリを砕くか誘導の推進器を壊す'},
+  {id:'charybdis',n:'演習',name:'要塞カリュブディス攻略戦',day:null,ex:1,st:'',reward:200,
+    sum:'二つの小惑星を接合した敵要塞。防空4隊と近衛艦隊が守り、開戦2時間半後から北と東に増援が来る。17:00 までに要塞を落とす。',
+    thr:'敵戦力：艦隊5・要塞1／難易度：標準'},
+];
+let sel='denali';
+
+/* ---------- screens ---------- */
+const SCR={title:'sTitle',mode:'sMode',online:'sOnline',ops:'sOps',fleet:'sFleet',tech:'sTech',data:'sData',opt:'sOpt'};
+let scr='title';
+function go(s){ scr=s; for(const k in SCR) document.getElementById(SCR[k]).hidden=k!==s;
+  document.querySelectorAll('.crumbs button').forEach(b=>b.setAttribute('aria-current',String(b.dataset.go===s||(s==='online'&&b.dataset.go==='mode'))));
+  document.getElementById('note').innerHTML=NOTES[s];
+  if(s==='ops') pick(sel,true); else { clock.target=null; }
+  if(s==='fleet') renderFleet(); if(s==='tech') renderTech(); if(s==='data') renderData();
+  try{ localStorage.setItem('wos-mock-scr',s); }catch(e){}
+}
+document.addEventListener('click',e=>{ const b=e.target.closest('[data-go]'); if(b) go(b.dataset.go); });
+
+function renderOps(){
+  const st={clr:'<span class="st clr">クリア済み</span>',nx:'<span class="st nx">次の作戦</span>',lk:'<span class="st">前の節をクリアで解放</span>'};
+  const row=o=>`<button class="plate ${o.id===sel?'sel':''}" data-op="${o.id}" ${o.st==='lk'?'disabled':''} aria-pressed="${o.id===sel}"><span class="n">${o.n}</span><b>${o.st==='lk'?LOCK:''}${o.name}</b>${st[o.st]||''}</button>`;
+  document.getElementById('opList').innerHTML=`<p class="grp">第一章　開戦</p>${OPS.filter(o=>!o.ex).map(row).join('')}<p class="grp">演習</p>${OPS.filter(o=>o.ex).map(row).join('')}`;
+  const o=OPS.find(x=>x.id===sel);
+  document.getElementById('det').innerHTML=`<span class="ch">${o.ex?'演習　架空の宙域':'第一章　'+o.n}</span><h3>${o.name}</h3>${o.ex?'':`<span class="when">${fmt(o.day)}　${o.time} 開始</span>`}
+    <p>${o.sum}</p><span class="thr">${o.thr}</span>
+    <div class="row"><span class="rw">報酬　資金<b>${o.reward}</b>${o.st==='clr'?`（再戦は${Math.round(o.reward*.5)}）`:''}</span>
+    <span class="go">${o.ex?'<button class="plate sec">クイック出撃</button><button class="plate pri">戦区軍を選ぶ</button>':'<button class="plate pri">出撃する</button>'}</span></div>`;
+}
+document.getElementById('opList').addEventListener('click',e=>{ const b=e.target.closest('[data-op]'); if(b&&!b.disabled) pick(b.dataset.op); });
+function pick(id,instant){ sel=id; renderOps(); const o=OPS.find(x=>x.id===id); clock.target=o.ex?null:o.day; clock.since=performance.now(); clock.focus=o.ex?null:o; }
+
+/* ---------- scale the 1600x900 frame to the page ---------- */
+const box=document.getElementById('box'), stage=document.getElementById('stage');
+/* the canvas is drawn at the screen's real resolution (BASE px per frame px), so slow motion moves in sub-pixels instead of whole-pixel steps */
+let K=1, BASE=1;
+function fit(){ K=box.clientWidth/1600; stage.style.transform=`scale(${K})`;
+  BASE=K*Math.min(2,window.devicePixelRatio||1); cv.width=Math.round(1600*BASE); cv.height=Math.round(900*BASE); layers={}; glows={}; }
+new ResizeObserver(fit).observe(box);
+
+/* ---------- the solar system (positions on A.E. 45.04.12 from docs/story.md 5.1) ---------- */
+const DEG=Math.PI/180;
+const EARTH={r:1,p:365.25,a0:0}, MARS={r:1.524,p:687,a0:73};
+/* the ring is 0.85 AU in the setting; drawn closer to the sun here, with the setting's period */
+const ST_R=.7, ST_P=365.25*Math.pow(.85,1.5);
+const STATIONS=['ナイル','アマゾン','ミシシッピ','ドナウ','ヴォルガ','ガンジス','長江','信濃'].map((n,i)=>({n,a0:-5+45*i}));
+/* bodies around each planet (docs/story.md 5.2, 5.3). Radii are display AU, in the setting's order; periods are slowed
+   but keep inner = faster. polar: the orbit plane stands up through the poles. lp: a Lagrange point (+1 sunward L1, -1 night side L2) */
+const EARTH_SYS=[
+  {n:'月',r:.06,p:27.3,a0:0,moon:1},
+  {n:'フェブルアーリア',r:.06,p:27.3,a0:180,col:'ally',big:1},
+  {n:'デナリ',r:.085,p:41,a0:120},
+  {n:'エベレスト',lp:1,r:.13},
+  {n:'キリマンジャロ',lp:-1,r:.13},
+];
+const MARS_SYS=[
+  {n:'フォボス',r:.022,p:6,a0:0,moon:1},
+  {n:'スキャパレッリ',r:.034,p:9,a0:90,polar:30},
+  {n:'ホイヘンス',r:.046,p:12,a0:200},
+  {n:'ダイモス',r:.058,p:15,a0:300,moon:1},
+  {n:'ホール',r:.058,p:15,a0:0},
+  {n:'マイク',r:.08,p:24,a0:140,big:1},
+  {n:'ケプラー',lp:1,r:.12},
+  {n:'ローウェル',lp:-1,r:.12},
+];
+const ang=(o,d)=>(o.a0*DEG)+2*Math.PI*d/o.p;
+const stAng=(i,d)=>STATIONS[i].a0*DEG+2*Math.PI*d/ST_P;
+const stW=(i,d)=>{ const a=stAng(i,d); return [ST_R*Math.cos(a),ST_R*Math.sin(a),0]; };
+const C={blue:'#7fc8ff',red:'#ff6a45',brass:'#e2c58a',ink:'#e6edf6',dim:'#93a3b8',ally:'#8fe8c0'};
+
+const cv=document.getElementById('cv'), g=cv.getContext('2d');
+const rnd=(s=>()=>(s=(s*16807)%2147483647)/2147483647)(7);
+const STARS=Array.from({length:420},()=>({x:rnd()*1600,y:rnd()*900,r:rnd()<.08?1.3:.6+rnd()*.5,a:.15+rnd()*.55}));
+/* things that never move are painted once into layers and reused every frame */
+let layers={}, glows={};
+function layer(key,paint){ if(layers[key]) return layers[key];
+  const c=document.createElement('canvas'); c.width=cv.width; c.height=cv.height; const x=c.getContext('2d'); x.setTransform(BASE,0,0,BASE,0,0); paint(x); return layers[key]=c; }
+const starLayer=()=>layer('stars',x=>{ x.fillStyle='#05080f'; x.fillRect(0,0,1600,900); x.fillStyle='#cfe3ff'; for(const s of STARS){ x.globalAlpha=s.a; x.fillRect(s.x,s.y,s.r,s.r); } });
+const shadeLayer=s=>layer('shade-'+s,x=>{
+  const vg=x.createLinearGradient(0,0,1600,0); vg.addColorStop(0,'rgba(5,8,15,.8)'); vg.addColorStop(.42,'rgba(5,8,15,.22)'); vg.addColorStop(.7,'rgba(5,8,15,0)'); x.fillStyle=vg; x.fillRect(0,0,1600,900);
+  if(s==='ops'){ const bg=x.createLinearGradient(0,560,0,900); bg.addColorStop(0,'rgba(5,8,15,0)'); bg.addColorStop(1,'rgba(5,8,15,.6)'); x.fillStyle=bg; x.fillRect(0,560,1600,340); }
+  if(s==='mode'||s==='online'){ x.fillStyle='rgba(5,8,15,.25)'; x.fillRect(0,0,1600,900); }
+  if(['fleet','tech','data','opt'].includes(s)){ x.fillStyle='rgba(5,8,15,.5)'; x.fillRect(0,0,1600,900); } });
+function glowSprite(r,col){ const key=col+'|'+r; if(glows[key]) return glows[key];
+  const n=Math.max(2,Math.ceil(r*2*BASE)), c=document.createElement('canvas'); c.width=c.height=n; const x=c.getContext('2d');
+  const gr=x.createRadialGradient(n/2,n/2,0,n/2,n/2,n/2); gr.addColorStop(0,col); gr.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=gr; x.fillRect(0,0,n,n); return glows[key]=c; }
+fit();
+
+/* views: title (whole system, sun lower right) and the sortie close-ups, which pin a world point to an anchor on screen */
+const HOME={cx:1270,cy:690,s:430,yaw:-193};
+const view={...HOME};
+const rot=(x,y)=>{ const c=Math.cos(view.yaw*DEG), s=Math.sin(view.yaw*DEG); return [x*c-y*s, x*s+y*c]; };
+function P(x,y,z=0){ const [X,Y]=rot(x,y); return [view.cx+X*view.s, view.cy+(Y-z*0)*view.s]; }
+function ring(r,style,w,dash,alpha,ox=0,oy=0,segs=180){
+  g.save(); g.globalAlpha=alpha; g.strokeStyle=style; g.lineWidth=w; g.setLineDash(dash||[]); g.beginPath();
+  for(let i=0;i<=segs;i++){ const a=i/segs*2*Math.PI, [x,y]=P(ox+r*Math.cos(a),oy+r*Math.sin(a)); i?g.lineTo(x,y):g.moveTo(x,y); }
+  g.stroke(); g.restore();
+}
+function arcTrail(ox,oy,r,a1,span,col,alpha=.75,w=1.6,n=18){ /* afterimage: a fading arc behind a body on its orbit (around ox,oy) */
+  g.save(); g.lineWidth=w; g.strokeStyle=col; g.lineCap='round';
+  for(let i=0;i<n;i++){ const aa=a1-span*i/n, ab=a1-span*(i+1)/n, [x1,y1]=P(ox+r*Math.cos(aa),oy+r*Math.sin(aa)), [x2,y2]=P(ox+r*Math.cos(ab),oy+r*Math.sin(ab));
+    g.globalAlpha=alpha*(1-i/n); g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+  g.restore();
+}
+const trail=(o,d,col,span)=>arcTrail(0,0,o.r,ang(o,d),span,col);
+function glow(x,y,r,col,a){ r=Math.round(r/10)*10||10; g.globalAlpha=a; g.drawImage(glowSprite(r,col),x-r,y-r,2*r,2*r); g.globalAlpha=1; }
+function label(x,y,txt,col,dx=14,dy=-14,size=12,alpha=.9){ /* angled leader line, then text */
+  g.save(); g.strokeStyle=col; g.globalAlpha=alpha*.6; g.lineWidth=1; g.beginPath(); g.moveTo(x+Math.sign(dx)*4,y+Math.sign(dy)*4); g.lineTo(x+dx,y+dy); g.lineTo(x+dx+Math.sign(dx)*16,y+dy); g.stroke();
+  g.globalAlpha=alpha; g.fillStyle=col; g.font=`500 ${size}px "Zen Kaku Gothic New","Chakra Petch",sans-serif`; g.textBaseline='middle'; g.textAlign=dx<0?'right':'left';
+  g.fillText(txt,x+dx+Math.sign(dx)*20,y+dy); g.restore();
+}
+function station(x,y,col){ g.save(); g.strokeStyle=col; g.lineWidth=1; g.beginPath(); g.arc(x,y,4.5,0,7); g.moveTo(x-4.5,y); g.lineTo(x+4.5,y); g.moveTo(x,y-4.5); g.lineTo(x,y+4.5); g.stroke(); g.restore(); }
+function diamond(x,y,r,col,fill){ g.save(); g.beginPath(); g.moveTo(x,y-r); g.lineTo(x+r*.7,y); g.lineTo(x,y+r); g.lineTo(x-r*.7,y); g.closePath(); g.strokeStyle=col; g.lineWidth=1; if(fill){ g.fillStyle=col; g.globalAlpha=.35; g.fill(); g.globalAlpha=1; } g.stroke(); g.restore(); }
+
+/* a point on a body's orbit around (cx,cy) at angle a; polar orbits are seen edge-on from above, so they stay on one line */
+function orbPt(b,cx,cy,a){
+  if(b.polar!=null){ const n=b.polar*DEG; return [cx+b.r*Math.cos(a)*Math.cos(n), cy+b.r*Math.cos(a)*Math.sin(n), b.r*Math.sin(a)]; }
+  return [cx+b.r*Math.cos(a), cy+b.r*Math.sin(a), 0];
+}
+function bodyW(b,pl,d){
+  const pa=ang(pl,d);
+  if(b.lp){ const R=pl.r+(b.lp>0?-b.r:b.r); return [R*Math.cos(pa),R*Math.sin(pa),0]; }
+  return orbPt(b,pl.r*Math.cos(pa),pl.r*Math.sin(pa),(b.a0||0)*DEG+2*Math.PI*d/b.p);
+}
+function system(list,pl,d,px,py,col,showNames){
+  const pa=ang(pl,d), cx=pl.r*Math.cos(pa), cy=pl.r*Math.sin(pa);
+  for(const b of list){
+    const c=b.col?C[b.col]:col, w=bodyW(b,pl,d);
+    if(b.lp){ /* L1/L2 ride the sun–planet line, so they trail along the planet's own arc */
+      const R=pl.r+(b.lp>0?-b.r:b.r); arcTrail(0,0,R,pa,.12,c,.5,1.1,20);
+      g.save(); g.setLineDash([1,3]); g.strokeStyle=c; g.globalAlpha=.3; g.beginPath(); g.moveTo(px,py); g.lineTo(...P(w[0],w[1])); g.stroke(); g.restore();
+    } else {
+      const a=(b.a0||0)*DEG+2*Math.PI*d/b.p;
+      g.save(); g.strokeStyle=c; g.globalAlpha=.16; g.lineWidth=1; g.beginPath();
+      for(let i=0;i<=40;i++){ const q=orbPt(b,cx,cy,i/40*2*Math.PI), [x,y]=P(...q); i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke();
+      g.lineWidth=1.2; g.lineCap='round';
+      for(let i=0;i<12;i++){ const [x1,y1]=P(...orbPt(b,cx,cy,a-1.5*i/12)), [x2,y2]=P(...orbPt(b,cx,cy,a-1.5*(i+1)/12)); g.globalAlpha=.6*(1-i/12); g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+      g.restore();
+    }
+    const [x,y]=P(w[0],w[1]);
+    if(b.moon){ g.fillStyle=C.dim; g.beginPath(); g.arc(x,y,b.n==='月'?2.4:1.6,0,7); g.fill(); }
+    else diamond(x,y,b.big?4.6:3.4,c,1);
+    if(showNames&&!b.moon){ const ox=x-px, oy=y-py; label(x,y,b.n,c,(ox>=0?1:-1)*8,(oy>=0?1:-1)*8,10); }
+  }
+}
+
+/* where an operation is on the map at day d */
+function opW(o,d){
+  const at=o.at;
+  if(at.st!=null) return stW(at.st,d);
+  if(at.route){ const a1=stAng(at.route[0],d), a2=stAng(at.route[1],d)+2*Math.PI, a=a1+(a2-a1)*at.f; return [ST_R*Math.cos(a),ST_R*Math.sin(a),0]; }
+  return bodyW(EARTH_SYS.find(b=>b.n===at.body),EARTH,d);
+}
+let hits=[];
+function reticle(x,y,r,col,on){
+  g.save(); g.strokeStyle=col; g.lineWidth=1; g.globalAlpha=on?1:.6; const L=r*.45;
+  for(const [sx,sy] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ g.beginPath(); g.moveTo(x+sx*r,y+sy*(r-L)); g.lineTo(x+sx*r,y+sy*r); g.lineTo(x+sx*(r-L),y+sy*r); g.stroke(); }
+  g.restore();
+}
+
+function draw(d,now){
+  g.setTransform(1,0,0,1,0,0); g.globalAlpha=1; g.drawImage(starLayer(),0,0); g.setTransform(BASE,0,0,BASE,0,0);
+  const sc=view.s, close=sc>1500;
+
+  for(const r of [.5,1.25,1.75,2]) ring(r,C.blue,1,[2,6],.12);
+  { g.save(); g.strokeStyle=C.blue; g.globalAlpha=.28; g.lineWidth=1;
+    for(let k=0;k<72;k++){ const a=k*5*DEG, L=k%6?.03:.07, [x1,y1]=P(1.75*Math.cos(a),1.75*Math.sin(a)), [x2,y2]=P((1.75+L)*Math.cos(a),(1.75+L)*Math.sin(a)); g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); }
+    g.restore(); }
+  ring(ST_R,C.brass,1,[3,5],.38,0,0,360); ring(EARTH.r,C.blue,1,null,.35,0,0,360); ring(MARS.r,C.red,1,null,.32,0,0,360);
+  trail(EARTH,d,C.blue,.9); trail(MARS,d,C.red,.6);
+
+  const [sx,sy]=P(0,0); glow(sx,sy,Math.min(260,Math.max(70,sc*.32)),'rgba(255,214,150,.55)',1); glow(sx,sy,18,'rgba(255,244,220,1)',1);
+  g.fillStyle='#fff6e6'; g.beginPath(); g.arc(sx,sy,6,0,7); g.fill();
+  label(sx,sy,'太陽',C.brass,-18,22);
+
+  STATIONS.forEach((st,i)=>{ const a=stAng(i,d), [x,y]=P(ST_R*Math.cos(a),ST_R*Math.sin(a)); arcTrail(0,0,ST_R,a,.32,C.brass,.55,1.2,10); station(x,y,C.brass);
+    const inw=(x-sx)>=0?-1:1; label(x,y,st.n,C.brass,inw*12,(y-sy)>=0?-12:12,11); });
+
+  const ea=ang(EARTH,d), [epx,epy]=P(Math.cos(ea),Math.sin(ea));
+  const ma=ang(MARS,d), [mpx,mpy]=P(MARS.r*Math.cos(ma),MARS.r*Math.sin(ma));
+  system(EARTH_SYS,EARTH,d,epx,epy,C.blue,true);
+  system(MARS_SYS,MARS,d,mpx,mpy,C.red,true);
+  glow(epx,epy,close?40:26,'rgba(127,200,255,.55)',1); g.fillStyle=C.blue; g.beginPath(); g.arc(epx,epy,close?9:6,0,7); g.fill();
+  glow(mpx,mpy,24,'rgba(255,106,69,.5)',1); g.fillStyle=C.red; g.beginPath(); g.arc(mpx,mpy,5,0,7); g.fill();
+  label(epx,epy,'地球',C.blue,-24,-26,13); label(mpx,mpy,'火星',C.red,-24,-26,13);
+
+  /* operation marks on the sortie screen */
+  hits=[];
+  if(scr==='ops'){
+    const r7=stAng(7,d), r0=stAng(0,d)+2*Math.PI; /* the retreat route, 信濃 → ナイル along the ring */
+    g.save(); g.setLineDash([6,5]); g.strokeStyle=C.ally; g.globalAlpha=.55; g.lineWidth=1.4; g.beginPath();
+    for(let i=0;i<=60;i++){ const a=r7+(r0-r7)*i/60, [x,y]=P(ST_R*1.012*Math.cos(a),ST_R*1.012*Math.sin(a)); i?g.lineTo(x,y):g.moveTo(x,y); } g.stroke(); g.restore();
+    const seen=new Map();
+    for(const o of OPS){ if(o.ex) continue;
+      const w=opW(o,d), [x,y]=P(w[0],w[1]), on=o.id===sel, key=Math.round(x/6)+','+Math.round(y/6);
+      const col=o.st==='lk'?C.dim:o.st==='clr'?C.ally:C.blue, k=seen.get(key)||0; seen.set(key,k+1);
+      const pulse=on?1+.12*Math.sin(now/300):1;
+      reticle(x,y,(on?16:10)*pulse,on?C.blue:col,on);
+      if(on||close) label(x,y,`${o.n}　${o.name}`,on?C.blue:col,18,-20-k*18,on?13:11,on?1:.75);
+      if(o.st!=='lk') hits.push({id:o.id,x,y});
+    }
+  }
+
+  /* calm the menu side */
+  g.setTransform(1,0,0,1,0,0); g.globalAlpha=1; g.drawImage(shadeLayer(scr),0,0);
+}
+
+cv.addEventListener('click',e=>{ if(scr!=='ops') return; const r=cv.getBoundingClientRect(), x=(e.clientX-r.left)/K, y=(e.clientY-r.top)/K;
+  const h=hits.find(h=>Math.hypot(h.x-x,h.y-y)<22); if(h) pick(h.id); });
+cv.addEventListener('mousemove',e=>{ if(scr!=='ops'){ cv.style.cursor=''; return; } const r=cv.getBoundingClientRect(), x=(e.clientX-r.left)/K, y=(e.clientY-r.top)/K;
+  cv.style.cursor=hits.some(h=>Math.hypot(h.x-x,h.y-y)<22)?'pointer':''; });
+
+/* ---------- time and camera ---------- */
+const START=Date.UTC(2099,3,12), DAY_MS=600;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const fmt=d=>{ const t=new Date(START+Math.floor(d)*864e5); return `A.E. ${t.getUTCFullYear()-2054}.${String(t.getUTCMonth()+1).padStart(2,'0')}.${String(t.getUTCDate()).padStart(2,'0')}`; };
+const clock={d:0,target:null,since:0,focus:null};
+let last=performance.now(), lastDay=-1;
+const ANCHOR=[1080,380];
+function frame(now){
+  const dt=Math.min(.1,(now-last)/1000); last=now;
+  if(clock.target==null){ if(!reduce) clock.d+=dt*1000/DAY_MS; }
+  else { const goal=clock.target+(reduce?0:(now-clock.since)/8000); clock.d+=(goal-clock.d)*Math.min(1,dt*3); }
+  /* camera */
+  let tgt=HOME;
+  if(scr==='ops'){
+    const o=clock.focus;
+    if(o){ const w=opW(o,clock.d), near=o.at.body!=null, s=near?3600:1500;
+      const sv=view.s; view.s=s; const [X,Y]=rot(w[0],w[1]); view.s=sv;
+      tgt={s, cx:ANCHOR[0]-X*s, cy:ANCHOR[1]-Y*s, yaw:HOME.yaw}; }
+    else tgt={cx:1050,cy:430,s:250,yaw:HOME.yaw};
+  }
+  const k=Math.min(1,dt*(reduce?60:2.6));
+  /* zoom in log space so the fly-in feels even */
+  const ls=Math.log(view.s)+(Math.log(tgt.s)-Math.log(view.s))*k; view.s=Math.exp(ls);
+  view.cx+=(tgt.cx-view.cx)*k; view.cy+=(tgt.cy-view.cy)*k; view.yaw+=(tgt.yaw-view.yaw)*k;
+  draw(clock.d,now); drawCube(now);
+  const day=Math.floor(clock.d); if(day!==lastDay){ lastDay=day; document.getElementById('date').textContent=fmt(day); document.getElementById('where').innerHTML=`<b>${fmt(day)}</b><br>地球–火星 ${earthMars(clock.d)}`; }
+  requestAnimationFrame(frame);
+}
+function earthMars(d){ const ea=ang(EARTH,d), ma=ang(MARS,d), dist=Math.hypot(MARS.r*Math.cos(ma)-Math.cos(ea),MARS.r*Math.sin(ma)-Math.sin(ea)); return `${dist.toFixed(2)} AU（光で${(dist*8.317).toFixed(1)}分）`; }
+
+/* A: side views from the 3D hulls (battle/shapes.js). Loft points are [x, half width, half height, y offset]; bow is +x.
+   at(…, side, up, …) places a part; only the height is used here. Drawn in a 32x12 box, the keel line near the bottom. */
+/* drawn to one scale for all classes, using each class's size (data/ships.js scale), so the battleship fills the box and the corvette is about a quarter of it. Heights are kept true (x1.1 only) */
+const SCALE={cv:.55,ff:.7,dd:.85,cl:1.2,bb:1.7,cvb:1.6,mas:.9,masc:1.6};
+const SV={S:6.5,SY:4.4,OX:16,OY:9,k:1}; /* heights at 0.68x: a low, long recognition-chart profile */
+const sp=(x,y)=>`${(SV.OX+x*SV.S*SV.k).toFixed(2)},${(SV.OY-y*SV.SY*SV.k).toFixed(2)}`;
+function prof(st,up=0){ const t=st.map(e=>sp(e[0],up+(e[3]||0)+e[2])), b=[...st].reverse().map(e=>sp(e[0],up+(e[3]||0)-e[2]));
+  return `<polygon class="p" points="${[...t,...b].join(' ')}"/>`; }
+/* a turret: a low angled block and a long barrel (dir -1 points aft) */
+const tur=(x,y,r,dir=1)=>{ const d=dir, a=x-d*r, b=x+d*r*.75, h=r*.7, bt=r*.44, bb=r*.27, e=x+d*r*2.3;
+  return `<polygon class="p" points="${sp(a,y-.05)} ${sp(a,y)} ${sp(a+d*r*.2,y+h)} ${sp(b,y+h)} ${sp(x+d*r,y)} ${sp(x+d*r,y-.05)}"/><polygon class="p" points="${sp(b-d*r*.1,y+bt)} ${sp(e,y+bt)} ${sp(e,y+bb)} ${sp(b-d*r*.1,y+bb)}"/>`; };
+const eng=(x,y,r)=>`<path class="p" d="M${sp(x,y+r)}L${sp(x-.16,y+r*.75)}L${sp(x-.16,y-r*.75)}L${sp(x,y-r)}Z"/>`;
+/* a modern superstructure block: square at the back, the face raked toward the bow; and a thin mast */
+const blk=(x0,x1,y,h,rake)=>`<polygon class="p" points="${sp(x0,y)} ${sp(x0,y+h)} ${sp(x1-rake,y+h)} ${sp(x1,y)}"/>`;
+const mast=(x,y,h)=>`<polygon class="p" points="${sp(x-.025,y)} ${sp(x-.01,y+h)} ${sp(x+.01,y+h)} ${sp(x+.025,y)}"/>`;
+const tube=x=>`<polygon class="p" points="${sp(x-.12,.09)} ${sp(x-.12,.15)} ${sp(x+.14,.16)} ${sp(x+.14,.09)}"/>`;
+/* the deck height of a hull loft at x, so turrets sit on it */
+const deck=(st,x)=>{ for(let i=1;i<st.length;i++){ const a=st[i-1], b=st[i]; if(x<=b[0]){ const t=(x-a[0])/(b[0]-a[0]), ya=(a[3]||0)+a[2], yb=(b[3]||0)+b[2]; return ya+(yb-ya)*t; } } return 0; };
+const CL_H=[[-1.1,.32,.19],[-.45,.38,.23],[.45,.29,.17],[1.2,0,.01,-.02]], BB_H=[[-1.35,.34,.2],[-.6,.41,.25],[.6,.31,.19],[1.45,0,.01,-.03]];
+const fin=(pts)=>`<polygon class="p" points="${pts.map(([x,y])=>sp(x,y)).join(' ')}"/>`;
+const SIDE={
+  cv:  ()=>fin([[-.4,.06],[-.8,.32],[-.95,.32],[-.75,.06]])+prof([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]])+eng(-1,0,.07),
+  /* フリゲート: a short hull with a tall block amidships and a mast: the escort that watches */
+  ff:  ()=>blk(-.5,.18,.13,.11,.12)+blk(-.36,-.02,.24,.08,.07)+mast(-.22,.32,.2)+prof([[-1,.2,.13],[-.35,.25,.16],[.45,.18,.12],[1.05,0,.01]])+eng(-1,0,.1),
+  /* 駆逐艦: long and low, a small bridge forward and two torpedo mounts on the deck */
+  dd:  ()=>blk(.1,.42,.1,.07,.09)+mast(.2,.17,.08)+tube(-.2)+tube(-.62)+prof([[-1.1,.18,.12],[-.4,.21,.11],[.7,.13,.08],[1.25,0,0]])+eng(-1.1,0,.07),
+  cl:  ()=>prof([[-.6,.15,.09],[-.25,.17,.16,.06],[.05,.1,.08,.03],[.25,0,0]],.2)+tur(.45,deck(CL_H,.45),.15)+prof(CL_H)+eng(-1.1,0,.11),
+  bb:  ()=>blk(-.85,.08,.22,.15,.12)+blk(-.62,-.12,.37,.12,.1)+mast(-.42,.49,.22)
+       +tur(.82,deck(BB_H,.82),.19)+blk(.22,.6,deck(BB_H,.42)-.02,.08,0)+tur(.42,deck(BB_H,.42)+.06,.19)+tur(-.98,deck(BB_H,-.98),.19,-1)+fin([[-.3,-.2],[-.45,-.3],[-1.05,-.3],[-1.05,-.2]])
+       +prof(BB_H)+eng(-1.35,0,.12),
+  cvb: ()=>blk(-.48,.02,.19,.14,.08)+blk(-.38,-.1,.33,.08,.06)+mast(-.26,.41,.16)+prof([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]])
+       +fin([[-1.25,.2],[1.2,.2],[1.2,.13],[-1.25,.13]])+eng(-1.15,0,.09),
+  mas: ()=>blk(-.72,-.08,.19,.12,.1)+blk(-.6,-.3,.31,.07,.06)+mast(-.46,.38,.14)
+       +prof([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]])+eng(-1.05,0,.1),
+  masc:()=>blk(-.66,-.14,.13,.12,.08)+blk(-.55,-.3,.25,.07,.05)+mast(-.42,.32,.14)+prof([[-1.15,.13,.11],[-.3,.16,.13],[.6,.12,.1],[1.2,0,0]],-.04)
+       +fin([[-.9,.13],[.65,.13],[.65,.07],[-.9,.07]])+eng(-1.15,-.04,.09),
+};
+/* outline only (user decision): all parts are stroked at double width, then the inside of their union is masked away, so only the outer edge is left */
+let MKN=0;
+const svgSide=id=>{ SV.k=SCALE[id]; const p=SIDE[id](), k='mk'+(++MKN);
+  return `<svg viewBox="0 0 32 16"><defs><mask id="${k}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="40" height="24"><rect x="-4" y="-4" width="40" height="24" fill="#fff"/><g fill="#000">${p}</g></mask></defs><g class="ol" mask="url(#${k})" fill="none" stroke="currentColor" stroke-linejoin="miter">${p}</g><g opacity=".18" fill="currentColor">${p}</g></svg>`; };
+
+/* B: a unit-symbol style frame (corners cut), a role mark inside, size ticks on top */
+const B_TICKS={cv:1,ff:1,dd:2,cl:3,bb:4,cvb:4,mas:2,masc:4};
+const B_FR='<polygon class="s" points="3,4 21,4 23,6 23,14 21,16 3,16 1,14 1,6"/>';
+const B_IN={
+  cv:  '<path class="l" d="M16 7L8 10L16 13"/>',
+  ff:  '<path class="l" d="M12 6.5L17 8V11.5L12 14L7 11.5V8Z"/>',
+  dd:  '<path class="l" d="M5 10H17"/><path class="f" d="M17 8.6L20 10L17 11.4Z"/>',
+  cl:  '<path class="l" d="M5 10H19"/><path class="l" d="M9 8V12"/>',
+  bb:  '<path class="l" d="M5 8.5H19M5 11.5H19"/><path class="l" d="M9 7V13"/>',
+  cvb: '<path class="l" d="M6 12L12 7.5L18 12"/>',
+  mas: '<path class="l" d="M8 7L14 10L8 13M12 7L18 10L12 13"/>',
+  masc:'<path class="l" d="M5 12.5L9.5 8L14 12.5"/><path class="l" d="M13 7.5L18.5 10L13 12.5"/>',
+};
+const svgB=t=>{ const n=B_TICKS[t]; return `<svg viewBox="0 0 24 16">${B_FR}${Array.from({length:n},(_,i)=>`<path class="l" d="M${(12-(n-1)*1.6+i*3.2).toFixed(1)} 0.5V3"/>`).join('')}${B_IN[t]}</svg>`; };
+let markSet='A';
+
+/* ================= editing screens (data from data/tech.js, data/ships.js, data/bonuses.js) ================= */
+const WD={"tree":[{"id":"cap1","name":"第一次艦隊動員計画","icon":"cap","col":0,"row":0,"req":[],"cap":1},{"id":"cap2","name":"第二次艦隊動員計画","icon":"cap","col":3,"row":0,"req":["cap1","eng1"],"cap":2},{"id":"cap3","name":"総力戦動員計画","icon":"cap","col":6,"row":0,"req":["cap2","def3"],"cap":3},{"id":"gun1","name":"38式 {gun}","icon":"gun","col":0,"row":1,"req":[],"add":{"atk":0.1},"cost":60},{"id":"gun2","name":"42式改 {gun}","icon":"gun","col":2,"row":1,"req":["gun1"],"add":{"atk":0.15},"cost":130},{"id":"gun3","name":"45式 高出力{gun}","icon":"gun","col":4,"row":1,"req":["gun2","eng2"],"add":{"atk":0.2},"cost":240},{"id":"gun4","name":"試製47式 {gun}","icon":"gun","col":6,"row":1,"req":["gun3","rng2"],"add":{"atk":0.25},"cost":420},{"id":"rng1","name":"40式 射撃管制装置","icon":"aim","col":1,"row":2,"req":["gun1"],"add":{"rng":0.2},"cost":90},{"id":"rng2","name":"44式 長距離照準儀","icon":"aim","col":3,"row":2,"req":["rng1","vis2"],"add":{"rng":0.25},"cost":180},{"id":"rng3","name":"46式 統合火器管制","icon":"aim","col":5,"row":2,"req":["rng2","vis3"],"add":{"rng":0.25},"cost":320},{"id":"def1","name":"38式 複合装甲板","icon":"armor","col":0,"row":3,"req":[],"add":{"def":0.1},"cost":60},{"id":"def2","name":"42式 積層装甲","icon":"armor","col":2,"row":3,"req":["def1"],"add":{"def":0.15},"cost":130},{"id":"def3","name":"45式 電磁反応装甲","icon":"armor","col":4,"row":3,"req":["def2","eng1"],"add":{"def":0.2},"cost":240},{"id":"def4","name":"試製47式 偏向力場装甲","icon":"armor","col":6,"row":3,"req":["def3","eng2"],"add":{"def":0.25},"cost":420},{"id":"eng1","name":"D-RAMS 第2世代推進器","icon":"engine","col":1,"row":4,"req":["def1"],"add":{"eva":0.2,"spd":0.2},"cost":90},{"id":"eng2","name":"D-RAMS 第3世代推進器","icon":"engine","col":3,"row":4,"req":["eng1","def2"],"add":{"eva":0.25,"spd":0.25},"cost":180},{"id":"eng3","name":"D-RAMS 高機動改修","icon":"engine","col":5,"row":4,"req":["eng2","stl2"],"add":{"eva":0.25,"spd":0.25},"cost":320},{"id":"vis1","name":"39式 光学探査儀","icon":"sensor","col":0,"row":5,"req":[],"add":{"vis":0.2},"cost":60},{"id":"vis2","name":"43式 航跡探知機","icon":"sensor","col":2,"row":5,"req":["vis1"],"add":{"vis":0.25},"cost":130},{"id":"vis3","name":"46式 広域索敵網","icon":"sensor","col":4,"row":5,"req":["vis2","rng1"],"add":{"vis":0.25},"cost":240},{"id":"stl1","name":"40式 低放射塗装","icon":"stealth","col":1,"row":6,"req":["vis1"],"add":{"stl":0.2},"cost":90},{"id":"stl2","name":"44式 排熱遮蔽外殻","icon":"stealth","col":3,"row":6,"req":["stl1","def2"],"add":{"stl":0.25},"cost":180},{"id":"stl3","name":"試製47式 航跡攪乱装置","icon":"stealth","col":5,"row":6,"req":["stl2","vis3"],"add":{"stl":0.25},"cost":320},{"id":"aa1","name":"40式 対空機銃","icon":"flak","col":1,"row":7,"req":["gun1"],"add":{"aa":0.2},"cost":90},{"id":"aa2","name":"44式 対空誘導弾","icon":"flak","col":3,"row":7,"req":["aa1","vis2"],"add":{"aa":0.25},"cost":180},{"id":"aa3","name":"46式 近接防御網","icon":"flak","col":5,"row":7,"req":["aa2","rng2"],"add":{"aa":0.25},"cost":320},{"id":"ftr1","name":"F-38 アクィラ","icon":"fighter","col":0,"row":8,"req":[],"only":["carrier"],"add":{"dmg":0.2,"hp":0.2,"eva":0.2},"cost":80},{"id":"ftr2","name":"F-42 ファルコ","icon":"fighter","col":2,"row":8,"req":["ftr1","eng1"],"only":["carrier"],"add":{"dmg":0.25,"hp":0.25,"eva":0.25},"cost":160},{"id":"ftr3","name":"F-46 ハルピュイア","icon":"fighter","col":4,"row":8,"req":["ftr2","aa2"],"only":["carrier"],"add":{"dmg":0.25,"hp":0.25,"eva":0.25},"cost":280},{"id":"was1","name":"W-21 ルクス","icon":"was","col":1,"row":9,"req":["def1"],"only":["was"],"add":{"dmg":0.2,"hp":0.2,"eva":0.2},"cost":120},{"id":"was2","name":"W-24 ノクス","icon":"was","col":3,"row":9,"req":["was1","eng1"],"only":["was"],"add":{"dmg":0.25,"hp":0.25,"eva":0.25},"cost":200},{"id":"was3","name":"W-27 ウンブラ","icon":"was","col":5,"row":9,"req":["was2","def3"],"only":["was"],"add":{"dmg":0.25,"hp":0.25,"eva":0.25},"cost":320},{"id":"out1","name":"第2飛行甲板増設","icon":"deck","col":2,"row":10,"req":["turn1","def2"],"only":["carrier","was"],"add":{"out":1},"cost":200},{"id":"out2","name":"多層格納甲板","icon":"deck","col":5,"row":10,"req":["out1","eng2"],"only":["carrier","was"],"add":{"out":1},"cost":360},{"id":"turn1","name":"40式 自動補給機構","icon":"supply","col":1,"row":11,"req":["def1"],"only":["carrier","was"],"add":{"turn":0.2},"cost":90},{"id":"turn2","name":"44式 高速整備ライン","icon":"supply","col":3,"row":11,"req":["turn1","eng1"],"only":["carrier","was"],"add":{"turn":0.25},"cost":180},{"id":"turn3","name":"46式 無人整備システム","icon":"supply","col":5,"row":11,"req":["turn2","out1"],"only":["carrier","was"],"add":{"turn":0.25},"cost":320}],"branches":[{"id":"escort","name":"護衛艦艇","gun":"速射レーザー砲","costMul":1,"types":["cv","ff"],"steps":[{"cap":24},{"cap":36,"cost":200},{"cap":48,"cost":400},{"cap":64,"cost":800}]},{"id":"dd","name":"駆逐艦","gun":"誘導魚雷","costMul":1,"types":["dd"],"steps":[{"cap":16},{"cap":24,"cost":200},{"cap":32,"cost":400},{"cap":48,"cost":800}]},{"id":"cruiser","name":"巡洋艦","gun":"荷電粒子砲","costMul":1.5,"types":["cl"],"steps":[{"cap":6},{"cap":10,"cost":300},{"cap":14,"cost":600},{"cap":20,"cost":1000}]},{"id":"bb","name":"戦艦","gun":"大口径主砲","costMul":2,"types":["bb"],"steps":[{"cap":4},{"cap":6,"cost":400},{"cap":8,"cost":800},{"cap":12,"cost":1200}],"need":"bb","needText":"第一章 第5節をクリアで解放"},{"id":"carrier","name":"母艦","gun":"艦載機兵装","costMul":2,"types":["cvb"],"steps":[{"cap":2},{"cap":3,"cost":400},{"cap":4,"cost":800},{"cap":6,"cost":1200}],"need":"carrier","needText":"物語で解放（時期は未定）"},{"id":"was","name":"W.A.S. 部隊","gun":"W.A.S.兵装","costMul":2,"types":["mas","masc"],"steps":[{"cap":8},{"cap":12,"cost":500},{"cap":16,"cost":1000},{"cap":24,"cost":1500}],"need":"was","needText":"物語で解放（第二章後半〜第三章の予定）"}],"ships":[{"id":"cv","name":"コルベット","atk":2,"def":1,"eva":9,"rng":3,"vis":8,"stl":9,"aa":5,"spd":10,"max":12,"scale":0.55,"note":"偵察と哨戒を担う小型艦"},{"id":"ff","name":"フリゲート","atk":3,"def":2,"eva":7,"rng":4,"vis":7,"stl":7,"aa":8,"spd":8,"max":10,"scale":0.7,"note":"護衛と対小型艦戦"},{"id":"dd","name":"駆逐艦","atk":5,"def":3,"eva":6,"rng":5,"vis":6,"stl":6,"aa":4,"spd":7,"max":8,"scale":0.85,"note":"雷撃で大型艦を狙う"},{"id":"cl","name":"巡洋艦","atk":6,"def":6,"eva":4,"rng":6,"vis":6,"stl":4,"aa":6,"spd":5,"max":6,"scale":1.2,"note":"攻守の均衡した主力艦"},{"id":"bb","name":"戦艦","atk":9,"def":9,"eva":2,"rng":8,"vis":5,"stl":2,"aa":4,"spd":3,"max":4,"scale":1.7,"note":"長射程の主砲を持つ決戦艦"},{"id":"cvb","name":"戦闘母艦","atk":4,"def":5,"eva":3,"rng":4,"vis":7,"stl":3,"aa":6,"spd":4,"max":3,"scale":1.6,"hangar":{"ftr":40},"note":"艦載機（W.A.S.ではない）を発進させ、遠くの敵を叩く"},{"id":"mas","name":"突撃揚陸艦","atk":5,"def":2.44,"eva":5,"rng":2,"vis":5,"stl":7,"aa":3,"spd":6,"max":6,"scale":0.9,"hangar":{"was":10},"note":"W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる"},{"id":"masc","name":"強襲母艦","atk":4,"def":5,"eva":2,"rng":3,"vis":6,"stl":3,"aa":4,"spd":4,"max":3,"scale":1.6,"hangar":{"was":30,"ftr":10},"note":"W.A.S.が主力。艦載機も少し出せる"}],"bonuses":[{"id":"strike","name":"打撃艦隊","cond":"戦艦・巡洋艦・駆逐艦を含む","eff":"攻撃 +15%","when":{"need":[["bb"],["cl"],["dd"]]},"mod":{"atk":1.15}},{"id":"escort","name":"護衛艦隊","cond":"母艦と、フリゲートかコルベットを含む","eff":"防御 +15%","when":{"need":[["cvb","masc"],["ff","cv"]]},"mod":{"def":1.15}},{"id":"air","name":"機動部隊","cond":"母艦の支隊が2つ以上","eff":"射程 +10%","when":{"count":{"types":["cvb","masc"],"min":2}},"mod":{"rng":1.1}},{"id":"scout","name":"前衛偵察","cond":"コルベットを含む","eff":"視界 +25%","when":{"need":[["cv"]]},"mod":{"vis":1.25}},{"id":"stealth","name":"隠密艦隊","cond":"全支隊の隠蔽性が6以上","eff":"隠蔽性 +20%","when":{"minStat":{"stat":"stl","min":6}},"mod":{"stl":1.2}},{"id":"assault","name":"強襲揚陸","cond":"突撃揚陸艦と強襲母艦を含む","eff":"攻撃 +10%・回避 +10%","when":{"need":[["mas"],["masc"]]},"mod":{"atk":1.1,"eva":1.1}},{"id":"uniform","name":"単一艦種","cond":"3つ以上の支隊がすべて同じ艦種","eff":"全能力 +5%","when":{"minBgs":3,"sameType":true},"mod":{"atk":1.05,"def":1.05,"eva":1.05,"rng":1.05,"vis":1.05,"stl":1.05}}],"icons":{"cap":"<path d=\"M6 21V4M6 4h11l-2.5 3.5L17 11H6\"/>","gun":"<path d=\"M3 15h9l2-2h7v-3h-7l-2-2H3z\"/><path d=\"M6 15v4h4v-4\"/>","aim":"<circle cx=\"12\" cy=\"12\" r=\"7\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"M12 2v5M12 17v5M2 12h5M17 12h5\"/>","armor":"<path d=\"M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z\"/><path d=\"M8.5 11.5l2.5 2.5 4.5-5\"/>","engine":"<path d=\"M4 8l6 4-6 4M11 8l6 4-6 4\"/><path d=\"M19 7v10\"/>","sensor":"<path d=\"M5 19a10 10 0 0 1 0-14M8.5 15.5a5 5 0 0 1 0-7\"/><circle cx=\"12\" cy=\"12\" r=\"1.6\"/><path d=\"M12 12l8-6\"/>","fighter":"<path d=\"M12 3l2 7 7 4v2l-7-2-1 5 2 2v1l-3-1-3 1v-1l2-2-1-5-7 2v-2l7-4z\"/>","was":"<g stroke-width=\"1.2\" transform=\"translate(0 2.48)\"><path fill=\"currentColor\" fill-opacity=\".3\" d=\"M13.90 4.60 L15.00 4.60 L15.00 11.20 L13.90 11.20 Z\"/><path d=\"M14.45 4.6V-0.6\"/><path stroke-width=\".6\" d=\"M13.95 -0.6H14.95\"/><circle cx=\"12\" cy=\"7.05\" r=\".85\"/><path stroke-width=\".6\" d=\"M10.5 8.7L8.4 7.6M10.75 9.4L8.1 9.3M13.5 8.7l2.1-1.1M13.25 9.4l2.65-.1\"/><path stroke-width=\".6\" d=\"M11.30 10.60L10.92 11.30M12.70 10.60L13.08 11.30M11.50 11.05L11.26 11.35M12.50 11.05L12.74 11.35\"/><g fill=\"currentColor\" fill-opacity=\".3\"><path d=\"M10.3 8.0 L13.7 8.0 L13.35 9.5 L12.95 9.75 L12.55 11.2 L12.0 11.7 L11.45 11.2 L11.05 9.75 L10.65 9.5 Z\"/><path fill=\"none\" stroke-width=\".6\" d=\"M10.6 9.0 L12.0 9.4 L13.4 9.0\"/><g transform=\"rotate(14 7.55 5.8)\"><path d=\"M8.2 2.8 L7.0 5.8 L6.25 9.8 L6.25 12.2 L7.32 15.0 L8.85 12.4 L8.85 9.6 L8.5 5.2 Z\"/><path fill=\"none\" stroke-width=\".6\" d=\"M6.7 8.0 L8.75 7.2\"/><path fill=\"currentColor\" fill-opacity=\".3\" d=\"M6.74 15.36 L6.86 13.79 L7.32 15.00 L7.95 13.93 L7.84 15.44 L7.79 15.56 L7.73 15.68 L7.67 15.80 L7.61 15.93 L7.54 16.08 L7.47 16.24 L7.41 16.43 L7.35 16.65 L7.29 16.90 L7.24 17.19 L7.20 17.52 L7.16 17.90 L7.08 17.51 L7.09 17.17 L7.08 16.88 L7.06 16.63 L7.03 16.40 L6.99 16.21 L6.95 16.04 L6.90 15.88 L6.86 15.74 L6.81 15.61 L6.78 15.49 Z\"/><path fill=\"none\" d=\"M7.11 17.89L7.02 19.19\"/><\/g><g transform=\"rotate(-14 16.45 5.8)\"><path d=\"M15.8 2.8 L17.0 5.8 L17.75 9.8 L17.75 12.2 L16.68 15.0 L15.15 12.4 L15.15 9.6 L15.5 5.2 Z\"/><path fill=\"none\" stroke-width=\".6\" d=\"M17.3 8.0 L15.25 7.2\"/><\/g><path d=\"M10.82 11.3 L11.24 11.3 L11.54 11.93 L11.54 13.91 L11.66 16.25 L10.1 16.25 L10.28 13.91 L10.4 12.29 Z\"/><path d=\"M13.18 11.3 L12.76 11.3 L12.46 11.93 L12.46 13.91 L12.34 16.25 L13.9 16.25 L13.72 13.91 L13.6 12.29 Z\"/><path d=\"M10.1 11.8 L10.15 12.9 L10.05 13.9 L9.95 15.1 L9.1 15.1 L9.25 13.9 L9.4 12.9 Z\"/><path d=\"M13.9 11.8 L13.85 12.9 L13.95 13.9 L14.05 15.1 L14.9 15.1 L14.75 13.9 L14.6 12.9 Z\"/><path fill=\"none\" stroke-width=\".6\" d=\"M10.33 14.18 L10.91 13.55 L11.49 14.18 M13.67 14.18 L13.09 13.55 L12.51 14.18 M9.18 14.5 L10.0 14.5 M14.82 14.5 L14.0 14.5\"/><\/g><\/g>","deck":"<path d=\"M3 15h18l-2 4H5zM6 15V9h12v6M9 9V6h6v3\"/>","supply":"<path d=\"M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5\"/><path d=\"M9 12h6M12 9v6\"/>","flak":"<path d=\"M12 21v-6M8 21h8\"/><path d=\"M12 15l-5-9M12 15l5-9\"/><circle cx=\"6\" cy=\"4\" r=\"1.2\"/><circle cx=\"18\" cy=\"4\" r=\"1.2\"/>","stealth":"<path d=\"M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z\"/><circle cx=\"12\" cy=\"12\" r=\"2.5\"/><path d=\"M4 20L20 4\"/>"}};
+const SHIPS=WD.ships, SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
+const STATS=[['atk','攻撃'],['def','防御'],['eva','回避'],['rng','射程'],['vis','視界'],['stl','隠蔽性'],['aa','対空照準'],['spd','速度']];
+const GC=['#7fc8ff','#8fe8c0','#f0d27a','#c9a7ff','#ff9fc2'];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fx=v=>(Math.round(v*10)/10).toString();
+const seg=(v,m)=>`<span class="seg ${m!=null?'max':''}" style="--v:${Math.min(100,v*10)}%;${m!=null?`--m:${Math.min(100,m*10)}%`:''}"></span>`;
+const mark=(t,cls='')=>`<span class="mk ${markSet} ${cls}" title="${SHIP[t].name}">${markSet==='B'?svgB(t):svgSide(t)}</span>`;
+
+/* research state (an example): what each branch has finished */
+let funds=1240;
+const done={escort:new Set(['gun1','def1','vis1','rng1']),dd:new Set(['gun1']),cruiser:new Set()};
+const branchOf=t=>WD.branches.find(b=>b.types.includes(t));
+function rate(t,k){ const b=branchOf(t), d=done[b.id]||new Set(); let r=.3;
+  for(const n of WD.tree) if(d.has(n.id)&&n.add&&n.add[k]&&!n.craft) r+=n.add[k]; return Math.min(1,r); }
+const cur=(t,k)=>SHIP[t][k]*rate(t,k);
+
+/* how a unit is shown: the number and its level lead (第1打撃群), the old flavor word is small (前衛巡洋). Options can change it.
+   Named units always show their name */
+let unitFmt='both';
+const full=(no,name)=>no.replace(/^(第\d+)(.*)$/,(m,a,b)=>`${a} ${name} ${b}`);
+function unit(no,name,named){
+  if(named) return `<b class="u">${esc(name)}</b>`;
+  if(unitFmt==='name') return `<b class="u">${esc(full(no,name))}</b>`;
+  if(unitFmt==='no') return `<b class="u">${no}</b>`;
+  return `<b class="u">${no}</b><small class="un">${esc(name)}</small>`; }
+
+/* the player's fleet (an example) */
+const TGS=[
+  {no:'第1打撃群',name:'前衛巡洋',sq:[{t:'cl',n:6,sno:9,name:'前衛巡洋'},{t:'dd',n:6,sno:24,name:'駆逐突撃'},{t:'ff',n:8,sno:18,name:'護送護衛'},{t:'cv',n:1,sno:1,name:'警備哨戒'}]},
+  {no:'第2打撃群',name:'沿岸哨戒',sq:[{t:'cv',n:9,sno:12,name:'沿岸哨戒'}]},
+  {no:'第3打撃群',name:'護送護衛',sq:[{t:'ff',n:6,sno:19,name:'護送護衛'}]},
+  {no:'第4打撃群',name:'水上迎撃',sq:[{t:'dd',n:8,sno:3,name:'水上迎撃'}]},
+  {no:'第5打撃群',name:'局地警戒',sq:[{t:'cv',n:6,sno:3,name:'局地警戒'},{t:'ff',n:4,sno:5,name:'船団護衛'}]},
+];
+const ARMY={no:'第2戦区軍',name:'ネオ信濃駐屯',sync:true,flag:0,mem:[{g:0,x:2,z:2,y:2},{g:1,x:1,z:1,y:3},{g:2,x:3,z:3,y:1}]};
+let ftab='army', gsel=0, placing=0, flayer=2, pop=null;
+const tgNo=g=>TGS[g].no, tuNo=(g,i)=>TGS[g].sq[i]?`第${TGS[g].sq[i].sno}支隊`:`${i+1}つ目の支隊`;
+const NAMES={cl:'前衛巡洋',dd:'駆逐突撃',ff:'護送護衛',cv:'沿岸哨戒',bb:'主力砲戦',cvb:'航空戦闘',mas:'突撃揚陸',masc:'強襲打撃'};
+
+function bonusesOf(types){ /* which formation bonuses a set of squadron ship types earns (data/bonuses.js when) */
+  return WD.bonuses.filter(b=>{ const w=b.when||{};
+    if(w.need&&!w.need.every(any=>any.some(t=>types.includes(t)))) return false;
+    if(w.count&&types.filter(t=>w.count.types.includes(t)).length<w.count.min) return false;
+    if(w.minStat&&!types.every(t=>SHIP[t][w.minStat.stat]>=w.minStat.min)) return false;
+    if(w.minBgs&&(types.length<w.minBgs||(w.sameType&&new Set(types).size>1))) return false;
+    return true; }); }
+/* a strike group's numbers, the same way prep.js armyStats does: weighted by ships, sight the best, stealth and speed the worst */
+function tgStats(g){
+  const sq=TGS[g].sq.filter(s=>s.n>0), ships=sq.reduce((a,s)=>a+s.n,0), st={atk:0,def:0,eva:0,rng:0,aa:0,vis:0,stl:10,spd:99}, hangar={};
+  sq.forEach(s=>{ const w=s.n/ships; for(const k of ['atk','def','eva','rng','aa']) st[k]+=cur(s.t,k)*w;
+    st.vis=Math.max(st.vis,cur(s.t,'vis')); st.stl=Math.min(st.stl,cur(s.t,'stl')); st.spd=Math.min(st.spd,cur(s.t,'spd'));
+    Object.entries(SHIP[s.t].hangar||{}).forEach(([k,v])=>hangar[k]=(hangar[k]||0)+v*s.n); });
+  if(!sq.length){ st.stl=0; st.spd=0; }
+  const active=bonusesOf(sq.map(s=>s.t)); active.forEach(b=>Object.entries(b.mod).forEach(([k,m])=>st[k]*=m));
+  return {st,ships,hangar,active}; }
+function capUse(){ const by={}; ARMY.mem.forEach(m=>TGS[m.g].sq.forEach(s=>{ const b=branchOf(s.t).id; by[b]=(by[b]||0)+s.n; })); return by; }
+
+function renderCaps(){
+  const u=capUse(), row=(id,n)=>{ const b=WD.branches.find(x=>x.id===id), cap=b.steps[0].cap, v=u[id]||0; return `<span class="${v>cap?'over':v===cap?'full':''}">${b.name} <i>${v}/${cap}</i>隻</span>`; };
+  document.querySelector('#sFleet .capline').innerHTML=`<b>出撃上限（技術ツリー）</b>${row('escort')}${row('dd')}${row('cruiser')}`; }
+
+function renderFleet(){
+  document.querySelectorAll('#sFleet [data-ft]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.ft===ftab)));
+  renderCaps();
+  const side=document.getElementById('fSide'), main=document.getElementById('fMain');
+  if(ftab==='army'){
+    side.innerHTML=`<button class="plate add">＋ 戦区軍を作る</button><button class="plate it sel" style="--c:var(--blue)">${unit(ARMY.no,ARMY.name)}<span>打撃群${ARMY.mem.length}/5・速度同期あり</span></button>`;
+    /* the members, one slim row each: pick a row to move it, ★ makes it the flagship */
+    const roster=ARMY.mem.map((m,i)=>{ const g=TGS[m.g], s=tgStats(m.g);
+      return `<div class="rrow ${placing===i?'sel':''}" style="--c:${GC[i]}"><button class="rpick" data-placing="${i}">${unit(tgNo(m.g),g.name)}</button>
+        <span class="cm">${g.sq.map(q=>mark(q.t)).join('')}</span><span class="rs">${s.ships}隻・速度${fx(s.st.spd)}</span><span class="rp">${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span>
+        <button class="fl ${ARMY.flag===i?'on':''}" data-flag="${i}" aria-pressed="${ARMY.flag===i}" title="旗艦（陣形の中心）にする">${ARMY.flag===i?'★ 旗艦':'☆ 旗艦にする'}</button><button class="x" data-out="${i}">外す</button></div>`; }).join('');
+    let cells='<span class="front">▲ 前方（敵側）</span>';
+    for(let z=0;z<5;z++) for(let x=0;x<5;x++){
+      const on=ARMY.mem.findIndex(m=>m.x===x&&m.z===z&&m.y===flayer), gh=ARMY.mem.findIndex(m=>m.x===x&&m.z===z&&m.y!==flayer);
+      cells+=on>=0?`<button class="cell on ${placing===on?'sel':''}" style="--c:${GC[on]}" data-placing="${on}" title="${tgNo(ARMY.mem[on].g)}">${ARMY.flag===on?'★':''}${TGS[ARMY.mem[on].g].no.replace('打撃群','')}</button>`
+        :`<button class="cell free ${gh>=0?'ghost':''} ${pop&&pop.x===x&&pop.z===z?'pick':''}" style="--c:${gh>=0?GC[gh]:''}" data-cell="${x},${z}" title="${'ABCDE'[x]}${z+1}・高さ${flayer+1}" aria-label="${'ABCDE'[x]}${z+1}・高さ${flayer+1}に置く"></button>`; }
+    /* the little window an empty cell opens: add a strike group that is not in the army yet, or move the picked one here */
+    let popup='';
+    if(pop){ const free=TGS.map((g,i)=>i).filter(i=>!ARMY.mem.some(m=>m.g===i)), full=ARMY.mem.length>=5, pm=ARMY.mem[placing];
+      popup=`<div class="plate pop" style="left:${pop.x*50+60}px;top:${pop.z*50+18}px"><span class="pt">${'ABCDE'[pop.x]}${pop.z+1}・高さ${flayer+1}</span>
+        ${free.length?free.map(i=>`<button data-addg="${i}" ${full?'disabled':''}><span>${unit(tgNo(i),TGS[i].name)}</span><span class="cm">${TGS[i].sq.map(q=>mark(q.t)).join('')}</span></button>`).join(''):'<span class="pn">加えられる打撃群がない（打撃群の段で作る）</span>'}
+        ${full?'<span class="pn">所属は5つまで</span>':''}
+        ${pm?`<button data-move="1" class="mv">${tgNo(pm.g)}をここへ移す</button>`:''}<button data-close="1" class="mv">やめる</button></div>`; }
+    main.innerHTML=`<div class="fgrid">
+      <div class="arow"><div class="fld"><label for="armyName">${ARMY.no}　名前（飾り）</label><input id="armyName" value="${esc(ARMY.name)}"></div>
+      <label class="sw"><input type="checkbox" id="armySync" ${ARMY.sync?'checked':''}>移動のとき、いちばん遅い艦に速度を合わせる<small>（この戦区軍では速度 ${fx(Math.min(...ARMY.mem.map(m=>tgStats(m.g).st.spd)))}）</small></label></div>
+      <div class="place">
+        <div class="layers" aria-label="高さ">${[4,3,2,1,0].map(y=>`<button data-layer="${y}" aria-pressed="${y===flayer}">${y+1}${y===4?' 上':y===0?' 下':''}</button>`).join('')}</div>
+        <div class="gwrap"><div class="grid5">${cells}</div>${popup}</div>
+        <div class="cube"><canvas id="cube" width="660" height="520"></canvas><span>点線の枠は別の高さにいる打撃群</span></div>
+      </div>
+      <div class="lab">所属（${ARMY.mem.length}/5）<small>行かマスを押すと選び、空いたマスを押すと打撃群を加えるか移す。★の旗艦を中心に陣形を組む</small></div>
+      <div class="roster">${roster}</div>
+      </div>
+      <button class="plate danger foot-r">この戦区軍を削除する</button>`;
+  } else {
+    side.innerHTML=`<button class="plate add">＋ 打撃群を作る</button>`+TGS.map((g,i)=>{ const s=tgStats(i);
+      return `<button class="plate it ${gsel===i?'sel':''}" data-pick-g="${i}" style="--c:${GC[i]}">${unit(tgNo(i),g.name)}<span class="cm">${g.sq.map(q=>mark(q.t)).join('')}<em>${s.ships}隻</em></span></button>`; }).join('');
+    const g=TGS[gsel], s=tgStats(gsel), on=new Set(s.active.map(b=>b.id));
+    const rows=[0,1,2,3,4].map(i=>{ const q=g.sq[i];
+      if(!q) return `<div class="tr empty"><div class="th"><span class="no">　</span>${i===g.sq.length?`<select data-add="${i}" aria-label="支隊を加える"><option value="">＋ 支隊を加える</option>${SHIPS.map(x=>`<option value="${x.id}">${x.name}</option>`).join('')}</select>`:'<span class="dimt">空き</span>'}</div><div class="cells"></div></div>`;
+      const max=SHIP[q.t].max;
+      const cells=Array.from({length:12},(_,k)=>k<max?`<button class="sc ${k<q.n?'on':''}" data-sc="${i},${k}" aria-label="${k+1}隻にする">${k<q.n?mark(q.t):'<i>＋</i>'}</button>`:'<span class="sc nx"></span>').join('');
+      return `<div class="tr"><div class="th"><span class="no">${tuNo(gsel,i)}</span><select data-sqt="${i}" aria-label="${tuNo(gsel,i)}の艦種">${SHIPS.map(x=>`<option value="${x.id}" ${x.id===q.t?'selected':''}>${x.name}</option>`).join('')}</select>${unitFmt==='no'?'':`<small>${esc(q.name)}</small>`}<button class="rm" data-rm="${i}" aria-label="外す">×</button></div><div class="cells">${cells}</div><span class="ct">${q.n}<small>/${max}</small></span></div>`; }).join('');
+    const hg=Object.entries(s.hangar).map(([k,v])=>`${k==='was'?'W.A.S.':'艦載機'} ${v}`).join('・')||'なし';
+    const u=capUse();
+    main.innerHTML=`<div class="dz">
+      <div class="dzh"><div class="tg">${unit(tgNo(gsel),g.name)}</div><div class="fld"><label for="grpName">名前（飾り）</label><input id="grpName" value="${esc(g.name)}"></div>
+        <span class="acts"><button class="plate sec">複製</button><button class="plate danger">解散</button></span></div>
+      <div class="dzb">
+        <div class="dgrid"><div class="lab">支隊<small>マスを押して隻数を変える。艦種は左の欄で選ぶ</small></div>${rows}</div>
+        <div class="dpanel">
+          <div class="lab">打撃群の能力</div>
+          <div class="kv"><span>総数</span><i>${s.ships}隻</i><span>搭載</span><i>${hg}</i></div>
+          <div class="bars one">${STATS.map(([k,l])=>`<div class="bar">${l}${seg(s.st[k])}<i>${fx(s.st[k])}</i></div>`).join('')}</div>
+          <p class="hint">攻撃・防御などは隻数で重みづけ。視界はいちばん高い艦、隠蔽性と速度はいちばん低い艦で決まる</p>
+          <div class="lab">編成ボーナス</div>
+          <div class="bl">${WD.bonuses.map(b=>`<div class="bon ${on.has(b.id)?'on':''}"><b>${b.name}</b><em>${b.eff}</em></div>`).join('')}</div>
+        </div>
+      </div>
+      <div class="dzf"><button class="plate sec">元に戻す</button><button class="plate pri">保存する</button></div>
+    </div>`;
+  }
+  drawCube(0);
+}
+document.getElementById('sFleet').addEventListener('click',e=>{
+  const t=e.target.closest('button,[data-cell]'); if(!t) return; const d=t.dataset;
+  if(d.ft){ ftab=d.ft; }
+  else if(d.placing!=null){ placing=+d.placing; flayer=ARMY.mem[placing].y; pop=null; }
+  else if(d.flag!=null){ ARMY.flag=+d.flag; }
+  else if(d.layer!=null){ flayer=+d.layer; pop=null; }
+  else if(d.cell){ const [x,z]=d.cell.split(',').map(Number); pop=pop&&pop.x===x&&pop.z===z?null:{x,z}; }
+  else if(d.addg!=null){ ARMY.mem.push({g:+d.addg,x:pop.x,z:pop.z,y:flayer}); placing=ARMY.mem.length-1; pop=null; }
+  else if(d.move){ Object.assign(ARMY.mem[placing],{x:pop.x,z:pop.z,y:flayer}); pop=null; }
+  else if(d.close){ pop=null; }
+  else if(d.out!=null){ const i=+d.out; ARMY.mem.splice(i,1); if(ARMY.flag===i) ARMY.flag=0; else if(ARMY.flag>i) ARMY.flag--; placing=Math.min(placing,ARMY.mem.length-1); pop=null; }
+  else if(d.pickG!=null){ gsel=+d.pickG; }
+  else if(d.sc){ const [i,k]=d.sc.split(',').map(Number), q=TGS[gsel].sq[i]; q.n=k+1===q.n?k:k+1; if(q.n<1) q.n=1; }
+  else if(d.rm!=null){ TGS[gsel].sq.splice(+d.rm,1); }
+  else return;
+  renderFleet();
+});
+document.getElementById('sFleet').addEventListener('change',e=>{ const d=e.target.dataset;
+  if(d.sqt!=null){ const q=TGS[gsel].sq[+d.sqt]; q.t=e.target.value; q.n=Math.min(q.n,SHIP[q.t].max); q.name=NAMES[q.t]; renderFleet(); }
+  if(d.add!=null&&e.target.value){ const t=e.target.value; TGS[gsel].sq.push({t,n:Math.min(4,SHIP[t].max),sno:30+TGS[gsel].sq.length,name:NAMES[t]}); renderFleet(); }
+  if(e.target.id==='armySync') ARMY.sync=e.target.checked; });
+
+/* the 5x5x5 cube, turning slowly (drawn in the frame loop while it is on screen) */
+function drawCube(t){
+  const c=document.getElementById('cube'); if(!c||scr!=='fleet'||ftab!=='army') return; const x=c.getContext('2d');
+  x.setTransform(2,0,0,2,0,0); x.clearRect(0,0,330,260);
+  const th=-.6+(reduce?0:t*.00012), k=30, cx=165, cy=150;
+  const pr=(a,b,h)=>{ const X=a*Math.cos(th)-b*Math.sin(th), Z=a*Math.sin(th)+b*Math.cos(th); return [cx+X*k, cy+Z*k*.5-h*k*.82, Z]; };
+  const L=2.5;
+  x.strokeStyle='rgba(127,200,255,.18)'; x.lineWidth=1;
+  for(let i=0;i<=5;i++){ const v=-L+i; for(const [a,b] of [[[v,-L],[v,L]],[[-L,v],[L,v]]]){ const p=pr(a[0],a[1],-L), q=pr(b[0],b[1],-L); x.beginPath(); x.moveTo(p[0],p[1]); x.lineTo(q[0],q[1]); x.stroke(); } }
+  x.strokeStyle='rgba(127,200,255,.45)';
+  const cs=[[-L,-L],[L,-L],[L,L],[-L,L]];
+  for(const h of [-L,L]){ x.beginPath(); cs.forEach(([a,b],i)=>{ const p=pr(a,b,h); i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]); }); x.closePath(); x.stroke(); }
+  for(const [a,b] of cs){ const p=pr(a,b,-L), q=pr(a,b,L); x.beginPath(); x.moveTo(p[0],p[1]); x.lineTo(q[0],q[1]); x.stroke(); }
+  { const p=pr(-L,-L,-L), q=pr(L,-L,-L); x.strokeStyle='#ff6a45'; x.lineWidth=1.6; x.beginPath(); x.moveTo(p[0],p[1]); x.lineTo(q[0],q[1]); x.stroke(); x.lineWidth=1; }
+  const items=ARMY.mem.map((m,i)=>({i,m,p:pr(m.x-2,m.z-2,m.y-2)})).sort((a,b)=>a.p[2]-b.p[2]);
+  for(const {i,m,p} of items){ const f=pr(m.x-2,m.z-2,-L), s=11;
+    x.strokeStyle=GC[i]; x.globalAlpha=.4; x.beginPath(); x.moveTo(p[0],p[1]); x.lineTo(f[0],f[1]); x.stroke(); x.globalAlpha=1;
+    x.beginPath(); x.moveTo(p[0],p[1]-s); x.lineTo(p[0]+s,p[1]); x.lineTo(p[0],p[1]+s); x.lineTo(p[0]-s,p[1]); x.closePath();
+    x.fillStyle=GC[i]; x.globalAlpha=placing===i?.95:.6; x.fill(); x.globalAlpha=1;
+    if(ARMY.flag===i){ x.strokeStyle='#e2c58a'; x.lineWidth=1.4; x.stroke(); x.lineWidth=1; } }
+}
+
+/* ---- tech tree ---- */
+let tbr='escort', tnode='gun2';
+const ADD={atk:'攻撃',def:'防御',eva:'回避',rng:'射程',vis:'視界',stl:'隠蔽性',aa:'対空照準',spd:'速度',dmg:'火力',hp:'耐久',out:'同時に出せる隊',turn:'補給の速さ'};
+const nodesOf=b=>WD.tree.filter(n=>!n.only||n.only.includes(b.id));
+const nName=(b,n)=>n.name.replace('{gun}',b.gun);
+const nCost=(b,n)=>n.cap?b.steps[n.cap].cost:Math.round(n.cost*b.costMul);
+const nEff=(b,n)=>n.cap?`出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`:Object.entries(n.add).map(([k,v])=>`${ADD[k]} ${k==='out'?'+'+v:'+'+Math.round(v*100)+'%'}`).join('・')+(n.craft&&n.craft!=='all'?'（小型機）':'');
+function renderTech(){
+  const side=document.getElementById('tSide'), main=document.getElementById('tMain');
+  side.innerHTML=WD.branches.map(b=>{ const lk=!!b.need; const d=done[b.id]||new Set(), cap=b.steps[[...d].filter(id=>WD.tree.find(n=>n.id===id)?.cap).length].cap;
+    return `<button class="plate it mki ${tbr===b.id?'sel':''}" data-br="${b.id}" ${lk?'disabled':''}><span class="cm">${b.types.map(t=>mark(t)).join('')}</span><b>${lk?LOCK:''}${b.name}</b><span>${lk?b.needText:`出撃上限 ${cap}隻`}</span></button>`; }).join('');
+  const b=WD.branches.find(x=>x.id===tbr), d=done[b.id]||(done[b.id]=new Set()), ns=nodesOf(b);
+  const rows=[...new Set(ns.map(n=>n.row))].sort((a,c)=>a-c), W=1600-450-110-60, X=c=>70+c*(W-140)/6, Y=r=>24+rows.indexOf(r)*(356/Math.max(1,rows.length-1));
+  const can=n=>!d.has(n.id)&&n.req.every(r=>d.has(r));
+  const links=ns.flatMap(n=>n.req.filter(r=>ns.find(m=>m.id===r)).map(r=>{ const p=ns.find(m=>m.id===r), x1=X(p.col), y1=Y(p.row), x2=X(n.col), y2=Y(n.row), dy=Math.abs(y2-y1), mid=Math.max(x1,x2-dy);
+    const on=d.has(r); return `<path d="M${x1} ${y1}H${mid}L${x2} ${y2}" stroke="${on?'#7fc8ff':'rgba(147,163,184,.2)'}" stroke-width="${on?1.4:1}" fill="none"/>`; })).join('');
+  const nodes=ns.map(n=>`<button class="node ${d.has(n.id)?'done':can(n)?'can':''} ${tnode===n.id?'sel':''}" data-node="${n.id}" style="left:${X(n.col)}px;top:${Y(n.row)}px"><span class="d"><svg viewBox="0 0 24 24">${WD.icons[n.icon]||WD.icons.cap}</svg></span><b>${esc(nName(b,n))}</b></button>`).join('');
+  const sel=ns.find(n=>n.id===tnode)||ns[0], st=d.has(sel.id)?'研究済み':can(sel)?'':'つながる元の研究がまだ';
+  const cls=b.types.map(t=>`<span><b>${SHIP[t].name}</b>${STATS.map(([k,l])=>`${l}<i>${fx(cur(t,k))}</i>`).join('')}</span>`).join('');
+  const capNow=b.steps[[...d].filter(id=>WD.tree.find(n=>n.id===id)?.cap).length].cap;
+  main.innerHTML=`<div class="bhead"><h3>${b.name}</h3><span class="cap">出撃上限 <b>${capNow}</b>隻</span></div><div class="bstat">${cls}</div>
+    <div class="tree"><svg class="links">${links}</svg>${nodes}</div>
+    <div class="tdet"><div><b>${esc(nName(b,sel))}</b><p>${nEff(b,sel)}　資金 ${nCost(b,sel)}${st?'　'+st:''}</p></div>
+    <button class="plate pri" data-research="${sel.id}" ${st||funds<nCost(b,sel)?'disabled':''}>${d.has(sel.id)?'研究済み':'研究する'}</button></div>`;
+  document.querySelector('#sTech .funds b').textContent=funds.toLocaleString();
+}
+document.getElementById('sTech').addEventListener('click',e=>{ const t=e.target.closest('button'); if(!t) return; const d=t.dataset;
+  if(d.br){ tbr=d.br; tnode=nodesOf(WD.branches.find(b=>b.id===tbr))[0].id; }
+  else if(d.node){ tnode=d.node; }
+  else if(d.research){ const b=WD.branches.find(x=>x.id===tbr), n=WD.tree.find(x=>x.id===d.research); funds-=nCost(b,n); done[b.id].add(n.id); }
+  else return; renderTech(); });
+
+/* ---- ship data ---- */
+let dsort=null;
+function renderData(){
+  const list=[...SHIPS]; if(dsort) list.sort((a,b)=>b[dsort]-a[dsort]);
+  const hg=s=>s.hangar?Object.entries(s.hangar).map(([k,v])=>`${k==='was'?'W.A.S.':'艦載機'}${v}`).join('・'):'—';
+  document.getElementById('dMain').innerHTML=`<p class="lead">数値はすべて仮の値です（1〜10）。表は研究をすべて終えた最大の値で、自分で編成した艦隊は最初その3割から始まります。速度は打撃群の移動の速さを決め、打撃群はいちばん遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさです。</p>
+    <table class="stbl"><thead><tr><th>艦種</th>${STATS.slice(0,7).map(([k,l])=>`<th class="sort" data-sort="${k}" ${dsort===k?'aria-sort="descending"':''}>${l}</th>`).join('')}<th class="sort" data-sort="spd" ${dsort==='spd'?'aria-sort="descending"':''} style="text-align:right">速度</th><th class="sort" data-sort="max" ${dsort==='max'?'aria-sort="descending"':''} style="text-align:right">最大隻数</th><th>搭載</th></tr></thead>
+    <tbody>${list.map(s=>`<tr><td class="nm">${s.name}<small>${esc(s.note)}</small></td>${STATS.slice(0,7).map(([k])=>`<td class="v">${seg(s[k])}<i>${s[k]}</i></td>`).join('')}<td class="n">${s.spd}</td><td class="n">${s.max}</td><td class="hg">${hg(s)}</td></tr>`).join('')}</tbody></table>
+    <div><div class="lab" style="margin-bottom:8px">編成ボーナス（打撃群ごと・仮）</div><div class="dbons">${WD.bonuses.map(b=>`<div class="bon"><b>${b.name}</b><span>${b.cond}</span><em>${b.eff}</em></div>`).join('')}</div></div>`;
+}
+document.getElementById('sData').addEventListener('click',e=>{ const t=e.target.closest('[data-sort]'); if(!t) return; dsort=dsort===t.dataset.sort?null:t.dataset.sort; renderData(); });
+function renderUf(){ document.querySelectorAll('[data-uf]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.uf===unitFmt)));
+  document.getElementById('ufPrev').innerHTML=`<span class="np">${mark('cl')}<span>${unit('第1打撃群','前衛巡洋')}</span></span><span class="np ace">${mark('mas')}<span>${unit('','アルバレス隊',true)}</span></span>`; }
+function renderMs(){ document.querySelectorAll('[data-ms]').forEach(b=>b.setAttribute('aria-checked',String(b.dataset.ms===markSet)));
+  document.getElementById('msPrev').innerHTML=SHIPS.map(s=>`<span class="np">${mark(s.id)}<span style="font-size:11px">${s.name}</span></span>`).join(''); }
+document.getElementById('sOpt').addEventListener('click',e=>{ const b=e.target.closest('[data-uf]'); if(b){ unitFmt=b.dataset.uf; renderUf(); }
+  const m=e.target.closest('[data-ms]'); if(m){ markSet=m.dataset.ms; renderMs(); renderUf(); } });
+renderMs();
+renderUf();
+document.getElementById('optStory').addEventListener('change',e=>{ document.getElementById('optStoryT').textContent=e.target.checked?'オン':'オフ'; });
+
+let saved=null; try{ saved=localStorage.getItem('wos-mock-scr'); }catch(e){}
+go(SCR[saved]?saved:'title');
+requestAnimationFrame(frame);
+</script>
