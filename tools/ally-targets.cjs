@@ -13,7 +13,7 @@ const opId=process.argv[2]||'nile', runs=+(process.argv[3]||1);
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
   if(process.env.TECH) await page.click('#dbgB [data-dbga="tech"]');
   const real=opId.replace(/B$/,'');
-  await page.click('[data-go="sortie"]'); await page.click(`[data-op="${real}"]`); await page.click('#goBattle'); await page.waitForTimeout(800);
+  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click(`[data-op="${real}"]`); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
   const res=await page.evaluate(([opId,EV])=>{

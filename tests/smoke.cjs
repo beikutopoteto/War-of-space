@@ -52,6 +52,11 @@ function check(ok, label, detail = '') {
     check(!opt0.box && !opt0.story, 'オプション: ストーリーはデフォルトでオフ', JSON.stringify(opt0));
     await page.click('[data-opt="story"]');
     check(JSON.parse(await page.evaluate(() => localStorage.getItem('wos.opt'))).story === true, 'オプション: ストーリーをオンにすると保存される');
+    await page.click('[data-setting="markSet"][data-value="B"]');
+    await page.click('[data-setting="unitFmt"][data-value="name"]');
+    await page.reload(); await page.click('#mainNav [data-go="opt"]');
+    const savedOpt=await page.evaluate(()=>({mark:WOS_OPT.markSet,unit:WOS_OPT.unitFmt,checked:[...document.querySelectorAll('[data-setting][aria-checked="true"]')].map(x=>x.dataset.value)}));
+    check(savedOpt.mark==='B' && savedOpt.unit==='name' && savedOpt.checked.includes('B') && savedOpt.checked.includes('name'), 'オプション: マークと部隊表示を保存して読み直す', JSON.stringify(savedOpt));
     await page.click('[data-s="opt"] .back');
     const data = await page.evaluate(() => ({ ships: WOS_DATA.ships.length, bonuses: WOS_DATA.bonuses.length, ops: WOS_DATA.operations.length, shown: WOS_DATA.operations.filter(o => !o.hidden).length }));
     /* before 第一章 第2節 is cleared: 艦隊編集 and 技術ツリー are locked; only the first campaign operation is open */
@@ -89,7 +94,7 @@ function check(ok, label, detail = '') {
     const res = async id => { await page.click(`#trCv [data-node="${id}"]`); const ok = !(await page.isDisabled('#tRes')); if (ok) await page.click('#tRes'); return ok; };
     const early = await res('rng1');
     await res('cap1'); await res('gun1'); await res('rng1');
-    const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]').length,
+    const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]:not(:disabled)').length,
       next: document.querySelector('#trCv [data-node="gun2"]').classList.contains('can'), sum: document.getElementById('trSum').textContent }));
     check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
       '技術ツリー: 左の列から研究し、つながる元を終えると次が開く。能力は数で出る', JSON.stringify(tech));
@@ -110,7 +115,7 @@ function check(ok, label, detail = '') {
     await page.click('#forceTabs [data-force="space"]');
     /* debug 全研究: every node of every branch, and the branches the story has not opened yet */
     await page.click('[data-s="tech"] .back'); await page.click('#dbgB [data-dbga="tech"]'); await page.click('[data-go="tech"]');
-    const all = await page.evaluate(() => ({ bar: document.querySelectorAll('#brBar [data-br]').length, done: document.querySelectorAll('#trCv .tn.done').length, nodes: document.querySelectorAll('#trCv .tn').length }));
+    const all = await page.evaluate(() => ({ bar: document.querySelectorAll('#brBar [data-br]:not(:disabled)').length, done: document.querySelectorAll('#trCv .tn.done').length, nodes: document.querySelectorAll('#trCv .tn').length }));
     check(all.bar === 6 && all.done === all.nodes, 'デバッグ: 全研究で全兵科が出て、すべて研究済み', JSON.stringify(all));
     await page.click('#brBar [data-br="was"]');
     const wasTree = await page.evaluate(() => ({ fighter: !!document.querySelector('#trCv [data-node="ftr1"]'), was: !!document.querySelector('#trCv [data-node="was1"]'), sum: document.getElementById('trSum').textContent }));

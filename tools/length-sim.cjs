@@ -24,7 +24,7 @@ async function trial(id, strat) {
     browser = game.browser;
     const { page, errors } = game;
     await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
-    await page.click('[data-go="sortie"]'); await page.click(`[data-op="${id}"]`);
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click(`[data-op="${id}"]`);
     await page.click('#goBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#deployGo').catch(() => {});

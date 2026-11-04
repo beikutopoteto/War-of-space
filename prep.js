@@ -96,7 +96,7 @@ document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classLi
 /* ---------- options (the settings screen; kept apart from the save like the debug switches) ----------
    story: the conversations before and after an operation (off by default, user decision 2026-10-08). battle/hud.js reads window.WOS_OPT */
 const OKEY='wos.opt';
-const opt=window.WOS_OPT={story:false};
+const opt=window.WOS_OPT={story:false,markSet:'A',unitFmt:'both'};
 try{ Object.assign(opt,JSON.parse(localStorage.getItem(OKEY)||'{}')); }catch(e){}
 function persistOpt(){ try{ localStorage.setItem(OKEY,JSON.stringify(opt)); }catch(e){} }
 
@@ -235,8 +235,8 @@ menu.innerHTML=`
   </aside>
 </section>
 <section class="scr" data-s="tech" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>技術ツリー</h2>
-    <div class="tabs" role="tablist" id="forceTabs"></div><p class="funds" id="techFunds"></p></header>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>RESEARCH</b><span>技術ツリー</span></h2>
+    <div class="tabs stabs" role="tablist" id="forceTabs"></div><p class="funds" id="techFunds"></p></header>
   <p class="tabnote">資金で研究し、出撃上限と、自分で編成した艦隊の能力（最初は最大の3割）を上げます。線の先は、つながる元をすべて研究すると始められます。数値は仮。</p>
   <p class="empty" id="forceSoon" hidden></p>
   <div class="techwrap" id="techWrap">
@@ -269,15 +269,15 @@ menu.innerHTML=`
   </div>
 </section>
 <section class="scr" data-s="data" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦艇データ</h2></header>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>DATA</b><span>艦艇データ</span></h2></header>
   <p class="tabnote">数値はすべて仮の値です（1〜10）。表の値は技術ツリーの研究をすべて終えた最終形態（最大）で、自分で編成した艦隊は最初その3割から始まります。速度は打撃群の移動速度を決め、打撃群は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、打撃群の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
   <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
   <h3 class="sub">編成ボーナス（打撃群単位・仮）</h3>
   <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
 </section>
 <section class="scr" data-s="opt" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>オプション</h2></header>
-  <div class="optlist" id="optList"></div>
+  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>OPTIONS</b><span>オプション</span></h2></header>
+  <div class="optlist plate" id="optList"></div>
 </section>`;
 
 menu.addEventListener('click',e=>{
@@ -300,11 +300,19 @@ function renderTitle(){
   renderDebug();
 }
 /* ---------- options ---------- */
+const mark=t=>`<span class="mk">${WOS_MARKS.svg(t,opt.markSet)}</span>`;
 function renderOpt(){
   const box=document.getElementById('optList');
-  box.innerHTML=`<label class="toggle"><input type="checkbox" data-opt="story" ${opt.story?'checked':''}> ストーリー</label>
-    <p class="dim small">作戦の前後の会話を出します。オフにすると会話をとばして、すぐ配置や結果へ進みます。会話はクリック・Enter で次へ、Ctrl 長押しで早送り、「とばす」で最後までとばせます。</p>`;
-  box.querySelectorAll('[data-opt]').forEach(x=>x.onchange=()=>{ opt[x.dataset.opt]=x.checked; persistOpt(); });
+  const choices=(key,label,items)=>`<div class="optrow sepr"><b>${label}</b><span class="segc" role="radiogroup" aria-label="${label}">${items.map(([v,n])=>`<button role="radio" data-setting="${key}" data-value="${v}" aria-checked="${opt[key]===v}">${n}</button>`).join('')}</span></div>`;
+  box.innerHTML=`<div class="optrow"><b>ストーリー</b><label class="toggle sw"><input type="checkbox" data-opt="story" ${opt.story?'checked':''}> ${opt.story?'オン':'オフ'}</label></div>
+    <p>作戦の前後の会話を出します。オフにすると会話をとばして、すぐ配置や結果へ進みます。</p>
+    ${choices('unitFmt','部隊の表示',[['both','番号＋名前'],['no','番号だけ'],['name','名前だけ']])}
+    <p>編成画面と戦闘画面の名札で、部隊をどう呼ぶか。物語の隊はいつも名前で出します。</p>
+    <div class="plates"><span class="np">${mark('cl')} ${opt.unitFmt==='no'?'第1打撃群':opt.unitFmt==='name'?'第1 前衛巡洋 打撃群':'第1打撃群　前衛巡洋'}</span><span class="np ace">${mark('mas')} アルバレス隊</span></div>
+    ${choices('markSet','艦種マーク',[['A','艦影'],['B','部隊符号']])}
+    <p>編成画面・技術ツリー・戦闘画面の名札に出す艦種の印。</p><div class="plates">${SHIPS.map(s=>`<span class="np">${mark(s.id)} ${s.name}</span>`).join('')}</div>`;
+  box.querySelector('[data-opt]').onchange=e=>{ opt.story=e.target.checked; persistOpt(); renderOpt(); };
+  box.querySelectorAll('[data-setting]').forEach(x=>x.onclick=()=>{opt[x.dataset.setting]=x.dataset.value; persistOpt(); renderOpt();});
 }
 /* the debug panel (bottom right of the title, folded at first) */
 let dbgOpen=false, dbgConfirm=false;
@@ -403,7 +411,7 @@ function renderTech(){
   const open=BRANCHES.filter(branchOpen);
   if(!open.includes(techBr)) techBr=open[0];
   const b=techBr;
-  document.getElementById('brBar').innerHTML=open.map(x=>`<button data-br="${x.id}" aria-pressed="${x===b}"><b>${esc(x.name)}</b><span>上限${branchCap(x)}隻</span></button>`).join('');
+  document.getElementById('brBar').innerHTML=BRANCHES.map(x=>`<button data-br="${x.id}" aria-pressed="${x===b}" ${branchOpen(x)?'':'disabled'}><span class="marks">${x.types.map(mark).join('')}</span><b>${esc(x.name)}</b><span>${branchOpen(x)?`上限${branchCap(x)}隻`:esc(x.needText||'未解放')}</span></button>`).join('');
   document.querySelectorAll('#brBar [data-br]').forEach(x=>x.onclick=()=>{ techBr=BRANCHES.find(y=>y.id===x.dataset.br); techSel=null; renderTech(); });
   /* the branch now: each ship class's stats as numbers (the final form is not shown) */
   document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻</span></div>`+
@@ -415,9 +423,9 @@ function renderTech(){
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
   const NODES=nodesOf(b), ROWS=[...new Set(NODES.map(n=>n.row))].sort((x,y)=>x-y);
   const cols=Math.max(...NODES.map(n=>n.col))+1, rows=ROWS.length;
-  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=(p.x+q.x)/2;
+  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=q.x-R-Math.abs(q.y-p.y);
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
-    return `<path d="M${p.x+R} ${p.y}C${m} ${p.y} ${m} ${q.y} ${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
+    return `<path d="M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
   const selN=nodeById(techSel);
   const nodes=NODES.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
     return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
@@ -711,10 +719,12 @@ const preview=(()=>{
 })();
 
 /* ---------- ship data ---------- */
+let dataSort=null;
 function renderData(){
-  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th>${s.n}</th>`).join('')}<th>速度</th><th>支隊の最大隻数</th><th>搭載</th><th>役割</th></tr></thead><tbody>${
-    SHIPS.map(s=>`<tr><th>${s.name}</th>${STATS.map(k=>`<td><span class="pip" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td>${hangarStr(s.hangar)||'—'}</td><td class="note">${s.note}</td></tr>`).join('')}</tbody>`;
-  document.getElementById('bonusTbl').innerHTML=`<thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead><tbody>${BONUSES.map(b=>`<tr><th>${b.name}</th><td class="note">${b.cond}</td><td>${b.eff}</td></tr>`).join('')}</tbody>`;
+  const list=[...SHIPS]; if(dataSort) list.sort((a,b)=>b[dataSort]-a[dataSort]);
+  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th><button data-sort="${s.k}">${s.n}</button></th>`).join('')}<th><button data-sort="spd">速度</button></th><th><button data-sort="max">最大隻数</button></th><th>搭載</th></tr></thead><tbody>${list.map(s=>`<tr><th>${mark(s.id)} ${s.name}<small>${s.note}</small></th>${STATS.map(k=>`<td><span class="seg" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td>${hangarStr(s.hangar)||'—'}</td></tr>`).join('')}</tbody>`;
+  document.querySelectorAll('#shipTbl [data-sort]').forEach(b=>b.onclick=()=>{dataSort=dataSort===b.dataset.sort?null:b.dataset.sort; renderData();});
+  document.getElementById('bonusTbl').innerHTML=`<thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead><tbody>${BONUSES.map(b=>`<tr><th>${b.name}</th><td>${b.cond}</td><td>${b.eff}</td></tr>`).join('')}</tbody>`;
 }
 
 /* back to the menu from the battle */
