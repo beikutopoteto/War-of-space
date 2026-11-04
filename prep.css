@@ -378,3 +378,6 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 
 /* the large boards fade toward the right, where the planets of the background show through (user 2026-11-04) */
 #menu .treebox,#menu .scr[data-s="data"] .tblwrap,#menu [data-s="org"] .detail,#menu .optlist{background:linear-gradient(90deg,rgba(8,14,26,.8) 0%,rgba(8,14,26,.72) 50%,rgba(8,14,26,.18) 100%)!important}
+/* theater army grid: the main class's mark on top, the role below, the name on hover (user decision 2026-11-04) */
+[data-s="org"] .grid{grid-template-columns:repeat(5,58px);grid-auto-rows:58px}
+.cell[data-on]{display:grid;grid-template-rows:1fr auto;place-items:center;padding:4px 2px 5px}.cell .mk{color:var(--void);width:40px;height:18px}.cell .mk .s{fill-opacity:.3}.cell .rl{font-size:11px;font-weight:700;line-height:1;white-space:nowrap;letter-spacing:-.02em}
