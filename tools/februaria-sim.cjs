@@ -18,7 +18,7 @@ const opt=Object.fromEntries(process.argv.slice(3).filter(a=>a.includes('=')).ma
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
   if (process.env.PATCH) await page.evaluate(require('fs').readFileSync(process.env.PATCH, 'utf8'));   // PATCH=file.js: a script run in the page first (try WOS_DATA values; the data files stay)
   if(process.argv.includes('tech')) await page.click('#dbgB [data-dbga="tech"]');   // 全研究: the upper bound of our strength
-  await page.click('[data-go="sortie"]'); await page.click('[data-op="februaria"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
+  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="februaria"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
   const strat=process.argv[2]||'q';

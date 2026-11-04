@@ -29,7 +29,7 @@ async function trial(run, deadline) {
       const game = await openGame(); browser = game.browser;
       const { page, errors } = game;
       await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
-      await page.click('[data-go="sortie"]'); await page.click('[data-op="denaliBreak"]');
+      await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="denaliBreak"]');
       if (strat === 'idle') await page.evaluate(() => { WOS.start({op:'denaliBreak'}); speed=0; });
       else { await page.click('#goBattle'); await page.evaluate(() => { speed=0; }); }
       await page.waitForTimeout(800);

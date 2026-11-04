@@ -7,7 +7,7 @@
 const { openGame, toStage } = require('./browser.cjs');
 const runs = Number(process.argv[2] || 3), killAt = Number(process.argv[3] || 110), portN = process.argv[4] != null ? Number(process.argv[4]) : null;   // 宇宙港の W.A.S. の機数（省くとデータのまま）
 (async () => { for (let run = 1; run <= runs; run++) { const { browser, page, errors } = await openGame(); try {
-  await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]'); await page.click('[data-go="sortie"]'); await page.click('[data-op="denaliBreak"]'); await page.click('#goBattle');
+  await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]'); await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="denaliBreak"]'); await page.click('#goBattle');
   await page.evaluate(() => { speed = 0; if (talking) endTalk(); if (deploying) endDeploy(); }); await toStage(page);
   const r = await page.evaluate(({killAt, portN}) => {
     if (portN != null) portCarrier.hangars = makeHangars({was:portN}, op.body.port.launchR); let launched = 0, shotDown = 0, afterDown = 0, portDown = null;

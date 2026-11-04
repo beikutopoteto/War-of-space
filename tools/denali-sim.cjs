@@ -11,7 +11,7 @@ const { openGame, toStage } = require('./browser.cjs');
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
   if (process.env.TECH) await page.click('#dbgB [data-dbga="tech"]');
   if (process.env.PATCH) await page.evaluate(require('fs').readFileSync(process.env.PATCH, 'utf8'));
-  await page.click('[data-go="sortie"]'); await page.click('[data-op="denali"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
+  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="denali"]'); await page.click('#goBattle'); await page.waitForTimeout(800);
   await page.click('#talkSkip').catch(()=>{}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(()=>{});
   const strat=process.argv[2]||'a';

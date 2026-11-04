@@ -3,7 +3,7 @@ const {openGame,toStage}=require('./browser.cjs');
 const args=process.argv.slice(2),runs=Number((args.find(x=>x.startsWith('runs='))||'runs=6').slice(5));
 if(args[0]!=='auto'||!Number.isSafeInteger(runs)||runs<1)throw Error('node tools/denali-audit.cjs auto runs=N');
 (async()=>{for(let run=1;run<=runs;run++){const {browser,page,errors}=await openGame();try{
-await page.click('#dbgT');await page.click('#dbgB [data-dbga="all"]');await page.click('[data-go="sortie"]');await page.click('[data-op="denaliBreak"]');await page.click('#goBattle');await page.evaluate(()=>{speed=0;if(talking)endTalk();if(deploying)endDeploy();});await toStage(page);
+await page.click('#dbgT');await page.click('#dbgB [data-dbga="all"]');await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');await page.click('[data-op="denaliBreak"]');await page.click('#goBattle');await page.evaluate(()=>{speed=0;if(talking)endTalk();if(deploying)endDeploy();});await toStage(page);
 const r=await page.evaluate(()=>{
 const mine=()=>fleets.filter(f=>f.team===0&&f.stats&&f.alive),base=mine();let total=base.reduce((s,f)=>s+f.n,0),k=0;
 while(total+base[k%base.length].n<=op.cap){const f=base[k%base.length],o={};for(const key of ['sub','type','comp','n','dmg','eva','range','scale','vis','stl','hangar','craft','aa','stats'])if(f[key]!=null)o[key]=f[key];Object.assign(o,{name:f.name+'（写し'+(Math.floor(k/base.length)+1)+'）',hp:f.hp/HP_K,speed:f.speed/SPEED_K,pos:[f.pos.x+(Math.random()-.5)*30,f.pos.z+(Math.random()-.5)*20],alt:f.pos.y});fleets.push(makeFleet(0,o));total+=f.n;k++;}
