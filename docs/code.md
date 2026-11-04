@@ -56,6 +56,8 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 第4節の警戒の隊と収容（2026-10-30、#240・#242）: 撤退の基準 `alliesAtLand`（着陸か警戒の隊の全滅の時点の本軍の隻数。`alliesLost`）、警戒の隊 `carrier.patrol`（`stepPatrol`・`finishPatrol`、狩る側は `patrolHunter` と `patrolHunting`）、収容の曲線 `rate`・`rateDecay`（`boardingTotal`、積分で計算）、2つ目の波は1つ目のあと（`stepLastWave`）。第4節と第6節の砲台は `WOS_DATA.denaliGun`（`data/operations.js` の先頭）。
 
 ## 確認
+- メニューの画面は CSS の `zoom` で拡大・縮小する（`prep.css` の `--k`、タイトル以外はさらに 1.12 倍。`prep.js` `fitMenu`、#291）。`zoom` の中では `100vh` も縮むので、画面の高さに合わせるときは `zoom` の値で割る。`getBoundingClientRect()` は縮んだあとの大きさなので、`style.left/top` に入れるときも割り戻す（2026-11-05 #296: 技術ツリーの箱が画面の下まで届かず、ウィンドウが左上にずれた）。
+- `tests/smoke.cjs` は一続きの流れで、前のほうで変えたオプションが後ろの確認にも効く（例: 部隊の表示を「名前だけ」にしてから編成を確かめる）。期待する値は、その時点の設定で書く（2026-11-05 #295）。
 - テストで任務欄（`#goalGates`）を読む前は `goalFlashT = 0` にする。合図や段階の切り替えのあと実時間1.5秒は「目標更新中」だけが出て、CI の速さによって印が見つからず落ちた（2026-10-29、#235）。
 - 早送りの道具（`tools/`）は回すたびに `data/` を読み込む。回しているあいだにデータを書き換えない（途中から別の値で測ることになる）。数を試すときは `PATCH=` を使う。
 `npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。Codex と併用するときのセットアップとテストの手順は `docs/collaboration.md`。

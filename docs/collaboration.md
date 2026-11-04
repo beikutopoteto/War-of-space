@@ -125,7 +125,8 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 ## ブランチと担当
 - `main` へ直接 push しない。1つの話題に1ブランチ・1担当。
 - 名前: Claude は `claude/<話題>`、Codex は `codex/<話題>`。2026-10-29 より前のブランチは名前の決まりがない（`feat/…` など）。
-- いま誰がどのブランチを持っているかは `docs/PROJECT_STATUS.md`。
+- いま誰がどのブランチを持っているかは `docs/PROJECT_STATUS.md`。ブランチを始めたら、その場で表に書く（2026-11-05: セッションが途中で切れ、表にない作業フォルダが2つ残っていた。片方はコミットしていない変更だけだった）。
+- 作業フォルダは `git worktree add -b <ブランチ> ~/dev/wos-<話題> origin/main` で作り、最初の push で `-u` を付ける（2026-11-05: `org-names` が自分のブランチではなく `origin/main` を追っていた）。
 - マージ:
   - Claude: CI が通ったら squash でマージしてよい（ユーザー決定 2026-10-02）。手順は `/ship`。
   - Codex: PR を作るところまで。マージは Claude かユーザーが行う。
@@ -149,7 +150,7 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 
 ## 変更を失わないために
 - 作業を始める前に `git status` と `git fetch origin`。未コミットの変更があれば、何のものか確かめてからにする（消さない）。
-- push したブランチで rebase、amend、force-push をしない。`main` は `git merge origin/main` で取り込む。
+- push したブランチで rebase、amend、force-push をしない。`main` は `git merge origin/main` で取り込む。取り込む前にコミットする（2026-11-05: stash → ff → stash pop で作業フォルダの index が空になり、全部のファイルが「削除」と「未追跡」に出た。`git reset` で直った）。
 - 相手が担当しているブランチには、引き継いだときだけコミットする。
 - 食い違いやすいのは資料（`docs/history.md`、`docs/roadmap.md`、`docs/menu.md`、`docs/campaign.md`）と `tests/smoke.cjs`。資料への追記は、マージの直前にまとめて行うと食い違いが減る。
 - `package-lock.json` は手で直さず、`npm install` で作り直す。
