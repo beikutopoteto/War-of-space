@@ -204,13 +204,14 @@ function armyToFleet(a){
 
 /* ---------- screens ---------- */
 const menu=document.getElementById('menu');
-let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=OPS[0].id, confirmDel=null;
+let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=CAMP[0].id, confirmDel=null;
 
 function show(s){ screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
   WOS_BG.screen(screen);
   menu.querySelectorAll('.scr').forEach(el=>el.hidden=el.dataset.s!==screen);
   if(screen==='sortie') renderSortie();
+  if(screen==='mode') renderMode();
   if(screen==='org') renderOrg();
   if(screen==='data') renderData();
   if(screen==='title') renderTitle();
@@ -247,19 +248,12 @@ menu.innerHTML=`
     </div>
   </div>
 </section>
-<section class="scr" data-s="sortie" hidden>
-  <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>出撃</h2><button id="goQuick" class="gohead quick" hidden title="用意された艦隊ですぐに戦う（進行と報酬には数えない）">クイック出撃</button><button id="goBattle" class="primary gohead">出撃する</button></header>
-  <div class="sortie">
-    <div class="pane">
-      <h3>作戦</h3>
-      <div id="opList" class="cards"></div>
-    </div>
-    <div class="pane">
-      <h3>出撃する戦区軍</h3>
-      <div id="sgList" class="cards"></div>
-      <div id="sgLoad"></div>
-    </div>
-  </div>
+<section class="scr sortie-screen" data-s="mode" hidden><button class="back plate" data-go="title">← メニュー</button><h2 class="sortie-heading"><b>SORTIE</b><span>出撃</span></h2><div class="modes"><button class="plate off" data-go="sortie"><i>OFFLINE</i><b>オフライン</b><span id="modeNext"></span></button><button class="plate on" data-go="online"><i>ONLINE</i><b>オンライン</b><span>ほかのプレイヤーと遊ぶ。</span><i class="tag">準備中</i></button></div></section>
+<section class="scr sortie-screen" data-s="online" hidden><button class="back plate" data-go="mode">← 出撃</button><h2 class="sortie-heading"><b>ONLINE</b><span>オンライン</span></h2><div class="plate onpanel"><b>準備中</b><p>オンラインで遊べる内容はまだ決まっていません。</p></div></section>
+<section class="scr sortie-screen" data-s="sortie" hidden>
+  <button class="back plate" data-go="mode">← 出撃</button><h2 class="sortie-heading"><b>OFFLINE</b><span>作戦を選ぶ</span></h2>
+  <div id="opList" class="ops"></div><p id="where" class="where"></p>
+  <div class="plate det"><div id="opDetail"></div><details id="groupsPanel"><summary>出撃する戦区軍を選ぶ</summary><div id="sgList" class="cards"></div><div id="sgLoad"></div></details><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
 </section>
 <section class="scr" data-s="org" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2>艦隊編集</h2>
@@ -298,7 +292,7 @@ function renderTitle(){
   const item=(key,go,name,desc)=>{ const ok=!key||unlocked(key)||dbg.free;
     return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':LOCK}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
   document.getElementById('mainNav').innerHTML=
-    `<button data-go="sortie" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
+    `<button data-go="mode" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
     item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
     item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+
@@ -457,17 +451,24 @@ document.addEventListener('wheel',e=>{ const sc=e.target.closest&&e.target.close
   if(sc.scrollWidth>sc.clientWidth){ e.preventDefault(); sc.scrollLeft+=e.deltaY; } },{passive:false});
 
 /* ---------- sortie ---------- */
+function renderMode(){ const next=CAMP.find(o=>!cleared(o.id)); document.getElementById('modeNext').textContent='キャンペーンと演習。ひとりで、CPU の敵と戦う。\n'+(next?'次の作戦：'+opLabel(next):'次の作戦は準備中'); }
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function renderSortie(){
   /* the campaign first, then the exercises; a locked operation shows how it opens. At first the next one to play is chosen */
   const list=[...CAMP,...OPS.filter(o=>!o.chapter&&!o.hidden)];
   if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(CAMP.find(o=>!cleared(o.id)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
+  const nextOp=CAMP.find(o=>!cleared(o.id));
   const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
     const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
-    return `<button class="op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}>${o.chapter?`<i class="chap">${esc(o.chapter)}${done?'　<span class="clr">クリア済み</span>':''}</i>`:done?'<i class="chap"><span class="clr">クリア済み</span></i>':''}<b>${ok?'':LOCK}${esc(o.name)}</b><span>${ok?esc(o.summary):esc(why)}</span>${ok?`<em>${scaleText(o)}${esc(o.threat)}　報酬：資金${o.reward||0}${done?`（再戦は${Math.round((o.reward||0)*D.reward.replay)}）`:''}</em>`:''}</button>`; };
-  ol.innerHTML=`<p class="grp">キャンペーン</p>${CAMP.map(card).join('')}<p class="grp">演習（自分の戦区軍か、クイック出撃の用意された艦隊で戦う）</p>${OPS.filter(o=>!o.chapter&&!o.hidden).map(card).join('')}`;
+    return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace('第一章 ','')):'演習'}</span><b>${ok?'':LOCK}${esc(o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
+  ol.innerHTML=`<p class="grp">第一章　開戦</p>${CAMP.map(card).join('')}<p class="grp">演習</p>${OPS.filter(o=>!o.chapter&&!o.hidden).map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
+  const op=OPS.find(o=>o.id===sortieOp), done=cleared(op.id);
+  document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
+  document.getElementById('opReward').innerHTML=`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*D.reward.replay)}）`:''}`;
+  document.getElementById('groupsPanel').hidden=op.forces==='fixed';
+  WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
   const load=document.getElementById('sgLoad'); load.innerHTML='';
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
      Two groups that share an army cannot go out together: once one is chosen, the other is dimmed */

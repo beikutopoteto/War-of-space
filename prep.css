@@ -276,3 +276,31 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .mainnav button.lead{width:470px;padding:16px 30px 16px 26px;background:rgba(127,200,255,.14)}
 .mainnav button.lead b{font-size:26px;color:var(--blue)}
 .mainnav button.lead span{color:var(--ink)}
+
+/* Sortie: menu design B */
+#menu .sortie-screen{max-width:none;margin:0;padding:0}
+.sortie-screen .plate,.sortie-screen .op{--cut:14px;position:relative;border:0;background:rgba(8,14,26,.82);color:var(--ink);clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+.sortie-screen .back{position:absolute;left:110px;top:42px;padding:8px 18px;color:var(--ink-dim)}
+.sortie-heading{position:absolute;left:110px;top:100px;display:flex;align-items:baseline;gap:18px}
+.sortie-heading b{font:italic 600 40px var(--f-num);letter-spacing:.08em;color:var(--blue)}
+.sortie-heading span{font-size:18px;font-weight:500}
+.modes{position:absolute;left:110px;top:250px;display:grid;gap:14px}
+.modes button{width:560px;padding:26px 34px 24px;display:grid;gap:8px;text-align:left;--cut:22px}
+.modes button:hover{background:rgba(127,200,255,.14);transform:translateX(10px)}
+.modes i{font:normal 12px var(--f-num);letter-spacing:.34em;color:var(--ink-dim)}
+.modes b{font-size:34px;font-weight:500;letter-spacing:.16em;color:var(--blue)}
+.modes .on b{color:#8fe8c0}.modes span{white-space:pre-line;font-size:13px;line-height:1.7;color:var(--ink-dim)}
+.modes .tag{justify-self:start;color:var(--brass);border:1px solid rgba(226,197,138,.5);padding:1px 8px;letter-spacing:.14em}
+.onpanel{position:absolute!important;left:110px;top:250px;width:560px;padding:30px;line-height:1.8}.onpanel b{font-size:26px;color:#8fe8c0}
+.ops{position:absolute;left:110px;top:186px;width:460px;display:grid;gap:6px}
+.ops .grp{margin:8px 0 2px;font-size:11px;letter-spacing:.3em;color:var(--brass)}
+.ops .op{display:grid;grid-template-columns:4.2em 1fr auto;align-items:center;gap:10px;padding:8px 16px 8px 14px;--cut:10px}
+.ops .op b{font-size:15px;font-weight:500}.ops .op span{font-size:11px}.ops .op.sel{background:rgba(127,200,255,.2);margin-left:10px}.ops .op.sel b{color:var(--blue)}
+.det{position:absolute!important;right:70px;bottom:56px;width:620px;box-sizing:border-box;padding:20px 28px 22px;--cut:20px}
+.det .ch{font-size:12px;letter-spacing:.2em;color:var(--blue)}
+#menu .det h3{font-size:28px;font-weight:500;letter-spacing:.12em;margin:5px 0}.det .when{font:13px var(--f-num);color:var(--brass)}
+.det p{font-size:13px;line-height:1.7;margin:8px 0}.det .thr{color:var(--ink-dim);font-size:12px}
+.det-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:var(--ink-dim)}.det-row b{color:var(--brass)}
+.det-buttons{display:flex;gap:8px}.det-buttons button{margin:0}.det .primary{background:var(--blue)}
+.det details{font-size:12px;color:var(--ink-dim);max-height:230px;overflow:auto}.det summary{cursor:pointer;color:var(--blue)}.det .sgcard{padding:5px 10px}.det .empty{padding:4px 0;margin:0}
+.where{position:absolute;right:70px;top:60px;white-space:pre-line;text-align:right;font:12px/1.8 var(--f-num);color:var(--ink-dim)}

@@ -131,10 +131,20 @@ function draw(d,now){
   glow(mpx,mpy,24,'rgba(255,106,69,.5)',1); g.fillStyle=C.red; g.beginPath(); g.arc(mpx,mpy,5,0,7); g.fill();
   label(epx,epy,'地球',C.blue,-24,-26,13); label(mpx,mpy,'火星',C.red,-24,-26,13);
 
+  hits=[];
+  if(scr==='sortie'){
+    const a=stAng(7,d), b=stAng(0,d)+2*Math.PI; g.save(); g.setLineDash([6,5]); g.strokeStyle=C.ally; g.globalAlpha=.55; g.beginPath(); for(let i=0;i<=60;i++){const q=a+(b-a)*i/60, [x,y]=P(ST_R*1.012*Math.cos(q),ST_R*1.012*Math.sin(q)); i?g.lineTo(x,y):g.moveTo(x,y);} g.stroke(); g.restore();
+    for(const o of marks){ const [x,y]=P(...opW(o,d)), on=clock.focus&&clock.focus.id===o.id, r=on?16:10; g.save(); g.strokeStyle=on?C.blue:C.ally; g.lineWidth=1; for(const [sx,sy] of [[-1,-1],[1,-1],[1,1],[-1,1]]){g.beginPath();g.moveTo(x+sx*r,y+sy*r*.55);g.lineTo(x+sx*r,y+sy*r);g.lineTo(x+sx*r*.55,y+sy*r);g.stroke();} g.restore(); if(on) label(x,y,o.name,C.blue,18,-20,13); hits.push({id:o.id,x,y}); }
+  }
   g.setTransform(1,0,0,1,0,0); g.globalAlpha=1; g.drawImage(shadeLayer(scr),0,0);
 }
 
-const clock={d:0}, DAY_MS=600;
+const clock={d:0,target:null,since:0,focus:null}, DAY_MS=600;
+let marks=[], selectMark=null, hits=[];
+function opW(o,d){ const at=o.place; if(at.st!=null) return stW(at.st,d); if(at.route){ const a=stAng(at.route[0],d), b=stAng(at.route[1],d)+2*Math.PI, t=a+(b-a)*at.f; return [ST_R*Math.cos(t),ST_R*Math.sin(t),0]; } return bodyW(EARTH_SYS.find(b=>b.n===at.body),EARTH,d); }
+function dayOf(date){ const m=/A\.E\. (\d+)\.(\d+)\.(\d+)/.exec(date||''); return m?(Date.UTC(+m[1]+2054,+m[2]-1,+m[3])-Date.UTC(2099,3,12))/864e5:0; }
+function formatDay(d){ const t=new Date(Date.UTC(2099,3,12)+Math.floor(d)*864e5); return `A.E. ${t.getUTCFullYear()-2054}.${String(t.getUTCMonth()+1).padStart(2,'0')}.${String(t.getUTCDate()).padStart(2,'0')}`; }
+addEventListener('click',e=>{ if(scr!=='sortie'||e.target.closest('button, .det, .ops')) return; const x=(e.clientX*Math.min(devicePixelRatio||1,2)-OX)/BASE,y=(e.clientY*Math.min(devicePixelRatio||1,2)-OY)/BASE; const h=hits.find(h=>Math.hypot(h.x-x,h.y-y)<22); if(h&&selectMark) selectMark(h.id); });
 const reduce=matchMedia('(prefers-reduced-motion: reduce)');
 function fit(){
   const w=innerWidth,h=innerHeight,dpr=Math.min(devicePixelRatio||1,2), scale=Math.max(w/1600,h/900);
@@ -146,8 +156,13 @@ function fit(){
 }
 function frame(now){
   raf=0; if(document.getElementById('menu').hidden) return;
-  if(last&&!reduce.matches) clock.d+=Math.min(.1,(now-last)/1000)*1000/DAY_MS;
-  last=now; draw(clock.d,now); raf=requestAnimationFrame(frame);
+  const dt=last?Math.min(.1,(now-last)/1000):0; last=now;
+  if(clock.target==null){ if(!reduce.matches) clock.d+=dt*1000/DAY_MS; } else { const goal=clock.target+(reduce.matches?0:(now-clock.since)/8000); clock.d+=(goal-clock.d)*Math.min(1,dt*3); }
+  let tgt=HOME;
+  if(scr==='sortie'){ if(clock.focus){ const w=opW(clock.focus,clock.d), scale=clock.focus.place.body?3600:1500, [x,y]=rot(w[0],w[1]); tgt={cx:1080-x*scale,cy:380-y*scale,s:scale,yaw:HOME.yaw}; } else tgt={cx:1050,cy:430,s:250,yaw:HOME.yaw}; }
+  const k=Math.min(1,dt*(reduce.matches?60:2.6)); view.s=Math.exp(Math.log(view.s)+(Math.log(tgt.s)-Math.log(view.s))*k); view.cx+=(tgt.cx-view.cx)*k; view.cy+=(tgt.cy-view.cy)*k; view.yaw+=(tgt.yaw-view.yaw)*k;
+  const where=document.getElementById('where'); if(where&&scr==='sortie'){ const ea=ang(EARTH,clock.d),ma=ang(MARS,clock.d),dist=Math.hypot(MARS.r*Math.cos(ma)-Math.cos(ea),MARS.r*Math.sin(ma)-Math.sin(ea)); where.textContent=`${formatDay(clock.d)}\n地球–火星 ${dist.toFixed(2)} AU（光で${(dist*8.317).toFixed(1)}分）`; }
+  draw(clock.d,now); raf=requestAnimationFrame(frame);
 }
 function sync(){
   const menu=document.getElementById('menu');
@@ -155,7 +170,7 @@ function sync(){
   if(menu.hidden){ if(raf) cancelAnimationFrame(raf); raf=0; last=0; }
   else if(!raf){ last=0; raf=requestAnimationFrame(frame); }
 }
-window.WOS_BG={screen(name){ scr=name; sync(); }};
+window.WOS_BG={screen(name){ scr=name; if(name!=='sortie'){clock.target=null; clock.focus=null;} sync(); }, focus(op,list,select){ if(clock.focus?.id!==op.id || (clock.focus===null&&op.place)){clock.focus=op.place?op:null; clock.target=op.place?dayOf(op.date):null; clock.since=performance.now();} marks=list; selectMark=select; }};
 addEventListener('resize',fit);
 new MutationObserver(sync).observe(document.getElementById('menu'),{attributes:true,attributeFilter:['hidden']});
 fit();
