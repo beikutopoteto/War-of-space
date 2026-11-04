@@ -1,6 +1,6 @@
 /* War of Space: preparation screens. Uses the tokens defined in index.html. */
 #menu{position:fixed;inset:0;z-index:20;overflow-y:auto;overflow-x:hidden;color:var(--ink);font-family:var(--f-ui);
-  background:linear-gradient(90deg,rgba(5,8,15,.93) 0%,rgba(5,8,15,.8) 46%,rgba(5,8,15,.55) 100%);
+  background:#05080f; isolation:isolate;
   padding:calc(20px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));-webkit-user-select:text;user-select:text}
 #menu button{font-family:var(--f-ui);cursor:pointer}
 #menu button:focus-visible,#menu input:focus-visible,#menu select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
@@ -255,3 +255,24 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
   .grid{grid-template-columns:repeat(5,44px);grid-auto-rows:44px}
   .mainnav{max-width:none}
 }
+
+/* Title and solar system background (menu design B). */
+#menuBg{position:fixed;inset:0;width:100vw;height:100vh;z-index:-1;pointer-events:none}
+#menu .scr[data-s="title"]{max-width:none;margin:0;padding:0;display:block}
+#menu .scr[data-s="title"][hidden]{display:none}
+.scr[data-s="title"] .ttl{position:absolute;left:110px;top:120px}
+.scr[data-s="title"] .eyebrow{font-family:var(--f-num);font-size:13px;letter-spacing:.34em;color:var(--ink-dim);margin:0 0 6px}
+.scr[data-s="title"] h1{margin:0;font-family:var(--f-num);font-weight:600;font-size:92px;letter-spacing:.06em;line-height:.9;font-style:italic;text-shadow:none}
+.scr[data-s="title"] h1 em{color:transparent;-webkit-text-stroke:1px var(--blue);font-style:italic}
+.title-sub{margin:14px 0 0;font-size:14px;color:var(--ink-dim);letter-spacing:.1em}
+.tstat{position:absolute;right:110px;top:60px;margin:0;gap:22px;font-size:12px}
+.mainnav{position:absolute;left:110px;top:430px;display:grid;gap:8px;max-width:none}
+.mainnav button{--cut:14px;--x:0px;position:relative;margin-left:var(--x);width:420px;padding:9px 30px 9px 26px;display:flex;align-items:baseline;gap:16px;border:0;background:rgba(8,14,26,.72);clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));transition:background .2s,margin .2s}
+.mainnav button::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,var(--blue) 0 1px,transparent 1px) 0 0/var(--cut) var(--cut) no-repeat,linear-gradient(-45deg,var(--blue) 0 1px,transparent 1px) 100% 100%/var(--cut) var(--cut) no-repeat;opacity:.8}
+.mainnav button:nth-child(2){--x:18px}.mainnav button:nth-child(3){--x:36px}.mainnav button:nth-child(4){--x:54px}.mainnav button:nth-child(5){--x:72px}
+.mainnav button b{font-size:19px;font-weight:500;letter-spacing:.12em;min-width:5.5em;line-height:normal}
+.mainnav button span{font-size:12px;line-height:normal}
+.mainnav button:not(:disabled):hover{background:rgba(127,200,255,.16);margin-left:calc(var(--x) + 10px)}
+.mainnav button.lead{width:470px;padding:16px 30px 16px 26px;background:rgba(127,200,255,.14)}
+.mainnav button.lead b{font-size:26px;color:var(--blue)}
+.mainnav button.lead span{color:var(--ink)}
