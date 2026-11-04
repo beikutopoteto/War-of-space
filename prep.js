@@ -208,14 +208,15 @@ const menu=document.getElementById('menu');
 const MENU_SCALE=.93;
 function fitMenu(){ menu.style.setProperty('--k',(MENU_SCALE*Math.min(innerWidth/1600,innerHeight/900)).toFixed(4)); }
 addEventListener('resize',fitMenu); fitMenu();
-let orgPop=null;
+let orgPop=null, orgFromForces=false, sortieInitialized=false;
 let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=CAMP[0].id, confirmDel=null;
 
-function show(s){ screen=s; confirmDel=null; render(); menu.scrollTop=0; }
+function show(s){ if(screen==='forces'&&s!=='forces') WOS_DOCK.close(); screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
   WOS_BG.screen(screen);
   menu.querySelectorAll('.scr').forEach(el=>el.hidden=el.dataset.s!==screen);
   if(screen==='sortie') renderSortie();
+  if(screen==='forces') renderForces();
   if(screen==='mode') renderMode();
   if(screen==='org') renderOrg();
   if(screen==='data') renderData();
@@ -258,7 +259,13 @@ menu.innerHTML=`
 <section class="scr sortie-screen" data-s="sortie" hidden>
   <button class="back plate" data-go="mode">← 出撃</button><h2 class="sortie-heading"><b>OFFLINE</b><span>作戦を選ぶ</span></h2>
   <div id="opList" class="ops"></div><p id="where" class="where"></p>
-  <div class="plate det"><div id="opDetail"></div><details id="groupsPanel"><summary>出撃する戦区軍を選ぶ</summary><div id="sgList" class="cards"></div><div id="sgLoad"></div></details><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
+  <div class="plate det"><div id="opDetail"></div><div id="fixedNote"></div><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
+</section>
+<section class="scr sortie-screen forces-screen" data-s="forces" hidden>
+  <canvas id="dockCanvas"></canvas><button class="back plate" data-go="sortie">← 作戦を選ぶ</button>
+  <h2 class="sortie-heading"><b>FORCES</b><span>出撃する戦区軍</span><small id="forcesName"></small></h2>
+  <div class="forces-left"><div id="sgList" class="cards"></div><button id="forcesCreate" class="plate" data-go="org">＋ 艦隊編集で戦区軍を作る</button></div>
+  <div class="forces-right"><div class="plate" id="forcesDetail"></div><div class="plate" id="sgLoad"></div><div class="forces-buttons"><button id="forcesOrg" data-go="org">艦隊編集へ</button><button id="forcesBattle" class="primary">出撃する</button></div></div>
 </section>
 <section class="scr" data-s="org" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>FLEET</b><span>艦隊編集</span></h2>
@@ -286,7 +293,7 @@ menu.innerHTML=`
 </section>`;
 
 menu.addEventListener('click',e=>{
-  const go=e.target.closest('[data-go]'); if(go){ show(go.dataset.go); return; }
+  const go=e.target.closest('[data-go]'); if(go){ if(go.dataset.go==='org') orgFromForces=screen==='forces'; if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
 
@@ -343,7 +350,7 @@ function renderDebug(){
     if(a==='tech') BRANCHES.forEach(br=>{ if(br.need) P.flags[br.need]=true; P.tech[br.id]=TREE.map(n=>n.id); });
     /* back to the start: the progress and the fleets (battle groups, armies, army groups) as a new save has them (user decision 2026-10-04) */
     if(a==='reset'){ if(!dbgConfirm){ dbgConfirm=true; renderDebug(); return; } dbgConfirm=false;
-      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,prog:newProg()}); selBg=selArmy=selGroup=null; sortieGroups=[]; }
+      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,prog:newProg()}); selBg=selArmy=selGroup=null; sortieGroups=[]; sortieInitialized=false; }
     persist(); renderTitle(); });
 }
 document.addEventListener('click',e=>{ if(e.target.closest('#dbgT')){ dbgOpen=!dbgOpen; dbgConfirm=false; renderDebug(); } });
@@ -495,38 +502,43 @@ function renderSortie(){
   const op=OPS.find(o=>o.id===sortieOp), done=cleared(op.id);
   document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
   document.getElementById('opReward').innerHTML=`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*D.reward.replay)}）`:''}`;
-  document.getElementById('groupsPanel').hidden=op.forces==='fixed';
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
-  const load=document.getElementById('sgLoad'); load.innerHTML='';
+  const fixedOp=op.forces==='fixed'?op:null;
+  const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
+  if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:op.id}); } };
+  document.getElementById('fixedNote').textContent=fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
+  const btn=document.getElementById('goBattle'); btn.disabled=false;
+  btn.onclick=()=>{ if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
+}
+function renderForces(){
+  const op=OPS.find(o=>o.id===sortieOp), load=document.getElementById('sgLoad'); load.innerHTML='';
+  document.getElementById('forcesName').textContent=(op.chapter||'演習')+'　'+op.name;
+  document.getElementById('forcesDetail').innerHTML=`<span class="ch">${esc(op.chapter||'演習')}</span><h3>${esc(op.name)}</h3><p>${scaleText(op)}${esc(op.threat)}</p>`;
+  document.getElementById('forcesOrg').hidden=document.getElementById('forcesCreate').hidden=!unlocked('fleet');
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
      Two groups that share an army cannot go out together: once one is chosen, the other is dimmed */
-  sortieGroups=sortieGroups.filter(id=>save.groups.some(g=>g.id===id)); if(!sortieGroups.length&&save.groups[0]) sortieGroups=[save.groups[0].id];
-  const el=document.getElementById('sgList'), fixedOp=OPS.find(o=>o.id===sortieOp&&o.forces==='fixed');
-  /* an exercise (no chapter) with prepared fleets (op.quick): クイック出撃 fights with them, not counted for progress or reward
-     (user decision 2026-10-04). Campaign operations never show it, even with quick fleets (user decision 2026-10-05) */
-  const qOp=!fixedOp&&OPS.find(o=>o.id===sortieOp&&!o.chapter&&o.quick), qb=document.getElementById('goQuick'); qb.hidden=!qOp;
-  if(qOp) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:qOp.id}); } };
-  /* a story operation is fought with the fleets the story gives; army groups are not used */
-  if(fixedOp){ el.innerHTML=`<p class="empty">この作戦は決まった艦隊で戦います：${fixedOp.quick.map(f=>esc(f.name)).join('・')}</p>`;
-    const btn=document.getElementById('goBattle'); btn.disabled=false; btn.onclick=()=>{ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } }; return; }
+  sortieGroups=sortieGroups.filter(id=>save.groups.some(g=>g.id===id));
+  const el=document.getElementById('sgList');
   /* before 艦隊編集 opens and something is researched, an exercise is fought only with クイック出撃 (user decision 2026-10-13: own army groups after a research) */
   const exOp=OPS.some(o=>o.id===sortieOp&&!o.chapter);
   if(!(exOp?ownExercise():unlocked('fleet'))&&!dbg.free){ el.innerHTML=`<p class="empty">自分の戦区軍での出撃は、${unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':esc(unlockText('fleet'))}。今はクイック出撃（用意された艦隊）で戦えます。</p>`;
-    const btn=document.getElementById('goBattle'); btn.disabled=true; btn.onclick=null; return; }
+    const btn=document.getElementById('forcesBattle'); btn.disabled=true; btn.onclick=null; WOS_DOCK.draw(document.getElementById('dockCanvas'),[]); return; }
   const chosen=sortieGroups.map(id=>save.groups.find(g=>g.id===id)), clashes=g=>!sortieGroups.includes(g.id)&&chosen.some(h=>shareArmy(g,h));
   el.innerHTML=save.groups.length?save.groups.map(g=>{ const arms=groupSummary(g); const ships=arms.reduce((s,a)=>s+armyStats(a).ships,0), on=sortieGroups.includes(g.id), cl=clashes(g);
-    return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一支隊を含みます</i>':''}<b>${esc(g.name)}</b><span>${arms.map(a=>esc(a.name)).join('・')||'打撃群が未配置'}</span><em>${arms.length}個打撃群・${ships}隻・速度同期${g.sync?'あり':'なし'}</em></button>`;}).join('')
+    return `<button class="sgcard ${on?'sel':''} ${cl?'clash':''}" data-sg="${g.id}" aria-pressed="${on}" ${cl?'disabled':''}>${cl?'<i class="clashnote">同一支隊を含みます</i>':''}<b>${esc(g.name)}</b><em>${arms.length}個打撃群・${ships}隻・速度同期${g.sync?'あり':'なし'}</em><span class="forces-marks">${arms.map(a=>`<i title="${esc(a.name)}">${armyMain(a)?mark(armyMain(a)):''}<small>${esc(shortName(a.name,'打撃群'))}</small></i>`).join('')||'打撃群が未配置'}</span></button>`;}).join('')
     :'<p class="empty">戦区軍がありません。艦隊編集で作成してください。</p>';
-  el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ const id=b.dataset.sg; sortieGroups=sortieGroups.includes(id)?sortieGroups.filter(x=>x!==id):[...sortieGroups,id]; renderSortie(); });
+  el.querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{ const id=b.dataset.sg; sortieGroups=sortieGroups.includes(id)?sortieGroups.filter(x=>x!==id):[...sortieGroups,id]; renderForces(); });
   /* the sortie limit per branch (tech tree), for all the chosen groups together */
   const rows=chosen.length?groupLoad(chosen):[], branchOver=rows.some(r=>r.used>r.cap);
   /* and the battle's scale caps all the ships together (user decision 2026-10-12) */
   const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.used,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
-  if(chosen.length) load.innerHTML=`<h3>出撃上限（技術ツリー）${chosen.length>1?`　<span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
+  if(chosen.length) load.innerHTML=`<h3><i>LIMIT</i> 出撃上限${chosen.length>1?` <span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
     S?`<tr class="scale ${scaleOver?'over':''}"><th>戦闘の規模（${esc(S.name)}）</th><td>${total} / ${S.cap}隻</td><td class="note">${scaleOver?'規模の上限を超えています':'全兵科の合計'}</td></tr>`:''}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':scaleOver&&!branchOver?`この作戦は${esc(S.name)}です。出撃できる艦は合計${S.cap}隻まで。戦区軍を減らすか、艦隊編集で艦を減らしてください。`:'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
-  const btn=document.getElementById('goBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
-  btn.onclick=()=>{ running={op:sortieOp}; startBattle(chosen); };
+  const btn=document.getElementById('forcesBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
+  btn.onclick=()=>{ WOS_DOCK.close(); running={op:sortieOp}; startBattle(chosen); };
+  const ships=chosen.flatMap(g=>groupSummary(g).flatMap(a=>armyStats(a).bgs.flatMap(b=>Array(b.count).fill(b.type))));
+  WOS_DOCK.draw(document.getElementById('dockCanvas'),ships);
 }
 /* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1×, shortened by op.pace like the
    clock (user decision 2026-10-15: show the real length) */
@@ -570,6 +582,7 @@ function updateOrgCap(){
   document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}隻</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
 }
 function renderOrg(){
+  document.querySelector('[data-s=org] .back').textContent=orgFromForces?'← 出撃の準備へ':'← メニュー';
   refreshAutoNames();
   menu.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
   document.getElementById('tabNote').textContent=NOTES[tab]; updateOrgCap();
@@ -763,7 +776,7 @@ function renderData(){
 /* Enter decides: 出撃 on the sortie screen, 研究する on the tech tree (user decision 2026-10-04). Called by battle/scene.js while the menu is open */
 function onKey(e){
   if(e.key!=='Enter'||e.isComposing||menu.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||'')) return;
-  const b=screen==='sortie'?document.getElementById('goBattle'):screen==='tech'?document.getElementById('tRes'):null;
+  const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }
 window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey };
