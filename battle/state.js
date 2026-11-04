@@ -148,6 +148,7 @@ function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0
 /* the short label on a tile: the unit's number, or the start of a story unit's own name (アルバレス隊 → アル) */
 const tileNo=f=>unitNo(f.name)||f.name.slice(0,2);
 function buildRoster(){
+  hideTip();
   rosterEl.innerHTML='';
   const mine=fleets.filter(f=>f.team===0&&!f.ward);
   const mk=(f)=>{ const i=mine.indexOf(f);
@@ -351,11 +352,17 @@ function groupOrder(o){
       else order(f,{type:'move',dest}); });
   } else t.forEach(f=>{ f.syncSpeed=sync; if(tail(f)) f.queue.push({type:o.type,target:o.target}); else order(f,o); });
 }
+function openSelectedRoster(t){
+  /* a fleet picked (keys, the map) in a closed section opens that section */
+  const shut=t.filter(f=>f.team===0&&!f.ward).map(groupOf).filter(g=>g?!g.open:!freeOpen);
+  if(shut.length){ shut.forEach(g=>{ if(g) g.open=true; else freeOpen=true; }); buildRoster(); }
+}
 function updateRoster(){
   const t=orderTargets();
-  /* a fleet picked (keys, the map) in a closed section opens that section */
-  const shut=t.map(groupOf).filter((g,i)=>g?!g.open:!freeOpen&&!t[i].btn);
-  if(shut.length){ shut.forEach(g=>{ if(g) g.open=true; else freeOpen=true; }); buildRoster(); }
+  rosterEl.querySelectorAll('.rzone').forEach(z=>{ const g=z.dataset.zone==='group'?groups[+z.dataset.g]:null;
+    const list=fleets.filter(f=>f.team===0&&!f.ward&&(g?g.members.has(f):!groupOf(f)));
+    z.querySelector('.gtab small').textContent=list.filter(f=>f.alive).length;
+    const sum=z.querySelector('.sum'); if(sum) sum.textContent=`${list.length}群 ${list.reduce((s,f)=>s+f.ships.length,0)}隻`; });
   fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f), hull=f.ships.length/f.n;
     const mk=f.alive?fleetMark(f):''; if(mk!==f.mkKey){ f.mkKey=mk; f.btn.querySelector('.mkw').innerHTML=mk; }
     f.btn.querySelector('.no b').textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
