@@ -87,6 +87,10 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 - オートモードの安全チェック（2026-10-31）: `codex exec -s danger-full-access`・コミット・push・`gh pr merge` が「頼まれていない」と止められることがある。ユーザーの許可で通る。許可のルール（`git commit`・`git push`・`gh pr`）は `開発環境/.claude/settings.local.json`（この Mac だけ、コミットしない）。
 - Codex の使用量の上限（2026-10-31）: 1回の作業（調整を5回、約55万トークン）で当たり、数十分待った。長い調整は回数の上限を作業票に書き、途中の記録をレポートに残させる。
 - Codex が上限に当たったら、作業フォルダに残った変更を Claude が「作業中」のコミットで退避して push し、続きを同じ作業フォルダで呼び直す（`codex exec resume --last` も使える）。
+- 続きを頼むときもモデルを指定する（2026-11-04: `resume` に `-m` を付けず、既定の `gpt-6.1-sol` で動いた）。形は `codex exec -m gpt-6.1-terra -c model_reasoning_effort="medium" -C <作業フォルダ> -c sandbox_mode="danger-full-access" -o <結果> resume --last "<頼み>"`（`cd` なしで通った）。
+- 図・資料の作業票には出来の基準を具体的に書く（2026-11-04: 「第5節と同じ型」だけでは、引きすぎの地図・まとめラベル・段ごとに同じ下地の図が返った）。例: 何を大きく描くか、隊ごとに名前と数、段ごとに動く隊を濃く、矢印に順番と時刻、右の欄の見出し。見本の図を開いて比べさせる。
+- Codex が `npm test` の途中で接続を失うことがある（2026-11-04）。そのときは手元で回し直さず、PR の CI で確かめてよい。
+- 大きな画像（数百 KB の PNG を何枚も）の push が「remote end hung up」で落ちたら、`git -c http.postBuffer=524288000 push` で通った（2026-11-04）。
 
 ## Codex への渡し方（手動。Codex Cloud を使うときだけ。ユーザー決定 2026-10-29）
 1. Claude が作業票（Issue）を書き、ブランチ `codex/<話題>` と下書きの PR を先に作って見張る（最初のコミットは `docs/PROJECT_STATUS.md` の行）。
