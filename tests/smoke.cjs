@@ -2041,9 +2041,9 @@ function check(ok, label, detail = '') {
       nuke.state = 'wait'; drawRoute();   // the way down off the screen for the next check
       return r;
     });
-    check(esc6.share.k === '0.9,0.9,0.9,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every((d, i) => d <= esc6.waitLimit[i]) && esc6.mas === 'true,true'
+    check(esc6.share.k === '0.8,0.8,0.8,0.8,0.8' && esc6.mode === 'escort,escort' && esc6.wait.every((d, i) => d <= esc6.waitLimit[i]) && esc6.mas === 'true,true'
       && esc6.desc === 'descend' && esc6.follow.gap.every(d => d <= 30) && esc6.follow.moved.every(d => d >= 40),
-      '第6節の戦艦の護衛（2026-10-29）: 第29・第30 は戦艦のそばで待ち、寄る揚陸艦を先に叩き、第二段階は降りる戦艦について行く。分かれた戦艦の耐久は戦艦の分（9割・8割）', JSON.stringify(esc6));
+      '第6節の戦艦の護衛（2026-10-29）: 第29・第30 は戦艦のそばで待ち、寄る揚陸艦を先に叩き、第二段階は降りる戦艦について行く。分かれた戦艦の耐久は戦艦の分（どちらも8割、2026-11-04）', JSON.stringify(esc6));
     /* 第6節の任務欄（見本の案B）と切り替え（目標更新中）、戦艦の道（案A）、推進器の印（案C）: 第一段階は西上・東下の守備隊ごとに六角9つ（持ち場にいる艦を塗る）・戦艦・
        「12隻を剥がせば第二段階（遅くとも 15:00）」（2026-10-30 に半分から3分の2へ）。合図で一瞬「目標更新中」、そのあと目盛りと推進器。戦艦の道は第二段階で出る */
     const hd = await page.evaluate(() => {
