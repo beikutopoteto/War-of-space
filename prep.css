@@ -274,13 +274,13 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .title-sub{margin:14px 0 0;font-size:16px;color:var(--ink-dim);letter-spacing:.1em}
 .tstat{position:absolute;right:110px;top:60px;margin:0;gap:22px;font-size:14px}
 .mainnav{position:absolute;left:110px;top:430px;display:grid;gap:8px;max-width:none}
-.mainnav button{--cut:14px;--x:0px;position:relative;margin-left:var(--x);width:420px;padding:9px 30px 9px 26px;display:flex;align-items:baseline;gap:16px;border:0;background:rgba(8,14,26,.72);clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));transition:background .2s,margin .2s}
+.mainnav button{--cut:14px;--x:0px;position:relative;margin-left:var(--x);width:500px;padding:9px 30px 9px 26px;display:flex;align-items:baseline;gap:16px;border:0;background:rgba(8,14,26,.72);clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut));transition:background .2s,margin .2s}
 .mainnav button::before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(135deg,var(--blue) 0 1px,transparent 1px) 0 0/var(--cut) var(--cut) no-repeat,linear-gradient(-45deg,var(--blue) 0 1px,transparent 1px) 100% 100%/var(--cut) var(--cut) no-repeat;opacity:.8}
 .mainnav button:nth-child(2){--x:18px}.mainnav button:nth-child(3){--x:36px}.mainnav button:nth-child(4){--x:54px}.mainnav button:nth-child(5){--x:72px}
-.mainnav button b{font-size:19px;font-weight:500;letter-spacing:.12em;min-width:5.5em;line-height:normal}
+.mainnav button b{font-size:19px;font-weight:500;letter-spacing:.12em;min-width:5.5em;line-height:normal;white-space:nowrap;flex:none}
 .mainnav button span{font-size:14px;line-height:normal}
 .mainnav button:not(:disabled):hover{background:rgba(127,200,255,.16);margin-left:calc(var(--x) + 10px)}
-.mainnav button.lead{width:470px;padding:16px 30px 16px 26px;background:rgba(127,200,255,.14)}
+.mainnav button.lead{width:550px;padding:16px 30px 16px 26px;background:rgba(127,200,255,.14)}
 .mainnav button.lead b{font-size:26px;color:var(--blue)}
 .mainnav button.lead span{color:var(--ink)}
 
