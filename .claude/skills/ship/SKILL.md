@@ -23,7 +23,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 ## 3. CI とマージ
 - ユーザーの Mac での CI の待ち方（2026-11-04）: PR を作った直後の `gh pr checks --watch` は「no checks reported」で終わる。20〜40秒おいてから、最新のコミットの `headSha` で `gh run list` から走りを選び、`gh run watch <id> --exit-status` を後ろで走らせる。同じ PR へ間を空けずに push を重ねない（CI が同時に走り、どの結果か分かりにくく、実時間に頼る確認も落ちやすい）。直しはまとめて1回で push する。
 - CI（`smoke`）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。通知の `head_sha` が PR の最新のコミットか見る（前のコミットの CI の知らせも届く）。
-- 成功なら `merge_pull_request`（`merge_method: squash`）。失敗なら原因を直して push する（テストを消したり飛ばしたりしない）。
+- 成功なら `merge_pull_request`（`merge_method: squash`）。CI の結果を見てから、別のコマンドでマージする（2026-11-04: `gh pr checks` とマージを1行に続けて、落ちた CI のまま #289 をマージした。落ちたのは時々落ちる第6節の確認で、回し直すと通った）。失敗なら原因を直して push する（テストを消したり飛ばしたりしない）。
 - 先に別の PR をマージしたせいで食い違いが出たら、`git merge origin/main` で取り込み、テストしてから push する。
 - マージ後: `git fetch origin main -q && git checkout -q main && git reset -q --hard origin/main`。
 
