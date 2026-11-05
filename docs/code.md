@@ -24,7 +24,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
   7. `sim.js` 索敵・戦闘・小型機・出来事・敵 AI・`step()`。天体の陰と回り込み（`bodyBlocks` / `detour`、`makePath` が経由点を足す）、敵の目標選び（`pickFoe`）と立つ位置（`slotOf`）、挟撃（`pincers`）、デバッグのオートモード（`autoAI`）、小型機と母艦をつなぐ（`tetherCarriers`。`step()` で艦が動いたあと、出ている隊を発艦の距離の外に残さないよう母艦を止める。2026-10-22）、艦種別の動き（2026-10-22。作戦の `roleAI` だけ。`roleOf` で隊の役目（いちばん上位の艦種と陣営、表は `data/ships.js` の `WOS_DATA.roles`）を出し、`pickFoe` の係数 `aimK`、撃つ相手 `roleFoe`（`fireTargetOf`）、小型機の `roleCraftFoe`（`craftTarget`）、立つ距離 `roleStand`（`standOff`）、下がるか `backsOff`（`stepFight`・`fallBack`）、AI の `roleFirst`（退き際・逃げる）と `rolePlace`（盾・母体・目・傘の位置）、`roleClamp`（戦艦と傘の持ち場）。自軍の隊は `roleMove` が null で狙いだけ）、ドクトリンの型（2026-10-22。作戦の `packs` だけ、共和国だけ。`initPacks`（`reset()` から）で組を作り、`enemyAI` の中で `stepPacks` が組・目標・守るもの・合図・退き際・そろって着く速さを決め、`packAI` が隊ごとの動き（approach・charge・hold・hide・back）を出す。作戦の `ai` の分岐のあと、艦種別の動きの前。立つ点は `f.packSpot`（`step()` の `stepFight`））
   7.5 `cut.js` 会話の後ろに出す絵（第6節のかすめる場面。2026-10-28）。会話の行の4つ目の要素で `showCut`、出ているあいだは `loop.js` が戦場の代わりに描く
-  7.8 `tutorial.js` 演習の段の進行と吹き出し・枠。段の文と対象は `charybdis.tutorial`、作戦時計は `opClock()` と停止秒 `clockHeld`
+  7.8 `tutorial.js` 演習の段の進行と、下のセリフの板の案内・光る枠・地図の目標地点。段の文と対象は `charybdis.tutorial`、作戦時計は `opClock()` と停止秒 `clockHeld`
   8. `loop.js` 描画ループと起動。挟撃の矢じり（`pinchMarks`）
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
@@ -58,6 +58,9 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 
 ## 確認
 - メニューの画面は CSS の `zoom` で拡大・縮小する（`prep.css` の `--k`、タイトル以外はさらに 1.12 倍。`prep.js` `fitMenu`、#291）。`zoom` の中では `100vh` も縮むので、画面の高さに合わせるときは `zoom` の値で割る。`getBoundingClientRect()` は縮んだあとの大きさなので、`style.left/top` に入れるときも割り戻す（2026-11-05 #296: 技術ツリーの箱が画面の下まで届かず、ウィンドウが左上にずれた）。
+- 新しい保存では、チュートリアルを終えるまでほかの作戦は鍵（#320）。準備画面から作戦を開く確かめは、デバッグの「一節だけクリア」を最初に押して飛ばすか、`WOS.start({op})` で直接始める。`prep.js` は即時関数の中なので、`show`・`prog` などは `page.evaluate` から呼べない（2026-11-05 に `show is not defined` で落ちた）。画面のボタンか `WOS_MENU` を使う。
+- 戦闘画面の HUD は `.hud` の CSS の `zoom`（`--uis`）で拡大縮小する。画面の座標（`getBoundingClientRect()`・`proj()`）で置く物（チュートリアルの光る枠など）は `zoom:1` にして拡大させない（2026-11-05 #318: 1.2倍の画面で枠がずれた）。
+- 確かめの道具に、データの座標（目標地点など）を写して書かない。`op` から読む（2026-11-06 #322: 目標 E を動かしたら、2か所に書いた古い座標で `tutorial-check` が落ちた）。
 - `tests/smoke.cjs` は一続きの流れで、前のほうで変えたオプションが後ろの確認にも効く（例: 部隊の表示を「名前だけ」にしてから編成を確かめる）。期待する値は、その時点の設定で書く（2026-11-05 #295）。
 - テストで任務欄（`#goalGates`）を読む前は `goalFlashT = 0` にする。合図や段階の切り替えのあと実時間1.5秒は「目標更新中」だけが出て、CI の速さによって印が見つからず落ちた（2026-10-29、#235）。
 - 早送りの道具（`tools/`）は回すたびに `data/` を読み込む。回しているあいだにデータを書き換えない（途中から別の値で測ることになる）。数を試すときは `PATCH=` を使う。
