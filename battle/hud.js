@@ -495,6 +495,7 @@ function updateGoal(){
   const flash=!over&&performance.now()<goalFlashT; goalEl.classList.toggle('upd',flash);
   const gh=flash?'<div class="upd">目標更新中</div>':gates.length?gatesHtml():mode==='deflect'?nukeHtml():''; goalGates.hidden=!gh; if(goalGates._h!==gh){ goalGates._h=gh; goalGates.innerHTML=gh; }
   goalEl.classList.toggle('gonly',!!(gh&&op.goalGatesOnly));   // 第5節: the panel shows the gates and the garrison only (op.goalGatesOnly)
+  hudTab.goal.hidden=goalEl.hidden;   // no goal, no 任務 tab
 }
 
 /* short conversations before and after an operation: one line at a time in a small strip at the bottom; the battle waits while it shows.
@@ -528,6 +529,10 @@ briefEl.tabIndex=0;
 function toggleBrief(){ briefEl.classList.toggle('open'); briefEl.classList.remove('fresh'); }
 briefEl.addEventListener('click',toggleBrief);
 briefEl.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleBrief(); } });
+/* 任務 and 作戦概要 as two small tabs side by side at the top left (見本F2, user decision 2026-11-05): each tab folds its own
+   panel under the row, so both, one or neither can be open. A folded 作戦概要 still shows for a moment on a new event (fresh) */
+const hudTab={}; document.querySelectorAll('#hudTabs [data-tab]').forEach(b=>{ const el=document.getElementById(b.dataset.tab); hudTab[b.dataset.tab]=b;
+  b.addEventListener('click',()=>{ const shut=el.classList.toggle('shut'); b.setAttribute('aria-expanded',String(!shut)); }); });
 /* view toggles: H hides the panels, L hides name flags */
 const vUi=document.getElementById('vUi'), vLb=document.getElementById('vLb');
 function toggleUi(){ const off=document.body.classList.toggle('noui'); vUi.setAttribute('aria-pressed',String(!off)); }

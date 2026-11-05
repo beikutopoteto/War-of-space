@@ -133,8 +133,6 @@ function altStr(y){ y=Math.round(y); return y===0?'±0':(y>0?'+':'−')+Math.abs
 function subText(f){ return `${f.sub}　<span class="num">×${f.ships.length}　高度${altStr(f.pos.y)}</span>${f.hangars.length?`<br>${hangarText(f)}`:''}`; }
 
 const rosterEl=document.getElementById('roster');
-/* keep the briefing panel above the roster on narrow screens */
-try{ new ResizeObserver(()=>document.documentElement.style.setProperty('--rh',rosterEl.offsetHeight+'px')).observe(rosterEl); }catch(e){}
 /* roster (見本の案H1, user decision 2026-11-05): a tab per army group down the left (its number and the armies left, 独 for the
    fleets acting alone, ＋ to form a group from the selected fleets). Each tab is a switch: an open one shows its armies as tiles
    beside it, three to a row, so with every tab open every army is in view. A tile: the mark of its main class, the number, the
