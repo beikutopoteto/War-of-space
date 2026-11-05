@@ -11,7 +11,7 @@
 <div id="tl" class="hud">
   <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧"><i>MENU</i>メニュー Esc</button></div>
   <div id="hudTabs" role="group" aria-label="任務と作戦概要（押すと開く・たたむ）"><button data-tab="goal" aria-expanded="true"><i>MISSION</i>任務</button><button data-tab="brief" aria-expanded="true"><i>BRIEF</i>作戦概要</button></div>
-  <div id="goal" title="クリックでたたむ"><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gx" id="goalGates" hidden></div><div class="gs" id="goalSub"></div></div>
+  <div id="goal" title="クリックでたたむ"><div id="training" hidden></div><div class="gt">任務</div><b id="goalText"></b><div class="gauge"><i id="goalBar"></i></div><div class="gl" id="goalLabel"></div><div class="gx" id="goalGates" hidden></div><div class="gs" id="goalSub"></div></div>
   <div id="brief" aria-live="polite">
     <div class="t" id="bt">作戦概要</div>
     <h2 id="bh"></h2>
@@ -119,6 +119,7 @@
 <script src="battle/hud.js"></script>
 <script src="battle/sim.js"></script>
 <script src="battle/cut.js"></script>
+<script src="battle/tutorial.js"></script>
 <script src="battle/loop.js"></script>
 <script src="prep-bg.js"></script>
 <script src="marks.js"></script>

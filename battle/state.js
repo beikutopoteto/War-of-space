@@ -1,6 +1,8 @@
 /* War of Space battle: game state, fleet specs, fleets and hangars, roster, reset.
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- game state ---------- */
+let clockHeld=0;
+const opClock=()=>Math.max(0,gameSec-clockHeld)*CLOCK_RATE;
 let fleets, fortress, gameSec, speed=1, over, selected, engaged, phaseName, events, fortressMarks, fid;
 /* the operation being fought (data/operations.js) */
 const OPS=WOS_DATA.operations;
@@ -308,7 +310,7 @@ function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) retur
   t.forEach(leaveGroup);
   const g={name:newGroupName(t),sync:true,form:false,kind:'base',baseName:'編成時の並び',members:new Set(t),flag:fl,off:new Map()};
   t.forEach(f=>g.off.set(f,f.pos.clone().sub(fl.pos)));
-  groups.push(g); buildRoster(); selectGroup(g);
+  groups.push(g); tutorialGroupCreated(g); buildRoster(); selectGroup(g);
   logEvent(`${g.name} 編成`,`${t.map(f=>f.name).join('・')}で戦区軍を作った。旗艦は${fl.name}。いまの並びを陣形とする。`); }
 function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,1); g.members.forEach(f=>f.syncSpeed=null);
   if(selGroup===g) select(null); buildRoster(); updateRoster();
@@ -371,6 +373,7 @@ function groupOrder(o){
       else if(x) f.queue.push({type:'move',dest});
       else order(f,{type:'move',dest}); });
   } else t.forEach(f=>{ f.syncSpeed=sync; if(tail(f)) f.queue.push({type:o.type,target:o.target}); else order(f,o); });
+  tutorialOrder(o,t);
 }
 function openSelectedRoster(t){
   /* a fleet picked (keys, the map) in a closed section opens that section */
@@ -413,7 +416,7 @@ function reset(cfg=lastCfg){
   document.getElementById('alt').hidden=true;
   if(fieldC.lengthSq()) shiftView(fieldC.clone().negate());   // a retry brings the view back with the field
   lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
-  fid=1; gameSec=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
+  fid=1; gameSec=0; clockHeld=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
   /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
   fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200; setAltMax(op.altMax||60); setAlt(0,false);
@@ -508,6 +511,7 @@ function reset(cfg=lastCfg){
   const gateLabel=b=>{ const g=gates.find(x=>x.name===b.name); return g?[g.pos.x,g.pos.z-6]:b.pos; };
   buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.gate?gateLabel(b):b.pos})),
     ...(BD.port&&!BD.port.mark?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
+  tutorialInit(cfg);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }

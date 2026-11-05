@@ -3,6 +3,7 @@
    The CDN scripts are served from node_modules/three, so the test also works offline. */
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
+const { checkTutorial } = require('../tools/tutorial-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'test-results');
@@ -35,6 +36,10 @@ function check(ok, label, detail = '') {
   try {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
+    const tutorialResult = await checkTutorial(page);
+    check(true, 'チュートリアル', tutorialResult);
+    await page.evaluate(() => localStorage.removeItem('wos.save.v1'));
+    await page.reload();
     const earth = await page.evaluate(() => { const {w,h,bits}=WOS_DATA.earthLand, bin=atob(bits);
       const at=(lat,lon)=>{ const i=Math.floor((lon+180)/360*w), j=Math.floor((90-lat)/180*h), k=j*w+i; return (bin.charCodeAt(k>>3)>>(k&7))&1; };
       return {w,h,points:[at(0,20),at(0,-30),at(35,-100)]}; });

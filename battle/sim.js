@@ -82,7 +82,7 @@ function updateFog(){
 }
 /* an event with onSpot {min, delay} (minutes) comes early once the enemy has seen one of ours: delay after that, but not before min */
 function spotEarly(){
-  let moved=false; const now=gameSec*CLOCK_RATE;
+  let moved=false; const now=opClock();
   for(let i=nextEvent;i<opEvents.length;i++){ const E=opEvents[i]; if(!E.onSpot||E.early) continue;
     E.early=true; const at=Math.max(E.onSpot.min||0,now+(E.onSpot.delay||0)); if(at<E.after){ E.after=at; moved=true; } }
   if(moved){ const rest=opEvents.splice(nextEvent).sort((a,b)=>a.after-b.after); opEvents.push(...rest); }
@@ -105,6 +105,8 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
+  if(tutorialProtected()&&src&&src.team===1&&t.team===0) return;
+  tutorialDamage(t,amt,src);
   if(!t.alive) return;
   if(amt>0&&t.feint&&t.mode==='feint'&&!t.feintOut&&src&&src.team!==t.team&&src.seen&&src.type!=='thr'){
     const s=feintTransitState(t); s.hits.set(src,gameSec);
@@ -154,7 +156,7 @@ function damage(t,amt,src){
     const pct=t.hpPool/t.max;
     for(const m of [.75,.5,.25]) if(pct<m&&!fortressMarks.has(m)){ fortressMarks.add(m); logEvent(`要塞装甲 ${m*100}%`,m===.25?'要塞の外殻が崩れ始めた。もう一押しで陥落する。':'要塞表面で誘爆が続いている。砲火はまだ衰えていない。'); }
     if(Math.random()<amt*.06) burst(randShip(t),TEAM_COL[1],10,6,1);
-    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); startChase(); }
+    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); if(tutorialActive()&&tutorial.step===10) end(true); else startChase(); }
   }
 }
 function destroyFleet(f,src){
@@ -254,6 +256,7 @@ function preyNearest(u,maxD,ok){ return nearestFoe(u,maxD,t=>!t.preyLast&&ok(t))
 let enemyWASSeen=false;
 /* launch: when a spotted enemy comes within reach, docked squadrons sortie one at a time (cooldown cd), up to maxOut (h.out) at once */
 function launchCheck(f){
+  if(tutorialProtected()&&f.team===1) return;
   if(f.callT!=null&&gameSec-f.callT<TETHER_QUIET&&(f.withdrawing||f.order&&f.order.type==='move')) return;   // it has just called its craft home to move
   for(const h of f.hangars){ const W=WING[h.type], C=f.craft&&f.craft[h.type]||{};   /* C: research of the player's own fleets (prep.js) */
     if(gameSec<h.next) continue;
@@ -266,7 +269,7 @@ function launchCheck(f){
     const R=Math.sqrt(sq.n)*.55;
     for(let i=0;i<sq.n;i++){ const a=Math.random()*Math.PI*2,r=R*Math.sqrt(Math.random());
       const off=new THREE.Vector3(Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r); w.ships.push({off,pos:f.pos.clone(),wob:Math.random()*6}); }
-    sq.wing=w; wings.push(w);
+    sq.wing=w; wings.push(w); tutorialLaunch(f);
     if(f.team===1&&h.type==='was'&&!enemyWASSeen&&op.onEnemyWAS){ enemyWASSeen=true; const L=op.onEnemyWAS; (Array.isArray(L[0])?L:[L]).forEach(l=>logEvent(...l)); }   // one line, or several [[who, text], …]
     if(f.team===0&&!h.announced){ h.announced=true;
       logEvent(`${f.name} ${W.name}発進`,`${tgt.name}を捉え、${W.name}${sq.n}機が発進。最大${h.out}隊まで順に出撃し、燃料が尽きると母艦へ戻る。`); }
@@ -407,7 +410,7 @@ function blast(at){ const p=new THREE.Vector3(at[0],at[2]||0,at[1]); for(let i=0
 function stepConvoy(){
   if(!convoy||over) return;
   const C=op.convoy;
-  if(convoy.alive&&!convoy.departed&&gameSec*CLOCK_RATE>=C.depart) departConvoy();
+  if(convoy.alive&&!convoy.departed&&opClock()>=C.depart) departConvoy();
   if(convoy.alive&&convoy.departed&&!convoy.order){ convoy.escaped=true; convoy.alive=false; convoy.el.remove(); dropArrow(convoy.arrow); convoy.arrow=null;
     logEvent('輸送船団 離脱',`輸送船${convoy.ships.length}隻が離脱点を越えた。`); }
   const lost=convoy.n-(convoy.alive||convoy.escaped?convoy.ships.length:0);
@@ -439,7 +442,7 @@ function stepField(){
    or falls behind out of the field */
 function stepRescue(dt){
   const R=op.rescue; if(!R||over) return;
-  if(!rescue){ if(gameSec*CLOCK_RATE<R.after) return;
+  if(!rescue){ if(opClock()<R.after) return;
     const [x,z]=relPos(R.pos), ship=makeFleet(0,{dmg:0,range:0,eva:0,speed:0,...R.fleet,pos:[x,z]});
     ship.ward=ship.rescue=true; fleets.push(ship); rescue={ship,prog:0,done:false,lost:false};
     if(R.lure){ const s=fleets.find(f=>f.team===1&&f.alive&&f.name===R.lure); if(s) s.lurePos=ship.pos.clone(); }
@@ -822,7 +825,7 @@ let packs=[], packCue={};
 /* start may be a cue's name instead of minutes (第6節, 2026-10-24: 'ignite', 'descend', 'land'): the pack waits until packCue[name] is set
    (stepNukes sets them) */
 function initPacks(){ packCue={}; packs=(op.packs||[]).filter(P=>DOCTRINES[P.doctrine]).map(P=>({...P,D:P.holdR!=null?{...DOCTRINES[P.doctrine],holdR:P.holdR}:DOCTRINES[P.doctrine],step:0,t0:null,mem:[],G:null,back:false,turned:{},postV:P.post?packVec(P.post):null})); }
-const opMin=()=>gameSec*CLOCK_RATE;
+const opMin=()=>opClock();
 function packVec(a){ return new THREE.Vector3(a[0],a[2]||0,a[1]); }
 const packMove=f=>{ const P=f.pack, S=P.D.steps[P.step]; return P.back?'back':S[f.packSlot]||S.all||'hold'; };
 const packMates=(f,ok)=>f.pack.mem.filter(x=>x!==f&&x.alive&&ok(x));
@@ -1394,7 +1397,7 @@ function stepDefend(dt){
   const was=evac; evac=Math.min(W.need,evac+dt*CLOCK_RATE*evacRate);
   for(const L of op.evacLogs||[]) if(was<L[0]*W.need&&evac>=L[0]*W.need) logEvent(L[1],L[2]);
   /* evacEvents [{at, ...an event}]: what happens once the evacuation passes `at` (2026-10-13, 第3節: one more small wave at 90%) */
-  const add=(op.evacEvents||[]).filter(E=>was<E.at*W.need&&evac>=E.at*W.need).map(E=>({...E,after:gameSec*CLOCK_RATE}));
+  const add=(op.evacEvents||[]).filter(E=>was<E.at*W.need&&evac>=E.at*W.need).map(E=>({...E,after:opClock()}));
   if(add.length){ const rest=opEvents.splice(nextEvent); opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
   const k=Math.floor(10*evac/W.need+1e-9);
   while(evacShips<k){ evacShips++; const last=evacShips>=10, S=last&&op.evacLast||op.evacShip;
@@ -1430,7 +1433,7 @@ function stepCarrier(dt){
       for(const f of al){ f.mode=f===esc?'leave':'rear'; f.order=null; }
       playScene((full&&C.fullLogs||C.doneLogs).map(l=>[l[0],l[1].replace(/\{escort\}/g,esc?esc.name:'')]));
       /* the waves of the boarding not yet come (wave:true) are dropped; the retreat's own events (doneEvents) follow, timed from now */
-      const now=gameSec*CLOCK_RATE, add=(C.doneEvents||[]).map(e=>({...e,after:now+e.after})), rest=opEvents.splice(nextEvent).filter(e=>!e.wave);
+      const now=opClock(), add=(C.doneEvents||[]).map(e=>({...e,after:now+e.after})), rest=opEvents.splice(nextEvent).filter(e=>!e.wave);
       opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
       /* the ace unit and the units under him (letGo) let us go (第4節: Alvarez does not pursue); they draw back to where they came from
          (the cloud for the returning units, 2026-10-10) and only answer what comes near. Every other unit comes after the carrier,
@@ -1448,7 +1451,7 @@ function stepCarrier(dt){
 function boardingTotal(C,t){ t=Math.max(0,t); return C.rate*(C.rateDecay>0?C.rateDecay*-Math.expm1(-t/C.rateDecay):t)/60; }
 /* 第4節 #241: the isolated patrol can be saved by the player. Loss, or the rescue deadline, releases the hunters and resets the loss baseline. */
 function stepPatrol(C,S){ const P=C.patrol; if(!P||S.patrolReleased||S.done) return;
-  const now=gameSec*CLOCK_RATE, elapsed=now-S.landMin;
+  const now=opClock(), elapsed=now-S.landMin;
   const f=S.patrolTarget||(S.patrolTarget=fleets.find(f=>f.ally&&f.name===P.fleet));
   if(!f||!f.alive){ finishPatrol(C,S,true); return; }
   if(elapsed>=P.after&&!S.patrolStarted){ S.patrolStarted=true; S.patrolMin=now; f.order=null; f.queue=[]; dropArrow(f.arrow); f.arrow=null; f.mode='patrol'; playPatrolLogs(P.outLogs); }
@@ -1458,7 +1461,7 @@ function stepPatrol(C,S){ const P=C.patrol; if(!P||S.patrolReleased||S.done) ret
   if(elapsed>=P.release) finishPatrol(C,S,false);
 }
 function playPatrolLogs(lines){ for(const l of lines||[]) logEvent(...l); }
-function finishPatrol(C,S,lost){ S.patrolReleased=true; S.patrolLost=lost; S.patrolBaseMin=gameSec*CLOCK_RATE;
+function finishPatrol(C,S,lost){ S.patrolReleased=true; S.patrolLost=lost; S.patrolBaseMin=opClock();
   S.alliesAtLand=fleets.reduce((s,f)=>s+(f.ally&&!f.fixed&&(f.alive||f.left)?f.ships.length:0),0);
   if(S.patrolTarget&&S.patrolTarget.alive){ S.patrolTarget.mode='protect'; S.patrolTarget.order=null; }
   for(const f of fleets) if(f.patrolHunter){ f.order=f.strike=f.fireTarget=null; f.retarget=0; }
@@ -1469,15 +1472,15 @@ function finishPatrol(C,S,lost){ S.patrolReleased=true; S.patrolLost=lost; S.pat
 function lineLost(){ const L=op.carrier.line||[], line=fleets.filter(f=>f.ally&&L.includes(f.name)), n=line.reduce((s,f)=>s+f.n,0);
   return n?1-line.reduce((s,f)=>s+(f.alive||f.left?f.ships.length:0),0)/n:0; }
 /* 第4節: the spaceport takes the carrier only from body.port.openAt (minutes; the port's control is opened by the people inside, 2026-10-12) */
-function portOpen(){ const P=op.body&&op.body.port; return !(P&&P.openAt)||gameSec*CLOCK_RATE>=P.openAt; }
+function portOpen(){ const P=op.body&&op.body.port; return !(P&&P.openAt)||opClock()>=P.openAt; }
 /* 第4節: the plan changes from taking the port to taking the people off (op.carrier.evac; user decision 2026-10-10: when the main fleet
    is pushed back): when an allied unit is wiped out, or the battle line has lost `lost` of its ships, or `max` minutes after the landing.
    Never before `min` minutes after the landing (2026-10-12: the port is held a while first) */
 function evacDue(C,S){ const E=C.evac; if(!E) return true;
-  if(gameSec*CLOCK_RATE-S.landMin<(E.min||0)) return false;
-  return fleets.some(f=>f.ally&&!f.alive&&!f.left)||lineLost()>=E.lost||gameSec*CLOCK_RATE-S.landMin>=E.max; }
+  if(opClock()-S.landMin<(E.min||0)) return false;
+  return fleets.some(f=>f.ally&&!f.alive&&!f.left)||lineLost()>=E.lost||opClock()-S.landMin>=E.max; }
 function startEvac(C,S){
-  S.evac=true; S.evacMin=gameSec*CLOCK_RATE; S.board=0; S.boarded=0; setPhase('収容'); opCarrier.sub='戦闘母艦　住民を収容中';
+  S.evac=true; S.evacMin=opClock(); S.board=0; S.boarded=0; setPhase('収容'); opCarrier.sub='戦闘母艦　住民を収容中';
   playScene(C.evacLogs);
   /* the evacuation's own events, timed from now */
   const add=(C.evacEvents||[]).map(e=>({...e,after:S.evacMin+e.after})), rest=opEvents.splice(nextEvent);
@@ -1491,7 +1494,7 @@ function startEvac(C,S){
 function cutBoarding(C,S){
   const K=C.cut; if(!K||S.board<(K.min||0)) return false;
   if(K.max&&S.board>=K.max) return true;
-  if(S.lastCame) return gameSec*CLOCK_RATE-S.lastMin>=(C.lastWave.after||0);   // the last wave came `after` minutes ago (carrier.lastWave)
+  if(S.lastCame) return opClock()-S.lastMin>=(C.lastWave.after||0);   // the last wave came `after` minutes ago (carrier.lastWave)
   if(K.allies!=null) return alliesLost()>=K.allies;
   return lineLost()>=K.sunk||opCarrier.hpPool<=K.carrier*opCarrier.n*opCarrier.hp;
 }
@@ -1504,12 +1507,12 @@ function stepLastWave(C,S){
   const L=C.lastWave; if(!L||S.lastCame) return;
   if(C.patrol&&(!S.patrolReleased||massAt[L.of]==null)) return;   // 第4節: patrol resolved, and the first wave must have arrived
   if(L.allies!=null&&alliesLost()>=L.allies){ comeLastWave(L,S); return; }
-  if(L.gap&&(massAt[L.of]==null||gameSec*CLOCK_RATE-massAt[L.of]<L.gap)) return;
+  if(L.gap&&(massAt[L.of]==null||opClock()-massAt[L.of]<L.gap)) return;
   const U=fleets.filter(f=>f.team===1&&f.tag===L.of), n=U.reduce((s,f)=>s+f.n,0); if(!n) return;
   if(1-U.reduce((s,f)=>s+(f.alive?f.ships.length:0),0)/n<L.lost) return;
   comeLastWave(L,S);
 }
-function comeLastWave(L,S){ S.lastCame=true; S.lastMin=gameSec*CLOCK_RATE; const k=spawnMass(L.mass);
+function comeLastWave(L,S){ S.lastCame=true; S.lastMin=opClock(); const k=spawnMass(L.mass);
   for(const l of L.log?Array.isArray(L.log[0])?L.log:[L.log]:[]) logEvent(l[0],l[1].replace('{units}',k));
   /* pullBack (2026-10-17): the ace's units leave the rest to the main force now, as they do at the retreat */
   if(L.pullBack){ for(const f of fleets) if(f.team===1&&f.alive&&!f.fixed&&(f.ace||f.letGo)) letGoOf(f); callCraftHome(); } }
@@ -1528,7 +1531,7 @@ function playScene(lines){ if(!lines||!lines.length) return; lines.forEach(l=>lo
 function keepOutOfZones(f){ const R=op.civil.r+.5;
   for(const b of blocks){ _w.subVectors(f.pos,b.pos); const d=_w.length(); if(d>=R) continue; if(d<1e-6) _w.set(0,0,1); f.pos.copy(b.pos).addScaledVector(_w.normalize(),R); } }
 function landCarrier(){
-  const C=op.carrier, S=opCarrier.cs; S.landed=true; S.landMin=gameSec*CLOCK_RATE; opCarrier.locked=true; opCarrier.order=null; opCarrier.queue=[]; dropArrow(opCarrier.arrow); opCarrier.arrow=null;
+  const C=op.carrier, S=opCarrier.cs; S.landed=true; S.landMin=opClock(); opCarrier.locked=true; opCarrier.order=null; opCarrier.queue=[]; dropArrow(opCarrier.arrow); opCarrier.arrow=null;
   if(C.lastWave||C.cut&&C.cut.allies!=null) S.alliesAtLand=fleets.reduce((s,f)=>s+(f.ally&&!f.fixed&&(f.alive||f.left)?f.ships.length:0),0);
   opCarrier.sub=C.landSub||'戦闘母艦　宇宙港を確保中'; if(C.landLog) logEvent(...C.landLog); if(C.landPhase) setPhase(C.landPhase);
   /* the landing's own events, timed from now */
@@ -1857,7 +1860,7 @@ function startStage(S){
   setPhase(S.name); slideFrom=fieldC.clone(); slideTo=new THREE.Vector3(C[0],0,C[1]); slideT=0; slideDur=S.slide||4; slideLin=!!S.linear;
   spotObj.visible=true; spotObj.position.set(C[0],.3,C[1]);
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward); if(mine.length){ _w.set(0,0,0); mine.forEach(f=>_w.add(f.pos)); _w.multiplyScalar(1/mine.length).setY(0); makeArrow(_w.clone(),slideTo.clone(),TEAM_COL[0],{life:8}); }
-  const now=gameSec*CLOCK_RATE, add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
+  const now=opClock(), add=(S.events||[]).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
   opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after));
   lendShips(S.given);
   if(S.log) logEvent(...S.log); if(S.scene) playScene(S.scene);
@@ -1894,7 +1897,7 @@ function stepLure(){ const L=op.lure; if(!L||lured||over) return; const now=opMi
   if(L.logs&&L.logs[by]&&!(nuke&&nuke.strike)) nukeSay(L.logs[by]); }   // no crossing over once the units strike (nukeStrike)
 function stepPhases(dt){
   const P=op.phases; if(!P||over||repelT!=null) return;
-  while(stageAt<P.length&&gameSec*CLOCK_RATE>=P[stageAt].at) startStage(P[stageAt++]);
+  while(stageAt<P.length&&opClock()>=P[stageAt].at) startStage(P[stageAt++]);
   if(slideTo){ slideT=Math.min(slideDur,slideT+dt); const k=slideT/slideDur, e=slideLin?k:k*k*(3-2*k);
     _fd.copy(slideFrom).lerp(slideTo,e).sub(fieldC); _fd.y=0; fieldC.add(_fd); shiftView(_fd); if(slideT>=slideDur) slideTo=null; }
   for(const f of fleets) if(f.alive&&f.team===0&&!f.ward) keepInFieldSoft(f,!!slideTo);
@@ -1913,8 +1916,8 @@ const FRONT_N=-60, FRONT_PROG=[.35,.7], FRONT_RATIO=[1.3,2.2], FRONT_GUN=2, FRON
 let fronts=[], frontSaidT=-1e9;
 function initFronts(){ fronts=op.fronts?op.fronts.list.map(L=>({...L,level:0,calmT:null,pend:0,said:-1e9,saidLv:0,lastLv:0,cause:'',prog:0,hist:[],closed:false})):[]; frontSaidT=-1e9; lastGate=null; allyFallInit(); }
 function stepFronts(){
-  const F=op.fronts; if(!F||over||repelT!=null||gameSec*CLOCK_RATE<(F.from||0)) return;
-  const now=gameSec*CLOCK_RATE, inZ=(L,p)=>p.z>FRONT_N&&p.x>=L.x[0]&&p.x<L.x[1]&&Math.hypot(p.x-fieldC.x,p.z-fieldC.z)<=FIELD_R;   // in the field only
+  const F=op.fronts; if(!F||over||repelT!=null||opClock()<(F.from||0)) return;
+  const now=opClock(), inZ=(L,p)=>p.z>FRONT_N&&p.x>=L.x[0]&&p.x<L.x[1]&&Math.hypot(p.x-fieldC.x,p.z-fieldC.z)<=FIELD_R;   // in the field only
   const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.fixed), mineN=mine.reduce((s,f)=>s+f.ships.length,0);
   for(const L of fronts){ if(L.closed) continue;
     const g=gates.find(x=>x.name===L.gate); if(g&&g.sealed){ L.closed=true; L.level=L.pend=0; continue; }
@@ -1957,7 +1960,7 @@ let mainTotal=0, surged=false, surgeMin=null, repelBy=null, repelT=null;   // su
 function mainSunk(){ let s=0; for(const f of fleets) if(f.team===1&&f.main) s+=f.n-f.ships.length; return mainTotal?s/mainTotal:0; }
 function stepRepel(){
   const W=op.win; if(!W||W.type!=='repel'||over) return;
-  const k=mainSunk(), now=gameSec*CLOCK_RATE, S=W.surge;
+  const k=mainSunk(), now=opClock(), S=W.surge;
   if(S&&!surged&&(k>=S.share||now>=S.at)){ surged=true; surgeMin=now;
     const by=k>=S.share?'share':'time', add=(S.events||[]).filter(e=>!e.by||e.by===by).map(e=>({...e,after:now+(e.after||0)})), rest=opEvents.splice(nextEvent);
     opEvents.push(...[...rest,...add].sort((a,b)=>a.after-b.after)); }
@@ -2006,16 +2009,16 @@ function wasShort(){ const G=op.base&&op.base.garrison; return !!(G&&garrison&&w
 const ROT_SAY=20, ROT_CLOUD=.6;
 let rotOut=[], rotSaid={}, rotDone={};
 function rotJoin(f,o,arrow){ const R=op.rotate&&op.rotate[o.rotate]; if(R) f.rot={key:o.rotate,R,spec:o,arrow,k:1,full:f.hpPool,leaving:false}; }
-function rotSay(L){ if(!L) return; const now=gameSec*CLOCK_RATE; if(now-(rotSaid[L[1]]??-1e9)<ROT_SAY) return; rotSaid[L[1]]=now; logEvent(...L); }
+function rotSay(L){ if(!L) return; const now=opClock(); if(now-(rotSaid[L[1]]??-1e9)<ROT_SAY) return; rotSaid[L[1]]=now; logEvent(...L); }
 /* it starts to go once under the mark (checked on each hit, damage(), and in enemyAI) */
 function rotHurt(f){ const T=f.rot, R=T.R;
   if(T.leaving||repelT!=null||f.hpPool>=T.full*R.leave[Math.min(T.k,R.leave.length)-1]) return false;
-  T.leaving=true; T.last=T.k>=R.leave.length; T.at=gameSec*CLOCK_RATE; f.stance='evade'; f.order=null; f.queue=[]; f.strike=null;
+  T.leaving=true; T.last=T.k>=R.leave.length; T.at=opClock(); f.stance='evade'; f.order=null; f.queue=[]; f.strike=null;
   for(const w of wings) if(w.alive&&w.carrier===f&&w.state==='attack'){ w.state='return'; w.target=null; }
   rotSay(T.last?R.lastLog:R.leaveLog); return true; }
 /* enemyAI: true while the unit is on its way out (it does nothing else) */
 function rotStep(f){
-  const T=f.rot, R=T.R, now=gameSec*CLOCK_RATE;
+  const T=f.rot, R=T.R, now=opClock();
   if(!T.leaving&&!rotHurt(f)) return false;
   if(R.recall!==0){ const out=wings.filter(w=>w.alive&&w.carrier===f);   // recall:0 (Alvarez's, 2026-10-23): it goes at once, its W.A.S. catch it up
     if(out.length&&now-T.at<(R.recall??6)){ if(f.order) f.order=null; return true; }   // waiting for its W.A.S.
@@ -2028,7 +2031,7 @@ function rotStep(f){
 function rotGone(f){ const T=f.rot;
   for(const w of wings) if(w.alive&&w.carrier===f){ w.alive=false; w.squad.state='docked'; w.squad.wing=null; }   // the W.A.S. not yet home go with it
   f.alive=false; f.left=true; f.el.remove(); dropArrow(f.arrow); f.arrow=null; unselect(f); updateRoster();
-  if(!T.last&&repelT==null) rotOut.push({T,k:T.k+1,left:gameSec*CLOCK_RATE}); }
+  if(!T.last&&repelT==null) rotOut.push({T,k:T.k+1,left:opClock()}); }
 /* when one away comes again (operation minutes), or null while it waits for the all-out attack */
 function rotDue(P){ const R=P.T.R, c=(R.waves||[]).filter(t=>t>=P.left);
   if(surgeMin!=null) c.push(...(R.surgeWaves||[]).map(t=>surgeMin+t).filter(t=>t>=P.left));
@@ -2037,7 +2040,7 @@ function rotDue(P){ const R=P.T.R, c=(R.waves||[]).filter(t=>t>=P.left);
   if(surgeMin==null&&(R.surgeWaves||[]).length&&op.win&&op.win.surge) return null;   // the all-out attack's waves are still to come
   return P.left+(R.wait??20); }
 function stepRotate(){
-  if(!rotOut.length||repelT!=null||over) return; const now=gameSec*CLOCK_RATE;
+  if(!rotOut.length||repelT!=null||over) return; const now=opClock();
   for(const P of rotOut.slice()){ const t=rotDue(P); if(t==null||now<t) continue; rotOut.splice(rotOut.indexOf(P),1);
     const f=spawnEnemy(P.T.spec,P.T.arrow); f.rot.k=P.k; rotSay(P.T.R.backLog);
     const id=P.T.key+':'+P.k, ev=P.T.R.backEvents&&P.T.R.backEvents[P.k-2];
@@ -2049,7 +2052,7 @@ function stepRotate(){
 function stepTimeUp(){
   const T=op.timeUp; if(!T||over) return;
   if(T.until==='fortress'?!fortress.alive:T.until==='land'?!!(opCarrier&&opCarrier.cs.landed):false) return;
-  const now=gameSec*CLOCK_RATE;
+  const now=opClock();
   if(T.warn&&!timeWarned&&now>=T.warn.at){ timeWarned=true; logEvent(...T.warn.log); }
   if(now>=T.at){ loseWhy='time'; end(false); }
 }
@@ -2211,7 +2214,7 @@ function autoAI(){
   if(op.carrier&&opCarrier&&opCarrier.alive){ const S=opCarrier.cs, P=op.body&&op.body.port, port=P&&new THREE.Vector3(P.pos[0],P.alt||0,P.pos[1]);
     if(!S.landed&&port){ const threats=near(port,AUTO_R.port,seen);
       mine.forEach((f,i)=>{ const e=by(f,threats,(a)=>a.pos.distanceTo(port))||by(f,ships,dist); if(e) attack(f,e); else wait(f,port,i); });
-      if(portOpen()&&(!threats.length||gameSec*CLOCK_RATE>=(P.openAt||0)+40)&&opCarrier.pos.distanceTo(port)>2&&!(opCarrier.order&&opCarrier.order.type==='move'))
+      if(portOpen()&&(!threats.length||opClock()>=(P.openAt||0)+40)&&opCarrier.pos.distanceTo(port)>2&&!(opCarrier.order&&opCarrier.order.type==='move'))
         order(opCarrier,{type:'move',dest:port.clone()});
       return; }
     if(S.done&&!(opCarrier.order&&opCarrier.order.type==='move')) order(opCarrier,{type:'move',dest:S.exit.clone()});
@@ -2344,7 +2347,7 @@ function spawnMass(M){
   const toward=p=>({pos:[p.pos[0]*.4,p.pos[1]*.4],alt:p.alt*.4});   // the arrow points in toward the middle
   let k=0;
   const tag=M.tag?{tag:M.tag}:{};   // tag: the units of this wave, counted by carrier.lastWave (2026-10-17); massAt: when it came (minutes)
-  if(M.tag) massAt[M.tag]=gameSec*CLOCK_RATE;
+  if(M.tag) massAt[M.tag]=opClock();
   for(const o of own){ spawnEnemy({...o,...tag},toward({pos:o.pos,alt:o.alt||0})); k++; }
   types.forEach((t,i)=>{ const nu=u[i], nums=t.nums||[]; let c=0;   // c: ships given out so far (the W.A.S. go with the ships)
     for(let j=0;j<nu;j++){ const n=Math.floor(t.n/nu)+(j<t.n%nu?1:0), w=t.was?Math.round(t.was*(c+n)/t.n)-Math.round(t.was*c/t.n):0; c+=n;
@@ -2377,10 +2380,10 @@ function detailPlan(all){
 }
 
 function step(dt){
-  gameSec+=dt;
+  gameSec+=dt; if(tutorialHolding()) clockHeld+=dt; tutorialTick();
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   /* nothing more comes once the enemy falls back (stepRepel) */
-  while(repelT==null&&nextEvent<opEvents.length&&gameSec*CLOCK_RATE>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
+  while(repelT==null&&nextEvent<opEvents.length&&opClock()>=opEvents[nextEvent].after){ const E=opEvents[nextEvent++];
     if(E.unless==='lure'&&lured) continue;   // 第6節: what happens only before the second stage (stepLure)
     if(E.unless==='fired'&&nuke&&nuke.state==='fired') continue;   // 第6節: what happens only before the warheads go off (stepNukes)
     /* rel: the fleet's pos and its arrow are relative to the field centre (a field that moves with the convoy) */
@@ -2453,7 +2456,7 @@ function step(dt){
        seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
        a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
-    if(ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
+    if(!(tutorialProtected()&&f.team===1)&&ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
       if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP&&!f.northTransit) umbrellaClamp(UP,f.pos);
       if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
@@ -2477,6 +2480,6 @@ function step(dt){
     const ft=fortress.fireTarget;
     /* the station we defend: its batteries fire at half strength once its armour is under 30% (仮) */
     const dps=fortress.dps*(fortress.defend&&fortress.hpPool/fortress.max<.3?.5:1);
-    if(ft&&ft.alive&&ft.seen){ damage(ft,dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),fortress.defend?TEAM_COL[0]:new THREE.Color(1,.55,.3),.35); }
+    if(!(tutorialProtected()&&fortress.team===1)&&ft&&ft.alive&&ft.seen){ damage(ft,dps*dt,fortress); if(Math.random()<dt*14) shoot(randShip(fortress),randShip(ft),fortress.defend?TEAM_COL[0]:new THREE.Color(1,.55,.3),.35); }
   }
 }

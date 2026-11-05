@@ -70,7 +70,7 @@ function frame(now){
   if(autoMode&&talking&&!menuOpen){ if(!autoTalkAt) autoTalkAt=now; else if(now-autoTalkAt>=AUTO_TALK*1000){ autoTalkAt=now; nextTalk(); } } else autoTalkAt=0;
   if(dt>0) step(dt);
   skyObj.position.copy(camera.position); starField.position.copy(camera.position);   // the far sky does not grow or shrink with the zoom
-  if(skyGrow.length) growSky(clockMin(gameSec*CLOCK_RATE)/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
+  if(skyGrow.length) growSky(clockMin(opClock())/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
@@ -140,7 +140,7 @@ function frame(now){
   updateStalks();
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
-  controls.update();
+  controls.update(); tutorialFrame();
   if(!menuOpen){ if(cutOn) cutTick(rdt); else if(composer) composer.render(); else renderer.render(scene,camera); }   // a still scene behind the talk (cut.js)
 
   // labels
