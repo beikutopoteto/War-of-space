@@ -99,6 +99,8 @@ window.WOS_DATA=window.WOS_DATA||{};
    given: この節だけ預かる艦 [艦隊]（自軍の一覧の最後、戦区軍の外。研究は効かない）。opens: クリアで開く兵科（data/tech.js の need）
    ここから下は第4・5節を大規模の長さにしたときに足したもの（2026-10-12。数値はすべて仮）:
    body.port.openAt: その時刻（分）まで宇宙港に着陸できない（輪の中で止まっていても待つ。任務欄に「管制 閉鎖中」）
+   body.port.hangar / launchR / prey: 宇宙港から出る小型機（母艦と同じ形）。hangar は [{was:60, prey:'nuke'}, …] の並びにもでき、格納庫ごとに狙うものを変える（第6節）。
+     prey は 'nuke'（核を積んだ隊と戦艦が先）・'near'（核を積んでいない、まわりの艦隊が先）
    carrier.evac.min: 着陸から min 分たつまでは作戦変更にしない。carrier.cut.max: 収容を max 分したら必ず切り上げる
    carrier.doneEvents: 切り上げ（か満員）から何分後かの出来事（events と同じ形）。evacEvents などの wave:true の出来事は、そのときまだ来ていなければ捨てる
    events の mass:{plus, own:[艦隊], types:[{n, was?, nums, fleet}], at:[[x,z,alt],…]}（2026-10-15、第4節の後半）: 敵を一度に出す。隊の数は、そのとき残っている
@@ -1515,8 +1517,9 @@ WOS_DATA.operations.push((()=>{
       {name:'正面', sub:'共和国の拠点3つ', pos:[0,275]},
       {name:'地球側', sub:'総基地の艦隊が来た方向', pos:[0,420]},
     ],
-    /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す。宇宙港の W.A.S. は60機で、核を積んだ隊と戦艦を先に狙う（prey:'nuke'。ユーザー決定 2026-11-05: 40機から+20） */
-    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:60}, prey:'nuke', launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
+    /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す。宇宙港の W.A.S. は100機。60機は核を積んだ隊と戦艦を先に狙い（prey:'nuke'。ユーザー決定 2026-11-05: 40機から+20）、
+       足した40機はまわりの艦隊を狙う（prey:'near'。同日、ユーザー決定: +40） */
+    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:[{was:60, prey:'nuke'}, {was:40, prey:'near'}], launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
     /* 第6節の岩くずの雲はなくした（ユーザー決定 2026-11-01）。 */
     /* 核を積んだ戦艦と着弾予想点（ユーザー決定 2026-10-23・24・28、docs/campaign.md「核を積んだ戦艦」「着弾予想点と推進器」「作り直しの案」。数値はすべて仮）。
        第二段階の合図（lure）で、友軍の nuke の印の隊の戦艦が移乗（board 分その場で止まる。隊の巡洋艦とフリゲートも一緒に止まる）。そのあと空の戦艦は route を通って
