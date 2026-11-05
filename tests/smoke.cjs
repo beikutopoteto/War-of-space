@@ -1860,6 +1860,16 @@ function check(ok, label, detail = '') {
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
     const gunShapes = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.hp, f.shape || f.type])));
     check(gunShapes[0].length === 6 && gunShapes[0].every(([hp,shape]) => hp === 20 && shape === 'aa') && gunShapes[1].length === 12 && gunShapes[1].every(([hp,shape]) => hp === 40 && shape === 'rgun'), '第4節の砲台は耐久20・形aa、第6節は12基とも耐久40・形rgun', JSON.stringify(gunShapes));
+    const gunAim = await page.evaluate(() => {
+      WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
+      const f=fleets.find(x=>x.shape==='rgun'), s=f.ships[0];
+      f.fireTarget=null; for(let i=0;i<100;i++) drawRgun(s,f,.05); const rest=s.gunEl;
+      const tangent=f.heading.clone().addScaledVector(s.up,-f.heading.dot(s.up)).normalize();
+      f.fireTarget={alive:true,pos:s.base.clone().addScaledVector(tangent,30).addScaledVector(s.up,60)};
+      for(let i=0;i<100;i++) drawRgun(s,f,.05);
+      return {rest, elevated:s.gunEl};
+    });
+    check(gunAim.elevated > gunAim.rest && gunAim.elevated <= 85*Math.PI/180, '第6節の砲台は上の目標へ休止角より砲身を上げる', JSON.stringify(gunAim));
     /* 方角守備隊の傘: 傘外へは追わず射程内の敵を撃ち、近くの砲台が全滅すると持ち場100に戻す。 */
     const scr6 = await page.evaluate(() => {
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
