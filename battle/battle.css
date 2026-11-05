@@ -452,3 +452,9 @@ body.noui #legend .lplate,body.noui #legend .lgs{display:none!important}
 #talk>.eye{margin:0 -14px 4px;padding:4px 14px}
 #talk b{display:block;color:var(--ink-dim)}
 #talk button{padding:2px 12px}
+/* Keep long briefings above the altitude controls; their text remains scrollable. */
+#tl{max-height:calc(100vh - 330px)}
+#tlBtns,#hudTabs,#goal{flex-shrink:0}
+#brief{min-height:0;overflow-y:auto;scrollbar-width:thin}
+/* Leave the view stick clear when a conversation is open. */
+#talk{bottom:calc(52px + clamp(64px,9.45vh,128px) + env(safe-area-inset-bottom,0px))}
