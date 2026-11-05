@@ -1,8 +1,8 @@
 /* Shared ship class marks. */
 (function(){
 const SCALE={cv:.55,ff:.7,dd:.85,cl:1.2,bb:1.7,cvb:1.6,mas:.9,masc:1.6};
-const SV={S:6.5,SY:4.4,OX:16,OY:9,k:1}; /* heights at 0.68x: a low, long recognition-chart profile */
-const sp=(x,y)=>`${(SV.OX+x*SV.S*SV.k).toFixed(2)},${(SV.OY-y*SV.SY*SV.k).toFixed(2)}`;
+const SV={S:6.5,SY:4.4,OX:16,OY:9,k:1,kx:1}; /* heights at 0.68x: a low, long recognition-chart profile */
+const sp=(x,y)=>`${(SV.OX+x*SV.S*SV.k*SV.kx).toFixed(2)},${(SV.OY-y*SV.SY*SV.k).toFixed(2)}`;
 function prof(st,up=0){ const t=st.map(e=>sp(e[0],up+(e[3]||0)+e[2])), b=[...st].reverse().map(e=>sp(e[0],up+(e[3]||0)-e[2]));
   return `<polygon class="p" points="${[...t,...b].join(' ')}"/>`; }
 /* a turret: a low angled block and a long barrel (dir -1 points aft) */
@@ -36,7 +36,10 @@ const SIDE={
 };
 /* outline only (user decision): all parts are stroked at double width, then the inside of their union is masked away, so only the outer edge is left */
 let MKN=0;
-const svgSide=id=>{ SV.k=SCALE[id]; const p=SIDE[id](), k='mk'+(++MKN);
+/* fit: every class at the battleship's length, not to scale, and a little shorter than long (the battle map and the roster tiles;
+   user decision 2026-11-06: too small to tell apart, and too long) */
+const FIT_X=.85;
+const svgSide=(id,fit)=>{ SV.k=fit?SCALE.bb:SCALE[id]; SV.kx=fit?FIT_X:1; const p=SIDE[id](), k='mk'+(++MKN);
   return `<svg viewBox="0 0 32 16"><defs><mask id="${k}" maskUnits="userSpaceOnUse" x="-4" y="-4" width="40" height="24"><rect x="-4" y="-4" width="40" height="24" fill="#fff"/><g fill="#000">${p}</g></mask></defs><g class="ol" mask="url(#${k})" fill="none" stroke="currentColor" stroke-linejoin="miter">${p}</g><g opacity=".18" fill="currentColor">${p}</g></svg>`; };
 
 const FR='<polygon class="s" points="3,4 21,4 23,6 23,14 21,16 3,16 1,14 1,6"/>';
@@ -52,5 +55,5 @@ const B_IN={
 };
 const B_TICKS={cv:1,ff:1,dd:2,cl:3,bb:4,cvb:4,mas:2,masc:4};
 const svgB=id=>`<svg viewBox="0 0 24 16">${FR}${Array.from({length:B_TICKS[id]},(_,i)=>`<path class="l" d="M${(12-(B_TICKS[id]-1)*1.6+i*3.2).toFixed(1)} 0.5V3"/>`).join('')}${B_IN[id]}</svg>`;
-window.WOS_MARKS={svg:(type,set)=>SIDE[type]?(set==='B'?svgB(type):svgSide(type)):''};
+window.WOS_MARKS={svg:(type,set,fit)=>SIDE[type]?(set==='B'?svgB(type):svgSide(type,fit)):''};
 })();

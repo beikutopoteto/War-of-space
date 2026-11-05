@@ -153,7 +153,7 @@ const GROUP_MAX=5;
 const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
 let freeOpen=true;
 function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
-  return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet)}</span>`:''; }
+  return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet,true)}</span>`:''; }   // not to scale (marks.js fit)
 /* Labels use the same class ordering and original class list as the roster tip. */
 function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===chase.fleet||op.chase&&f.name===op.chase.fleet||nukeCarrier(f)); }
 function updateFleetLabel(f,lost,sub){
