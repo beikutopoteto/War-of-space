@@ -337,7 +337,7 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #roster .frow{position:relative}
 #roster button[id^="fl"]{position:relative;display:grid;grid-template-rows:17px auto 3px;place-items:center;gap:1px;width:100%;height:46px;padding:4px 3px 4px;
   background:rgba(8,14,26,.72);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);backdrop-filter:blur(6px)}
-#roster button[id^="fl"] .mkw{display:flex;align-items:center;height:15px} #roster button[id^="fl"] .mk{width:28px;height:14px}
+#roster button[id^="fl"] .mkw{display:flex;align-items:center;height:18px} #roster button[id^="fl"] .mk{width:34px;height:17px}
 #roster button[id^="fl"] .no{font-family:var(--f-num);line-height:1;white-space:nowrap} #roster button[id^="fl"] .no b{font-size:12.5px;font-weight:600}
 #roster button[id^="fl"] .no small{font-size:9.5px;color:var(--ink-dim);margin-left:1px}
 #roster button[id^="fl"] .bar{width:100%;height:3px;background:rgba(127,200,255,.15)} #roster button[id^="fl"] .bar i{display:block;height:100%;background:var(--blue)}
@@ -467,7 +467,7 @@ body.noui #legend .lplate,body.noui #legend .lgs{display:none!important}
 .fleet-label .emb,.fleet-label .flag{display:none}
 .mk2{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;gap:3px;padding:2px 5px 2px 3px;white-space:nowrap;pointer-events:auto;cursor:pointer;background:#0a111e;border:1px solid color-mix(in srgb,currentColor 55%,transparent);border-radius:2px;filter:drop-shadow(0 0 3px #000)}   /* opaque backing (2026-11-05: hard to see over the map) */
 .fleet-label .mk{color:var(--tc)}   /* the team's colour, not prep.css's blue for every mark (2026-11-05) */
-.mk2 .mk{display:block;width:30px;height:15px}.mk2 svg,.nm .mk svg{display:block;width:100%;height:100%}
+.mk2 .mk{display:block;width:36px;height:18px}.mk2 svg,.nm .mk svg{display:block;width:100%;height:100%}
 .mk2 svg .ol{stroke-width:1.6}.mk2 svg g[opacity]{opacity:.45}
 .mk2 em{font:700 11px var(--f-num);font-style:normal}
 .fleet-label.lost .mk2{outline:1px dashed currentColor;outline-offset:2px}
