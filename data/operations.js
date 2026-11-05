@@ -226,17 +226,19 @@ WOS_DATA.denaliGun={type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scal
 WOS_DATA.operations=[
   {
     id:'charybdis',
+    /* チュートリアルの始めの視点（view と同じ形）。下のセリフの板より上に自軍と目標 A〜E が映るよう、ふだんの [0,24] より手前（2026-11-05、仮） */
+    tutorialView:{target:[-15,79], dist:190},
     tutorial:[
-      {name:'視点', condition:'view', targets:['#camSticks','#camView'], text:'まず戦場を見渡しましょう。ドラッグか下のスティックで視点を回し、ホイールで寄れます。右上の VIEW でも切り替えられます。'},
-      {name:'選んで動かす', condition:'move', targets:['#roster'], text:'艦隊を選んでください。地図の艦隊か右下のマス、1〜9 のキーで選べます。宙域をクリックすると、そこへ向かいます。'},
-      {name:'高度', condition:'altitude', targets:['#alt'], text:'艦隊は上下にも動けます。左下の高度バーか Q／E で高さを決めてから、宙域をクリックしてください。'},
+      {name:'選んで動かす', condition:'move', targets:['#roster'], marks:[{label:'A',pos:[-45,85],alt:0}], text:'艦隊を選んで、金色の輪「目標 A」まで動かしてください。地図の艦隊か右下のマス、1〜9 のキーで選び、輪のあたりの宙域をクリックします。'},
+      {name:'高度', condition:'altitude', targets:['#alt'], marks:[{label:'B',pos:[30,95],alt:20}], text:'艦隊は上下にも動けます。「目標 B」は高度 +20 です。左下の高度バーか Q／E で高さを +20 にしてから、輪をクリックしてください。'},
+      {name:'予約と戻す', condition:'queue', targets:['#roster','#undoBtn'], marks:[{label:'C',pos:[-80,70],alt:0},{label:'D',pos:[-60,125],alt:0}], text:'Shift を押しながらクリックすると、経由地を予約できます。「目標 C」と「目標 D」を順に Shift+クリックして、C を通って D まで動かしてください。間違えたら右上の「戻す」か Ctrl+Z で取り消せます。'},
+      {name:'戦区軍で動かす', condition:'group', targets:['#newGrp'], marks:[{label:'E',pos:[50,105],alt:0}], text:'艦隊は戦区軍にまとめて動かせます。Shift+クリックで艦隊を2つ以上選び、右下の「＋」で戦区軍を作って、「目標 E」まで動かしてください。G キーで戦区軍の全軍を選べます。'},
+      {name:'時間', condition:'speed', targets:['#speed'], text:'右上で時間を止めたり、速めたりできます。Space キーで一時停止です。止めている間も命令は出せます。'},
+      {name:'視点', condition:'view', targets:['#camSticks','#camView'], text:'戦場を見渡しましょう。ドラッグか左下のスティックで視点を回し、ホイールで寄れます。右上の VIEW でも切り替えられます。'},
       {name:'索敵', condition:'sight', targets:[], text:'北の防空隊は、まだ見えていません。敵は味方の視界に入るまで映りません。艦隊を北へ回り込ませてください。'},
       {name:'攻撃', condition:'attack', targets:[], text:'敵をクリックすると「攻撃」と「ここへ移動」を選べます。防空隊を一つ選んで攻撃してください。'},
-      {name:'予約と戻す', condition:'queue', targets:['#roster','#undoBtn'], text:'Shift を押しながらクリックすると、経由地や次の攻撃を予約できます。2つ予約してください。間違えたら右上の「戻す」か Ctrl+Z で取り消せます。'},
       {name:'艦載機', condition:'launch', targets:['#fl3'], text:'空母航空打撃群は、近くの敵に艦載機を自動で出します。敵に近づけてください。'},
       {name:'自動交戦／命令優先', condition:'stance', targets:['#stance'], text:'ふだんは射程内の敵を自動で撃ちます。命令優先にすると、命じた相手だけを撃ちます。R キーでも切り替えられます。'},
-      {name:'時間', condition:'speed', targets:['#speed'], text:'右上で時間を止めたり、速めたりできます。Space キーで一時停止です。止めている間も命令は出せます。'},
-      {name:'戦区軍', condition:'group', targets:['#newGrp'], text:'艦隊は戦区軍にまとめて動かせます。Shift+クリックで艦隊をまとめて選び、右下の「＋」で戦区軍を作ってください。G キーで戦区軍の全軍を選べます。'},
       {name:'仕上げ', condition:'win', targets:['#goal'], text:'ここからは本番です。時計が動き出し、増援も来ます。防空隊を一つずつ叩き、要塞の装甲を0にしてください。'},
     ],
     scale:'S',   // 戦闘の規模（ユーザー決定 2026-10-12）

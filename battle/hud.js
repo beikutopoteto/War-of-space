@@ -48,7 +48,6 @@ function setAlt(v,apply=true){
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
-  if(tutorialActive()&&tutorial.step===2) tutorial.altChanged=true;
   const t=orderTargets(); if(!t.length) return;
   const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
   t.forEach(f=>{
@@ -325,8 +324,8 @@ window.WOS={ start(cfg){
   autoMode=document.body.classList.contains('dbg-auto');   // the debug auto mode (prep.js; sim.js autoAI)
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startOp();
-  /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */
-  const V=op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
+  /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field (the tutorial: op.tutorialView) */
+  const V=(cfg&&cfg.tutorial&&op.tutorialView)||op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
   hintGone=false; hintEl.hidden=!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone'); if(!hintEl.hidden) setTimeout(hideHint,7000);
 }, openMenu };
@@ -514,11 +513,11 @@ function talkFor(lines){ const flags={...(lastCfg&&lastCfg.flags||{}),rescued};
   return (lines||[]).filter(l=>!l[2]||(l[2][0]==='!'?!flags[l[2].slice(1)]:flags[l[2]])); }
 /* the story option (prep.js WOS_OPT, off by default) turns the conversations off; without the menu they show */
 const storyOn=()=>!window.WOS_OPT||!!window.WOS_OPT.story;
-function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.hidden=false; nextTalk(); }
+function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=done||null; if(!talkQ.length){ endTalk(); return; } talking=true; talkEl.classList.remove('tutorial-talk'); talkEl.querySelector('.ctl span').textContent='クリック・Enter で次へ／Ctrl 長押しで早送り'; talkEl.hidden=false; nextTalk(); }
 /* a line with no speaker is narration; a fourth element is the still scene to show behind it (cut.js showCut) */
 function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=fillText(l[1]); showCut(l[3]); }
-function endTalk(){ showCut(null); talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); }
-talkEl.addEventListener('click',e=>{ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); });
+function endTalk(){ showCut(null); talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); tutorialTalk(); }
+talkEl.addEventListener('click',e=>{ if(talking){ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); } else if(e.target.id==='talkSkip'&&tutorialActive()){ tutorial.skipped=true; tutorialRender(); } });
 /* holding Ctrl fast-forwards: one line every 0.1 s until it is let go */
 let talkFast=false;
 addEventListener('keydown',e=>{ if(e.key==='Control') talkFast=true; });

@@ -1,56 +1,70 @@
-/* Guided exercise. The text and targets live in the operation data. */
-let tutorial=null, tutorialArrow=null;
+/* Guided exercise. Text and targets live in the operation data. */
+let tutorial=null, tutorialArrow=null, tutorialMarks=[];
 const trainingEl=document.getElementById('training');
-const guideEl=document.createElement('div'); guideEl.id='tutorialGuide'; guideEl.className='hud'; guideEl.hidden=true;
-guideEl.innerHTML='<div class="tutorial-head"><b>副官</b> <span></span><button data-skip>とばす</button><button data-fold aria-label="案内をたたむ" aria-expanded="true">▾</button></div><p></p>';
-document.body.appendChild(guideEl);
 const tutorialFrames=[0,1].map(()=>{ const e=document.createElement('div'); e.className='tutorial-frame hud'; e.hidden=true; document.body.appendChild(e); return e; });
-guideEl.querySelector('[data-skip]').addEventListener('click',()=>{ if(tutorial){ tutorial.skipped=true; tutorialRender(); } });
-guideEl.querySelector('[data-fold]').addEventListener('click',e=>{ guideEl.classList.toggle('fold'); const folded=guideEl.classList.contains('fold'); e.currentTarget.textContent=folded?'▸':'▾'; e.currentTarget.setAttribute('aria-expanded',String(!folded)); });
 function tutorialActive(){ return !!(tutorial&&!tutorial.skipped); }
-function tutorialHolding(){ return tutorialActive()&&tutorial.step<10; }
-function tutorialProtected(){ return tutorialActive()&&tutorial.step<4; }
+function tutorialCondition(){ return tutorialActive()&&op.tutorial[tutorial.step].condition; }
+function tutorialBefore(condition){ return tutorialActive()&&tutorial.step<op.tutorial.findIndex(r=>r.condition===condition); }
+function tutorialHolding(){ return tutorialBefore('win'); }
+function tutorialProtected(){ return tutorialBefore('attack'); }
+function tutorialClearMarks(){ tutorialMarks.forEach(m=>{scene.remove(m.group); m.group.traverse(o=>{if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose();}); m.label.remove();}); tutorialMarks=[]; }
 function tutorialInit(cfg){
   if(tutorialArrow){ dropArrow(tutorialArrow); tutorialArrow=null; }
-  tutorial=cfg&&cfg.tutorial&&op.tutorial?{step:0,skipped:false,queue:0,altChanged:false,attack:null,launched:false,group:null,rotation:0,angles:null}:null;
-  guideEl.classList.remove('fold'); guideEl.querySelector('[data-fold]').textContent='▾'; guideEl.querySelector('[data-fold]').setAttribute('aria-expanded','true'); tutorialRender();
+  tutorialClearMarks();
+  tutorial=cfg&&cfg.tutorial&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null}:null;
+  tutorialRender();
+}
+function tutorialTalk(){
+  if(talking) return;
+  const row=tutorialActive()&&!over&&op.tutorial[tutorial.step];
+  talkEl.classList.toggle('tutorial-talk',!!row);
+  if(!row){talkEl.hidden=true; return;}
+  talkEl.hidden=false; talkEl.classList.remove('narr'); talkWho.hidden=false; talkWho.textContent='副官'; talkText.textContent=row.text;
+  talkEl.querySelector('.ctl span').textContent='演習 '+(tutorial.step+1)+'/'+op.tutorial.length+'　'+row.name;
 }
 function tutorialRender(){
   const active=tutorialActive(), row=active&&op.tutorial[tutorial.step];
-  guideEl.hidden=!active||over; trainingEl.hidden=!active;
-  if(!row){ trainingEl.innerHTML=''; tutorialFrames.forEach(e=>e.hidden=true); if(tutorialArrow){dropArrow(tutorialArrow);tutorialArrow=null;} return; }
-  guideEl.querySelector('.tutorial-head span').textContent=`${tutorial.step+1}/11 ${row.name}`;
-  guideEl.querySelector('p').textContent=row.text;
-  trainingEl.innerHTML=`<div><i>TRAINING</i> 演習 ${tutorial.step+1}/11 ${row.name}</div><div class="training-ticks">${op.tutorial.map((_,i)=>`<span class="${i<tutorial.step?'done':i===tutorial.step?'current':''}"></span>`).join('')}</div>`;
-  if(tutorialArrow){dropArrow(tutorialArrow);tutorialArrow=null;}
-  if(tutorial.step===3){ const f=fleets.find(x=>x.name==='第14 北方防空 戦闘隊'); if(f) tutorialArrow=makeArrow(f.pos.clone().add(new THREE.Vector3(0,18,28)),f.pos.clone().add(new THREE.Vector3(0,18,0)),new THREE.Color(0xe2c58a)); }
+  trainingEl.hidden=!active; tutorialTalk();
+  if(tutorialArrow){dropArrow(tutorialArrow);tutorialArrow=null;} tutorialClearMarks();
+  if(!row){ trainingEl.innerHTML=''; tutorialFrames.forEach(e=>e.hidden=true); return; }
+  trainingEl.innerHTML='<div><i>TRAINING</i> 演習 '+(tutorial.step+1)+'/'+op.tutorial.length+' '+row.name+'</div><div class="training-ticks">'+op.tutorial.map((_,i)=>'<span class="'+(i<tutorial.step?'done':i===tutorial.step?'current':'')+'"></span>').join('')+'</div>';
+  if(row.condition==='sight'){ const f=fleets.find(x=>x.name==='第14 北方防空 戦闘隊'); if(f) tutorialArrow=makeArrow(f.pos.clone().add(new THREE.Vector3(0,18,28)),f.pos.clone().add(new THREE.Vector3(0,18,0)),new THREE.Color(0xe2c58a)); }
+  for(const mark of row.marks||[]){
+    const group=new THREE.Group(), color=0xffd27a;
+    const ring=(inner,outer,opacity,y)=>{const m=new THREE.Mesh(new THREE.RingGeometry(inner,outer,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false})); m.rotation.x=-Math.PI/2; m.position.y=y; group.add(m);};
+    ring(5.5,6.5,1,mark.alt); ring(0,5.5,.12,mark.alt);
+    if(mark.alt){ ring(1.5,2,.8,0); const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,mark.alt,0)]); const line=new THREE.Line(geo,new THREE.LineDashedMaterial({color,dashSize:2,gapSize:1,transparent:true,opacity:.8})); line.computeLineDistances(); group.add(line); }
+    group.position.set(mark.pos[0],0,mark.pos[1]); scene.add(group);
+    const label=document.createElement('div'); label.className='tutorial-mark-label'; label.textContent='目標 '+mark.label+(mark.alt?'　高度 '+(mark.alt>0?'+':'')+mark.alt:''); document.getElementById('labels').appendChild(label);
+    tutorialMarks.push({mark,group,label});
+  }
 }
-function tutorialAdvance(){ if(!tutorialActive()||tutorial.step>=10) return; tutorial.step++; tutorialRender(); }
-function tutorialEvent(kind){ if(!tutorialActive()) return; if(op.tutorial[tutorial.step].condition===kind) tutorialAdvance(); }
-function tutorialOrder(o,targets){
+function tutorialAdvance(){ if(!tutorialActive()||tutorial.step>=op.tutorial.length-1) return; tutorial.step++; tutorial.passed=null; tutorialRender(); }
+function tutorialEvent(kind){ if(tutorialCondition()===kind) tutorialAdvance(); }
+function tutorialOrder(o,targets){ if(tutorialCondition()==='attack'&&o.type==='attack'&&o.target.kind==='fleet'&&o.target.team===1) tutorial.attack=o.target; }
+function tutorialGroupCreated(g){ if(tutorialCondition()==='group'&&g.members.size>=2) tutorial.group=g; }
+function tutorialDamage(t,amt,src){ if(tutorialCondition()==='attack'&&amt>0&&t===tutorial.attack&&src&&src.team===0) tutorialAdvance(); }
+function tutorialLaunch(f){ if(tutorialActive()&&f.team===0&&f.name==='第4 空母航空 打撃群'){ tutorial.launched=true; if(tutorialCondition()==='launch') tutorialAdvance(); } }
+function tutorialTick(){
   if(!tutorialActive()) return;
-  const condition=op.tutorial[tutorial.step].condition;
-  if(condition==='move'&&o.type==='move') tutorialAdvance();
-  else if(condition==='altitude'&&o.type==='move'&&tutorial.altChanged&&selAlt!==0) tutorialAdvance();
-  else if(condition==='attack'&&o.type==='attack'&&o.target.kind==='fleet'&&o.target.team===1) tutorial.attack=o.target;
-  else if(condition==='queue'&&o.queue){ const count=f=>f.queue.length+f.queue.reduce((n,q)=>n+(q.type==='move'?(q.via||[]).length:0),0)+(f.order&&f.order.type==='move'?Math.max(0,pathLeft(f.order).length-1):0); if(targets.some(f=>count(f)>=2)) tutorialAdvance(); }
-  else if(condition==='group'&&o.type==='move'&&selGroup&&selGroup===tutorial.group) tutorialAdvance();
+  const row=op.tutorial[tutorial.step], near=(f,m)=>f.alive&&Math.hypot(f.pos.x-m.pos[0],f.pos.z-m.pos[1])<=8&&Math.abs(f.pos.y-m.alt)<=6;
+  const allies=fleets.filter(f=>f.team===0);
+  if(row.condition==='move'||row.condition==='altitude'){if(allies.some(f=>near(f,row.marks[0]))) tutorialAdvance();}
+  else if(row.condition==='queue'){
+    if(!tutorial.passed){const f=allies.find(f=>near(f,row.marks[0])); if(f){tutorial.passed=f; const m=tutorialMarks[0]; if(m){m.group.children.forEach(o=>o.material.opacity*=.3); m.label.style.opacity='.3';}}}
+    else if(near(tutorial.passed,row.marks[1])) tutorialAdvance();
+  } else if(row.condition==='group'){const g=tutorial.group; if(g&&groups.includes(g)&&g.members.size>=2&&groupFlag(g)&&near(groupFlag(g),row.marks[0])) tutorialAdvance();}
+  else if(row.condition==='sight'&&fleets.some(f=>f.name==='第14 北方防空 戦闘隊'&&f.everSeen)) tutorialAdvance();
+  else if(row.condition==='launch'&&tutorial.launched) tutorialAdvance();
 }
-function tutorialGroupCreated(g){ if(tutorialActive()&&tutorial.step===9) tutorial.group=g; }
-function tutorialDamage(t,amt,src){ if(tutorialActive()&&tutorial.step===4&&amt>0&&t===tutorial.attack&&src&&src.team===0) tutorialAdvance(); }
-function tutorialLaunch(f){ if(tutorialActive()&&f.team===0&&f.name==='第4 空母航空 打撃群'){ tutorial.launched=true; if(tutorial.step===6) tutorialAdvance(); } }
-function tutorialTick(){ if(!tutorialActive()) return; if(tutorial.step===3&&fleets.some(f=>f.name==='第14 北方防空 戦闘隊'&&f.everSeen)) tutorialAdvance(); else if(tutorial.step===6&&tutorial.launched) tutorialAdvance(); }
 function tutorialFrame(){
   if(!tutorialActive()){ tutorialFrames.forEach(e=>e.hidden=true); return; }
-  if(tutorial.step===0&&!camAnim){ const a=getAngles(); if(tutorial.angles&&(rotKeys.size||stick.az||stick.el||tutorial.dragging)){ const d=Math.abs(((a.az-tutorial.angles.az+540)%360)-180)+Math.abs(a.el-tutorial.angles.el); tutorial.rotation+=d; if(tutorial.rotation>=45) tutorialAdvance(); } tutorial.angles=a; }
-  guideEl.hidden=over;
+  if(tutorialCondition()==='view'&&!camAnim){ const a=getAngles(); if(tutorial.angles&&(rotKeys.size||stick.az||stick.el||tutorial.dragging)){ const d=Math.abs(((a.az-tutorial.angles.az+540)%360)-180)+Math.abs(a.el-tutorial.angles.el); tutorial.rotation+=d; if(tutorial.rotation>=45) tutorialAdvance(); } tutorial.angles=a; }
+  if(!talking) talkEl.hidden=over;
   const row=op.tutorial[tutorial.step], targets=row.targets.map(s=>document.querySelector(s));
   tutorialFrames.forEach((e,i)=>{ const t=targets[i], r=t&&t.getBoundingClientRect(); e.hidden=!r||!r.width||!r.height||over; if(!e.hidden) Object.assign(e.style,{left:(r.left-4)+'px',top:(r.top-4)+'px',width:(r.width+8)+'px',height:(r.height+8)+'px'}); });
-  const r=targets[0]&&targets[0].getBoundingClientRect();
-  if(!r||!r.width||!r.height){ guideEl.style.left='50%'; guideEl.style.top='80px'; guideEl.style.transform='translateX(-50%)'; guideEl.dataset.side='top'; }
-  /* the guide is zoomed with the HUD (--uis), so its left/top are in zoomed px: place it in screen px, then divide */
-  else { const k=+getComputedStyle(document.documentElement).getPropertyValue('--uis')||1, g=guideEl.getBoundingClientRect(), w=g.width, h=g.height, right=r.left<innerWidth/2;
-    guideEl.style.transform='none'; guideEl.style.left=Math.max(8,Math.min(innerWidth-w-8,right?r.right+16:r.left-w-16))/k+'px'; guideEl.style.top=Math.max(8,Math.min(innerHeight-h-8,r.top))/k+'px'; guideEl.dataset.side=right?'left':'right'; }
+  tutorialMarks.forEach(m=>{const p=proj(new THREE.Vector3(m.mark.pos[0],m.mark.alt,m.mark.pos[1])); m.label.style.visibility=p.z>1?'hidden':'visible'; m.label.style.left=p.x+'px'; m.label.style.top=(p.y-12)+'px';});
 }
 renderer.domElement.addEventListener('pointerdown',()=>{if(tutorial) tutorial.dragging=true;});
 addEventListener('pointerup',()=>{if(tutorial) tutorial.dragging=false;});
+
