@@ -4,8 +4,11 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const { chromium } = require(path.join(ROOT, 'node_modules/playwright'));
 const THREE_DIR = path.dirname(require.resolve(path.join(ROOT, 'node_modules/three/package.json')));
-async function openGame(viewport = { width: 1280, height: 800 }) {
+/* uis: the HUD's screen-size scale (battle/loop.js --uis). Fixed at 1 by default: under CSS zoom Playwright takes small buttons for covered
+   and will not click them (2026-11-05). Pass uis:null to let the game scale with the window */
+async function openGame(viewport = { width: 1280, height: 800 }, { uis = 1 } = {}) {
   const browser = await chromium.launch(); const page = await browser.newPage({ viewport });
+  if (uis != null) await page.addInitScript(k => { window.WOS_UIS = k; }, uis);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, route => { const u = route.request().url(); const rel = u.includes('cdnjs') ? 'build/three.min.js' : u.split('three@0.128.0/')[1]; route.fulfill({ path: path.join(THREE_DIR, rel), contentType: 'application/javascript' }); });
   await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.fulfill({ body: '' }));

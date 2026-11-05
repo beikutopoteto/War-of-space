@@ -186,9 +186,12 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
   return !!best&&best.team===0||!!(selected&&selected.alive&&(best||fort)); }
 /* left click (or tap) selects an own fleet or gives the selected fleet an order; right click only gives orders.
    With Shift, a click on open space queues a waypoint after the ones already set */
-function tap(x,y,cmdOnly=false,queue=false){
+let labelDown=null, labelEnemy=null;
+function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
-  const {best,fort}=pick(x,y);
+  const found=pick(x,y), best=labelTarget&&shown(labelTarget)&&!labelTarget.ward?labelTarget:found.best, fort=labelTarget?false:found.fort;
+  if(labelEnemy) labelEnemy.el.classList.remove('label-picked');
+  labelEnemy=best&&best.team===1?best:null; if(labelEnemy) labelEnemy.el.classList.add('label-picked');
   /* the deploy step: a click on one of ours picks its army group; a click on the plane puts the selection there */
   if(deploying){ if(best&&best.team===0){ if(!cmdOnly){ const g=groupOf(best); if(g) selectGroup(g); else select(best); } return; }
     const hit=groundAt(x,y); if(hit) placeAt(hit); return; }
@@ -254,7 +257,7 @@ pickEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
 }));
 let down=null;
 /* a click that only closes the choice does not also give an order */
-renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button,closing:!!pickCtx}; closePick();});
+renderer.domElement.addEventListener('pointerdown',e=>{ if(pickCtx&&labelEnemy){ labelEnemy.el.classList.remove('label-picked'); labelEnemy=null; } down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button,closing:!!pickCtx}; closePick();});
 renderer.domElement.addEventListener('pointerup',e=>{ if(down&&!down.closing&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey); down=null; });
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const hintEl=document.getElementById('hint'); let hintGone=false;

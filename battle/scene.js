@@ -170,21 +170,24 @@ function buildSky(S){
 /* tactical grid plane */
 const gridMat = new THREE.ShaderMaterial({
   transparent:true, depthWrite:false, extensions:{derivatives:true},
-  uniforms:{uTime:{value:0},uZone:{value:1},uC:{value:new THREE.Vector2()},uFrame:{value:0},uR:{value:215}},
+  uniforms:{uTime:{value:0},uZone:{value:1},uC:{value:new THREE.Vector2()},uFrame:{value:0},uR:{value:215},uSq:{value:1}},
   vertexShader:'varying vec2 vP;void main(){vP=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
   fragmentShader:`
-    varying vec2 vP; uniform float uTime, uZone, uFrame, uR; uniform vec2 uC;
+    varying vec2 vP; uniform float uTime, uZone, uFrame, uR, uSq; uniform vec2 uC;
     float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
     void main(){
       float r=length(vP);
       vec2 wP=vP+uC;   /* the squares stay put in space while the plane follows a moving field (uC) */
-      float sq=max(ln(wP.x/10.,1.),ln(wP.y/10.,1.))*.16;
-      float ring=(r<161.)?ln(r/20.,1.6)*.75:0.;
+      /* uSq (the grid option, prep.js WOS_OPT.grid; 2026-11-05): 1 = squares over the whole plane and rings only round the selected fleet
+         (units.js layer), 0 = the rings and spokes here and squares round the selected fleet */
+      float cell=mix(10.,15.,uSq);   /* the squares as the base: 15 a side, fading out in rings from the field's centre over a wide range */
+      float sq=max(ln(wP.x/cell,1.),ln(wP.y/cell,1.))*mix(.16,.5,uSq)*mix(1.,1.-smoothstep(30.,350.,r),uSq);
+      float ring=(r<161.)?ln(r/20.,1.6)*.75*(1.-uSq):0.;
       float ang=atan(vP.y,vP.x)/6.2831853*12.;
-      float rad=ln(ang,1.3)*.45*smoothstep(9.,14.,r);
+      float rad=ln(ang,1.3)*.45*smoothstep(9.,14.,r)*(1.-uSq);
       float fade=1.-smoothstep(130.,260.,r);
       vec3 cyan=vec3(.5,.8,1.);
-      vec3 col=cyan; float a=max(sq,max(ring,rad))*fade;
+      vec3 col=cyan; float a=max(sq*mix(fade,1.,uSq),max(ring,rad)*fade);
       float zone=(1.-smoothstep(39.6,40.,r))*uZone;
       float edge=ln(r/40.,2.2)*step(30.,r)*step(r,50.)*uZone;
       col=mix(col,vec3(1.,.42,.3),zone*.85);

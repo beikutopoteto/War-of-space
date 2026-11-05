@@ -55,11 +55,13 @@ sightRing.rotation.x=-Math.PI/2; sightRing.visible=false; scene.add(sightRing);
 
 /* order layer: the horizontal plane taps land on, drawn at the chosen altitude */
 const layerMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,extensions:{derivatives:true},
-  uniforms:{uTime:{value:0}},
+  uniforms:{uTime:{value:0},uSq:{value:1}},
   vertexShader:'varying vec2 vP;varying vec2 vW;void main(){vP=position.xz;vec4 w=modelMatrix*vec4(position,1.);vW=w.xz;gl_Position=projectionMatrix*viewMatrix*w;}',
-  fragmentShader:`varying vec2 vP;varying vec2 vW;uniform float uTime;
+  fragmentShader:`varying vec2 vP;varying vec2 vW;uniform float uTime,uSq;
     float ln(float x,float w){float d=abs(fract(x-.5)-.5)/max(fwidth(x),1e-4);return 1.-min(d/w,1.);}
-    void main(){float r=length(vP);float g=max(ln(vW.x/10.,1.),ln(vW.y/10.,1.));
+    void main(){float r=length(vP);float sq=max(ln(vW.x/10.,1.),ln(vW.y/10.,1.));
+      float pol=max(ln(r/10.,1.4),ln(atan(vP.y,vP.x)/6.2831853*12.,1.2)*smoothstep(4.,8.,r)*.8);   /* the square-grid option: rings and spokes round the fleet */
+      float g=mix(sq,pol,uSq);
       float f=1.-smoothstep(20.,70.,r);float pulse=ln((r-uTime*6.)/24.,1.5)*.5;
       gl_FragColor=vec4(vec3(.62,.86,1.),(g*.55+pulse*.4)*f);}`});
 const layer=new THREE.Mesh(new THREE.PlaneGeometry(150,150),layerMat); layer.geometry.rotateX(-Math.PI/2); layer.visible=false; scene.add(layer);

@@ -96,7 +96,7 @@ document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classLi
 /* ---------- options (the settings screen; kept apart from the save like the debug switches) ----------
    story: the conversations before and after an operation (off by default, user decision 2026-10-08). battle/hud.js reads window.WOS_OPT */
 const OKEY='wos.opt';
-const opt=window.WOS_OPT={story:false,markSet:'A',unitFmt:'both'};
+const opt=window.WOS_OPT={story:false,markSet:'A',unitFmt:'both',grid:'sq'};
 try{ Object.assign(opt,JSON.parse(localStorage.getItem(OKEY)||'{}')); }catch(e){}
 function persistOpt(){ try{ localStorage.setItem(OKEY,JSON.stringify(opt)); }catch(e){} }
 
@@ -322,7 +322,9 @@ function renderOpt(){
     <p>編成画面と戦闘画面の名札で、部隊をどう呼ぶか。物語の隊はいつも名前で出します。</p>
     <div class="plates"><span class="np">${mark('cl')} ${opt.unitFmt==='no'?'第1打撃群':opt.unitFmt==='name'?'第1 前衛巡洋 打撃群':'第1打撃群　前衛巡洋'}</span><span class="np ace">${mark('mas')} アルバレス隊</span></div>
     ${choices('markSet','艦種マーク',[['A','艦影'],['B','部隊符号']])}
-    <p>編成画面・技術ツリー・戦闘画面の名札に出す艦種の印。</p><div class="plates">${SHIPS.map(s=>`<span class="np">${mark(s.id)} ${s.name}</span>`).join('')}</div>`;
+    <p>編成画面・技術ツリー・戦闘画面の名札に出す艦種の印。</p><div class="plates">${SHIPS.map(s=>`<span class="np">${mark(s.id)} ${s.name}</span>`).join('')}</div>
+    ${choices('grid','戦闘のグリッド',[['sq','四角'],['polar','円']])}
+    <p>四角: 宙域いっぱいに四角の目盛り、選んだ艦隊のまわりに円の目盛り。円: その逆（宙域の中心から円の目盛り、選んだ艦隊のまわりに四角）。</p>`;
   box.querySelector('[data-opt]').onchange=e=>{ opt.story=e.target.checked; persistOpt(); renderOpt(); };
   box.querySelectorAll('[data-setting]').forEach(x=>x.onclick=()=>{opt[x.dataset.setting]=x.dataset.value; persistOpt(); renderOpt();});
 }

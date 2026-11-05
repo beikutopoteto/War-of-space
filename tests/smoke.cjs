@@ -18,6 +18,7 @@ function check(ok, label, detail = '') {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -876,6 +877,34 @@ function check(ok, label, detail = '') {
     await page.click('#goBattle'); await page.click('#forcesBattle'); await page.waitForTimeout(800);
     await page.click('#talkSkip').catch(() => {});
     await page.click('#deployGo').catch(() => {});
+    const plate = await page.evaluate(() => {
+      const f=fleets.find(x=>x.team===0&&!x.ward&&!x.ace), enemy=fleets.find(x=>x.team===1&&!x.fixed&&!x.ace), ace=enemy, gun=fleets.find(x=>x.fixed&&x.type==='aa');
+      select(null); enemy.seen=true; ace.ace=true; updateFleetLabel(f,false,''); updateFleetLabel(enemy,false,''); updateFleetLabel(opCarrier,false,''); updateFleetLabel(ace,false,'');
+      const visible=e=>getComputedStyle(e).display!=='none', nm=x=>x.el.querySelector('.nm');
+      const r={plain:!visible(f.el.querySelector('.emb'))&&!visible(nm(f))&&!!f.el.querySelector('.mk2 svg')&&f.el.querySelector('.mk2 em').textContent===String(f.ships.length), named:namedFleet(opCarrier)&&namedFleet(ace)&&visible(nm(opCarrier))&&visible(nm(ace)), gun:!!gun.el.querySelector('.emb rect')&&!gun.el.querySelector('.mk2')};
+      ace.ace=false; updateFleetLabel(enemy,false,'');
+      select(f); r.own=visible(nm(f))&&nm(f).textContent.includes('高度');
+      tap(500,500,false,false,enemy); r.enemy=visible(nm(enemy))&&!nm(enemy).textContent.includes('高度')&&nm(enemy).querySelectorAll('.cr').length>0&&!pickEl.hidden;
+      document.body.classList.add('nolabels'); r.off=!visible(nm(f))&&!visible(nm(opCarrier))&&visible(f.el.querySelector('.mk2')); document.body.classList.remove('nolabels');
+      closePick(); select(null); if(labelEnemy){labelEnemy.el.classList.remove('label-picked');labelEnemy=null;} return r;
+    });
+    check(Object.values(plate).every(Boolean), '艦隊の名札: 印・味方と敵の札・ネームド・L・砲台', JSON.stringify(plate));
+    /* hovering a mark shows the plate; moving away hides it again */
+    const hoverAt = await page.evaluate(() => { const f=fleets.find(x=>x.team===0&&!x.ward&&!x.ace&&x.el.style.visibility!=='hidden'&&!x.el.classList.contains('named'));
+      const r=f.el.querySelector('.mk2').getBoundingClientRect(); window._hv=f; return {x:r.left+r.width/2,y:r.top+r.height/2}; });
+    await page.mouse.move(hoverAt.x, hoverAt.y); await page.waitForTimeout(100);
+    const hovOn = await page.evaluate(() => getComputedStyle(_hv.el.querySelector('.nm')).display!=='none');
+    await page.mouse.move(5, 450); await page.waitForTimeout(100);
+    const hovOff = await page.evaluate(() => getComputedStyle(_hv.el.querySelector('.nm')).display==='none');
+    check(hovOn && hovOff, '艦隊の名札: 印にマウスを重ねると札が出て、離すと消える', JSON.stringify({hovOn,hovOff}));
+    const gridOpt = await page.evaluate(() => { const r={sq:gridMat.uniforms.uSq.value===1&&layerMat.uniforms.uSq.value===1, uis:getComputedStyle(document.documentElement).getPropertyValue('--uis').trim()};
+      WOS_OPT.grid='polar'; return new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.polar=gridMat.uniforms.uSq.value===0; WOS_OPT.grid='sq'; ok(r); }))); });
+    check(gridOpt.sq && gridOpt.polar && Number(gridOpt.uis) > 0, 'グリッド: 既定は四角、オプションの円で切り替わる。画面の大きさの倍率がある', JSON.stringify(gridOpt));
+    /* screen-size scale (the tools fix it at 1): at 0.8 the HUD shrinks and the browser still finds the small buttons where they are drawn */
+    const uis = await page.evaluate(() => { const w0=rosterEl.getBoundingClientRect().width; window.WOS_UIS=.8; resize();
+      const b=document.querySelector('#roster .frow .st'), r=b.getBoundingClientRect(), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+      const res={w0, w:rosterEl.getBoundingClientRect().width, hit:hit===b, inside:r.right<=innerWidth&&r.bottom<=innerHeight}; window.WOS_UIS=1; resize(); return res; });
+    check(Math.abs(uis.w/uis.w0-.8)<.02 && uis.hit && uis.inside, '画面の大きさ: 倍率0.8で一覧が縮み、角の三角はその場所で押せる', JSON.stringify(uis));
     const d1 = await page.evaluate(() => {
       const mine = fleets.filter(f => f.team === 0 && !f.ward);
       const r = { op: op.id, last: mine[mine.length - 1] === opCarrier && opCarrier.name === 'ユーコン', free: !groupOf(opCarrier), noCraft: !opCarrier.craft,
