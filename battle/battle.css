@@ -458,3 +458,32 @@ body.noui #legend .lplate,body.noui #legend .lgs{display:none!important}
 #brief{min-height:0;overflow-y:auto;scrollbar-width:thin}
 /* Leave the view stick clear when a conversation is open. */
 #talk{bottom:calc(52px + clamp(64px,9.45vh,128px) + env(safe-area-inset-bottom,0px))}
+
+/* Fleet markers and the compact U2 plate (facilities keep their existing labels). */
+.fleet-label[data-col="0"]{--tc:var(--blue);color:var(--blue)}
+.fleet-label[data-col="1"]{--tc:var(--red);color:var(--red)}
+.fleet-label[data-col="2"]{--tc:var(--ally);color:var(--ally)}
+.fleet-label[data-col="3"]{--tc:#e8001c;color:var(--tc)}
+.fleet-label .emb,.fleet-label .flag{display:none}
+.mk2{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;gap:3px;white-space:nowrap;pointer-events:auto;cursor:pointer;filter:drop-shadow(0 0 3px #000) drop-shadow(0 0 4px color-mix(in srgb,currentColor 60%,transparent))}
+.mk2 .mk{display:block;width:30px;height:15px}.mk2 svg,.nm .mk svg{display:block;width:100%;height:100%}
+.mk2 svg .ol{stroke-width:1.6}.mk2 svg g[opacity]{opacity:.45}
+.mk2 em{font:700 11px var(--f-num);font-style:normal}
+.fleet-label.lost .mk2{outline:1px dashed currentColor;outline-offset:2px}
+.nm{display:none;position:absolute;bottom:16px;left:6px;padding:3px 7px 4px;white-space:nowrap;pointer-events:none;color:var(--ink);font-size:10.5px;line-height:1.4;text-shadow:0 0 3px #000,0 0 2px #000,0 1px 1px #000;background:color-mix(in srgb,var(--tc) 16%,rgba(8,14,26,.28));box-shadow:inset 2px 0 0 var(--tc)}
+.fleet-label.sel .nm,.fleet-label.label-picked .nm,.fleet-label:has(.mk2:hover) .nm,.fleet-label.named .nm{display:block}
+.nm b{display:block;font-size:10.5px;font-weight:600;color:color-mix(in srgb,var(--tc) 30%,#fff)}
+.nm .ln{display:block;font-size:10px;color:var(--ink-dim)}.nm em{font-style:normal;font-family:var(--f-num)}
+.nm .cs{display:flex;gap:8px;margin-top:2px}.nm .cr{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--ink-dim)}
+.nm .cr.z{opacity:.35}.nm .cr .mk{display:block;width:22px;height:11px}.nm .cr em{color:var(--ink)}
+.fleet-label.named:not(.sel):not(.label-picked):not(:has(.mk2:hover)) .nm{bottom:14px;background:color-mix(in srgb,var(--tc) 12%,rgba(8,14,26,.22));box-shadow:inset 1px 0 0 var(--brass)}
+.fleet-label.named:not(.sel):not(.label-picked):not(:has(.mk2:hover)) .nm b{color:var(--brass)}
+.fleet-label.named:not(.sel):not(.label-picked):not(:has(.mk2:hover)) .nm>span{display:none}
+.fleet-label.nk .nm{outline:1px solid rgba(255,210,122,.7)}
+.fleet-label.nk .nm b::before{content:"";display:inline-block;width:13px;height:13px;margin-right:5px;vertical-align:-2px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cg fill='%23ffd27a' fill-opacity='.25' stroke='%23ffd27a' stroke-width='1'%3E%3Cpath d='M8 6.6L5.2 1.8H10.8Z'/%3E%3Cpath d='M6.8 8.7L1.2 11.6L3.9 14.8Z'/%3E%3Cpath d='M9.2 8.7L14.8 11.6L12.1 14.8Z'/%3E%3C/g%3E%3Ccircle cx='8' cy='8.6' r='1.1' fill='%23ffd27a'/%3E%3C/svg%3E") center/contain no-repeat}
+body.nolabels .fleet-label .nm{display:none}
+
+/* screen-size scaling (user request 2026-11-05): the HUD and the in-world labels were laid out in px for 1600×900; --uis (loop.js resize)
+   scales them with the screen. Things placed by JS at pointer positions (#pick, #rtip, #cursorAlt) are not zoomed */
+.hud,#talk,#result .card,#pause .card{zoom:var(--uis,1)}
+#labels .unit>*,#labels .sector>*{zoom:var(--uis,1)}

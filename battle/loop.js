@@ -2,7 +2,8 @@
    Classic script: top-level names are shared with the other battle/*.js files (loaded in order by index.html). */
 /* ---------- render loop ---------- */
 let W=1,H=1;
-function resize(){ W=innerWidth; H=innerHeight; renderer.setSize(W,H); camera.aspect=W/H; camera.fov=W<H?Math.min(78,50*Math.min(1.6,H/W)):50; camera.updateProjectionMatrix(); if(composer) composer.setSize(W,H); }
+/* --uis: the HUD's scale against the 1600×900 it was laid out for (battle.css), 0.8–1.6; phones and narrow windows keep 1 (their own media rules) */
+function resize(){ W=innerWidth; H=innerHeight; document.documentElement.style.setProperty('--uis',window.WOS_UIS||(W<900?1:Math.max(.8,Math.min(1.6,Math.min(W/1600,H/900))).toFixed(3)));   /* WOS_UIS: fixed by the test tools */ renderer.setSize(W,H); camera.aspect=W/H; camera.fov=W<H?Math.min(78,50*Math.min(1.6,H/W)):50; camera.updateProjectionMatrix(); if(composer) composer.setSize(W,H); }
 addEventListener('resize',resize); resize();
 
 /* small craft in combat circle their target like electrons around a nucleus (drawing only; the battle still uses the wing's position).
@@ -90,6 +91,7 @@ function frame(now){
   for(const f of fleets) if(f.plume) plumeDraw(f);   // 第6節: the restoring thrusters' exhaust (base.js)
   fortressObj.rotation.y+=rdt*.04;
   gridMat.uniforms.uTime.value=time;
+  gridMat.uniforms.uSq.value=layerMat.uniforms.uSq.value=window.WOS_OPT&&WOS_OPT.grid==='polar'?0:1;   // the grid option (prep.js)
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */
   grid.position.set(fieldC.x,0,fieldC.z); gridMat.uniforms.uC.value.set(fieldC.x,-fieldC.z);
   for(const m of bodyZoneMats) m.uniforms.uTime.value=time;
@@ -131,7 +133,7 @@ function frame(now){
     const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`
       :u.type==='thr'||u.mark==='site'?`${u.restore?'狙いを戻せる　':''}耐久 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/(u.n*u.hp)))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
-    if(u.kind==='fleet'){ pinchMarks(u,s,lost); const nk=nukeCarrier(u); if(u._nk!==nk){ u._nk=nk; u.el.classList.toggle('nk',nk); } }
+    if(u.kind==='fleet'){ updateFleetLabel(u,lost,sub); pinchMarks(u,s,lost); const nk=nukeCarrier(u); if(u._nk!==nk){ u._nk=nk; u.el.classList.toggle('nk',nk); } }
   }
   drawRoute();   // 第6節: the battleships' way down to the mine (hud.js)
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }

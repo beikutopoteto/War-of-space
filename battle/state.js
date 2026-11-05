@@ -99,6 +99,14 @@ function makeFleet(team,o){
     const tg=document.createElement('i'); tg.className='tg'; tg.textContent=o.name.replace(/^推進器\s*/,''); f.el.appendChild(tg); }
   if(o.mark==='site'){ f.el.classList.add('site'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="currentColor" fill-opacity=".2" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.6" fill="currentColor"/></svg>'; const tg=document.createElement('i'); tg.className='tg'; tg.textContent=o.tag||''; f.el.appendChild(tg); }
   if(o.pit||o.fixed&&o.type==='aa'){ f.el.classList.add('gun'); f.el.querySelector('.emb').innerHTML='<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2.5" y="2.5" width="9" height="9" fill="currentColor" fill-opacity=".25" stroke="currentColor" stroke-width="1.4"/><circle cx="7" cy="7" r="1.8" fill="currentColor"/></svg>'; }
+  if(!f.el.matches('.gun,.thr,.site')){ f.el.classList.add('fleet-label');
+    f.el.insertAdjacentHTML('beforeend','<div class="mk2"></div><div class="nm"></div>');
+    const mark=f.el.querySelector('.mk2');
+    mark.addEventListener('pointerdown',e=>{ e.stopPropagation(); labelDown={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button,closing:!!pickCtx}; closePick(); });
+    mark.addEventListener('pointerup',e=>{ e.stopPropagation(); const d=labelDown; labelDown=null;
+      if(d&&!d.closing&&d.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<8&&performance.now()-d.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey,f); });
+    mark.addEventListener('contextmenu',e=>e.preventDefault());
+  }
   return f;
 }
 /* the class of each ship, from comp ({class: count}) or type; shuffled so losses fall on every class */
@@ -143,8 +151,21 @@ const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
 let freeOpen=true;
 function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
   return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet)}</span>`:''; }
-/* the short label on a tile: the unit's number, or the start of a story unit's own name (アルバレス隊 → アル) */
-const tileNo=f=>unitNo(f.name)||f.name.slice(0,2);
+/* Labels use the same class ordering and original class list as the roster tip. */
+function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===chase.fleet||op.chase&&f.name===op.chase.fleet||nukeCarrier(f)); }
+function updateFleetLabel(f,lost,sub){
+  const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
+  const colour=colOf(f); el.dataset.col=colour;
+  const key=fleetMark(f)+'<em>'+f.ships.length+'</em>'; if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  el.classList.toggle('named',namedFleet(f));
+  const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
+  const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a));
+  const rows=types.map(t=>`<span class="cr${by[t]?'':' z'}"><i class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet):''}</i>${SHIP_NAME[t]||t}<em>×${by[t]||0}</em></span>`).join('');
+  const content=lost?`<b>${f.name}</b><span class="ln">${sub}</span>`:`<b>${f.name}</b>`+(f.team===0?`<span class="ln">${f.sub}</span><span class="ln"><em>×${f.ships.length}　高度${altStr(f.pos.y)}</em>${f.hangars.length?'<br>'+hangarText(f):''}</span>`:'')+`<span class="cs">${rows}</span>`;
+  if(f._labelContent!==content){ f._labelContent=content; nm.innerHTML=content; }
+}
+/* the short label on a tile: the unit's number, or a story unit's whole name in smaller type (ユーコン; the first two letters until 2026-11-05) */
+const tileNo=f=>unitNo(f.name)||f.name;
 function buildRoster(){
   hideTip();
   rosterEl.innerHTML='';
@@ -363,8 +384,9 @@ function updateRoster(){
     const sum=z.querySelector('.sum'); if(sum) sum.textContent=`${list.length}群 ${list.reduce((s,f)=>s+f.ships.length,0)}隻`; });
   fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f), hull=f.ships.length/f.n;
     const mk=f.alive?fleetMark(f):''; if(mk!==f.mkKey){ f.mkKey=mk; f.btn.querySelector('.mkw').innerHTML=mk; }
-    f.btn.querySelector('.no b').textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
-    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+'×'+f.ships.length;
+    const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); nb.textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
+    if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
+    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(nn&&f.n===1?'':'×'+f.ships.length);
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
     f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
