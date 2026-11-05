@@ -25,7 +25,11 @@ async function trial(id, strat) {
     const { page, errors } = game;
     await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click(`[data-op="${id}"]`);
-    await page.click('#goBattle'); await page.waitForTimeout(800);
+    await page.click('#goBattle');
+    if (await page.locator('#forcesBattle').isVisible()) await page.click('#forcesBattle');
+    await page.waitForTimeout(800);
+    const actualId = await page.evaluate(() => op.id);
+    if (actualId !== id) throw new Error(`作戦が違います: 指定 ${id}、開始 ${actualId}`);
     await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
     await page.click('#deployGo').catch(() => {});
     if (strat === 'auto') await toStage(page);

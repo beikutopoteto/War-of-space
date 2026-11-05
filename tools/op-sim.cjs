@@ -14,7 +14,11 @@ const opt = Object.fromEntries(process.argv.slice(3).filter(a => a.includes('=')
   await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]');
   if (process.env.TECH) await page.click('#dbgB [data-dbga="tech"]');
   if (process.env.PATCH) await page.evaluate(require('fs').readFileSync(process.env.PATCH, 'utf8'));
-  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click(`[data-op="${id}"]`); await page.click('#goBattle'); await page.waitForTimeout(800);
+  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click(`[data-op="${id}"]`); if (await page.locator('#goQuick').isVisible()) await page.click('#goQuick');
+    else { await page.click('#goBattle'); if (await page.locator('#forcesBattle').isVisible()) await page.click('#forcesBattle'); }
+    await page.waitForTimeout(800);
+    const actualId = await page.evaluate(() => op.id);
+    if (actualId !== id) throw new Error(`作戦が違います: 指定 ${id}、開始 ${actualId}`);
   await page.click('#talkSkip').catch(() => {}); await page.waitForTimeout(300);
   await page.click('#deployGo').catch(() => {});
   if (process.env.STAGE) await toStage(page);
