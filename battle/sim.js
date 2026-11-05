@@ -220,7 +220,7 @@ function enemyCraft(u,maxD){
 }
 /* the ordered target comes first; a carrier set to 命令優先 sends its craft at nothing else. Then enemy craft; then enemy W.A.S.
    go for the transports when they are within reach; otherwise the nearest foe */
-function craftTarget(u,type,maxD){
+function craftTarget(u,type,maxD,h=u.hangar){ const prey=h&&h.prey||(u.carrier||u).prey;   // the hangar's own prey first (makeHangars)
   if(patrolHunting(u)){ const t=opCarrier.cs.patrolTarget; return t&&t.alive&&t.seen&&!spares(u,t)&&gap(u,t)<maxD?t:null; }
   const o=orderedTarget(u); if(o&&o.alive&&o.seen&&gap(u,o)<maxD&&(!(feintCover(u.carrier||u)||umbrellaPack(u.carrier||u))||craftMayHit(u,o))) return o;
   if((u.carrier||u).stance==='evade') return null;
@@ -230,7 +230,9 @@ function craftTarget(u,type,maxD){
     if(c&&c.prey==='mine'){ const m=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.ally&&!t.fixed&&craftMayHit(u,t)); if(m) return m; }
     if(c&&c.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===c&&craftMayHit(u,t)); if(a) return a; } }
   /* prey:'nuke' (第6節 the spaceport, user decision 2026-11-05): the units and battleships carrying the warheads first, before the enemy's craft */
-  if((u.carrier||u).prey==='nuke'){ const a=preyNearest(u,maxD,t=>t.kind==='fleet'&&nukeCarrier(t)&&craftMayHit(u,t)); if(a) return a; }
+  if(prey==='nuke'){ const a=preyNearest(u,maxD,t=>t.kind==='fleet'&&nukeCarrier(t)&&craftMayHit(u,t)); if(a) return a; }
+  /* prey:'near' (第6節 the spaceport's other 40, user decision 2026-11-05): the nearest of the units round it, not those carrying the warheads */
+  if(prey==='near'){ const a=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.fixed&&!nukeCarrier(t)&&craftMayHit(u,t)); if(a) return a; }
   const ec=enemyCraft(u,maxD); if(ec) return ec;
   /* 艦種別の動き (roleAI operations): the W.A.S. of the Republic then go for what fires on their carrier (guard) */
   const CR=craftRole(u.team,type), cc=u.kind==='wing'?u.carrier:u;
@@ -239,7 +241,7 @@ function craftTarget(u,type,maxD){
   /* enemy W.A.S. go for the station we defend when it is within reach (as for the transports) */
   if(u.team===1&&type==='was'&&fortress.alive&&fortress.defend&&gap(u,fortress)<maxD) return fortress;
   /* prey:'ally' (第4節 Alvarez): the allied main fleet's warships first */
-  if((u.carrier||u).prey==='ally'){ const a=preyNearest(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
+  if(prey==='ally'){ const a=preyNearest(u,maxD,t=>t.ally&&craftMayHit(u,t)); if(a) return a; }
   /* 艦種別の動き: then by the table (prefer / avoid), the rest as before */
   if(CR){ const t=roleCraftFoe(u,CR,maxD); if(t) return t; }
   /* our craft left to themselves do not go for a ship in a civilian zone (第4節); an attack order still sends them */
@@ -256,7 +258,7 @@ function launchCheck(f){
   for(const h of f.hangars){ const W=WING[h.type], C=f.craft&&f.craft[h.type]||{};   /* C: research of the player's own fleets (prep.js) */
     if(gameSec<h.next) continue;
     const sq=h.squads.find(q=>q.state==='docked'&&q.n>0&&gameSec>=q.ready); if(!sq) continue;
-    const tgt=craftTarget(f,h.type,h.launchR); if(!tgt) continue;
+    const tgt=craftTarget(f,h.type,h.launchR,h); if(!tgt) continue;
     h.next=gameSec+W.cd*h.slow*(f.team===1?.85+Math.random()*.3:1); sq.state='out';   // the enemy's launches drift a little (2026-10-10, 仮)
     const w={kind:'wing',team:f.team,id:fid++,type:h.type,W,launchR:h.launchR,carrier:f,hangar:h,squad:sq,name:`${f.name}${W.name}隊`,
       pos:f.pos.clone(),heading:f.heading.clone(),n:sq.n,launched:sq.n,hp:W.hp*(C.hp??1)*HP_K,hpPool:sq.n*W.hp*(C.hp??1)*HP_K,eva:W.eva*(C.eva??1),dmg:W.dmg*(C.dmg??1),speed:W.speed*(C.speed??1),range:W.range*(C.range??1),
@@ -317,7 +319,7 @@ function stepWings(dt){
       else if(!(o&&w.target===o)&&c.stance!=='evade'&&w.target){ const ec=enemyCraft(w,w.launchR);   // enemy craft come first; the one pressing nearest the carrier
         if(ec&&ec!==w.target&&leashed(w,ec)&&(w.target.kind!=='wing'||ec.pos.distanceTo(c.pos)<w.target.pos.distanceTo(c.pos)-10)) w.target=ec; }
       if(!w.target||!w.target.alive||!w.target.seen||!craftMayHit(w,w.target)||!leashed(w,w.target)){ const t=craftTarget(w,w.type,w.launchR*.6);
-        w.target=leashed(w,t)?t:c.alive?craftTarget(c,w.type,w.launchR):null; }
+        w.target=leashed(w,t)?t:c.alive?craftTarget(c,w.type,w.launchR,w.hangar):null; }
       if(w.fuel<=0||!w.target){ w.state='return'; w.target=null; }
     }
     if(w.state==='return'&&!c.alive){ w.fuel-=dt; if(w.fuel<=-w.W.fuel*.5){ w.alive=false; w.squad.n=0; w.squad.state='lost'; continue; } }

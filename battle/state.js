@@ -123,14 +123,15 @@ function shipClasses(o){
 const WING=WOS_DATA.crafts;
 /* ship classes that carry craft (a hangar in data/ships.js) */
 const CARRIERS=new Set(WOS_DATA.ships.filter(c=>c.hangar).map(c=>c.id));
-/* launchR: the launch distance, if not the craft's own (a fortress reaches further) */
+/* launchR: the launch distance, if not the craft's own (a fortress reaches further).
+   hg may be a list of {type: count, prey?}: hangars of one type that go for different prey (第6節 the spaceport, 2026-11-05) */
 function makeHangars(hg,launchR,craft){
   if(!hg) return [];
-  return Object.entries(hg).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
+  return [].concat(hg).flatMap(o=>Object.entries(o).filter(([t,c])=>WING[t]&&c>0).map(([type,cap])=>{
     const W=WING[type], C=craft&&craft[type]||{}, out=C.out||W.maxOut, squads=[]; let left=Math.round(cap);
     while(squads.length<out&&left>0){ const n=Math.min(W.squad,left); squads.push({n,state:'docked',ready:0,wing:null}); left-=n; }
-    return {type,reserve:left,squads,next:0,announced:false,launchR:launchR||W.launchR,out,slow:1/(C.turn||1)};
-  });
+    return {type,reserve:left,squads,next:0,announced:false,launchR:launchR||W.launchR,out,slow:1/(C.turn||1),...(o.prey?{prey:o.prey}:{})};
+  }));
 }
 function hangarText(f){
   return f.hangars.map(h=>{ const W=WING[h.type], out=h.squads.filter(q=>q.state==='out');
