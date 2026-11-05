@@ -235,6 +235,30 @@ function check(ok, label, detail = '') {
     check(!(await page.evaluate(() => deploying)) && await page.isHidden('#deploy'), '配置: 「作戦開始」で時間が動き出す');
     const opName = await page.evaluate(() => op.name);
     check(await page.textContent('#bh') === opName, '出撃: 作戦概要', opName);
+    /* F2 tabs operate independently; a folded briefing still flashes on a new event. */
+    const hudTabsTest = await page.evaluate(() => {
+      const g=hudTab.goal, b=hudTab.brief, visible=e=>getComputedStyle(e).display!=='none';
+      const state=()=>[g.getAttribute('aria-expanded'), b.getAttribute('aria-expanded'), visible(goalEl), visible(briefEl)];
+      goalEl.classList.remove('shut'); briefEl.classList.remove('shut','fresh'); g.setAttribute('aria-expanded','true'); b.setAttribute('aria-expanded','true');
+      const both=state(); g.click(); const briefOnly=state(); b.click(); const neither=state(); g.click(); const goalOnly=state();
+      flashBrief(10000); const fresh=state(); clearTimeout(briefTimer); briefEl.classList.remove('fresh'); b.click();
+      const restored=state();
+      return {both,briefOnly,neither,goalOnly,fresh,restored};
+    });
+    check(JSON.stringify(hudTabsTest.both)==='["true","true",true,true]' && JSON.stringify(hudTabsTest.briefOnly)==='["false","true",false,true]' && JSON.stringify(hudTabsTest.neither)==='["false","false",false,false]' && JSON.stringify(hudTabsTest.goalOnly)==='["true","false",true,false]' && JSON.stringify(hudTabsTest.fresh)==='["true","false",true,true]' && JSON.stringify(hudTabsTest.restored)==='["true","true",true,true]', '戦闘HUD: タブを別々に開閉し、たたんだ作戦概要も新しい出来事で表示', JSON.stringify(hudTabsTest));
+    const noGoal = await page.evaluate(() => {
+      const saved={win:op.win,fortress:op.fortress,convoy,opCarrier,chase,over};
+      try { op.win=null; op.fortress=null; convoy=null; opCarrier=null; chase=null; over=false; updateGoal(); return goalEl.hidden && hudTab.goal.hidden; }
+      finally { op.win=saved.win; op.fortress=saved.fortress; convoy=saved.convoy; opCarrier=saved.opCarrier; chase=saved.chase; over=saved.over; updateGoal(); }
+    });
+    check(noGoal, '戦闘HUD: 目標がないとき任務タブを隠す');
+    await page.waitForTimeout(100);
+    const hudClock=await page.evaluate(()=>({time:document.getElementById('time').textContent, date:document.getElementById('date').textContent, expectedTime:clockStr(), expectedDate:dateStr()}));
+    check(hudClock.time===hudClock.expectedTime && hudClock.date===hudClock.expectedDate, '戦闘HUD: 時刻と日付は作戦時計に合う', JSON.stringify(hudClock));
+    await page.keyboard.press('h');
+    const hudHidden=await page.evaluate(()=>({view:getComputedStyle(document.getElementById('view')).display, plate:getComputedStyle(document.querySelector('#legend .lplate')).display, legend:getComputedStyle(document.querySelector('#legend .lgs')).display}));
+    check(hudHidden.view!=='none' && hudHidden.plate==='none' && hudHidden.legend==='none', '戦闘HUD: H で右上は表示ボタンだけ残る', JSON.stringify(hudHidden));
+    await page.keyboard.press('h');
     check(await page.locator('#roster .grpBtn').count() === 1, '出撃: 戦区軍の全軍ボタン');
     /* the formation is laid out around the flagship: at deploy and after a group move; with 陣形OFF everyone goes to the point */
     const fm = await page.evaluate(() => {

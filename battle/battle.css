@@ -95,8 +95,8 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #camView button:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 #speed button:focus-visible,.again:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
-/* bottom-left: briefing / event panel */
-#brief{left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(560px,52vw);background:var(--panel);border-left:3px solid var(--brass);padding:12px 18px 14px;backdrop-filter:blur(6px)}
+/* top-left, under the 任務 panel: briefing / event panel (the tabs: see the end of this file) */
+#brief{background:var(--panel);border-left:3px solid var(--brass);padding:12px 18px 14px;backdrop-filter:blur(6px)}
 #brief .t{font-family:var(--f-num);color:var(--brass);font-weight:600;font-size:13px;letter-spacing:.06em}
 #brief h2{margin:4px 0 6px;font-size:19px;font-weight:700;text-wrap:balance;line-height:1.35}
 #brief p{margin:0;color:var(--ink-dim);font-size:13px;line-height:1.7}
@@ -197,7 +197,6 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 }
 /* the view stick: see the end of this file */
 @media (max-width:760px),(max-height:500px){
-  #brief{width:min(380px,48vw);padding:8px 12px}
   #brief h2{font-size:15px}
   #brief p{font-size:11.5px;line-height:1.55}
   #log{display:none}
@@ -208,7 +207,6 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
   #hint{top:auto;bottom:calc(140px + env(safe-area-inset-bottom,0px))}
 }
 @media (max-width:520px){
-  #brief{left:16px;right:16px;width:auto;bottom:calc(104px + env(safe-area-inset-bottom,0px))}
   #legend{padding:6px 10px}
   #legend .row{font-size:12px}
   #hint{bottom:calc(230px + env(safe-area-inset-bottom,0px))}
@@ -233,7 +231,7 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 #view button{flex:1;white-space:nowrap;font-family:var(--f-ui);background:transparent;color:var(--ink-dim);border:1px solid var(--line);cursor:pointer}
 #view button[aria-pressed="true"]{color:var(--ink);border-color:var(--blue)}
 #view button:focus-visible,#brief:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-#brief{width:min(400px,44vw);padding:6px 12px 7px;cursor:pointer;opacity:.9}
+#brief{padding:6px 12px 7px;cursor:pointer;opacity:.9}
 #brief .t{font-size:11.5px}
 #brief h2{font-size:14.5px;margin:1px 0 0}
 #brief p,#log{display:none}
@@ -253,11 +251,9 @@ html,body{height:100%;margin:0;background:var(--void);color:var(--ink);font-fami
 .sector b{font-size:11px}
 .sector span{display:none}
 body.nolabels .flag,body.nolabels .sector{display:none}
-body.noui .hud:not(#legend):not(#tl),body.noui #legend>:not(#view),body.noui #tl>:not(#tlBtns){display:none!important}
-@media (max-width:760px),(max-height:500px){ #brief{width:40vw} }
+body.noui .hud:not(#legend):not(#tl),body.noui #tl>:not(#tlBtns){display:none!important}
 @media (max-width:520px){
   #goal{width:min(230px,calc(100vw - 210px))}
-  #brief{width:auto;bottom:calc(var(--rh,64px) + 24px + env(safe-area-inset-bottom,0px))}
 }
 #talk{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(520px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--brass);padding:8px 12px;backdrop-filter:blur(6px);cursor:pointer;z-index:6}
 body.incut #labels{display:none}
@@ -398,3 +394,67 @@ body.inmenu #rtip{display:none}
 #view button:disabled{opacity:.4}
 #tlBtns button{border:0;padding:3px 12px 3px 10px;font-size:11px;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
 #tlBtns button i{font-family:var(--f-num);font-style:italic;font-weight:600;letter-spacing:.08em;color:var(--blue);margin-right:6px}
+
+/* ---------- windows as menu plates (見本D2・F2, user decision 2026-11-05) ----------
+   Top left: 任務 and 作戦概要 as two small tabs side by side (#hudTabs); each folds its own panel under the row (.shut), and an open
+   tab joins the panel below like a folder tab. Top right: see below.
+   Bottom left: the altitude panel. The panels lose the corner brackets for the menu's cut-corner plate; a heading is a strip
+   (blue line on top, the right end slanted). Sizes 仮 */
+#tl{gap:0}
+#tlBtns{margin-bottom:7px}
+#hudTabs{display:flex;gap:2px}
+#hudTabs button{font-family:var(--f-ui);font-size:11px;white-space:nowrap;cursor:pointer;border:0;color:var(--ink-dim);padding:5px 18px 4px 12px;
+  background:rgba(8,14,26,.55);border-bottom:2px solid rgba(127,200,255,.25);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 100%,0 100%)}
+#hudTabs button i{font-family:var(--f-num);font-style:italic;font-weight:600;letter-spacing:.08em;color:var(--blue);margin-right:6px}
+#hudTabs button::after{content:"▾";margin-left:8px;font-size:10px}
+#hudTabs button[aria-expanded="true"]{color:var(--ink);background:rgba(8,14,26,.85);border-bottom-color:transparent;box-shadow:inset 0 2px 0 var(--blue)}
+#hudTabs button[aria-expanded="false"]::after{content:"▸"}
+#hudTabs button:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+#goal,#brief{width:300px;box-sizing:border-box;background:rgba(8,14,26,.85);opacity:1}
+#goal{padding:8px 12px 10px}
+#goal .gt{display:none}
+#brief{padding:8px 14px 10px}
+#goal::before,#brief::before,#talk::before,#clock::before{display:none}
+#goal,#brief{clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
+#goal:not(.shut):has(+#brief:not(.shut)){clip-path:none}
+#goal:not(.shut)+#brief{border-top:1px solid rgba(127,200,255,.18)}
+#goal.shut,#brief.shut:not(.fresh){display:none}
+#brief.shut.fresh{margin-top:4px}
+#brief .t{font-size:11px}
+#brief h2{font-size:15px}
+/* top right (見本P2, user decision 2026-11-05): a wide, low plate with the clock big on the left and speed over view on the right;
+   under it one thin line: 戻す・パネル・名札 on the left, the sides' legend on the right */
+#legend{background:none;border:0;padding:0;clip-path:none;opacity:1;display:grid;gap:5px;width:430px;backdrop-filter:none}
+#legend .lplate{display:grid;grid-template-columns:auto 52px 1fr;grid-template-rows:auto auto;align-items:center;gap:6px 0;padding:10px 14px;
+  background:rgba(8,14,26,.72);backdrop-filter:blur(6px);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+#legend #clock{grid-row:1/3;display:flex;flex-direction:column;justify-content:center;border-left:0;border-right:1px solid rgba(127,200,255,.18);padding:0 14px 0 0;margin-right:14px;text-shadow:none}
+#legend #clock .eye{color:var(--brass);margin:0}
+#legend #clock .time{font-family:var(--f-num);font-weight:600;font-size:30px;line-height:1;color:var(--brass);font-variant-numeric:tabular-nums}
+#legend #clock .date{font-size:10.5px;color:var(--ink-dim);margin-top:4px}
+#legend #clock .phase{font-size:15px;margin-top:4px}
+#legend .lplate>.eye{margin:0}
+#legend .lunder{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#legend #view{width:200px}
+#legend .lgs{display:flex;gap:12px;padding:3px 10px;background:rgba(8,14,26,.55)}
+#legend .lgs .row{font-size:11px;gap:6px}
+#legend .lgs svg{width:15px;height:15px}
+body.noui #legend .lplate,body.noui #legend .lgs{display:none!important}
+/* bottom left: the altitude panel, a heading strip, slanted buttons */
+#alt{position:fixed;left:16px;top:auto;bottom:calc(16px + env(safe-area-inset-bottom,0px));border:0;background:rgba(8,14,26,.72);padding:0 8px 10px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
+#alt .cap,#talk>.eye{display:block;justify-self:stretch;margin:0 -8px 4px;padding:4px 8px;background:linear-gradient(90deg,rgba(127,200,255,.22),rgba(127,200,255,.04));border-top:2px solid var(--blue)}
+#alt button,#talk button{border:0;background:rgba(127,200,255,.08);color:var(--ink-dim);clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+#alt #stance button{width:60px}
+#alt #stance button[aria-pressed="true"]{color:var(--void);background:var(--blue)}
+#alt #stance button[data-st="evade"][aria-pressed="true"]{background:var(--brass)}
+/* the talk strip: a COMMS heading, the speaker in a quiet colour (an operator's dry report) */
+#talk{background:rgba(8,14,26,.8);padding:0 14px 10px;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
+#talk>.eye{margin:0 -14px 4px;padding:4px 14px}
+#talk b{display:block;color:var(--ink-dim)}
+#talk button{padding:2px 12px}
+/* Keep long briefings above the altitude controls; their text remains scrollable. */
+#tl{max-height:calc(100vh - 330px)}
+#tlBtns,#hudTabs,#goal{flex-shrink:0}
+#brief{min-height:0;overflow-y:auto;scrollbar-width:thin}
+/* Leave the view stick clear when a conversation is open. */
+#talk{bottom:calc(52px + clamp(64px,9.45vh,128px) + env(safe-area-inset-bottom,0px))}
