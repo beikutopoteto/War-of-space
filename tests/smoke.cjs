@@ -1856,10 +1856,10 @@ function check(ok, label, detail = '') {
       '第6節の釣り合わせ（2026-10-29、仮）: 突撃揚陸艦の W.A.S. は1隻8機のまま（基礎の値）、槍2の突撃揚陸艦は4隊6隻（作業票 #251 の仮の調整）、誘導の推進器の耐久は東・北とも600（ユーザー決定 2026-10-30）', JSON.stringify([db.stage.was, db.stage.s2mas, db.stage.s2masN, db.stage.thrHp]));
     /* 第6節だけ改造した砲台。第4節は共通データのまま。 */
     const dg = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.range, f.dmg])));
-    check(dg[0].length === 6 && dg[0].every(([r,d]) => r === 22 && d === 1) && dg[1].length === 10 && dg[1].every(([r,d]) => r === 90 && d === 2), '第4節の砲台は射程22・打撃1、第6節は10基とも射程90・打撃2', JSON.stringify(dg));
+    check(dg[0].length === 6 && dg[0].every(([r,d]) => r === 22 && d === 1) && dg[1].length === 12 && dg[1].every(([r,d]) => r === 90 && d === 2), '第4節の砲台は射程22・打撃1、第6節は12基とも射程90・打撃2（鉱山の2基は 2026-11-05）', JSON.stringify(dg));
     check(Math.abs(db.slide - 260) <= 3 && db.stop === 140, '第6節: 作戦フィールドは近づくときに一度だけ一定の速さで北へ滑って止まる（linear、z300 → 140）', JSON.stringify([db.slide, db.stop]));
     const gunShapes = await page.evaluate(() => ['denali', 'denaliBreak'].map(id => WOS_DATA.operations.find(x => x.id === id).enemies.filter(f => f.type === 'aa').map(f => [f.hp, f.shape || f.type])));
-    check(gunShapes[0].length === 6 && gunShapes[0].every(([hp,shape]) => hp === 20 && shape === 'aa') && gunShapes[1].length === 10 && gunShapes[1].every(([hp,shape]) => hp === 40 && shape === 'rgun'), '第4節の砲台は耐久20・形aa、第6節は10基とも耐久40・形rgun', JSON.stringify(gunShapes));
+    check(gunShapes[0].length === 6 && gunShapes[0].every(([hp,shape]) => hp === 20 && shape === 'aa') && gunShapes[1].length === 12 && gunShapes[1].every(([hp,shape]) => hp === 40 && shape === 'rgun'), '第4節の砲台は耐久20・形aa、第6節は12基とも耐久40・形rgun', JSON.stringify(gunShapes));
     /* 方角守備隊の傘: 傘外へは追わず射程内の敵を撃ち、近くの砲台が全滅すると持ち場100に戻す。 */
     const scr6 = await page.evaluate(() => {
       WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk();
@@ -1884,7 +1884,7 @@ function check(ok, label, detail = '') {
       return {canFire,noChase,didDamage,relief,fallback:fallback.length === 1 && fallback[0].r === 100 && fallback[0].pos.distanceTo(P.postV) < .01, hadGuns:!!circle};
     });
     check(scr6.canFire && scr6.noChase && scr6.didDamage && scr6.relief && scr6.fallback && scr6.hadGuns, '第6節: 守備隊は傘の外へ追わず射程内の敵を撃ち、砲台を失うと持ち場100を傘とする。引き出されると拠点から増援が回る', JSON.stringify(scr6));
-    /* 第二段階の合図 lure: 西上と東下の守備隊18隻のうち、持ち場の中心から60の外へ出た艦と沈んだ艦が3分の2（12）になったら（一番早くて 14:10）、遅くとも 15:00。
+    /* 第二段階の合図 lure: 西上と東下の守備隊18隻のうち、持ち場の中心から60の外へ出た艦と沈んだ艦が3分の2（12）になったら（一番早くて 14:15。2026-11-05 に 14:10 から）、遅くとも 15:00。
        そこで移乗、推進器の印（見本の案C）は合図まで出さない。14:45 になっても合図がなければウォン中将「15:00 に出る」 */
     const lu = await page.evaluate(() => {
       const said = [], logE = logEvent; logEvent = (a, b) => { said.push(a + b); logE(a, b); };
@@ -1895,11 +1895,11 @@ function check(ok, label, detail = '') {
       try {
         start(); mins(5); const T = F('推進器 東2'), Wst = F('推進器 西1');
         r.mark = { off: thrOff(T), cls: T.el.classList.contains('thr') && T.el.classList.contains('rs') && Wst.el.classList.contains('dim'), tg: T.el.querySelector('.tg').textContent, hex: !!T.el.querySelector('.emb svg polygon') };
-        /* 12 of the 18 sunk at 13:05: not before 14:10 */
+        /* 12 of the 18 sunk at 13:05: not before 14:15 */
         const S = [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve');
         let n = 0; for (const f of [...S, ...[...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot === 'reserve')]) { if (n >= 12) break; n += f.ships.length; kill(f); }
-        r.count = lureCount(); mins(69.5); r.early = { lured: !!lured, state: nuke.state };
-        mins(70.6); r.share = { by: lured && lured.by, state: nuke.state, phase: phaseName, cue: !!packCue.lure, known: fleets.filter(f => f.type === 'thr').every(f => f.known && f.seen), off: thrOff(T),
+        r.count = lureCount(); mins(74.5); r.early = { lured: !!lured, state: nuke.state };
+        mins(75.6); r.share = { by: lured && lured.by, state: nuke.state, phase: phaseName, cue: !!packCue.lure, known: fleets.filter(f => f.type === 'thr').every(f => f.known && f.seen), off: thrOff(T),
           said: said.some(t => t.includes('方角守備隊、3分の2が剥がれました')) && said.some(t => t.includes('推進器、12基')) && !said.some(t => t.includes('剥がれきらない')), wait: !said.some(t => t.includes('15:00 に出る')) };
         /* nothing drawn out: at 15:00 by the clock, after the word at 14:45 */
         start(); gameSec = 104.9 / CLOCK_RATE; mins(105.2); const w1 = said.some(t => t.includes('15:00 に出る'));
@@ -1913,7 +1913,7 @@ function check(ok, label, detail = '') {
     });
     check(lu.mark.off && lu.mark.cls && lu.mark.tg === '東2' && lu.mark.hex && lu.count.n0 === 18 && lu.count.out >= 12 && !lu.early.lured && lu.early.state === 'wait'
       && lu.share.by === 'share' && lu.share.state === 'board' && lu.share.phase === '第二段階' && lu.share.cue && lu.share.known && !lu.share.off && lu.share.said && lu.share.wait,
-      '第6節: 西上・東下の守備隊18隻の3分の2（12隻）が沈むか持ち場の60の外へ出ると、14:10 を待って第二段階（移乗、推進器の印は六角と短い名前でここから。西は薄く）（2026-10-28、3分の2は 2026-10-30）', JSON.stringify(lu));
+      '第6節: 西上・東下の守備隊18隻の3分の2（12隻）が沈むか持ち場の60の外へ出ると、14:15 を待って第二段階（移乗、推進器の印は六角と短い名前でここから。西は薄く）（2026-10-28、3分の2は 2026-10-30）', JSON.stringify(lu));
     check(lu.time.w1 && lu.time.s0 === 'wait' && lu.time.by === 'time' && lu.time.state === 'board' && !lu.time.half && lu.time.move && lu.time.late && lu.out.out === 7 && !lu.out.lured,
       '第6節: 守りが剥がれなくても 15:00 で第二段階（14:45 にウォン中将「15:00 に出る」、15:00 に「剥がれきらないが、時間だ」2026-10-29）。持ち場の60の外へ出た艦も数える（2026-10-28）', JSON.stringify([lu.time, lu.out]));
     /* 第6節: 戦艦3隻の起爆か、誘導推進器6基の破壊で勝つ。 */

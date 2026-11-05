@@ -2082,7 +2082,7 @@ function nukeBoard(now){ const S=nuke, N=op.nukes; S.state='board'; S.at=now; S.
   S.G.forEach((G,gi)=>{ const live=bbIn(G), gone=S.nb0[gi]-live;
     /* each battleship takes its class's share of what its unit has left (by the classes' hit points: a battleship more than a frigate. 2026-10-29,
        before the unit's average, which left a battleship as weak as the frigates) */
-    if(live){ const bb=G.ships.filter(s=>s.type==='bb'), hpOf=t=>techFleet(0,{type:t,n:1}).hp, w=G.ships.reduce((a,s)=>a+hpOf(s.type),0), avg=G.hpPool*hpOf('bb')/(w||1), spd=techFleet(0,{type:'bb',n:1}).speed;
+    if(live){ const bb=G.ships.filter(s=>s.type==='bb'), hpOf=t=>techFleet(0,{type:t,n:1}).hp, w=G.ships.reduce((a,s)=>a+hpOf(s.type),0), avg=G.hpPool*hpOf('bb')/(w||1), spd=techFleet(0,{type:'bb',n:1}).speed*(N.speed||1);   /* N.speed: 第6節 0.85 (2026-11-05) */
       const q=new THREE.Quaternion().setFromAxisAngle(_up0,Math.atan2(G.heading.x,G.heading.z));   // where the ship stands in its unit's disc (as loop.js draws it)
       bb.forEach((s,k)=>{ const p=s.off.clone().applyQuaternion(q).add(G.pos);
         const f=makeFleet(0,{name:`${G.name} ${k+1}番艦`, sub:`戦艦　核弾頭${G.nuke}発　移乗中`, type:'bb', n:1, hp:G.hp/HP_K, dmg:G.dmg, range:G.range, eva:G.eva||0,
