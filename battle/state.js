@@ -164,8 +164,8 @@ function updateFleetLabel(f,lost,sub){
   const content=lost?`<b>${f.name}</b><span class="ln">${sub}</span>`:`<b>${f.name}</b>`+(f.team===0?`<span class="ln">${f.sub}</span><span class="ln"><em>×${f.ships.length}　高度${altStr(f.pos.y)}</em>${f.hangars.length?'<br>'+hangarText(f):''}</span>`:'')+`<span class="cs">${rows}</span>`;
   if(f._labelContent!==content){ f._labelContent=content; nm.innerHTML=content; }
 }
-/* the short label on a tile: the unit's number, or the start of a story unit's own name (アルバレス隊 → アル) */
-const tileNo=f=>unitNo(f.name)||f.name.slice(0,2);
+/* the short label on a tile: the unit's number, or a story unit's whole name in smaller type (ユーコン; the first two letters until 2026-11-05) */
+const tileNo=f=>unitNo(f.name)||f.name;
 function buildRoster(){
   hideTip();
   rosterEl.innerHTML='';
@@ -384,8 +384,9 @@ function updateRoster(){
     const sum=z.querySelector('.sum'); if(sum) sum.textContent=`${list.length}群 ${list.reduce((s,f)=>s+f.ships.length,0)}隻`; });
   fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f), hull=f.ships.length/f.n;
     const mk=f.alive?fleetMark(f):''; if(mk!==f.mkKey){ f.mkKey=mk; f.btn.querySelector('.mkw').innerHTML=mk; }
-    f.btn.querySelector('.no b').textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
-    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+'×'+f.ships.length;
+    const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); nb.textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
+    if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
+    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(nn&&f.n===1?'':'×'+f.ships.length);
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
     f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));

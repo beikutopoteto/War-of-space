@@ -900,6 +900,9 @@ function check(ok, label, detail = '') {
     const gridOpt = await page.evaluate(() => { const r={sq:gridMat.uniforms.uSq.value===1&&layerMat.uniforms.uSq.value===1, uis:getComputedStyle(document.documentElement).getPropertyValue('--uis').trim()};
       WOS_OPT.grid='polar'; return new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(()=>{ r.polar=gridMat.uniforms.uSq.value===0; WOS_OPT.grid='sq'; ok(r); }))); });
     check(gridOpt.sq && gridOpt.polar && Number(gridOpt.uis) > 0, 'グリッド: 既定は四角、オプションの円で切り替わる。画面の大きさの倍率がある', JSON.stringify(gridOpt));
+    const yTile = await page.evaluate(() => { updateRoster(); const b=opCarrier.btn.querySelector('.no'), r=b.getBoundingClientRect(), t=opCarrier.btn.getBoundingClientRect();
+      return { name: b.querySelector('b').textContent, fits: r.left >= t.left - .5 && r.right <= t.right + .5 }; });
+    check(yTile.name === 'ユーコン' && yTile.fits, '一覧: 番号のない物語の隊は名前を全部、マスに収めて出す（2026-11-05）', JSON.stringify(yTile));
     /* screen-size scale (the tools fix it at 1): at 0.8 the HUD shrinks and the browser still finds the small buttons where they are drawn */
     const uis = await page.evaluate(() => { const w0=rosterEl.getBoundingClientRect().width; window.WOS_UIS=.8; resize();
       const b=document.querySelector('#roster .frow .st'), r=b.getBoundingClientRect(), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
