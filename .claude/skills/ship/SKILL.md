@@ -35,7 +35,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 - `files`:
 
 ```json
-{"battle/base.js":"battle/base.js","battle/battle.css":"battle/battle.css","battle/cut.js":"battle/cut.js","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/earth.js":"data/earth.js","data/operations.js":"data/operations.js","data/tech.js":"data/tech.js","data/ships.js":"data/ships.js","marks.js":"marks.js","prep.js":"prep.js","prep.css":"prep.css","prep-bg.js":"prep-bg.js","prep-dock.js":"prep-dock.js"}
+{"battle/base.js":"battle/base.js","battle/battle.css":"battle/battle.css","battle/cut.js":"battle/cut.js","battle/effects.js":"battle/effects.js","battle/hud.js":"battle/hud.js","battle/loop.js":"battle/loop.js","battle/scene.js":"battle/scene.js","battle/shapes.js":"battle/shapes.js","battle/sim.js":"battle/sim.js","battle/state.js":"battle/state.js","battle/tutorial.js":"battle/tutorial.js","battle/units.js":"battle/units.js","data/bonuses.js":"data/bonuses.js","data/earth.js":"data/earth.js","data/operations.js":"data/operations.js","data/tech.js":"data/tech.js","data/ships.js":"data/ships.js","marks.js":"marks.js","prep.js":"prep.js","prep.css":"prep.css","prep-bg.js":"prep-bg.js","prep-dock.js":"prep-dock.js"}
 ```
 
 `battle/` や `data/` や最上位にファイルを足したら（2026-11-04 の `prep-bg.js` など）、この表と下の `git archive` にも足す。

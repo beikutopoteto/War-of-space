@@ -54,7 +54,7 @@ function defaults(){
   };
 }
 /* campaign progress: cleared operations, funds, research per branch ([node ids], data/tech.js techTree), story flags */
-function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}}; }
+function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}, tutorialCleared:false}; }
 let save;
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
 const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘団','cl',6],['bg3','第3戦闘団','dd',8],['bg4','第4戦闘団','ff',10],['bg5','第5戦闘団','cvb',2],
@@ -157,6 +157,7 @@ function storyFlags(){ return {kawasemi:!!prog().flags['rescued:retreat']}; }
 /* the battle the menu started: the result is recorded when it ends (クイック出撃 is not counted) */
 let running=null;
 function onEnd(opId,win,res={}){
+  if(running&&running.tutorial){ if(win&&tutorialActive()&&tutorial.step===10){ prog().tutorialCleared=true; persist(); } return ''; }
   if(!running||running.quick||running.op!==opId||!win) return '';
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */
@@ -293,6 +294,7 @@ menu.innerHTML=`
 </section>`;
 
 menu.addEventListener('click',e=>{
+  if(e.target.closest('[data-tutorial]')){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); return; }
   const go=e.target.closest('[data-go]'); if(go){ if(go.dataset.go==='org') orgFromForces=screen==='forces'; if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
@@ -305,6 +307,7 @@ function renderTitle(){
     return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':LOCK}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
   document.getElementById('mainNav').innerHTML=
     `<button data-go="mode" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
+    `<button data-tutorial><b>チュートリアル</b><span>${P.tutorialCleared?'クリア済み':'おすすめ'}</span></button>`+
     item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
     item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+

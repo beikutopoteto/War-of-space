@@ -156,7 +156,7 @@ function buildSky(S){
     const G=b.grow, m=new THREE.Mesh(new THREE.SphereGeometry(G?1:b.r,G?48:seg,G?24:seg/2),skyMat(kind)); m.position.set(...b.pos); m.material.uniforms.uSun.value.copy(sd); m.renderOrder=-2; skyObj.add(m);
     if(kind===0){ if(b.r<10) m.rotation.y=Math.atan2(-b.pos[0],-b.pos[2])-20*Math.PI/180;
       else { const parts=op.date.match(/A\.E\.\s*(\d+)\.(\d+)\.(\d+)/), date=new Date(Date.UTC(+parts[1]+2054,+parts[2]-1,+parts[3]));
-        const turn=()=>earthOrientation(m,sd,date,clockMin(gameSec*CLOCK_RATE)); turn();
+        const turn=()=>earthOrientation(m,sd,date,clockMin(opClock())); turn();
         m.onBeforeRender=()=>{ turn(); m.updateMatrixWorld(true); }; }
       const h=skyHalo(b.r); h.position.copy(m.position); h.material.uniforms.uSun.value.copy(sd); skyObj.add(h); }
     if(!G) return;

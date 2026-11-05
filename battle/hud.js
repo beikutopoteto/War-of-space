@@ -7,9 +7,9 @@ let CLOCK_RATE=CLOCK_BASE;
 /* minutes since midnight of the operation's first day, at `min` minutes after the start */
 function clockMin(min){ const [h0,m0]=(op.start||'08:00').split(':').map(Number); return h0*60+m0+Math.floor(min); }
 /* the operation clock at `min` minutes after the start (now, by default) */
-function clockStr(min=gameSec*CLOCK_RATE){ const m=clockMin(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function clockStr(min=opClock()){ const m=clockMin(min); return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
 /* the date moves on when the clock passes midnight: the last number of op.date is the day */
-function dateStr(){ const d=Math.floor(clockMin(gameSec*CLOCK_RATE)/1440); return d?op.date.replace(/(\d+)$/,x=>String(+x+d).padStart(x.length,'0')):op.date; }
+function dateStr(){ const d=Math.floor(clockMin(opClock())/1440); return d?op.date.replace(/(\d+)$/,x=>String(+x+d).padStart(x.length,'0')):op.date; }
 function setPhase(p){ phaseName=p; document.getElementById('phase').textContent=p; }
 function showBrief(t,h,p){ document.getElementById('bt').textContent=t; document.getElementById('bh').textContent=h; document.getElementById('bp').textContent=p; }
 /* numbers filled into a line when it is shown (第4節): {boarded} the people aboard the carrier, {remain} those left behind,
@@ -48,6 +48,7 @@ function setAlt(v,apply=true){
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
+  if(tutorialActive()&&tutorial.step===2) tutorial.altChanged=true;
   const t=orderTargets(); if(!t.length) return;
   const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
   t.forEach(f=>{
@@ -128,7 +129,7 @@ function flyTo(target,dir,dist){
 function setView(i){ viewIdx=i; const a=getAngles();
   flyTo(controls.target,new THREE.Vector3().setFromSphericalCoords(1,THREE.MathUtils.degToRad(90-VIEWS[i].el),THREE.MathUtils.degToRad(a.az)));
   document.querySelectorAll('#camView button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.v===i))); }
-function cycleView(){ setView((viewIdx+1)%VIEWS.length); }
+function cycleView(){ tutorialEvent('view'); setView((viewIdx+1)%VIEWS.length); }
 function focusSelected(){ if(!selected||!selected.alive) return; const d=camera.position.clone().sub(controls.target); flyTo(selected.pos,d,Math.min(d.length(),120)); }
 /* view angle: one spring stick turns and tilts the camera; arrow keys do the same. */
 const EL_MIN=-80, EL_MAX=88, _sph=new THREE.Spherical(), _off=new THREE.Vector3();
@@ -172,7 +173,7 @@ function stepCam(dt){
 /* the view moves along with a field that follows the convoy (sim.js stepField) */
 function shiftView(d){ controls.target.add(d); camera.position.add(d);
   if(camAnim){ camAnim.fT.add(d); camAnim.tT.add(d); camAnim.fP.add(d); camAnim.tP.add(d); } }
-document.querySelectorAll('#camView button').forEach(b=>b.addEventListener('click',()=>setView(+b.dataset.v)));
+document.querySelectorAll('#camView button').forEach(b=>b.addEventListener('click',()=>{ tutorialEvent('view'); setView(+b.dataset.v); }));
 addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='KeyF') focusSelected(); });
 
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
@@ -271,7 +272,7 @@ addEventListener('pointerdown',hideHint,{capture:true});
 const stanceEl=document.getElementById('stance');
 function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selGroup?`${selGroup.name} 全軍`:null); }
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
-function applyStance(t,v,label){ t.forEach(f=>f.stance=v); updateRoster();
+function applyStance(t,v,label){ if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
@@ -286,7 +287,7 @@ stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('clic
 stanceEl.querySelector('.undo').addEventListener('click',()=>undo());
 addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==='INPUT') return; const t=orderTargets(); if(t.length) setStance(t.every(f=>f.stance==='evade')?'engage':'evade'); });
 let runSpeed=1;
-function setSpeed(s){ speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }
+function setSpeed(s){ if(s!==speed) tutorialEvent('speed'); speed=s; if(s>0) runSpeed=s; document.querySelectorAll('#speed button').forEach(x=>x.setAttribute('aria-pressed',String(+x.dataset.s===s))); }
 document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click',()=>setSpeed(+b.dataset.s)));
 /* in-battle menu (Esc or the メニュー button): the battle stands still while it is open.
    続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls.
@@ -327,7 +328,7 @@ window.WOS={ start(cfg){
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field */
   const V=op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
-  hintGone=false; hintEl.hidden=false; hintEl.classList.remove('gone'); setTimeout(hideHint,7000);
+  hintGone=false; hintEl.hidden=!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone'); if(!hintEl.hidden) setTimeout(hideHint,7000);
 }, openMenu };
 
 /* mission panel (top right, under the legend): what to do now, with a gauge.
@@ -374,7 +375,7 @@ function lureRows(){ const L=op.lure; return L.packs.map(n=>packs.find(P=>P.name
   let n0=0, home=0; for(const f of lureUnits(P)){ n0+=f.n; if(f.alive&&(!P.postV||f.pos.distanceTo(P.postV)<=L.out)) home+=f.ships.length; }
   return {name:P.name.replace(/守備隊$/,''), n0, home}; }); }
 function nukeHtml(){
-  const S=nuke, N=op.nukes, W=op.win, now=gameSec*CLOCK_RATE, fired=S.fireAt!=null;
+  const S=nuke, N=op.nukes, W=op.win, now=opClock(), fired=S.fireAt!=null;
   let h='';
   /* the five battleships */
   const M=nukeMarks(), bb=(m,i)=>{ const c=m==='sunk'?NK_GREY:m==='descend'?NK_AMBER:NK_BLUE, fill=m==='descend'?NK_AMBER:m==='landed'?NK_BLUE:'none';
@@ -420,7 +421,7 @@ function nukeHtml(){
   h+=`<div class="nkw">${say}</div>`;
   return h; }
 /* the numbers under the scale (the folded panel keeps them) */
-function nukeLabel(){ const S=nuke, now=gameSec*CLOCK_RATE;
+function nukeLabel(){ const S=nuke, now=opClock();
   if(op.win.type==='shatter'&&feintAll) return `推進器 ${nuke.thr0-restoreLeft()}/${nuke.thr0}・${clockStr(op.win.due)}まで`;
   if(op.lure&&!lured) return '持ち場 '+lureRows().map(r=>`${r.name} ${r.home}/${r.n0}`).join('・');
   if(op.win.type==='shatter') return `着底 ${S.landN||S.bbs.filter(b=>b.f&&b.f.alive&&b.f.nukeSt==='landed').length}/${op.win.breakN}`;
@@ -457,7 +458,7 @@ function updateGoal(){
   if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
     if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
     else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }
-    else if(!convoy.departed){ p=Math.min(1,gameSec*CLOCK_RATE/C.depart); text=C.boardText||'乗船が終わるまで、敵を輸送船団に近づけるな'; label=`乗船 ${Math.floor(p*100)}%　${clockStr(C.depart)} 出港`; mode='board'; }
+    else if(!convoy.departed){ p=Math.min(1,opClock()/C.depart); text=C.boardText||'乗船が終わるまで、敵を輸送船団に近づけるな'; label=`乗船 ${Math.floor(p*100)}%　${clockStr(C.depart)} 出港`; mode='board'; }
     else { const pa=convoy.order&&convoy.order.path; p=pa?pa.s/pa.L:1; text=C.escortText||'輸送船団を離脱点まで守れ'; label=`${C.pointName||'離脱点'}まで ${Math.floor(p*100)}%`; mode='escort'; }
     subT=`輸送船 ${left}/${convoy.n}隻　${lose}隻失うと失敗`;
     /* a field with clouds: whether the enemy has eyes on us; the distress call */
@@ -466,11 +467,11 @@ function updateGoal(){
     if(rescue&&!over) subT+=`\n${op.rescue.fleet.name}：${rescue.done?'救助した':rescue.lost?'失われた':`救助 ${Math.floor(100*Math.min(1,rescue.prog/op.rescue.need))}%`}`; }
   else if(op.win&&op.win.type==='defend'){ const W=op.win, hp=fortress.alive?Math.max(0,fortress.hpPool/fortress.max):0;
     p=Math.min(1,evac/W.need); text=W.text||`避難が終わるまで${fortress.name}を守れ`; mode='defend';
-    label=`避難 ${Math.floor(p*100)}%　完了 ${evacRate>0?clockStr(gameSec*CLOCK_RATE+(W.need-evac)/evacRate):'--:--'} 予定`;
+    label=`避難 ${Math.floor(p*100)}%　完了 ${evacRate>0?clockStr(opClock()+(W.need-evac)/evacRate):'--:--'} 予定`;
     subT=`${fortress.name} 耐久 ${Math.ceil(hp*100)}%${evacRate<(W.speed||1)-.001?`　避難の速さ ${Math.round(evacRate/(W.speed||1)*100)}%`:''}`;
     /* the allied fleets: ships left, and whether one is giving ground */
     const al=fleets.filter(f=>f.ally); if(al.length) subT+='\n友軍：'+al.map(f=>`${f.name.replace(/^第\d+ | 支隊$/g,'').replace(/(残存|警備)$/,'')} ${f.alive?f.ships.length:0}/${f.n}${f.alive&&f.falling?'（後退中）':''}`).join('・'); }
-  else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=gameSec*CLOCK_RATE;
+  else if(op.win&&op.win.type==='repel'){ const W=op.win, k=mainSunk(), now=opClock();
     /* 第5節: sink half the enemy's main force or hold until the time; the gates and the garrison (goalGates), the batteries on the base */
     p=Math.max(W.share?Math.min(1,k/W.share):0,Math.min(1,now/W.until)); text=stageText||W.text; mode='defend';   // no share (2026-10-18): only the time
     label=W.share?`主力の撃沈 ${Math.round(k*100)}%（${Math.round(W.share*100)}%で勝利）　${clockStr(W.until)}まで`:`${clockStr(W.until)}まで`;
