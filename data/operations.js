@@ -1515,8 +1515,8 @@ WOS_DATA.operations.push((()=>{
       {name:'正面', sub:'共和国の拠点3つ', pos:[0,275]},
       {name:'地球側', sub:'総基地の艦隊が来た方向', pos:[0,420]},
     ],
-    /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す */
-    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:40}, launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
+    /* 第4節のデナリをそのまま（灯を消す: dark）。居住区の名前は残す。宇宙港の W.A.S. は60機で、核を積んだ隊と戦艦を先に狙う（prey:'nuke'。ユーザー決定 2026-11-05: 40機から+20） */
+    body:{...D4.body, sub:'資源衛星　灯が消えている', dark:true, port:{...D4.body.port, hangar:{was:60}, prey:'nuke', launchR:160, hp:600, mark:'site', tag:'港', destroyLog:['ハッダード曹長','「宇宙港、沈黙。W.A.S. の発進が止まります」']}, blocks:D4.body.blocks.map(b=>({...b, sub:'無人'}))},
     /* 第6節の岩くずの雲はなくした（ユーザー決定 2026-11-01）。 */
     /* 核を積んだ戦艦と着弾予想点（ユーザー決定 2026-10-23・24・28、docs/campaign.md「核を積んだ戦艦」「着弾予想点と推進器」「作り直しの案」。数値はすべて仮）。
        第二段階の合図（lure）で、友軍の nuke の印の隊の戦艦が移乗（board 分その場で止まる。隊の巡洋艦とフリゲートも一緒に止まる）。そのあと空の戦艦は route を通って

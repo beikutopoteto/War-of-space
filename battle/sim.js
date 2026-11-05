@@ -229,6 +229,8 @@ function craftTarget(u,type,maxD){
   if(u.team===1&&type==='was'&&gates.length){ const c=u.carrier;
     if(c&&c.prey==='mine'){ const m=preyNearest(u,maxD,t=>t.kind==='fleet'&&!t.ally&&!t.fixed&&craftMayHit(u,t)); if(m) return m; }
     if(c&&c.alive){ const a=nearestFoe(u,maxD,t=>t.kind==='fleet'&&t.fireTarget===c&&craftMayHit(u,t)); if(a) return a; } }
+  /* prey:'nuke' (第6節 the spaceport, user decision 2026-11-05): the units and battleships carrying the warheads first, before the enemy's craft */
+  if((u.carrier||u).prey==='nuke'){ const a=preyNearest(u,maxD,t=>t.kind==='fleet'&&nukeCarrier(t)&&craftMayHit(u,t)); if(a) return a; }
   const ec=enemyCraft(u,maxD); if(ec) return ec;
   /* 艦種別の動き (roleAI operations): the W.A.S. of the Republic then go for what fires on their carrier (guard) */
   const CR=craftRole(u.team,type), cc=u.kind==='wing'?u.carrier:u;
