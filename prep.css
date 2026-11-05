@@ -297,8 +297,8 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .onpanel{position:absolute!important;left:110px;top:250px;width:560px;padding:30px;line-height:1.8}.onpanel b{font-size:26px;color:#8fe8c0}
 .ops{position:absolute;left:110px;top:186px;width:460px;display:grid;gap:6px}
 .ops .grp{margin:8px 0 2px;font-size:12.5px;letter-spacing:.3em;color:var(--brass)}
-.ops .op{display:grid;grid-template-columns:4.2em 1fr auto;align-items:center;gap:10px;padding:8px 16px 8px 14px;--cut:10px}
-.ops .op b{font-size:17.5px;font-weight:500}.ops .op span{font-size:12.5px}.ops .op.sel{background:rgba(127,200,255,.2);margin-left:10px}.ops .op.sel b{color:var(--blue)}
+.ops .op{display:grid;grid-template-columns:4.2em minmax(8.5em,1fr) auto;align-items:center;gap:10px;padding:8px 16px 8px 14px;--cut:10px}
+.ops .op b{font-size:17.5px;font-weight:500}.ops .op span{font-size:12.5px}.ops .op.sel{background:rgba(127,200,255,.2);margin-left:10px}.ops .op.sel b{color:var(--blue)}.ops .op .op-status{text-align:right}
 .det{position:absolute!important;right:70px;bottom:56px;width:620px;box-sizing:border-box;padding:20px 28px 22px;--cut:20px}
 .det .ch{font-size:14px;letter-spacing:.2em;color:var(--blue)}
 #menu .det h3{font-size:28px;font-weight:500;letter-spacing:.12em;margin:5px 0}.det .when{font:13px var(--f-num);color:var(--brass)}

@@ -75,8 +75,14 @@ function check(ok, label, detail = '') {
     await page.click('[data-s="mode"] [data-go="online"]');
     check((await page.textContent('[data-s="online"]')).includes('準備中'), '出撃: オンラインは準備中');
     await page.click('[data-s="online"] .back'); await page.click('[data-s="mode"] [data-go="sortie"]');
+    const tut0 = await page.evaluate(() => ({ first: document.querySelector('#opList [data-op]').dataset.op, locked: ['shinano', 'charybdis'].map(id => document.querySelector(`[data-op="${id}"]`).disabled), note: document.querySelector('[data-op="shinano"]').textContent }));
+    check(tut0.first === 'tutorial' && tut0.locked.every(Boolean) && tut0.note.includes('チュートリアル'), '出撃: 最初はチュートリアルが一覧の先頭で、ほかは鍵付き', JSON.stringify(tut0));
+    /* debug: 一節だけクリア at the start skips the tutorial (user decision 2026-11-05) */
+    await page.click('[data-s="sortie"] .back'); await page.click('[data-s="mode"] .back');
+    await page.click('#dbgT'); await page.click('#dbgB [data-dbga="one"]'); await page.click('#dbgT');
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
     const ops0 = await page.evaluate(() => ['shinano', 'retreat', 'charybdis'].map(id => document.querySelector(`[data-op="${id}"]`).disabled));
-    check(!ops0[0] && ops0[1] && !ops0[2], '出撃: 最初は第1節と演習（クイック出撃）だけ選べる（第2節は鍵付き）', JSON.stringify(ops0));
+    check(!ops0[0] && ops0[1] && !ops0[2], '出撃: チュートリアルのあとは第1節と演習（クイック出撃）が選べる（第2節は鍵付き）', JSON.stringify(ops0));
     await page.click('[data-op="charybdis"]');
     const quick0 = await page.isVisible('#goQuick'); await page.click('#goBattle');
     const q0 = { quick: quick0, own: await page.isDisabled('#forcesBattle'), note: await page.textContent('#sgList') };
@@ -203,7 +209,7 @@ function check(ok, label, detail = '') {
 
     /* sortie with the first army group */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
-    check(await page.locator('#opList [data-op]').count() === data.shown && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
+    check(await page.locator('#opList [data-op]').count() === data.shown + 1 && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
     await page.click('[data-op="charybdis"]');
     await page.click('#goBattle');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#forcesBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');
@@ -669,12 +675,15 @@ function check(ok, label, detail = '') {
     check(br.flags.bb && br.flags.carrier && br.flags.was && Object.values(br.tech).every(t => !t.length), 'デバッグ: 全兵科解放で、研究はせずに全兵科が開く', JSON.stringify(br));
     /* debug: 一節だけクリア counts the next section as won (reward and aid included); then back to the start again */
     await page.click('#dbgB [data-dbga="one"]');
+    const one0 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
+    check(one0.tutorialCleared && !one0.cleared.length && one0.funds === 0, 'デバッグ: 最初の状態の一節だけクリアはチュートリアルを飛ばす', JSON.stringify(one0));
+    await page.click('#dbgB [data-dbga="one"]');
     const one1 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     await page.click('#dbgB [data-dbga="one"]');
     const one2 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     check(one1.cleared.join() === 'shinano' && one1.funds === 300 && one2.cleared.join() === 'shinano,retreat' && one2.funds === 1700 && one2.flags['aid:retreat'],
       'デバッグ: 一節だけクリアで次の節が報酬つきでクリアになる', JSON.stringify([one1, one2]));
-    await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]');
+    await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="one"]');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
     check((await page.textContent('#fixedNote')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);

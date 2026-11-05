@@ -12,6 +12,10 @@ const D=window.WOS_DATA;
 const SHIPS=D.ships, BONUSES=D.bonuses, OPS=D.operations, BRANCHES=D.branches, TREE=D.techTree;
 /* the campaign: the operations with a chapter, in order. Each opens when the one before it is cleared */
 const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made; not in the menus, opened only by WOS.start({op})
+/* the tutorial (docs/tutorial.md): 要塞カリュブディス攻略戦 with the guide. It heads the campaign until it is cleared, then sits with
+   the exercises; nothing else opens before it (user decision 2026-11-05). Only the menu knows it: the battle starts charybdis with tutorial:true */
+const TUT={...OPS.find(o=>o.id==='charybdis'), id:'tutorial', tag:'チュートリアル', name:'士官学校の卒業演習', card:'チュートリアル', reward:0, quick:null,   // card: its name in the list
+  summary:'艦隊指揮の卒業演習。副官の案内に従って操作を11段で覚え、最後に演習用の要塞カリュブディスを落とす。'};
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
 /* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */
@@ -72,7 +76,10 @@ function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.
   s.armies.forEach(a=>{ const b=a.bgs.length===1&&s.bgs.find(x=>x.id===a.bgs[0]); if(a.auto===undefined&&b&&b.name===a.name) a.auto='bg:'+b.id; });
   s.bgs.forEach(b=>{ if(b.auto&&/戦隊$/.test(b.name)) b.name=unitName('bg',b.type,new Set(s.bgs.filter(y=>y!==b).map(y=>unitNo(y.name)))); });
   /* saves from before the campaign progress start at the beginning */
+  const tutKnown=!!(s.prog&&'tutorialCleared' in s.prog);
   s.prog=Object.assign(newProg(),s.prog||{});
+  /* saves from before the tutorial (2026-11-05) that have cleared an operation do not have to go back to it */
+  if(!tutKnown&&s.prog.cleared.length) s.prog.tutorialCleared=true;
   /* saves that cleared an operation before its grant existed get the grant now */
   OPS.forEach(o=>{ const k='aid:'+o.id; if(o.aid&&s.prog.cleared.includes(o.id)&&!s.prog.flags[k]){ s.prog.flags[k]=true; s.prog.funds+=o.aid.funds; } });
   /* earlier tech trees kept a number per branch, then {line: steps}: only the sortie-limit steps carry over */
@@ -102,17 +109,20 @@ function persistOpt(){ try{ localStorage.setItem(OKEY,JSON.stringify(opt)); }cat
 
 /* ---------- progress ---------- */
 const cleared=id=>prog().cleared.includes(id);
+const tutDone=()=>!!prog().tutorialCleared;
+const opDone=o=>o===TUT?tutDone():cleared(o.id);
 /* a menu screen opens when its operation is cleared (data/tech.js unlocks) */
 const unlocked=key=>cleared(D.unlocks[key]);
 /* the exercise with the player's own army groups opens once something has been researched (user decision 2026-10-13) */
 const researched=()=>Object.values(prog().tech).some(t=>t&&t.length);
 const ownExercise=()=>unlocked('fleet')&&researched();
-function opOpen(o){ if(dbg.free) return true;
+function opOpen(o){ if(dbg.free||o===TUT) return true;
+  if(!tutDone()) return false;   // nothing opens before the tutorial
   const i=CAMP.indexOf(o); if(i<0) return !!o.quick||ownExercise();   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens and a research is done
   return i===0||cleared(CAMP[i-1].id); }
 /* a thin line lock in the text colour (no emoji) */
 const LOCK='<svg class="lock" viewBox="0 0 12 14" aria-hidden="true"><rect x="1.5" y="6" width="9" height="7" rx="1"/><path d="M3.5 6V4a2.5 2.5 0 0 1 5 0v2"/></svg>';
-const opLabel=o=>`${o.chapter?o.chapter+'「':'「'}${o.name}」`;
+const opLabel=o=>`${o.chapter||o.tag?(o.chapter||o.tag)+'「':'「'}${o.name}」`;
 const unlockText=key=>{ const o=OPS.find(x=>x.id===D.unlocks[key]); return o?`${opLabel(o)}をクリアで解放`:'未解放'; };
 /* the tech tree (data/tech.js techTree): every branch has the same nodes; a node opens when all its req are researched */
 const techOf=b=>prog().tech[b.id]||(prog().tech[b.id]=[]);
@@ -157,7 +167,7 @@ function storyFlags(){ return {kawasemi:!!prog().flags['rescued:retreat']}; }
 /* the battle the menu started: the result is recorded when it ends (クイック出撃 is not counted) */
 let running=null;
 function onEnd(opId,win,res={}){
-  if(running&&running.tutorial){ if(win&&tutorialActive()&&tutorial.step===10){ prog().tutorialCleared=true; persist(); } return ''; }
+  if(running&&running.tutorial){ if(win&&tutorialActive()&&tutorial.step===10){ prog().tutorialCleared=true; sortieOp=CAMP[0].id; persist(); } return ''; }
   if(!running||running.quick||running.op!==opId||!win) return '';
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */
@@ -294,20 +304,18 @@ menu.innerHTML=`
 </section>`;
 
 menu.addEventListener('click',e=>{
-  if(e.target.closest('[data-tutorial]')){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); return; }
   const go=e.target.closest('[data-go]'); if(go){ if(go.dataset.go==='org') orgFromForces=screen==='forces'; if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
 
 /* ---------- title (main menu) ---------- */
 function renderTitle(){
-  const P=prog(), next=CAMP.find(o=>!cleared(o.id)), last=[...CAMP].reverse().find(o=>cleared(o.id));
+  const P=prog(), next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT, last=[...CAMP].reverse().find(o=>cleared(o.id));
   document.getElementById('tStat').innerHTML=`<span>資金 <b>${P.funds.toLocaleString()}</b></span><span>進行 <b>${last?esc(opLabel(last))+'まで完了':'開始前'}</b></span>${dbg.free||dbg.battle?'<span class="dbgon">デバッグ中</span>':''}`;
   const item=(key,go,name,desc)=>{ const ok=!key||unlocked(key)||dbg.free;
     return `<button data-go="${go}" ${ok?'':'disabled'}><b>${ok?'':LOCK}${name}</b><span>${ok?desc:unlockText(key)}</span></button>`; };
   document.getElementById('mainNav').innerHTML=
     `<button data-go="mode" class="lead"><b>出撃</b><span>${next?`次の作戦：${esc(opLabel(next))}`:'次の作戦は準備中。クリアした作戦はもう一度遊べます'}</span></button>`+
-    `<button data-tutorial><b>チュートリアル</b><span>${P.tutorialCleared?'クリア済み':'おすすめ'}</span></button>`+
     item('fleet','org','艦隊編集','支隊・打撃群・戦区軍を組む')+
     item('tech','tech','技術ツリー','資金を使い、兵科ごとの出撃上限を上げる')+
     item(null,'data','艦艇データ','8艦種の能力と編成ボーナス')+
@@ -340,13 +348,14 @@ function renderDebug(){
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
     <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（自軍が自動で戦い、作戦の目標もこなす。会話と配置も自動で進む）</label>
-    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
     if(a!=='reset') dbgConfirm=false;
-    /* 一節だけ: the first section not cleared yet counts as won (its reward and aid too) */
-    if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); grantAid(o); } }
+    /* 一節だけ: the first section not cleared yet counts as won (its reward and aid too). At the start it skips the tutorial (user decision 2026-11-05) */
+    if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(!tutDone()) P.tutorialCleared=true; else if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); grantAid(o); } }
+    if(a==='all') P.tutorialCleared=true;
     if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全兵科解放: opens every branch the story has not opened yet, without researching anything (user decision 2026-10-04) */
@@ -491,29 +500,29 @@ document.addEventListener('wheel',e=>{ const sc=e.target.closest&&e.target.close
   if(sc.scrollWidth>sc.clientWidth){ e.preventDefault(); sc.scrollLeft+=e.deltaY; } },{passive:false});
 
 /* ---------- sortie ---------- */
-function renderMode(){ const next=CAMP.find(o=>!cleared(o.id)); document.getElementById('modeNext').textContent='キャンペーンと演習。ひとりで、CPU の敵と戦う。\n'+(next?'次の作戦：'+opLabel(next):'次の作戦は準備中'); }
+function renderMode(){ const next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT; document.getElementById('modeNext').textContent='キャンペーンと演習。ひとりで、CPU の敵と戦う。\n'+(next?'次の作戦：'+opLabel(next):'次の作戦は準備中'); }
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function renderSortie(){
   /* the campaign first, then the exercises; a locked operation shows how it opens. At first the next one to play is chosen */
-  const list=[...CAMP,...OPS.filter(o=>!o.chapter&&!o.hidden)];
-  if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(CAMP.find(o=>!cleared(o.id)&&opOpen(o))||list.find(opOpen)||list[0]).id;
+  const ex=OPS.filter(o=>!o.chapter&&!o.hidden), camp=tutDone()?CAMP:[TUT,...CAMP], exs=tutDone()?[TUT,...ex]:ex, list=[...camp,...exs];
+  if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(camp.find(o=>!opDone(o)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
-  const nextOp=CAMP.find(o=>!cleared(o.id));
-  const card=o=>{ const ok=opOpen(o), done=cleared(o.id), i=CAMP.indexOf(o);
-    const why=i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
-    return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace('第一章 ','')):'演習'}</span><b>${ok?'':LOCK}${esc(o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
-  ol.innerHTML=`<p class="grp">第一章　開戦</p>${CAMP.map(card).join('')}<p class="grp">演習</p>${OPS.filter(o=>!o.chapter&&!o.hidden).map(card).join('')}`;
+  const nextOp=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT;
+  const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
+    const why=!tutDone()?'チュートリアルをクリアで解放':i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
+    return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace('第一章 ','')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
+  ol.innerHTML=`<p class="grp">第一章　開戦</p>${camp.map(card).join('')}<p class="grp">演習</p>${exs.map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
-  const op=OPS.find(o=>o.id===sortieOp), done=cleared(op.id);
-  document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
-  document.getElementById('opReward').innerHTML=`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*D.reward.replay)}）`:''}`;
+  const op=list.find(o=>o.id===sortieOp), done=opDone(op);
+  document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
+  document.getElementById('opReward').innerHTML=op===TUT?'報酬　なし':`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*D.reward.replay)}）`:''}`;
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:op.id}); } };
   document.getElementById('fixedNote').textContent=fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
   const btn=document.getElementById('goBattle'); btn.disabled=false;
-  btn.onclick=()=>{ if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
+  btn.onclick=()=>{ if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
 function renderForces(){
   const op=OPS.find(o=>o.id===sortieOp), load=document.getElementById('sgLoad'); load.innerHTML='';
