@@ -1846,9 +1846,9 @@ function check(ok, label, detail = '') {
       mins(40); r.stop = Math.round(fieldC.z);
       return r;
     });
-    check(db.stage.fc === 300 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 10 && db.stage.up && db.stage.hurt === .8 && db.stage.packs === 9
+    check(db.stage.fc === 300 && db.stage.thr === 12 && db.stage.restore === '東1東2東3北1北2北3' && db.stage.guns === 12 && db.stage.up && db.stage.hurt === .8 && db.stage.packs === 9
       && db.stage.fe[0] === 2.2 && Math.abs(db.stage.fe[1] - 10.5) < .1,
-      '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台10基、本軍の耐久9割、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
+      '第6節: デナリに推進器12基（戻せるのは東と北の6基、軸は中心から外）と砲台12基（鉱山の2基は 2026-11-05）、本軍の耐久9割、フェブルアーリアは 13:00 に半径2.2・21:00 に10.5（2026-10-24）', JSON.stringify(db.stage));
     check(db.stage.en === 74 && db.stage.front === 48 && db.stage.side === '9,9,8' && db.stage.feint.every(c => c === '12,12,8,4,4,0') && db.stage.ally === 18 && db.stage.cap === 60 && db.stage.gone
       && db.stage.esc === '第29 前衛巡洋 支隊:cl3dd3,第30 護衛 支隊:ff4cv2' && db.stage.allyN === 105,
       '第6節（陽動の形、2026-10-28・29）: 共和国74隻（正面48・方角守備隊 西上9・東下9・北8）、陽動は左上と右下に40隻ずつ（戦艦なし）、戦艦の護衛に第29・第30 支隊（友軍は合わせて105隻）、出撃の上限60。突破・砲撃線はない', JSON.stringify(db.stage));
@@ -2159,7 +2159,7 @@ function check(ok, label, detail = '') {
       r.p1 = { text: document.getElementById('goalText').textContent, hx: gg.querySelectorAll('svg.hx').length, rows: [...gg.querySelectorAll('.nkr .nw')].map(x => x.textContent).join(','),
         v: [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(','), say: gg.querySelector('.nkw').textContent, scale: !!gg.querySelector('svg.nks'), route: !document.querySelector('#nkRoute .ln') };
       const S = P('東下守備隊').mem.find(f => f.packSlot === 'wall'); kill(S); updateGoal(); r.p1.v2 = [...gg.querySelectorAll('.nkr .v')].map(x => x.textContent).join(',');
-      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(70.01); if (talking) endTalk(); updateGoal();   // 目標更新中 waits for the talk to end (2026-11-04)
+      [...P('西上守備隊').mem, ...P('東下守備隊').mem].filter(f => f.packSlot !== 'reserve').forEach(kill); mins(75.01); if (talking) endTalk(); updateGoal();   // 目標更新中 waits for the talk to end (2026-11-04)
       r.flash = { upd: goalEl.classList.contains('upd') && gg.textContent === '目標更新中', lured: !!lured };
       return r;
     });
