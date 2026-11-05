@@ -156,7 +156,7 @@ function damage(t,amt,src){
     const pct=t.hpPool/t.max;
     for(const m of [.75,.5,.25]) if(pct<m&&!fortressMarks.has(m)){ fortressMarks.add(m); logEvent(`要塞装甲 ${m*100}%`,m===.25?'要塞の外殻が崩れ始めた。もう一押しで陥落する。':'要塞表面で誘爆が続いている。砲火はまだ衰えていない。'); }
     if(Math.random()<amt*.06) burst(randShip(t),TEAM_COL[1],10,6,1);
-    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); if(tutorialActive()&&tutorial.step===10) end(true); else startChase(); }
+    if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); if(tutorialActive()&&tutorialCondition()==='win') end(true); else startChase(); }
   }
 }
 function destroyFleet(f,src){
