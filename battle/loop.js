@@ -34,6 +34,28 @@ const o3=new THREE.Object3D(), up=new THREE.Vector3(0,1,0);
 const _gm=new THREE.Matrix4(), _gx=new THREE.Vector3(), _gz=new THREE.Vector3();
 function groundGun(s,f){ _gz.copy(f.heading).addScaledVector(s.up,-f.heading.dot(s.up)); if(_gz.lengthSq()<1e-4) _gz.set(1,0,0).addScaledVector(s.up,-s.up.x); _gz.normalize();
   _gx.crossVectors(s.up,_gz).normalize(); _gm.makeBasis(_gx,s.up,_gz); o3.position.copy(s.base); o3.quaternion.setFromRotationMatrix(_gm); o3.scale.setScalar(f.scale); o3.updateMatrix(); }
+/* 第6節: keep yaw on the rock and pitch the upper assembly about its cross tube. */
+const RGUN_REST=20*Math.PI/180, RGUN_MAX=85*Math.PI/180, RGUN_TURN=1.2, RGUN_PIVOT=.22;
+const _rgDir=new THREE.Vector3(), _rgQ=new THREE.Quaternion(), _rgPitch=new THREE.Matrix4(), _rgA=new THREE.Matrix4(), _rgB=new THREE.Matrix4();
+function drawRgun(s,f,dt){
+  const target=f.fireTarget&&f.fireTarget.alive?f.fireTarget:null;
+  _rgDir.copy(target?target.pos:f.heading); if(target) _rgDir.sub(s.base);
+  const height=target?_rgDir.dot(s.up):0;
+  _rgDir.addScaledVector(s.up,-_rgDir.dot(s.up));
+  const horizontal=_rgDir.length();
+  if(horizontal<1e-4) _rgDir.copy(f.heading).addScaledVector(s.up,-f.heading.dot(s.up));
+  if(_rgDir.lengthSq()<1e-4) _rgDir.set(1,0,0).addScaledVector(s.up,-s.up.x);
+  _rgDir.normalize(); _gx.crossVectors(s.up,_rgDir).normalize(); _gm.makeBasis(_gx,s.up,_rgDir); _rgQ.setFromRotationMatrix(_gm);
+  if(!s.gunQ) s.gunQ=_rgQ.clone(); else s.gunQ.rotateTowards(_rgQ,RGUN_TURN*dt);
+  const el=target?Math.max(0,Math.min(RGUN_MAX,Math.atan2(height,horizontal))):RGUN_REST;
+  if(s.gunEl==null) s.gunEl=RGUN_REST;
+  s.gunEl+=(el-s.gunEl)*Math.min(1,dt*RGUN_TURN*2);
+  o3.position.copy(s.base); o3.quaternion.copy(s.gunQ); o3.scale.setScalar(f.scale); o3.updateMatrix();
+  const meshes=shipMeshes[colOf(f)], base=meshes.rgunBase, top=meshes.rgunTop;
+  if(base.count<SHIP_MAX) base.setMatrixAt(base.count++,o3.matrix);
+  if(top.count<SHIP_MAX){ _rgA.makeTranslation(0,RGUN_PIVOT,0); _rgPitch.makeRotationX(-s.gunEl); _rgB.makeTranslation(0,-RGUN_PIVOT,0);
+    _rgA.multiply(_rgPitch).multiply(_rgB); _rgA.premultiply(o3.matrix); top.setMatrixAt(top.count++,_rgA); }
+}
 /* a landing craft setting down (第5節, sim.js sitSpots): how far down it is (0 over its spot, 1 sat on its legs), and its frame on the rock */
 const _sq=new THREE.Quaternion();
 function landK(f){ const D=f.land; return D?Math.max(0,Math.min(1,1-(f.pos.distanceTo(D.p)-DROP_SIT)/(DROP_OVER-DROP_SIT))):0; }
@@ -54,7 +76,7 @@ function frame(now){
   for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
-      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; const m=shipMeshes[colOf(f)][f.shape||s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
+      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][f.shape||s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
       _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
