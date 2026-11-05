@@ -42,7 +42,7 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 `prep.js` の `armyToFleet()` が打撃群をこの形にする。作戦データ（`data/operations.js`）の艦隊も同じ形。`type` か `comp` で艦の形が決まる。
 
 ```
-{name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, type?, comp?:{艦種:隻数}, eva?, hangar?:{ftr, was}, ai?, leash?, watch?:{pos:[x,z], alt}, preyLast?, fallBack?}
+{name, sub, n, hp, dmg, range, speed, scale, pos:[x,z], alt, vis, stl, type?, comp?:{艦種:隻数}, eva?, hangar?:{ftr, was}（宇宙港などは [{was, prey}, …] の並びにもでき、格納庫ごとに狙うものを変える。`makeHangars`、第6節 2026-11-05）, ai?, leash?, watch?:{pos:[x,z], alt}, preyLast?, fallBack?}
 ```
 
 第5節で足したもの（2026-10-14）: 敵の `fallBack`（隻数がこの割合を切ると雲へ下がる。下がった艦は撃沈に数えない）、events の `ai.drops`（予備を守りの薄い降下点へ。`sim.js` の `weakDrop`）、`win.retreat`（5割で全部の敵が退き、少し見せてから勝利。`sim.js` の `stepRepel` と `repelT`）。2026-10-20: events の `ai.post`・`stack`・`gateFirst`（総攻撃の戦艦の戦線。1か所に2隊まで。`sim.js` の `frontPost`）。書き方は `data/operations.js` の先頭のコメント。
