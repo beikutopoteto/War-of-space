@@ -1,8 +1,14 @@
 /* Exercise the actual training hooks and capture the requested HUD views. */
 const {openGame,ROOT}=require('./browser.cjs');
 const path=require('path'),fs=require('fs'),assert=require('assert');
+/* the tutorial is started from the sortie list: at first it heads the campaign and nothing else opens; once cleared it sits with the exercises */
+const sortieOrder=page=>page.evaluate(()=>{ const items=[...document.querySelectorAll('#opList > *')]; const at=sel=>items.findIndex(e=>e.matches(sel));
+  return {tut:at('[data-op="tutorial"]'), ex:items.findIndex(e=>e.matches('.grp')&&e.textContent==='演習'), shinano:at('[data-op="shinano"]'), locked:document.querySelector('[data-op="shinano"]').disabled,
+    quickLocked:document.querySelector('[data-op="charybdis"]').disabled, text:document.querySelector('[data-op="tutorial"]').textContent}; });
 async function checkTutorial(page, shots=false){
-  await page.click('[data-tutorial]');
+  await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
+  let o=await sortieOrder(page); assert(o.tut<o.shinano&&o.tut<o.ex&&o.locked&&o.quickLocked, JSON.stringify(o));
+  await page.click('[data-op="tutorial"]'); assert(!(await page.isVisible('#goQuick'))); await page.click('#goBattle');
   let r=await page.evaluate(()=>({step:tutorial.step,hint:hintEl.hidden,clock:clockStr(),north:fleets.find(f=>f.name==='第14 北方防空 戦闘隊').seen}));
   assert.deepStrictEqual(r,{step:0,hint:true,clock:'08:00',north:false});
   r=await page.evaluate(()=>{ tutorialFrame(); return tutorialFrames.filter(e=>!e.hidden).length; }); assert.equal(r,2);
@@ -20,13 +26,14 @@ async function checkTutorial(page, shots=false){
   r=await page.evaluate(()=>{ select(fleets[0]); toggleMulti(fleets[1]); newGroup(); groupOrder({type:'move',dest:new THREE.Vector3(0,0,80)}); const before=clockStr(); step(1.1); return {step:tutorial.step,before,after:clockStr()}; }); assert.equal(r.step,10); assert.equal(r.before,'08:00'); assert.notEqual(r.after,'08:00');
   if(shots){ await page.evaluate(()=>tutorialFrame()); await page.screenshot({path:path.join(ROOT,'test-results/tutorial-11.png')}); }
   r=await page.evaluate(()=>{ damage(fortress,fortress.hpPool+1,fleets[0]); return {over,win:outcome,save:JSON.parse(localStorage.getItem('wos.save.v1')).prog.tutorialCleared}; }); assert.deepStrictEqual(r,{over:true,win:true,save:true});
-  await page.evaluate(()=>openMenu()); assert((await page.locator('[data-tutorial]').innerText()).includes('クリア済み'));
-  await page.click('[data-tutorial]');
+  await page.evaluate(()=>openMenu()); await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
+  o=await sortieOrder(page); assert(o.tut>o.ex&&!o.locked&&!o.quickLocked&&o.text.includes('クリア済み'), JSON.stringify(o));
+  await page.click('[data-op="tutorial"]'); await page.click('#goBattle');
   r=await page.evaluate(()=>{ for(let i=0;i<40;i++) step(.05); const held=clockStr(); guideEl.querySelector('[data-skip]').click(); step(2); return {held,after:clockStr(),guide:guideEl.hidden,training:trainingEl.hidden}; }); assert.equal(r.held,'08:00'); assert.notEqual(r.after,'08:00'); assert(r.guide&&r.training);
   r=await page.evaluate(()=>{ const f=fleets[0], e=fleets.find(x=>x.team===1&&x.alive); f.order=null; f.pos.copy(e.pos).add(new THREE.Vector3(0,0,8)); let hits=0, orig=damage; damage=function(t,a,s){if(t.team===0&&s&&s.team===1&&a>0) hits++; return orig(t,a,s);}; for(let i=0;i<30;i++) step(.05); damage=orig; return hits; }); assert(r>0);
   await page.evaluate(()=>{openMenu(); WOS.start({op:'charybdis'});});
   r=await page.evaluate(()=>({active:tutorialActive(),hint:hintEl.hidden})); assert.deepStrictEqual(r,{active:false,hint:false});
-  return '11段・打撃0・時計停止／再開・保存・クイック出撃';
+  return '出撃の一覧の先頭→演習の欄・11段・打撃0・時計停止／再開・保存・クイック出撃';
 }
 module.exports={checkTutorial};
 if(require.main===module) (async()=>{fs.mkdirSync(path.join(ROOT,'test-results'),{recursive:true}); const {browser,page,errors}=await openGame({width:1600,height:900}); try{ const result=await checkTutorial(page,true); assert.deepStrictEqual(errors,[]); console.log('| チュートリアル | '+result+' |'); }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
