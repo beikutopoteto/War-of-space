@@ -33,7 +33,7 @@ async function checkMasc(page, screenshot) {
     const load=await page.locator('#sgLoad').innerText(), disabled=await page.isDisabled('#forcesBattle');
     const cap=ids.includes('cap3')?3:ids.includes('cap2')?2:1, was=ids.includes('cap3')?24:ids.includes('cap2')?16:12;
     assert.match(title,new RegExp(`強襲母艦\\s+${cap}隻`)); assert.match(load,new RegExp(`W\\.A\\.S\\. 部隊\\s+3 / ${was}隻`));
-    assert.match(load,new RegExp(`強襲母艦\\s+2 / ${cap}隻`)); assert.match(load,/戦闘の規模[^\n]*\s+34 \/ 45隻/); assert.equal(disabled,cap<2);
+    assert.match(load,new RegExp(`強襲母艦\\s+2 / ${cap}隻`)); assert.match(load,/戦闘の規模[^\n]*\s+40 \/ 45隻/);   // 29 starting ships + the cruisers (6, placed by debug 'all' since #335) + 5 assert.equal(disabled,cap<2);
     assert(!org.includes('実数')&&!load.includes('実数')); rows.push({cap,was,disabled});
     if(cap===2){await page.click('#forcesBattle');const fleet=await page.evaluate(()=>{const f=fleets.find(x=>x.comp?.masc);return {comp:f.comp,n:f.n,hangar:f.hangar};});
       assert.equal(fleet.comp.masc,2);assert.equal(fleet.comp.mas,3);assert.equal(fleet.n,14);assert.equal(fleet.hangar.was,90);assert.equal(fleet.hangar.ftr,20); rows[1].fleet=fleet;}
