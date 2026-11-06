@@ -131,7 +131,7 @@ const techOf=b=>prog().tech[b.id]||(prog().tech[b.id]=[]);
 const nodeById=id=>TREE.find(n=>n.id===id);
 const nodeDone=(b,n)=>techOf(b).includes(n.id);
 const nodeOpen=(b,n)=>branchOpen(b)&&!nodeDone(b,n)&&n.req.every(r=>techOf(b).includes(r));
-const nodeCost=(b,n)=>n.cap?b.steps[n.cap].cost:Math.round(n.cost*(b.costMul||1));
+const nodeCost=(b,n)=>n.cap?b.steps[n.cap].cost:Math.round(n.cost*(b.costMul||1)/10)*10;   // in steps of 10 (2026-11-06)
 const nodeName=(b,n)=>n.name.replace('{gun}',b.gun||'主砲');
 const techLv=b=>Math.min(b.steps.length-1,TREE.reduce((m,n)=>n.cap&&nodeDone(b,n)?Math.max(m,n.cap):m,0));
 const branchOpen=b=>!b.need||!!prog().flags[b.need];
