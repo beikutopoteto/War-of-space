@@ -115,11 +115,12 @@ function check(ok, label, detail = '') {
     /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 第一世代管制システム (the sortie limit) and the gun are open from the start */
     await page.click('[data-go="tech"]');
     await page.click('#brBar [data-br="dd"]');
-    /* ＋ − 全体 at the tree box's corner (2026-11-06); the lines leave their source to the right (none turns back left of it) */
+    /* ＋ − 全体 at the tree box's corner (2026-11-06); the lines (案C): an S curve from the right of the source to a join short of the node,
+       then one stub into it (no line turns back left of its source) */
     const zs = async () => +(await page.evaluate(() => /scale\(([\d.]+)\)/.exec(document.getElementById('trCv').style.transform)[1]));
     const z0 = await zs(); await page.click('.tzoom [data-tz="in"]'); const z1 = await zs(); await page.click('.tzoom [data-tz="fit"]'); const z2 = await zs();
-    const backEdges = await page.evaluate(() => [...document.querySelectorAll('#trCv .tedges path')].filter(p => { const m = /^M([\d.]+) [\d.]+H([\d.]+)/.exec(p.getAttribute('d')); return m && +m[2] < +m[1]; }).length);
-    check(z1 > z0 && Math.abs(z2 - z0) < 1e-6 && backEdges === 0, '技術ツリー: ＋で拡大、全体で元に戻る。線は元の研究の右から出る', JSON.stringify({ z0, z1, z2, backEdges }));
+    const backEdges = await page.evaluate(() => [...document.querySelectorAll('#trCv .tedges path')].filter(p => { const n = (p.getAttribute('d').match(/-?[\d.]+/g) || []).map(Number); return !(n.length === 9 && n[2] >= n[0] && n[6] > n[2] && n[8] > n[6]); }).length);
+    check(z1 > z0 && Math.abs(z2 - z0) < 1e-6 && backEdges === 0, '技術ツリー: ＋で拡大、全体で元に戻る。線は元の右から S 字で合流点へ、そこから1本で入る', JSON.stringify({ z0, z1, z2, backEdges }));
     /* a node opens a window beside it with 研究する and × (user decision 2026-11-05); close it before the next node */
     const res = async id => { await page.click(`#trCv [data-node="${id}"]`); const ok = !(await page.isDisabled('#tRes')); if (ok) await page.click('#tRes'); await page.click('#tClose'); return ok; };
     const shut = await page.evaluate(() => document.getElementById('tInfo').hidden);

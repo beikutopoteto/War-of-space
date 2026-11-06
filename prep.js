@@ -536,11 +536,12 @@ function renderTech(){
   const box=document.getElementById('trScroll'), bh=PADY*2+(rows-1)*RH+R*2+30, bz=Math.max(TREE_Z[0],Math.min(1,((box.clientHeight||480)-8)/bh));
   const CW=Math.max(168,(((box.clientWidth||900)-8)/bz-PADX*2)/Math.max(1,cols-1));
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
-  /* a line runs right from its source, then down or up at 45 degrees into the node; when the rows are too far apart for that, it slants
-     more steeply from just right of the source (2026-11-06: it used to turn back left of the source and looked cut off) */
-  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=Math.max(p.x+R+12,q.x-R-Math.abs(q.y-p.y));
+  /* the lines (user decision 2026-11-06, 見本の案C「合流」): a smooth S curve from the right of the source to a point JOIN short of the
+     node's left, then one straight stub into it, so the lines of a node's requirements meet there (#288 had straight runs and 45° slants) */
+  const JOIN=30;
+  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), x1=p.x+R, j=q.x-R-JOIN, m=(x1+j)/2;
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
-    return `<path d="M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
+    return `<path d="M${x1} ${p.y}C${m} ${p.y} ${m} ${q.y} ${j} ${q.y}H${q.x-R}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
   const selN=nodeById(techSel);
   const nodes=NODES.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
     return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
