@@ -112,7 +112,7 @@ function check(ok, label, detail = '') {
     for (const id of ['shinano', 'denaliBreak', 'charybdis']) { const b = page.locator(`#opList [data-op="${id}"]`); if (await b.count()) { await b.click(); replay[id] = await page.textContent('#opReward'); } }
     check(replay.shinano.includes('再戦は50') && replay.charybdis.includes('資金 300') && replay.charybdis.includes('再戦は200') && (!replay.denaliBreak || replay.denaliBreak.includes('再戦は133')), '報酬: 再戦は初回の1/6、演習は初回300・再戦は2/3', JSON.stringify(replay));
     await page.click('[data-s="sortie"] .back'); await page.click('[data-s="mode"] .back');
-    /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 動員計画 and the gun are open from the start */
+    /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 第一世代管制システム (the sortie limit) and the gun are open from the start */
     await page.click('[data-go="tech"]');
     await page.click('#brBar [data-br="dd"]');
     /* a node opens a window beside it with 研究する and × (user decision 2026-11-05); close it before the next node */
