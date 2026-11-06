@@ -5,9 +5,10 @@ window.WOS_DATA=window.WOS_DATA||{};
 /* メニューの画面の解放。値の作戦（data/operations.js の id）をクリアすると使えるようになる */
 WOS_DATA.unlocks={fleet:'retreat', tech:'retreat'};
 
-/* 作戦の報酬（資金）は data/operations.js の reward。2回目からのクリアは replay の割合だけもらえる。
+/* 作戦の報酬（資金）は data/operations.js の reward。2回目からのクリアは replay（演習は exercise）の割合だけもらえる
+   （ユーザー決定 2026-11-06: 再戦は前の 1/2 の 1/3、演習は前の 1/2 の 2/3）。
    敗北と中止は報酬なし。クイック出撃は進行にも報酬にも数えない */
-WOS_DATA.reward={replay:.5};
+WOS_DATA.reward={replay:1/6, exercise:1/3};
 
 /* 能力の研究（ユーザー決定 2026-10-03）。data/ships.js の能力値は研究をすべて終えた最終形態（最大）で、
    自分で編成した艦隊は最初その base の割合（3割）から始まり、研究した節点の add の分だけ最大へ近づく（全部で10割）。

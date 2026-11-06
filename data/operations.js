@@ -31,7 +31,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]、または [[見出し, 本文], …]（続けて出す）
    station: 守るステーション {name, sub, hp, dps, range, radius, vis, hangar?:{ftr}, launchR?}（hangar は近づいた敵へ出す艦載機）
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
-   reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay の割合）
+   reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay、演習は reward.exercise の割合）
    aid: 初めてクリアしたときに一度だけもらえる資金 {funds, name, by?}（name は結果に出す名前。by:'prep' はクリアでは渡さず、準備画面のチュートリアル（data/tech.js prepTutorial の aid）で渡す）
    group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの戦区軍にまとめる
    result.loseBlast: 負けたときに爆発させる位置 [x, z, alt]

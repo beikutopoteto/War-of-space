@@ -106,6 +106,12 @@ function check(ok, label, detail = '') {
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
     check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦クリアと資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
+    /* a replay brings 1/6 of the reward, an exercise 1/3 (user decision 2026-11-06) */
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
+    const replay = {};
+    for (const id of ['shinano', 'denaliBreak', 'charybdis']) { const b = page.locator(`#opList [data-op="${id}"]`); if (await b.count()) { await b.click(); replay[id] = await page.textContent('#opReward'); } }
+    check(replay.shinano.includes('再戦は50') && replay.charybdis.includes('再戦は67') && (!replay.denaliBreak || replay.denaliBreak.includes('再戦は133')), '報酬: 再戦は初回の1/6、演習は1/3', JSON.stringify(replay));
+    await page.click('[data-s="sortie"] .back'); await page.click('[data-s="mode"] .back');
     /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 動員計画 and the gun are open from the start */
     await page.click('[data-go="tech"]');
     await page.click('#brBar [data-br="dd"]');

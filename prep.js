@@ -162,6 +162,8 @@ function groupLoad(gs){
   const n={}; gs.forEach(g=>g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count)));
   return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
 }
+/* the share of the reward a replay brings: the exercises keep more of it (user decision 2026-11-06) */
+const replayRate=o=>o.chapter?D.reward.replay:D.reward.exercise;
 /* a one-time grant on the first clear of an operation (o.aid), remembered in the story flags */
 function grantAid(o){ const k='aid:'+o.id; if(!o.aid||prog().flags[k]) return 0; prog().flags[k]=true; prog().funds+=o.aid.funds; return o.aid.funds; }
 /* story flags the battle's conversations may use (a line's third element, battle/hud.js talkFor) */
@@ -175,7 +177,7 @@ function onEnd(opId,win,res={}){
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */
   if(o.rescue) prog().flags['rescued:'+opId]=!!res.rescued;
-  const gain=Math.round((o.reward||0)*(first?1:D.reward.replay));
+  const gain=Math.round((o.reward||0)*(first?1:replayRate(o)));
   prog().funds+=gain; if(first) prog().cleared.push(opId);
   /* branches the story opens on a clear (o.opens: flag names, data/tech.js branches need; 第5節 opens the battleship) */
   const newBr=BRANCHES.filter(b=>b.need&&(o.opens||[]).includes(b.need)&&!prog().flags[b.need]); newBr.forEach(b=>{ prog().flags[b.need]=true; });
@@ -581,7 +583,7 @@ function renderSortie(){
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const op=list.find(o=>o.id===sortieOp), done=opDone(op);
   document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
-  document.getElementById('opReward').innerHTML=op===TUT?'報酬　なし':`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*D.reward.replay)}）`:''}`;
+  document.getElementById('opReward').innerHTML=op===TUT?'報酬　なし':`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*replayRate(op))}）`:''}`;
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
