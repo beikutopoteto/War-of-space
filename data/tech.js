@@ -24,15 +24,16 @@ WOS_DATA.techForces=[
 /* 宇宙軍の技術ツリー（どの兵科も同じ形。名前の {gun} は兵科の主兵装の名前に置き換わる）。年は A.E.（開戦は A.E.45）。
    id: 保存データが使う名前（変えると研究済みが消える）　icon: 節点の絵（cap gun aim armor engine sensor stealth flak fighter was deck supply）
    col / row: 画面上の位置（列は左から、行は上から）　req: 先に研究が要る節点（すべて）。空なら最初から研究できる
-   cap: 兵科の出撃上限の段階（下の branches の steps の番号。資金もそこの cost）
+   cap: 兵科の出撃上限の段階（下の branches の steps の番号。資金もそこの cost）。名前は、多くの艦を指揮し整備できるようにする技術
+     （ユーザー決定 2026-11-06: 第一世代管制システム → 新型データリンク → ドックの拡張。前は第一次・第二次艦隊動員計画、総力戦動員計画）
    add: 研究すると能力が最大の何割ぶん上がるか（同じ能力の合計が 1 - techStat.base になるように置く）
    cost: 資金（兵科の costMul を掛け、10きざみに丸める。ユーザー決定 2026-11-06 で全部の節点と出撃上限の段を1.2倍・10きざみにした）
    only: この兵科にだけ出す（branches の id）　craft: 艦ではなく、その小型機（data/ships.js の crafts）の能力を上げる。
      小型機の値も最終形態で、自分で編成した艦隊の小型機は最初 techStat.base の割合 */
 WOS_DATA.techTree=[
-  {id:'cap1',  name:'第一次艦隊動員計画',   icon:'cap',     col:0, row:0, req:[],               cap:1},
-  {id:'cap2',  name:'第二次艦隊動員計画',   icon:'cap',     col:3, row:0, req:['cap1','eng1'],  cap:2},
-  {id:'cap3',  name:'総力戦動員計画',       icon:'cap',     col:6, row:0, req:['cap2','def3'],  cap:3},
+  {id:'cap1',  name:'第一世代管制システム', icon:'cap',     col:0, row:0, req:[],               cap:1},
+  {id:'cap2',  name:'新型データリンク',     icon:'cap',     col:3, row:0, req:['cap1','eng1'],  cap:2},
+  {id:'cap3',  name:'ドックの拡張',         icon:'cap',     col:6, row:0, req:['cap2','def3'],  cap:3},
   {id:'gun1',  name:'38式 {gun}',           icon:'gun',     col:0, row:1, req:[],               add:{atk:.1},  cost:70},
   {id:'gun2',  name:'42式改 {gun}',         icon:'gun',     col:2, row:1, req:['gun1'],         add:{atk:.15}, cost:160},
   {id:'gun3',  name:'45式 高出力{gun}',     icon:'gun',     col:4, row:1, req:['gun2','eng2'],  add:{atk:.2},  cost:290},
