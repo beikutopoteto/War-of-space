@@ -37,6 +37,27 @@ function check(ok, label, detail = '') {
   try {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
+    const roles = await page.evaluate(() => {
+      const ship = id => WOS_DATA.ships.find(s => s.id === id), was = WOS_DATA.branches.find(b => b.id === 'was');
+      return { ff: ship('ff'), dd: ship('dd'), bb: ship('bb').weapon, masc: ship('masc').sortieCost,
+        caps: was.steps.map(x => x.cap), mars: WOS_DATA.sides.mars.ships };
+    });
+    check(roles.ff.atk === 4 && roles.ff.rng === 3 && roles.dd.atk === 4.5 && roles.dd.def === 4 && roles.bb.every === 6 && roles.masc === 4 && [2,3,4,6].every((n,i) => Math.floor(roles.caps[i] / 4) === n) && roles.mars.ff.atk === 4 && roles.mars.dd.def === 3.5,
+      '艦種の役割: 性能・戦艦の間隔・強襲母艦の上限と共和国の性能', JSON.stringify({caps: roles.caps}));
+    /* 強襲母艦2隻を既存の戦区軍に載せ、準備画面と実戦に渡る値を確かめる。 */
+    await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]'); await page.click('#dbgB [data-dbga="tech"]');
+    await page.evaluate(() => { const v=JSON.parse(localStorage.getItem('wos.save.v1'));
+      v.bgs.push({id:'bg-cap-test',name:'試験',type:'masc',count:2}); v.armies.find(a=>a.id==='a2').bgs.push('bg-cap-test');
+      localStorage.setItem('wos.save.v1',JSON.stringify(v)); });
+    await page.reload(); await page.click('[data-go="org"]');
+    const capOrg=await page.locator('#orgCap').innerText(); await page.click('[data-s="org"] .back');
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
+    await page.click('[data-op="charybdis"]'); await page.click('#goBattle');
+    const capRows=await page.locator('#sgLoad').innerText(); await page.click('#forcesBattle');
+    const capFleet=await page.evaluate(()=>fleets.find(f=>f.comp?.masc) && (({comp,n,hangar})=>({comp,n,hangar}))(fleets.find(f=>f.comp?.masc)));
+    check(capOrg.includes('W.A.S. 部隊 8/24（実数 2隻）') && /W\.A\.S\. 部隊\s+8 \/ 24\s+（実数 2隻）/.test(capRows) && /戦闘の規模[^\n]*\s+31 \/ 45隻/.test(capRows) && capFleet?.comp.masc===2 && capFleet.n===11 && capFleet.hangar.was===60 && capFleet.hangar.ftr===20,
+      '出撃上限: 強襲母艦2隻は上限8、規模と戦闘は実数2隻、搭載は60・20', JSON.stringify({capOrg,capRows,capFleet}));
+    await page.evaluate(()=>localStorage.removeItem('wos.save.v1')); await page.reload();
     const prepResult = await checkPrepTutorial(page);
     check(true, '準備チュートリアル', prepResult);
     await page.evaluate(() => localStorage.clear()); await page.reload();
@@ -54,6 +75,32 @@ function check(ok, label, detail = '') {
       earthOrientation(m,sd,date,780); const q=m.quaternion.clone(), dot=point(15*Math.PI/180,-15*Math.PI/180).applyQuaternion(q).dot(sd);
       earthOrientation(m,sd,date,840); return {dot, degrees:q.angleTo(m.quaternion)*180/Math.PI}; });
     check(orientation.dot>=.98 && Math.abs(orientation.degrees-15)<.01, '地球の向き: 太陽直下と1時間の自転', JSON.stringify(orientation));
+    /* 固定した場面で、艦種ごとの実打撃と見た目を記録する。艦首を向ける移動は平均射程の外では起きない。 */
+    const fireRoles = await page.evaluate(() => {
+      WOS.start({op:'charybdis'}); setSpeed(0); if(talking) endTalk(); if(deploying) endDeploy();
+      const old={damage,missile,beam,shoot,random:Math.random}; let hits=[], beams=0, missiles=0, traces=0;
+      damage=(t,a,src)=>{ if(src&&src.name==='射撃試験') hits.push(a); };
+      missile=()=>missiles++; beam=()=>beams++; shoot=()=>traces++; Math.random=()=>.01;
+      try {
+        fleets.forEach(f=>{ f.alive=false; }); wings.forEach(w=>{ w.alive=false; }); fortress.alive=false;
+        const f=makeFleet(0,{name:'射撃試験',sub:'',n:12,comp:{bb:4,ff:8},hp:1e5,dmg:1,range:20,byType:{bb:{dps:2,range:30},ff:{dps:1,range:10}},speed:0,scale:1,pos:[0,0],fixed:true,vis:9,stl:0});
+        const t=makeFleet(1,{name:'的',sub:'',type:'dd',n:1,hp:1e5,dmg:0,range:1,speed:0,scale:1,pos:[0,-25],fixed:true,vis:9,stl:0});
+        f.seen=t.seen=true; fleets.push(f,t); f.fireTarget=t; f.retarget=1e6;
+        const heading=f.heading.clone(); for(let i=0;i<1200;i++) step(.05);
+        const far={damage:hits.reduce((a,b)=>a+b,0),hits:hits.length,beams,missiles,angle:f.heading.angleTo(heading)};
+        hits=[]; beams=missiles=0; f.typeShotT=0; t.pos.set(0,0,-5); for(let i=0;i<120;i++) step(.05);
+        const near={damage:hits.reduce((a,b)=>a+b,0),hits:hits.length,beams,missiles};
+        f.alive=false; t.alive=false; hits=[]; beams=missiles=traces=0;
+        const red=makeFleet(1,{name:'共和国試験',sub:'',type:'ff',n:8,hp:1e5,dmg:1,range:20,speed:0,scale:1,pos:[0,0],fixed:true,vis:9,stl:0});
+        const target=makeFleet(0,{name:'的',sub:'',type:'dd',n:1,hp:1e5,dmg:0,range:1,speed:0,scale:1,pos:[0,-5],fixed:true,vis:9,stl:0});
+        red.seen=target.seen=true; fleets.push(red,target); red.fireTarget=target; red.retarget=1e6; for(let i=0;i<40;i++) step(.05);
+        return {far,near,red:{traces,missiles,byType:!!red.byType}};
+      } finally { damage=old.damage; missile=old.missile; beam=old.beam; shoot=old.shoot; Math.random=old.random; }
+    });
+    check(fireRoles.far.hits===10 && fireRoles.far.beams===40 && fireRoles.far.missiles===0 && Math.abs(fireRoles.far.damage/(4*2*60)-1)<.05 && fireRoles.far.angle===0,
+      '艦種別射撃: 長射程では戦艦だけが6秒ごとに撃ち、60秒の打撃は従来のDPSと一致、平均射程外では向きを変えない', JSON.stringify(fireRoles.far));
+    check(fireRoles.near.hits>1 && fireRoles.near.beams===4 && fireRoles.near.missiles>0 && Math.abs(fireRoles.near.damage-96)<.01 && fireRoles.red.traces>0 && fireRoles.red.missiles===0 && !fireRoles.red.byType,
+      '艦種別射撃: 近距離では両方が撃ち、地球のフリゲートはミサイル、共和国は曳光弾', JSON.stringify({near:fireRoles.near,red:fireRoles.red}));
     await page.reload();
     check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
     /* options: the story (conversations) is off by default; the rest of this test plays with it on */
@@ -1730,7 +1777,10 @@ function check(ok, label, detail = '') {
         for (const sd of [1, 2]) for (const on of [true, false]) {
           const F = start(on, sd), bb = F('試験 戦艦'), dd = F('試験 駆逐'), ff = F('試験 盾'), mas = F('試験 揚陸');
           const m = { bbMax: 0, heavier: 0, bbFire: 0, ddOn: 0, ddMark: 0, ddSlot0: 0, ffN: 0, ffFront: 0, was: 0, wasFF: 0, fell: null, behN: 0, behind: 0 };
-          for (let i = 0; i < 2400; i++) { step(.05); if (i % 4) continue;
+          for (let i = 0; i < 2400; i++) {
+            /* 新しい射撃では沈まない回があるため、後退を測る隊は30秒で2隻にする。 */
+            if(on && i===600 && dd.alive){ while(dd.ships.length>2) dd.ships.pop(); dd.hpPool=dd.hp*2; }
+            step(.05); if (i % 4) continue;
             if (bb.alive) { m.bbMax = Math.max(m.bbMax, bb.pos.distanceTo(bb.post)); const t = bb.fireTarget;
               if (t && t.kind === 'fleet') { m.bbFire++; if (fleets.some(e => e.team === 1 && e.alive && e.seen && gap(bb, e) <= bb.range && !bodyBlocks(bb.pos, e.pos) && heavyOf(e) > heavyOf(t))) m.heavier++; } }
             if (dd.alive && !dd.roleFell && dd.order && dd.order.type === 'attack') { const t = dd.order.target; m.ddOn++; if (dd.slotOn === t && !dd.slotK) m.ddSlot0++;
@@ -1750,6 +1800,12 @@ function check(ok, label, detail = '') {
           const x = { free: fireTargetOf(me).name, stand: +standOff(me, b).toFixed(3), back: backsOff(me, a) === outranges(me, a), move: roleMove(me) };
           order(me, { type: 'attack', target: a }); x.ordered = fireTargetOf(me).name; return x; };
         r.me = { on: aim(true), off: aim(false) };
+        /* 両方の獲物を残し、フリゲートを近くに置いて狙いの優先度を直接確かめる。 */
+        { const F=start(true,3), c=F('試験 揚陸'), ff=F('試験 護衛'), dd=F('試験 駆逐');
+          fleets.forEach(f=>{ if(f!==c&&f!==ff&&f!==dd) f.alive=false; }); wings.forEach(w=>{w.alive=false;});
+          ff.pos.set(0,0,-10); dd.pos.set(0,0,-12); ff.radius=dd.radius=0; c.pos.set(0,0,0);
+          const u={team:1,kind:'wing',type:'was',pos:c.pos.clone(),radius:0,carrier:c};
+          r.aimWas=[roleCraftFoe(u,craftRole(1,'was'),50)?.name,nearestFoe(u,50)?.name]; }
         OP.roleAI = false; r.none = fleets.every(f => roleOf(f) == null);
       } finally { WOS_DATA.operations.pop(); Math.random = rand0; end = end0; }
       return r; });
@@ -1760,14 +1816,14 @@ function check(ok, label, detail = '') {
       '艦種別の動き: 駆逐艦は戦艦・巡洋艦が撃っている重い艦へ、回る向きの2番目以降から挟み、4割を切ると味方の重い艦の後ろへ下がる（2026-10-22）', JSON.stringify([ro.on, ro.off]));
     check(ro.on.every(x => x.ffFront >= .5) && avg(ro.on, 'ffFront') > avg(ro.off, 'ffFront') + .2,
       '艦種別の動き: 共和国のフリゲートは突撃揚陸艦と一緒に出て、その前（揚陸艦の目標の側）に並ぶ（2026-10-22）', JSON.stringify([ro.on, ro.off]));
-    check(ro.on.every(x => x.wasFF <= .1) && avg(ro.off, 'wasFF') > avg(ro.on, 'wasFF') + .1,
+    check(ro.aimWas.join() === '試験 駆逐,試験 護衛' && avg(ro.off, 'wasFF') > avg(ro.on, 'wasFF') + .1,
       '艦種別の動き: 共和国の W.A.S. は地球のフリゲート（対空が強い）を後回しにする（2026-10-22）', JSON.stringify([ro.on, ro.off]));
     check(ro.me.on.free === '試験 重巡' && ro.me.off.free === '試験 盾' && ro.me.on.ordered === '試験 盾' && ro.me.on.stand === ro.me.off.stand && ro.me.on.back && ro.me.on.move === null && ro.none,
       '艦種別の動き: 自軍の隊は命令のないときの狙いだけが変わる（戦艦はいちばん重い艦。命令が先、立つ距離と下がり方は前のまま）。印のない作戦では役目がない（2026-10-22）', JSON.stringify([ro.me, ro.none]));
     /* ドクトリン（型） (user decision 2026-10-22): only the Republic's units in an operation with packs (第6節 on; none yet, so a small battle made
        here, roleAI on in both). The same battle with packs and without, from the same random numbers (2 seeds × 120 s, the clock at 0.75 minutes
        a second): the spear (two teams from the north and from the east above), the mist and hammer, the rock shield round a thruster that our
-       battleship is sent at. Once the spear's last charge has gone on 15 s, half of its frigates are sunk here (to see the break-off) */
+       battleship is sent at. Once the spear's last charge has gone on 12.5 s, half of its frigates are sunk here (to see the break-off) */
     const dc = await page.evaluate(() => {
       const rand0 = Math.random, end0 = end, r = { on: [], off: [] };
       const mk = (name, o) => ({ name, sub: '', vis: 6, stl: 4, ...o });
@@ -1798,7 +1854,7 @@ function check(ok, label, detail = '') {
           for (let i = 0; i < 2400; i++) {
             if (i === 200) order(me, { type: 'attack', target: W });   // our battleship at the thruster: the rock shield's reserve comes out
             if (on && m.s2 == null && S.step === 2) m.s2 = i;
-            if (on && m.s2 != null && i === m.s2 + 300) for (const [ff] of team) while (ff.alive && ff.ships.length > 2) damage(ff, ff.hp, bb);
+            if (on && m.s2 != null && i === m.s2 + 250) for (const [ff] of team) while (ff.alive && ff.ships.length > 2) damage(ff, ff.hp, bb);
             step(.05); if (i % 4) continue; const min = opMin(), G = on ? S.G : bb;
             for (const L of team) for (const f of L) if (f.alive && G && !m.vec[f.name] && f.pos.distanceTo(G.pos) < 62) m.vec[f.name] = f.pos.clone().sub(G.pos);
             for (const [ff, mas, dd] of team) { const t = mas.alive && mas.order && mas.order.type === 'attack' && mas.order.target, go = on ? S.step >= 1 && !S.back : !!t;
@@ -2075,6 +2131,8 @@ function check(ok, label, detail = '') {
       const r = {};
       try {
         WOS.start({ op: 'denaliBreak' }); setSpeed(0); if (talking) endTalk(); said.length = 0;
+        /* 境目に着く前に沈む回があるため、行動を観測する陽動の耐久をテスト中だけ増やす。 */
+        for(const f of fleets) if(f.feint){ f.hp*=10; f.hpPool*=10; }
         const main = fleets.filter(f => f.feint === '左上' && !f.touch), touch = fleets.filter(f => f.feint === '左上' && f.touch);
         const tough = () => { for (const G of nuke.G) if (G.alive) G.hpPool = Math.max(G.hpPool, G.hp * G.ships.length * 20); };
         mins(30); const S = P('西上守備隊'), all = [...main, ...touch], seen = new Set(), fired = new Set(); let pull = 0;
@@ -2258,7 +2316,9 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
     await page.click('#goBattle'); await page.waitForTimeout(1200);
     const ff0 = await page.evaluate(() => talkQ.length);
-    await page.keyboard.down('Control'); await page.waitForTimeout(800); await page.keyboard.up('Control');
+    await page.keyboard.down('Control');
+    await page.waitForFunction(n => n - talkQ.length >= 2 || !talking, ff0, { timeout: 5000 }).catch(() => {});
+    await page.keyboard.up('Control');
     const ff1 = await page.evaluate(() => ({ left: talkQ.length, talking }));
     check(ff0 >= 2 && (ff0 - ff1.left >= 2 || !ff1.talking), '会話: Ctrl 長押しで早送り', JSON.stringify([ff0, ff1]));
     await page.click('#talkSkip').catch(() => {});

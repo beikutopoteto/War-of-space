@@ -375,24 +375,25 @@ function turnMarch(f,dir,dt){ _mv2.set(dir.x,0,dir.z); if(_mv2.lengthSq()<1e-4) 
 /* engagement: the foe a fleet was ordered to attack comes first while it is in range, then the nearest foe.
    A fleet set to 命令優先 (evade) holds fire and keeps its craft aboard; it only fires on the target of its current attack order */
 function fireTargetOf(f){
-  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=f.range&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||t.kind==='fleet'&&!t.fixed&&t.type!=='thr')?t:null;
+  const fireRange=f.byType?Math.max(f.range,...Object.values(f.byType).map(x=>x.range)):f.range;
+  const inRange=t=>t&&t.alive&&t.seen&&gap(f,t)<=fireRange&&!bodyBlocks(f.pos,t.pos)&&(!feintCover(f)||t.kind==='fleet'&&!t.fixed&&t.type!=='thr')?t:null;
   if(patrolHunting(f)) return opCarrier.cs.patrolEngaged?inRange(opCarrier.cs.patrolTarget):null;
   /* a raider (第4節) shoots the habitat block it came for, unless a ship stands nearer in its way: then that ship (the shield) */
-  if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(f.range,db))||(db<=f.range?b:null); }
+  if(f.ai==='raid'&&f.team===1&&f.raidBlock){ const b=f.raidBlock, db=gap(f,b); return nearestFoe(f,Math.min(fireRange,db))||(db<=fireRange?b:null); }
   /* one going for the carrier (prey:'carrier') puts about a quarter of its fire on it (one second in four) and the rest on a ship
      standing nearer in its way (the main fleet as the shield) */
-  if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=f.range?opCarrier:null;
-    return at&&gameSec%4<1?at:nearestFoe(f,Math.min(f.range,db))||at; }
+  if(f.prey==='carrier'&&f.team===1&&opCarrier&&opCarrier.alive&&opCarrier.seen){ const db=gap(f,opCarrier), at=db<=fireRange?opCarrier:null;
+    return at&&gameSec%4<1?at:nearestFoe(f,Math.min(fireRange,db))||at; }
   /* the batteries on the base (第5節) put their fire on an assault ship in reach before anything else; the guns in their shafts reach
      nothing lower than PIT_EL[0] (pitCan) */
-  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=f.range; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
+  if(f.fixed&&f.team===0&&op.base){ let b=null,bd=fireRange; for(const e of fleets) if(e.alive&&e.team===1&&(e.ai==='land'||e.ai==='drop')&&e.seen&&pitCan(f,e)){ const d=gap(f,e); if(d<=bd&&!bodyBlocks(f.pos,e.pos)){bd=d;b=e;} } if(b) return b; }
   /* allied fleets never fire on a ship inside a civilian zone (ウォン中将's order) */
   const ok=f.pit?(t=>pitCan(f,t)):f.ally&&op.civil?(t=>t.kind==='wing'||t.fixed||!inZone(t)):f.feint?(t=>feintCover(f)?t.kind==='fleet'&&!t.fixed&&t.type!=='thr':t.type!=='thr'||f.mode==='assault'&&t.restore):autoMode&&op.auto&&f.team===0&&!f.ally?(t=>!(t.type==='thr'&&!t.restore)):null;   // the batteries on the rock are fair game; 第6節 in the auto mode: not the thrusters that must fire (autoDenali)
   /* 第5節: an enemy with nothing else in reach fires on the nearest gate's shield */
   /* 艦種別の動き (roleAI operations): with no order of its own, the foe in reach by its role (roleFoe); an AI battleship (anchor) always the
      heaviest in reach, whatever it was sent at; the landing craft (ferry) do not fire */
   if(f.stance!=='evade'){ const R=roleOf(f), o=inRange(orderedTarget(f)); if(R&&R.role==='ferry') return null;
-    return o&&(!ok||ok(o))&&!(R&&R.role==='anchor'&&roleMove(f))?o:(R?roleFoe(f,R,f.range,ok):nearestFoe(f,f.range,ok))||(f.team===1&&gates.length?gateInReach(f):null)||(f.team===0&&!f.fixed?troopNear(f,f.range):null); }
+    return o&&(!ok||ok(o))&&!(R&&R.role==='anchor'&&roleMove(f))?o:(R?roleFoe(f,R,fireRange,ok):nearestFoe(f,fireRange,ok))||(f.team===1&&gates.length?gateInReach(f):null)||(f.team===0&&!f.fixed?troopNear(f,fireRange):null); }
   return inRange(f.order&&f.order.type==='attack'?f.order.target:null);
 }
 
@@ -2455,11 +2456,30 @@ function step(dt){
     /* a gun that fires one heavy shot every `every` seconds (第5節 the batteries on the base, user decision 2026-10-16): the fire of those
        seconds times shotK in one go, then it reloads (loaded, it fires as soon as it has a target). With shot (2026-10-17: one shot sinks
        a corvette), each gun's shot is that, in the data's hit points (before HP_K) */
+    if(f.byType) f.typeShotT=Math.max(0,(f.typeShotT||0)-dt);
     if(f.every) f.shotT=Math.max(0,(f.shotT??Math.random()*f.every)-dt);
-    if(!(tutorialProtected()&&f.team===1)&&ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=f.range*1.08&&!bodyBlocks(f.pos,ft.pos)){
-      if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP&&!f.northTransit) umbrellaClamp(UP,f.pos);
-      if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
+    if(!(tutorialProtected()&&f.team===1)&&ft&&ft.alive&&ft.seen&&!f.silent&&gap(f,ft)<=(f.byType?Math.max(f.range,...Object.values(f.byType).map(x=>x.range)):f.range)*1.08&&!bodyBlocks(f.pos,ft.pos)){
+      /* Movement still uses the fleet's average range, even when a longer-ranged class can fire. */
+      if(gap(f,ft)<=f.range*1.08){
+        if(!goal&&!moving&&!f.fixed&&!f.locked&&!f.convoy&&!f.rescue&&f.stance!=='evade') fallBack(f,ft,dt); if(UP&&!f.northTransit) umbrellaClamp(UP,f.pos);
+        if(!moving&&(!goal||f.still)){ _v.subVectors(ft.pos,f.pos).normalize(); swingTo(f.heading,_v,dt*2); }
+      }
       if(f.every){ if(f.shotT>0) continue; f.shotT=f.every; damage(ft,f.ships.length*(f.shot!=null?f.shot*HP_K:f.dmg*f.every*(f.shotK||1))*(f.pinch||1),f); f.revealT=FIRE_REVEAL; gunShot(f,ft); continue; }
+      if(f.byType){
+        const d=gap(f,ft), factor=(f.pinch||1)*bowK(f,ft)/(f.reload||1);
+        for(const [type,stats] of Object.entries(f.byType)){
+          const ships=f.ships.filter(x=>x.type===type); if(!ships.length||d>stats.range*1.08||!ft.alive) continue;
+          const weapon=CLASS_MAX[type]?.weapon;
+          if(weapon&&weapon.every){ if(f.typeShotT>0) continue; f.typeShotT=weapon.every;
+            damage(ft,ships.length*stats.dps*weapon.every*factor,f); f.revealT=FIRE_REVEAL;
+            for(const ship of ships){ const a=ship.pos, b=randShip(ft); beam(a,b,TEAM_COL[0]); burst(a,TEAM_COL[0],5,3,.3); burst(b,HOT,6,4,.4); }
+          } else { damage(ft,ships.length*stats.dps*dt*factor,f); f.revealT=FIRE_REVEAL;
+            const rate=Math.min(ships.length,12)*1.6/(f.reload||1);
+            if(Math.random()<rate*dt){ const a=ships[Math.random()*ships.length|0].pos, b=randShip(ft); if(type==='ff') missile(a,b); else shoot(a,b,TEAM_COL[0],.28); }
+          }
+        }
+        continue;
+      }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft)/(f.reload||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6/(f.reload||1);
       if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);

@@ -160,7 +160,7 @@ function shipNow(t){ const s={...SHIP[t]}, b=branchOfType(t); RATED.forEach(k=>s
 /* ships per branch in the army groups going out together, against the limits */
 function groupLoad(gs){
   const n={}; gs.forEach(g=>g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count)));
-  return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
+  return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0)*(SHIP[t].sortieCost||1),0), actual:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
 }
 /* the share of the reward a replay brings: the exercises keep more of it (user decision 2026-11-06) */
 const replayRate=o=>o.chapter?D.reward.replay:D.reward.exercise;
@@ -205,7 +205,9 @@ function armyStats(a){
 }
 /* convert an army into the battle fleet spec used by battle/ */
 function armyToFleet(a){
-  const {st,ships,bgs,hangar}=armyStats(a);
+  const {st,ships,bgs,hangar,active}=armyStats(a);
+  const mods=k=>active.reduce((v,b)=>v*(b.mod[k]||1),1);
+  const byType=Object.fromEntries([...new Set(bgs.map(b=>b.type))].map(t=>{ const s=shipNow(t); return [t,{dps:.4+s.atk*mods('atk')*.45,range:10+s.rng*mods('rng')*1.6}]; }));
   /* the small craft's rates, weighted by how many each ship class brings */
   const craft={}; Object.keys(hangar).forEach(c=>{ let w=0, out=1, turn=0; const r={dmg:0,hp:0,eva:0};
     bgs.forEach(b=>{ const v=(SHIP[b.type].hangar||{})[c]; if(!v) return; const n=v*b.count, br=branchOfType(b.type); w+=n;
@@ -214,7 +216,7 @@ function armyToFleet(a){
   const big=bgs.reduce((m,b)=>Math.max(m,SHIP[b.type].scale),.6);
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
   const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name+c).join('・');
-  return {name:a.name, sub, comp:by, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
+  return {name:a.name, sub, comp:by, byType, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
     range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, aa:st.aa, hangar, craft, scale:Math.min(1.5,.4+big*.6), stats:st};
 }
 
@@ -613,8 +615,8 @@ function renderForces(){
   /* the sortie limit per branch (tech tree), for all the chosen groups together */
   const rows=chosen.length?groupLoad(chosen):[], branchOver=rows.some(r=>r.used>r.cap);
   /* and the battle's scale caps all the ships together (user decision 2026-10-12) */
-  const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.used,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
-  if(chosen.length) load.innerHTML=`<h3><i>LIMIT</i> 出撃上限${chosen.length>1?` <span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
+  const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.actual,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
+  if(chosen.length) load.innerHTML=`<h3><i>LIMIT</i> 出撃上限${chosen.length>1?` <span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}${r.used!==r.actual?` <small>（実数 ${r.actual}隻）</small>`:'隻'}</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
     S?`<tr class="scale ${scaleOver?'over':''}"><th>戦闘の規模（${esc(S.name)}）</th><td>${total} / ${S.cap}隻</td><td class="note">${scaleOver?'規模の上限を超えています':'全兵科の合計'}</td></tr>`:''}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':scaleOver&&!branchOver?`この作戦は${esc(S.name)}です。出撃できる艦は合計${S.cap}隻まで。戦区軍を減らすか、艦隊編集で艦を減らしてください。`:'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
   const btn=document.getElementById('forcesBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
@@ -660,8 +662,8 @@ const NOTES={
    Branches not opened yet show only when they hold ships */
 function updateOrgCap(){
   const n={}; save.bgs.forEach(b=>n[b.type]=(n[b.type]||0)+b.count);
-  const rows=BRANCHES.map(b=>({b,used:b.types.reduce((s,t)=>s+(n[t]||0),0),cap:branchCap(b)})).filter(r=>branchOpen(r.b)||r.used);
-  document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}隻</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
+  const rows=BRANCHES.map(b=>({b,used:b.types.reduce((s,t)=>s+(n[t]||0)*(SHIP[t].sortieCost||1),0),actual:b.types.reduce((s,t)=>s+(n[t]||0),0),cap:branchCap(b)})).filter(r=>branchOpen(r.b)||r.used);
+  document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}${r.used!==r.actual?`（実数 ${r.actual}隻）`:'隻'}</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
 }
 function renderOrg(){
   document.querySelector('[data-s=org] .back').textContent=orgFromForces?'← 出撃の準備へ':'← メニュー';

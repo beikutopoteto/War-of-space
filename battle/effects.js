@@ -50,18 +50,31 @@ tGeo.setAttribute('color',new THREE.BufferAttribute(tCol,3));
 const tLines=new THREE.LineSegments(tGeo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));
 tLines.frustumCulled=false; scene.add(tLines);
 function shoot(a,b,col,dur){ const i=tHead; tHead=(tHead+1)%TMAX; tracers[i]={a:a.clone(),b:b.clone(),t:0,dur,col}; }
+/* Earth frigate missiles share the bounded tracer pool. */
+const missileDot=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'white');g.addColorStop(.3,'#ffe2b0');g.addColorStop(1,'rgba(255,226,176,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);})();
+const missilePos=new Float32Array(TMAX*3), missileGeo=new THREE.BufferGeometry();
+const MISSILE_SEG=8, missileTail=new Float32Array(TMAX*MISSILE_SEG*6), missileTailGeo=new THREE.BufferGeometry();
+missileTail.fill(1e6); missileTailGeo.setAttribute('position',new THREE.BufferAttribute(missileTail,3));
+const missileLines=new THREE.LineSegments(missileTailGeo,new THREE.LineBasicMaterial({color:0xd8dde4,transparent:true,opacity:.75,depthWrite:false}));
+missileLines.frustumCulled=false; scene.add(missileLines);
+missilePos.fill(1e6); missileGeo.setAttribute('position',new THREE.BufferAttribute(missilePos,3));
+const missileHeads=new THREE.Points(missileGeo,new THREE.PointsMaterial({size:12,sizeAttenuation:false,map:missileDot,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+missileHeads.frustumCulled=false; scene.add(missileHeads);
+function missile(a,b){ const i=tHead; tHead=(tHead+1)%TMAX; const d=a.distanceTo(b), side=new THREE.Vector3(-(b.z-a.z),0,b.x-a.x).normalize().multiplyScalar(d*.5); const control=a.clone().add(b).multiplyScalar(.5).add(side); control.y+=8;
+  tracers[i]={a:a.clone(),b:b.clone(),curve:new THREE.QuadraticBezierCurve3(a.clone(),control,b.clone()),t:0,dur:Math.max(.5,Math.min(1.2,d/35)),col:new THREE.Color('#d8dde4')}; }
 const _v=new THREE.Vector3(), _w=new THREE.Vector3();
 function stepTracers(dt){
   for(let i=0;i<TMAX;i++){
     const tr=tracers[i];
     if(!tr){continue;}
     tr.t+=dt; const f=tr.t/tr.dur;
-    if(f>=1){ burst(tr.b,tr.col,2,4,.35); tracers[i]=null; tCol.fill(0,i*6,i*6+6); continue; }
-    _v.lerpVectors(tr.a,tr.b,f); _w.lerpVectors(tr.a,tr.b,Math.max(0,f-.22));
+    if(f>=1){ burst(tr.b,tr.col,2,4,.35); tracers[i]=null; tCol.fill(0,i*6,i*6+6); missilePos.fill(1e6,i*3,i*3+3); missileTail.fill(1e6,i*MISSILE_SEG*6,(i+1)*MISSILE_SEG*6); continue; }
+    if(tr.curve){ tr.curve.getPoint(f,_v); missilePos.set([_v.x,_v.y,_v.z],i*3); const from=Math.max(0,f-.35); for(let j=0;j<MISSILE_SEG;j++){ tr.curve.getPoint(from+(f-from)*j/MISSILE_SEG,_w); missileTail.set([_w.x,_w.y,_w.z],i*MISSILE_SEG*6+j*6); tr.curve.getPoint(from+(f-from)*(j+1)/MISSILE_SEG,_w); missileTail.set([_w.x,_w.y,_w.z],i*MISSILE_SEG*6+j*6+3); } }
+    else { missileTail.fill(1e6,i*MISSILE_SEG*6,(i+1)*MISSILE_SEG*6); missilePos.fill(1e6,i*3,i*3+3); _v.lerpVectors(tr.a,tr.b,f); _w.lerpVectors(tr.a,tr.b,Math.max(0,f-.22)); }
     tPos.set([_w.x,_w.y,_w.z,_v.x,_v.y,_v.z],i*6);
-    const c=tr.col; tCol.set([c.r*.4,c.g*.4,c.b*.4,c.r*2.2,c.g*2.2,c.b*2.2],i*6);
+    const c=tr.col; if(tr.curve){tCol.fill(0,i*6,i*6+6); continue;} tCol.set([c.r*.4,c.g*.4,c.b*.4,c.r*2.2,c.g*2.2,c.b*2.2],i*6);
   }
-  tGeo.attributes.position.needsUpdate=true; tGeo.attributes.color.needsUpdate=true;
+  tGeo.attributes.position.needsUpdate=true; tGeo.attributes.color.needsUpdate=true; missileGeo.attributes.position.needsUpdate=true; missileTailGeo.attributes.position.needsUpdate=true;
 }
 
 /* ---------- beams (第5節 the guns on the base; user decision 2026-10-18: 見本 B) ---------- */
