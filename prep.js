@@ -423,7 +423,9 @@ function renderDebug(){
     if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(!tutDone()) P.tutorialCleared=true; else if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); if(aidNow(o)) grantAid(o); } }
     /* チュートリアルスキップ: both tutorials count as done; the preparation guide as with its とばす (user decision 2026-11-06) */
     if(a==='skip'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); }
-    if(a==='all'){ P.tutorialCleared=true; P.prepDone=true; }
+    /* 全作戦クリア: the preparation guide too, as its とばす (the cruisers go into the army group; 2026-11-06: they were left out, so the
+       fast-forward tools fought without them) */
+    if(a==='all'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); }
     if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全兵科解放: opens every branch the story has not opened yet, without researching anything (user decision 2026-10-04) */
