@@ -277,6 +277,7 @@ menu.innerHTML=`
     <div class="treebox">
       <div class="trsum" id="trSum"></div>
       <div class="trscroll" id="trScroll"><div class="trcv" id="trCv"></div></div>
+      <div class="tzoom" role="group" aria-label="樹形図の拡大・縮小"><button data-tz="in" title="拡大（ホイールでも）">＋</button><button data-tz="out" title="縮小（ホイールでも）">−</button><button data-tz="fit" title="全体を枠に収める">全体</button></div>
       <div class="tinfo" id="tInfo" role="dialog" aria-label="研究" hidden></div>
     </div>
   </div>
@@ -488,7 +489,7 @@ const effShort=(b,n)=>n.deploy==='masc'?'強襲母艦を編成できるように
 let techForce='space', techBr=null, techSel=null;
 /* the tree view (user decision 2026-10-04): drag with the left button to move it up, down and sideways, the wheel to zoom.
    tv = {br, x, y, z}: the branch shown, the offset of the tree in its box and the zoom */
-let tv=null, treeDragged=false, treeWired=false;
+let tv=null, treeDragged=false, treeWired=false, treeSize=null;
 const TREE_Z=[.4,1.8];
 function fitTree(br,cw,ch){ const box=document.getElementById('trScroll'), W=box.clientWidth||900, H=box.clientHeight||480;
   const z=Math.max(TREE_Z[0],Math.min(1,(H-8)/ch,(W-8)/cw)); tv={br,x:8,y:Math.max(4,(H-ch*z)/2),z}; }
@@ -512,6 +513,11 @@ function wireTree(){
   box.addEventListener('wheel',e=>{ e.preventDefault(); const r=box.getBoundingClientRect(), mx=e.clientX-r.left, my=e.clientY-r.top;
     const z=Math.max(TREE_Z[0],Math.min(TREE_Z[1],tv.z*Math.exp(-e.deltaY*.0015))), k=z/tv.z;
     tv.x=mx-(mx-tv.x)*k; tv.y=my-(my-tv.y)*k; tv.z=z; placeTree(); },{passive:false});
+  /* the ＋ − 全体 buttons at the corner (user 2026-11-06): ＋ − zoom round the middle of the box, 全体 fits the whole tree again */
+  document.querySelectorAll('.tzoom [data-tz]').forEach(bt=>bt.onclick=()=>{ const a=bt.dataset.tz;
+    if(a==='fit'){ if(treeSize) fitTree(tv.br,treeSize.cw,treeSize.ch); placeTree(); return; }
+    const mx=box.clientWidth/2, my=box.clientHeight/2, z=Math.max(TREE_Z[0],Math.min(TREE_Z[1],tv.z*(a==='in'?1.25:.8))), k=z/tv.z;
+    tv.x=mx-(mx-tv.x)*k; tv.y=my-(my-tv.y)*k; tv.z=z; placeTree(); });
 }
 function renderTech(){
   const P=prog(), F=D.techForces, force=F.find(f=>f.id===techForce)||F[0];
@@ -541,18 +547,24 @@ function renderTech(){
   const box=document.getElementById('trScroll'), bh=PADY*2+(rows-1)*RH+R*2+30, bz=Math.max(TREE_Z[0],Math.min(1,((box.clientHeight||480)-8)/bh));
   const CW=Math.max(168,(((box.clientWidth||900)-8)/bz-PADX*2)/Math.max(1,cols-1));
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
-  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=q.x-R-Math.abs(q.y-p.y);
+  /* the lines (user decision 2026-11-06, 見本の案C「合流」): a smooth S curve from the right of the source to a point JOIN short of the
+     node's left, then one straight stub into it, so the lines of a node's requirements meet there (#288 had straight runs and 45° slants) */
+  const JOIN=30;
+  const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), x1=p.x+R, j=q.x-R-JOIN, m=(x1+j)/2;
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
-    /* The deployment node is below the tree: route its long cap1 prerequisite along the left and bottom edges. */
-    const path=n.deploy==='masc'&&r==='cap1'?`M${p.x-R} ${p.y}H8V${q.y+24}H${q.x}V${q.y+R}`:`M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}`;
-    return `<path d="${path}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
+    /* the deployment of the assault carriers sits below the tree: its long line from the first sortie-limit node goes round the left and
+       bottom edges of the tree (rounded corners) instead of crossing it, into the node from below */
+    const k=10, by=q.y+24;
+    const d=n.deploy==='masc'&&r==='cap1'?`M${p.x-R} ${p.y}H${8+k}Q8 ${p.y} 8 ${p.y+k}V${by-k}Q8 ${by} ${8+k} ${by}H${q.x-k}Q${q.x} ${by} ${q.x} ${by-k}V${q.y+R}`
+      :`M${x1} ${p.y}C${m} ${p.y} ${m} ${q.y} ${j} ${q.y}H${q.x-R}`;
+    return `<path d="${d}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
   const selN=nodeById(techSel);
   const nodes=NODES.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
     return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
   const cv=document.getElementById('trCv'), cw=PADX*2+(cols-1)*CW, ch=PADY*2+(rows-1)*RH+R*2+30;
   cv.style.width=cw+'px'; cv.style.height=ch+'px';
   /* a new branch starts fitted to the box (no vertical scroll); then it is dragged and zoomed freely (treeView) */
-  if(!tv||tv.br!==b.id) fitTree(b.id,cw,ch); placeTree(); wireTree();
+  treeSize={cw,ch}; if(!tv||tv.br!==b.id) fitTree(b.id,cw,ch); placeTree(); wireTree();
   cv.innerHTML=`<svg class="tedges" width="100%" height="100%" aria-hidden="true">${edges}</svg>${nodes}`;
   cv.querySelectorAll('[data-node]').forEach(x=>x.onclick=()=>{ if(treeDragged) return; techSel=x.dataset.node; renderTech(); });
   /* the chosen node */
