@@ -19,7 +19,7 @@ function tutorialTalk(){
   const row=tutorialActive()&&!over&&op.tutorial[tutorial.step];
   talkEl.classList.toggle('tutorial-talk',!!row);
   if(!row){talkEl.hidden=true; return;}
-  talkEl.hidden=false; talkEl.classList.remove('narr'); talkWho.hidden=false; talkWho.textContent='副官'; talkText.textContent=row.text;
+  talkEl.hidden=false; talkEl.classList.remove('narr'); talkWho.hidden=false; talkWho.textContent='リコ軍曹'; talkText.textContent=row.text;
   talkEl.querySelector('.ctl span').textContent='演習 '+(tutorial.step+1)+'/'+op.tutorial.length+'　'+row.name;
 }
 function tutorialRender(){

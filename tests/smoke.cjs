@@ -1333,7 +1333,7 @@ function check(ok, label, detail = '') {
       const Fe = fronts.find(F => F.name === '東の端'), lines = fleets.filter(f => f.alive && f.team === 1 && f.press && f.ai === 'guard' && f.pressGoal && f.pressGoal.x > 90);
       Object.assign(Fe, { level: 0, pend: 0, lastLv: 0, saidLv: 0, said: -1e9, calmT: null });
       const keepP = lines.map(f => f.post.clone()); lines.forEach(f => f.post.lerp(f.pressGoal, .5)); frontSaidT = -1e9; const s1 = said.length; stepFronts();
-      r.front = Fe.level === 1 && Fe.cause === 'line' && said.slice(s1).length === 1 && said.slice(s1).some(t => t === 'リコ曹長「東の端が押されています。敵の列がゲートへ寄ってきます」');
+      r.front = Fe.level === 1 && Fe.cause === 'line' && said.slice(s1).length === 1 && said.slice(s1).some(t => t === 'リコ軍曹「東の端が押されています。敵の列がゲートへ寄ってきます」');
       frontSaidT = -1e9; Fe.level = 0; const s2 = said.length; stepFronts(); r.frontQuiet = Fe.level === 1 && said.length === s2;
       lines.forEach(f => f.post.lerp(f.pressGoal, .9)); frontSaidT = -1e9; stepFronts(); r.frontWorse = Fe.level === 2 && said.slice(s2).some(t => t.includes('東ゲートが持ちません'));
       lines.forEach((f, i) => f.post.copy(keepP[i]));
@@ -1398,7 +1398,7 @@ function check(ok, label, detail = '') {
       sh.el.remove(); return r; });
     check(f1.field && f1.kept && f1.allLine, 'フェブルアーリア防衛戦: 作戦フィールドは基地全体を覆う1つ（中心 [0,120]、半径480、クリックは465まで、上下±90。2026-10-18）で動かず、艦はその外へ出られない。段階はなく、100分に「全線」（2026-10-16）', JSON.stringify(f1));
     check(f1.pressAt && f1.press && f1.held, 'フェブルアーリア防衛戦: 敵の列は傘の縁の持ち場からゲートの前へ寄る。砲台の届かない所では速く、こちらが数で勝つ所では止まる（押し込み。2026-10-16）', JSON.stringify(f1));
-    check(f1.front && f1.frontQuiet && f1.frontWorse && f1.frontShut, 'フェブルアーリア防衛戦: 押されている方面を、リコ曹長だけが知らせる（方面の指揮官の声は 2026-11-06 にやめた）。すぐには繰り返さず、崩れかけたら言う。塞いだゲートの方面は閉じる（2026-10-16）', JSON.stringify(f1));
+    check(f1.front && f1.frontQuiet && f1.frontWorse && f1.frontShut, 'フェブルアーリア防衛戦: 押されている方面を、リコ軍曹だけが知らせる（方面の指揮官の声は 2026-11-06 にやめた）。すぐには繰り返さず、崩れかけたら言う。塞いだゲートの方面は閉じる（2026-10-16）', JSON.stringify(f1));
     check(f1.op === 'februaria' && f1.bb && f1.allies === 27 && f1.bt === 14 && f1.onRock && f1.centre && f1.sky && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍27隊（2026-10-18 の兵力の見直し: 280隻）と地表の砲台14基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,

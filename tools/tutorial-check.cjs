@@ -6,7 +6,7 @@ async function checkTutorial(page,shots=false){
   const shot=async n=>{if(shots){await page.evaluate(()=>tutorialFrame()); await page.screenshot({path:path.join(ROOT,'test-results/tutorial-'+n+'.png')});}};
   let r=await page.evaluate(()=>({step:tutorial.step,clock:clockStr(),talk:!talking&&!talkEl.hidden,marks:tutorialMarks.length}));
   assert.deepStrictEqual(r,{step:0,clock:'08:00',talk:true,marks:1}); await shot(1);
-  r=await page.evaluate(()=>{ const prev=window.WOS_OPT.story; window.WOS_OPT.story=true; startTalk([['通信','割り込み']]); const during=talking&&talkWho.textContent==='通信'; endTalk(); window.WOS_OPT.story=prev; return during&&!talking&&talkWho.textContent==='副官'; }); assert(r);
+  r=await page.evaluate(()=>{ const prev=window.WOS_OPT.story; window.WOS_OPT.story=true; startTalk([['通信','割り込み']]); const during=talking&&talkWho.textContent==='通信'; endTalk(); window.WOS_OPT.story=prev; return during&&!talking&&talkWho.textContent==='リコ軍曹'; }); assert(r);
   await page.click('#talkText'); assert.equal(await page.evaluate(()=>tutorial.step),0);
   await page.keyboard.press('h'); assert.equal(await page.locator('#talk').isVisible(),false); await page.keyboard.press('h');
   r=await page.evaluate(()=>{let hits=0; const orig=damage; damage=function(t,a,src){if(t.team===0&&src&&src.team===1&&a>0) hits++; return orig(t,a,src);}; const f=fleets[0],e=fleets.find(x=>x.team===1); f.pos.copy(e.pos).add(new THREE.Vector3(0,0,10)); for(let i=0;i<30;i++) step(.05); damage=orig; return {hits,clock:clockStr()};}); assert.deepStrictEqual(r,{hits:0,clock:'08:00'});
