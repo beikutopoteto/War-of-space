@@ -44,21 +44,21 @@ function defaults(){
     ],
     /* each army holds one battle group and so goes by its name, as in the story (第一章第1・2節) */
     armies: [
-      {id:'a1', name:'第9 前衛巡洋 支隊', bgs:['bg1'], auto:'bg:bg1'},
       {id:'a2', name:'第12 沿岸哨戒 支隊', bgs:['bg2'], auto:'bg:bg2'},
       {id:'a3', name:'第18 護送護衛 支隊', bgs:['bg3'], auto:'bg:bg3'},
       {id:'a4', name:'第24 駆逐突撃 支隊', bgs:['bg4'], auto:'bg:bg4'},
       {id:'a5', name:'第19 護送護衛 支隊', bgs:['bg5'], auto:'bg:bg5'},
+      {id:'a1', name:'第9 前衛巡洋 支隊', bgs:['bg1'], auto:'bg:bg1'},
     ],
     groups: [
       {id:'g1', name:'第2 ネオ信濃駐屯 戦区軍', sync:true, members:[
-        {army:'a1', x:2, y:2, z:2}, {army:'a2', x:1, y:3, z:2}, {army:'a3', x:3, y:1, z:2}, {army:'a4', x:2, y:2, z:1}, {army:'a5', x:2, y:3, z:3}]},
+        {army:'a2', x:1, y:3, z:2}, {army:'a3', x:3, y:1, z:2}, {army:'a4', x:2, y:2, z:1}, {army:'a5', x:2, y:3, z:3}]},
     ],
     prog: newProg(),
   };
 }
 /* campaign progress: cleared operations, funds, research per branch ([node ids], data/tech.js techTree), story flags */
-function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}, tutorialCleared:false}; }
+function newProg(){ return {cleared:[], funds:0, tech:{}, flags:{}, tutorialCleared:false, prepStep:0, prepDone:false}; }
 let save;
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&s.bgs&&s.armies&&s.groups){ migrate(s); return s; } }catch(e){} return defaults(); }
 const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘団','cl',6],['bg3','第3戦闘団','dd',8],['bg4','第4戦闘団','ff',10],['bg5','第5戦闘団','cvb',2],
@@ -77,11 +77,13 @@ function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.
   s.bgs.forEach(b=>{ if(b.auto&&/戦隊$/.test(b.name)) b.name=unitName('bg',b.type,new Set(s.bgs.filter(y=>y!==b).map(y=>unitNo(y.name)))); });
   /* saves from before the campaign progress start at the beginning */
   const tutKnown=!!(s.prog&&'tutorialCleared' in s.prog);
+  const prepKnown=!!(s.prog&&'prepDone' in s.prog);
   s.prog=Object.assign(newProg(),s.prog||{});
+  if(!prepKnown&&s.prog.cleared.includes('retreat')) s.prog.prepDone=true;
   /* saves from before the tutorial (2026-11-05) that have cleared an operation do not have to go back to it */
   if(!tutKnown&&s.prog.cleared.length) s.prog.tutorialCleared=true;
   /* saves that cleared an operation before its grant existed get the grant now */
-  OPS.forEach(o=>{ const k='aid:'+o.id; if(o.aid&&s.prog.cleared.includes(o.id)&&!s.prog.flags[k]){ s.prog.flags[k]=true; s.prog.funds+=o.aid.funds; } });
+  OPS.forEach(o=>{ const k='aid:'+o.id; if(o.aid&&(o.aid.by!=='prep'||s.prog.prepDone)&&s.prog.cleared.includes(o.id)&&!s.prog.flags[k]){ s.prog.flags[k]=true; s.prog.funds+=o.aid.funds; } });
   /* earlier tech trees kept a number per branch, then {line: steps}: only the sortie-limit steps carry over */
   Object.keys(s.prog.tech).forEach(k=>{ const v=s.prog.tech[k]; if(Array.isArray(v)) return;
     const n=typeof v==='number'?v:(v&&v.cap)||0; s.prog.tech[k]=['cap1','cap2','cap3'].slice(0,n); }); }
@@ -176,7 +178,7 @@ function onEnd(opId,win,res={}){
   prog().funds+=gain; if(first) prog().cleared.push(opId);
   /* branches the story opens on a clear (o.opens: flag names, data/tech.js branches need; 第5節 opens the battleship) */
   const newBr=BRANCHES.filter(b=>b.need&&(o.opens||[]).includes(b.need)&&!prog().flags[b.need]); newBr.forEach(b=>{ prog().flags[b.need]=true; });
-  const aid=first?grantAid(o):0; persist();
+  const aid=first&&aidNow(o)?grantAid(o):0; persist();
   const opened=[...[['fleet','艦隊編集'],['tech','技術ツリー']].filter(([k])=>!before[k]&&unlocked(k)).map(([,n])=>`「${n}」`),...newBr.map(b=>`「${b.name}」`)];
   return `${gain?`　報酬：資金 +${gain}${first?'':'（再戦）'}。`:''}${aid?`　${o.aid.name}：資金 +${aid}。`:''}${opened.length?`　${opened.join('と')}が使えるようになった。`:''}`;
 }
@@ -308,6 +310,66 @@ menu.addEventListener('click',e=>{
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
 
+/* ---------- the preparation guide (docs/tutorial.md 6): after 第2節, before 第3節. Steps and text: data/tech.js prepTutorial ----------
+   A step passes when its condition holds (also when it already held as the step began). Shown while the menu is open */
+const PREP=D.prepTutorial, CRUISER=()=>BRANCHES.find(b=>b.id==='cruiser');
+const prepG=()=>save.groups.find(x=>x.id==='g1');
+const PREP_DONE={
+  org:()=>screen==='org',
+  army:()=>screen==='org'&&tab==='army'&&selArmy==='a1',
+  group:()=>screen==='org'&&tab==='group',
+  placed:()=>prepG().members.some(m=>m.army==='a1'),
+  flag:()=>prepG().members[flagIndex(prepG())]?.army==='a1',
+  tech:()=>screen==='tech',
+  cruiser:()=>screen==='tech'&&techBr?.id==='cruiser',
+  research:()=>techOf(CRUISER()).length>0,
+  sortie:()=>false,   // passed by 出撃する on the forces screen (renderForces)
+};
+/* the fleet steps are passed over once the cruisers' army (or the army group they go in) is gone */
+const prepGone=c=>(['army','group','placed','flag'].includes(c)&&!armyById('a1'))||(['placed','flag'].includes(c)&&!prepG());
+const prepOn=()=>cleared('retreat')&&!prog().prepDone;
+const prepTalk=document.createElement('div'); prepTalk.id='prepTalk'; prepTalk.hidden=true;
+prepTalk.innerHTML='<div class="eye">COMMS 通信</div><b>副官</b><p></p><div class="ctl"><span></span><button>とばす</button></div>';
+menu.appendChild(prepTalk);
+const prepFrames=[0,1].map(()=>{const el=document.createElement('div'); el.className='prep-frame'; el.hidden=true; menu.appendChild(el); return el;});
+/* the guide's own aid (o.aid.by 'prep') comes with its step, or when the guide ends; before 第2節 is cleared it waits for the clear */
+const prepAid=()=>{ const o=OPS.find(x=>x.id==='retreat'); return cleared(o.id)?grantAid(o):0; };
+const aidNow=o=>!o.aid||o.aid.by!=='prep'||prog().prepDone;
+/* skipped or ended: the cruisers' army goes into the army group (the front cell) as the guide would have put it */
+function finishPrep(place){
+  const g=prepG();
+  if(place&&g&&armyById('a1')&&!g.members.some(m=>m.army==='a1')&&g.members.length<MAX_ARMY){
+    const cell={x:2,y:2,z:0}; g.members.push({army:'a1',...(g.members.some(m=>m.x===2&&m.y===2&&m.z===0)?freeCell(g):cell)});
+  }
+  prog().prepDone=true; prepAid(); persist();
+}
+prepTalk.querySelector('button').onclick=()=>{finishPrep(true); render();};
+let prepShown='';
+function prepTick(){
+  const active=!menu.hidden&&prepOn();
+  if(active){
+    const p=prog();
+    for(;p.prepStep<PREP.length-1;p.prepStep++,persist()){
+      const row=PREP[p.prepStep];
+      if(row.aid&&grantAid(OPS.find(o=>o.id===row.aid))) persist();
+      if(!prepGone(row.condition)&&!PREP_DONE[row.condition]()&&!(row.until&&PREP_DONE[row.until]())) break;
+    }
+    const step=PREP[p.prepStep];
+    prepTalk.querySelector('p').textContent=step.text; prepTalk.querySelector('.ctl span').textContent=`準備 ${p.prepStep+1}/${PREP.length}　${step.name}`;
+    /* a target counts while it is drawn; one out of sight is scrolled to once, as its step begins or the screen or tab changes */
+    const drawn=sel=>{const el=menu.querySelector(sel); if(!el||!el.getClientRects().length||getComputedStyle(el).visibility==='hidden') return null; const r=el.getBoundingClientRect(); return r.width&&r.height?el:null;};
+    let target=step.targets.map(drawn).find(Boolean);
+    /* not on the step's screen: the way there (the menu item on the title, else ← back) */
+    if(!target) target=drawn(screen==='title'?`#mainNav [data-go="${step.screen==='forces'?'mode':step.screen}"]`:'.scr:not([hidden]) .back');
+    const key=p.prepStep+'|'+screen+'|'+tab; if(target&&prepShown!==key){ prepShown=key; const r=target.getBoundingClientRect(); if(r.top<0||r.bottom>innerHeight) target.scrollIntoView({block:'center'}); }
+    const targets=[target,...(step.also||[]).map(drawn)].filter(Boolean).slice(0,2);
+    prepFrames.forEach((f,i)=>{const el=targets[i]; f.hidden=!el; if(el){const r=el.getBoundingClientRect(); Object.assign(f.style,{left:(r.left-4)+'px',top:(r.top-4)+'px',width:(r.width+8)+'px',height:(r.height+8)+'px'});}});
+  }else prepFrames.forEach(f=>f.hidden=true);
+  prepTalk.hidden=!active; menu.classList.toggle('prep-active',active);
+  requestAnimationFrame(prepTick);
+}
+requestAnimationFrame(prepTick);
+
 /* ---------- title (main menu) ---------- */
 function renderTitle(){
   const P=prog(), next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT, last=[...CAMP].reverse().find(o=>cleared(o.id));
@@ -348,14 +410,16 @@ function renderDebug(){
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
     <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（自軍が自動で戦い、作戦の目標もこなす。会話と配置も自動で進む）</label>
-    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬と緊急援助も入る）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬も入り、緊急援助は準備の案内で届く）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="skip" title="演習のチュートリアルと準備画面の案内（第2節のあと）を済みにする。準備画面の案内は「とばす」と同じで、巡洋艦の打撃群を戦区軍に置き、緊急援助を渡す（第2節の前なら、援助は第2節のクリアで入る）">チュートリアルスキップ</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
     if(a!=='reset') dbgConfirm=false;
     /* 一節だけ: the first section not cleared yet counts as won (its reward and aid too). At the start it skips the tutorial (user decision 2026-11-05) */
-    if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(!tutDone()) P.tutorialCleared=true; else if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); grantAid(o); } }
-    if(a==='all') P.tutorialCleared=true;
+    if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(!tutDone()) P.tutorialCleared=true; else if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); if(aidNow(o)) grantAid(o); } }
+    /* チュートリアルスキップ: both tutorials count as done; the preparation guide as with its とばす (user decision 2026-11-06) */
+    if(a==='skip'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); }
+    if(a==='all'){ P.tutorialCleared=true; P.prepDone=true; }
     if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全兵科解放: opens every branch the story has not opened yet, without researching anything (user decision 2026-10-04) */
@@ -550,7 +614,7 @@ function renderForces(){
     S?`<tr class="scale ${scaleOver?'over':''}"><th>戦闘の規模（${esc(S.name)}）</th><td>${total} / ${S.cap}隻</td><td class="note">${scaleOver?'規模の上限を超えています':'全兵科の合計'}</td></tr>`:''}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':scaleOver&&!branchOver?`この作戦は${esc(S.name)}です。出撃できる艦は合計${S.cap}隻まで。戦区軍を減らすか、艦隊編集で艦を減らしてください。`:'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
   const btn=document.getElementById('forcesBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
-  btn.onclick=()=>{ WOS_DOCK.close(); running={op:sortieOp}; startBattle(chosen); };
+  btn.onclick=()=>{ if(prepOn()&&(PREP[prog().prepStep].condition!=='sortie'||sortieOp==='nile')) finishPrep(false); WOS_DOCK.close(); running={op:sortieOp}; startBattle(chosen); };
   const ships=chosen.flatMap(g=>groupSummary(g).flatMap(a=>armyStats(a).bgs.flatMap(b=>Array(b.count).fill(b.type))));
   WOS_DOCK.draw(document.getElementById('dockCanvas'),ships);
 }
@@ -710,7 +774,7 @@ function renderGroupTab(){
   const avail=save.armies.filter(a=>!g.members.some(m=>m.army===a.id));
   const fi=flagIndex(g);
   const chips=g.members.map((m,i)=>{ const a=armyById(m.army), st=a?armyStats(a):null;
-    return `<div class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}">${a?unitDisplay(a.name,'打撃群'):'?'}</button><span class="cm">${a?armyMarks(a):''}</span><span class="rs">${st?`${st.ships}隻・速度${st.st.spd.toFixed(0)}`:''}</span><span class="rp">${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span><button class="flg" data-flag="${i}" aria-pressed="${i===fi}">${i===fi?'★ 旗艦':'☆ 旗艦にする'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
+    return `<div data-chip-army="${esc(m.army)}" class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}">${a?unitDisplay(a.name,'打撃群'):'?'}</button><span class="cm">${a?armyMarks(a):''}</span><span class="rs">${st?`${st.ships}隻・速度${st.st.spd.toFixed(0)}`:''}</span><span class="rp">${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span><button class="flg" data-flag="${i}" aria-pressed="${i===fi}">${i===fi?'★ 旗艦':'☆ 旗艦にする'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
   const cells=[];
   for(let z=0;z<CUBE;z++) for(let x=0;x<CUBE;x++){
     const here=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);

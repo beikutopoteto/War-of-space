@@ -396,3 +396,15 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 #menu .forces-right h3{font-size:15px;white-space:nowrap}.forces-right h3 i{font:italic 600 12px var(--f-num);color:var(--blue)}
 .forces-right p{margin:5px 0;font-size:13px;line-height:1.45}.forces-right .load{font-size:13px}.forces-right .load th,.forces-right .load td{padding:3px 4px}.forces-right .load td.note{font-size:11px}
 #sgLoad{margin-top:0;gap:3px}.forces-buttons button{padding:8px 0}
+
+/* Preparation guide, matching the battle communications panel. */
+#menu.prep-active{padding-bottom:230px}
+#prepTalk{position:fixed;z-index:50;left:50%;bottom:24px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));box-sizing:border-box;background:rgba(8,14,26,.8);padding:0 14px 10px;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%);pointer-events:none;backdrop-filter:blur(6px)}
+#prepTalk>.eye{display:block;margin:0 -14px 4px;padding:4px 14px;background:linear-gradient(90deg,rgba(127,200,255,.22),rgba(127,200,255,.04));border-top:2px solid var(--blue)}
+#prepTalk b{display:block;font-size:12px;color:var(--ink-dim);letter-spacing:.05em}
+#prepTalk p{margin:3px 0 4px;font-size:14px;line-height:1.6;color:var(--ink)}
+#prepTalk .ctl{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-dim)}
+#prepTalk .ctl span{color:var(--brass);font-weight:bold}
+#prepTalk button{pointer-events:auto;font-family:var(--f-ui);font-size:11px;border:0;background:rgba(127,200,255,.08);color:var(--ink-dim);padding:2px 12px;cursor:pointer;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.prep-frame{position:fixed;z-index:49;pointer-events:none;box-sizing:border-box;border:2px solid var(--brass);box-shadow:0 0 10px var(--brass);animation:prep-glow 2s ease-in-out infinite alternate}
+@keyframes prep-glow{from{opacity:.6}to{opacity:1}}
