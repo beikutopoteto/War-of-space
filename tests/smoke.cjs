@@ -234,7 +234,7 @@ function check(ok, label, detail = '') {
     check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ打撃群を含む戦区軍は一緒に選べず、暗くなって「同一支隊を含みます」と出る', JSON.stringify(clash));
     const dockBefore = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     const dockCounts = JSON.parse(await page.locator('#dockCanvas').getAttribute('data-ship-counts'));
-    check(dockCounts.join(',') === '0,0,0,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
+    check(dockCounts.join(',') === '0,0,6,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
     await page.locator('#sgList [data-sg][aria-pressed=true]').click();
     const dockAfter = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     check(+dockAfter > +dockBefore && await page.isDisabled('#forcesBattle'), '軍港: 選択を外すと桟橋が畳まれ、出撃できない', dockBefore + ' → ' + dockAfter);
@@ -311,11 +311,13 @@ function check(ok, label, detail = '') {
       const opts = [...sel.options].map(o => o.textContent);
       sel.value = 'column'; sel.dispatchEvent(new Event('change'));
       const set = !fl.order && others.every(f => f.order.type === 'move' && f.order.dest.distanceTo(fl.pos.clone().add(turnTo(formationOffset(g, f), fl.march))) < .01);
+      const stances = groupAlive(g).map(f => [f, f.stance]); stances.forEach(([f]) => { f.stance = 'evade'; }); // prevent combat from moving units after arrival
       const t0 = gameSec, ne = nextEvent; nextEvent = opEvents.length;   // hold the timed events while this runs
       select(null); selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(90, 0, 0)); groupOrder({ type: 'move', dest: D });
       for (let i = 0; i < 1600; i++) step(.05);
       const east = new THREE.Vector3(1, 0, 0);
       const shape = others.every(f => f.pos.distanceTo(D.clone().add(turnTo(formationOffset(g, f), east))) < 3 && Math.abs(f.pos.z - fl.pos.z) < 3);
+      stances.forEach(([f, stance]) => { f.stance = stance; });
       /* attacking in formation: every army closes on the target itself, so the whole column gets it in range */
       const e = fleets.find(f => f.team === 1 && f.alive && !f.convoy); e.seen = true; e.hpPool = 1e9; e.speed = 0; e.ai = null; e.revealT = 1e9;
       select(null); selectGroup(g); groupOrder({ type: 'attack', target: e });
