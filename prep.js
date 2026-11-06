@@ -200,7 +200,8 @@ function onEnd(opId,win,res={}){
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 /* ---------- army math ---------- */
-function armyStats(a){
+/* flag: the army is its army group's flagship, and takes D.flagBonus on top of its formation bonuses */
+function armyStats(a,flag){
   const bgs=a.bgs.map(bgById).filter(Boolean);
   const types=new Set(bgs.map(b=>b.type));
   const ships=bgs.reduce((s,b)=>s+b.count,0);
@@ -211,12 +212,13 @@ function armyStats(a){
   if(!bgs.length) st.stl=0;
   const hangar={}; bgs.forEach(b=>Object.entries(SHIP[b.type].hangar||{}).forEach(([k,v])=>hangar[k]=(hangar[k]||0)+v*b.count));
   const active=BONUSES.filter(b=>bonusOn(b,types,bgs));
+  if(flag&&D.flagBonus) active.push(D.flagBonus);
   active.forEach(b=>Object.entries(b.mod).forEach(([k,m])=>st[k]*=m));
   return {st,ships,bgs,active,hangar};
 }
 /* convert an army into the battle fleet spec used by battle/ */
-function armyToFleet(a){
-  const {st,ships,bgs,hangar,active}=armyStats(a);
+function armyToFleet(a,flag){
+  const {st,ships,bgs,hangar,active}=armyStats(a,flag);
   const mods=k=>active.reduce((v,b)=>v*(b.mod[k]||1),1);
   const byType=Object.fromEntries([...new Set(bgs.map(b=>b.type))].map(t=>{ const s=shipNow(t); return [t,{dps:.4+s.atk*mods('atk')*.45,range:10+s.rng*mods('rng')*1.6}]; }));
   /* the small craft's rates, weighted by how many each ship class brings */
@@ -228,7 +230,7 @@ function armyToFleet(a){
   const by={}; bgs.forEach(b=>by[b.type]=(by[b.type]||0)+b.count);
   const sub=Object.entries(by).sort((x,y)=>SHIP[y[0]].scale-SHIP[x[0]].scale).slice(0,3).map(([t,c])=>SHIP[t].name+c).join('・');
   return {name:a.name, sub, comp:by, byType, n:Math.max(1,ships), hp:6+st.def*5, dmg:.4+st.atk*.45, eva:Math.min(.4,st.eva*.04),
-    range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, aa:st.aa, hangar, craft, scale:Math.min(1.5,.4+big*.6), stats:st};
+    range:10+st.rng*1.6, speed:2+st.spd, vis:st.vis, stl:st.stl, aa:st.aa, hangar, craft, scale:Math.min(1.5,.4+big*.6), stats:st, bonus:active.map(b=>b.id)};
 }
 
 /* ---------- screens ---------- */
@@ -673,7 +675,7 @@ function startBattle(gs){
     const fm=ok.includes(g.members[flagIndex(g)])?g.members[flagIndex(g)]:ok[0], gx=cx+(i-(live.length-1)/2)*GROUP_SPREAD;
     const members=[], offsets=[];
     ok.forEach(m=>{ const a=armyById(m.army), d=[(m.x-fm.x)*16,(m.y-fm.y)*10,(m.z-fm.z)*16];
-      const f=armyToFleet(a); f.pos=[gx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
+      const f=armyToFleet(a,m===fm); f.pos=[gx+d[0],cz+d[2]]; f.alt=d[1]; members.push(fleets.length); offsets.push(d); fleets.push(f); });
     groups.push({name:g.name, sync:g.sync, members, flag:members[ok.indexOf(fm)], offsets}); });
   if(!fleets.length) return;
   window.WOS.start({op:op.id, fleets, groups, flags:storyFlags()});
@@ -807,7 +809,7 @@ function renderGroupTab(){
   const avail=save.armies.filter(a=>!g.members.some(m=>m.army===a.id));
   const fi=flagIndex(g);
   const chips=g.members.map((m,i)=>{ const a=armyById(m.army), st=a?armyStats(a):null;
-    return `<div data-chip-army="${esc(m.army)}" class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}">${a?unitDisplay(a.name,'打撃群'):'?'}</button><span class="cm">${a?armyMarks(a):''}</span><span class="rs">${st?`${st.ships}隻・速度${st.st.spd.toFixed(0)}`:''}</span><span class="rp">${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span><button class="flg" data-flag="${i}" aria-pressed="${i===fi}">${i===fi?'★ 旗艦':'☆ 旗艦にする'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
+    return `<div data-chip-army="${esc(m.army)}" class="chip ${placing===i?'sel':''}" style="--c:${GROUP_COLORS[i]}"><button class="pick" data-pick="${i}" aria-pressed="${placing===i}">${a?unitDisplay(a.name,'打撃群'):'?'}</button><span class="cm">${a?armyMarks(a):''}</span><span class="rs">${st?`${st.ships}隻・速度${st.st.spd.toFixed(0)}`:''}</span><span class="rp">${'ABCDE'[m.x]}${m.z+1}・高さ${m.y+1}</span><button class="flg" data-flag="${i}" aria-pressed="${i===fi}" title="${D.flagBonus?`旗艦の打撃群は${esc(D.flagBonus.eff)}（攻撃・防御・回避・射程・視界・隠蔽性）`:''}">${i===fi?'★ 旗艦':'☆ 旗艦にする'}</button><button class="x" data-out="${i}" aria-label="外す">外す</button></div>`; }).join('');
   const cells=[];
   for(let z=0;z<CUBE;z++) for(let x=0;x<CUBE;x++){
     const here=g.members.findIndex(m=>m.x===x&&m.z===z&&m.y===layer);

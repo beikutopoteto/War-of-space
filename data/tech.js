@@ -106,7 +106,7 @@ WOS_DATA.prepTutorial=[
  {name:'打撃群を見る',screen:'org',condition:'army',until:'placed',targets:['[data-tab="army"][aria-selected="false"]','#orgList [data-army="a1"]'],text:'打撃群は、戦闘で動かす単位です。同じ艦種の支隊を5つまでまとめます。一覧のいちばん下が、加わった「第9打撃群」（巡洋艦6隻）です。選んで、能力を見てください。'},
  {name:'戦区軍を開く',screen:'org',condition:'group',until:'placed',targets:['[data-tab="group"]'],text:'戦区軍は、打撃群をまとめて一度に動かす単位です。上の「戦区軍」のタブを開いてください。'},
  {name:'戦区軍に置く',screen:'org',condition:'placed',targets:['.orgpop [data-addarmy="a1"]','#orgList [data-grp="g1"]:not(.sel)','[data-ly="2"][aria-pressed="false"]','.grid [data-cx="2"][data-cz="0"]'],text:'戦区軍は、打撃群を5つまで5×5×5の立方体に並べます。上が敵の側です。光っている前のマスを押し、「第9打撃群」を加えてください。巡洋艦は遅いが硬く、射程が長いので、正面に置きます。'},
- {name:'旗艦にする',screen:'org',condition:'flag',targets:['.chip[data-chip-army="a1"] [data-flag]'],text:'戦区軍を動かすと、ほかの打撃群は旗艦を中心に並んだまま付いてきます。いちばん硬い第9打撃群を旗艦にしてください。'},
+ {name:'旗艦にする',screen:'org',condition:'flag',targets:['.chip[data-chip-army="a1"] [data-flag]'],text:'戦区軍を動かすと、ほかの打撃群は旗艦を中心に並んだまま付いてきます。旗艦の打撃群は、全能力が10%上がります。いちばん硬い第9打撃群を旗艦にしてください。'},
  {name:'技術ツリーを開く',screen:'tech',condition:'tech',aid:'retreat',targets:['#mainNav [data-go="tech"]'],text:'司令部から緊急援助の資金1,000が届きました。技術ツリーで、艦を強くしましょう。メニューに戻り、「技術ツリー」を開いてください。'},
  {name:'兵科を選ぶ',screen:'tech',condition:'cruiser',targets:['#brBar [data-br="cruiser"]'],text:'研究は兵科ごとです。左の「巡洋艦」を選んでください。'},
  {name:'研究する',screen:'tech',condition:'research',targets:['#brBar [data-br="cruiser"][aria-pressed="false"]','#tRes:not([disabled])','#trCv [data-node="def1"]'],text:'自分で編成した艦は、はじめは最大の3割の力です。研究すると能力が上がります。「38式 複合装甲板」を選び、「研究する」を押してください。残りの資金で、ほかの研究も進められます。'},
