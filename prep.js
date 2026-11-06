@@ -559,7 +559,7 @@ function renderTech(){
   const info=document.getElementById('tInfo'), n=nodeById(techSel);
   info.hidden=!n; if(!n) return;
   const done=nodeDone(b,n), can=nodeOpen(b,n), cost=nodeCost(b,n);
-  const eff=n.deploy==='masc'?'強襲母艦を編成できるようになる（出撃上限 0 → 1隻。第二次艦隊動員計画で2、総力戦動員計画で3）':n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
+  const eff=n.deploy==='masc'?`強襲母艦を編成できるようになる（出撃上限 0 → 1隻。${esc(nodeName(b,nodeById('cap2')))}で2、${esc(nodeName(b,nodeById('cap3')))}で3）`:n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
     :n.add&&n.add.out?crafts(b).map(c=>{ const now=craftOut(b,c), from=done?now-1:now; return `${D.crafts[c].name} 同時に出撃できる隊　${from} → ${from+1}`; }).join('<br>')
     :n.add&&n.add.turn?crafts(b).map(c=>{ const C=D.crafts[c], from=craftTurn(b)-(done?n.add.turn:0), to=Math.min(1,from+n.add.turn);
       return `${C.name} 補給　${num(C.rearm/from)} → ${num(C.rearm/to)}秒、次の隊の発進間隔　${num(C.cd/from)} → ${num(C.cd/to)}秒`; }).join('<br>')
