@@ -31,7 +31,7 @@ window.WOS_DATA=window.WOS_DATA||{};
    onEnemyWAS: 敵の W.A.S. が初めて出撃したときの通知 [見出し, 本文]、または [[見出し, 本文], …]（続けて出す）
    station: 守るステーション {name, sub, hp, dps, range, radius, vis, hangar?:{ftr}, launchR?}（hangar は近づいた敵へ出す艦載機）
    talk: 作戦の前後の会話 {before, win, lose}。どれも [[話し手, 台詞], …]。話し手を '' にすると地の文
-   reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay の割合）
+   reward: クリアでもらえる資金（技術ツリーに使う。2回目からは data/tech.js の reward.replay、演習は reward.exercise の割合）
    aid: 初めてクリアしたときに一度だけもらえる資金 {funds, name, by?}（name は結果に出す名前。by:'prep' はクリアでは渡さず、準備画面のチュートリアル（data/tech.js prepTutorial の aid）で渡す）
    group: {name, sync} 決まった艦隊（quick）で戦うとき、全艦隊をこの戦区軍にまとめる
    result.loseBlast: 負けたときに爆発させる位置 [x, z, alt]
@@ -245,7 +245,7 @@ WOS_DATA.operations=[
     /* 作戦の時計で450分（08:00〜15:30）を1倍速の約7分半に合わせる（時計は戦闘の1秒で1分。ストラテジーの専門家の案、ユーザー採用 2026-10-12）。
        クイック出撃の用意された艦隊（61隻）は規模の上限（45隻）の外（ユーザー決定 2026-10-12） */
     span:450,
-    reward:200,
+    reward:300,   // 1.5倍に（ユーザー決定 2026-11-06。再戦は data/tech.js の reward.exercise で初回の2/3＝200）
     name:'要塞カリュブディス攻略戦',
     summary:'士官学校の卒業演習。二つの小惑星を接合した架空の敵要塞。防空4隊と近衛艦隊が守り、開戦2時間半後から北と東に増援が来る。16:00 には本国の主力が着く。17:00 までに要塞を落とせなければ失敗。要塞が落ちると近衛艦隊は撤退する。',
     threat:'敵戦力：艦隊5・要塞1／難易度：標準',

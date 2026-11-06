@@ -106,6 +106,12 @@ function check(ok, label, detail = '') {
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
     check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦クリアと資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
+    /* a replay brings 1/6 of the reward, an exercise 2/3 (user decision 2026-11-06) */
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
+    const replay = {};
+    for (const id of ['shinano', 'denaliBreak', 'charybdis']) { const b = page.locator(`#opList [data-op="${id}"]`); if (await b.count()) { await b.click(); replay[id] = await page.textContent('#opReward'); } }
+    check(replay.shinano.includes('再戦は50') && replay.charybdis.includes('資金 300') && replay.charybdis.includes('再戦は200') && (!replay.denaliBreak || replay.denaliBreak.includes('再戦は133')), '報酬: 再戦は初回の1/6、演習は初回300・再戦は2/3', JSON.stringify(replay));
+    await page.click('[data-s="sortie"] .back'); await page.click('[data-s="mode"] .back');
     /* tech tree: 駆逐艦. 射撃管制 needs the gun first; 動員計画 and the gun are open from the start */
     await page.click('[data-go="tech"]');
     await page.click('#brBar [data-br="dd"]');
@@ -122,7 +128,7 @@ function check(ok, label, detail = '') {
     await res('cap1'); await res('gun1'); await res('rng1');
     const tech = await page.evaluate(() => ({ ...JSON.parse(localStorage.getItem('wos.save.v1')).prog, bar: document.querySelectorAll('#brBar [data-br]:not(:disabled)').length,
       next: document.querySelector('#trCv [data-node="gun2"]').classList.contains('can'), sum: document.getElementById('trSum').textContent }));
-    check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (200 + 60 + 90) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
+    check(!early && ['cap1', 'gun1', 'rng1'].every(id => tech.tech.dd.includes(id)) && tech.next && tech.funds === 1000 - (240 + 70 + 110) && tech.bar === 3 && !tech.sum.includes('%') && !tech.sum.includes('/'),
       '技術ツリー: 左の列から研究し、つながる元を終えると次が開く。能力は数で出る', JSON.stringify(tech));
     /* Enter researches the chosen node; the tree is dragged with the left button and zoomed with the wheel; the screen needs no vertical scroll */
     await page.click('#trCv [data-node="gun2"]'); await page.keyboard.press('Enter'); await page.click('#tClose');
