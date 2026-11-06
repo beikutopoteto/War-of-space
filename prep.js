@@ -169,7 +169,8 @@ function storyFlags(){ return {kawasemi:!!prog().flags['rescued:retreat']}; }
 /* the battle the menu started: the result is recorded when it ends (クイック出撃 is not counted) */
 let running=null;
 function onEnd(opId,win,res={}){
-  if(running&&running.tutorial){ if(win&&tutorialActive()&&tutorial.step===10){ prog().tutorialCleared=true; sortieOp=CAMP[0].id; persist(); } return ''; }
+  /* the tutorial counts as cleared on any win: at whatever step, and after とばす too (2026-11-06: a win before the last step did not open 第1節) */
+  if(running&&running.tutorial){ if(!win) return ''; const first=!tutDone(); prog().tutorialCleared=true; sortieOp=CAMP[0].id; persist(); return first?`　${opLabel(CAMP[0])}が出撃できるようになった。`:''; }
   if(!running||running.quick||running.op!==opId||!win) return '';
   const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */

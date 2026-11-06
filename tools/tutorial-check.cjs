@@ -24,7 +24,16 @@ async function checkTutorial(page,shots=false){
   await page.evaluate(()=>{openMenu(); WOS.start({op:'charybdis',tutorial:true});});
   r=await page.evaluate(()=>{for(let i=0;i<40;i++) step(.05); const held=clockStr(); document.getElementById('talkSkip').click(); step(2); return {held,after:clockStr(),active:tutorialActive(),marks:tutorialMarks.length};}); assert.equal(r.held,'08:00'); assert.notEqual(r.after,'08:00'); assert(!r.active&&!r.marks);
   await page.evaluate(()=>{openMenu(); WOS.start({op:'charybdis'});}); assert.equal(await page.evaluate(()=>tutorialActive()),false);
-  return '11段・到着と経由・戦区軍・時計停止／再開・保存・とばす・クイック出撃';
+  /* a win at any step, or after とばす, clears it (2026-11-06: a win before 仕上げ did not open 第1節) */
+  for(const how of ['early','skip']){
+    await page.evaluate(()=>localStorage.removeItem('wos.save.v1')); await page.reload();
+    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="tutorial"]'); await page.click('#goBattle');
+    r=await page.evaluate(how=>{ if(how==='early'){ tutorial.step=op.tutorial.findIndex(x=>x.condition==='attack'); tutorialRender(); } else document.getElementById('talkSkip').click();
+      damage(fortress,fortress.hpPool+1,fleets[0]); for(let i=0;i<3000&&!over;i++) step(.1);
+      return {over,win:outcome,saved:!!(JSON.parse(localStorage.getItem('wos.save.v1')||'{}').prog||{}).tutorialCleared,said:document.getElementById('rp').textContent.includes('出撃できるようになった')}; },how);
+    assert.deepStrictEqual(r,{over:true,win:true,saved:true,said:true},how);
+  }
+  return '11段・到着と経由・戦区軍・時計停止／再開・保存・とばす・クイック出撃・途中の段やとばしたあとの勝ちでもクリア';
 }
 module.exports={checkTutorial};
 if(require.main===module) (async()=>{fs.mkdirSync(path.join(ROOT,'test-results'),{recursive:true}); const {browser,page,errors}=await openGame({width:1600,height:900}); try{ const result=await checkTutorial(page,true); assert.deepStrictEqual(errors,[]); console.log('| チュートリアル | '+result+' |'); }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
