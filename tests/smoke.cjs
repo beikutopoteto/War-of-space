@@ -3,6 +3,7 @@
    The CDN scripts are served from node_modules/three, so the test also works offline. */
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
+const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -36,6 +37,9 @@ function check(ok, label, detail = '') {
   try {
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
+    const prepResult = await checkPrepTutorial(page);
+    check(true, '準備チュートリアル', prepResult);
+    await page.evaluate(() => localStorage.clear()); await page.reload();
     const tutorialResult = await checkTutorial(page);
     check(true, 'チュートリアル', tutorialResult);
     await page.evaluate(() => localStorage.removeItem('wos.save.v1'));
@@ -195,7 +199,7 @@ function check(ok, label, detail = '') {
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');
     const flag = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups[0].flag);
-    check(flag === 'a2' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 戦区軍の旗艦を選べる', flag);
+    check(flag === 'a3' && (await page.textContent('#orgDetail [data-flag="1"]')).includes('旗艦'), '編成: 戦区軍の旗艦を選べる', flag);
     await page.click('#orgDetail [data-flag="0"]');
     /* grid cells: the main class's mark, the role, the name on hover */
     const cell = await page.evaluate(() => { const c = document.querySelector('#orgDetail .cell[data-on]'); return c ? [!!c.querySelector('.mk svg'), c.querySelector('.rl').textContent, c.title] : []; });
@@ -203,6 +207,7 @@ function check(ok, label, detail = '') {
     await shot('03-org-group');
     /* a second army group holding an army of the first: the two cannot sortie together */
     await page.click('#orgList [data-new]'); await page.click('[data-cx="2"][data-cz="2"]'); await page.click('[data-addarmy="a1"]');
+    await page.click('[data-cx="1"][data-cz="2"]'); await page.click('[data-addarmy="a2"]');
     const grpName = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).groups.at(-1).name);
     check(grpName === '第1 軌道制圧 戦区軍', '編成: 新しい戦区軍は主力の艦種で「第N 役割 戦区軍」になる', grpName);
     await page.click('[data-s="org"] .back');
@@ -217,7 +222,7 @@ function check(ok, label, detail = '') {
     check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ打撃群を含む戦区軍は一緒に選べず、暗くなって「同一支隊を含みます」と出る', JSON.stringify(clash));
     const dockBefore = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     const dockCounts = JSON.parse(await page.locator('#dockCanvas').getAttribute('data-ship-counts'));
-    check(dockCounts.join(',') === '0,0,6,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
+    check(dockCounts.join(',') === '0,0,0,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
     await page.locator('#sgList [data-sg][aria-pressed=true]').click();
     const dockAfter = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     check(+dockAfter > +dockBefore && await page.isDisabled('#forcesBattle'), '軍港: 選択を外すと桟橋が畳まれ、出撃できない', dockBefore + ' → ' + dockAfter);
@@ -681,7 +686,7 @@ function check(ok, label, detail = '') {
     const one1 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
     await page.click('#dbgB [data-dbga="one"]');
     const one2 = await page.evaluate(() => JSON.parse(localStorage.getItem('wos.save.v1')).prog);
-    check(one1.cleared.join() === 'shinano' && one1.funds === 300 && one2.cleared.join() === 'shinano,retreat' && one2.funds === 1700 && one2.flags['aid:retreat'],
+    check(one1.cleared.join() === 'shinano' && one1.funds === 300 && one2.cleared.join() === 'shinano,retreat' && one2.funds === 700 && !one2.flags['aid:retreat'],
       'デバッグ: 一節だけクリアで次の節が報酬つきでクリアになる', JSON.stringify([one1, one2]));
     await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="reset"]'); await page.click('#dbgB [data-dbga="one"]');
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
@@ -796,9 +801,10 @@ function check(ok, label, detail = '') {
     check(rw2.includes('艦隊編集') && open2.org && open2.tech && open2.prog.cleared.join() === 'shinano,retreat',
       '後退: クリアで艦隊編集と技術ツリーが解放される', rw2 + JSON.stringify(open2.prog));
     /* the first clear of 第2節 also brings the one-time emergency aid (reward 300 + 400, aid 1000) */
-    check(open2.prog.funds === 1700 && open2.prog.flags['aid:retreat'] && rw2.includes('緊急援助：資金 +1000'),
-      '後退: 初めてのクリアで司令部からの緊急援助（資金 +1000）', rw2 + JSON.stringify(open2.prog));
+    check(open2.prog.funds === 700 && !open2.prog.flags['aid:retreat'] && !rw2.includes('緊急援助'),
+      '後退: 緊急援助は準備の案内まで保留', rw2 + JSON.stringify(open2.prog));
     await shot('11-unlocked');
+    await page.click('#prepTalk button');
     /* the battle group screen offers only the classes whose branch is open (no locked ones with a lock mark) */
     await page.click('[data-go="org"]'); await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a1"]');
     const types = await page.evaluate(() => ({ ids: [...document.querySelectorAll('#orgDetail [data-type="bg1"] option')].map(b => b.value).join(','), locks: document.querySelectorAll('#orgDetail .types .lock').length }));
