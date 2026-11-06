@@ -67,12 +67,13 @@ function techFleet(team,o){
   if(!hangar&&side==='mars'){ const w=Object.entries(by).reduce((s,[t,c])=>s+(SIDES.mars.ships[t]&&SIDES.mars.ships[t].was||0)*(o.comp?c:o.n),0); if(w) hangar={was:w}; }
   Object.keys(hangar||{}).forEach(c=>{ const W=WING[c], F={...W,...(side==='mars'&&SIDES.mars.crafts[c]||{})};
     craft[c]={hp:F.hp/W.hp*r*k, dmg:F.dmg/W.dmg*r*(A&&c==='was'?A.wasDmg:k), eva:F.eva/W.eva*r*k, ...(A?{speed:k, range:k}:{})}; });
-  return {hp:(6+st.def*5)*(A&&A.hp||k), dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft, ...(hangar?{hangar}:{})};
+  const byType=team===0?Object.fromEntries(Object.keys(by).map(t=>{ const s=CLASS_MAX[t], r=techRate('earth',p); return [t,{dps:.4+s.atk*r*.45,range:10+s.rng*r*1.6}]; })):undefined;
+  return {byType,hp:(6+st.def*5)*(A&&A.hp||k), dmg:(.4+st.atk*.45)*k, eva:Math.min(.4,st.eva*.04)*k, range:(10+st.rng*1.6)*k, speed:(2+st.spd)*k, craft, ...(hangar?{hangar}:{})};
 }
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
-  if(o.hp==null) o={...o,...techFleet(team,o)};
+  if(o.hp==null){ const derived=techFleet(team,o); if(o.dmg!=null) delete derived.byType; o={...o,...derived}; }
   if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
   if(o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
