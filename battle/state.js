@@ -169,7 +169,7 @@ function updateFleetLabel(f,lost,sub){
   if(f._labelContent!==content){ f._labelContent=content; nm.innerHTML=content; }
 }
 /* the short label on a tile: the unit's number, or a story unit's whole name in smaller type (ユーコン; the first two letters until 2026-11-05) */
-const tileNo=f=>unitNo(f.name)||f.name;
+const tileNo=f=>unitNo(f.name)?'第'+unitNo(f.name):f.name;   // 第12, the 第 drawn a size smaller (user decision 2026-11-06)
 function buildRoster(){
   hideTip();
   rosterEl.innerHTML='';
@@ -389,7 +389,8 @@ function updateRoster(){
     const sum=z.querySelector('.sum'); if(sum) sum.textContent=`${list.length}群 ${list.reduce((s,f)=>s+f.ships.length,0)}隻`; });
   fleets.forEach(f=>{ if(!f.btn) return; const g=groupOf(f), hull=f.ships.length/f.n;
     const mk=f.alive?fleetMark(f):''; if(mk!==f.mkKey){ f.mkKey=mk; f.btn.querySelector('.mkw').innerHTML=mk; }
-    const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); nb.textContent=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
+    const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); const no=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
+    if(nb.dataset.k!==no){ nb.dataset.k=no; if(nn) nb.textContent=no; else nb.innerHTML=no.replace('第','<i>第</i>'); }
     if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
     f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(nn&&f.n===1?'':'×'+f.ships.length);
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);

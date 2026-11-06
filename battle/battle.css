@@ -320,7 +320,7 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 
 /* ---------- bottom-right: the roster (見本の案H1, user decision 2026-11-05) ----------
    a tab per army group down the left; an open tab shows its armies as tiles beside it, three to a row (state.js buildRoster) */
-#roster{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:4px;width:186px;max-height:calc(100vh - 190px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+#roster{right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;gap:4px;width:214px;max-height:calc(100vh - 190px);overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
 #roster button{font-family:var(--f-ui);cursor:pointer;border:0;color:var(--ink)}
 #roster button:focus-visible,#roster select:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
 #roster .rzone,#roster .rnew{display:grid;grid-template-columns:30px minmax(0,1fr);gap:4px;align-items:start;border:1px dashed transparent}
@@ -338,7 +338,7 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #roster button[id^="fl"]{position:relative;display:grid;grid-template-rows:17px auto 3px;place-items:center;gap:1px;width:100%;height:46px;padding:4px 3px 4px;
   background:rgba(8,14,26,.72);clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);backdrop-filter:blur(6px)}
 #roster button[id^="fl"] .mkw{display:flex;align-items:center;height:18px} #roster button[id^="fl"] .mk{width:34px;height:17px}
-#roster button[id^="fl"] .no{font-family:var(--f-num);line-height:1;white-space:nowrap} #roster button[id^="fl"] .no b{font-size:12.5px;font-weight:600}
+#roster button[id^="fl"] .no{font-family:var(--f-num);line-height:1;white-space:nowrap} #roster button[id^="fl"] .no b{font-size:12.5px;font-weight:600} #roster button[id^="fl"] .no b i{font-style:normal;font-size:9.5px;margin-right:1px}
 #roster button[id^="fl"] .no small{font-size:9.5px;color:var(--ink-dim);margin-left:1px}
 #roster button[id^="fl"] .bar{width:100%;height:3px;background:rgba(127,200,255,.15)} #roster button[id^="fl"] .bar i{display:block;height:100%;background:var(--blue)}
 #roster button[id^="fl"].lo .bar i{background:var(--red)}
