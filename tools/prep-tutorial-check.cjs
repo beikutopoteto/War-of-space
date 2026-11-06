@@ -11,6 +11,7 @@ async function checkPrepTutorial(page,shots=false){
   await page.click('[data-tab="army"]'); await page.click('#orgList [data-army="a1"]'); await step(2);
   await page.reload(); await step(2); await page.click('#mainNav [data-go="org"]'); await page.click('[data-tab="group"]'); await step(3); await shot(4);
   await page.click('.grid [data-cx="2"][data-cz="0"]'); await page.click('.orgpop [data-addarmy="a1"]'); await step(4);
+  await page.waitForFunction(()=>document.querySelector('#prepTalk p').textContent.includes('全能力が10%')); // 旗艦の打撃群は全能力 +10% (2026-11-06)
   await page.click('.chip[data-chip-army="a1"] [data-flag]'); await step(5); assert.equal((await save()).prog.funds,1700);
   await page.locator('[data-s="org"] .back').scrollIntoViewIfNeeded();
   await page.waitForFunction(()=>{const f=document.querySelector('.prep-frame:not([hidden])'),b=document.querySelector('.scr:not([hidden]) .back'); return f&&b&&Math.abs(f.getBoundingClientRect().left-b.getBoundingClientRect().left+4)<2;});
@@ -18,7 +19,11 @@ async function checkPrepTutorial(page,shots=false){
   await page.click('#brBar [data-br="cruiser"]'); await step(7); await page.click('#trCv [data-node="def1"]'); await shot(8);
   await page.click('#tRes'); await step(8); assert((await save()).prog.funds<1700);
   await page.click('[data-s="tech"] .back'); await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('#opList [data-op="nile"]'); await page.click('#goBattle'); await shot(9);
-  await page.click('#forcesBattle'); assert((await save()).prog.prepDone); await page.evaluate(()=>openMenu()); assert(await page.locator('#prepTalk').isHidden());
+  await page.evaluate(()=>{const real=WOS.start; WOS.start=function(c){window.sortieSpec=c; WOS.start=real; return real.call(this,c);};});
+  await page.click('#forcesBattle'); assert((await save()).prog.prepDone);
+  /* only the flagship's army (the cruisers) sorties with the flagship's bonus */
+  const flagged=await page.evaluate(()=>{const c=window.sortieSpec, g=c.groups[0], a1=JSON.parse(localStorage.getItem('wos.save.v1')).armies.find(a=>a.id==='a1'); return g.members.map(i=>({a1:c.fleets[i].name===a1.name, flag:i===g.flag, bonus:c.fleets[i].bonus.includes('flag')}));});
+  assert(flagged.length>1&&flagged.every(f=>f.flag===f.a1&&f.bonus===f.flag),JSON.stringify(flagged)); await page.evaluate(()=>openMenu()); assert(await page.locator('#prepTalk').isHidden());
   await page.evaluate(()=>{localStorage.removeItem('wos.save.v1');}); await page.reload(); await page.click('#dbgT'); for(let i=0;i<3;i++) await page.click('#dbgB [data-dbga="one"]'); await page.waitForSelector('#prepTalk:not([hidden])'); await page.click('#prepTalk button'); let s=await save(); assert(s.prog.prepDone&&s.prog.funds===1700&&s.groups[0].members.some(m=>m.army==='a1'));
   await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1')); delete s.prog.prepDone; delete s.prog.flags['aid:retreat']; s.prog.funds=700; localStorage.setItem('wos.save.v1',JSON.stringify(s));}); await page.reload(); await page.evaluate(()=>document.querySelector('#dbgT').click()); s=await page.evaluate(()=>{document.querySelector('#dbgB [data-dbga="funds"]').click();return JSON.parse(localStorage.getItem('wos.save.v1'));}); assert(s.prog.prepDone&&s.prog.flags['aid:retreat']&&s.prog.funds===2700); assert(await page.locator('#prepTalk').isHidden());
   /* the panel lets clicks through to what is under it (only とばす takes them) */
@@ -35,7 +40,7 @@ async function checkPrepTutorial(page,shots=false){
   /* and in the middle of the guide: as とばす */
   await page.evaluate(()=>{localStorage.removeItem('wos.save.v1');}); await page.reload(); await page.click('#dbgT'); for(let i=0;i<3;i++) await page.click('#dbgB [data-dbga="one"]'); await page.waitForSelector('#prepTalk:not([hidden])');
   await page.click('#dbgB [data-dbga="skip"]'); s=await save(); assert(s.prog.prepDone&&s.prog.funds===1700&&s.groups[0].members.some(m=>m.army==='a1')); await page.waitForSelector('#prepTalk',{state:'hidden'});
-  return '9段・保存・配置・旗艦・援助・研究・出撃・とばす・旧保存・板の下を押せる・旧い最初の艦隊・デバッグのスキップ';
+  return '9段・保存・配置・旗艦（全能力 +10% は旗艦の打撃群だけ）・援助・研究・出撃・とばす・旧保存・板の下を押せる・旧い最初の艦隊・デバッグのスキップ';
 }
 module.exports={checkPrepTutorial};
 if(require.main===module) (async()=>{fs.mkdirSync(path.join(ROOT,'test-results'),{recursive:true}); const {browser,page,errors}=await openGame({width:1600,height:900}); try{const result=await checkPrepTutorial(page,true); assert.deepStrictEqual(errors,[]); console.log('| 準備チュートリアル | '+result+' |');}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

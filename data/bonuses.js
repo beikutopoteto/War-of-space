@@ -18,3 +18,7 @@ WOS_DATA.bonuses=[
   {id:'assault',name:'強襲揚陸', cond:'突撃揚陸艦と強襲母艦を含む',          eff:'攻撃 +10%・回避 +10%', when:{need:[['mas'],['masc']]}, mod:{atk:1.1,eva:1.1}},
   {id:'uniform',name:'単一艦種', cond:'3つ以上の支隊がすべて同じ艦種',     eff:'全能力 +5%', when:{minBgs:3,sameType:true}, mod:{atk:1.05,def:1.05,eva:1.05,rng:1.05,vis:1.05,stl:1.05}},
 ];
+
+/* 旗艦（ユーザー決定 2026-11-06）: 戦区軍の旗艦の打撃群は全能力 +10%（単一艦種の「全能力」と同じ6つ）。
+   出撃のときに、編成画面で★を付けた打撃群に掛かる（prep.js armyStats）。 */
+WOS_DATA.flagBonus={id:'flag', name:'旗艦', eff:'全能力 +10%', mod:{atk:1.1,def:1.1,eva:1.1,rng:1.1,vis:1.1,stl:1.1}};
