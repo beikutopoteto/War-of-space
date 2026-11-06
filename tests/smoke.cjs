@@ -206,7 +206,12 @@ function check(ok, label, detail = '') {
     /* the role comes from the highest class in the unit, whatever the numbers (user decision 2026-10-04) */
     const rank = await page.evaluate(() => [mainType({ dd: 4, cl: 1 }), mainType({ cv: 10, mas: 1 }), mainType({ dd: 6, mas: 2, ff: 3 }), mainType({ bb: 6, cvb: 1 }), mainType({ cvb: 3, masc: 1 }), mainType({ cl: 3, bb: 0 })]);
     check(rank.join() === 'cl,mas,mas,cvb,masc,cl', '名前: 役割は隻数でなく一番上位の艦種（コルベット < フリゲート < 駆逐艦 < 突撃揚陸艦 < 巡洋艦 < 戦艦 < 戦闘母艦 < 強襲母艦）', rank.join());
+    await page.selectOption('#addBg', 'new:dd');
+    const doomed = await page.evaluate(() => { const id = document.querySelector('#orgList .li.sel').dataset.army; return JSON.parse(localStorage.getItem('wos.save.v1')).armies.find(a => a.id === id).bgs; });
     await page.click('#orgDetail [data-del]'); await page.click('#orgDetail [data-del]');
+    /* a battle group lives only in its army: × and 解散 delete it (user decision 2026-11-06) */
+    const left = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('wos.save.v1')); return { orphans: s.bgs.filter(b => !s.armies.some(a => a.bgs.includes(b.id))).map(b => b.name), ids: s.bgs.map(b => b.id) }; });
+    check(doomed.length > 0 && !doomed.some(id => left.ids.includes(id)) && !left.orphans.length, '編成: × と打撃群の解散で支隊も消える（打撃群の外に残らない）', left.orphans.join(' / '));
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');

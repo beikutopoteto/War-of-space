@@ -75,6 +75,8 @@ function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.
   /* an army of one battle group named after it follows the battle group's name (user decision 2026-10-04) */
   s.armies.forEach(a=>{ const b=a.bgs.length===1&&s.bgs.find(x=>x.id===a.bgs[0]); if(a.auto===undefined&&b&&b.name===a.name) a.auto='bg:'+b.id; });
   s.bgs.forEach(b=>{ if(b.auto&&/戦隊$/.test(b.name)) b.name=unitName('bg',b.type,new Set(s.bgs.filter(y=>y!==b).map(y=>unitNo(y.name)))); });
+  /* a battle group lives only in its army (user decision 2026-11-06): ones left over from disbanded armies are removed */
+  s.bgs=s.bgs.filter(b=>s.armies.some(a=>a.bgs.includes(b.id)));
   /* saves from before the campaign progress start at the beginning */
   const tutKnown=!!(s.prog&&'tutorialCleared' in s.prog);
   const prepKnown=!!(s.prog&&'prepDone' in s.prog);
@@ -759,11 +761,11 @@ function renderArmyTab(){
   list.querySelector('[data-new]').onclick=()=>{ const a={id:newId('a'),name:unitName('army',null,new Set(save.armies.map(x=>unitNo(x.name)))),bgs:[],auto:''}; save.armies.push(a); selArmy=a.id; persist(); renderOrg(); };
   list.querySelectorAll('[data-army]').forEach(x=>x.onclick=()=>{ selArmy=x.dataset.army; confirmDel=null; renderOrg(); });
   const a=armyById(selArmy); if(!a){ det.innerHTML='<p class="empty">打撃群を作ってください。</p>'; return; }
-  const {st,ships,active,hangar}=armyStats(a), free=save.bgs.filter(b=>!armyOfBg(b.id));
+  const {st,ships,active,hangar}=armyStats(a);
   const options=t=>SHIPS.filter(s=>typeOpen(s.id)||s.id===t).map(s=>`<option value="${s.id}" ${s.id===t?'selected':''}>${s.name}</option>`).join('');
   const rows=Array.from({length:MAX_BG},(_,i)=>{ const b=bgById(a.bgs[i]);
-    if(!b) return `<div class="tr empty"><div class="th">${i===a.bgs.length?`<select id="addBg" aria-label="支隊を加える"><option value="">＋ 支隊を加える</option><optgroup label="新しい支隊">${SHIPS.filter(s=>typeOpen(s.id)).map(s=>`<option value="new:${s.id}">${s.name}</option>`).join('')}</optgroup><optgroup label="未所属の支隊">${free.map(f=>`<option value="${f.id}">${esc(f.name)}（${SHIP[f.type].name}×${f.count}）</option>`).join('')}</optgroup></select>`:'空き'}</div></div>`;
-    return `<div class="tr"><div class="th"><span class="no">${unitDisplay(b.name,'支隊')}</span><select data-type="${b.id}" aria-label="艦種">${options(b.type)}</select><button class="x" data-rm="${b.id}" aria-label="外す">×</button></div><div class="cells">${Array.from({length:12},(_,k)=>k>=SHIP[b.type].max?'<span class="sc nx"></span>':`<button class="sc ${k<b.count?'on':''}" data-count="${b.id}" data-n="${k+1}" aria-label="${k+1}隻にする">${k<b.count?mark(b.type):'＋'}</button>`).join('')}</div><span class="ct">${b.count}<small>/${SHIP[b.type].max}</small></span></div>`; }).join('');
+    if(!b) return `<div class="tr empty"><div class="th">${i===a.bgs.length?`<select id="addBg" aria-label="支隊を加える"><option value="">＋ 支隊を加える</option>${SHIPS.filter(s=>typeOpen(s.id)).map(s=>`<option value="new:${s.id}">${s.name}</option>`).join('')}</select>`:'空き'}</div></div>`;
+    return `<div class="tr"><div class="th"><span class="no">${unitDisplay(b.name,'支隊')}</span><select data-type="${b.id}" aria-label="艦種">${options(b.type)}</select><button class="x" data-rm="${b.id}" aria-label="この支隊を消す">×</button></div><div class="cells">${Array.from({length:12},(_,k)=>k>=SHIP[b.type].max?'<span class="sc nx"></span>':`<button class="sc ${k<b.count?'on':''}" data-count="${b.id}" data-n="${k+1}" aria-label="${k+1}隻にする">${k<b.count?mark(b.type):'＋'}</button>`).join('')}</div><span class="ct">${b.count}<small>/${SHIP[b.type].max}</small></span></div>`; }).join('');
   det.innerHTML=`<div class="dzh"><div class="tg">${unitDisplay(a.name,'打撃群')}</div><label class="fld">名前<input id="armyName" maxlength="20" value="${esc(shortName(a.name,'打撃群'))}"></label><button data-copy>複製</button>${delBtn('army:'+a.id,'解散')}</div><div class="dzb"><div><h4>支隊　<span class="dim">マスを押して隻数を変える</span></h4>${rows}</div><div class="dpanel"><h4>打撃群の能力</h4><p>総数 ${ships}隻　搭載 ${hangarStr(hangar)||'なし'}</p>${orgBars(st)}<h4>編成ボーナス</h4><div class="bl">${BONUSES.map(bn=>`<div class="bon ${active.includes(bn)?'on':''}" title="${esc(bn.cond)}"><b>${bn.name}</b><em>${bn.eff}</em></div>`).join('')}</div></div></div>`;
   const role=armyRole(a);
   det.querySelector('#armyName').oninput=e=>{ a.name=longName(e.target.value,'打撃群',role)||'無名の打撃群'; delete a.auto; persist();
@@ -771,9 +773,9 @@ function renderArmyTab(){
   const add=det.querySelector('#addBg'); if(add) add.onchange=()=>{ if(!add.value)return; let id=add.value; if(id.startsWith('new:')){const type=id.slice(4), b={id:newId('bg'),name:nextBgName(type),type,count:Math.min(4,SHIP[type].max),auto:true}; save.bgs.push(b); id=b.id;} a.bgs.push(id); persist(); renderOrg(); };
   det.querySelectorAll('[data-type]').forEach(x=>x.onchange=()=>{const b=bgById(x.dataset.type); b.type=x.value; b.count=Math.min(b.count,SHIP[b.type].max); if(b.auto)b.name=nextBgName(b.type,b); persist(); renderOrg();});
   det.querySelectorAll('[data-count]').forEach(x=>x.onclick=()=>{bgById(x.dataset.count).count=+x.dataset.n; persist(); renderOrg();});
-  det.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{a.bgs=a.bgs.filter(id=>id!==x.dataset.rm); persist(); renderOrg();});
+  det.querySelectorAll('[data-rm]').forEach(x=>x.onclick=()=>{a.bgs=a.bgs.filter(id=>id!==x.dataset.rm); save.bgs=save.bgs.filter(b=>b.id!==x.dataset.rm); persist(); renderOrg();});
   det.querySelector('[data-copy]').onclick=()=>{const bs=a.bgs.map(bgById).filter(Boolean).map(b=>{const c={...b,id:newId('bg'),name:nextBgName(b.type),auto:true};save.bgs.push(c);return c.id;}); const copy={id:newId('a'),name:unitName('army',null,new Set(save.armies.map(x=>unitNo(x.name)))),bgs:bs,auto:''};save.armies.push(copy);selArmy=copy.id;persist();renderOrg();};
-  wireDel(det,'army:'+a.id,()=>{ save.groups.forEach(g=>g.members=g.members.filter(m=>m.army!==a.id)); save.armies=save.armies.filter(x=>x!==a); selArmy=null; });
+  wireDel(det,'army:'+a.id,()=>{ save.groups.forEach(g=>g.members=g.members.filter(m=>m.army!==a.id)); save.bgs=save.bgs.filter(b=>!a.bgs.includes(b.id)); save.armies=save.armies.filter(x=>x!==a); selArmy=null; });
 }
 
 /* army groups */
