@@ -242,7 +242,12 @@ function check(ok, label, detail = '') {
     /* the role comes from the highest class in the unit, whatever the numbers (user decision 2026-10-04) */
     const rank = await page.evaluate(() => [mainType({ dd: 4, cl: 1 }), mainType({ cv: 10, mas: 1 }), mainType({ dd: 6, mas: 2, ff: 3 }), mainType({ bb: 6, cvb: 1 }), mainType({ cvb: 3, masc: 1 }), mainType({ cl: 3, bb: 0 })]);
     check(rank.join() === 'cl,mas,mas,cvb,masc,cl', '名前: 役割は隻数でなく一番上位の艦種（コルベット < フリゲート < 駆逐艦 < 突撃揚陸艦 < 巡洋艦 < 戦艦 < 戦闘母艦 < 強襲母艦）', rank.join());
+    await page.selectOption('#addBg', 'new:dd');
+    const doomed = await page.evaluate(() => { const id = document.querySelector('#orgList .li.sel').dataset.army; return JSON.parse(localStorage.getItem('wos.save.v1')).armies.find(a => a.id === id).bgs; });
     await page.click('#orgDetail [data-del]'); await page.click('#orgDetail [data-del]');
+    /* a battle group lives only in its army: × and 解散 delete it (user decision 2026-11-06) */
+    const left = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('wos.save.v1')); return { orphans: s.bgs.filter(b => !s.armies.some(a => a.bgs.includes(b.id))).map(b => b.name), ids: s.bgs.map(b => b.id) }; });
+    check(doomed.length > 0 && !doomed.some(id => left.ids.includes(id)) && !left.orphans.length, '編成: × と打撃群の解散で支隊も消える（打撃群の外に残らない）', left.orphans.join(' / '));
     await page.click('[data-tab="group"]');
     /* choose another army as the flagship */
     await page.click('#orgDetail [data-flag="1"]');
@@ -270,7 +275,7 @@ function check(ok, label, detail = '') {
     check(clash.length === 2 && clash[0].on === 'true' && clash[1].off && clash[1].note, '出撃: 同じ打撃群を含む戦区軍は一緒に選べず、暗くなって「同一支隊を含みます」と出る', JSON.stringify(clash));
     const dockBefore = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     const dockCounts = JSON.parse(await page.locator('#dockCanvas').getAttribute('data-ship-counts'));
-    check(dockCounts.join(',') === '0,0,0,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
+    check(dockCounts.join(',') === '0,0,6,6,16', '軍港: 艦種ごとの艦を段の上限まで描く', dockCounts.join(','));
     await page.locator('#sgList [data-sg][aria-pressed=true]').click();
     const dockAfter = await page.locator('#dockCanvas').getAttribute('data-folded-piers');
     check(+dockAfter > +dockBefore && await page.isDisabled('#forcesBattle'), '軍港: 選択を外すと桟橋が畳まれ、出撃できない', dockBefore + ' → ' + dockAfter);
@@ -347,11 +352,13 @@ function check(ok, label, detail = '') {
       const opts = [...sel.options].map(o => o.textContent);
       sel.value = 'column'; sel.dispatchEvent(new Event('change'));
       const set = !fl.order && others.every(f => f.order.type === 'move' && f.order.dest.distanceTo(fl.pos.clone().add(turnTo(formationOffset(g, f), fl.march))) < .01);
+      const stances = groupAlive(g).map(f => [f, f.stance]); stances.forEach(([f]) => { f.stance = 'evade'; }); // prevent combat from moving units after arrival
       const t0 = gameSec, ne = nextEvent; nextEvent = opEvents.length;   // hold the timed events while this runs
       select(null); selectGroup(g); const D = fl.pos.clone().add(new THREE.Vector3(90, 0, 0)); groupOrder({ type: 'move', dest: D });
       for (let i = 0; i < 1600; i++) step(.05);
       const east = new THREE.Vector3(1, 0, 0);
       const shape = others.every(f => f.pos.distanceTo(D.clone().add(turnTo(formationOffset(g, f), east))) < 3 && Math.abs(f.pos.z - fl.pos.z) < 3);
+      stances.forEach(([f, stance]) => { f.stance = stance; });
       /* attacking in formation: every army closes on the target itself, so the whole column gets it in range */
       const e = fleets.find(f => f.team === 1 && f.alive && !f.convoy); e.seen = true; e.hpPool = 1e9; e.speed = 0; e.ai = null; e.revealT = 1e9;
       select(null); selectGroup(g); groupOrder({ type: 'attack', target: e });
