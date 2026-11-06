@@ -747,8 +747,9 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
     check((await page.textContent('#fixedNote')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
-    const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
-    check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
+    /* the chapter opens with narration (no speaker, user decision 2026-11-07), then Riko speaks */
+    const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent, narr: document.getElementById('talk').classList.contains('narr'), text: document.getElementById('talkText').textContent }));
+    check(talk.talking && talk.sec === 0 && (talk.who.length > 0 || talk.narr && talk.text.length > 0), 'ネオ信濃奇襲: 開始前の会話（ナレーションから始まる）の間は戦闘が止まる', talk.who || talk.text);
     await page.click('#talkSkip');
     const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = op.convoy.depart * .5 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
       return { text: goalText.textContent, label: goalLabel.textContent, sub: goalSub.textContent }; });
