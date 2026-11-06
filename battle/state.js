@@ -152,6 +152,9 @@ const rosterEl=document.getElementById('roster');
    left (rosterTip). Drag a tile between sections to move an army into another group or take it out */
 const GROUP_MAX=5;
 const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
+/* the name a label shows for a class: an operation can call one by another name while nobody knows it yet (op.shipNames.
+   第1節 未確認艦, 第2節 新型艦 for the assault ship; user decision 2026-11-07) */
+const shipLabel=t=>op&&op.shipNames&&op.shipNames[t]||SHIP_NAME[t]||t;
 let freeOpen=true;
 function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
   return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet,true)}</span>`:''; }   // not to scale (marks.js fit)
@@ -164,7 +167,7 @@ function updateFleetLabel(f,lost,sub){
   el.classList.toggle('named',namedFleet(f));
   const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a));
-  const rows=types.map(t=>`<span class="cr${by[t]?'':' z'}"><i class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet):''}</i>${SHIP_NAME[t]||t}<em>×${by[t]||0}</em></span>`).join('');
+  const rows=types.map(t=>`<span class="cr${by[t]?'':' z'}"><i class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet):''}</i>${shipLabel(t)}<em>×${by[t]||0}</em></span>`).join('');
   const content=lost?`<b>${f.name}</b><span class="ln">${sub}</span>`:`<b>${f.name}</b>`+(f.team===0?`<span class="ln">${f.sub}</span><span class="ln"><em>×${f.ships.length}　高度${altStr(f.pos.y)}</em>${f.hangars.length?'<br>'+hangarText(f):''}</span>`:'')+`<span class="cs">${rows}</span>`;
   if(f._labelContent!==content){ f._labelContent=content; nm.innerHTML=content; }
 }
@@ -237,7 +240,7 @@ function hideTip(){ tipFleet=null; tipRow=null; rosterTip.hidden=true; }
 function fillTip(){ const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
   rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
-    types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${SHIP_NAME[t]||t}</span><em>×${by[t]||0}</em></div>`).join(''); }
+    types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${shipLabel(t)}</span><em>×${by[t]||0}</em></div>`).join(''); }
 function dragSource(b,f){
   let st=null,ghost=null;
   b.addEventListener('pointerdown',e=>{ st={x:e.clientX,y:e.clientY,id:e.pointerId}; });

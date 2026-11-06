@@ -95,20 +95,20 @@ WOS_DATA.branches=[
 ];
 
 /* 準備画面のチュートリアル（第2節のあと〜第3節の前。docs/tutorial.md の 6。ユーザー決定 2026-11-06、名前と文は仮）。
-   1段ずつ、その操作をしたら次へ進む。案内は画面の下の板（話し手「副官」）。
-   name: 段の名前　text: 副官の文　screen: 段の画面（いないときは、そこへの道のボタンを光らせる）
+   1段ずつ、その操作をしたら次へ進む。案内は画面の下の板（話し手「リコ軍曹」。2026-11-06 まで「副官」）。
+   name: 段の名前　text: リコ軍曹の文　screen: 段の画面（いないときは、そこへの道のボタンを光らせる）
    condition: 進む条件（prep.js の PREP_DONE。今そうなっていれば進む。org・army・group・placed・flag・tech・cruiser・research・sortie）
    targets: 光らせる場所の候補。見えている最初の1つを囲む　also: 見えていれば一緒に囲む
    until: この条件が満たされていれば、この段も済み（巡洋艦を先に置いたら、見るだけの段は飛ばす）
    aid: この段が始まったときに渡す援助（その作戦の aid。第2節の緊急援助） */
 WOS_DATA.prepTutorial=[
- {name:'艦隊編集を開く',screen:'title',condition:'org',until:'placed',targets:['#mainNav [data-go="org"]'],text:'ナイル警備の巡洋艦6隻が、駐屯隊に加わりました。艦隊編集で、戦区軍に組み入れましょう。「艦隊編集」を開いてください。'},
- {name:'打撃群を見る',screen:'org',condition:'army',until:'placed',targets:['[data-tab="army"][aria-selected="false"]','#orgList [data-army="a1"]'],text:'打撃群は、戦闘で動かす単位です。同じ艦種の支隊を5つまでまとめます。一覧のいちばん下が、加わった「第9打撃群」（巡洋艦6隻）です。選んで、能力を見てください。'},
+ {name:'艦隊編集を開く',screen:'title',condition:'org',until:'placed',targets:['#mainNav [data-go="org"]'],text:'ナイル警備の巡洋艦6隻が、駐屯隊に入りました。名簿を照会します……。まだ、どの戦区軍にも入っていません。「艦隊編集」を開いてください。'},
+ {name:'打撃群を見る',screen:'org',condition:'army',until:'placed',targets:['[data-tab="army"][aria-selected="false"]','#orgList [data-army="a1"]'],text:'打撃群は、戦闘で動かす単位です。同じ艦種の支隊を、5つまでまとめます。一覧のいちばん下が、新しく入った「第9打撃群」（巡洋艦6隻）です。選んで、能力を確かめてください。'},
  {name:'戦区軍を開く',screen:'org',condition:'group',until:'placed',targets:['[data-tab="group"]'],text:'戦区軍は、打撃群をまとめて一度に動かす単位です。上の「戦区軍」のタブを開いてください。'},
- {name:'戦区軍に置く',screen:'org',condition:'placed',targets:['.orgpop [data-addarmy="a1"]','#orgList [data-grp="g1"]:not(.sel)','[data-ly="2"][aria-pressed="false"]','.grid [data-cx="2"][data-cz="0"]'],text:'戦区軍は、打撃群を5つまで5×5×5の立方体に並べます。上が敵の側です。光っている前のマスを押し、「第9打撃群」を加えてください。巡洋艦は遅いが硬く、射程が長いので、正面に置きます。'},
- {name:'旗艦にする',screen:'org',condition:'flag',targets:['.chip[data-chip-army="a1"] [data-flag]'],text:'戦区軍を動かすと、ほかの打撃群は旗艦を中心に並んだまま付いてきます。旗艦の打撃群は、全能力が10%上がります。いちばん硬い第9打撃群を旗艦にしてください。'},
- {name:'技術ツリーを開く',screen:'tech',condition:'tech',aid:'retreat',targets:['#mainNav [data-go="tech"]'],text:'司令部から緊急援助の資金1,000が届きました。技術ツリーで、艦を強くしましょう。メニューに戻り、「技術ツリー」を開いてください。'},
- {name:'兵科を選ぶ',screen:'tech',condition:'cruiser',targets:['#brBar [data-br="cruiser"]'],text:'研究は兵科ごとです。左の「巡洋艦」を選んでください。'},
- {name:'研究する',screen:'tech',condition:'research',targets:['#brBar [data-br="cruiser"][aria-pressed="false"]','#tRes:not([disabled])','#trCv [data-node="def1"]'],text:'自分で編成した艦は、はじめは最大の3割の力です。研究すると能力が上がります。「38式 複合装甲板」を選び、「研究する」を押してください。残りの資金で、ほかの研究も進められます。'},
- {name:'出撃する',screen:'forces',condition:'sortie',targets:['#mainNav [data-go="mode"]','[data-s="mode"] [data-go="sortie"]','#opList [data-op="nile"][aria-pressed="false"]','#goBattle','#sgList [data-sg="g1"][aria-pressed="false"]','#forcesBattle'],also:['#sgLoad'],text:'準備ができたら出撃です。第3節「ナイル防衛線」は、自分の戦区軍で出ます。出撃する戦区軍を選び、出撃上限を確かめて、「出撃する」を押してください。'}
+ {name:'戦区軍に置く',screen:'org',condition:'placed',targets:['.orgpop [data-addarmy="a1"]','#orgList [data-grp="g1"]:not(.sel)','[data-ly="2"][aria-pressed="false"]','.grid [data-cx="2"][data-cz="0"]'],text:'打撃群は5つまで、5×5×5の立方体に並べます。上が敵の側です。光っている前のマスを押して、「第9打撃群」を加えてください。巡洋艦は遅いぶん硬く、射程も長いので、正面に置きます。'},
+ {name:'旗艦にする',screen:'org',condition:'flag',targets:['.chip[data-chip-army="a1"] [data-flag]'],text:'戦区軍を動かすと、ほかの打撃群は旗艦を中心に、並んだまま付いてきます。旗艦の打撃群は、全能力が10%上がります。いちばん硬い第9打撃群を、旗艦にしてください。'},
+ {name:'技術ツリーを開く',screen:'tech',condition:'tech',aid:'retreat',targets:['#mainNav [data-go="tech"]'],text:'司令部から、緊急援助の資金1,000が届きました。……技術ツリーで、艦を強くしましょう。メニューに戻って、「技術ツリー」を開いてください。'},
+ {name:'兵科を選ぶ',screen:'tech',condition:'cruiser',targets:['#brBar [data-br="cruiser"]'],text:'研究は、兵科ごとです。左の「巡洋艦」を選んでください。'},
+ {name:'研究する',screen:'tech',condition:'research',targets:['#brBar [data-br="cruiser"][aria-pressed="false"]','#tRes:not([disabled])','#trCv [data-node="def1"]'],text:'自分で編成した艦は、はじめは最大の3割の力です。研究すると、能力が上がります。「38式 複合装甲板」を選んで、「研究する」を押してください。残りの資金で、ほかの研究も進められます。'},
+ {name:'出撃する',screen:'forces',condition:'sortie',targets:['#mainNav [data-go="mode"]','[data-s="mode"] [data-go="sortie"]','#opList [data-op="nile"][aria-pressed="false"]','#goBattle','#sgList [data-sg="g1"][aria-pressed="false"]','#forcesBattle'],also:['#sgLoad'],text:'準備ができたら、出撃です。第3節「ナイル防衛線」は、自分の戦区軍で出ます。戦区軍を選んで、出撃上限を確かめてから、「出撃する」を押してください。'}
 ];

@@ -15,7 +15,7 @@ const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made; n
 /* the tutorial (docs/tutorial.md): 要塞カリュブディス攻略戦 with the guide. It heads the campaign until it is cleared, then sits with
    the exercises; nothing else opens before it (user decision 2026-11-05). Only the menu knows it: the battle starts charybdis with tutorial:true */
 const TUT={...OPS.find(o=>o.id==='charybdis'), id:'tutorial', tag:'チュートリアル', name:'士官学校の卒業演習', card:'チュートリアル', reward:0, quick:null,   // card: its name in the list
-  summary:'艦隊指揮の卒業演習。副官の案内に従って操作を11段で覚え、最後に演習用の要塞カリュブディスを落とす。'};
+  summary:'艦隊指揮の卒業演習。リコ軍曹の案内に従って操作を11段で覚え、最後に演習用の要塞カリュブディスを落とす。'};
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
 /* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */
@@ -348,7 +348,7 @@ const PREP_DONE={
 const prepGone=c=>(['army','group','placed','flag'].includes(c)&&!armyById('a1'))||(['placed','flag'].includes(c)&&!prepG());
 const prepOn=()=>cleared('retreat')&&!prog().prepDone;
 const prepTalk=document.createElement('div'); prepTalk.id='prepTalk'; prepTalk.hidden=true;
-prepTalk.innerHTML='<div class="eye">COMMS 通信</div><b>副官</b><p></p><div class="ctl"><span></span><button>とばす</button></div>';
+prepTalk.innerHTML='<div class="eye">COMMS 通信</div><b>リコ軍曹</b><p></p><div class="ctl"><span></span><button>とばす</button></div>';
 menu.appendChild(prepTalk);
 const prepFrames=[0,1].map(()=>{const el=document.createElement('div'); el.className='prep-frame'; el.hidden=true; menu.appendChild(el); return el;});
 /* the guide's own aid (o.aid.by 'prep') comes with its step, or when the guide ends; before 第2節 is cleared it waits for the clear */

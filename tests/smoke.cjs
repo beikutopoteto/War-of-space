@@ -747,8 +747,9 @@ function check(ok, label, detail = '') {
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]'); await page.click('[data-op="shinano"]');
     check((await page.textContent('#fixedNote')).includes('決まった艦隊'), 'ネオ信濃奇襲: 出撃画面で決まった艦隊を使う');
     await page.click('#goBattle'); await page.waitForTimeout(1500);
-    const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent }));
-    check(talk.talking && talk.sec === 0 && talk.who.length > 0, 'ネオ信濃奇襲: 開始前の会話の間は戦闘が止まる', talk.who);
+    /* the chapter opens with narration (no speaker, user decision 2026-11-07), then Riko speaks */
+    const talk = await page.evaluate(() => ({ talking, sec: gameSec, who: document.getElementById('talkWho').textContent, narr: document.getElementById('talk').classList.contains('narr'), text: document.getElementById('talkText').textContent }));
+    check(talk.talking && talk.sec === 0 && (talk.who.length > 0 || talk.narr && talk.text.length > 0), 'ネオ信濃奇襲: 開始前の会話（ナレーションから始まる）の間は戦闘が止まる', talk.who || talk.text);
     await page.click('#talkSkip');
     const goal = await page.evaluate(() => { fleets.filter(f => f.team === 0).forEach(f => f.hpPool = 1e9); const end = op.convoy.depart * .5 / CLOCK_RATE; while (gameSec < end) step(.05); updateGoal();
       return { text: goalText.textContent, label: goalLabel.textContent, sub: goalSub.textContent }; });
@@ -880,8 +881,8 @@ function check(ok, label, detail = '') {
     const nSortie = { fixed: (await page.textContent('#fixedNote')).includes('決まった艦隊'), go: !(await page.isDisabled('#forcesBattle')) };
     check(!nSortie.fixed && nSortie.go, 'ナイル防衛線: 第2節のクリアで開き、自分の戦区軍で出撃する', JSON.stringify(nSortie));
     await page.click('#forcesBattle'); await page.waitForTimeout(800);
-    const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[0]));
-    check(nTalk.includes('ベケレ機関士'), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の会話にベケレ機関士が出る', nTalk.join(','));
+    const nTalk = await page.evaluate(() => talkFor(op.talk.before).map(l => l[1]));
+    check(nTalk.some(t => t.includes('カワセミの機関士')), 'ナイル防衛線: 第2節でカワセミを助けていれば、出撃前の通信でカワセミの機関士のことが出る', nTalk.join(' / '));
     await page.click('#talkSkip').catch(() => {});
     check(await page.evaluate(() => deploying), 'ナイル防衛線: 戦区軍で出撃するので、始まる前に配置できる');
     await page.click('#deployGo');
@@ -1328,12 +1329,12 @@ function check(ok, label, detail = '') {
       const wall = makeFleet(0, { name: '試験 壁', sub: '', type: 'cl', n: 12, hp: 999, dmg: 0, eva: 0, range: 1, speed: 0, scale: 1, pos: [ln.post.x, ln.post.z], alt: ln.post.y, vis: 1, stl: 9 }); fleets.push(wall);
       const G2 = ln.post.clone(); enemyAI(); r.held = ln.pressHeld && ln.post.equals(G2); wall.alive = false; wall.el.remove();
       bt.forEach((f, i) => { f.alive = gunsOff[i]; }); others.forEach((f, i) => { f.pos.y = keepY[i]; }); ln.post.copy(G0); ln.pressFrom.copy(G0);
-      /* the fronts (2026-10-16): the east end pressed (the lines there have come far) is told by its commander and summed up by Haddad;
-         not again soon, unless it gets worse */
+      /* the fronts (2026-10-16): the east end pressed (the lines there have come far) is told by Riko alone (the fronts' commanders
+         do not speak since 2026-11-06, the comms of one operator); not again soon, unless it gets worse */
       const Fe = fronts.find(F => F.name === '東の端'), lines = fleets.filter(f => f.alive && f.team === 1 && f.press && f.ai === 'guard' && f.pressGoal && f.pressGoal.x > 90);
       Object.assign(Fe, { level: 0, pend: 0, lastLv: 0, saidLv: 0, said: -1e9, calmT: null });
       const keepP = lines.map(f => f.post.clone()); lines.forEach(f => f.post.lerp(f.pressGoal, .5)); frontSaidT = -1e9; const s1 = said.length; stepFronts();
-      r.front = Fe.level === 1 && Fe.cause === 'line' && said.slice(s1).some(t => t.startsWith('第4 主力戦艦 打撃群 大佐')) && said.slice(s1).some(t => t === 'ハッダード曹長「東の端が押されています。敵の列がゲートへ寄ってきます」');
+      r.front = Fe.level === 1 && Fe.cause === 'line' && said.slice(s1).length === 1 && said.slice(s1).some(t => t === 'リコ軍曹「東の端が押されています。敵の列がゲートへ寄ってきます」');
       frontSaidT = -1e9; Fe.level = 0; const s2 = said.length; stepFronts(); r.frontQuiet = Fe.level === 1 && said.length === s2;
       lines.forEach(f => f.post.lerp(f.pressGoal, .9)); frontSaidT = -1e9; stepFronts(); r.frontWorse = Fe.level === 2 && said.slice(s2).some(t => t.includes('東ゲートが持ちません'));
       lines.forEach((f, i) => f.post.copy(keepP[i]));
@@ -1360,7 +1361,7 @@ function check(ok, label, detail = '') {
       pressPost(pl); const plGoal = pl.pressGoal.clone(), plPost = pl.post.clone();
       damage(W, W.hp + 1, sh); stepBase(.05);
       r.lineOn = Math.abs(pl.pressGoal.x - plGoal.x - (C.pos.x - W.pos.x)) < 1 && Math.abs(pl.post.x - plPost.x - (C.pos.x - W.pos.x)) < 1; pl.alive = false; pl.el.remove();
-      r.sealed = W.sealed && !W.alive && !over && W.inf === 0 && said.some(t => t.includes('西ゲートが破られた')) && W.look.state === 'sealed';
+      r.sealed = W.sealed && !W.alive && !over && W.inf === 0 && said.some(t => t.includes('西ゲートが破られ')) && W.look.state === 'sealed';
       r.drawOff = Math.abs(am.post.x - amPost.x - (C.pos.x - W.pos.x)) < 1 && dropFor(ld) === C && Math.abs(wt.watchPos.x - (-170 + C.pos.x - W.pos.x)) < 1; am.alive = false; am.el.remove();
       r.notShot = fireTargetOf(sh) !== W; ours.forEach((f, k) => { f.seen = seenK[k]; });
       stepFronts(); r.frontShut = fronts[0].closed;   // the west gate sealed closes the west end's front
@@ -1398,7 +1399,7 @@ function check(ok, label, detail = '') {
       sh.el.remove(); return r; });
     check(f1.field && f1.kept && f1.allLine, 'フェブルアーリア防衛戦: 作戦フィールドは基地全体を覆う1つ（中心 [0,120]、半径480、クリックは465まで、上下±90。2026-10-18）で動かず、艦はその外へ出られない。段階はなく、100分に「全線」（2026-10-16）', JSON.stringify(f1));
     check(f1.pressAt && f1.press && f1.held, 'フェブルアーリア防衛戦: 敵の列は傘の縁の持ち場からゲートの前へ寄る。砲台の届かない所では速く、こちらが数で勝つ所では止まる（押し込み。2026-10-16）', JSON.stringify(f1));
-    check(f1.front && f1.frontQuiet && f1.frontWorse && f1.frontShut, 'フェブルアーリア防衛戦: 押されている方面を、方面の指揮官とハッダード曹長が知らせる。すぐには繰り返さず、崩れかけたら言う。塞いだゲートの方面は閉じる（2026-10-16）', JSON.stringify(f1));
+    check(f1.front && f1.frontQuiet && f1.frontWorse && f1.frontShut, 'フェブルアーリア防衛戦: 押されている方面を、リコ軍曹だけが知らせる（方面の指揮官の声は 2026-11-06 にやめた）。すぐには繰り返さず、崩れかけたら言う。塞いだゲートの方面は閉じる（2026-10-16）', JSON.stringify(f1));
     check(f1.op === 'februaria' && f1.bb && f1.allies === 27 && f1.bt === 14 && f1.onRock && f1.centre && f1.sky && f1.pushed,
       'フェブルアーリア防衛戦: 戦艦が自軍の一覧の最後に出て、友軍27隊（2026-10-18 の兵力の見直し: 280隻）と地表の砲台14基がある。天体の中心は南の枠の外で、艦はその表面の外へ押し出される。背景に地球が出る', JSON.stringify(f1));
     check(f1.gates === '西ゲート・中央ゲート・東ゲート' && f1.sym && f1.onFloor && f1.inf && f1.btSym,
@@ -2169,7 +2170,7 @@ function check(ok, label, detail = '') {
         const run = m => { const end = m / CLOCK_RATE; while (gameSec < end && !over) { step(.05); tough(); } };
         sink(); run(opMin() + .6); const A = fleets.filter(f => f.feint && f.alive);
         A.forEach(f => { f.feintRetreated = true; f.feintRetreat = false; feintAI(f, []); });
-        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.filter(f => f.feint === '右下' && !f.feintRetreat).every(f => f.stance === 'engage') && A.filter(f => f.feint === '左上' && !f.feintRetreat && feintCover(f)).every(f => f.stance === 'evade'), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('帰り道は、デナリが知ってる')) };
+        r.three = { mode: A.every(f => f.mode === 'assault'), engage: A.filter(f => f.feint === '右下' && !f.feintRetreat).every(f => f.stance === 'engage') && A.filter(f => f.feint === '左上' && !f.feintRetreat && feintCover(f)).every(f => f.stance === 'evade'), said: said.some(t => t.includes('二隻では砕けない')) && said.some(t => t.includes('アマゾン残存隊、デナリへ向かいます')) };
         /* 作業票 #254: 右下（role thr）は推進器のそばの砲台を撃ち、左上（role cover）は艦だけを狙って砲台は撃たない */
         const g = fleets.find(x => x.fixed && x.type === 'aa' && x.team === 1), oth = fleets.filter(x => x.team === 1 && x.alive && x !== g); g.seen = true; oth.forEach(x => { x.alive = false; });
         const near = c => { c.order = null; c.pos.copy(g.pos).sub(bodyC).setLength(g.pos.distanceTo(bodyC) + c.range * .4).add(bodyC); return fireTargetOf(c) ? fireTargetOf(c).name : null; };
