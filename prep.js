@@ -136,6 +136,8 @@ const nodeName=(b,n)=>n.name.replace('{gun}',b.gun||'主砲');
 const techLv=b=>Math.min(b.steps.length-1,TREE.reduce((m,n)=>n.cap&&nodeDone(b,n)?Math.max(m,n.cap):m,0));
 const branchOpen=b=>!b.need||!!prog().flags[b.need];
 const branchCap=b=>branchOpen(b)?b.steps[techLv(b)].cap:0;
+const wasBranch=()=>BRANCHES.find(b=>b.id==='was');
+const mascCap=()=>{ const b=wasBranch(); return branchOpen(b)&&nodeDone(b,nodeById('mascDeploy'))?techLv(b):0; };
 /* the ship values in data/ships.js are the final form. A fleet built by the player has, per stat,
    techStat.base of it plus the add of every researched node */
 const branchOfType=t=>BRANCHES.find(b=>b.types.includes(t));
@@ -155,12 +157,19 @@ const craftTurn=b=>Math.min(1,D.techStat.base+TREE.reduce((s,n)=>s+(n.add&&n.add
 const nodesOf=b=>TREE.filter(n=>!n.only||n.only.includes(b.id));
 const RATED=['atk','def','eva','rng','aa','vis','stl','spd'];
 /* a ship class can be put in a new battle group once its branch is open (or with the debug switch) */
-const typeOpen=t=>dbg.free||!branchOfType(t)||branchOpen(branchOfType(t));
+const typeOpen=t=>dbg.free||(t==='masc'?mascCap()>0:!branchOfType(t)||branchOpen(branchOfType(t)));
+/* Separate sortie limits; masc still uses the W.A.S. branch for its research and craft. */
+function loadRows(n,showOpen){
+  const rows=BRANCHES.map(b=>({b,used:b.types.filter(t=>t!=='masc').reduce((s,t)=>s+(n[t]||0),0),cap:branchCap(b)}))
+    .filter(r=>r.used||showOpen&&branchOpen(r.b));
+  const b=wasBranch(); if(branchOpen(b)||save.bgs.some(x=>x.type==='masc'&&x.count>0)) rows.push({b,name:'強襲母艦',used:n.masc||0,cap:mascCap()});
+  return rows;
+}
 function shipNow(t){ const s={...SHIP[t]}, b=branchOfType(t); RATED.forEach(k=>s[k]=SHIP[t][k]*statRate(b,k)); return s; }
 /* ships per branch in the army groups going out together, against the limits */
 function groupLoad(gs){
   const n={}; gs.forEach(g=>g.members.map(m=>armyById(m.army)).filter(Boolean).forEach(a=>a.bgs.map(bgById).filter(Boolean).forEach(b=>n[b.type]=(n[b.type]||0)+b.count)));
-  return BRANCHES.map(b=>({b, used:b.types.reduce((s,t)=>s+(n[t]||0)*(SHIP[t].sortieCost||1),0), actual:b.types.reduce((s,t)=>s+(n[t]||0),0), cap:branchCap(b)})).filter(x=>x.used||x.b.types.some(t=>n[t]));
+  return loadRows(n,false);
 }
 /* the share of the reward a replay brings: the exercises keep more of it (user decision 2026-11-06) */
 const replayRate=o=>o.chapter?D.reward.replay:D.reward.exercise;
@@ -471,7 +480,7 @@ const ICONS={
 const icon=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]||ICONS.cap}</svg>`;
 const num=v=>(Math.round(v*10)/10).toFixed(1);
 /* one line for the tooltip: what a node raises */
-const effShort=(b,n)=>n.add&&n.add.out?'同時に出撃できる隊 +1'
+const effShort=(b,n)=>n.deploy==='masc'?'強襲母艦を編成できるようになる':n.add&&n.add.out?'同時に出撃できる隊 +1'
   :n.add&&n.add.turn?'補給が速くなる'
   :n.cap?`出撃上限 +${b.steps[n.cap].cap-b.steps[n.cap-1].cap}隻`
   :n.craft?Object.keys(n.add).map(k=>`${D.crafts[n.craft].name} ${CRAFT_NAME[k]} +${num2(D.crafts[n.craft][k]*n.add[k])}`).join('・')
@@ -518,7 +527,7 @@ function renderTech(){
   document.getElementById('brBar').innerHTML=BRANCHES.map(x=>`<button data-br="${x.id}" aria-pressed="${x===b}" ${branchOpen(x)?'':'disabled'}><span class="marks">${x.types.map(mark).join('')}</span><b>${esc(x.name)}</b><span>${branchOpen(x)?`上限${branchCap(x)}隻`:esc(x.needText||'未解放')}</span></button>`).join('');
   document.querySelectorAll('#brBar [data-br]').forEach(x=>x.onclick=()=>{ techBr=BRANCHES.find(y=>y.id===x.dataset.br); techSel=null; renderTech(); });
   /* the branch now: each ship class's stats as numbers (the final form is not shown) */
-  document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻</span></div>`+
+  document.getElementById('trSum').innerHTML=`<div class="trhead"><b>${esc(b.name)}</b><span>出撃上限 ${branchCap(b)}隻${b.id==='was'?`・強襲母艦 ${mascCap()}隻`:''}</span></div>`+
     b.types.map(t=>`<div class="trrow"><span class="tname">${SHIP[t].name}</span>${RATED.map(k=>`<i>${STAT_NAME[k]} <em>${num(SHIP[t][k]*statRate(b,k))}</em></i>`).join('')}</div>`).join('')+
     crafts(b).map(c=>{ const o=craftOwner(c)||b; return `<div class="trrow"><span class="tname">${D.crafts[c].name}</span>${o===b?CRAFT_STATS.map(k=>`<i>${CRAFT_NAME[k]} <em>${num2(D.crafts[c][k]*craftRate(b,c,k))}</em></i>`).join(''):`<i>機体の研究は${esc(o.name)}</i>`}`+
       `<i>出撃 <em>${craftOut(b,c)}</em>隊</i><i>補給 <em>${num(D.crafts[c].rearm/craftTurn(b))}</em>秒</i></div>`; }).join('');
@@ -534,7 +543,9 @@ function renderTech(){
   const at=n=>({x:PADX+n.col*CW, y:PADY+R+ROWS.indexOf(n.row)*RH});
   const edges=NODES.flatMap(n=>n.req.map(r=>{ const p=at(nodeById(r)), q=at(n), m=q.x-R-Math.abs(q.y-p.y);
     const st=nodeDone(b,nodeById(r))?(nodeDone(b,n)?'on':'ready'):'';
-    return `<path d="M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
+    /* The deployment node is below the tree: route its long cap1 prerequisite along the left and bottom edges. */
+    const path=n.deploy==='masc'&&r==='cap1'?`M${p.x-R} ${p.y}H8V${q.y+24}H${q.x}V${q.y+R}`:`M${p.x+R} ${p.y}H${m}L${q.x-R} ${q.y}`;
+    return `<path d="${path}" class="${st} ${techSel===n.id?'req':techSel===r?'next':''}"/>`; })).join('');
   const selN=nodeById(techSel);
   const nodes=NODES.map(n=>{ const p=at(n), done=nodeDone(b,n), can=nodeOpen(b,n), sel=techSel===n.id, pre=selN&&selN.req.includes(n.id);
     return `<button class="tn ${done?'done':can?'can':''} ${sel?'sel':''} ${pre?'pre':''}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-pressed="${sel}" title="${esc(nodeName(b,n))}　${done?'研究済み':`資金${nodeCost(b,n)}`}　${esc(effShort(b,n))}"><i class="orb">${icon(n.icon)}</i><b>${esc(nodeName(b,n))}</b></button>`; }).join('');
@@ -548,7 +559,7 @@ function renderTech(){
   const info=document.getElementById('tInfo'), n=nodeById(techSel);
   info.hidden=!n; if(!n) return;
   const done=nodeDone(b,n), can=nodeOpen(b,n), cost=nodeCost(b,n);
-  const eff=n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
+  const eff=n.deploy==='masc'?'強襲母艦を編成できるようになる（出撃上限 0 → 1隻。第二次艦隊動員計画で2、総力戦動員計画で3）':n.cap?`${esc(b.name)}の出撃上限 ${b.steps[n.cap-1].cap} → ${b.steps[n.cap].cap}隻`
     :n.add&&n.add.out?crafts(b).map(c=>{ const now=craftOut(b,c), from=done?now-1:now; return `${D.crafts[c].name} 同時に出撃できる隊　${from} → ${from+1}`; }).join('<br>')
     :n.add&&n.add.turn?crafts(b).map(c=>{ const C=D.crafts[c], from=craftTurn(b)-(done?n.add.turn:0), to=Math.min(1,from+n.add.turn);
       return `${C.name} 補給　${num(C.rearm/from)} → ${num(C.rearm/to)}秒、次の隊の発進間隔　${num(C.cd/from)} → ${num(C.cd/to)}秒`; }).join('<br>')
@@ -615,8 +626,8 @@ function renderForces(){
   /* the sortie limit per branch (tech tree), for all the chosen groups together */
   const rows=chosen.length?groupLoad(chosen):[], branchOver=rows.some(r=>r.used>r.cap);
   /* and the battle's scale caps all the ships together (user decision 2026-10-12) */
-  const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.actual,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
-  if(chosen.length) load.innerHTML=`<h3><i>LIMIT</i> 出撃上限${chosen.length>1?` <span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.b.name)}</th><td>${r.used} / ${r.cap}${r.used!==r.actual?` <small>（実数 ${r.actual}隻）</small>`:'隻'}</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
+  const S=scaleOf(OPS.find(o=>o.id===sortieOp)||{}), total=rows.reduce((s,r)=>s+r.used,0), scaleOver=!!S&&total>S.cap, over=branchOver||scaleOver;
+  if(chosen.length) load.innerHTML=`<h3><i>LIMIT</i> 出撃上限${chosen.length>1?` <span class="dim">${chosen.length}個戦区軍の合計</span>`:''}</h3><table class="load"><tbody>${rows.map(r=>`<tr class="${r.used>r.cap?'over':''}"><th>${esc(r.name||r.b.name)}</th><td>${r.used} / ${r.cap}隻</td><td class="note">${r.used>r.cap?(branchOpen(r.b)?'上限を超えています':esc(r.b.needText||'未解放')):''}</td></tr>`).join('')}${
     S?`<tr class="scale ${scaleOver?'over':''}"><th>戦闘の規模（${esc(S.name)}）</th><td>${total} / ${S.cap}隻</td><td class="note">${scaleOver?'規模の上限を超えています':'全兵科の合計'}</td></tr>`:''}</tbody></table>${
     over?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':scaleOver&&!branchOver?`この作戦は${esc(S.name)}です。出撃できる艦は合計${S.cap}隻まで。戦区軍を減らすか、艦隊編集で艦を減らしてください。`:'上限を超える兵科があります。艦隊編集で艦を減らすか、技術ツリーで上限を上げてください。'}</p>`:''}`;
   const btn=document.getElementById('forcesBattle'); btn.disabled=!chosen.length||!chosen.some(g=>groupSummary(g).some(a=>armyStats(a).ships>0))||over&&!dbg.free;
@@ -662,8 +673,8 @@ const NOTES={
    Branches not opened yet show only when they hold ships */
 function updateOrgCap(){
   const n={}; save.bgs.forEach(b=>n[b.type]=(n[b.type]||0)+b.count);
-  const rows=BRANCHES.map(b=>({b,used:b.types.reduce((s,t)=>s+(n[t]||0)*(SHIP[t].sortieCost||1),0),actual:b.types.reduce((s,t)=>s+(n[t]||0),0),cap:branchCap(b)})).filter(r=>branchOpen(r.b)||r.used);
-  document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.b.name)} <i>${r.used}/${r.cap}${r.used!==r.actual?`（実数 ${r.actual}隻）`:'隻'}</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
+  const rows=loadRows(n,true);
+  document.getElementById('orgCap').innerHTML=`<b>出撃上限（技術ツリー）</b>`+rows.map(r=>`<span class="${r.used>r.cap?'over':''}">${esc(r.name||r.b.name)} <i>${r.used}/${r.cap}隻</i>${branchOpen(r.b)?'':'（未解放）'}</span>`).join('');
 }
 function renderOrg(){
   document.querySelector('[data-s=org] .back').textContent=orgFromForces?'← 出撃の準備へ':'← メニュー';

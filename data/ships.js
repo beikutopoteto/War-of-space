@@ -16,7 +16,7 @@ WOS_DATA.ships=[
   {id:'bb',   name:'戦艦',    weapon:{every:6,effect:'beam'}, atk:9, def:9, eva:2, rng:8, vis:5, stl:2, aa:4, spd:3,  max:4,  scale:1.7, note:'長射程の主砲を持つ決戦艦'},
   {id:'cvb',  name:'戦闘母艦',  atk:4, def:5, eva:3, rng:4, vis:7, stl:3, aa:6, spd:4,  max:3,  scale:1.6, hangar:{ftr:40}, note:'艦載機（W.A.S.ではない）を発進させ、遠くの敵を叩く'},
   {id:'mas',  name:'突撃揚陸艦', atk:5, def:2.44, eva:5, rng:2, vis:5, stl:7, aa:3, spd:6,  max:6,  scale:.9,  hangar:{was:10}, note:'W.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を運び、近距離で突入させる'},
-  {id:'masc', name:'強襲母艦',  sortieCost:4, atk:4, def:5, eva:2, rng:3, vis:6, stl:3, aa:4, spd:4,  max:3,  scale:1.6, hangar:{was:30,ftr:10}, note:'W.A.S.が主力。艦載機も少し出せる'},
+  {id:'masc', name:'強襲母艦',  atk:4, def:5, eva:2, rng:3, vis:6, stl:3, aa:4, spd:4,  max:3,  scale:1.6, hangar:{was:30,ftr:10}, note:'W.A.S.が主力。艦載機も少し出せる'},
 ];
 
 /* 部隊の名前（ユーザー決定 2026-10-04）: 「第N 役割 規模」。規模は階層ごとに1つ（word）。

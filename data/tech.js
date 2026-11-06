@@ -71,6 +71,7 @@ WOS_DATA.techTree=[
   {id:'out2',  name:'多層格納甲板',          icon:'deck',    col:5, row:10, req:['out1','eng2'],  only:['carrier','was'], craft:'all', add:{out:1},     cost:430},
   {id:'turn1', name:'40式 自動補給機構',     icon:'supply',  col:1, row:11, req:['def1'],         only:['carrier','was'], craft:'all', add:{turn:.2},   cost:110},
   {id:'turn2', name:'44式 高速整備ライン',   icon:'supply',  col:3, row:11, req:['turn1','eng1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:220},
+  {id:'mascDeploy', name:'強襲母艦の配備', icon:'deck', col:4, row:12, req:['cap1','turn2'], only:['was'], deploy:'masc', cost:400},
   {id:'turn3', name:'46式 無人整備システム', icon:'supply',  col:5, row:11, req:['turn2','out1'], only:['carrier','was'], craft:'all', add:{turn:.25},  cost:380},
 ];
 

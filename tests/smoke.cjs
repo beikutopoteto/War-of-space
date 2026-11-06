@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
 const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
+const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'test-results');
@@ -39,25 +40,13 @@ function check(ok, label, detail = '') {
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {
       const ship = id => WOS_DATA.ships.find(s => s.id === id), was = WOS_DATA.branches.find(b => b.id === 'was');
-      return { ff: ship('ff'), dd: ship('dd'), bb: ship('bb').weapon, masc: ship('masc').sortieCost,
+      return { ff: ship('ff'), dd: ship('dd'), bb: ship('bb').weapon, masc: ship('masc'),
         caps: was.steps.map(x => x.cap), mars: WOS_DATA.sides.mars.ships };
     });
-    check(roles.ff.atk === 4 && roles.ff.rng === 3 && roles.dd.atk === 4.5 && roles.dd.def === 4 && roles.bb.every === 6 && roles.masc === 4 && [2,3,4,6].every((n,i) => Math.floor(roles.caps[i] / 4) === n) && roles.mars.ff.atk === 4 && roles.mars.dd.def === 3.5,
-      '艦種の役割: 性能・戦艦の間隔・強襲母艦の上限と共和国の性能', JSON.stringify({caps: roles.caps}));
-    /* 強襲母艦2隻を既存の戦区軍に載せ、準備画面と実戦に渡る値を確かめる。 */
-    await page.click('#dbgT'); await page.click('#dbgB [data-dbga="all"]'); await page.click('#dbgB [data-dbga="tech"]');
-    await page.evaluate(() => { const v=JSON.parse(localStorage.getItem('wos.save.v1'));
-      v.bgs.push({id:'bg-cap-test',name:'試験',type:'masc',count:2}); v.armies.find(a=>a.id==='a2').bgs.push('bg-cap-test');
-      localStorage.setItem('wos.save.v1',JSON.stringify(v)); });
-    await page.reload(); await page.click('[data-go="org"]');
-    const capOrg=await page.locator('#orgCap').innerText(); await page.click('[data-s="org"] .back');
-    await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
-    await page.click('[data-op="charybdis"]'); await page.click('#goBattle');
-    const capRows=await page.locator('#sgLoad').innerText(); await page.click('#forcesBattle');
-    const capFleet=await page.evaluate(()=>fleets.find(f=>f.comp?.masc) && (({comp,n,hangar})=>({comp,n,hangar}))(fleets.find(f=>f.comp?.masc)));
-    check(capOrg.includes('W.A.S. 部隊 8/24（実数 2隻）') && /W\.A\.S\. 部隊\s+8 \/ 24\s+（実数 2隻）/.test(capRows) && /戦闘の規模[^\n]*\s+31 \/ 45隻/.test(capRows) && capFleet?.comp.masc===2 && capFleet.n===11 && capFleet.hangar.was===60 && capFleet.hangar.ftr===20,
-      '出撃上限: 強襲母艦2隻は上限8、規模と戦闘は実数2隻、搭載は60・20', JSON.stringify({capOrg,capRows,capFleet}));
-    await page.evaluate(()=>localStorage.removeItem('wos.save.v1')); await page.reload();
+    check(roles.ff.atk === 4 && roles.ff.rng === 3 && roles.dd.atk === 4.5 && roles.dd.def === 4 && roles.bb.every === 6 && !('sortieCost' in roles.masc) && roles.masc.hangar.was === 30 && roles.masc.hangar.ftr === 10 && roles.mars.ff.atk === 4 && roles.mars.dd.def === 3.5,
+      '艦種の役割: 性能・戦艦の間隔・強襲母艦の搭載と共和国の性能', JSON.stringify({caps: roles.caps}));
+    const mascResult = await checkMasc(page);
+    check(true, '強襲母艦: 配備研究・独立上限0〜3・揚陸艦と戦闘規模・搭載数', JSON.stringify(mascResult.rows));
     const prepResult = await checkPrepTutorial(page);
     check(true, '準備チュートリアル', prepResult);
     await page.evaluate(() => localStorage.clear()); await page.reload();
