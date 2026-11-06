@@ -344,7 +344,7 @@ function finishPrep(place){
   prog().prepDone=true; prepAid(); persist();
 }
 prepTalk.querySelector('button').onclick=()=>{finishPrep(true); render();};
-let prepShown='';
+let prepShown='', prepWas=false;
 function prepTick(){
   const active=!menu.hidden&&prepOn();
   if(active){
@@ -364,8 +364,9 @@ function prepTick(){
     const key=p.prepStep+'|'+screen+'|'+tab; if(target&&prepShown!==key){ prepShown=key; const r=target.getBoundingClientRect(); if(r.top<0||r.bottom>innerHeight) target.scrollIntoView({block:'center'}); }
     const targets=[target,...(step.also||[]).map(drawn)].filter(Boolean).slice(0,2);
     prepFrames.forEach((f,i)=>{const el=targets[i]; f.hidden=!el; if(el){const r=el.getBoundingClientRect(); Object.assign(f.style,{left:(r.left-4)+'px',top:(r.top-4)+'px',width:(r.width+8)+'px',height:(r.height+8)+'px'});}});
-  }else prepFrames.forEach(f=>f.hidden=true);
-  prepTalk.hidden=!active; menu.classList.toggle('prep-active',active);
+  }
+  /* the DOM is touched only when the guide comes or goes (the loop also runs under the battle) */
+  if(active!==prepWas){ prepWas=active; if(!active) prepFrames.forEach(f=>f.hidden=true); prepTalk.hidden=!active; menu.classList.toggle('prep-active',active); }
   requestAnimationFrame(prepTick);
 }
 requestAnimationFrame(prepTick);
