@@ -120,6 +120,10 @@
 .trrow em{font-style:normal;color:var(--blue);font-family:var(--f-num);font-size:15px}
 .trscroll{position:relative;overflow:hidden;background:rgba(8,14,26,.45);border:1px solid var(--line);cursor:grab;touch-action:none;min-height:0}
 .trscroll.drag{cursor:grabbing}
+/* ＋ − 全体 at the tree box's lower right (2026-11-06): small and see-through, over the box but not part of its drag */
+.tzoom{position:absolute;right:8px;bottom:8px;display:flex;gap:4px;z-index:3}
+.tzoom button{min-width:30px;height:26px;padding:0 8px;font-size:14px;line-height:1;color:var(--ink);background:rgba(8,14,26,.72);border:1px solid var(--line);cursor:pointer}
+.tzoom button:hover{border-color:var(--blue);color:var(--blue)}
 .trcv{position:absolute;left:0;top:0;transform-origin:0 0}
 /* the tech tree screen fits the window: no vertical scroll (user decision 2026-10-04) */
 .scr[data-s="tech"]:not([hidden]){display:flex;flex-direction:column;height:calc((100vh - 44px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)) / (var(--k,1) * 1.12))}
