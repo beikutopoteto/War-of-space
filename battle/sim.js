@@ -2472,7 +2472,7 @@ function step(dt){
           const weapon=CLASS_MAX[type]?.weapon;
           if(weapon&&weapon.every){ if(f.typeShotT>0) continue; f.typeShotT=weapon.every;
             damage(ft,ships.length*stats.dps*weapon.every*factor,f); f.revealT=FIRE_REVEAL;
-            for(const ship of ships){ const a=ship.pos, b=randShip(ft); beam(a,b,TEAM_COL[0]); burst(a,TEAM_COL[0],5,3,.3); burst(b,HOT,6,4,.4); }
+            for(const ship of ships){ const a=ship.pos, b=randShip(ft); beam(a,b,TEAM_COL[0],.5); burst(a,TEAM_COL[0],5,3,.3); burst(b,HOT,6,4,.4); }
           } else { damage(ft,ships.length*stats.dps*dt*factor,f); f.revealT=FIRE_REVEAL;
             const rate=Math.min(ships.length,12)*1.6/(f.reload||1);
             if(Math.random()<rate*dt){ const a=ships[Math.random()*ships.length|0].pos, b=randShip(ft); if(type==='ff') missile(a,b); else shoot(a,b,TEAM_COL[0],.28); }
