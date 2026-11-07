@@ -43,7 +43,7 @@ window.WOS_GROUND_ORG=(()=>{
     const fleets=org.companies.map((c,i)=>{
       const base=quick[i%quick.length], extra=Math.floor(i/quick.length);
       // 7個目以降は初期位置の横へ2.4戦闘単位ずつずらす（仮）。
-      return {...base,name:c.name,groundKind:c.kind,companyId:c.id,band:c.kind==='fighter'?'high':c.kind==='attack'?'low':'ground',
+      return {...base,name:c.name,groundKind:c.kind,companyId:c.id,band:['fighter','supportAircraft'].includes(c.kind)?'high':c.kind==='attack'?'low':'ground',
         pos:[base.pos[0]+extra*2.4,base.pos[1]],alt:0};
     });
     return {org,fleets};

@@ -164,7 +164,7 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>${f.name} / ${GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>${f.name}${lost?' / 最終確認位置':' / '+GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
   if(f.groundKind){ if(f._labelContent!==f.name){f._labelContent=f.name;nm.textContent=f.name;} return; }
