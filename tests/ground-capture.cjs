@@ -45,7 +45,8 @@ async function checkGroundCapture(page, check) {
     let hp=target.hpPool;groundStep(.05);const heavyHit=hp-target.hpPool===heavy.dmg*d.combat.heavyTank;
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
-    hp=enemyInfantry.hpPool;groundStep(.05);const tankHit=hp-enemyInfantry.hpPool===tank.dmg*d.combat.tankInfantry;
+    // 兵科相性の確認にも、その場所の歩兵の遮蔽軽減を含める。
+    hp=enemyInfantry.hpPool;const expectedTankHit=tank.dmg*d.combat.tankInfantry*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-expectedTankHit)<1e-7;
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();

@@ -2,8 +2,8 @@
 let groundBridges=[], groundBridgeRevision=0, groundWorkAiming=null, groundTransportMessage='';
 function groundTransportRules(){return WOS_TERRAIN[op.ground].transport;}
 function groundEngineeringRules(){return WOS_TERRAIN[op.ground].engineering;}
-function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&f.band==='ground'&&['infantry','heavyInfantry'].includes(f.groundKind);}
-function groundTransportLabel(f){return f.groundPassenger?`${f.name} / 搭載：${f.groundPassenger.name}`:f.name;}
+function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&f.band==='ground'&&['infantry','heavyInfantry','commando'].includes(f.groundKind);}
+function groundTransportLabel(f){return (f.groundPassenger?`${f.name} / 搭載：${f.groundPassenger.name}`:f.name)+(groundPermissionOnly(f)?' / 許可制':'');}
 function groundClearOrders(f){dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;}
 function groundCancelWork(f){
   if(f.order&&f.order.type==='board'&&f.order.target.groundBoarder===f)f.order.target.groundBoarder=null;

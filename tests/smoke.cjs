@@ -10,6 +10,7 @@ const { checkGroundOrg } = require('./ground-org.cjs');
 const { checkGroundSight } = require('./ground-sight.cjs');
 const { checkGroundStrike } = require('./ground-strike.cjs');
 const { checkGroundTransport } = require('./ground-transport.cjs');
+const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -154,6 +155,7 @@ function check(ok, label, detail = '') {
     await checkGroundSight(page, check);
     await checkGroundStrike(page, check);
     await checkGroundTransport(page, check);
+    await checkGroundBranches(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

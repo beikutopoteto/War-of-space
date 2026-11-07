@@ -284,7 +284,7 @@ addEventListener('pointerdown',hideHint,{capture:true});
 const stanceEl=document.getElementById('stance');
 function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selGroup?`${selGroup.name} 全軍`:null); }
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
-function applyStance(t,v,label){ if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
+function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f));if(!t.length)return; if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
@@ -294,7 +294,7 @@ function toggleSync(g){ if(!g) return; g.sync=!g.sync;
   updateRoster();
   logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各打撃群がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
-  stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.st===v))); }
+  stanceEl.querySelectorAll('button[data-st]').forEach(b=>{b.disabled=!!op.ground&&!!t.length&&t.every(groundPermissionOnly);b.setAttribute('aria-pressed',String(!b.disabled&&b.dataset.st===v));}); }
 stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
 stanceEl.querySelector('.undo').addEventListener('click',()=>undo());
 addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==='INPUT') return; const t=orderTargets(); if(t.length) setStance(t.every(f=>f.stance==='evade')?'engage':'evade'); });
