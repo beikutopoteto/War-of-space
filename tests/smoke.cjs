@@ -36,6 +36,20 @@ function check(ok, label, detail = '') {
   const advance = sec => page.evaluate(sec => { const end = gameSec + sec; while (gameSec < end && !over) step(.05); return gameSec; }, sec);
 
   try {
+    /* 地上作戦のデバッグ入口、渡河と海・沼地の通行。 */
+    await page.goto('file://' + path.join(ROOT, 'index.html') + '?ground=exercise2');
+    const ground = await page.evaluate(() => {
+      setSpeed(0);
+      const f=fleets[1], start=groundPoint(14,22), dest=groundPoint(34,22);
+      f.pos.copy(start); order(f,{type:'move',dest});
+      let safe=true, bridge=false, height=true, steps=0;
+      while(f.order && steps++<5000){ followPath(f,.05); const x=f.pos.x/4+24,y=18-f.pos.z/4; safe=safe&&groundPass(x,y); height=height&&Math.abs(f.pos.y-groundHeight(f.pos.x,f.pos.z))<1e-6; if(WOS_TERRAIN.exercise2.objects.bridges.some(b=>Math.hypot(x-b.x,y-b.y)<.8)) bridge=true; if(f.order.path.atIndex>=f.order.path.points.length) f.order=null; }
+      const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex(t=>t==='沼地'), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
+      const travel=kind=>{ const start=p.clone(), target=p.clone().add(new THREE.Vector3(.5,0,0)), unit={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:{points:[start,target],atIndex:1,s:0}}}; groundFollow(unit,.1); return unit.pos.x-start.x; };
+      const vehicleTravel=travel('vehicle'), infantryTravel=travel('infantry');
+      return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0).length,fleets.filter(x=>x.team===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
+    });
+    check(ground.entry&&ground.counts.join(',')==='3,3'&&ground.safe&&ground.bridge&&ground.height&&ground.arrived&&ground.sea&&ground.vehicle===.3&&ground.infantry===.6&&Math.abs(ground.infantryTravel/ground.vehicleTravel-2)<.001, '地上演習: 入口・地表追従・橋・海・沼地', JSON.stringify(ground));
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

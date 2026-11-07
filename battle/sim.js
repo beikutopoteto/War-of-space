@@ -52,7 +52,7 @@ function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.cl
 function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
 function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
-function shown(u){ return u.team===0||u.seen; }
+function shown(u){ return !!op.ground||u.team===0||u.seen; }
 let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
   const all=units();
@@ -363,6 +363,7 @@ function nextOrder(f){ while(f.queue&&f.queue.length){ const o=f.queue.shift(); 
 function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+.5):[...(o.via||[]),o.dest]; }
 /* advance along the path; true when the end is reached */
 function followPath(f,dt){
+  if(op.ground) return groundFollow(f,dt);
   const o=f.order; if(!o.path) o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
   const p=o.path; p.s=Math.min(p.L,p.s+speedOf(f)*dt);
   const u=p.s/p.L; f.pos.copy(p.curve.getPointAt(u));
@@ -2381,6 +2382,7 @@ function detailPlan(all){
 }
 
 function step(dt){
+  if(op.ground){ gameSec+=dt; for(const f of fleets){ if(f.alive&&f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } } return; }
   gameSec+=dt; if(tutorialHolding()) clockHeld+=dt; tutorialTick();
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   /* nothing more comes once the enemy falls back (stepRepel) */

@@ -156,15 +156,17 @@ const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
    第1節 未確認艦, 第2節 新型艦 for the assault ship; user decision 2026-11-07) */
 const shipLabel=t=>op&&op.shipNames&&op.shipNames[t]||SHIP_NAME[t]||t;
 let freeOpen=true;
-function fleetMark(f){ const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
+function fleetMark(f){ if(f.groundKind){ const shape=f.groundKind==='infantry'?'<path d="M2 3 L18 11 M18 3 L2 11"/>':'<ellipse cx="10" cy="7" rx="5" ry="3"/>'; return `<span class="mk"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="1" fill="none" stroke="currentColor"/> <g fill="none" stroke="currentColor" stroke-width="1.3">${shape}</g></svg></span>`; } const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
   return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet,true)}</span>`:''; }   // not to scale (marks.js fit)
 /* Labels use the same class ordering and original class list as the roster tip. */
 function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===chase.fleet||op.chase&&f.name===op.chase.fleet||nukeCarrier(f)); }
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+'<em>'+f.ships.length+'</em>'; if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>${f.name}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
+  el.classList.toggle('ground-label',!!f.groundKind);
+  if(f.groundKind){ if(f._labelContent!==f.name){f._labelContent=f.name;nm.textContent=f.name;} return; }
   const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a));
   const rows=types.map(t=>`<span class="cr${by[t]?'':' z'}"><i class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet):''}</i>${shipLabel(t)}<em>×${by[t]||0}</em></span>`).join('');
@@ -434,13 +436,14 @@ function reset(cfg=lastCfg){
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
   /* the body in the middle (op.body), its habitat blocks and civilian zones (op.civil), the mining debris (op.debris) */
   const BD=op.body, CV=op.civil;
-  buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt); buildSky(op.sky);
+  buildBody(BD,CV&&CV.r); buildDebris(op.debris,op.debrisTilt); buildSky(op.sky); groundSetup(op.ground);
   blocks=(BD&&BD.blocks||[]).map((b,i)=>({kind:'block',team:0,id:-1-i,i,name:b.name,sub:b.sub,pos:new THREE.Vector3(b.pos[0],b.alt||0,b.pos[1]),radius:6,alive:true,seen:true,ships:[],gate:!!b.gate})).filter(b=>!b.gate);   // the gates of the base (第5節) are not habitat blocks
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
+  if(op.ground) for(const f of fleets){ f.pos.y=groundHeight(f.pos.x,f.pos.z); f.post.copy(f.pos); f.home.copy(f.pos); for(const s of f.ships){ s.off.y=0; s.pos.copy(f.pos).add(s.off); s.pos.y=groundHeight(s.pos.x,s.pos.z); } f.seen=true; }
   /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
      army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
   if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;

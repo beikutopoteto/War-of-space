@@ -37,7 +37,7 @@ controls.minDistance = 35; controls.maxDistance = 330;
 controls.maxPolarAngle = Math.PI-0.12;
 controls.screenSpacePanning = false;
 
-scene.add(new THREE.AmbientLight(0x3a4a66, 0.9));
+const ambient = new THREE.AmbientLight(0x3a4a66, 0.9); scene.add(ambient);
 const sun = new THREE.DirectionalLight(0xffe2c0, 1.6); sun.position.set(120,80,40); scene.add(sun);
 const rim = new THREE.DirectionalLight(0x6fa8ff, 0.7); rim.position.set(-100,30,-120); scene.add(rim);
 
@@ -287,6 +287,7 @@ function buildClouds(list){
 }
 
 /* debris field */
+let fieldRocks;
 {
   const n=160, m=new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0), rockMat, n), o=new THREE.Object3D();
   for(let i=0;i<n;i++){
@@ -295,7 +296,7 @@ function buildClouds(list){
     o.rotation.set(Math.random()*6,Math.random()*6,Math.random()*6);
     const s=.3+Math.random()*Math.random()*2.4; o.scale.set(s,s*.8,s*1.1); o.updateMatrix(); m.setMatrixAt(i,o.matrix);
   }
-  scene.add(m);
+  scene.add(m); fieldRocks=m;
 }
 
 /* a large body in the middle of the field (op.body: 第4節 the resource satellite Denali): a big asteroid with lit habitat blocks,
