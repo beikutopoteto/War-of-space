@@ -82,6 +82,7 @@ function groundSetBand(list,band){
     if(f.bandTo===band) continue; // 同じ命令の連打では時計を戻さない。
     f.bandTo=band===f.band?null:band; f.bandLeft=f.bandTo?groundRules().transitionSec:0;
     f.pos.y=groundUnitHeight(f);
+    if(op.groundDrill)groundDrillEvent('band',f,band);
   }
   groundHud(); return true;
 }
@@ -231,6 +232,7 @@ function groundStep(dt){
     }
   }
   groundCaptureStep(dt);
+  if(op.groundDrill)groundDrillTick();
 }
 
 function groundMatchup(f,t){
@@ -273,7 +275,7 @@ function groundCaptureStep(dt){
     if(s.progress[team]>=s.captureSec-1e-8){ s.owner=team; s.progress=[0,0]; }
   }
   if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
-  else if(groundSites.length&&groundSites.every(s=>s.owner===0)) end(true);
+  else if(!op.groundDrill&&groundSites.length&&groundSites.every(s=>s.owner===0)) end(true);
 }
 function groundCaptureInit(){
   const d=WOS_TERRAIN[op.ground], rules=d.capture;

@@ -1693,3 +1693,45 @@ WOS_DATA.operations.push((()=>{
     quick:[unit('第1 戦車中隊','vehicle',8,27),unit('第2 強化歩兵中隊','infantry',10,28),unit('第3 重強化歩兵中隊','heavyInfantry',12,27),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],
     enemies:[unit('第1 守備戦車中隊','vehicle',24,21),unit('第2 守備歩兵中隊','infantry',22.5,21),unit('第3 守備歩兵中隊','infantry',41,27)]};
 })());
+
+// 第二章の速成演習。配置と文は仮。保存中の地上軍を使わず、W.A.S. を配備しない。
+WOS_DATA.operations.push((()=>{
+  const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,stance:'evade'});
+  const names={inf:'第1 強化歩兵中隊',tank:'第2 主力戦車中隊',heavy:'第3 重強化歩兵中隊',scout:'第4 斥候中隊',air:'第5 攻撃航空隊',aa:'第6 自走対空砲中隊',gun:'第7 自走砲中隊',apc:'第8 装甲兵員輸送車中隊',eng:'第9 工兵中隊',ship:'演習砲撃艦',landing:'演習揚陸艦',cargo:'第10 上陸歩兵中隊'};
+  const sea=(name,type,x,y)=>({...unit(name,'sea',x,y,'sea'),type,team:0});
+  const mark=(label,x,y)=>({label,pos:[(x-24)*4,(18-y)*4],alt:0});
+  const row=(section,name,condition,actor,text,extra={})=>({section,name,condition,actor:names[actor],text,targets:['#roster'],marks:[],...extra});
+  return {id:'ch2drill',chapter:'第二章 演習',chapterTitle:'重力',forces:'fixed',ground:'exercise2',groundDrill:true,
+    name:'演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:0,
+    summary:'カスピ海沿岸の演習場。中央アジアの新兵と、地上・航空・海岸での操作を一つずつ確かめる。',
+    threat:'仮想敵4隊。射撃は命令した目標だけ。',brief:'リコ軍曹の案内に沿って、9項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。',
+    win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、海岸の上陸まで全手順を終える'},
+    groundSites:[{site:'A',owner:null}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
+    quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
+    groundSea:[sea(names.ship,'cl',17,4),{...sea(names.landing,'dd',12,5),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',12,5)]}],
+    enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,16,'low')],
+    tutorial:[
+      row(1,'① 部隊を選ぶ','groundSelect','inf','少佐、演習場との照合が済みました。リコ軍曹です。……地上の手順を一つずつ確かめます。まず、右下の「第1 強化歩兵中隊」を選んでください。'),
+      row(1,'① 地上を移動','groundMove','inf','選択、確認しました。地上では地形に沿って進みます。金色の輪「移動」をクリックして、第1 強化歩兵中隊を動かしてください。',{marks:[mark('移動',7,25)]}),
+      row(2,'② 地形と視界','groundMove','inf','川や建物で視線が遮られ、沼地では足が遅くなります。道を確認します……。第1 強化歩兵中隊を「地形」の輪へ進め、低地の沼を渡ってください。見えない仮想敵は、味方の視界に入るまで表示されません。',{marks:[mark('地形',9,22.5)]}),
+      row(3,'③ 強化歩兵で占拠','groundCapture','inf','西方集落、占拠の訓練です。第1 強化歩兵中隊を「占拠」の輪へ進めてください。小さな円の中で30秒待つと占拠できます。戦車と重強化歩兵は占拠できません。',{site:'A',marks:[mark('占拠',7,29)]}),
+      row(4,'④ 戦車と歩兵','groundAttack','tank','兵科の相性を照合しました。主力戦車は歩兵に有効です。第2 主力戦車中隊を選び、「仮想敵 歩兵」をクリックし、出た小さなメニューで「攻撃」を選んでください。撃破まで待ちます。',{target:'仮想敵 歩兵',marks:[mark('歩兵',14,25)]}),
+      row(4,'④ 重強化歩兵と戦車','groundAttack','heavy','次は対戦車です。重強化歩兵は戦車に有効です。第3 重強化歩兵中隊を選び、「仮想敵 戦車」をクリックし、出た小さなメニューで「攻撃」を選んでください。撃破まで待ちます。',{target:'仮想敵 戦車',marks:[mark('戦車',20,25)]}),
+      row(5,'⑤ 斥候の視界','groundSight','scout','東側に未確認の反応です。斥候は遠くまで見渡せます。第4 斥候中隊を選び、「偵察」の輪へ進めてください。この中隊の視界で仮想敵を確認します。',{target:'仮想敵 斥候',marks:[mark('偵察',38,27)]}),
+      row(6,'⑥ 低高度へ','groundBand','air','航空の段を確かめます。第5 攻撃航空隊を選び、左の地上の操作から「低」を押してください。切り替えには5秒かかります。低高度なら地上を攻撃できます。',{band:'low',targets:['#groundCommand']}),
+      row(6,'⑥ 高高度へ','groundBand','air','低高度への到着、確認しました。同じ航空隊で「高」を押してください。高高度では、この攻撃機は地上へ直接射撃できません。',{band:'high',targets:['#groundCommand']}),
+      row(6,'⑥ 対空の操作','groundAttack','aa','対空の反応を照合します。第6 自走対空砲中隊を選び、「仮想敵 航空」をクリックし、出た小さなメニューで「攻撃」を選んでください。自走対空砲は低・高の両方を撃てます。撃破まで待ちます。',{target:'仮想敵 航空',marks:[mark('対空',33,16)]}),
+      row(7,'⑦ 地点攻撃','groundStrike','gun','第7 自走砲中隊を選び、左の「地点攻撃」を押して「砲撃」の輪をクリックしてください。着弾まで5秒です。視界の外も狙えますが、散布が広がります。味方にも当たるので、輪の中に部隊を入れないでください。',{marks:[mark('砲撃',17,17)],targets:['#groundStrike']}),
+      row(8,'⑧ 輸送車へ搭乗','groundBoard','inf','輸送の手順です。第1 強化歩兵中隊を選び、左の「搭乗」を押して「第8 装甲兵員輸送車中隊」をクリックしてください。歩兵が車まで歩いて乗ります。',{target:names.apc,targets:['#groundBoard']}),
+      row(8,'⑧ 輸送して移動','groundMove','apc','搭乗、確認しました。第8 装甲兵員輸送車中隊を選び、「輸送」の輪へ動かしてください。中の歩兵も一緒に移動します。',{marks:[mark('輸送',13,29)]}),
+      row(8,'⑧ 輸送車から降車','groundUnload','apc','輸送車、到着しました。そのまま左の「降車」を押してください。歩兵が通れる隣の地面へ降ります。',{targets:['#groundUnload']}),
+      row(8,'⑧ 工兵で架橋','groundBridge','eng','東の細い分流で、架橋の訓練です。第9 工兵中隊を選び、左の「架橋」を押して「架橋」の輪をクリックしてください。川岸へ着いてから20秒で完成します。広い本流には架けられません。',{marks:[mark('架橋',23.6,10.95)],targets:['#groundBridge']}),
+      row(9,'⑨ 海の艦を動かす','groundMove','ship','海岸の訓練区画へ移ります。演習砲撃艦を選び、「航行」の輪へ動かしてください。海の艦は海面だけを進み、陸へは上がれません。',{marks:[mark('航行',17,6)]}),
+      row(9,'⑨ 艦砲の地点攻撃','groundStrike','ship','演習砲撃艦で、左の「地点攻撃」を押して「艦砲」の輪をクリックしてください。着弾まで8秒です。艦砲も味方に当たります。海の艦どうしは直接射撃、陸へは地点攻撃で撃ちます。',{marks:[mark('艦砲',17,10)],targets:['#groundStrike']}),
+      row(9,'⑨ 揚陸艦を海岸へ','groundMove','landing','演習揚陸艦には第10 上陸歩兵中隊が乗っています。演習揚陸艦を選び、「海岸」の輪へ動かしてください。岸に接する場所まで寄せます。',{marks:[mark('海岸',12.2,7.4)],coast:true}),
+      row(9,'⑨ 歩兵を上陸','groundLand','landing','海岸への接岸、確認しました。演習揚陸艦を選んだまま、左の「上陸」を押してください。10秒で歩兵が浜へ降ります。上陸中は被弾が増えます。……これで最後の手順です。',{targets:['#groundLand']})
+    ],
+    talk:{before:[['リコ軍曹','カスピ海沿岸の演習場へ到着しました。少佐、中央アジアの新兵と訓練を始めます。']],win:[['リコ軍曹','全手順、確認しました。……演習完了です。少佐、次の配属に備えてください。']]},
+    result:{win:'地上・航空・海岸の全手順を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','全手順、確認しました。……演習完了です。'],loseLog:['リコ軍曹','自軍の反応、ありません。……演習を終了します。']}
+  };
+})());

@@ -13,6 +13,7 @@ const { checkGroundTransport } = require('./ground-transport.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
+const { checkGroundDrill } = require('./ground-drill.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -160,6 +161,7 @@ function check(ok, label, detail = '') {
     await checkGroundBranches(page, check);
     await checkGroundSea(page, check);
     await checkGroundLanding(page, check);
+    await checkGroundDrill(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

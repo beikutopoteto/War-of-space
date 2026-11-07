@@ -121,7 +121,7 @@ async function checkGroundLanding(page,check){
     reset({op:'charybdis'});return clean&&!groundVisuals&&fleets.every(f=>!f.embarked&&!f.groundLanding);
   }),'上陸の実画面: 再初期化でゲージを消して宇宙へ戻る');
 }
-function nodeChecks(){
+function createGroundContext(){
   const label=()=>{const children={};return {style:{},remove(){this.removed=true;},classList:{add(){}},querySelector:key=>children[key]||(children[key]={style:{},addEventListener(){}}),matches:()=>false,insertAdjacentHTML(){}};};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],createElement:label},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],TEAM_NAME:['連合','共和国'],fid:1,HP_K:7,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
@@ -133,6 +133,10 @@ function nodeChecks(){
   run(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')));
   run(sim.slice(sim.indexOf('function nextOrder('),sim.indexOf('function followPath(')));
   ctx.followPath=(f,dt)=>run('groundFollow')(f,dt);
+  return {ctx,read,run};
+}
+function nodeChecks(){
+  const {ctx,read,run}=createGroundContext();
   // 初回 reset は fleets の生成前に groundSetup → groundConfigure を呼ぶ（宇宙でも地上でも）。
   ctx.document.getElementById=()=>({classList:{toggle(){}},hidden:false});
   const results=run(`[false,true].map(active=>{
@@ -161,5 +165,5 @@ function nodeChecks(){
   console.log(`| 海からの上陸（ブラウザ不要・実生成/経路/damage/占拠） | ${results.length-failed.length}/${results.length} 成功 |`);
   if(failed.length){console.error(failed);process.exitCode=1;}
 }
-module.exports={landingCases,setupLandingScene,checkGroundLanding};
+module.exports={landingCases,setupLandingScene,checkGroundLanding,createGroundContext};
 if(require.main===module)nodeChecks();

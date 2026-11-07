@@ -11,13 +11,16 @@ function tutorialClearMarks(){ tutorialMarks.forEach(m=>{scene.remove(m.group); 
 function tutorialInit(cfg){
   if(tutorialArrow){ dropArrow(tutorialArrow); tutorialArrow=null; }
   tutorialClearMarks();
-  tutorial=cfg&&cfg.tutorial&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null}:null;
+  tutorial=(op.groundDrill||cfg&&cfg.tutorial)&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null,times:[],folded:false}:null;
+  if(op.groundDrill&&tutorial)groundDrillEnter();
   tutorialRender();
 }
 function tutorialTalk(){
   if(talking) return;
   const row=tutorialActive()&&!over&&op.tutorial[tutorial.step];
   talkEl.classList.toggle('tutorial-talk',!!row);
+  talkText.hidden=!!(row&&op.groundDrill&&tutorial.folded);
+  document.getElementById('talkSkip').textContent=row&&op.groundDrill?(tutorial.folded?'案内を開く':'案内をたたむ'):'とばす';
   if(!row){talkEl.hidden=true; return;}
   talkEl.hidden=false; talkEl.classList.remove('narr'); talkWho.hidden=false; talkWho.textContent='リコ軍曹'; talkText.textContent=row.text;
   talkEl.querySelector('.ctl span').textContent='演習 '+(tutorial.step+1)+'/'+op.tutorial.length+'　'+row.name;
@@ -29,24 +32,26 @@ function tutorialRender(){
   if(!row){ trainingEl.innerHTML=''; tutorialFrames.forEach(e=>e.hidden=true); return; }
   trainingEl.innerHTML='<div><i>TRAINING</i> 演習 '+(tutorial.step+1)+'/'+op.tutorial.length+' '+row.name+'</div><div class="training-ticks">'+op.tutorial.map((_,i)=>'<span class="'+(i<tutorial.step?'done':i===tutorial.step?'current':'')+'"></span>').join('')+'</div>';
   if(row.condition==='sight'){ const f=fleets.find(x=>x.name==='第14 北方防空 戦闘隊'); if(f) tutorialArrow=makeArrow(f.pos.clone().add(new THREE.Vector3(0,18,28)),f.pos.clone().add(new THREE.Vector3(0,18,0)),new THREE.Color(0xe2c58a)); }
-  for(const mark of row.marks||[]){
+  for(const spec of row.marks||[]){
+    const mark=op.ground?{...spec,alt:groundHeight(...spec.pos)}:spec;
     const group=new THREE.Group(), color=0xffd27a;
     const ring=(inner,outer,opacity,y)=>{const m=new THREE.Mesh(new THREE.RingGeometry(inner,outer,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false})); m.rotation.x=-Math.PI/2; m.position.y=y; group.add(m);};
     ring(5.5,6.5,1,mark.alt); ring(0,5.5,.12,mark.alt);
     if(mark.alt){ ring(1.5,2,.8,0); const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,mark.alt,0)]); const line=new THREE.Line(geo,new THREE.LineDashedMaterial({color,dashSize:2,gapSize:1,transparent:true,opacity:.8})); line.computeLineDistances(); group.add(line); }
     group.position.set(mark.pos[0],0,mark.pos[1]); scene.add(group);
-    const label=document.createElement('div'); label.className='tutorial-mark-label'; label.textContent='目標 '+mark.label+(mark.alt?'　高度 '+(mark.alt>0?'+':'')+mark.alt:''); document.getElementById('labels').appendChild(label);
+    const label=document.createElement('div'); label.className='tutorial-mark-label'; label.textContent='目標 '+mark.label+(mark.alt&&!op.ground?'　高度 '+(mark.alt>0?'+':'')+mark.alt:''); document.getElementById('labels').appendChild(label);
     tutorialMarks.push({mark,group,label});
   }
 }
-function tutorialAdvance(){ if(!tutorialActive()||tutorial.step>=op.tutorial.length-1) return; tutorial.step++; tutorial.passed=null; tutorialRender(); }
+function tutorialAdvance(){ if(!tutorialActive()||tutorial.step>=op.tutorial.length-1) return; tutorial.step++; tutorial.passed=null; if(op.groundDrill)groundDrillEnter(); tutorialRender(); }
 function tutorialEvent(kind){ if(tutorialCondition()===kind) tutorialAdvance(); }
 function tutorialOrder(o,targets){ if(tutorialCondition()==='attack'&&o.type==='attack'&&o.target.kind==='fleet'&&o.target.team===1) tutorial.attack=o.target; }
 function tutorialGroupCreated(g){ if(tutorialCondition()==='group'&&g.members.size>=2) tutorial.group=g; }
-function tutorialDamage(t,amt,src){ if(tutorialCondition()==='attack'&&amt>0&&t===tutorial.attack&&src&&src.team===0) tutorialAdvance(); }
+function tutorialDamage(t,amt,src){ if(op.groundDrill&&amt>0)groundDrillEvent('hit',src,t); if(tutorialCondition()==='attack'&&amt>0&&t===tutorial.attack&&src&&src.team===0) tutorialAdvance(); }
 function tutorialLaunch(f){ if(tutorialActive()&&f.team===0&&f.name==='第4 空母航空 打撃群'){ tutorial.launched=true; if(tutorialCondition()==='launch') tutorialAdvance(); } }
 function tutorialTick(){
   if(!tutorialActive()) return;
+  if(op.groundDrill){groundDrillTick();return;}
   const row=op.tutorial[tutorial.step], near=(f,m)=>f.alive&&Math.hypot(f.pos.x-m.pos[0],f.pos.z-m.pos[1])<=8&&Math.abs(f.pos.y-m.alt)<=6;
   const allies=fleets.filter(f=>f.team===0);
   if(row.condition==='move'||row.condition==='altitude'){if(allies.some(f=>near(f,row.marks[0]))) tutorialAdvance();}

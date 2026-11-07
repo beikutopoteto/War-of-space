@@ -619,8 +619,10 @@ function renderSortie(){
   const nextOp=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT;
   const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
     const why=!tutDone()?'チュートリアルをクリアで解放':i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
-    return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace('第一章 ','')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
-  ol.innerHTML=`<p class="grp">第一章　無重力</p>${camp.map(card).join('')}<p class="grp">演習</p>${exs.map(card).join('')}`;
+    return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace(/^第[一二]章 /,'')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
+  let chapter='';
+  const campaignCards=camp.map(o=>{const key=o.chapter?o.chapter.split(' ')[0]:'第一章',title=key==='第一章'?'無重力':o.chapterTitle||'';const heading=chapter===key?'':`<p class="grp">${esc(key+'　'+title)}</p>`;chapter=key;return heading+card(o);}).join('');
+  ol.innerHTML=campaignCards+`<p class="grp">演習</p>${exs.map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const op=list.find(o=>o.id===sortieOp), done=opDone(op);
   document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
@@ -629,7 +631,7 @@ function renderSortie(){
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:op.id}); } };
-  document.getElementById('fixedNote').textContent=op.ground?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
+  document.getElementById('fixedNote').textContent=op.ground&&!fixedOp?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
   const btn=document.getElementById('goBattle'); btn.disabled=false;
   btn.onclick=()=>{ if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
