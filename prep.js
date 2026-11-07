@@ -898,4 +898,5 @@ function onKey(e){
 }
 window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey };
 render();
+if(new URLSearchParams(location.search).get('ground')==='exercise2') window.WOS.start({op:'groundExercise2'});
 })();
