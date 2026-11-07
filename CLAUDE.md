@@ -31,6 +31,7 @@
 | `docs/campaign.md` | キャンペーンの作戦の表、各節の実装メモ |
 | `docs/chapter1.md` | 第一章の物語の正本 |
 | `docs/chapter2.md` | 第二章の物語の正本（叩き台） |
+| `docs/terrain.md` | 地上戦のマップの地形作成方針書（地形・オブジェクト・地表、作る順、設計図の形）。作戦ごとの設計図は `docs/terrain/` |
 | `docs/riko.md` | リコ軍曹の話し方と考え方（台詞を書く前に読む） |
 | `docs/story.md` | 世界設定（年表、D-RAMS、居住区の重さ、W.A.S.、拠点と資源衛星、火星、勢力、戦争の暦） |
 | `docs/tutorial.md` | チュートリアル（カリュブディス）の計画 |
