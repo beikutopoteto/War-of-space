@@ -80,7 +80,7 @@ function frame(now){
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][f.shape||s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
-      _w.copy(s.off).applyQuaternion(_oq).add(f.pos); _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
+      _w.copy(s.off).applyQuaternion(_oq).add(f.pos); if(op.ground) _w.y=groundHeight(_w.x,_w.z)+.15; else _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
       const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue;
@@ -115,6 +115,7 @@ function frame(now){
   for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
   for(const f of fleets) if(f.plume) plumeDraw(f);   // 第6節: the restoring thrusters' exhaust (base.js)
   fortressObj.rotation.y+=rdt*.04;
+  if(groundWaterMaterial) groundWaterMaterial.uniforms.time.value=now/1000;
   gridMat.uniforms.uTime.value=time;
   gridMat.uniforms.uSq.value=layerMat.uniforms.uSq.value=window.WOS_OPT&&WOS_OPT.grid==='polar'?0:1;   // the grid option (prep.js)
   /* the grid follows a moving field; its squares stay put in space. A cloud the camera is inside fades so it does not cover the view */
@@ -137,14 +138,14 @@ function frame(now){
   if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));
     rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(Math.max(selected.range,selected.launchR||0));
-    sightRing.visible=true; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));
-    layer.visible=true; layer.position.set(selected.pos.x,selAlt,selected.pos.z); layerMat.uniforms.uTime.value=time; }
+    sightRing.visible=!op.ground; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));
+    layer.visible=!op.ground; rangeRing.visible=!op.ground; layer.position.set(selected.pos.x,selAlt,selected.pos.z); layerMat.uniforms.uTime.value=time; }
   else selRing.visible=rangeRing.visible=sightRing.visible=layer.visible=false;
   updateStalks();
 
   stepCam(rdt); rotateByKeys(rdt); panCamera(rdt);
   controls.update(); tutorialFrame();
-  if(!menuOpen){ if(cutOn) cutTick(rdt); else if(composer) composer.render(); else renderer.render(scene,camera); }   // a still scene behind the talk (cut.js)
+  if(!menuOpen){ if(cutOn) cutTick(rdt); else if(composer&&!op.ground) composer.render(); else renderer.render(scene,camera); }   // a still scene behind the talk (cut.js)
 
   // labels
   for(const u of units()){ if(!u.alive||!u.el) continue;

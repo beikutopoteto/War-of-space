@@ -85,7 +85,8 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
-  if(o.type==='move') o.path=makePath(f.pos,[...(o.via||[]),o.dest]);
+  if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest):makePath(f.pos,[...(o.via||[]),o.dest]);
+  if(o.type==='move'&&!o.path){ f.order=null; return; }
   if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
   else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
@@ -236,7 +237,7 @@ function placeAt(p){
 }
 /* the point under the screen position, at the altitude set on the altitude bar */
 function groundAt(x,y){
-  ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3(); plane.constant=-selAlt;
+  ray.setFromCamera({x:x/W*2-1,y:-(y/H)*2+1},camera); const hit=new THREE.Vector3(); plane.constant=op.ground?0:-selAlt;
   return ray.ray.intersectPlane(plane,hit)&&Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)<REACH?hit:null;
 }
 const pickEl=document.getElementById('pick'); let pickCtx=null;
@@ -327,7 +328,7 @@ window.WOS={ start(cfg){
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field (the tutorial: op.tutorialView) */
   const V=(cfg&&cfg.tutorial&&op.tutorialView)||op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
-  hintGone=false; hintEl.hidden=!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone'); if(!hintEl.hidden) setTimeout(hideHint,7000);
+  hintGone=false; hintEl.hidden=!!op.ground||!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone'); if(!hintEl.hidden) setTimeout(hideHint,7000);
 }, openMenu };
 
 /* mission panel (top right, under the legend): what to do now, with a gauge.
@@ -454,7 +455,8 @@ function drawRoute(){
   routeEl.innerHTML=`<path class="ln" d="${d}"/><g class="ch">${ch}</g>${ring}`; }
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
-  if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
+  if(op.ground){ text=op.win.text; }
+  else if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
     if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
     else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }
     else if(!convoy.departed){ p=Math.min(1,opClock()/C.depart); text=C.boardText||'乗船が終わるまで、敵を輸送船団に近づけるな'; label=`乗船 ${Math.floor(p*100)}%　${clockStr(C.depart)} 出港`; mode='board'; }

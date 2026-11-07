@@ -494,3 +494,8 @@ body.nolabels .fleet-label .nm{display:none}
 #training{border-bottom:1px solid var(--line);padding:2px 0 7px;margin-bottom:4px;font-size:11px;font-weight:bold;color:var(--ink)} #training i{font-family:var(--f-num);color:var(--brass);letter-spacing:.1em;margin-right:4px} .training-ticks{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-top:5px}.training-ticks span{height:5px;background:rgba(127,200,255,.16)}.training-ticks .done{background:var(--blue)}.training-ticks .current{background:var(--brass);box-shadow:0 0 7px var(--brass)}
 
 #alt .cap{font-size:12.5px} #alt .val{font-size:19px} #alt button{width:44px;height:28px;font-size:15px} #altTrack{width:44px;height:112px} #altKnob{width:34px;height:15px} #alt #stance button{width:66px;height:28px;font-size:13px} #camSticks{left:110px} #talk.tutorial-talk{cursor:default} #talk.tutorial-talk .ctl span{color:var(--brass);font-weight:bold} body.noui #talk.tutorial-talk{display:none!important} .tutorial-mark-label{position:absolute;color:#ffd27a;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000,0 0 4px #000;white-space:nowrap;transform:translate(-50%,-100%);pointer-events:none} body.noui .tutorial-mark-label{display:none}
+
+/* 地上部隊の簡単な兵科印と名前 */
+.ground-label .mk2 .mk{width:20px;height:14px}
+.ground-label .mk2 em{font-family:var(--f-ui);font-size:11px;font-weight:600}
+.ground-label .nm{display:none!important}
