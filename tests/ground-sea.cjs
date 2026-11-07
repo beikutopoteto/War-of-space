@@ -62,8 +62,8 @@ async function checkGroundSea(page,check){
   const initial=await page.evaluate(()=>{
     reset({op:'groundExercise2'});setSpeed(0);
     const ships=fleets.filter(f=>f.groundKind==='sea');
-    return ships.length===4&&ships.filter(f=>f.team===0).length===2&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][f.type].geometry.attributes.position.count)&&groundSites.length===3;
-  });check(initial,'海の艦: 双方2隻・既存の艦種別モデル・海面配置・3拠点を維持');
+    return ships.length===5&&ships.filter(f=>!groundLandingShip(f)).length===4&&ships.filter(f=>f.team===0).length===3&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][f.type].geometry.attributes.position.count)&&groundSites.length===3;
+  });check(initial,'海の艦: 双方2隻と揚陸艦1隻・既存の艦種別モデル・海面配置・3拠点を維持');
   await page.evaluate(()=>{
     fleets.forEach((f,i)=>{f.stance='evade';f.order=null;f.pos.copy(groundPoint(4+i*2,31));});
     const ship=fleets.find(f=>f.team===0&&f.groundKind==='sea');ship.pos.copy(groundPoint(12,5));
@@ -110,8 +110,8 @@ function nodeChecks(){
     const org={companies:[{id:'test',name:'中隊',kind:'vehicle'}],battalions:[],brigades:[]},before=JSON.stringify(org);
     groundInitOrg(org);groundInit();
     const ships=fleets.filter(f=>f.groundKind==='sea');
-    check('艦は固定配備、編成の保存データは変えず独立選択できる',JSON.stringify(org)===before&&groundOrg.companies.length===3&&groundMembers('companies',ships[0].companyId)[0]===ships[0]);
-    check('双方4隻とも実モデルの頂点と大きさを流用',ships.length===4&&ships.every(f=>{const mesh=f.groundModel.children[0],src=shipMeshes[f.team][f.type];return mesh.geometry!==src.geometry&&mesh.geometry.attributes.position.count===src.geometry.attributes.position.count&&[...mesh.geometry.attributes.position.array].every(Number.isFinite)&&mesh.scale.x===SHIP_SIZE[f.type]&&f.pos.y===0;}));
+    check('艦は固定配備、編成の保存データは変えず独立選択できる',JSON.stringify(org)===before&&groundOrg.companies.length===4&&groundMembers('companies',ships[0].companyId)[0]===ships[0]);
+    check('海の5隻とも実モデルの頂点と大きさを流用',ships.length===5&&ships.every(f=>{const mesh=f.groundModel.children[0],src=shipMeshes[f.team][f.type];return mesh.geometry!==src.geometry&&mesh.geometry.attributes.position.count===src.geometry.attributes.position.count&&[...mesh.geometry.attributes.position.array].every(Number.isFinite)&&mesh.scale.x===SHIP_SIZE[f.type]&&f.pos.y===0;}));
     groundView='high';groundDraw();check('海面表示も高度ビューの濃淡に従い論理的な段は維持',ships.filter(f=>f.team===0).every(f=>f.band==='sea'&&f.groundModel.position.y===0&&+f.el.style.opacity===groundRules().dimOpacity));
     groundView='all';const f=ships[0],target=groundPoint(12,8.6),s=groundStrikeLaunch(f,target);groundDraw();
     check('艦砲の円・残り8秒を実描画',s&&s.visual.ring.parent===groundVisuals&&[...s.visual.ring.geometry.attributes.position.array].every(Number.isFinite)&&s.visual.el.textContent.includes('艦砲 8.0秒'));

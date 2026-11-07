@@ -12,6 +12,7 @@ const { checkGroundStrike } = require('./ground-strike.cjs');
 const { checkGroundTransport } = require('./ground-transport.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
+const { checkGroundLanding } = require('./ground-landing.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -56,7 +57,7 @@ function check(ok, label, detail = '') {
       const vehicleTravel=travel('vehicle'), infantryTravel=travel('infantry');
       return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0&&groundBands(x).length===1).length,fleets.filter(x=>x.team===1&&groundBands(x).length===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
     });
-    check(ground.entry&&ground.counts.join(',')==='5,5'&&ground.safe&&ground.bridge&&ground.height&&ground.arrived&&ground.sea&&ground.vehicle===.3&&ground.infantry===.6&&Math.abs(ground.infantryTravel/ground.vehicleTravel-2)<.001, '地上演習: 入口・地表追従・橋・海・沼地', JSON.stringify(ground));
+    check(ground.entry&&ground.counts.join(',')==='8,5'&&ground.safe&&ground.bridge&&ground.height&&ground.arrived&&ground.sea&&ground.vehicle===.3&&ground.infantry===.6&&Math.abs(ground.infantryTravel/ground.vehicleTravel-2)<.001, '地上演習: 入口・地表追従・橋・海・沼地', JSON.stringify(ground));
     const crossing = await page.evaluate(() => {
       const run=(kind,a,b)=>{
         const start=groundPoint(...a),dest=groundPoint(...b),f={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:groundPath(start,dest,kind)}};
@@ -147,7 +148,7 @@ function check(ok, label, detail = '') {
       reset({op:'charybdis'});const space=!document.getElementById('alt').classList.contains('ground-alt')&&document.getElementById('groundAlt').hidden&&!groundVisuals;
       return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight,noSeaLanding,rendered,viewLow,viewHigh,viewGround,viewAll,fold,space};
     });
-    check(bands.composition.join(',')==='8,7'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
+    check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
     check(bands.cases===33&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表33通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
@@ -158,6 +159,7 @@ function check(ok, label, detail = '') {
     await checkGroundTransport(page, check);
     await checkGroundBranches(page, check);
     await checkGroundSea(page, check);
+    await checkGroundLanding(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

@@ -207,7 +207,7 @@ function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(deploying){ if(best&&best.team===0){ if(!cmdOnly){ const g=groupOf(best); if(g) selectGroup(g); else select(best); } return; }
     const hit=groundAt(x,y); if(hit) placeAt(hit); return; }
   /* an own fleet: select it (again to let go); with Shift, add it to the selection or take it out */
-  if(op.ground&&best&&best.team===0&&best.groundKind==='apc'&&(groundWorkAiming==='board'||orderTargets().length===1&&groundBoardable(orderTargets()[0]))){groundBoardCommand(orderTargets(),best);return;}
+  if(op.ground&&best&&best.team===0&&(best.groundKind==='apc'||groundLandingShip(best))&&(groundWorkAiming==='board'||orderTargets().length===1&&(groundLandingShip(best)?groundShipBoardable(orderTargets()[0]):groundBoardable(orderTargets()[0])))){groundBoardCommand(orderTargets(),best);return;}
   if(op.ground&&groundWorkAiming==='board')return;
   if(best&&best.team===0){ if(cmdOnly) return; if(queue){ toggleMulti(best); return; } const t=orderTargets(); select(t.length===1&&t[0]===best?null:best); return; }
   if(selected&&selected.alive){

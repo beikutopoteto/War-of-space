@@ -8,6 +8,7 @@ window.WOS_TERRAIN.exercise2 = {
   strike: { artillery:{delay:5,radius:7,spread:2,reload:8}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, sea:{delay:8,radius:10,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
   // 輸送・架橋の試作値。距離は戦闘単位、橋の幅判定は water の km。
   transport: { boardRange:1.6, unloadKm:.4, wreckLoss:.5, repathSec:.5 },
+  landing: { capacity:2, seconds:10, damageFactor:1.3 }, // 海の揚陸艦だけの仮値。沈没時は搭載中隊を全滅扱い。
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   unitTypes: {

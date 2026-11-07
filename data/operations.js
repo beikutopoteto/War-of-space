@@ -1682,10 +1682,12 @@ WOS_DATA.operations.push((()=>{
   const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
   const sea=(team,type,x,y)=>({name:(team?'共和国 ':'連合 ')+WOS_DATA.ships.find(s=>s.id===type).name,groundKind:'sea',band:'sea',team,type,n:1,pos:[(x-24)*4,(18-y)*4],alt:0});
   return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
-    brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。敵の占拠可能部隊がいなければ30秒で占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。',
+    brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。敵の占拠可能部隊がいなければ30秒で占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。揚陸艦は歩兵と戦車を搭載済み。海岸へ着けて「上陸」を押し、降りた歩兵を拠点へ進めよう。',
     date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'強化歩兵か地上 W.A.S. で3拠点をすべて占拠せよ'},
     groundSites:[{site:'A',owner:null},{site:'C',owner:1},{site:'F',owner:1}],
-    groundSea:[sea(0,'dd',12,5),sea(0,'cl',17,4),sea(1,'dd',28,5),sea(1,'cl',33,4)], // 艦種・隻数・位置は試作用の仮配置。
+    // groundCargo は固定配備の中隊の定義。海の揚陸艦（駆逐艦の元性能・モデルを仮使用）に初めから載せる。
+    groundSea:[sea(0,'dd',12,5),sea(0,'cl',17,4),sea(1,'dd',28,5),sea(1,'cl',33,4),
+      {...sea(0,'dd',10,4),name:'連合 揚陸艦（仮）',groundLanding:true,groundCargo:[unit('第7 上陸歩兵中隊','infantry',10,4),unit('第8 上陸戦車中隊','vehicle',10,4)]}], // 艦種・隻数・位置は試作用の仮配置。
     result:{win:'3拠点をすべて占拠した。地上演習を完了。',lose:'自軍の地上演習部隊は全滅した。',winLog:['演習完了','3拠点をすべて占拠した。'],loseLog:['演習失敗','自軍の演習部隊は全滅した。']},
     view:{target:[0,0],dist:230,dir:[0,1,1],max:350},
     quick:[unit('第1 戦車中隊','vehicle',8,27),unit('第2 強化歩兵中隊','infantry',10,28),unit('第3 重強化歩兵中隊','heavyInfantry',12,27),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],
