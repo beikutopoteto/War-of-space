@@ -47,7 +47,7 @@ function check(ok, label, detail = '') {
       const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex(t=>t==='沼地'), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
       const travel=kind=>{ const start=p.clone(), target=p.clone().add(new THREE.Vector3(.5,0,0)), unit={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:{points:[start,target],atIndex:1,s:0}}}; groundFollow(unit,.1); return unit.pos.x-start.x; };
       const vehicleTravel=travel('vehicle'), infantryTravel=travel('infantry');
-      return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0).length,fleets.filter(x=>x.team===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
+      return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0&&groundBands(x).length===1).length,fleets.filter(x=>x.team===1&&groundBands(x).length===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
     });
     check(ground.entry&&ground.counts.join(',')==='3,3'&&ground.safe&&ground.bridge&&ground.height&&ground.arrived&&ground.sea&&ground.vehicle===.3&&ground.infantry===.6&&Math.abs(ground.infantryTravel/ground.vehicleTravel-2)<.001, '地上演習: 入口・地表追従・橋・海・沼地', JSON.stringify(ground));
     const crossing = await page.evaluate(() => {
@@ -68,6 +68,80 @@ function check(ok, label, detail = '') {
       return {vehicle:run('vehicle',[21,33],[25,33]),infantry:run('infantry',[21,26],[26,26]),vehicleFactor:groundFactor(p.x,p.z,'vehicle'),infantryFactor:groundFactor(p.x,p.z,'infantry'),scoutFactor:groundFactor(p.x,p.z,'scout'),airFactor:groundFactor(p.x,p.z,'air'),infantryTravel:travel('infantry'),scoutTravel:travel('scout')};
     });
     check(crossing.vehicle.arrived&&crossing.vehicle.safe&&crossing.vehicle.ford&&!crossing.vehicle.bridge&&crossing.infantry.arrived&&crossing.infantry.river&&!crossing.infantry.bridge&&crossing.vehicleFactor===0&&crossing.infantryFactor===.2&&crossing.scoutFactor===.5&&crossing.airFactor===1&&Math.abs(crossing.scoutTravel/crossing.infantryTravel-2.5)<.001, '地上演習: 兵科別の渡河・浅瀬・速度', JSON.stringify(crossing));
+    /* 3段: 命令・到着までの射撃・表の全組み合わせ・表示。場面を固定し、打撃で数える。 */
+    const bands = await page.evaluate(() => {
+      reset({op:'groundExercise2'}); setSpeed(0);
+      const by=(kind,team=0)=>fleets.find(f=>f.team===team&&f.groundKind===kind), infantry=by('infantry'), fighter=by('fighter'), attack=by('attack'), was=by('was');
+      const buttons=()=>[...document.querySelectorAll('#groundCommand button')].map(b=>b.disabled);
+      select(infantry); const groundButtons=buttons(); select(fighter); const airButtons=buttons(); select(was); const wasButtons=buttons();
+      setSel([infantry,fighter]); const mixedButtons=buttons(), rejected=!groundSetBand(orderTargets(),'low');
+      setSel([fighter,was]); const sharedButtons=buttons();
+      const composition=[fleets.filter(f=>f.team===0).length,fleets.filter(f=>f.team===1).length], initial=fighter.band==='high'&&attack.band==='low'&&by('fighter',1).band==='high'&&by('attack',1).band==='low';
+      fleets.forEach(f=>{f.stance='evade';f.order=null;});
+      const at=groundPoint(16,25),victim=by('vehicle',1); attack.pos.copy(at); victim.pos.copy(at).add(new THREE.Vector3(1,0,0));
+      attack.band='low'; attack.order={type:'attack',target:victim};
+      const originalDamage=damage,hits=[];
+      damage=(t,n,f)=>{hits.push({kind:f.groundKind,band:f.band,target:t.band,n}); originalDamage(t,n,f);};
+      let delayed,arrived,repeat,groundToAir,highWas;
+      try{
+        select(attack); document.querySelector('#groundCommand [data-band="high"]').click();
+        for(let i=0;i<80;i++)step(.05);
+        delayed=attack.band==='low'&&attack.bandTo==='high'&&hits.length>0&&hits.every(h=>h.band==='low')&&attack.pos.y>groundHeight(attack.pos.x,attack.pos.z);
+        const remaining=attack.bandLeft;groundSetBand([attack],'high');repeat=attack.bandLeft===remaining;
+        for(let i=0;i<20;i++)step(.05);
+        const n=hits.length;for(let i=0;i<25;i++)step(.05);
+        arrived=attack.band==='high'&&!attack.bandTo&&hits.length===n&&attack.fireTarget===null;
+        // W.A.S. は上昇中も地上だけを撃つ。到着後は高の航空を撃つ。
+        attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.band='high';
+        const target=by('vehicle',1);target.pos.copy(at);was.band='ground';was.order={type:'attack',target};was.pos.copy(at);
+        groundSetBand([was],'high'); hits.length=0;
+        for(let i=0;i<80;i++)step(.05);
+        groundToAir=was.band==='ground'&&hits.length>0&&hits.every(h=>h.kind==='was'&&h.band==='ground'&&h.target==='ground');
+        for(let i=0;i<20;i++)step(.05);
+        was.order={type:'attack',target:fighter};was.groundShotT=0;hits.length=0;step(.05);
+        highWas=was.band==='high'&&hits.some(h=>h.kind==='was'&&h.target==='high');
+      }finally{damage=originalDamage;}
+      reset({op:'groundExercise2'});setSpeed(0);
+      const f=fleets.find(f=>f.team===0),t=fleets.find(f=>f.team===1),saved=fleets;
+      const rows=[['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,0,0]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,0]],['attack','high',[0,0,0]],['was','ground',[1,0,0]],['was','low',[1,1,0]],['was','high',[0,1,1]]];
+      let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
+      const original=damage;
+      try{
+        fleets=[f,t];f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.range=20;f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
+        for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
+          f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;
+          let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
+          groundStep(.05);damage=original;
+          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i])>1e-6)bad++;
+          if(expected[i])allowedDamage+=delta;else blockedDamage+=delta;
+          // damage 自体も、無効な段への残った射撃を拒む。
+          if(!expected[i]){original(t,1,f);if(t.hpPool!==hp)bad++;}
+        }
+        // 高さによる距離でなく水平射程。射程外は撃たない。
+        f.groundKind='fighter';f.band='low';t.band='high';t.pos.y=1000;f.groundShotT=0;const hp=t.hpPool;groundStep(.05);
+        const horizontal=t.hpPool<hp;t.pos.x+=21;f.groundShotT=0;const hp2=t.hpPool;groundStep(.05);if(!horizontal||t.hpPool!==hp2)bad++;
+      }finally{damage=original;fleets=saved;}
+      reset({op:'groundExercise2'});setSpeed(0);
+      const plane=fleets.find(f=>f.groundKind==='fighter'), groundWas=fleets.find(f=>f.groundKind==='was');
+      plane.pos.copy(groundPoint(14,22));plane.pos.y=groundUnitHeight(plane);
+      order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)step(.05);
+      const flight=!plane.order&&plane.pos.distanceTo(groundPoint(12,3).add(new THREE.Vector3(0,groundRules().heights.high,0)))<.001;
+      groundWas.pos.copy(plane.pos);groundWas.band='high';const noSeaLanding=!groundSetBand([groundWas],'ground');
+      const rendered=plane.groundModel.children.filter(o=>o.isMesh).length;
+      const logical=plane.band;select(null);
+      document.querySelector('#groundView [data-band="low"]').click();
+      const viewLow=groundView==='low'&&+plane.el.style.opacity===groundRules().dimOpacity&&groundGrids.low.material.opacity>groundGrids.high.material.opacity;
+      document.querySelector('#groundView [data-band="high"]').click();const viewHigh=+plane.el.style.opacity===1;
+      document.querySelector('#groundView [data-band="ground"]').click();const viewGround=+plane.el.style.opacity===groundRules().dimOpacity;
+      document.querySelector('#groundView [data-band="all"]').click();const viewAll=+plane.el.style.opacity===1&&plane.band===logical&&!document.getElementById('alt').hidden;
+      const details=document.getElementById('groundAlt');details.open=false;const fold=!details.open;details.open=true;
+      reset({op:'charybdis'});const space=!document.getElementById('alt').classList.contains('ground-alt')&&document.getElementById('groundAlt').hidden&&!groundVisuals;
+      return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight,noSeaLanding,rendered,viewLow,viewHigh,viewGround,viewAll,fold,space};
+    });
+    check(bands.composition.join(',')==='6,5'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
+    check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
+    check(bands.cases===30&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表30通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
+    check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

@@ -163,7 +163,7 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>${f.name}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>${f.name} / ${GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
   if(f.groundKind){ if(f._labelContent!==f.name){f._labelContent=f.name;nm.textContent=f.name;} return; }
@@ -443,7 +443,7 @@ function reset(cfg=lastCfg){
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
   const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
-  if(op.ground) for(const f of fleets){ f.pos.y=groundHeight(f.pos.x,f.pos.z); f.post.copy(f.pos); f.home.copy(f.pos); for(const s of f.ships){ s.off.y=0; s.pos.copy(f.pos).add(s.off); s.pos.y=groundHeight(s.pos.x,s.pos.z); } f.seen=true; }
+  if(op.ground) groundInit();
   /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
      army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
   if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;

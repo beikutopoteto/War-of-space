@@ -1677,8 +1677,8 @@ WOS_DATA.operations.push((()=>{
   };
 })());
 
-// 地上の移動試験。キャンペーンには出さない。
+// 地上の移動・3段の試験。キャンペーンには出さない。航空は1隊を3機の見た目で表す。
 WOS_DATA.operations.push((()=>{
-  const unit=(name,kind,x,y)=>({name,sub:kind==='infantry'?'歩兵':kind==='scout'?'斥候':'車両',groundKind:kind,type:'cv',n:1,hp:100,dmg:0,range:1,speed:3,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
-  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'地形と通行の試験',brief:'地上部隊を選び、移動先を指定する。',date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'移動演習',win:{type:'ground',text:'地上部隊の移動を試す'},view:{target:[0,0],dist:230,dir:[0,1,1],max:350},quick:[unit('第1 車両隊','vehicle',8,27),unit('第2 歩兵隊','infantry',14,22),unit('第3 斥候隊','scout',11,18)],enemies:[unit('第1 車両隊','vehicle',34,22),unit('第2 歩兵隊','infantry',37,26),unit('第3 車両隊','vehicle',40,12)]};
+  const unit=(name,kind,x,y,band='ground')=>({name,sub:({infantry:'強化歩兵',scout:'斥候',vehicle:'車両',fighter:'戦闘機',attack:'攻撃機',was:'陸戦型 W.A.S.'})[kind],groundKind:kind,band,type:'cv',n:1,hp:100,dmg:kind==='infantry'||kind==='scout'?1:2,range:({infantry:10,scout:7,vehicle:20,fighter:20,attack:15,was:12})[kind],speed:kind==='fighter'?8:kind==='attack'?6:3,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
+  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'地形・通行と3段の高度の試験',brief:'部隊を選び移動先を指定する。左下の「命令」で高度を切り替え、「表示」で注目する段を選ぶ。切り替えは5秒、着くまでは元の段で撃つ。',date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'地上の移動と航空の高度切り替えを試す'},view:{target:[0,0],dist:230,dir:[0,1,1],max:350},quick:[unit('第1 車両隊','vehicle',8,27),unit('第2 歩兵隊','infantry',14,22),unit('第3 斥候隊','scout',11,18),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],enemies:[unit('第1 車両隊','vehicle',34,22),unit('第2 歩兵隊','infantry',37,26),unit('第3 車両隊','vehicle',40,12),unit('第4 戦闘航空隊','fighter',37,26,'high'),unit('第5 攻撃航空隊','attack',31,18,'low')]};
 })());

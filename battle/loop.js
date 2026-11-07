@@ -76,7 +76,7 @@ function frame(now){
   if(skyGrow.length) growSky(clockMin(opClock())/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
   // ships
   for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
-  for(const f of fleets){ if(!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
+  for(const f of fleets){ if(op.ground||!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
       if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][f.shape||s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
@@ -88,6 +88,7 @@ function frame(now){
       o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
+  if(op.ground) groundDraw();
   let trV=0;   // vertices of craft trails written this frame
   for(const w of wings){ if(!w.alive) continue;
     const t=w.state==='attack'?w.target:null, orbit=t&&t.alive&&w.pos.distanceTo(t.pos)<=w.range*.6+(t.radius||0)+3;

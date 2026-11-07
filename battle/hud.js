@@ -31,7 +31,7 @@ function setSel(list,g=null){
   selected=(selGroup?groupFlag(selGroup):null)||(list.includes(selected)?selected:list[0])||null;
   if(!selected) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',list.includes(x)));
   if(selected){ setAlt(selected.order&&selected.order.type==='move'?selected.order.dest.y:selected.pos.y,false); }
-  document.getElementById('alt').hidden=!selected; openSelectedRoster(list); updateRoster(); }
+  document.getElementById('alt').hidden=!op.ground&&!selected; if(op.ground) groundHud(); openSelectedRoster(list); updateRoster(); }
 function select(f){ setSel(f?[f]:[]); }
 /* a fleet that is lost leaves the selection */
 function unselect(f){ if(selected===f||selMulti.includes(f)) setSel(selGroup?groupAlive(selGroup):selMulti,selGroup); }
@@ -45,6 +45,7 @@ function setAltMax(m){ ALT_MAX=m; altTrack.querySelectorAll('.tick').forEach(t=>
   altTrack.setAttribute('aria-valuemin',-ALT_MAX); altTrack.setAttribute('aria-valuemax',ALT_MAX); }
 setAltMax(ALT_MAX);
 function setAlt(v,apply=true){
+  if(op.ground) return;
   selAlt=Math.max(-ALT_MAX,Math.min(ALT_MAX,Math.round(v)))||0;
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
@@ -85,8 +86,9 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
-  if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest,f.groundKind):makePath(f.pos,[...(o.via||[]),o.dest]);
+  if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest,groundMoveKind(f)):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(o.type==='move'&&!o.path){ f.order=null; return; }
+  if(op.ground&&o.type==='move') o.dest=o.path.points[o.path.points.length-1].clone();
   if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
   else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
@@ -107,6 +109,7 @@ function hideGhost(){ ghost.visible=ghostFoot.visible=ghostStalk.visible=false; 
 renderer.domElement.addEventListener('pointermove',e=>{
   if(e.pointerType==='mouse'&&!e.buttons) renderer.domElement.style.cursor=clickable(e.clientX,e.clientY)?'pointer':'';
   if(e.pointerType!=='mouse'||!selected||!selected.alive||over||e.buttons){ hideGhost(); return; }
+  if(op.ground){ hideGhost(); return; }
   ray.setFromCamera({x:e.clientX/W*2-1,y:-(e.clientY/H)*2+1},camera); plane.constant=-selAlt;
   const hit=new THREE.Vector3();
   if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)>REACH){ hideGhost(); return; }

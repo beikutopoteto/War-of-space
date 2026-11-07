@@ -74,8 +74,8 @@ const fGeo=new THREE.BufferGeometry(); fGeo.setAttribute('position',new THREE.Bu
 const feet=new THREE.Points(fGeo,new THREE.PointsMaterial({size:2.2,map:dot,vertexColors:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending})); feet.frustumCulled=false; scene.add(feet);
 function updateStalks(){
   sCol.fill(0); fCol.fill(0); let i=0;
-  const put=(p,c,k)=>{ if(i>=SMAX) return; sPos.set([p.x,p.y,p.z,p.x,0,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,0,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
-  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[colOf(f)],1);
+  const put=(p,c,k)=>{ if(i>=SMAX) return; const y=op.ground?groundHeight(p.x,p.z):0; sPos.set([p.x,p.y,p.z,p.x,y,p.z],i*6); sCol.set([c.r*k,c.g*k,c.b*k,c.r*k*.25,c.g*k*.25,c.b*k*.25],i*6); fPos.set([p.x,y,p.z],i*3); fCol.set([c.r*k,c.g*k,c.b*k],i*3); i++; };
+  for(const f of fleets){ if(!f.alive||!shown(f)) continue; put(f.pos,TEAM_COL[colOf(f)],op.ground&&groundView!=='all'&&groundView!==f.band?groundRules().dimOpacity:1);
     if(f.team===0&&!f.ally&&f.order&&f.order.type==='move') pathLeft(f.order).forEach(p=>put(p,TEAM_COL[0],.6));
     if(f.team===0&&!f.ally) f.queue.forEach(o=>{ if(o.type==='move') pathLeft(o).forEach(p=>put(p,TEAM_COL[0],.4)); }); }
   sGeo.attributes.position.needsUpdate=sGeo.attributes.color.needsUpdate=true;
