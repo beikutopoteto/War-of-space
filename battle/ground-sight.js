@@ -22,7 +22,7 @@ function groundEye(f){
   return {x:f.pos.x,z:f.pos.z,y:groundHeight(f.pos.x,f.pos.z)+(groundRules().heights[f.band||'ground']||0)+groundSightRules().eyeHeight};
 }
 function groundSightRange(f){
-  const r=groundSightRules(), base=r[f.groundKind]??r.basic;
+  const r=groundSightRules(), base=r[f.groundKind==='droneHive'?'scout':f.groundKind]??r.basic;
   return base*(1+r.heightGain*Math.min(1,Math.max(0,groundHeight(f.pos.x,f.pos.z))/r.heightForMax));
 }
 function groundConcealment(f){

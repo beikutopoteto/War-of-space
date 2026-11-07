@@ -13,6 +13,11 @@ window.WOS_TERRAIN.exercise2 = {
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
     heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4},
+    commando:{name:'強化コマンド歩兵',speed:2.5,range:10,hp:40,dmg:2},
+    guidedRocket:{name:'精密誘導ロケット兵',speed:1.5,range:30,hp:40,dmg:4,permissionOnly:true},
+    droneHive:{name:'ドローンハイブ',speed:4,range:12,hp:20,dmg:2,permissionOnly:true},
+    mechanicalAssault:{name:'機械化突撃兵',speed:3,range:10,hp:40,dmg:3,permissionOnly:true},
+    mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:60,dmg:4},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:100,dmg:5},
     scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
     apc:{name:'装甲兵員輸送車',speed:4,range:8,hp:60,dmg:1},
@@ -23,7 +28,7 @@ window.WOS_TERRAIN.exercise2 = {
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16},
     was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2}
   },
-  combat: { tankInfantry:2, heavyTank:3 },
+  combat: { tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
   capture: { seconds:30, radiusKm:2, roadWidthKm:1.25 },
   movement: { marsh: { vehicle: 0.3, infantry: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,

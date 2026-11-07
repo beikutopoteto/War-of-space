@@ -408,7 +408,7 @@ function updateRoster(){
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
     f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
-    if(f.stBtn){ f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.disabled=!f.alive; }
+    if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit; }
   });
   if(tipFleet) fillTip();
   const nb=document.getElementById('newGrp'); if(nb){ nb.disabled=!t.length||!!selGroup; nb.nextSibling.textContent=t.length&&!selGroup?`${t.length}隊で戦区軍を作る`:''; }

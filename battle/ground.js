@@ -47,8 +47,9 @@ function groundUpdateRoster(targets){
   for(const {level,item,pick} of groundRosterNodes){const m=groundMembers(level,item.id);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
 }
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
-function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
-function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind==='artillery'?'vehicle':f.groundKind):'air'; }
+function groundBands(f){ return f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
+function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':['artillery','guidedRocket','mobileAA'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
+function groundPermissionOnly(f){ return !!WOS_TERRAIN[op.ground].unitTypes[f.groundKind]?.permissionOnly; }
 function groundUnitHeight(f){
   const h=groundRules().heights, from=h[f.band||'ground'];
   return groundHeight(f.pos.x,f.pos.z)+(f.bandTo?from+(h[f.bandTo]-from)*(1-f.bandLeft/groundRules().transitionSec):from);
@@ -56,13 +57,15 @@ function groundUnitHeight(f){
 // 直接射撃の表（設計案3）。地点攻撃は ground-strike.js で別判定。
 function groundFireFactor(f,t){
   const band=f.band||'ground', target=t.band||'ground', weak=groundRules().weakFire;
-  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},scout:{ground:1},vehicle:{ground:1},apc:{ground:1},engineer:{ground:1},
+  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1,low:1,high:1},droneHive:{ground:1,low:weak},mechanicalAssault:{ground:1},mobileAA:{ground:weak,low:1,high:1},scout:{ground:1},vehicle:{ground:1},apc:{ground:1},engineer:{ground:1},
     fighter:{low:1,high:1},attack:band==='low'?{ground:1,low:1,sea:1}:{},
     was:band==='high'?{low:1,high:1}:band==='low'?{ground:1,low:1}:{ground:1}}[f.groundKind];
   return row&&row[target]||0;
 }
 function groundDistanceTo(f,t){ return Math.hypot(f.pos.x-t.pos.x,f.pos.z-t.pos.z); }
-function groundCanFire(f,t){ return f.alive&&t.alive&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t); }
+function groundCanFire(f,t){ return (!groundPermissionOnly(f)||f.order?.type==='attack'&&f.order.target===t)&&groundFireSolution(f,t); }
+// AI の目標指定も、射程・共有視界・遮蔽の同じ規則で候補を調べる。
+function groundFireSolution(f,t){ return f.alive&&t.alive&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t); }
 function groundLandable(f){ return groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&!f.embarked&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
@@ -172,6 +175,9 @@ function groundStep(dt){
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.embarked) continue;
+    if(f.groundKind==='mechanicalAssault'){
+      groundMechanicalWear(f,dt); if(!f.alive)continue;
+    }
     if(f.bandTo){
       f.bandLeft=Math.max(0,f.bandLeft-dt);
       if(f.bandLeft<1e-8){
@@ -187,6 +193,10 @@ function groundStep(dt){
     if(f.groundKind==='was') f.speed= WOS_TERRAIN[op.ground].unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
     f.pos.y=groundUnitHeight(f);
     if(f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+    if(f.team===1&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
+      const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
+      if(allowed)order(f,{type:'attack',target:allowed});
+    }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     else if(target&&groundFireFactor(f,target)>0&&groundDistanceTo(f,target)>f.range*.8){
@@ -216,8 +226,26 @@ function groundStep(dt){
 
 function groundMatchup(f,t){
   const c=WOS_TERRAIN[op.ground].combat;
-  return f.groundKind==='vehicle'&&t.groundKind==='infantry'?c.tankInfantry:
+  return f.groundKind==='guidedRocket'?(t.groundKind==='vehicle'?c.rocketTank:['low','high'].includes(t.band)?c.rocketAir:1):
+    f.groundKind==='mobileAA'&&['low','high'].includes(t.band)?c.mobileAAAir:
+    f.groundKind==='vehicle'&&['infantry','commando'].includes(t.groundKind)?c.tankInfantry:
     f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
+}
+function groundDamageFactor(t){
+  if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return 1;
+  const c=WOS_TERRAIN[op.ground].combat,m=c.urbanMargin;
+  const cover=groundForests.some(p=>Math.hypot(t.pos.x-p.x,t.pos.z-p.z)<=p.r)||groundBuildings.some(b=>t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
+  return cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1;
+}
+function groundMechanicalWear(f,dt){
+  f.hpPool=Math.max(0,f.hpPool-(f.groundMaxHp||f.n*f.hp)*WOS_TERRAIN[op.ground].combat.mechanicalWearPerSec*dt);
+  const want=Math.max(0,Math.ceil(f.hpPool/f.hp));
+  while(f.ships.length>want)f.ships.pop();
+  if(!want){
+    // 人間の小隊長の損害とは分け、機械部の稼働終了として扱う。
+    groundTransportDestroyed(f,f);groundClearOrders(f);f.alive=false;f.el.remove();unselect(f);
+    logEvent(`${f.name} 稼働終了`,'機械部の消耗により、この中隊は行動を終了しました。');
+  }
 }
 // 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
 let groundSites=[], groundTerritory=null;
