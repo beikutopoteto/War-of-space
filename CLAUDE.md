@@ -30,19 +30,20 @@
 | `docs/history.md` | これまでの経緯（日ごと）、ユーザーの判断の一覧（経緯を確かめたいときだけ） |
 | `docs/campaign.md` | キャンペーンの作戦の表、各節の実装メモ |
 | `docs/chapter1.md` | 第一章の物語の正本 |
+| `docs/riko.md` | リコ軍曹の話し方と考え方（台詞の前に読む） |
 | `docs/story.md` | 世界設定（年表、D-RAMS、居住区の重さ、W.A.S.、拠点と資源衛星、火星、勢力、戦争の暦） |
 | `docs/tutorial.md` | チュートリアル（カリュブディス）の計画 |
 | `docs/maps.md` | 天体とマップの作り方（衛星の形、岩くずの雲、民間区画、地表の砲台、段階のある作戦の部品、`tools/` の確かめ方、ユーザーの好み） |
 | `docs/code.md` | コードの構成（ファイルの役割、`battle/` の読み込み順、保存、画面のつながり、艦隊の仕様の形式、確認） |
 | `docs/reports/` | Codex の評価・価格の見積もり、監査の報告 |
-| `docs/plans/` | 作戦の布陣とブリーフィングの図（`.png` と、作り方の `.py`） |
+| `docs/plans/` | 作戦の布陣とブリーフィングの図（`.png` と `.py`） |
 
 ## ファイルと動かし方（詳しくは `docs/code.md`）
 - ビルド不要。`file://` でも動くよう ES モジュールでなく普通の `<script>` で読む。Three.js r128（新しい API はない）、CDN は cdnjs と jsdelivr の `three@0.128.0`。
 - `index.html` は骨組みだけ。`data/` はゲームのデータ（`window.WOS_DATA`、数値や作戦はここだけ直す）。`battle/` は戦闘画面（外側の名前をファイル間で共有）。`prep.js` / `prep.css` はタイトル〜出撃〜艦隊編集〜技術ツリー。
 - 保存は localStorage の `wos.save.v1`。形式を変えたら `migrate()` で古いデータを直す。
 - 確認: `npm install` のあと `npm test`（ヘッドレス Chromium）と `npm run check-docs`。PR ごとに GitHub Actions でも走る。
-- 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（ユーザーだけが開ける非公開ページ。GitHub Pages は公開になるので使わない）。
+- 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（非公開。GitHub Pages は公開になるので使わない）。
 
 ## いつも守ること
 - 版権の名前は使わない。自軍「地球連合」（青）、敵「惑星共和国（アストラルリパブリック）」（赤）、要塞「カリュブディス」。「W.A.S.」を使い「M.A.S.」は使わない。
