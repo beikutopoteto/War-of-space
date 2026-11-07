@@ -1679,6 +1679,6 @@ WOS_DATA.operations.push((()=>{
 
 // 地上の移動試験。キャンペーンには出さない。
 WOS_DATA.operations.push((()=>{
-  const unit=(name,kind,x,y)=>({name,sub:kind==='infantry'?'歩兵':'車両',groundKind:kind,type:'cv',n:1,hp:100,dmg:0,range:1,speed:3,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
-  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'地形と通行の試験',brief:'地上部隊を選び、移動先を指定する。',date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'移動演習',win:{type:'ground',text:'地上部隊の移動を試す'},view:{target:[0,0],dist:230,dir:[0,1,1],max:350},quick:[unit('第1 車両隊','vehicle',8,27),unit('第2 歩兵隊','infantry',14,22),unit('第3 車両隊','vehicle',11,18)],enemies:[unit('第1 車両隊','vehicle',34,22),unit('第2 歩兵隊','infantry',37,26),unit('第3 車両隊','vehicle',40,12)]};
+  const unit=(name,kind,x,y)=>({name,sub:kind==='infantry'?'歩兵':kind==='scout'?'斥候':'車両',groundKind:kind,type:'cv',n:1,hp:100,dmg:0,range:1,speed:3,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
+  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'地形と通行の試験',brief:'地上部隊を選び、移動先を指定する。',date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'移動演習',win:{type:'ground',text:'地上部隊の移動を試す'},view:{target:[0,0],dist:230,dir:[0,1,1],max:350},quick:[unit('第1 車両隊','vehicle',8,27),unit('第2 歩兵隊','infantry',14,22),unit('第3 斥候隊','scout',11,18)],enemies:[unit('第1 車両隊','vehicle',34,22),unit('第2 歩兵隊','infantry',37,26),unit('第3 車両隊','vehicle',40,12)]};
 })());
