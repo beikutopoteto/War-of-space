@@ -280,7 +280,8 @@ document.querySelectorAll('#groundUnload').forEach(b=>b.addEventListener('click'
 document.querySelectorAll('#groundLand').forEach(b=>b.addEventListener('click',()=>groundLandCommand(orderTargets())));
 document.querySelectorAll('#groundBridge').forEach(b=>b.addEventListener('click',()=>groundWorkToggle('bridge')));
 function groundTransportReset(){
-  for(const f of fleets){f.groundUnloading=null;groundLandingDropVisual(f);}
+  // 初回 reset は部隊を作る前にここへ来る。
+  for(const f of fleets||[]){f.groundUnloading=null;groundLandingDropVisual(f);}
   groundBridges.forEach(groundBridgeDropVisual);groundBridges=[];groundBridgeRevision=0;groundWorkAiming=null;groundTransportMessage='';
 }
 function groundTransportDraw(){

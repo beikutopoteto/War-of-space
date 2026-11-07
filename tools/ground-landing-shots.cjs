@@ -12,7 +12,7 @@ const {setupLandingScene}=require('../tests/ground-landing.cjs');
   const {browser,page,errors}=await openGame({width:1600,height:900});
   try{
     await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');
-    await page.waitForFunction(()=>window.WOS&&typeof groundVisuals!=='undefined'&&groundVisuals);
+    await page.waitForFunction(()=>typeof groundVisuals!=='undefined'&&groundVisuals);
     await page.evaluate(setupLandingScene);
     const draw=async(x,y,dist)=>{
       await page.evaluate(({x,y,dist})=>{

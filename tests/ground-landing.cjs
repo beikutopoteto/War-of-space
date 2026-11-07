@@ -133,7 +133,14 @@ function nodeChecks(){
   run(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')));
   run(sim.slice(sim.indexOf('function nextOrder('),sim.indexOf('function followPath(')));
   ctx.followPath=(f,dt)=>run('groundFollow')(f,dt);
-  const results=run(`(${landingCases.toString()})()`);
+  // 初回 reset は fleets の生成前に groundSetup → groundConfigure を呼ぶ（宇宙でも地上でも）。
+  ctx.document.getElementById=()=>({classList:{toggle(){}},hidden:false});
+  const results=run(`[false,true].map(active=>{
+    fleets=undefined;groundConfigure(active);
+    return {name:(active?'地上':'宇宙')+'の初回初期化は部隊生成前でも例外なし',ok:fleets===undefined&&groundVisuals===null};
+  })`);
+  run('fleets=[]');
+  results.push(...run(`(${landingCases.toString()})()`));
   Object.assign(ctx,{labelsEl:{appendChild(){}},proj:p=>({x:p.x,y:p.z,z:0}),SHIP_SIZE:Object.fromEntries(ctx.WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]))});
   ctx.TEAM_COL=['blue','red'].map(c=>new ctx.THREE.Color(c));
   results.push(...run(`(()=>{
