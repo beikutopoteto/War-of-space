@@ -57,6 +57,7 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 第4節の警戒の隊と収容（2026-10-30、#240・#242）: 撤退の基準 `alliesAtLand`（着陸か警戒の隊の全滅の時点の本軍の隻数。`alliesLost`）、警戒の隊 `carrier.patrol`（`stepPatrol`・`finishPatrol`、狩る側は `patrolHunter` と `patrolHunting`）、収容の曲線 `rate`・`rateDecay`（`boardingTotal`、積分で計算）、2つ目の波は1つ目のあと（`stepLastWave`）。第4節と第6節の砲台は `WOS_DATA.denaliGun`（`data/operations.js` の先頭）。
 
 ## 確認
+- 文字が欄に収まるかは、要素のスクリーンショットの見た目でなく、`document.createRange()` で文字の範囲を測って、欄の右端と比べる（2026-11-07: 撮った画像の端で「集中特化ドクトリン」が切れて見えたが、測ると収まっていた。行が高かったのは効果の文の折り返し）。準備画面の関数は外から呼べない（`prep.js` は包まれている）ので、編成画面は鍵のボタンの `disabled` を外して押して開く。
 - メニューの画面は CSS の `zoom` で拡大・縮小する（`prep.css` の `--k`、タイトル以外はさらに 1.12 倍。`prep.js` `fitMenu`、#291）。`zoom` の中では `100vh` も縮むので、画面の高さに合わせるときは `zoom` の値で割る。`getBoundingClientRect()` は縮んだあとの大きさなので、`style.left/top` に入れるときも割り戻す（2026-11-05 #296: 技術ツリーの箱が画面の下まで届かず、ウィンドウが左上にずれた）。
 - 新しい保存では、チュートリアルを終えるまでほかの作戦は鍵（#320）。準備画面から作戦を開く確かめは、デバッグの「一節だけクリア」を最初に押して飛ばすか、`WOS.start({op})` で直接始める。`prep.js` は即時関数の中なので、`show`・`prog` などは `page.evaluate` から呼べない（2026-11-05 に `show is not defined` で落ちた）。画面のボタンか `WOS_MENU` を使う。
 - 戦闘画面の HUD は `.hud` の CSS の `zoom`（`--uis`）で拡大縮小する。画面の座標（`getBoundingClientRect()`・`proj()`）で置く物（チュートリアルの光る枠など）は `zoom:1` にして拡大させない（2026-11-05 #318: 1.2倍の画面で枠がずれた）。
