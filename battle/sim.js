@@ -105,6 +105,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
+  if(op.ground&&src&&groundFireFactor(src,t)===0) return;
   if(tutorialProtected()&&src&&src.team===1&&t.team===0) return;
   tutorialDamage(t,amt,src);
   if(!t.alive) return;
@@ -2382,7 +2383,7 @@ function detailPlan(all){
 }
 
 function step(dt){
-  if(op.ground){ gameSec+=dt; for(const f of fleets){ if(f.alive&&f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); } } return; }
+  if(op.ground){ gameSec+=dt; groundStep(dt); return; }
   gameSec+=dt; if(tutorialHolding()) clockHeld+=dt; tutorialTick();
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   /* nothing more comes once the enemy falls back (stepRepel) */

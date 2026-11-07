@@ -499,3 +499,18 @@ body.nolabels .fleet-label .nm{display:none}
 .ground-label .mk2 .mk{width:20px;height:14px}
 .ground-label .mk2 em{font-family:var(--f-ui);font-size:11px;font-weight:600}
 .ground-label .nm{display:none!important}
+
+/* 地上作戦だけの3段。宇宙の連続バーは元の配置。 */
+#alt.ground-alt{width:226px;box-sizing:border-box;justify-items:stretch}
+#alt.ground-alt>#altUp,#alt.ground-alt>#altDn,#alt.ground-alt>#altTrack,#alt.ground-alt>#altVal{display:none}
+#groundAlt{font-size:11px;line-height:1.7}
+#groundAlt summary{cursor:pointer;color:var(--blue)}
+#groundSelected{font-size:10px;color:var(--ink-dim)}
+#groundBandStatus{font-size:10px;color:var(--brass);min-height:1.7em}
+#groundAlt .band-buttons{display:flex;gap:4px;margin:3px 0 6px}
+#groundAlt button{flex:1;width:auto;height:26px;font-size:12px}
+#groundAlt button[aria-pressed="true"]{color:var(--void);background:var(--blue)}
+#groundAlt button:disabled{opacity:.3;cursor:default}
+#alt.ground-alt #stance{display:flex;gap:4px}
+#alt.ground-alt #stance button{flex:1;width:auto;font-size:10px}
+#alt.ground-alt ~ #camSticks{left:258px}
