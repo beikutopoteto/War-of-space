@@ -193,6 +193,9 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  if(op.ground&&groundStrikeAiming){
+    const hit=groundAt(x,y); if(hit) groundStrikeCommand(orderTargets(),hit); return;
+  }
   const found=pick(x,y), best=labelTarget&&shown(labelTarget)&&!labelTarget.ward?labelTarget:found.best, fort=labelTarget?false:found.fort;
   if(labelEnemy) labelEnemy.el.classList.remove('label-picked');
   labelEnemy=best&&best.team===1?best:null; if(labelEnemy) labelEnemy.el.classList.add('label-picked');
@@ -314,7 +317,8 @@ addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.pre
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ openPause(); return; }
+  if(e.code==='Escape'){ if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
+  if(e.code==='KeyB'&&op.ground&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); groundStrikeToggle(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }
   if(e.code==='KeyG'){ cycleGroup(); return; }

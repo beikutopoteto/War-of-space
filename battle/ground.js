@@ -48,12 +48,12 @@ function groundUpdateRoster(targets){
 }
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
 function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
-function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind):'air'; }
+function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind==='artillery'?'vehicle':f.groundKind):'air'; }
 function groundUnitHeight(f){
   const h=groundRules().heights, from=h[f.band||'ground'];
   return groundHeight(f.pos.x,f.pos.z)+(f.bandTo?from+(h[f.bandTo]-from)*(1-f.bandLeft/groundRules().transitionSec):from);
 }
-// 直接射撃の表（設計案3）。地点攻撃・海軍はこの試作には含めない。
+// 直接射撃の表（設計案3）。地点攻撃は ground-strike.js で別判定。
 function groundFireFactor(f,t){
   const band=f.band||'ground', target=t.band||'ground', weak=groundRules().weakFire;
   const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},scout:{ground:1},vehicle:{ground:1},
@@ -75,6 +75,7 @@ function groundSetBand(list,band){
 }
 function groundHud(){
   const list=orderTargets(), panel=document.getElementById('alt'); panel.hidden=false;
+  groundStrikeHud(list);
   document.getElementById('groundSelected').textContent=list.length===1?list[0].name:list.length?`${list.length}隊`:'部隊を選択';
   document.querySelectorAll('#groundCommand button').forEach(b=>{
     const band=b.dataset.band;
@@ -90,6 +91,7 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
+  groundStrikeReset();
   groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
   groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
   document.getElementById('alt').classList.toggle('ground-alt',active);
@@ -98,6 +100,7 @@ function groundConfigure(active){
 }
 document.querySelectorAll('#groundCommand button').forEach(b=>b.addEventListener('click',()=>groundSetBand(orderTargets(),b.dataset.band)));
 document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('click',()=>groundSetView(b.dataset.band)));
+document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
 function groundInit(){
   groundVisuals=new THREE.Group(); groundVisuals.scale.setScalar(1/GROUND_SCALE); groundBoard.add(groundVisuals);
   for(const f of fleets){
@@ -159,9 +162,11 @@ function groundDraw(){
   }
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
   groundFogDraw(); groundCaptureDraw(); groundHud();
+  groundStrikeDraw();
 }
 function groundStep(dt){
   if(over) return;
+  groundStrikeStep(dt);
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive) continue;
@@ -196,6 +201,7 @@ function groundStep(dt){
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
+    if(f.team===1&&f.groundKind==='artillery'&&f.stance!=='evade') groundStrikeAI(f);
     if(f.fireTarget&&f.groundShotT===0){
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
       damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget),f);

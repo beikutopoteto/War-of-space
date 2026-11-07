@@ -59,6 +59,8 @@
     <div>命令 <span id="groundSelected">部隊を選択</span></div>
     <div class="band-buttons" id="groundCommand" role="group" aria-label="選択部隊の高度"><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
     <div id="groundBandStatus" aria-live="polite"></div>
+    <div class="band-buttons"><button id="groundStrike" aria-pressed="false">地点攻撃 [B]</button></div>
+    <div id="groundStrikeStatus" aria-live="polite"></div>
     <div>表示</div><div class="band-buttons" id="groundView" role="group" aria-label="高度の表示"><button data-band="all" aria-pressed="true">全部</button><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
   </details>
   <button id="altUp" aria-label="高度を上げる">▲</button>
@@ -128,6 +130,7 @@
 <script src="battle/hud.js"></script>
 <script src="battle/sim.js"></script>
 <script src="battle/ground-sight.js"></script>
+<script src="battle/ground-strike.js"></script>
 <script src="battle/ground.js"></script>
 <script src="battle/cut.js"></script>
 <script src="battle/tutorial.js"></script>

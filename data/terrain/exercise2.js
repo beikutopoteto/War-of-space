@@ -4,15 +4,18 @@ window.WOS_TERRAIN.exercise2 = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
+  // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
+  strike: { artillery:{delay:5,radius:7,spread:2,reload:8}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
     heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:100,dmg:5},
     scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
+    artillery:{name:'自走砲',speed:2.5,range:45,hp:40,dmg:12},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2},
-    supportAircraft:{name:'広域戦略支援航空機',speed:5,range:0,hp:20,dmg:0},
+    supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16},
     was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2}
   },
   combat: { tankInfantry:2, heavyTank:3 },
