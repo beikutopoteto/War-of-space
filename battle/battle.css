@@ -325,6 +325,12 @@ body.dbg-battle #pause .pbtns .dbg{display:block}
 #roster button:focus-visible,#roster select:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
 #roster .rzone,#roster .rnew{display:grid;grid-template-columns:30px minmax(0,1fr);gap:4px;align-items:start;border:1px dashed transparent}
 #roster .rzone.drop{border-color:var(--brass);background:rgba(226,197,138,.08)}
+#roster.ground-roster{width:254px}
+#roster .ground-rnode{display:grid;gap:3px}
+#roster .ground-rhead{grid-template-columns:25px minmax(0,1fr)}
+#roster.ground-roster .ground-rhead .grpBtn{grid-column:auto}
+#roster .ground-fold{background:rgba(8,14,26,.7);padding:3px}
+#roster .ground-rbody{display:grid;gap:4px;padding-left:10px;border-left:1px solid var(--line)}
 #roster .gtab{display:grid;place-items:center;width:30px;min-height:34px;padding:5px 0;background:rgba(8,14,26,.7);color:var(--ink-dim);
   font-family:var(--f-num);clip-path:polygon(0 6px,100% 0,100% 100%,0 calc(100% - 6px));backdrop-filter:blur(6px)}
 #roster .gtab b{font-size:13px;font-weight:600;line-height:1} #roster .gtab small{font-size:9.5px;line-height:1.2}

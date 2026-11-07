@@ -1,6 +1,51 @@
 /* 地上作戦だけの高度・射撃・表示。宇宙の移動と射撃は sim.js の既存処理を使う。 */
 const GROUND_BAND_NAMES={ground:'地上',low:'低',high:'高'};
 let groundView='all', groundVisuals=null, groundGrids={};
+let groundOrg=null, groundRosterNodes=[];
+function groundInitOrg(org){
+  groundOrg=org||{companies:fleets.filter(f=>f.team===0).map(f=>({id:'unit'+f.id,name:f.name,kind:f.groundKind})),battalions:[],brigades:[]};
+  const mine=fleets.filter(f=>f.team===0);
+  mine.forEach((f,i)=>f.companyId=groundOrg.companies[i].id);
+  groundRosterNodes=[];
+}
+function groundMembers(level,id){
+  const org=groundOrg, item=org&&org[level].find(x=>x.id===id); if(!item) return [];
+  const ids=level==='companies'?[id]:level==='battalions'?item.companies:
+    item.battalions.flatMap(id=>org.battalions.find(b=>b.id===id)?.companies||[]);
+  return fleets.filter(f=>f.team===0&&!f.ward&&f.alive&&ids.includes(f.companyId));
+}
+function groundSelectUnit(level,id){ const list=groundMembers(level,id); if(list.length) setSel(list); }
+function groundBuildRoster(mk){
+  groundRosterNodes=[];fleets.forEach(f=>{f.btn=null;f.stBtn=null;});
+  const branch=(level,item,parent)=>{
+    const node=document.createElement('div'); node.className='ground-rnode';node.dataset.level=level;node.dataset.id=item.id;
+    const head=document.createElement('div');head.className='ground-rhead ghead';
+    const fold=document.createElement('button');fold.className='ground-fold';fold.textContent=item.open===false?'＋':'−';fold.setAttribute('aria-expanded',String(item.open!==false));fold.setAttribute('aria-label',item.name+'を開閉');
+    fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
+    const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
+    head.append(fold,pick);node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick});
+    if(item.open===false)return;
+    const body=document.createElement('div');body.className='ground-rbody';node.append(body);
+    if(level==='brigades')item.battalions.forEach(id=>{const b=groundOrg.battalions.find(b=>b.id===id);if(b)branch('battalions',b,body);});
+    else companies(item.companies,body);
+  };
+  const companies=(ids,parent)=>{
+    const tiles=document.createElement('div');tiles.className='tiles';parent.append(tiles);
+    for(const id of ids){const f=fleets.find(f=>f.team===0&&f.companyId===id);if(f)tiles.append(mk(f));}
+  };
+  groundOrg.brigades.forEach(b=>branch('brigades',b,rosterEl));
+  groundOrg.battalions.filter(b=>!groundOrg.brigades.some(p=>p.battalions.includes(b.id))).forEach(b=>branch('battalions',b,rosterEl));
+  const free=groundOrg.companies.filter(c=>!groundOrg.battalions.some(b=>b.companies.includes(c.id)));
+  if(free.length){const title=document.createElement('small');title.textContent='独立中隊';rosterEl.append(title);companies(free.map(c=>c.id),rosterEl);}
+}
+function groundOpenSelected(list){
+  let changed=false;
+  const open=(items,level)=>items.forEach(item=>{if(item.open===false&&groundMembers(level,item.id).some(f=>list.includes(f))){item.open=true;changed=true;}});
+  open(groundOrg.brigades,'brigades');open(groundOrg.battalions,'battalions');if(changed)buildRoster();
+}
+function groundUpdateRoster(targets){
+  for(const {level,item,pick} of groundRosterNodes){const m=groundMembers(level,item.id);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
+}
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
 function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind):'air'; }
@@ -57,6 +102,14 @@ function groundInit(){
   groundVisuals=new THREE.Group(); groundVisuals.scale.setScalar(1/GROUND_SCALE); groundBoard.add(groundVisuals);
   for(const f of fleets){
     f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
+    // 兵科変更・追加で元の配置が通れなくなった時は、同じ出発点付近の通行可能なセルへ置く。
+    if(!groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,groundMoveKind(f))){
+      const size=WOS_TERRAIN[op.ground].meta.cellKm;let best=null,dist=Infinity;
+      for(let y=size/2;y<36;y+=size)for(let x=size/2;x<48;x+=size){
+        if(!groundPass(x,y,groundMoveKind(f)))continue;const p=groundPoint(x,y),d=p.distanceToSquared(f.pos);if(d<dist){best=p;dist=d;}
+      }
+      if(best)f.pos.copy(best);
+    }
     f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=true;
     for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);

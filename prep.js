@@ -35,6 +35,7 @@ const GROUP_COLORS=['#7fc8ff','#8fe8c0','#f0d27a','#c9a7ff','#ff9fc2'];
 
 /* ---------- save data ---------- */
 const KEY='wos.save.v1';
+const GROUND=window.WOS_GROUND_ORG;
 function defaults(){
   return {
     seq: 100,
@@ -58,6 +59,7 @@ function defaults(){
       {id:'g1', name:'第2 ネオ信濃駐屯 戦区軍', sync:true, members:[
         {army:'a2', x:1, y:3, z:2}, {army:'a3', x:3, y:1, z:2}, {army:'a4', x:2, y:2, z:1}, {army:'a5', x:2, y:3, z:3}]},
     ],
+    groundOrg: GROUND.defaults(),
     prog: newProg(),
   };
 }
@@ -70,7 +72,7 @@ const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘�
 const OLD_NAMES={'第41巡洋戦隊':'第9 前衛巡洋 支隊','第11哨戒戦隊':'第12 沿岸哨戒 支隊','第21護衛戦隊':'第18 護送護衛 支隊',
   '第31駆逐戦隊':'第24 駆逐突撃 支隊','第22護衛戦隊':'第19 護送護衛 支隊','ネオ信濃駐屯隊':'第2 ネオ信濃駐屯 戦区軍'};
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
-function migrate(s){ s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
+function migrate(s){ s.groundOrg=GROUND.normalize(s.groundOrg); s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
   /* the first starting fleet (battleships, carriers, W.A.S.) is replaced by the new one while the player has not changed it */
   if(JSON.stringify(s.bgs.map(b=>[b.id,b.name,b.type,b.count]))===OLD_BGS&&s.armies.length===3&&s.groups.length===1){
     const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
@@ -244,6 +246,7 @@ const MENU_SCALE=.93;
 function fitMenu(){ menu.style.setProperty('--k',(MENU_SCALE*Math.min(innerWidth/1600,innerHeight/900)).toFixed(4)); }
 addEventListener('resize',fitMenu); fitMenu();
 let orgPop=null, orgFromForces=false, sortieInitialized=false;
+let orgForce='space', groundTab='brigades', selGround=null;
 let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=CAMP[0].id, confirmDel=null;
 
 function show(s){ if(screen==='forces'&&s!=='forces') WOS_DOCK.close(); screen=s; confirmDel=null; render(); menu.scrollTop=0; }
@@ -258,7 +261,7 @@ function render(){
   if(screen==='title') renderTitle();
   if(screen==='tech') renderTech();
   if(screen==='opt') renderOpt();
-  preview.active=(screen==='org'&&tab==='group');
+  preview.active=(screen==='org'&&orgForce==='space'&&tab==='group');
 }
 
 menu.innerHTML=`
@@ -305,7 +308,8 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="org" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>FLEET</b><span>艦隊編集</span></h2>
-    <div class="tabs stabs" role="tablist">
+    <div class="tabs stabs" role="tablist" aria-label="軍種" id="orgForceTabs"><button role="tab" data-org-force="space">宇宙軍</button><button role="tab" data-org-force="ground">地上軍</button></div>
+    <div class="tabs stabs" role="tablist" id="orgUnitTabs">
       <button role="tab" data-tab="group">戦区軍</button><button role="tab" data-tab="army">打撃群</button>
     </div>
   </header>
@@ -330,6 +334,8 @@ menu.innerHTML=`
 
 menu.addEventListener('click',e=>{
   const go=e.target.closest('[data-go]'); if(go){ if(go.dataset.go==='org') orgFromForces=screen==='forces'; if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go); return; }
+  const force=e.target.closest('[data-org-force]'); if(force){ orgForce=force.dataset.orgForce; confirmDel=null; render(); return; }
+  const gt=e.target.closest('[data-ground-tab]'); if(gt){ groundTab=gt.dataset.groundTab; selGround=null; confirmDel=null; render(); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
 });
 
@@ -338,9 +344,9 @@ menu.addEventListener('click',e=>{
 const PREP=D.prepTutorial, CRUISER=()=>BRANCHES.find(b=>b.id==='cruiser');
 const prepG=()=>save.groups.find(x=>x.id==='g1');
 const PREP_DONE={
-  org:()=>screen==='org',
-  army:()=>screen==='org'&&tab==='army'&&selArmy==='a1',
-  group:()=>screen==='org'&&tab==='group',
+  org:()=>screen==='org'&&orgForce==='space',
+  army:()=>screen==='org'&&orgForce==='space'&&tab==='army'&&selArmy==='a1',
+  group:()=>screen==='org'&&orgForce==='space'&&tab==='group',
   placed:()=>prepG().members.some(m=>m.army==='a1'),
   flag:()=>prepG().members[flagIndex(prepG())]?.army==='a1',
   tech:()=>screen==='tech',
@@ -454,7 +460,7 @@ function renderDebug(){
     if(a==='tech') BRANCHES.forEach(br=>{ if(br.need) P.flags[br.need]=true; P.tech[br.id]=TREE.map(n=>n.id); });
     /* back to the start: the progress and the fleets (battle groups, armies, army groups) as a new save has them (user decision 2026-10-04) */
     if(a==='reset'){ if(!dbgConfirm){ dbgConfirm=true; renderDebug(); return; } dbgConfirm=false;
-      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,prog:newProg()}); selBg=selArmy=selGroup=null; sortieGroups=[]; sortieInitialized=false; }
+      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,groundOrg:d.groundOrg,prog:newProg()}); selBg=selArmy=selGroup=selGround=null; sortieGroups=[]; sortieInitialized=false; }
     persist(); renderTitle(); });
 }
 document.addEventListener('click',e=>{ if(e.target.closest('#dbgT')){ dbgOpen=!dbgOpen; dbgConfirm=false; renderDebug(); } });
@@ -623,9 +629,9 @@ function renderSortie(){
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:op.id}); } };
-  document.getElementById('fixedNote').textContent=fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
+  document.getElementById('fixedNote').textContent=op.ground?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
   const btn=document.getElementById('goBattle'); btn.disabled=false;
-  btn.onclick=()=>{ if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
+  btn.onclick=()=>{ if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
 function renderForces(){
   const op=OPS.find(o=>o.id===sortieOp), load=document.getElementById('sgLoad'); load.innerHTML='';
@@ -700,10 +706,55 @@ function updateOrgCap(){
 }
 function renderOrg(){
   document.querySelector('[data-s=org] .back').textContent=orgFromForces?'← 出撃の準備へ':'← メニュー';
+  menu.querySelectorAll('[data-org-force]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.orgForce===orgForce)));
+  document.getElementById('orgUnitTabs').innerHTML=orgForce==='ground'?
+    Object.entries(GROUND_LEVELS).map(([k,v])=>`<button role="tab" data-ground-tab="${k}" aria-selected="${k===groundTab}">${v}</button>`).join(''):
+    `<button role="tab" data-tab="group">戦区軍</button><button role="tab" data-tab="army">打撃群</button>`;
+  if(orgForce==='ground'){ renderGroundOrg(); return; }
   refreshAutoNames();
   menu.querySelectorAll('[data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===tab)));
   document.getElementById('tabNote').textContent=NOTES[tab]; updateOrgCap();
   ({bg:renderBgTab,army:renderArmyTab,group:renderGroupTab})[tab]();
+}
+const GROUND_LEVELS={brigades:'旅団',battalions:'大隊',companies:'中隊'};
+function groundOrgTree(org,level,id){
+  const x=org[level].find(x=>x.id===id); if(!x) return '';
+  const child=level==='brigades'?'battalions':level==='battalions'?'companies':null;
+  return `<div class="ground-org-node"><button class="li" data-ground-pick="${level}" data-id="${esc(x.id)}"><b>${esc(x.name)}</b><span>${child?`${x[child].length}個${GROUND_LEVELS[child]}`:esc(GROUND.types()[x.kind].name)}</span></button>${child?x[child].map(id=>groundOrgTree(org,child,id)).join(''):''}</div>`;
+}
+function renderGroundOrg(){
+  const org=save.groundOrg, level=groundTab, label=GROUND_LEVELS[level], items=org[level];
+  if(!items.some(x=>x.id===selGround)) selGround=items[0]?.id||null;
+  const list=document.getElementById('orgList'), det=document.getElementById('orgDetail');
+  document.getElementById('tabNote').textContent='中隊が最小の操作単位です。大隊・旅団を解散しても所属部隊は残ります。';
+  document.getElementById('orgCap').innerHTML=`<b>地上軍</b><span>大隊は${GROUND.MAX_COMPANIES}個中隊まで・旅団は${GROUND.MAX_BATTALIONS}個大隊まで（仮）</span><span>出撃：全${org.companies.length}個中隊${org.companies.length?'':'（空なら初期部隊）'}</span>`;
+  list.innerHTML=listHtml(items.map(x=>({id:x.id,name:x.name,meta:level==='companies'?esc(GROUND.types()[x.kind].name):`${x[level==='brigades'?'battalions':'companies'].length}個${level==='brigades'?'大隊':'中隊'}`})),selGround,`＋ ${label}を作る`,'data-ground-unit');
+  list.querySelector('[data-new]').onclick=()=>{
+    const prefix={companies:'gc',battalions:'gb',brigades:'gr'}[level]; let id; do{id=newId(prefix);}while(items.some(x=>x.id===id));
+    let n=1;while(items.some(x=>x.name===`第${n} ${label}`))n++;
+    const x={id,name:`第${n} ${label}`}; if(level==='companies')x.kind='infantry';else x[level==='brigades'?'battalions':'companies']=[];
+    items.push(x);selGround=id;persist();renderOrg();
+  };
+  list.querySelectorAll('[data-ground-unit]').forEach(b=>b.onclick=()=>{selGround=b.dataset.groundUnit;confirmDel=null;renderOrg();});
+  const x=items.find(x=>x.id===selGround);if(!x){det.innerHTML=`<p class="empty">${label}を作ってください。</p>`;return;}
+  const child=level==='brigades'?'battalions':level==='battalions'?'companies':null;
+  const parent=level==='companies'?'battalions':level==='battalions'?'brigades':null;
+  const childMax=level==='brigades'?GROUND.MAX_BATTALIONS:GROUND.MAX_COMPANIES;
+  const owner=(lv,id)=>org[lv==='companies'?'battalions':'brigades'].find(p=>p[lv].includes(id));
+  det.innerHTML=`<div class="dzh"><div class="tg">${label}</div><label class="fld">名前<input id="groundName" maxlength="40" value="${esc(x.name)}"></label>${delBtn('ground:'+x.id,level==='companies'?'削除':'解散')}</div>
+    <div class="dzb"><div>${groundOrgTree(org,level,x.id)}</div><div class="dpanel">
+    ${level==='companies'?`<label class="fld">兵科<select id="groundKind">${Object.entries(GROUND.types()).map(([k,u])=>`<option value="${k}" ${k===x.kind?'selected':''}>${esc(u.name)}</option>`).join('')}</select></label>`:''}
+    ${parent?`<label class="fld">所属${GROUND_LEVELS[parent]}<select id="groundParent"><option value="">未所属</option>${org[parent].map(p=>{const full=p[level].length>=(level==='companies'?GROUND.MAX_COMPANIES:GROUND.MAX_BATTALIONS),on=p[level].includes(x.id);return `<option value="${esc(p.id)}" ${on?'selected':''} ${full&&!on?'disabled':''}>${esc(p.name)}${full?'（満員）':''}</option>`;}).join('')}</select></label>`:''}
+    ${child?`<h4>所属${GROUND_LEVELS[child]} ${x[child].length}/${childMax}</h4>${x[child].map(id=>`<button data-ground-out="${esc(id)}">${esc(org[child].find(c=>c.id===id).name)}を外す</button>`).join('')}
+    <label class="fld">${GROUND_LEVELS[child]}を追加・移す<select id="groundAdd" ${x[child].length>=childMax?'disabled':''}><option value="">選んでください</option>${org[child].filter(c=>!x[child].includes(c.id)).map(c=>`<option value="${esc(c.id)}">${esc(c.name)}（${esc(owner(child,c.id)?.name||'未所属')}）</option>`).join('')}</select></label>`:''}
+    <p class="dim small">実装済みの兵科のみ選べます。宇宙軍の研究・編成ボーナスは適用しません。</p></div></div>`;
+  det.querySelector('#groundName').onchange=e=>{x.name=e.target.value.trim()||x.name;persist();renderOrg();};
+  const kind=det.querySelector('#groundKind');if(kind)kind.onchange=()=>{if(GROUND.types()[kind.value])x.kind=kind.value;persist();renderOrg();};
+  const par=det.querySelector('#groundParent');if(par)par.onchange=()=>{GROUND.assign(org,level,x.id,par.value);persist();renderOrg();};
+  const add=det.querySelector('#groundAdd');if(add)add.onchange=()=>{if(add.value)GROUND.assign(org,child,add.value,x.id);persist();renderOrg();};
+  det.querySelectorAll('[data-ground-out]').forEach(b=>b.onclick=()=>{GROUND.assign(org,child,b.dataset.groundOut,'');persist();renderOrg();});
+  det.querySelectorAll('[data-ground-pick]').forEach(b=>b.onclick=()=>{groundTab=b.dataset.groundPick;selGround=b.dataset.id;confirmDel=null;renderOrg();});
+  wireDel(det,'ground:'+x.id,()=>{GROUND.remove(org,level,x.id);selGround=null;});
 }
 function listHtml(items,selId,newLabel,attr){
   return `<button class="new" data-new>${newLabel}</button>`+items.map(it=>`<button class="li ${it.id===selId?'sel':''}" ${attr}="${it.id}" aria-pressed="${it.id===selId}"><b>${esc(it.name)}</b><span>${it.meta}</span></button>`).join('');
@@ -896,7 +947,8 @@ function onKey(e){
   const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }
-window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey };
+window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
+  groundConfig(cfg){ return {...cfg,groundOrg:GROUND.normalize(save.groundOrg)}; } };
 render();
 if(new URLSearchParams(location.search).get('ground')==='exercise2') window.WOS.start({op:'groundExercise2'});
 })();
