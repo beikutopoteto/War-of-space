@@ -25,7 +25,11 @@ function bonusOn(bn,types,bgs){ const c=bn.when||{};
   if(c.minStat&&!(bgs.length&&bgs.every(b=>SHIP[b.type][c.minStat.stat]>=c.minStat.min))) return false;
   if(c.minBgs&&bgs.length<c.minBgs) return false;
   if(c.sameType&&types.size!==1) return false;
+  if(c.minTypes&&types.size<c.minTypes) return false;
+  if(c.maxBgs&&!(bgs.length&&bgs.length<=c.maxBgs)) return false;
   return true; }
+/* the rates a bonus puts on an army: modBy picks them by the army's ship class */
+const modOf=(bn,types)=>bn.modBy?bn.modBy[[...types][0]]||{}:bn.mod;
 const MAX_BG=5, MAX_ARMY=5, CUBE=5;
 const GROUP_COLORS=['#7fc8ff','#8fe8c0','#f0d27a','#c9a7ff','#ff9fc2'];
 
@@ -213,13 +217,13 @@ function armyStats(a,flag){
   const hangar={}; bgs.forEach(b=>Object.entries(SHIP[b.type].hangar||{}).forEach(([k,v])=>hangar[k]=(hangar[k]||0)+v*b.count));
   const active=BONUSES.filter(b=>bonusOn(b,types,bgs));
   if(flag&&D.flagBonus) active.push(D.flagBonus);
-  active.forEach(b=>Object.entries(b.mod).forEach(([k,m])=>st[k]*=m));
+  active.forEach(b=>Object.entries(modOf(b,types)).forEach(([k,m])=>st[k]*=m));
   return {st,ships,bgs,active,hangar};
 }
 /* convert an army into the battle fleet spec used by battle/ */
 function armyToFleet(a,flag){
   const {st,ships,bgs,hangar,active}=armyStats(a,flag);
-  const mods=k=>active.reduce((v,b)=>v*(b.mod[k]||1),1);
+  const types=new Set(bgs.map(b=>b.type)), mods=k=>active.reduce((v,b)=>v*(modOf(b,types)[k]||1),1);
   const byType=Object.fromEntries([...new Set(bgs.map(b=>b.type))].map(t=>{ const s=shipNow(t); return [t,{dps:.4+s.atk*mods('atk')*.45,range:10+s.rng*mods('rng')*1.6}]; }));
   /* the small craft's rates, weighted by how many each ship class brings */
   const craft={}; Object.keys(hangar).forEach(c=>{ let w=0, out=1, turn=0; const r={dmg:0,hp:0,eva:0};
