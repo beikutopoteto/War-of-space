@@ -5,7 +5,7 @@ window.WOS_TERRAIN.exercise2 = {
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
-  strike: { artillery:{delay:5,radius:7,spread:2,reload:8}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
+  strike: { artillery:{delay:5,radius:7,spread:2,reload:8}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, sea:{delay:8,radius:10,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
   // 輸送・架橋の試作値。距離は戦闘単位、橋の幅判定は water の km。
   transport: { boardRange:1.6, unloadKm:.4, wreckLoss:.5, repathSec:.5 },
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
@@ -30,7 +30,7 @@ window.WOS_TERRAIN.exercise2 = {
   },
   combat: { tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
   capture: { seconds:30, radiusKm:2, roadWidthKm:1.25 },
-  movement: { marsh: { vehicle: 0.3, infantry: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
+  movement: { marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
     terrace:{edgeYKm:30.5,widthKm:.65,heightM:2.8},

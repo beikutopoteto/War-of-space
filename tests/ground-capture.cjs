@@ -38,7 +38,7 @@ async function checkGroundCapture(page, check) {
   const integration=await page.evaluate(()=>{
     reset({op:'groundExercise2'});setSpeed(0);
     const units=fleets.filter(f=>f.team===0), d=WOS_TERRAIN[op.ground];
-    const stats=units.every(f=>f.hp===d.unitTypes[f.groundKind].hp&&f.speed===d.unitTypes[f.groundKind].speed&&f.range===d.unitTypes[f.groundKind].range);
+    const stats=units.filter(f=>f.groundKind!=='sea').every(f=>f.hp===d.unitTypes[f.groundKind].hp&&f.speed===d.unitTypes[f.groundKind].speed&&f.range===d.unitTypes[f.groundKind].range);
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};

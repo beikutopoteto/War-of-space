@@ -3,11 +3,11 @@ let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMe
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||!f.alive||f.embarked||f.locked) return null;
-  const capable=f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
+  const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
 function groundStrikeCanLaunch(f,p){
-  return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundStrikeCooldown||0)<=0;
+  return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundStrikeCooldown||0)<=0;
 }
 function groundStrikeLaunch(f,p){
   if(!groundStrikeCanLaunch(f,p))return null;
@@ -98,7 +98,7 @@ function groundStrikeDraw(){
     }
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     const visible=s.team===0||groundPointSeenBy(0,p);ring.visible=visible;el.hidden=!visible||at.z>1;
-    el.textContent=pending?`${WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
+    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y}px) translate(-50%,-100%)`;
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
   }
