@@ -73,12 +73,13 @@ function techFleet(team,o){
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
+  if(op.ground&&o.groundKind){ const u=WOS_TERRAIN[op.ground].unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:u.name}; }
   if(o.hp==null){ const derived=techFleet(team,o); if(o.dmg!=null) delete derived.byType; o={...o,...derived}; }
   if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
-  if(o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
+  if(!o.groundKind&&o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
   /* march: the way the fleet last moved, level; a formation regrouping around this flagship faces it (reform) */
   const f={...o,team,kind:'fleet',id:fid++,march:new THREE.Vector3(0,0,team?1:-1),pos:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),post:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),home:new THREE.Vector3(o.pos[0],o.alt||0,o.pos[1]),
-    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*HP_K,hpPool:o.n*o.hp*HP_K,alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
+    heading:new THREE.Vector3(0,0,team?1:-1),ships:[],hp:o.hp*(o.groundKind?1:HP_K),hpPool:o.n*o.hp*(o.groundKind?1:HP_K),alive:true,order:null,arrow:null,fireTarget:null,retarget:Math.random()*.4,radius:0,seen:false,everSeen:false,revealT:0,lastPos:null,lostAt:-1e9,
     watchPos:o.watch?new THREE.Vector3(o.watch.pos[0],o.watch.alt||0,o.watch.pos[1]):null, stance:o.stance||'engage', queue:[]};
   if(o.postAt) f.post.set(o.postAt[0],o.postAlt??o.alt??0,o.postAt[1]);   // a guard that comes in and holds a post away from where it appears (第5節; postAlt its height)
   /* ships stand in a loose disc; offsets are in the fleet's own frame (+Z ahead) and turn with its heading (loop.js).
@@ -156,7 +157,7 @@ const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
    第1節 未確認艦, 第2節 新型艦 for the assault ship; user decision 2026-11-07) */
 const shipLabel=t=>op&&op.shipNames&&op.shipNames[t]||SHIP_NAME[t]||t;
 let freeOpen=true;
-function fleetMark(f){ if(f.groundKind){ const shape=f.groundKind==='infantry'?'<path d="M2 3 L18 11 M18 3 L2 11"/>':'<ellipse cx="10" cy="7" rx="5" ry="3"/>'; return `<span class="mk"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="1" fill="none" stroke="currentColor"/> <g fill="none" stroke="currentColor" stroke-width="1.3">${shape}</g></svg></span>`; } const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
+function fleetMark(f){ if(f.groundKind){ const shape=['infantry','heavyInfantry'].includes(f.groundKind)?'<path d="M2 3 L18 11 M18 3 L2 11"/>':'<ellipse cx="10" cy="7" rx="5" ry="3"/>'; return `<span class="mk"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="1" fill="none" stroke="currentColor"/> <g fill="none" stroke="currentColor" stroke-width="1.3">${shape}</g></svg></span>`; } const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
   return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet,true)}</span>`:''; }   // not to scale (marks.js fit)
 /* Labels use the same class ordering and original class list as the roster tip. */
 function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===chase.fleet||op.chase&&f.name===op.chase.fleet||nukeCarrier(f)); }

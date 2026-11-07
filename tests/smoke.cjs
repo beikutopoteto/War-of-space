@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs');
 const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
+const { checkGroundCapture } = require('./ground-capture.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -71,6 +72,8 @@ function check(ok, label, detail = '') {
     /* 3段: 命令・到着までの射撃・表の全組み合わせ・表示。場面を固定し、打撃で数える。 */
     const bands = await page.evaluate(() => {
       reset({op:'groundExercise2'}); setSpeed(0);
+      // 高度専用の固定場面。演習の守備隊には航空を置かない。
+      for(const kind of ['fighter','attack']){const spec=op.quick.find(f=>f.groundKind===kind),f=makeFleet(1,spec);f.band=spec.band;f.bandLeft=0;fleets.push(f);}
       const by=(kind,team=0)=>fleets.find(f=>f.team===team&&f.groundKind===kind), infantry=by('infantry'), fighter=by('fighter'), attack=by('attack'), was=by('was');
       const buttons=()=>[...document.querySelectorAll('#groundCommand button')].map(b=>b.disabled);
       select(infantry); const groundButtons=buttons(); select(fighter); const airButtons=buttons(); select(was); const wasButtons=buttons();
@@ -103,11 +106,11 @@ function check(ok, label, detail = '') {
       }finally{damage=originalDamage;}
       reset({op:'groundExercise2'});setSpeed(0);
       const f=fleets.find(f=>f.team===0),t=fleets.find(f=>f.team===1),saved=fleets;
-      const rows=[['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,0,0]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,0]],['attack','high',[0,0,0]],['was','ground',[1,0,0]],['was','low',[1,1,0]],['was','high',[0,1,1]]];
+      const rows=[['heavyInfantry','ground',[1,1,1]],['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,0,0]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,0]],['attack','high',[0,0,0]],['was','ground',[1,0,0]],['was','low',[1,1,0]],['was','high',[0,1,1]]];
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
       const original=damage;
       try{
-        fleets=[f,t];f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.range=20;f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
+        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.range=20;f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
         for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;
           let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
@@ -140,8 +143,9 @@ function check(ok, label, detail = '') {
     });
     check(bands.composition.join(',')==='6,5'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
-    check(bands.cases===30&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表30通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
+    check(bands.cases===33&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表33通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
+    await checkGroundCapture(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

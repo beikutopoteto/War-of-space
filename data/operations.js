@@ -1677,8 +1677,15 @@ WOS_DATA.operations.push((()=>{
   };
 })());
 
-// 地上の移動・3段の試験。キャンペーンには出さない。航空は1隊を3機の見た目で表す。
+// 地上演習の核。キャンペーンには出さない。性能は地形データの地上専用表。
 WOS_DATA.operations.push((()=>{
-  const unit=(name,kind,x,y,band='ground')=>({name,sub:({infantry:'強化歩兵',scout:'斥候',vehicle:'車両',fighter:'戦闘機',attack:'攻撃機',was:'陸戦型 W.A.S.'})[kind],groundKind:kind,band,type:'cv',n:1,hp:100,dmg:kind==='infantry'||kind==='scout'?1:2,range:({infantry:10,scout:7,vehicle:20,fighter:20,attack:15,was:12})[kind],speed:kind==='fighter'?8:kind==='attack'?6:3,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
-  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'地形・通行と3段の高度の試験',brief:'部隊を選び移動先を指定する。左下の「命令」で高度を切り替え、「表示」で注目する段を選ぶ。切り替えは5秒、着くまでは元の段で撃つ。',date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'地上の移動と航空の高度切り替えを試す'},view:{target:[0,0],dist:230,dir:[0,1,1],max:350},quick:[unit('第1 車両隊','vehicle',8,27),unit('第2 歩兵隊','infantry',14,22),unit('第3 斥候隊','scout',11,18),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],enemies:[unit('第1 車両隊','vehicle',34,22),unit('第2 歩兵隊','infantry',37,26),unit('第3 車両隊','vehicle',40,12),unit('第4 戦闘航空隊','fighter',37,26,'high'),unit('第5 攻撃航空隊','attack',31,18,'low')]};
+  const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
+  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
+    brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。敵の占拠可能部隊がいなければ30秒で占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。',
+    date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'強化歩兵か地上 W.A.S. で3拠点をすべて占拠せよ'},
+    groundSites:[{site:'A',owner:null},{site:'C',owner:1},{site:'F',owner:1}],
+    result:{win:'3拠点をすべて占拠した。地上演習を完了。',lose:'自軍の地上演習部隊は全滅した。',winLog:['演習完了','3拠点をすべて占拠した。'],loseLog:['演習失敗','自軍の演習部隊は全滅した。']},
+    view:{target:[0,0],dist:230,dir:[0,1,1],max:350},
+    quick:[unit('第1 戦車中隊','vehicle',8,27),unit('第2 強化歩兵中隊','infantry',10,28),unit('第3 重強化歩兵中隊','heavyInfantry',12,27),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],
+    enemies:[unit('第1 守備戦車中隊','vehicle',24,21),unit('第2 守備歩兵中隊','infantry',22.5,21),unit('第3 守備歩兵中隊','infantry',41,27)]};
 })());

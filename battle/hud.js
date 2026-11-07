@@ -458,7 +458,7 @@ function drawRoute(){
   routeEl.innerHTML=`<path class="ln" d="${d}"/><g class="ch">${ch}</g>${ring}`; }
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
-  if(op.ground){ text=op.win.text; }
+  if(op.ground){ text=op.win.text; const n=groundSites.filter(s=>s.owner===0).length; p=groundSites.length?n/groundSites.length:0; label=`拠点 ${n}/${groundSites.length}　自軍全滅で敗北`; }
   else if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
     if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
     else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }

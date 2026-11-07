@@ -3,7 +3,7 @@ const GROUND_BAND_NAMES={ground:'地上',low:'低',high:'高'};
 let groundView='all', groundVisuals=null, groundGrids={};
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
 function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack'].includes(f.groundKind)?['low','high']:['ground']; }
-function groundMoveKind(f){ return (f.band||'ground')==='ground'?(f.groundKind==='was'?'infantry':f.groundKind):'air'; }
+function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind):'air'; }
 function groundUnitHeight(f){
   const h=groundRules().heights, from=h[f.band||'ground'];
   return groundHeight(f.pos.x,f.pos.z)+(f.bandTo?from+(h[f.bandTo]-from)*(1-f.bandLeft/groundRules().transitionSec):from);
@@ -11,7 +11,7 @@ function groundUnitHeight(f){
 // 直接射撃の表（設計案3）。地点攻撃・海軍はこの試作には含めない。
 function groundFireFactor(f,t){
   const band=f.band||'ground', target=t.band||'ground', weak=groundRules().weakFire;
-  const row={infantry:{ground:1,low:weak},scout:{ground:1},vehicle:{ground:1},
+  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},scout:{ground:1},vehicle:{ground:1},
     fighter:{low:1,high:1},attack:band==='low'?{ground:1,low:1,sea:1}:{},
     was:band==='high'?{low:1,high:1}:band==='low'?{ground:1,low:1}:{ground:1}}[f.groundKind];
   return row&&row[target]||0;
@@ -46,6 +46,7 @@ function groundSetView(band){
 }
 function groundConfigure(active){
   groundView='all'; groundVisuals=null; groundGrids={};
+  groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
   document.getElementById('alt').classList.toggle('ground-alt',active);
   document.getElementById('groundAlt').hidden=!active;
   document.querySelectorAll('#groundView button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.band==='all')));
@@ -79,7 +80,7 @@ function groundInit(){
     const grid=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:band==='high'?0xe1d7ff:0xd5f8ff,transparent:true,opacity:.08,depthWrite:false}));
     groundGrids[band]=grid; groundVisuals.add(grid);
   }
-  groundHud(); groundDraw();
+  groundCaptureInit(); groundHud(); groundDraw();
 }
 // 見本 ground-b.html の輪郭と3機のV字編隊。
 function groundAircraft(group,color){
@@ -104,9 +105,10 @@ function groundDraw(){
     for(const s of f.ships)s.pos.copy(f.pos);
   }
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
-  groundHud();
+  groundCaptureDraw(); groundHud();
 }
 function groundStep(dt){
+  if(over) return;
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.bandTo){
@@ -121,6 +123,7 @@ function groundStep(dt){
         }
       }
     }
+    if(f.groundKind==='was') f.speed= WOS_TERRAIN[op.ground].unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
     f.pos.y=groundUnitHeight(f);
     if(f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
@@ -135,8 +138,113 @@ function groundStep(dt){
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
     if(f.fireTarget&&f.groundShotT===0){
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
-      damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget),f);
+      damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget),f);
       f.groundShotT=groundRules().fireEvery;
     }
+  }
+  groundCaptureStep(dt);
+}
+
+function groundMatchup(f,t){
+  const c=WOS_TERRAIN[op.ground].combat;
+  return f.groundKind==='vehicle'&&t.groundKind==='infantry'?c.tankInfantry:
+    f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
+}
+// 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
+let groundSites=[], groundTerritory=null;
+function groundCanCapture(f){ return f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked; }
+function groundCaptureStep(dt){
+  if(over) return;
+  for(const s of groundSites){
+    const present=[false,false];
+    for(const f of fleets) if(groundCanCapture(f)&&groundDistanceTo(f,s)<=s.captureRadius) present[f.team]=true;
+    s.contested=present[0]&&present[1];
+    if(s.contested) continue;
+    const team=present[0]?0:present[1]?1:null;
+    if(team===null||s.owner===team) continue;
+    s.progress[team]=Math.min(s.captureSec,s.progress[team]+dt);
+    if(s.progress[team]>=s.captureSec-1e-8){ s.owner=team; s.progress=[0,0]; }
+  }
+  if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
+  else if(groundSites.length&&groundSites.every(s=>s.owner===0)) end(true);
+}
+function groundCaptureInit(){
+  const d=WOS_TERRAIN[op.ground], rules=d.capture;
+  groundSites=(op.groundSites||[]).map(spec=>{
+    const site=d.sites.find(s=>s.id===spec.site), el=document.createElement('div');
+    el.className='ground-site'; el.dataset.site=site.id;
+    el.innerHTML='<b></b><small></small><span class="capture-track"><i></i><i></i></span>';
+    el.querySelector('b').textContent=site.name; labelsEl.appendChild(el);
+    return {...site,owner:spec.owner,contested:false,pos:groundPoint(site.x,site.y),captureRadius:(spec.radiusKm??rules.radiusKm)*GROUND_SCALE,captureSec:spec.captureSec??rules.seconds,progress:[0,0],el};
+  });
+  // 占拠できる小円。影響範囲の大きな円とは別。
+  for(const s of groundSites){
+    const points=[];
+    for(let i=0;i<96;i++){const a=i/96*Math.PI*2,x=s.pos.x+Math.cos(a)*s.captureRadius,z=s.pos.z+Math.sin(a)*s.captureRadius;points.push(new THREE.Vector3(x,groundHeight(x,z)+.18,z));}
+    const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xcad1c5,transparent:true,opacity:.9,depthWrite:false}));
+    groundVisuals.add(ring); s.ring=ring;
+  }
+  const canvas=document.createElement('canvas'); canvas.width=480; canvas.height=360;
+  const texture=new THREE.CanvasTexture(canvas), geometry=new THREE.PlaneBufferGeometry(d.meta.widthKm,d.meta.heightKm,192,144);
+  geometry.rotateX(-Math.PI/2); const p=geometry.attributes.position;
+  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(p.getX(i)+24,18-p.getZ(i))/GROUND_SCALE+.025);
+  const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
+  mesh.renderOrder=1; groundBoard.add(mesh);
+  groundTerritory={canvas,texture,key:null,sections:groundRoadSections(d.objects.roads,groundSites)};
+}
+// 道路を通過する拠点で区切り、区間の中点までをそれぞれの拠点に結ぶ（見本案C）。
+function groundRoadSections(roads,sites){
+  const sections=[];
+  for(const road of roads){
+    const points=road.points, lengths=[0];
+    for(let i=1;i<points.length;i++)lengths.push(lengths[i-1]+Math.hypot(points[i][0]-points[i-1][0],points[i][1]-points[i-1][1]));
+    const total=lengths[lengths.length-1], stops=[];
+    for(const site of sites){
+      let best=Infinity, along=0;
+      for(let i=1;i<points.length;i++){
+        const a=points[i-1],b=points[i],dx=b[0]-a[0],dy=b[1]-a[1],len=lengths[i]-lengths[i-1],t=Math.max(0,Math.min(1,((site.x-a[0])*dx+(site.y-a[1])*dy)/(len*len))),dist=Math.hypot(site.x-a[0]-dx*t,site.y-a[1]-dy*t);
+        if(dist<best){best=dist;along=lengths[i-1]+len*t;}
+      }
+      if(best<.8)stops.push({along,site});
+    }
+    stops.sort((a,b)=>a.along-b.along); if(!stops.length)continue;
+    if(stops[0].along>.05)stops.unshift({along:0,site:null});
+    if(total-stops[stops.length-1].along>.05)stops.push({along:total,site:null});
+    const at=t=>{for(let i=1;i<points.length;i++)if(t<=lengths[i]){const k=(t-lengths[i-1])/(lengths[i]-lengths[i-1]);return [points[i-1][0]+(points[i][0]-points[i-1][0])*k,points[i-1][1]+(points[i][1]-points[i-1][1])*k];}return points[points.length-1];};
+    const add=(from,to,site)=>{if(site&&to-from>.001)sections.push({site,path:[at(from),...points.filter((p,i)=>lengths[i]>from&&lengths[i]<to),at(to)]});};
+    for(let i=1;i<stops.length;i++){const a=stops[i-1],b=stops[i],mid=(a.along+b.along)/2;add(a.along,mid,a.site);add(mid,b.along,b.site);}
+  }
+  return sections;
+}
+function groundInfluenceAt(x,y){
+  let site=null, weight=Infinity;
+  for(const s of groundSites){const ratio=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(ratio<=1&&ratio<weight){site=s;weight=ratio;}}
+  if(site) return site;
+  let distance=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  for(const section of groundTerritory.sections){const d=groundDistance(x,y,section.path);if(d<distance){site=section.site;distance=d;}}
+  return site;
+}
+function groundPaintTerritory(){
+  const t=groundTerritory, key=groundSites.map(s=>`${s.owner}:${s.contested}`).join('|');
+  if(!t||t.key===key)return; t.key=key;
+  const d=WOS_TERRAIN[op.ground],ctx=t.canvas.getContext('2d'),img=ctx.createImageData(480,360),colors=[[75,160,225],[230,85,72],[160,168,165]];
+  for(let py=0;py<360;py++)for(let px=0;px<480;px++){
+    const x=(px+.5)/10,y=36-(py+.5)/10;
+    if(!groundInside(x,y,d.display.board)||groundInside(x,y,d.water.sea))continue;
+    const s=groundInfluenceAt(x,y); if(!s)continue;
+    const stripe=s.contested&&(px+py)%12<3, color=stripe?[238,225,183]:colors[s.owner??2],k=(py*480+px)*4;
+    img.data.set([...color,stripe?190:102],k); // 同じ軍の円と帯も1画素1回だけ。重なっても濃くならない。
+  }
+  ctx.putImageData(img,0,0);t.texture.needsUpdate=true;
+}
+function groundCaptureDraw(){
+  groundPaintTerritory();
+  for(const s of groundSites){
+    const color=s.owner===0?'#8bdfff':s.owner===1?'#ff998b':'#cad1c5',p=proj(s.pos.clone().add(new THREE.Vector3(0,1,0)));
+    s.ring.material.color.set(color); s.el.style.color=color;
+    s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
+    const owner=s.owner===0?'地球連合':s.owner===1?'惑星共和国':'中立',progress=s.progress.map(n=>Math.floor(n/s.captureSec*100));
+    s.el.querySelector('small').textContent=`${owner}${s.contested?' / 争奪中':''}　青${progress[0]}% 赤${progress[1]}%`;
+    s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${s.progress[i]/s.captureSec*100}%`);
   }
 }
