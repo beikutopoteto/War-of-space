@@ -80,21 +80,36 @@ async function checkGroundTransport(page,check){
     reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:WOS_TERRAIN.exercise2.unitTypes[kind].name,groundKind:kind}))});setSpeed(0);
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(f.team?44:9,27));});
     const infantry=fleets.find(f=>f.groundKind==='infantry'&&f.team===0),carrier=fleets.find(f=>f.groundKind==='apc');
-    infantry.pos.copy(groundPoint(8,27));carrier.pos.copy(groundPoint(10,27));select(infantry);
-    camAnim=null;controls.target.copy(carrier.pos);camera.position.copy(carrier.pos).add(new THREE.Vector3(0,70,.01));camera.lookAt(controls.target);controls.update();
+    infantry.pos.copy(groundPoint(5,27));carrier.pos.copy(groundPoint(10,27));fleets.filter(f=>f.team===0&&f!==infantry&&f!==carrier).forEach((f,i)=>f.pos.copy(groundPoint(6+3*i,33)));select(infantry);
+    camAnim=null;controls.target.copy(carrier.pos);camera.position.copy(carrier.pos).add(new THREE.Vector3(0,70,.01));camera.lookAt(controls.target);controls.update();camera.updateMatrixWorld(true);
   });
   await page.locator('#groundBoard').click();check(await page.evaluate(()=>groundWorkAiming==='board'),'輸送の操作: 乗車ボタン');
   await page.keyboard.press('Escape');check(await page.evaluate(()=>!groundWorkAiming&&!paused),'輸送の操作: Esc取消');
-  const p=await page.evaluate(()=>proj(fleets.find(f=>f.groundKind==='apc').pos));await page.mouse.click(p.x,p.y);
-  const boarded=await page.evaluate(()=>{for(let i=0;i<160;i++)step(.05);groundDraw();const c=fleets.find(f=>f.groundKind==='apc');updateFleetLabel(c,false,'');return c.groundPassenger&&c.el.textContent.includes('搭載：')&&!c.groundPassenger.groundModel.visible;});
+  // カメラ・部隊を直接動かしたあとは、描画ループが行列と名札の位置を
+  // 更新してから座標を取る。proj() は camera.matrixWorldInverse を使い、
+  // controls.update() だけではその行列も DOM の名札も更新されない。
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const p=await page.evaluate(()=>{
+    const c=fleets.find(f=>f.groundKind==='apc'),p=proj(c.pos),hit=document.elementFromPoint(p.x,p.y);
+    if(pick(p.x,p.y).best!==c||!(hit===renderer.domElement||c.el.contains(hit)))throw new Error('乗車クリックの位置が輸送車に一致しない');
+    return p;
+  });await page.mouse.click(p.x,p.y);
+  const command=await page.evaluate(()=>{
+    const c=fleets.find(f=>f.groundKind==='apc'),f=fleets.find(f=>f.team===0&&f.groundKind==='infantry');
+    return {ok:c.groundBoarder===f&&f.order?.type==='board'&&f.order.target===c,selected:selected?.name,status:groundTransportMessage};
+  });
+  check(command.ok,'輸送の操作: クリック直後に乗車命令と予約が成立',JSON.stringify(command));
+  if(!command.ok)throw new Error('輸送車クリックで乗車命令が成立しなかった');
+  const boarded=await page.evaluate(()=>{for(let i=0;i<800;i++)step(.05);groundDraw();const c=fleets.find(f=>f.groundKind==='apc');updateFleetLabel(c,false,'');return c.groundPassenger&&c.el.textContent.includes('搭載：')&&!c.groundPassenger.groundModel.visible;});
   check(boarded,'輸送の実画面: 輸送車クリックで乗車し搭載名札・歩兵モデル非表示');
+  if(!boarded)throw new Error('乗車命令後40秒で搭載・名札・モデル非表示が揃わなかった');
   await page.locator('#groundUnload').click();check(await page.evaluate(()=>!fleets.find(f=>f.groundKind==='apc').groundPassenger),'輸送の操作: 降車ボタン');
   await page.evaluate(()=>select(fleets.find(f=>f.groundKind==='engineer')));await page.locator('#groundBridge').click();
   check(await page.evaluate(()=>groundWorkAiming==='bridge'),'架橋の操作: 架橋ボタン');
   await page.keyboard.press('Escape');
   const point=await page.evaluate(()=>{
     const f=selected,r=WOS_TERRAIN.exercise2.water.rivers.find(r=>r.id==='east'),a=r.points[2],b=r.points[3],p=groundPoint((a[0]+b[0])/2,(a[1]+b[1])/2),plan=groundBridgePlan(p);
-    f.pos.copy(plan.banks[0]);camAnim=null;controls.target.copy(p);camera.position.copy(p).add(new THREE.Vector3(0,40,.01));camera.lookAt(p);controls.update();return proj(p);
+    f.pos.copy(plan.banks[0]);camAnim=null;controls.target.copy(p);camera.position.copy(p).add(new THREE.Vector3(0,40,.01));camera.lookAt(p);controls.update();camera.updateMatrixWorld(true);return proj(p);
   });
   await page.locator('#groundBridge').click();await page.mouse.click(point.x,point.y);
   const drawn=await page.evaluate(()=>{
