@@ -16,6 +16,7 @@ function groundStrikeLaunch(f,p){
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
   const strike={source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg,left:w.delay,resolving:false,visual:null};
   groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;
+  if(op.groundDrill)groundDrillEvent('strike',f,strike);
   return strike;
 }
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。

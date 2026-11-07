@@ -70,6 +70,7 @@ function groundLandCommand(list){
     groundCancelWork(ship);groundClearOrders(ship);
     for(const f of ship.groundBoarders||[])groundClearOrders(f);
     ship.groundBoarders=[];ship.groundUnloading={progress:0};count++;
+    if(op.groundDrill)groundDrillEvent('land',ship,groundPassengers(ship));
   }
   groundTransportMessage=count?`上陸開始（${groundLandingRules().seconds}秒・被弾${groundLandingRules().damageFactor}倍）`:'上陸不可：'+reason;
   groundHud();return count;
@@ -117,7 +118,7 @@ function groundBoardCommand(list,carrier){
   const path=groundPath(f.pos,carrier.pos,groundMoveKind(f));
   if(!path){groundTransportMessage='乗車不可：輸送車まで通れる道がない';groundHud();return false;}
   groundCancelWork(f);groundClearOrders(f);carrier.groundBoarder=f;
-  f.order={type:'board',target:carrier,path,repath:0};groundWorkAiming=null;groundTransportMessage='輸送車へ移動中';groundHud();return true;
+  f.order={type:'board',target:carrier,path,repath:0};if(op.groundDrill)groundDrillEvent('board',f,carrier);groundWorkAiming=null;groundTransportMessage='輸送車へ移動中';groundHud();return true;
 }
 function groundExitPoint(f,carrier,emergency=false){
   const km=groundTransportRules().unloadKm,kind=groundMoveKind(f),x=carrier.pos.x/GROUND_SCALE+24,y=18-carrier.pos.z/GROUND_SCALE;
@@ -141,6 +142,7 @@ function groundUnload(carrier,emergency=false){
   const pos=groundExitPoint(f,carrier,emergency);if(!pos)return false;
   carrier.groundPassenger=null;f.embarked=null;groundClearOrders(f);f.pos.copy(pos);f.pos.y=groundUnitHeight(f);
   if(f.post)f.post.copy(f.pos);if(f.home)f.home.copy(f.pos);
+  if(op.groundDrill&&!emergency)groundDrillEvent('unload',carrier,f);
   return true;
 }
 function groundUnloadCommand(list){
@@ -204,7 +206,7 @@ function groundBridgeCommand(list,p){
   if(reason){groundTransportMessage='架橋不可：'+reason;groundHud();return null;}
   groundCancelWork(f);groundClearOrders(f);
   const b={...plan,builder:f,team:f.team,progress:0,complete:false,hp:groundEngineeringRules().hp,visual:null};
-  groundBridges.push(b);f.order={type:'bridge',bridge:b,path};groundWorkAiming=null;groundTransportMessage='川岸へ移動中';groundHud();return b;
+  groundBridges.push(b);f.order={type:'bridge',bridge:b,path};groundWorkAiming=null;groundTransportMessage='川岸へ移動中';groundHud();if(op.groundDrill)groundDrillEvent('bridge',f,b);return b;
 }
 function groundBridgeDropVisual(b){
   if(!b.visual)return;

@@ -448,8 +448,8 @@ function reset(cfg=lastCfg){
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
-  const groundSortie=op.ground&&!(cfg&&cfg.fleets&&cfg.fleets.length)?window.WOS_GROUND_ORG.sortie(cfg&&cfg.groundOrg):null;
-  const spec=groundSortie?groundSortie.fleets:cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
+  const groundSortie=op.ground&&op.forces!=='fixed'&&!(cfg&&cfg.fleets&&cfg.fleets.length)?window.WOS_GROUND_ORG.sortie(cfg&&cfg.groundOrg):null;
+  const spec=op.groundDrill?op.quick:groundSortie?groundSortie.fleets:cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
   if(op.ground)groundSeaDeploy();
   if(op.ground){ groundInitOrg(groundSortie?groundSortie.org:null); groundInit(); }

@@ -141,7 +141,7 @@ function draw(d,now){
 
 const clock={d:0,target:null,since:0,focus:null}, DAY_MS=600;
 let marks=[], selectMark=null, hits=[];
-function opW(o,d){ const at=o.place; if(at.st!=null) return stW(at.st,d); if(at.route){ const a=stAng(at.route[0],d), b=stAng(at.route[1],d)+2*Math.PI, t=a+(b-a)*at.f; return [ST_R*Math.cos(t),ST_R*Math.sin(t),0]; } return bodyW(EARTH_SYS.find(b=>b.n===at.body),EARTH,d); }
+function opW(o,d){ const at=o.place; if(at.body==='地球'){const a=ang(EARTH,d);return [EARTH.r*Math.cos(a),EARTH.r*Math.sin(a),0];} if(at.st!=null) return stW(at.st,d); if(at.route){ const a=stAng(at.route[0],d), b=stAng(at.route[1],d)+2*Math.PI, t=a+(b-a)*at.f; return [ST_R*Math.cos(t),ST_R*Math.sin(t),0]; } return bodyW(EARTH_SYS.find(b=>b.n===at.body),EARTH,d); }
 function dayOf(date){ const m=/A\.E\. (\d+)\.(\d+)\.(\d+)/.exec(date||''); return m?(Date.UTC(+m[1]+2054,+m[2]-1,+m[3])-Date.UTC(2099,3,12))/864e5:0; }
 function formatDay(d){ const t=new Date(Date.UTC(2099,3,12)+Math.floor(d)*864e5); return `A.E. ${t.getUTCFullYear()-2054}.${String(t.getUTCMonth()+1).padStart(2,'0')}.${String(t.getUTCDate()).padStart(2,'0')}`; }
 addEventListener('click',e=>{ if(scr!=='sortie'||e.target.closest('button, .det, .ops')) return; const x=(e.clientX*Math.min(devicePixelRatio||1,2)-OX)/BASE,y=(e.clientY*Math.min(devicePixelRatio||1,2)-OY)/BASE; const h=hits.find(h=>Math.hypot(h.x-x,h.y-y)<22); if(h&&selectMark) selectMark(h.id); });
