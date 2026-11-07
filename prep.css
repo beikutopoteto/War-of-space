@@ -271,6 +271,8 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .scr[data-s="title"] .eyebrow{font-family:var(--f-num);font-size:15px;letter-spacing:.34em;color:var(--ink-dim);margin:0 0 6px}
 .scr[data-s="title"] h1{margin:0;font-family:var(--f-num);font-weight:600;font-size:92px;letter-spacing:.06em;line-height:.9;font-style:italic;text-shadow:none}
 .scr[data-s="title"] h1 em{color:transparent;-webkit-text-stroke:1px var(--blue);font-style:italic}
+/* the small "THE" above the title (user 2026-11-07, sample B) */
+.scr[data-s="title"] h1 .t-the{display:block;font-size:.38em;letter-spacing:.5em;margin-bottom:.1em;opacity:.8}
 .title-sub{margin:14px 0 0;font-size:16px;color:var(--ink-dim);letter-spacing:.1em}
 .tstat{position:absolute;right:110px;top:60px;margin:0;gap:22px;font-size:14px}
 .mainnav{position:absolute;left:110px;top:430px;display:grid;gap:8px;max-width:none}

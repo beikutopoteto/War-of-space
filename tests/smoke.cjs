@@ -91,7 +91,7 @@ function check(ok, label, detail = '') {
     check(fireRoles.near.hits>1 && fireRoles.near.beams===4 && fireRoles.near.missiles>0 && Math.abs(fireRoles.near.damage-96)<.01 && fireRoles.red.traces>0 && fireRoles.red.missiles===0 && !fireRoles.red.byType,
       '艦種別射撃: 近距離では両方が撃ち、地球のフリゲートはミサイル、共和国は曳光弾', JSON.stringify({near:fireRoles.near,red:fireRoles.red}));
     await page.reload();
-    check(await page.textContent('#menu h1') === 'WAR OF SPACE', 'タイトル画面');
+    check(await page.textContent('#menu h1') === 'THE WAR OF SOL', 'タイトル画面');
     /* options: the story (conversations) is off by default; the rest of this test plays with it on */
     await page.click('#mainNav [data-go="opt"]');
     const opt0 = await page.evaluate(() => ({ box: document.querySelector('[data-opt="story"]').checked, story: WOS_OPT.story }));

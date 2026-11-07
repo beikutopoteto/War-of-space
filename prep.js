@@ -265,8 +265,8 @@ menu.innerHTML=`
 <section class="scr" data-s="title">
   <div class="ttl">
     <p class="eyebrow">A.E. 45 — INTERPLANETARY WAR</p>
-    <h1>WAR OF <br><em>SPACE</em></h1>
-    <p class="title-sub">宙域艦隊戦　試作版</p>
+    <h1><span class="t-the">THE </span>WAR OF <em>SOL</em></h1>
+    <p class="title-sub">太陽系戦争　試作版</p>
   </div>
   <p class="tstat" id="tStat"></p>
   <nav class="mainnav" id="mainNav" aria-label="メインメニュー"></nav>
@@ -614,7 +614,7 @@ function renderSortie(){
   const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
     const why=!tutDone()?'チュートリアルをクリアで解放':i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace('第一章 ','')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
-  ol.innerHTML=`<p class="grp">第一章　開戦</p>${camp.map(card).join('')}<p class="grp">演習</p>${exs.map(card).join('')}`;
+  ol.innerHTML=`<p class="grp">第一章　無重力</p>${camp.map(card).join('')}<p class="grp">演習</p>${exs.map(card).join('')}`;
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
   const op=list.find(o=>o.id===sortieOp), done=opDone(op);
   document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
