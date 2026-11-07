@@ -28,8 +28,8 @@ function groundRiverFactor(x,y,kind){
   }
   return factor;
 }
-function groundPass(x,y,kind='vehicle'){ const d=WOS_TERRAIN.exercise2; return groundInside(x,y,d.display.board)&&(kind==='air'||!groundInside(x,y,d.water.sea)&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0); }
-function groundFactor(x,z,kind){ if(kind==='air') return 1; const d=WOS_TERRAIN.exercise2,gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
+function groundPass(x,y,kind='vehicle'){ const d=WOS_TERRAIN.exercise2,sea=groundInside(x,y,d.water.sea); return groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0)); }
+function groundFactor(x,z,kind){ if(kind==='air'||kind==='sea') return 1; const d=WOS_TERRAIN.exercise2,gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
 let groundBackground=null;
 function groundSetup(id){
   if(groundWaterMaterial){ groundWaterMaterial.uniforms.mask.value.dispose(); groundWaterMaterial=null; }
@@ -114,6 +114,19 @@ const buildingGroups={};for(const spec of d.objects.settlements){const site=d.si
 
 }
 // 4方向のマス経路。辺も検査し、細い川や海岸を飛び越えない。
+// セルの中心と実際の出発・到着点を結ぶ線も、海岸や盤の切れ込みを横切らせない。
+function groundSeaLeg(a,b){
+  const d=WOS_TERRAIN.exercise2,x=a.x/GROUND_SCALE+24,y=18-a.z/GROUND_SCALE,dx=(b.x-a.x)/GROUND_SCALE,dy=-(b.z-a.z)/GROUND_SCALE,cuts=[0,1];
+  for(const poly of [d.water.sea,d.display.board])for(let i=0;i<poly.length;i++){
+    const p=poly[i],q=poly[(i+1)%poly.length],ex=q[0]-p[0],ey=q[1]-p[1],den=dx*ey-dy*ex;
+    if(Math.abs(den)<1e-10)continue;
+    const t=((p[0]-x)*ey-(p[1]-y)*ex)/den,u=((p[0]-x)*dy-(p[1]-y)*dx)/den;
+    if(t>0&&t<1&&u>=0&&u<=1)cuts.push(t);
+  }
+  cuts.sort((a,b)=>a-b);
+  if(!groundPass(x,y,'sea')||!groundPass(x+dx,y+dy,'sea'))return false;
+  return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
+}
 function groundPath(from,to,kind='vehicle'){
   const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   if(kind==='air'){
@@ -126,7 +139,7 @@ function groundPath(from,to,kind='vehicle'){
   const centers=i=>[(i%cols+.5)*cell,(Math.floor(i/cols)+.5)*cell],dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
   function push(i,v){let k=heap.length;heap.push([i,v]);while(k){let p=(k-1)>>1;if(heap[p][1]<=v)break;heap[k]=heap[p];k=p;}heap[k]=[i,v];}
   function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][1]<heap[c][1])c++;if(heap[c][1]>=last[1])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
-  dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);let edge=0;for(let k=0;k<4;k++){const t=(k+.5)/4,gx=p[0]+(q[0]-p[0])*t,gy=p[1]+(q[1]-p[1])*t;if(!groundPass(gx,gy,kind)){edge=Infinity;break;}edge+=1/groundFactor((gx-24)*GROUND_SCALE,(18-gy)*GROUND_SCALE,kind)/4;}if(!groundPass(...q,kind))continue;const n=cost+edge;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
-  if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {bridgeRevision:groundBridgeRevision,cost:dist[end],curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
+  dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);let edge=0;for(let k=0;k<4;k++){const t=(k+.5)/4,gx=p[0]+(q[0]-p[0])*t,gy=p[1]+(q[1]-p[1])*t;if(!groundPass(gx,gy,kind)){edge=Infinity;break;}edge+=1/groundFactor((gx-24)*GROUND_SCALE,(18-gy)*GROUND_SCALE,kind)/4;}if(!groundPass(...q,kind)||kind==='sea'&&!groundSeaLeg(groundPoint(...p),groundPoint(...q)))continue;const n=cost+edge;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
+  if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];if(kind==='sea'&&points.slice(1).some((p,i)=>!groundSeaLeg(points[i],p)))return null;const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {bridgeRevision:groundBridgeRevision,cost:dist[end],curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
