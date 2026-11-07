@@ -40,7 +40,7 @@ function check(ok, label, detail = '') {
     await page.goto('file://' + path.join(ROOT, 'index.html') + '?ground=exercise2');
     const ground = await page.evaluate(() => {
       setSpeed(0);
-      const f=fleets[1], start=groundPoint(14,22), dest=groundPoint(34,22);
+      const f=fleets[0], start=groundPoint(14,22), dest=groundPoint(34,22);
       f.pos.copy(start); order(f,{type:'move',dest});
       let safe=true, bridge=false, height=true, steps=0;
       while(f.order && steps++<5000){ followPath(f,.05); const x=f.pos.x/4+24,y=18-f.pos.z/4; safe=safe&&groundPass(x,y); height=height&&Math.abs(f.pos.y-groundHeight(f.pos.x,f.pos.z))<1e-6; if(WOS_TERRAIN.exercise2.objects.bridges.some(b=>Math.hypot(x-b.x,y-b.y)<.8)) bridge=true; if(f.order.path.atIndex>=f.order.path.points.length) f.order=null; }
@@ -50,6 +50,24 @@ function check(ok, label, detail = '') {
       return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0).length,fleets.filter(x=>x.team===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
     });
     check(ground.entry&&ground.counts.join(',')==='3,3'&&ground.safe&&ground.bridge&&ground.height&&ground.arrived&&ground.sea&&ground.vehicle===.3&&ground.infantry===.6&&Math.abs(ground.infantryTravel/ground.vehicleTravel-2)<.001, '地上演習: 入口・地表追従・橋・海・沼地', JSON.stringify(ground));
+    const crossing = await page.evaluate(() => {
+      const run=(kind,a,b)=>{
+        const start=groundPoint(...a),dest=groundPoint(...b),f={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:groundPath(start,dest,kind)}};
+        if(!f.order.path)return {arrived:false};
+        let river=false,ford=false,bridge=false,safe=true,steps=0;
+        while(steps++<20000&&!groundFollow(f,.05)){
+          const x=f.pos.x/4+24,y=18-f.pos.z/4;
+          river ||= groundRiverFactor(x,y,kind)<1;
+          ford ||= WOS_TERRAIN.exercise2.objects.fords.some(p=>Math.hypot(x-p.x,y-p.y)<.5);
+          bridge ||= WOS_TERRAIN.exercise2.objects.bridges.some(p=>Math.hypot(x-p.x,y-p.y)<.9);
+          safe &&= groundPass(x,y,kind);
+        }
+        return {arrived:f.pos.distanceTo(dest)<.001,river,ford,bridge,safe,steps};
+      };
+      const p=groundPoint(23.47,26),travel=kind=>{const f={pos:p.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}}};groundFollow(f,.01);return f.pos.x-p.x;};
+      return {vehicle:run('vehicle',[21,33],[25,33]),infantry:run('infantry',[21,26],[26,26]),vehicleFactor:groundFactor(p.x,p.z,'vehicle'),infantryFactor:groundFactor(p.x,p.z,'infantry'),scoutFactor:groundFactor(p.x,p.z,'scout'),airFactor:groundFactor(p.x,p.z,'air'),infantryTravel:travel('infantry'),scoutTravel:travel('scout')};
+    });
+    check(crossing.vehicle.arrived&&crossing.vehicle.safe&&crossing.vehicle.ford&&!crossing.vehicle.bridge&&crossing.infantry.arrived&&crossing.infantry.river&&!crossing.infantry.bridge&&crossing.vehicleFactor===0&&crossing.infantryFactor===.2&&crossing.scoutFactor===.5&&crossing.airFactor===1&&Math.abs(crossing.scoutTravel/crossing.infantryTravel-2.5)<.001, '地上演習: 兵科別の渡河・浅瀬・速度', JSON.stringify(crossing));
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

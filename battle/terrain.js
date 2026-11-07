@@ -6,8 +6,24 @@ function groundDistance(x,y,points){ let best=Infinity; for(let i=0;i<points.len
 function groundElevation(x,y){ const d=WOS_TERRAIN.exercise2; if(groundInside(x,y,d.water.sea)) return 0; let sum=0,weight=0; for(const p of d.height.points){ const w=1/(1+((x-p.x)**2+(y-p.y)**2)/d.height.interpolationRadiusKm**2); sum+=p.m*w; weight+=w; } let h=sum/weight; const l=d.height.levee,dist=groundDistance(x,y,d.water.rivers.find(r=>r.id===l.river).points); h+=l.heightM*Math.exp(-(((dist-l.bankOffsetKm)/l.widthKm)**2))-l.channelCutM*Math.exp(-((dist/l.channelHalfWidthKm)**2)); const t=d.height.terrace; h+=t.heightM/(1+Math.exp(-(y-t.edgeYKm)/t.widthKm)); const hill=p=>Math.exp(-(((x-p.x)/p.widthXKm)**2+((y-p.y)/p.widthYKm)**2)); for(const p of d.height.depressions) h-=p.depthM*hill(p); for(const p of d.height.sandbars) h+=p.heightM*hill(p); h+=d.height.observationHill.heightM*hill(d.height.observationHill)+d.height.noiseM*Math.sin(x*1.71+y*.62)*Math.cos(y*1.19); return Math.max(0,h*d.meta.elevationExaggeration/1000)*GROUND_SCALE; }
 function groundHeight(x,z){ return groundElevation(x/GROUND_SCALE+24,18-z/GROUND_SCALE); }
 function groundPoint(x,y){ return new THREE.Vector3((x-24)*GROUND_SCALE,groundElevation(x,y),(18-y)*GROUND_SCALE); }
-function groundPass(x,y){ const d=WOS_TERRAIN.exercise2; if(!groundInside(x,y,d.display.board)||groundInside(x,y,d.water.sea)||d.water.ponds.some(p=>groundInside(x,y,p))) return false; for(const r of d.water.rivers){ if(groundDistance(x,y,r.points)<Math.max(...r.widths)/2+.12&&!d.objects.bridges.some(b=>b.river===r.id&&Math.hypot(x-b.x,y-b.y)<.9)) return false; } return true; }
-function groundFactor(x,z,kind){ const d=WOS_TERRAIN.exercise2,c=Math.floor((x/GROUND_SCALE+24)/d.meta.cellKm),r=Math.floor((18-z/GROUND_SCALE)/d.meta.cellKm); return d.terrain.cells[r*d.terrain.cols+c]==='沼地'?d.movement.marsh[kind]:1; }
+// 川幅は各区間で補間し、橋と浅瀬は川ごとに判定する。
+function groundRiverFactor(x,y,kind){
+  const d=WOS_TERRAIN.exercise2; let factor=1;
+  for(const river of d.water.rivers){
+    let best=Infinity,along=0,width=0,tx=0,ty=0;
+    for(let i=0;i<river.points.length-1;i++){
+      const a=river.points[i],b=river.points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(len*len))),dist=Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);
+      if(dist<best){best=dist;width=river.widths[i]*(1-t)+river.widths[i+1]*t;tx=dx/len;ty=dy/len;}
+    }
+    if(best>=width/2+.12)continue;
+    const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9);
+    const ford=d.objects.fords.some(f=>{along=Math.abs((x-f.x)*tx+(y-f.y)*ty);return f.river===river.id&&along<=(f.widthKm+d.meta.cellKm)/2&&Math.hypot(x-f.x,y-f.y)<width/2+d.meta.cellKm;});
+    if(!bridge&&!ford)factor=Math.min(factor,d.movement.river[kind]??0);
+  }
+  return factor;
+}
+function groundPass(x,y,kind='vehicle'){ const d=WOS_TERRAIN.exercise2; return groundInside(x,y,d.display.board)&&!groundInside(x,y,d.water.sea)&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0; }
+function groundFactor(x,z,kind){ const d=WOS_TERRAIN.exercise2,gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
 let groundBackground=null;
 function groundSetup(id){
   if(groundWaterMaterial){ groundWaterMaterial.uniforms.mask.value.dispose(); groundWaterMaterial=null; }
@@ -91,13 +107,13 @@ const buildingGroups={};for(const spec of d.objects.settlements){const site=d.si
 
 }
 // 4方向のマス経路。辺も検査し、細い川や海岸を飛び越えない。
-function groundPath(from,to){
+function groundPath(from,to,kind='vehicle'){
   const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
-  if(!groundPass(...a)||!groundPass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
+  if(!groundPass(...a,kind)||!groundPass(...b,kind)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
   const centers=i=>[(i%cols+.5)*cell,(Math.floor(i/cols)+.5)*cell],dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
   function push(i,v){let k=heap.length;heap.push([i,v]);while(k){let p=(k-1)>>1;if(heap[p][1]<=v)break;heap[k]=heap[p];k=p;}heap[k]=[i,v];}
   function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][1]<heap[c][1])c++;if(heap[c][1]>=last[1])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
-  dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);if(!groundPass(...q)||!groundPass((p[0]+q[0])/2,(p[1]+q[1])/2))continue;const n=cost+1;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
+  dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);let edge=0;for(let k=0;k<4;k++){const t=(k+.5)/4,gx=p[0]+(q[0]-p[0])*t,gy=p[1]+(q[1]-p[1])*t;if(!groundPass(gx,gy,kind)){edge=Infinity;break;}edge+=1/groundFactor((gx-24)*GROUND_SCALE,(18-gy)*GROUND_SCALE,kind)/4;}if(!groundPass(...q,kind))continue;const n=cost+edge;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
   if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
 }
-function groundFollow(f,dt){const p=f.order.path;if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,f.groundKind),amount=Math.min(dist,remaining*factor);if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundHeight(f.pos.x,f.pos.z);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+function groundFollow(f,dt){const p=f.order.path;if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,f.groundKind),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundHeight(f.pos.x,f.pos.z);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}

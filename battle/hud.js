@@ -85,7 +85,7 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
-  if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest):makePath(f.pos,[...(o.via||[]),o.dest]);
+  if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest,f.groundKind):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(o.type==='move'&&!o.path){ f.order=null; return; }
   if(f.team===1&&!f.seen) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
