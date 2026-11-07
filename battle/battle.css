@@ -514,3 +514,12 @@ body.nolabels .fleet-label .nm{display:none}
 #alt.ground-alt #stance{display:flex;gap:4px}
 #alt.ground-alt #stance button{flex:1;width:auto;font-size:10px}
 #alt.ground-alt ~ #camSticks{left:258px}
+
+/* 地上拠点の札。見本案Cの小さな半透明札と占拠ゲージ。Lで隠す。 */
+.ground-site{position:absolute;left:0;top:0;min-width:120px;padding:5px 8px;background:rgba(5,17,27,.72);border:1px solid currentColor;border-radius:3px;font:11px var(--f-ui);text-align:center;pointer-events:none}
+.ground-site b,.ground-site small{display:block;white-space:nowrap}
+.ground-site small{font-size:10px;margin-top:2px;color:#d8e3e7}
+.capture-track{display:block;position:relative;height:5px;margin-top:4px;background:#64707866}
+.capture-track i{position:absolute;left:0;top:0;height:2px;background:#8bdfff}
+.capture-track i+i{top:3px;background:#ff998b}
+body.nolabels .ground-site{display:none}

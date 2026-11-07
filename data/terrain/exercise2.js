@@ -2,6 +2,18 @@ window.WOS_TERRAIN = window.WOS_TERRAIN || {};
 window.WOS_TERRAIN.exercise2 = {
   meta: { id:'exercise2', location:'カザフスタン・アティラウ南方のウラル川デルタを基にした架空演習場', latitude:46.85, longitude:51.85, terrainTypes:['河川デルタ','氾濫原'], widthKm:48, heightKm:36, cellKm:0.4, elevationExaggeration:18, seed:27011, seaLevelM:-28, note:'実在の沼地を参考にした架空配置。演習用の港と浚渫水路は創作。' },
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
+  // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
+  unitTypes: {
+    infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
+    heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4},
+    vehicle:{name:'主力戦車',speed:3,range:20,hp:100,dmg:5},
+    scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
+    fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2},
+    attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2},
+    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2}
+  },
+  combat: { tankInfantry:2, heavyTank:3 },
+  capture: { seconds:30, radiusKm:2, roadWidthKm:1.25 },
   movement: { marsh: { vehicle: 0.3, infantry: 0.6, scout: 0.3 }, river: { vehicle: 0, infantry: 0.2, scout: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
