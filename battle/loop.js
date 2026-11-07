@@ -150,6 +150,7 @@ function frame(now){
 
   // labels
   for(const u of units()){ if(!u.alive||!u.el) continue;
+    if(op.ground&&u.embarked){u.el.style.visibility='hidden';continue;}
     if(thrOff(u)){ u.el.style.visibility='hidden'; continue; }   // 第6節: the thrusters' marks only from the second stage on
     const lost=!shown(u), at=lost?u.lastPos:u.pos;
     if(lost&&(!at||gameSec-u.lostAt>LOST_MEMORY)){ u.el.style.visibility='hidden'; continue; }

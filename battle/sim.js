@@ -162,6 +162,7 @@ function damage(t,amt,src,groundImpact=null){
   }
 }
 function destroyFleet(f,src){
+  if(op.ground)groundTransportDestroyed(f,src);
   f.alive=false; f.el.remove(); dropArrow(f.arrow); f.arrow=null;
   burst(f.pos,TEAM_COL[colOf(f)],40,10,1.3);
   unselect(f);

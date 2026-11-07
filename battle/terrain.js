@@ -9,17 +9,21 @@ function groundElevation(x,y){ const d=WOS_TERRAIN.exercise2; if(groundInside(x,
 function groundHeight(x,z){ return groundElevation(x/GROUND_SCALE+24,18-z/GROUND_SCALE); }
 function groundPoint(x,y){ return new THREE.Vector3((x-24)*GROUND_SCALE,groundElevation(x,y),(18-y)*GROUND_SCALE); }
 // 川幅は各区間で補間し、橋と浅瀬は川ごとに判定する。
+function groundRiverAt(x,y,river){
+  let best=null;
+  for(let i=0;i<river.points.length-1;i++){
+    const a=river.points[i],b=river.points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(len*len))),cx=a[0]+t*dx,cy=a[1]+t*dy,dist=Math.hypot(x-cx,y-cy);
+    if(!best||dist<best.dist)best={river:river.id,x:cx,y:cy,dist,width:river.widths[i]*(1-t)+river.widths[i+1]*t,tx:dx/len,ty:dy/len};
+  }
+  return best;
+}
 function groundRiverFactor(x,y,kind){
   const d=WOS_TERRAIN.exercise2; let factor=1;
   for(const river of d.water.rivers){
-    let best=Infinity,along=0,width=0,tx=0,ty=0;
-    for(let i=0;i<river.points.length-1;i++){
-      const a=river.points[i],b=river.points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(len*len))),dist=Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy);
-      if(dist<best){best=dist;width=river.widths[i]*(1-t)+river.widths[i+1]*t;tx=dx/len;ty=dy/len;}
-    }
-    if(best>=width/2+.12)continue;
-    const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9);
-    const ford=d.objects.fords.some(f=>{along=Math.abs((x-f.x)*tx+(y-f.y)*ty);return f.river===river.id&&along<=(f.widthKm+d.meta.cellKm)/2&&Math.hypot(x-f.x,y-f.y)<width/2+d.meta.cellKm;});
+    const r=groundRiverAt(x,y,river);
+    if(r.dist>=r.width/2+.12)continue;
+    const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
+    const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+d.meta.cellKm)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+d.meta.cellKm);
     if(!bridge&&!ford)factor=Math.min(factor,d.movement.river[kind]??0);
   }
   return factor;
@@ -123,6 +127,6 @@ function groundPath(from,to,kind='vehicle'){
   function push(i,v){let k=heap.length;heap.push([i,v]);while(k){let p=(k-1)>>1;if(heap[p][1]<=v)break;heap[k]=heap[p];k=p;}heap[k]=[i,v];}
   function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][1]<heap[c][1])c++;if(heap[c][1]>=last[1])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
   dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);let edge=0;for(let k=0;k<4;k++){const t=(k+.5)/4,gx=p[0]+(q[0]-p[0])*t,gy=p[1]+(q[1]-p[1])*t;if(!groundPass(gx,gy,kind)){edge=Infinity;break;}edge+=1/groundFactor((gx-24)*GROUND_SCALE,(18-gy)*GROUND_SCALE,kind)/4;}if(!groundPass(...q,kind))continue;const n=cost+edge;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
-  if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
+  if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {bridgeRevision:groundBridgeRevision,cost:dist[end],curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
 }
-function groundFollow(f,dt){const p=f.order.path;if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}

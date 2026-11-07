@@ -85,6 +85,7 @@ function panCamera(dt){
 }
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
+  if(op.ground){if(f.embarked)return;groundCancelWork(f);}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest,groundMoveKind(f)):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(o.type==='move'&&!o.path){ f.order=null; return; }
@@ -182,7 +183,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||op.ground&&f.embarked||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&fortress.team===1&&Math.hypot(fs.x-x,fs.y-y)<46};   // our own station is not a target
 }
@@ -193,6 +194,9 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  if(op.ground&&groundWorkAiming==='bridge'){
+    const hit=groundAt(x,y);if(hit)groundBridgeCommand(orderTargets(),hit);return;
+  }
   if(op.ground&&groundStrikeAiming){
     const hit=groundAt(x,y); if(hit) groundStrikeCommand(orderTargets(),hit); return;
   }
@@ -203,6 +207,8 @@ function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(deploying){ if(best&&best.team===0){ if(!cmdOnly){ const g=groupOf(best); if(g) selectGroup(g); else select(best); } return; }
     const hit=groundAt(x,y); if(hit) placeAt(hit); return; }
   /* an own fleet: select it (again to let go); with Shift, add it to the selection or take it out */
+  if(op.ground&&best&&best.team===0&&best.groundKind==='apc'&&(groundWorkAiming==='board'||orderTargets().length===1&&groundBoardable(orderTargets()[0]))){groundBoardCommand(orderTargets(),best);return;}
+  if(op.ground&&groundWorkAiming==='board')return;
   if(best&&best.team===0){ if(cmdOnly) return; if(queue){ toggleMulti(best); return; } const t=orderTargets(); select(t.length===1&&t[0]===best?null:best); return; }
   if(selected&&selected.alive){
     const hit=groundAt(x,y);
@@ -317,7 +323,7 @@ addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.pre
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
+  if(e.code==='Escape'){ if(op.ground&&groundWorkAiming){groundWorkAiming=null;groundHud();return;} if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
   if(e.code==='KeyB'&&op.ground&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); groundStrikeToggle(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }

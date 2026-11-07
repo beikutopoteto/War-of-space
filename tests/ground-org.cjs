@@ -22,7 +22,7 @@ function nodeChecks(){
   check(`(()=>{const o=G.defaults();G.remove(o,'companies','gc1');return !o.battalions[0].companies.includes('gc1')&&G.sortie(o).fleets.length===5;})()`);
   check(`(()=>{const o=G.defaults();o.battalions[0].companies=['gc1','gc1','missing','gc2','gc3','gc4','gc5'];o.battalions[1].companies=['gc4','gc5'];const n=G.normalize(o);return n.battalions[0].companies.join() === 'gc1,gc2,gc3,gc4'&&n.battalions[1].companies.join()==='gc5';})()`);
   check(`(()=>{const o=G.defaults();o.companies=[o.companies[2],o.companies[0]];o.companies[0].kind='scout';const before=JSON.stringify(o),s=G.sortie(o);return s.fleets[0].companyId==='gc3'&&s.fleets[0].groundKind==='scout'&&s.fleets[1].companyId==='gc1'&&JSON.stringify(o)===before;})()`);
-  load('battle/terrain.js');load('battle/ground.js');
+  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground.js');
   const state=read('battle/state.js'),hud=read('battle/hud.js');
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));

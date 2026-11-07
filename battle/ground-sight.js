@@ -68,7 +68,7 @@ function groundClearLine(a,b){
 }
 function groundLineOfSight(f,t){ return groundClearLine(groundEye(f),groundEye(t)); }
 function groundCanSee(f,t){
-  return f.alive&&t.alive&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
+  return f.alive&&t.alive&&!f.embarked&&!t.embarked&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
 }
 function groundSeenBy(team,t){ return !!(t.groundVisible&&t.groundVisible[team]); }
 // 地点の観測も⑤の距離・地形遮蔽を共有する。敵部隊の有無や射手の直線遮蔽とは独立。

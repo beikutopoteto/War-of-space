@@ -513,7 +513,7 @@ body.nolabels .fleet-label .nm{display:none}
 #groundAlt summary{cursor:pointer;color:var(--blue)}
 #groundSelected{font-size:10px;color:var(--ink-dim)}
 #groundBandStatus{font-size:10px;color:var(--brass);min-height:1.7em}
-#groundStrikeStatus{font-size:10px;color:var(--brass)}
+#groundTransportStatus,#groundStrikeStatus{font-size:10px;color:var(--brass)}
 .ground-strike-label{position:absolute;left:0;top:0;padding:2px 5px;background:rgba(5,17,27,.72);font:11px var(--f-ui);white-space:nowrap;pointer-events:none}
 #groundAlt .band-buttons{display:flex;gap:4px;margin:3px 0 6px}
 #groundAlt button{flex:1;width:auto;height:26px;font-size:12px}
@@ -531,3 +531,6 @@ body.nolabels .fleet-label .nm{display:none}
 .capture-track i{position:absolute;left:0;top:0;height:2px;background:#8bdfff}
 .capture-track i+i{top:3px;background:#ff998b}
 body.nolabels .ground-site{display:none}
+
+/* 架橋も既存の拠点札・占拠ゲージと同じ表示。 */
+.ground-bridge .capture-track i{height:5px}
