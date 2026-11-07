@@ -430,6 +430,7 @@ body.inmenu #rtip{display:none}
 #legend #clock{grid-row:1/3;display:flex;flex-direction:column;justify-content:center;border-left:0;border-right:1px solid rgba(127,200,255,.18);padding:0 14px 0 0;margin-right:14px;text-shadow:none}
 #legend #clock .eye{color:var(--brass);margin:0}
 #legend #clock .time{font-family:var(--f-num);font-weight:600;font-size:30px;line-height:1;color:var(--brass);font-variant-numeric:tabular-nums}
+#clock .time .dg{display:inline-block;width:.62em;text-align:center}
 #legend #clock .date{font-size:10.5px;color:var(--ink-dim);margin-top:4px}
 #legend #clock .phase{font-size:15px;margin-top:4px}
 #legend .lplate>.eye{margin:0}

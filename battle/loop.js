@@ -63,6 +63,9 @@ function surfQ(u,h){ _gz.copy(h).addScaledVector(u,-h.dot(u)); if(_gz.lengthSq()
   _gx.crossVectors(u,_gz).normalize(); _gm.makeBasis(_gx,u,_gz); return _sq.setFromRotationMatrix(_gm); }
 let last=performance.now(), time=0, rosterTick=0, autoTalkAt=0;
 const AUTO_TALK=1.6;
+/* the clock's digits each sit in a box of the same width, so the panel does not twitch as they change (the font has no tabular figures) */
+const clockEl=document.getElementById('time'); let clockShown='';
+function setClockText(t){ if(t===clockShown) return; clockShown=t; clockEl.innerHTML=[...t].map(c=>/\d/.test(c)?`<span class="dg">${c}</span>`:c).join(''); }
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
   const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
@@ -160,7 +163,7 @@ function frame(now){
   }
   drawRoute();   // 第6節: the battleships' way down to the mine (hud.js)
   for(const s of sectors){ const p=proj(s.pos); s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(0,-100%)`; }
-  document.getElementById('date').textContent=dateStr(); document.getElementById('time').textContent=clockStr();
+  document.getElementById('date').textContent=dateStr(); setClockText(clockStr());
   rosterTick-=rdt; if(rosterTick<=0){rosterTick=.25; updateRoster(); updateGoal();}
   requestAnimationFrame(frame);
 }
