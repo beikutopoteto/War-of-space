@@ -4,6 +4,7 @@ let groundView='all', groundVisuals=null, groundGrids={};
 let groundOrg=null, groundRosterNodes=[];
 function groundInitOrg(org){
   groundOrg=org?JSON.parse(JSON.stringify(org)):{companies:fleets.filter(f=>f.team===0&&f.groundKind!=='sea').map(f=>({id:'unit'+f.id,name:f.name,kind:f.groundKind})),battalions:[],brigades:[]};
+  if(org)fleets.filter(f=>f.team===0&&f.groundFixed).forEach(f=>groundOrg.companies.push({id:'unit'+f.id,name:f.name,kind:f.groundKind}));
   // 固定配備の艦は独立部隊として加える。保存中の中隊・大隊には混ぜない。
   fleets.filter(f=>f.team===0&&f.groundKind==='sea').forEach(f=>groundOrg.companies.push({id:'sea'+f.id,name:f.name,kind:'sea'}));
   const mine=fleets.filter(f=>f.team===0);
@@ -148,7 +149,7 @@ function groundInit(){
     const grid=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:band==='high'?0xe1d7ff:0xd5f8ff,transparent:true,opacity:.08,depthWrite:false}));
     groundGrids[band]=grid; groundVisuals.add(grid);
   }
-  groundCaptureInit(); groundSightInit(); groundUpdateSight(); groundHud(); groundDraw();
+  groundTransportInit();groundCaptureInit(); groundSightInit(); groundUpdateSight(); groundHud(); groundDraw();
 }
 // 見本 ground-b.html の輪郭と3機のV字編隊。
 function groundAircraft(group,color){
@@ -240,6 +241,7 @@ function groundMatchup(f,t){
     f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
 }
 function groundDamageFactor(t){
+  if(t.groundUnloading)return groundLandingRules().damageFactor;
   if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return 1;
   const c=WOS_TERRAIN[op.ground].combat,m=c.urbanMargin;
   const cover=groundForests.some(p=>Math.hypot(t.pos.x-p.x,t.pos.z-p.z)<=p.r)||groundBuildings.some(b=>t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
