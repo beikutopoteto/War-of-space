@@ -6,12 +6,17 @@ window.WOS_TERRAIN.exercise2 = {
   sight: { basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   strike: { artillery:{delay:5,radius:7,spread:2,reload:8}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
+  // 輸送・架橋の試作値。距離は戦闘単位、橋の幅判定は water の km。
+  transport: { boardRange:1.6, unloadKm:.4, wreckLoss:.5, repathSec:.5 },
+  engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
     heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:100,dmg:5},
     scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
+    apc:{name:'装甲兵員輸送車',speed:4,range:8,hp:60,dmg:1},
+    engineer:{name:'工兵',speed:2,range:7,hp:40,dmg:1},
     artillery:{name:'自走砲',speed:2.5,range:45,hp:40,dmg:12},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2},
@@ -20,7 +25,7 @@ window.WOS_TERRAIN.exercise2 = {
   },
   combat: { tankInfantry:2, heavyTank:3 },
   capture: { seconds:30, radiusKm:2, roadWidthKm:1.25 },
-  movement: { marsh: { vehicle: 0.3, infantry: 0.6, scout: 0.3 }, river: { vehicle: 0, infantry: 0.2, scout: 0.5, air: 1 } }, // 仮の通行速度倍率
+  movement: { marsh: { vehicle: 0.3, infantry: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
     terrace:{edgeYKm:30.5,widthKm:.65,heightM:2.8},

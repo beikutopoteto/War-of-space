@@ -30,10 +30,11 @@ function groundStrikeStep(dt){
     s.left=Math.max(0,s.left-dt);if(s.left>1e-8)return true;
     s.resolving=true;
     try{
-      for(const t of fleets)if(groundStrikeHits(s,t,s.source)){
+      for(const t of fleets.filter(t=>groundStrikeHits(s,t,s.source))){
         const falloff=1-(1-groundStrikeRules().edgeDamage)*groundDistanceTo(t,{pos:s.impact})/s.radius;
         damage(t,s.dmg*falloff,s.source,s);
       }
+      groundBridgeHit(s);
     }finally{s.resolving=false;}
     groundStrikeDropVisual(s);
     // 散布先そのものに地表の輪を残す。停止撮影でも着弾を確認できる。
@@ -65,7 +66,7 @@ function groundStrikeCommand(list,p){
 function groundStrikeToggle(){
   if(over||!op.ground)return;
   if(!orderTargets().some(f=>groundStrikeWeapon(f)))return;
-  groundStrikeAiming=!groundStrikeAiming;groundStrikeMessage='';closePick();groundHud();
+  groundWorkAiming=null;groundStrikeAiming=!groundStrikeAiming;groundStrikeMessage='';closePick();groundHud();
 }
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');

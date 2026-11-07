@@ -164,7 +164,7 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>${f.name}${lost?' / 最終確認位置':' / '+GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>${groundTransportLabel(f)}${lost?' / 最終確認位置':' / '+GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
   if(f.groundKind){ if(f._labelContent!==f.name){f._labelContent=f.name;nm.textContent=f.name;} return; }
@@ -344,7 +344,7 @@ function orderTargets(){ return selGroup?groupAlive(selGroup):selMulti.filter(f=
 /* undo: every order given from the HUD first saves what the fleets it touches were doing; 戻す (Ctrl+Z / Backspace) restores the last one */
 const UNDO_MAX=30; let undoStack=[];
 function copyOrder(o){
-  if(!o) return null;
+  if(!o||op.ground&&['board','bridge'].includes(o.type)) return null;
   if(o.type!=='move') return {type:o.type,target:o.target};
   const left=o.path?pathLeft(o):[...(o.via||[]),o.dest], pts=left.length?left:[o.dest];   // the points still ahead
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
@@ -355,7 +355,8 @@ function saveUndo(t){
 }
 function undo(){
   const u=undoStack.pop(); updateUndo(); if(!u||over) return;
-  for(const s of u){ const f=s.f; if(!f.alive) continue;
+  for(const s of u){ const f=s.f; if(!f.alive||op.ground&&f.embarked) continue;
+    if(op.ground)groundCancelWork(f);
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
     f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync; }
@@ -363,7 +364,7 @@ function undo(){
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
-  const t=orderTargets().filter(f=>!f.locked); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
+  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked)); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   saveUndo(t);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
@@ -374,7 +375,7 @@ function groupOrder(o){
     /* with formation on, every army heads straight for its own place around the point (it does not chase the flagship);
        the formation is turned so that ahead is the way the flagship goes from where it is (or from its last point) */
     const formation=g&&g.form&&groupFlag(g), point=g&&!g.form;
-    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.target.pos; };
+    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.type==='bridge'?f.pos:x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
     const dir=formation?o.dest.clone().sub(base(formation)):null; if(dir&&dir.x*dir.x+dir.z*dir.z<1e-4) dir.copy(formation.march);
     t.forEach(f=>{ const x=tail(f), dest=point?o.dest.clone():formation?o.dest.clone().add(turnTo(formationOffset(g,f),dir)):o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
