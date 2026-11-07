@@ -265,8 +265,8 @@ menu.innerHTML=`
 <section class="scr" data-s="title">
   <div class="ttl">
     <p class="eyebrow">A.E. 45 — INTERPLANETARY WAR</p>
-    <h1>WAR OF <br><em>SPACE</em></h1>
-    <p class="title-sub">宙域艦隊戦　試作版</p>
+    <h1><span class="t-the">THE </span>WAR OF <em>SOL</em></h1>
+    <p class="title-sub">太陽系戦争　試作版</p>
   </div>
   <p class="tstat" id="tStat"></p>
   <nav class="mainnav" id="mainNav" aria-label="メインメニュー"></nav>
