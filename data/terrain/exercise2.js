@@ -1,6 +1,6 @@
 window.WOS_TERRAIN = window.WOS_TERRAIN || {};
 window.WOS_TERRAIN.exercise2 = {
-  meta: { id:'exercise2', location:'カザフスタン・アティラウ南方のウラル川デルタを基にした架空演習場', latitude:46.85, longitude:51.85, terrainTypes:['河川デルタ','氾濫原'], widthKm:48, heightKm:36, cellKm:0.4, elevationExaggeration:18, seed:27011, seaLevelM:-28, note:'実在の湿地を参考にした架空配置。演習用の港と浚渫水路は創作。' },
+  meta: { id:'exercise2', location:'カザフスタン・アティラウ南方のウラル川デルタを基にした架空演習場', latitude:46.85, longitude:51.85, terrainTypes:['河川デルタ','氾濫原'], widthKm:48, heightKm:36, cellKm:0.4, elevationExaggeration:18, seed:27011, seaLevelM:-28, note:'実在の沼地を参考にした架空配置。演習用の港と浚渫水路は創作。' },
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
     terrace:{edgeYKm:30.5,widthKm:.65,heightM:2.8},
@@ -13,13 +13,13 @@ window.WOS_TERRAIN.exercise2 = {
     deepChannel:{name:'演習用浚渫水路（架空）',points:[[41,0],[41,4],[40,7.7],[40,9]],widthKm:.65},
     ponds:[[[8,10],[10,10.3],[11,11.7],[9,12.1],[7.5,11]],[[29,10],[31,9.4],[32,10.4],[31,11.5],[29,11.3]]] },
   surface: [
-    {id:'reed-west',type:'reed',as:'湿地',polygon:[[2,9],[15,7],[18,10],[19,14],[16,18],[8,17],[2,14]]},
-    {id:'reed-east',type:'reed',as:'湿地',polygon:[[23,8],[35,7],[38,10],[36,15],[29,16],[24,13]]},
+    {id:'reed-west',type:'reed',as:'沼地',polygon:[[2,9],[15,7],[18,10],[19,14],[16,18],[8,17],[2,14]]},
+    {id:'reed-east',type:'reed',as:'沼地',polygon:[[23,8],[35,7],[38,10],[36,15],[29,16],[24,13]]},
     {id:'fields-west',type:'field',as:'平地',polygon:[[11,19],[20,19],[20,28],[12,28]]},
     {id:'fields-east',type:'field',as:'平地',polygon:[[26,20],[36,20],[36,29],[26,29]]},
     {id:'salt-east',type:'salt',as:'砂漠',polygon:[[37.8,11.2],[38.5,9.9],[40,9.7],[41,10.3],[42.5,9.8],[44,10.4],[45.8,10.2],[46.5,11.6],[46.1,13],[47,14.3],[46.4,15.9],[44.8,16.6],[43.6,16.2],[42,17.1],[40.7,16.5],[39,17.2],[38.5,15.5],[37.4,14.4],[38.1,13]]}
   ],
-  objects: { forest:{type:'森林',species:['ヤナギ','ポプラ'],count:2200,seed:1709,rule:'本流と主な分流の両岸の細い帯。上流は密で下流は葦原へ移行。北の乾いた段丘上と道路を避け、林は途切れ途切れ',roadClearanceKm:.18,terraceMaxYKm:30.4,bands:[{river:'main',yMin:8.4,yMax:30.4,bankMinKm:.26,bankMaxNorthKm:.88,bankMaxSouthKm:.36,fadeStartYKm:15,gapPeriodKm:2.6,gapFraction:.24},{river:'west',yMin:8,yMax:16,bankMinKm:.23,bankMaxNorthKm:.50,bankMaxSouthKm:.27,fadeStartYKm:13,gapPeriodKm:1.8,gapFraction:.36},{river:'east',yMin:8,yMax:12,bankMinKm:.22,bankMaxNorthKm:.43,bankMaxSouthKm:.26,fadeStartYKm:11,gapPeriodKm:1.7,gapFraction:.4}]}, shrubs:{type:'低木',species:['タマリスク','ヨモギ類','塩生低木'],seed:8309,count:2600,clusterKm:2.4,terraceMaxYKm:35.5,roadClearanceKm:.12,zones:[{id:'west-steppe',kind:'steppe',polygon:[[2,18],[17,18],[19,28],[18,34],[4,34],[1,26]],density:0.22},{id:'east-steppe',kind:'steppe',polygon:[[27,18],[38,18],[46,20],[45,34],[28,34]],density:0.22},{id:'forest-edge',kind:'bank',riverIds:['main','west','east'],minKm:.9,maxKm:1.7,density:0.7},{id:'salt-edge',kind:'salt',polygon:[[36,9],[47,8],[48,18],[37,19]],density:0.15}],rule:'草原は疎らな小群、河畔林の外縁は帯、塩性平地の周りは疎ら。水域・道路を避ける'}, reeds:{coverIds:['reed-west','reed-east'],densityPerKm2:0.87,count:210,seed:622,rule:'デルタの低湿地にまとまる'}, settlements:[{site:'A',count:65,spacingKm:.13},{site:'B',count:38,spacingKm:.14},{site:'C',count:48,spacingKm:.13},{site:'D',count:24,spacingKm:.14},{site:'E',count:24,spacingKm:.14},{site:'F',count:30,spacingKm:.15},{site:'G',count:22,spacingKm:.15},{site:'H',count:28,spacingKm:.14}] },
+  objects: { forest:{type:'森林',species:['ヤナギ','ポプラ'],count:2200,seed:1709,rule:'本流と主な分流の両岸の細い帯。上流は密で下流は葦原へ移行。北の乾いた段丘上と道路を避け、林は途切れ途切れ',roadClearanceKm:.18,terraceMaxYKm:30.4,bands:[{river:'main',yMin:8.4,yMax:30.4,bankMinKm:.26,bankMaxNorthKm:.88,bankMaxSouthKm:.36,fadeStartYKm:15,gapPeriodKm:2.6,gapFraction:.24},{river:'west',yMin:8,yMax:16,bankMinKm:.23,bankMaxNorthKm:.50,bankMaxSouthKm:.27,fadeStartYKm:13,gapPeriodKm:1.8,gapFraction:.36},{river:'east',yMin:8,yMax:12,bankMinKm:.22,bankMaxNorthKm:.43,bankMaxSouthKm:.26,fadeStartYKm:11,gapPeriodKm:1.7,gapFraction:.4}]}, shrubs:{type:'低木',species:['タマリスク','ヨモギ類','塩生低木'],seed:8309,count:2600,clusterKm:2.4,terraceMaxYKm:35.5,roadClearanceKm:.12,zones:[{id:'west-steppe',kind:'steppe',polygon:[[2,18],[17,18],[19,28],[18,34],[4,34],[1,26]],density:0.22},{id:'east-steppe',kind:'steppe',polygon:[[27,18],[38,18],[46,20],[45,34],[28,34]],density:0.22},{id:'forest-edge',kind:'bank',riverIds:['main','west','east'],minKm:.9,maxKm:1.7,density:0.7},{id:'salt-edge',kind:'salt',polygon:[[36,9],[47,8],[48,18],[37,19]],density:0.15}],rule:'草原は疎らな小群、河畔林の外縁は帯、塩性平地の周りは疎ら。水域・道路を避ける'}, reeds:{coverIds:['reed-west','reed-east'],densityPerKm2:0.87,count:210,seed:622,rule:'デルタの低沼地にまとまる'}, settlements:[{site:'A',count:65,spacingKm:.13},{site:'B',count:38,spacingKm:.14},{site:'C',count:48,spacingKm:.13},{site:'D',count:24,spacingKm:.14},{site:'E',count:24,spacingKm:.14},{site:'F',count:30,spacingKm:.15},{site:'G',count:22,spacingKm:.15},{site:'H',count:28,spacingKm:.14}] },
   roadNetwork: { lines:[{id:'north',type:'main',points:[[7,29],[15,30],[22,29],[24,29],[33,29],[41,27]]},{id:'west',type:'main',points:[[7,29],[10,25],[12,21],[11,17],[9,13]]},{id:'east',type:'main',points:[[24,29],[29,25],[34,22],[38,17],[40,12],[40,9]]},{id:'bridge',type:'local',points:[[12,21],[18,21],[22.5,21],[27,21],[34,22]]},{id:'port',type:'local',points:[[34,22],[40,18],[42,14],[40,9]]}], bridges:[{id:'N',x:23.5,y:29,river:'main'},{id:'C',x:22.5,y:21,river:'main'}] },
   sites: [
     {id:'A',name:'西方集落',x:7,y:29,radiusKm:5,owner:'blue',role:'西側の出発点'},
@@ -44,18 +44,25 @@ window.WOS_TERRAIN.exercise2 = {
   for(const surface of d.surface)if(surface.type==='reed'||surface.type==='salt')surface.polygon=roughen(surface.polygon,d.meta.seed+surface.id.length*91,.22);
   // Disjoint treatment priority: wet polygons override the default plain.
   d.surfaceDefault={type:'steppe',as:'平地'}; // The renderer selects a surface only when as matches the cell.
+  // Coastal wetlands follow the shoreline; riparian strips follow the channel axes.
+  function riverStrip(r,width){const pts=r.points,left=[],right=[];for(let i=0;i<pts.length;i++){let prev=pts[Math.max(0,i-1)],next=pts[Math.min(pts.length-1,i+1)],dx=next[0]-prev[0],dy=next[1]-prev[1],length=Math.hypot(dx,dy),nx=-dy/length*width,ny=dx/length*width;left.push([pts[i][0]+nx,pts[i][1]+ny]);right.push([pts[i][0]-nx,pts[i][1]-ny])}return left.concat(right.reverse())}
+  const coastBand=coast.map(([x,y])=>[x,y+2.1]).concat(coast.slice().reverse());
+  const oldChannels=[[[5,22],[10,22.7],[14,21.7],[18,21]],[[28,17.2],[31,18.1],[35,17.5],[38,16.2]],[[8,12],[12,13.3],[16,13.2]],[[8,10],[9,11],[11,11.7]],[[29,10],[30,11],[32,10.4]]];
+  const channelRegions=oldChannels.map((points,i)=>({id:'old-channel-'+i,region:riverStrip({points},.52),mix:{沼地:.85,平地:.15},patch:.8,seed:340+i*19}));
   d.terrain={regions:[
     {id:'salt',region:d.surface.find(s=>s.id==='salt-east').polygon,mix:{砂漠:.7,平地:.3},patch:1.8,seed:701},
-    {id:'estuary',region:[[0,0],[48,0],[48,17],[35,18],[25,17],[17,19],[0,18]],mix:{湿地:.85,平地:.15},patch:1.0,seed:319},
-    {id:'levee',region:[[19,17],[25.5,17],[27,36],[20,36],[20.5,29],[19,23]],mix:{平地:.7,湿地:.3},patch:2.2,seed:487},
-    {id:'floodplain',region:[[0,17],[17,17],[25,16],[35,17],[48,17],[48,27],[0,27]],mix:{平地:.5,湿地:.5},patch:1.7,seed:113},
-    {id:'north',region:[[0,27],[48,27],[48,36],[0,36]],mix:{平地:.9,湿地:.1},patch:3.2,seed:221}
+    {id:'coastal-reeds',region:coastBand,mix:{沼地:.72,平地:.28},patch:1.0,seed:319},
+    {id:'estuary',region:[[16,7],[30,7],[32,9],[29,10.5],[25,11.2],[20,12],[17,10]],mix:{沼地:.80,平地:.20},patch:1.1,seed:317},
+    {id:'north',region:[[0,30.5],[48,30.5],[48,36],[0,36]],mix:{平地:1},patch:3.2,seed:221},
+    ...channelRegions,
+    {id:'levee',region:[[19,17],[25.5,17],[27,30.5],[20,30.5],[20.5,29],[19,23]],mix:{平地:1},patch:2.2,seed:487},
+    {id:'floodplain',region:[[0,0],[48,0],[48,30.5],[0,30.5]],mix:{平地:1},patch:1.7,seed:113}
   ]};
   // A cell belongs to the first containing region; rank smooth noise within each
   // region so the requested mix is preserved for the actual land cells.
   function inside(x,y,poly){let hit=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])hit=!hit}return hit}
   function hash(x,y,seed){let n=Math.sin(x*127.1+y*311.7+seed*41.3)*43758.5453123;return n-Math.floor(n)}
-  function noise(x,y,r){let xx=x/r.patch,yy=y/r.patch,ix=Math.floor(xx),iy=Math.floor(yy),fx=xx-ix,fy=yy-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);let a=hash(ix,iy,r.seed)*(1-fx)+hash(ix+1,iy,r.seed)*fx,b=hash(ix,iy+1,r.seed)*(1-fx)+hash(ix+1,iy+1,r.seed)*fx;return a*(1-fy)+b*fy}
+  function noise(x,y,r){let xx=x/r.patch,yy=y/r.patch,ix=Math.floor(xx),iy=Math.floor(yy),fx=xx-ix,fy=yy-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);let a=hash(ix,iy,r.seed)*(1-fx)+hash(ix+1,iy,r.seed)*fx,b=hash(ix,iy+1,r.seed)*(1-fx)+hash(ix+1,iy+1,r.seed)*fx,value=a*(1-fy)+b*fy;if(r.oldChannels){let best=Infinity;for(const path of r.oldChannels)for(let i=0;i<path.length-1;i++){let p=path[i],q=path[i+1],dx=q[0]-p[0],dy=q[1]-p[1],t=Math.max(0,Math.min(1,((x-p[0])*dx+(y-p[1])*dy)/(dx*dx+dy*dy)));best=Math.min(best,Math.hypot(x-p[0]-t*dx,y-p[1]-t*dy))}value+=2*Math.exp(-((best/r.channelWidthKm)**2))}return value}
   const size=d.meta.cellKm,cols=Math.round(d.meta.widthKm/size),rows=Math.round(d.meta.heightKm/size),groups=d.terrain.regions.map(()=>[]);d.terrain.cells=Array(cols*rows).fill(null);d.terrain.cols=cols;d.terrain.rows=rows;
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){let x=(col+.5)*size,y=(row+.5)*size;if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea))continue;let i=d.terrain.regions.findIndex(r=>inside(x,y,r.region));if(i<0)continue;groups[i].push({index:row*cols+col,value:noise(x,y,d.terrain.regions[i])})}
   groups.forEach((g,i)=>{g.sort((a,b)=>a.value-b.value||a.index-b.index);let entries=Object.entries(d.terrain.regions[i].mix),from=0;entries.forEach(([type,ratio],j)=>{let end=j===entries.length-1?g.length:Math.round(from+g.length*ratio);for(let k=from;k<Math.min(end,g.length);k++)d.terrain.cells[g[k].index]=type;from=end})});
