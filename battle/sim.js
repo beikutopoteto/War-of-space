@@ -52,9 +52,10 @@ function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.cl
 function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
 function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
-function shown(u){ return !!op.ground||u.team===0||u.seen; }
+function shown(u){ if(op.ground)return u.team===0||groundSeenBy(0,u); return u.team===0||u.seen; }
 let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
+  if(op.ground){ groundUpdateSight(); return; }
   const all=units();
   if(clouds.length) for(const u of all) u.inCloud=u.alive&&u.kind!=='fortress'&&inCloud(u);
   if(debris.length) for(const u of all) u.inDebris=u.alive&&u.kind==='fleet'&&inDebris(u);
@@ -105,7 +106,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src){
-  if(op.ground&&src&&groundFireFactor(src,t)===0) return;
+  if(op.ground&&src&&!groundCanFire(src,t)) return;
   if(tutorialProtected()&&src&&src.team===1&&t.team===0) return;
   tutorialDamage(t,amt,src);
   if(!t.alive) return;

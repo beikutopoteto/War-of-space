@@ -1,0 +1,116 @@
+/* 地上専用の視線と共有視界。レーダーもこの判定を通す。宇宙の canSee は変えない。 */
+let groundSightHeights=null, groundFog=null, groundSightBuildingSource=null, groundSightBuildingBins=new Map();
+function groundSightRules(){ return WOS_TERRAIN[op.ground].sight; }
+function groundHeightCacheReset(){ groundSightHeights=null; }
+function groundSightReset(){ groundHeightCacheReset(); groundFog=null; groundSightBuildingSource=null; }
+// 描画の地表メッシュ（1戦闘単位の格子、対角線で二分）と同じ面を参照する。
+function groundSightVertex(index,x,z){
+  let h=groundSightHeights[index];
+  if(Number.isNaN(h)){h=groundHeight(x,z);groundSightHeights[index]=h;}
+  return h;
+}
+function groundSightHeight(x,z){
+  if(!groundSightHeights){groundSightHeights=new Float64Array(193*145);groundSightHeights.fill(NaN);}
+  const ix=Math.floor(x),iz=Math.floor(z),tx=x-ix,tz=z-iz;
+  if(ix< -96||ix>=96||iz< -72||iz>=72)return groundHeight(x,z);
+  const i=(iz+72)*193+ix+96;
+  if(tx+tz<=1)return groundSightVertex(i,ix,iz)*(1-tx-tz)+groundSightVertex(i+1,ix+1,iz)*tx+groundSightVertex(i+193,ix,iz+1)*tz;
+  return groundSightVertex(i+194,ix+1,iz+1)*(tx+tz-1)+groundSightVertex(i+193,ix,iz+1)*(1-tx)+groundSightVertex(i+1,ix+1,iz)*(1-tz);
+}
+// 高度切り替え中の索敵も、射撃と同じく到着までは元の段を使う。
+function groundEye(f){
+  return {x:f.pos.x,z:f.pos.z,y:groundHeight(f.pos.x,f.pos.z)+(groundRules().heights[f.band||'ground']||0)+groundSightRules().eyeHeight};
+}
+function groundSightRange(f){
+  const r=groundSightRules(), base=r[f.groundKind]??r.basic;
+  return base*(1+r.heightGain*Math.min(1,Math.max(0,groundHeight(f.pos.x,f.pos.z))/r.heightForMax));
+}
+function groundConcealment(f){
+  return (f.band||'ground')==='ground'&&groundForests.some(p=>Math.hypot(f.pos.x-p.x,f.pos.z-p.z)<=p.r)?groundSightRules().forest:1;
+}
+// 線分と建物の箱の交差。薄い建物もサンプリングの間から透視しない。
+function groundBuildingBlocks(a,b,box){
+  let lo=0,hi=1;
+  for(let axis=0;axis<3;axis++){
+    const start=axis===0?a.x:axis===1?a.y:a.z,end=axis===0?b.x:axis===1?b.y:b.z;
+    const min=axis===0?box.minX:axis===1?box.bottom:box.minZ,max=axis===0?box.maxX:axis===1?box.top:box.maxZ,delta=end-start;
+    if(Math.abs(delta)<1e-9){if(start<min||start>max)return false;continue;}
+    let enter=(min-start)/delta,leave=(max-start)/delta;
+    if(enter>leave){const swap=enter;enter=leave;leave=swap;}
+    lo=Math.max(lo,enter);hi=Math.min(hi,leave);if(lo>hi)return false;
+  }
+  return hi>0&&lo<1;
+}
+function groundBuildingsBlock(a,b){
+  // 建物を4戦闘単位の区画に分け、線分の範囲外の町を調べない。
+  if(groundSightBuildingSource!==groundBuildings){
+    groundSightBuildingSource=groundBuildings;groundSightBuildingBins=new Map();
+    for(const box of groundBuildings)for(let z=Math.floor(box.minZ/4);z<=Math.floor(box.maxZ/4);z++)for(let x=Math.floor(box.minX/4);x<=Math.floor(box.maxX/4);x++){
+      const key=(z+128)*256+x+128;if(!groundSightBuildingBins.has(key))groundSightBuildingBins.set(key,[]);groundSightBuildingBins.get(key).push(box);
+    }
+  }
+  if(!groundBuildings.length)return false;
+  const minX=Math.floor(Math.min(a.x,b.x)/4),maxX=Math.floor(Math.max(a.x,b.x)/4),minZ=Math.floor(Math.min(a.z,b.z)/4),maxZ=Math.floor(Math.max(a.z,b.z)/4);
+  for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
+    const boxes=groundSightBuildingBins.get((z+128)*256+x+128);
+    if(boxes)for(const box of boxes)if(groundBuildingBlocks(a,b,box))return true;
+  }
+  return false;
+}
+function groundClearLine(a,b){
+  if(groundBuildingsBlock(a,b))return false;
+  const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/groundSightRules().rayStep));
+  for(let i=1;i<n;i++){
+    const t=i/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t;
+    if(groundSightHeight(x,z)>a.y+(b.y-a.y)*t)return false;
+  }
+  return true;
+}
+function groundLineOfSight(f,t){ return groundClearLine(groundEye(f),groundEye(t)); }
+function groundCanSee(f,t){
+  return f.alive&&t.alive&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
+}
+function groundSeenBy(team,t){ return !!(t.groundVisible&&t.groundVisible[team]); }
+function groundUpdateSight(){
+  if(!op.ground)return;
+  const live=fleets.filter(f=>f.alive&&!f.embarked);
+  for(const t of fleets){
+    t.groundVisible=[false,false];t.groundContacts=t.groundContacts||[null,null];
+    for(const team of [0,1]){
+      const visible=t.alive&&!t.embarked&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t)));
+      t.groundVisible[team]=visible;
+      if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec};
+    }
+    // seen は宇宙と同じ「相手に発見されている」。表示は青から見た赤だけを隠す。
+    t.seen=t.groundVisible[1-t.team];
+    if(t.seen)t.everSeen=true;
+    const contact=t.groundContacts[1-t.team];
+    t.lastPos=contact?contact.pos.clone():null;t.lostAt=contact?contact.at:-1e9;
+  }
+}
+function groundSightInit(){
+  const d=WOS_TERRAIN[op.ground],r=d.sight,canvas=document.createElement('canvas');
+  canvas.width=Math.ceil(d.meta.widthKm*GROUND_SCALE/r.fogStep);canvas.height=Math.ceil(d.meta.heightKm*GROUND_SCALE/r.fogStep);
+  const texture=new THREE.CanvasTexture(canvas),geo=new THREE.PlaneGeometry(d.meta.widthKm,d.meta.heightKm,192,144);
+  geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
+  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(p.getX(i)+24,18-p.getZ(i))/GROUND_SCALE+.04);
+  const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
+  mesh.renderOrder=3;groundBoard.add(mesh);
+  const ctx=canvas.getContext('2d');
+  groundFog={canvas,texture,ctx,pixels:ctx.createImageData(canvas.width,canvas.height),next:-Infinity};
+}
+function groundFogDraw(force=false){
+  const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
+  const d=WOS_TERRAIN[op.ground],r=d.sight,{width,height}=fog.canvas,raw=fog.pixels.data;
+  const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
+  for(let py=0;py<height;py++)for(let px=0;px<width;px++){
+    const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=(gx-24)*GROUND_SCALE,z=(18-gy)*GROUND_SCALE;
+    const k=(py*width+px)*4;let visible=false;
+    if(groundInside(gx,gy,d.display.board)){
+      const target={x,z,y:groundSightHeight(x,z)+r.eyeHeight};
+      visible=observers.some(o=>Math.hypot(x-o.eye.x,z-o.eye.z)<=o.range&&groundClearLine(o.eye,target));
+      raw[k+3]=visible?0:r.fogAlpha;
+    }else raw[k+3]=0;
+  }
+  fog.ctx.putImageData(fog.pixels,0,0);fog.texture.needsUpdate=true;fog.next=gameSec+r.fogEvery;
+}

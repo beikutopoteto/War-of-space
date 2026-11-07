@@ -47,7 +47,7 @@ function groundUpdateRoster(targets){
   for(const {level,item,pick} of groundRosterNodes){const m=groundMembers(level,item.id);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
 }
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
-function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack'].includes(f.groundKind)?['low','high']:['ground']; }
+function groundBands(f){ return f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundMoveKind(f){ return (f.band||'ground')==='ground'?(['was','heavyInfantry'].includes(f.groundKind)?'infantry':f.groundKind):'air'; }
 function groundUnitHeight(f){
   const h=groundRules().heights, from=h[f.band||'ground'];
@@ -62,7 +62,7 @@ function groundFireFactor(f,t){
   return row&&row[target]||0;
 }
 function groundDistanceTo(f,t){ return Math.hypot(f.pos.x-t.pos.x,f.pos.z-t.pos.z); }
-function groundCanFire(f,t){ return f.alive&&t.alive&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range; }
+function groundCanFire(f,t){ return f.alive&&t.alive&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t); }
 function groundLandable(f){ return groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
@@ -90,7 +90,7 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
-  groundView='all'; groundVisuals=null; groundGrids={};
+  groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
   groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
   document.getElementById('alt').classList.toggle('ground-alt',active);
   document.getElementById('groundAlt').hidden=!active;
@@ -110,10 +110,10 @@ function groundInit(){
       }
       if(best)f.pos.copy(best);
     }
-    f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=true;
+    f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
     for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
-    if(['fighter','attack'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
+    if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
     else {
       const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team].cv;
       const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
@@ -133,7 +133,7 @@ function groundInit(){
     const grid=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:band==='high'?0xe1d7ff:0xd5f8ff,transparent:true,opacity:.08,depthWrite:false}));
     groundGrids[band]=grid; groundVisuals.add(grid);
   }
-  groundCaptureInit(); groundHud(); groundDraw();
+  groundCaptureInit(); groundSightInit(); groundUpdateSight(); groundHud(); groundDraw();
 }
 // 見本 ground-b.html の輪郭と3機のV字編隊。
 function groundAircraft(group,color){
@@ -150,18 +150,19 @@ function groundAircraft(group,color){
 function groundDraw(){
   if(!groundVisuals) return;
   for(const f of fleets){
-    const model=f.groundModel; if(!model)continue; model.visible=f.alive;
-    model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(['fighter','attack'].includes(f.groundKind)?Math.PI:0);
+    const model=f.groundModel; if(!model)continue; model.visible=f.alive&&(f.team===0||groundSeenBy(0,f));
+    model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
     model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
-    f.el.style.opacity=String(k); // 表示を薄くしても選択と射撃の規則は変えない。
+    f.el.style.opacity=String(k*(f.team===1&&!f.seen?.42:1)); // 表示を薄くしても選択と射撃の規則は変えない。
     for(const s of f.ships)s.pos.copy(f.pos);
   }
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
-  groundCaptureDraw(); groundHud();
+  groundFogDraw(); groundCaptureDraw(); groundHud();
 }
 function groundStep(dt){
   if(over) return;
+  groundUpdateSight();
   for(const f of fleets){
     if(!f.alive) continue;
     if(f.bandTo){
@@ -180,12 +181,18 @@ function groundStep(dt){
     f.pos.y=groundUnitHeight(f);
     if(f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
-    if(target&&!target.alive){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+    if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     else if(target&&groundFireFactor(f,target)>0&&groundDistanceTo(f,target)>f.range*.8){
       f.groundChaseT=(f.groundChaseT||0)-dt;
       if(!f.order.path||f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
       if(f.order.path) groundFollow(f,dt);
     }
+  }
+  // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
+  groundUpdateSight();
+  for(const f of fleets){
+    if(!f.alive) continue;
+    const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);

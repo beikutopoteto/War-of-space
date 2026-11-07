@@ -2,6 +2,8 @@ window.WOS_TERRAIN = window.WOS_TERRAIN || {};
 window.WOS_TERRAIN.exercise2 = {
   meta: { id:'exercise2', location:'カザフスタン・アティラウ南方のウラル川デルタを基にした架空演習場', latitude:46.85, longitude:51.85, terrainTypes:['河川デルタ','氾濫原'], widthKm:48, heightKm:36, cellKm:0.4, elevationExaggeration:18, seed:27011, seaLevelM:-28, note:'実在の沼地を参考にした架空配置。演習用の港と浚渫水路は創作。' },
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
+  // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
+  sight: { basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
@@ -10,6 +12,7 @@ window.WOS_TERRAIN.exercise2 = {
     scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2},
+    supportAircraft:{name:'広域戦略支援航空機',speed:5,range:0,hp:20,dmg:0},
     was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2}
   },
   combat: { tankInfantry:2, heavyTank:3 },

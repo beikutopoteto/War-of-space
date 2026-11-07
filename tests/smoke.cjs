@@ -7,6 +7,7 @@ const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
 const { checkGroundCapture } = require('./ground-capture.cjs');
 const { checkGroundOrg } = require('./ground-org.cjs');
+const { checkGroundSight } = require('./ground-sight.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -148,6 +149,7 @@ function check(ok, label, detail = '') {
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
+    await checkGroundSight(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {
