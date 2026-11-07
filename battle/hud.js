@@ -325,6 +325,7 @@ document.getElementById('toMenu').addEventListener('click',()=>{ document.getEle
 function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.classList.add('inmenu'); select(null); if(window.WOS_MENU) window.WOS_MENU.open(); }
 /* entry point used by the preparation screens (prep.js) */
 window.WOS={ start(cfg){
+  if(cfg&&OPS.some(o=>o.id===cfg.op&&o.ground)&&cfg.groundOrg===undefined&&!cfg.fleets&&window.WOS_MENU) cfg=window.WOS_MENU.groundConfig(cfg);
   autoMode=document.body.classList.contains('dbg-auto');   // the debug auto mode (prep.js; sim.js autoAI)
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startOp();

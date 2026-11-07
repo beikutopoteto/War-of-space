@@ -179,6 +179,8 @@ const tileNo=f=>unitNo(f.name)?'第'+unitNo(f.name):f.name;   // 第12, the 第 
 function buildRoster(){
   hideTip();
   rosterEl.innerHTML='';
+  rosterEl.classList.toggle('ground-roster',!!op.ground);
+  rosterEl.setAttribute('aria-label',op.ground?'地上軍の編成':'自軍艦隊');
   const mine=fleets.filter(f=>f.team===0&&!f.ward);
   const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); b.setAttribute('aria-label',f.name);
@@ -192,6 +194,7 @@ function buildRoster(){
     const row=document.createElement('div'); row.className='frow'; row.append(b,st);
     row.addEventListener('pointerenter',()=>showTip(f,row)); row.addEventListener('pointerleave',hideTip);
     f.btn=b; f.stBtn=st; f.mkKey=''; return row; };
+  if(op.ground){ groundBuildRoster(mk); return; }
   /* a section: the tab, and beside it the tiles (open) or a one-line summary (closed) */
   const section=(zone,label,list,open,flip,title)=>{
     const z=document.createElement('div'); z.className='rzone'+(open?' open':''); z.dataset.zone=zone;
@@ -311,7 +314,7 @@ function newGroupName(t){ const all={}; t.forEach(f=>f.ships.forEach(s=>all[s.ty
   return unitName('group',mainType(all),new Set(groups.map(g=>unitNo(g.name)))); }
 /* a new army group from the selected fleets (Shift+click to pick several): the first one picked is the flagship,
    and the formation is how they stand now */
-function newGroup(){ const t=orderTargets(); if(!t.length||selGroup||over) return;
+function newGroup(){ if(op.ground) return; const t=orderTargets(); if(!t.length||selGroup||over) return;
   if(t.length>GROUP_MAX){ logEvent('戦区軍は5個の打撃群まで',`選んでいる${t.length}隊のうち、${GROUP_MAX}隊までにしてください。`); return; }
   const fl=t.includes(selected)?selected:t[0];
   t.forEach(leaveGroup);
@@ -327,7 +330,7 @@ function toggleForm(g){ g.form=!g.form; updateRoster();
   logEvent(g.form?`${g.name} 陣形ON`:`${g.name} 陣形OFF`, g.form?`旗艦の${(groupFlag(g)||{name:'—'}).name}を中心に、陣形を保って動く。`:'移動を命じると、全軍が指示した一点に集まる。'); }
 function selectGroup(g){ const m=groupAlive(g); if(!m.length) return; if(selGroup===g){ select(null); return; } setSel(m,g); }
 /* G: the group of the selected fleet, then the next group, then nothing */
-function cycleGroup(){ const live=groups.filter(g=>groupAlive(g).length); if(!live.length) return;
+function cycleGroup(){ if(op.ground) return; const live=groups.filter(g=>groupAlive(g).length); if(!live.length) return;
   const own=!selGroup&&selected&&groupOf(selected);
   if(own&&live.includes(own)){ selectGroup(own); return; }
   const next=live[live.indexOf(selGroup)+1]; if(next) selectGroup(next); else select(null); }
@@ -383,12 +386,14 @@ function groupOrder(o){
   tutorialOrder(o,t);
 }
 function openSelectedRoster(t){
+  if(op.ground){ groundOpenSelected(t); return; }
   /* a fleet picked (keys, the map) in a closed section opens that section */
   const shut=t.filter(f=>f.team===0&&!f.ward).map(groupOf).filter(g=>g?!g.open:!freeOpen);
   if(shut.length){ shut.forEach(g=>{ if(g) g.open=true; else freeOpen=true; }); buildRoster(); }
 }
 function updateRoster(){
   const t=orderTargets();
+  if(op.ground) groundUpdateRoster(t);
   rosterEl.querySelectorAll('.rzone').forEach(z=>{ const g=z.dataset.zone==='group'?groups[+z.dataset.g]:null;
     const list=fleets.filter(f=>f.team===0&&!f.ward&&(g?g.members.has(f):!groupOf(f)));
     z.querySelector('.gtab small').textContent=list.filter(f=>f.alive).length;
@@ -442,9 +447,10 @@ function reset(cfg=lastCfg){
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
-  const spec=cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
+  const groundSortie=op.ground&&!(cfg&&cfg.fleets&&cfg.fleets.length)?window.WOS_GROUND_ORG.sortie(cfg&&cfg.groundOrg):null;
+  const spec=groundSortie?groundSortie.fleets:cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
   fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
-  if(op.ground) groundInit();
+  if(op.ground){ groundInitOrg(groundSortie?groundSortie.org:null); groundInit(); }
   /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
      army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
   if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;

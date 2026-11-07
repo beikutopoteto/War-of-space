@@ -170,6 +170,8 @@
 
 /* organization */
 .org{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.ground-org-node{display:grid;gap:4px;margin-bottom:6px}
+.ground-org-node .ground-org-node{margin-left:18px}
 .list{display:grid;gap:4px}
 .list .new{background:transparent;border:1px dashed var(--line);color:var(--blue);padding:8px;font-size:15px;font-weight:700}
 .li{display:grid;gap:1px;text-align:left;background:rgba(8,14,26,.6);border:1px solid var(--line);border-left:3px solid transparent;color:var(--ink);padding:7px 10px}

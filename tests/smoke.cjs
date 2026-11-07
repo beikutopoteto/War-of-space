@@ -6,6 +6,7 @@ const path = require('path'), fs = require('fs');
 const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
 const { checkGroundCapture } = require('./ground-capture.cjs');
+const { checkGroundOrg } = require('./ground-org.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -146,6 +147,7 @@ function check(ok, label, detail = '') {
     check(bands.cases===33&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表33通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
     await checkGroundCapture(page, check);
+    await checkGroundOrg(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {
