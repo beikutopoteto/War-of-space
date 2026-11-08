@@ -381,7 +381,12 @@ function check(ok, label, detail = '') {
 
     /* sortie with the first army group */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
-    check(await page.locator('#opList [data-op]').count() === data.shown + 1 && await page.locator('#opList [data-op="denaliBreak"]').count() === 1, '出撃: 作戦の一覧（作りかけの hidden の作戦は出さない。第6節は出る）', `${data.shown}作戦`);
+    // Both menu-only tutorials have data-op even when locked; chapter tabs and 準備中 do not.
+    const opList = await page.evaluate(() => ({
+      actual: [...document.querySelectorAll('#opList [data-op]')].map(b => b.dataset.op).sort(),
+      expected: [...WOS_DATA.operations.filter(o => !o.hidden).map(o => o.id), 'tutorial', 'tutorial2'].sort()
+    }));
+    check(opList.actual.length === data.shown + 2 && JSON.stringify(opList.actual) === JSON.stringify(opList.expected) && opList.actual.includes('denaliBreak'), '出撃: 作戦の一覧（チュートリアル2件を含み、hidden・章タブ・準備中は数えない。第6節は出る）', JSON.stringify(opList));
     await page.click('[data-op="charybdis"]');
     await page.click('#goBattle');
     check(await page.locator('#sgLoad tr').count() > 0 && !(await page.isDisabled('#forcesBattle')), '出撃: 兵科ごとの出撃上限が出て、上限内なら出撃できる');

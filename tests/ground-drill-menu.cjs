@@ -29,10 +29,23 @@ function runMenuChecks(){
   run(prep.split('\n').find(line=>line.startsWith('const aidNow=')));
   let count=0;
   const check=(code,message)=>{assert.equal(run(code),true,message);count++;};
+  const checkOpList=()=>{
+    const actual=node('opList').querySelectorAll('[data-op]').map(b=>b.dataset.op).sort();
+    const expected=JSON.parse(run("JSON.stringify([...OPS.filter(o=>!o.hidden).map(o=>o.id),'tutorial','tutorial2'].sort())"));
+    assert.deepEqual(actual,expected,'一覧はhidden以外の作戦とチュートリアル2件だけ（重複なし）');count++;
+    const secondChapter=node('opList').innerHTML.match(/<section[^>]*data-section="第二章"[\s\S]*?<\/section>/)[0];
+    assert.match(secondChapter,/準備中/);count++;
+    assert.doesNotMatch(secondChapter,/\bdata-op=/);count++;
+    assert.equal(node('opList').querySelectorAll('[data-op-section]').length,3);count++;
+  };
+  run('renderSortie()');
+  checkOpList();
+  assert.match(node('opList').innerHTML,/<button[^>]*data-op="tutorial2"[^>]*disabled/);count++;
   check("!opOpen(TUT2)&&!opOpen(TUT2_BASE)",'新規保存では両方に鍵');
   run("prog().tutorialCleared=true;prog().cleared=CAMP.filter(o=>o.id!=='denaliBreak').map(o=>o.id)");
   check("!opOpen(TUT2)&&!opOpen(TUT2_BASE)",'第一章最終節前は両方に鍵');
-  run("prog().cleared.push('denaliBreak');renderSortie()");
+  run("prog().cleared.push('denaliBreak');sortieOp='tutorial2';renderSortie()");
+  checkOpList();
   check("opOpen(TUT2)&&!opOpen(TUT2_BASE)",'第一章後はチュートリアル2だけ解放');
   const section=id=>node('opList').innerHTML.match(new RegExp(`<section[^>]*data-section="${id}"[\\s\\S]*?</section>`))[0];
   const exercises=section('演習');
@@ -70,6 +83,7 @@ function runMenuChecks(){
   clickTab('第一章');
   check("save.sortieMenu.closed['第一章']&&!save.sortieMenu.closed['第二章']&&!save.sortieMenu.closed['演習']",'第一章だけを畳んでもほかの段は開いたまま');
   for(const id of ['第二章','演習'])clickTab(id);
+  checkOpList();
   check("Object.values(save.sortieMenu.closed).every(Boolean)",'3段を独立して畳める');
   run("persist();save=load();renderSortie()");
   for(const id of ['第一章','第二章','演習']){assert.match(section(id),/aria-expanded="false"[\s\S]*class="op-rows"[^>]*hidden/);count++;}
