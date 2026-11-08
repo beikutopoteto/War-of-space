@@ -13,6 +13,7 @@ const { checkGroundTransport } = require('./ground-transport.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
+const { checkGroundSupply } = require('./ground-supply.cjs');
 const { checkGroundDrill } = require('./ground-drill.cjs');
 const { crossingCases } = require('./ground-path.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
@@ -96,7 +97,7 @@ function check(ok, label, detail = '') {
         was.order={type:'attack',target:fighter};was.groundShotT=0;hits.length=0;step(.05);
         highWas=was.band==='high'&&hits.some(h=>h.kind==='was'&&h.target==='high');
       }finally{damage=originalDamage;}
-      reset({op:'groundExercise2'});setSpeed(0);
+      reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
       const f=fleets.find(f=>f.team===0),t=fleets.find(f=>f.team===1),saved=fleets;
       const rows=[['heavyInfantry','ground',[1,1,1]],['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,0,0]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,0]],['attack','high',[0,0,0]],['was','ground',[1,0,0]],['was','low',[1,1,0]],['was','high',[0,1,1]]];
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
@@ -116,7 +117,7 @@ function check(ok, label, detail = '') {
         f.groundKind='fighter';f.band='low';t.band='high';t.pos.y=1000;f.groundShotT=0;const hp=t.hpPool;groundStep(.05);
         const horizontal=t.hpPool<hp;t.pos.x+=21;f.groundShotT=0;const hp2=t.hpPool;groundStep(.05);if(!horizontal||t.hpPool!==hp2)bad++;
       }finally{damage=original;fleets=saved;}
-      reset({op:'groundExercise2'});setSpeed(0);
+      reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
       const plane=fleets.find(f=>f.groundKind==='fighter'), groundWas=fleets.find(f=>f.groundKind==='was');
       plane.pos.copy(groundPoint(14,22));plane.pos.y=groundUnitHeight(plane);
       order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)step(.05);
@@ -145,6 +146,7 @@ function check(ok, label, detail = '') {
     await checkGroundBranches(page, check);
     await checkGroundSea(page, check);
     await checkGroundLanding(page, check);
+    await checkGroundSupply(page, check);
     await checkGroundDrill(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));

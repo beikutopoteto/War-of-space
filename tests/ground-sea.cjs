@@ -2,7 +2,7 @@
    npm test では同じ場面に加えてクリック・モデル・予告円・再初期化を確認する。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function seaCases(){
-  const saved={fleets,groundSites,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,groundHud,stage:op.stage};
+  const saved={op,fleets,groundSites,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,groundHud,stage:op.stage};
   const results=[],check=(name,ok)=>results.push({name,ok}),made=[];
   const unit=(kind,team,x,y,type='dd')=>{
     const pos=groundPoint(x,y),f=makeFleet(team,{name:kind,groundKind:kind,type:kind==='sea'?type:'cv',n:1,scale:.3,pos:[pos.x,pos.z]});
@@ -10,6 +10,8 @@ function seaCases(){
   };
   const tick=sec=>{for(let i=0;i<Math.round(sec/.05);i++)groundStep(.05);};
   try{
+    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
+    op={...op,groundHQ:null};
     groundSites=[];groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=groundHud=()=>{};
     for(const type of ['dd','cl']){
       op.stage=0;const a=unit('sea',0,12,5,type);op.stage=1;const b=unit('sea',1,14,5,type),base=WOS_DATA.ships.find(s=>s.id===type);
@@ -38,13 +40,16 @@ function seaCases(){
     const target=unit('infantry',1,12,8.6),friend=unit('infantry',0,12,8.8),seaTarget=unit('sea',1,12,6.5),air=unit('fighter',1,12,8.6);air.band='low';
     fleets=[ship,target,friend,seaTarget,air];groundUpdateSight();
     check('艦砲の狙点は陸のみ、海は直接射撃',!groundStrikeLaunch(ship,groundPoint(13,5)));
-    const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{Math.random=random;}
+    const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{op=saved.op;Math.random=random;}
     check('艦砲は予告8秒・半径10',s&&s.left===8&&s.radius===10&&s.kind==='sea');
     check('艦砲は再装填中に連射不可',!groundStrikeLaunch(ship,target.pos));
-    const before=[target.hpPool,friend.hpPool,seaTarget.hpPool,air.hpPool];tick(7.95);
-    check('8秒直前には艦砲の損害なし',target.hpPool===before[0]&&friend.hpPool===before[1]&&groundStrikes.length===1);
-    tick(.05);check('8秒で着弾し陸上の敵味方に損害',target.hpPool<before[0]&&friend.hpPool<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
-    check('艦砲は海・航空には当たらない',seaTarget.hpPool===before[2]&&air.hpPool===before[3]);
+    // 本営ありでは打撃が先に士気へ入る。士気を持たない艦・航空も同じ尺度で確認する。
+    const remaining=f=>f.hpPool+(f.groundMorale??0);
+    // 地形滞在による士気消費などを混ぜず、艦砲の着弾処理だけを進める。
+    const before=[target,friend,seaTarget,air].map(remaining);groundStrikeStep(7.95);
+    check('8秒直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
+    groundStrikeStep(.05);check('8秒で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
+    check('艦砲は海・航空には当たらない',remaining(seaTarget)===before[2]&&remaining(air)===before[3]);
     ship.groundStrikeCooldown=0;const p=groundPoint(23.47,26),was=unit('was',0,23.47,26),infantry=unit('infantry',0,23.47,26);
     const travel=f=>{f.speed=1;f.order={path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}};groundFollow(f,.01);return f.pos.x-p.x;};
     const w=travel(was),i=travel(infantry);
@@ -57,12 +62,12 @@ function seaCases(){
   return results;
 }
 async function checkGroundSea(page,check){
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(seaCases))check(c.ok,'海の艦: '+c.name);
   const initial=await page.evaluate(()=>{
-    reset({op:'groundExercise2'});setSpeed(0);
+    reset({op:'groundExercise2'});setSpeed(0);endDeploy();
     const ships=fleets.filter(f=>f.groundKind==='sea');
-    return ships.length===5&&ships.filter(f=>!groundLandingShip(f)).length===4&&ships.filter(f=>f.team===0).length===3&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][f.type].geometry.attributes.position.count)&&groundSites.length===3;
+    return ships.length===5&&ships.filter(f=>!groundLandingShip(f)).length===4&&ships.filter(f=>f.team===0).length===3&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][f.type].geometry.attributes.position.count)&&groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id)).length===3;
   });check(initial,'海の艦: 双方2隻と揚陸艦1隻・既存の艦種別モデル・海面配置・3拠点を維持');
   await page.evaluate(()=>{
     fleets.forEach((f,i)=>{f.stance='evade';f.order=null;f.pos.copy(groundPoint(4+i*2,31));});
@@ -85,10 +90,10 @@ async function checkGroundSea(page,check){
 }
 function nodeChecks(){
   const label=()=>({style:{},remove(){},classList:{add(){}},querySelector:()=>({addEventListener(){}}),matches:()=>false,insertAdjacentHTML(){}});
-  const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
+  const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>null,querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));
@@ -96,6 +101,9 @@ function nodeChecks(){
   run(sim.slice(sim.indexOf('function nextOrder('),sim.indexOf('function followPath(')));
   ctx.followPath=(f,dt)=>run('groundFollow')(f,dt);
   const results=run(`(${seaCases.toString()})()`);
+  // ブラウザと同じ本営ありの作戦でも実行し、士気で吸収される着弾を確認する。
+  run("op=WOS_DATA.operations.find(o=>o.id==='groundExercise2')");
+  results.push(...run(`(${seaCases.toString()})()`).map(c=>({...c,name:'本営あり：'+c.name})));
   ctx.TEAM_COL=['blue','red'].map(c=>new ctx.THREE.Color(c));
   Object.assign(ctx,{labelsEl:{appendChild(){}},proj:p=>({x:p.x,y:p.z,z:0}),SHIP_SIZE:Object.fromEntries(ctx.WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]))});
   ctx.document.createElement=()=>({style:{},remove(){this.removed=true;}});

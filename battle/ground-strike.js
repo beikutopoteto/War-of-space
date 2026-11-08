@@ -2,7 +2,7 @@
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='';
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
-  if(!op.ground||!f.alive||f.embarked||f.locked) return null;
+  if(!op.ground||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
@@ -14,8 +14,8 @@ function groundStrikeLaunch(f,p){
   const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),spread=w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
-  const strike={source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg,left:w.delay,resolving:false,visual:null};
-  groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;
+  const strike={source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),left:w.delay,resolving:false,visual:null};
+  groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
   return strike;
 }
@@ -67,7 +67,7 @@ function groundStrikeCommand(list,p){
 function groundStrikeToggle(){
   if(over||!op.ground)return;
   if(!orderTargets().some(f=>groundStrikeWeapon(f)))return;
-  groundWorkAiming=null;groundStrikeAiming=!groundStrikeAiming;groundStrikeMessage='';closePick();groundHud();
+  groundSupplyAiming=false;groundWorkAiming=null;groundStrikeAiming=!groundStrikeAiming;groundStrikeMessage='';closePick();groundHud();
 }
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');

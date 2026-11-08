@@ -2,7 +2,7 @@
    npm test では同じ場面とボタン／クリック／ゲージ／作戦の再初期化を確認する。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function transportCases(){
-  const saved={fleets,groundSites,groundBridges,groundBridgeRevision,groundWorkAiming,groundTransportMessage,groundStrikes,groundImpacts,groundHeight,groundForests,groundBuildings,groundFog,over,end,shoot,burst,groundHud,random:Math.random};
+  const saved={op,fleets,groundSites,groundBridges,groundBridgeRevision,groundWorkAiming,groundTransportMessage,groundStrikes,groundImpacts,groundHeight,groundForests,groundBuildings,groundFog,over,end,shoot,burst,groundHud,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,x,y,team=0)=>{
     const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
@@ -10,6 +10,8 @@ function transportCases(){
   };
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   try{
+    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
+    op={...op,groundHQ:null};
     fleets=[];groundSites=[];groundBridges=[];groundBridgeRevision=0;groundStrikes=[];groundImpacts=[];groundForests=[];groundBuildings=[];groundFog=null;over=false;end=()=>{};shoot=burst=groundHud=()=>{};groundHeight=()=>0;groundHeightCacheReset();Math.random=()=>0;
     const carrier=unit('apc',10,27),infantry=unit('infantry',8,27),heavy=unit('heavyInfantry',8,28),tank=unit('vehicle',10,28),enemy=unit('infantry',10,27,1);fleets=[carrier,infantry,heavy,tank,enemy];
     check('輸送車と工兵は独立した兵科データ',carrier.speed===4&&carrier.range===8&&WOS_TERRAIN.exercise2.unitTypes.engineer.hp===40);
@@ -67,18 +69,18 @@ function transportCases(){
     // 工兵撃破は直接同地点から行う。
     enemyTank.pos.copy(engineer.pos);groundUpdateSight();damage(engineer,engineer.hpPool,enemyTank);
     check('工兵の撃破で未完成の架橋を片付ける',!engineer.alive&&!groundBridges.length);
-  }finally{
+  }finally{op=saved.op;
     groundBridges.forEach(groundBridgeDropVisual);groundStrikes.forEach(groundStrikeDropVisual);groundImpacts.forEach(groundStrikeDropVisual);
     ({fleets,groundSites,groundBridges,groundBridgeRevision,groundWorkAiming,groundTransportMessage,groundStrikes,groundImpacts,groundHeight,groundForests,groundBuildings,groundFog,over,end,shoot,burst,groundHud}=saved);Math.random=saved.random;groundHeightCacheReset();
   }
   return results;
 }
 async function checkGroundTransport(page,check){
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(transportCases))check(c.ok,'輸送・工兵: '+c.name);
   await page.evaluate(()=>{
     const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
-    reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:WOS_TERRAIN.exercise2.unitTypes[kind].name,groundKind:kind}))});setSpeed(0);
+    reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:WOS_TERRAIN.exercise2.unitTypes[kind].name,groundKind:kind}))});setSpeed(0);endDeploy();
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(f.team?44:9,27));});
     const infantry=fleets.find(f=>f.groundKind==='infantry'&&f.team===0),carrier=fleets.find(f=>f.groundKind==='apc');
     infantry.pos.copy(groundPoint(5,27));carrier.pos.copy(groundPoint(10,27));fleets.filter(f=>f.team===0&&f!==infantry&&f!==carrier).forEach((f,i)=>f.pos.copy(groundPoint(6+3*i,33)));select(infantry);
@@ -169,7 +171,7 @@ module.exports={transportCases,checkGroundTransport};
 if(require.main===module){
   const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')),ctx);

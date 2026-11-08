@@ -85,7 +85,7 @@ function panCamera(dt){
 }
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
-  if(op.ground){if(f.embarked)return;groundCancelWork(f);}
+  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundCancelWork(f);f.groundGiving=null;}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?groundPath(f.pos,o.dest,groundMoveKind(f)):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(o.type==='move'&&!o.path){ f.order=null; return; }
@@ -184,7 +184,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||op.ground&&f.embarked||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||op.ground&&(f.embarked||groundAbsent(f))||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&fortress.team===1&&Math.hypot(fs.x-x,fs.y-y)<46};   // our own station is not a target
 }
@@ -195,6 +195,7 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  if(op.ground&&groundSupplyAiming){const {best}=pick(x,y),target=labelTarget||best;if(target)groundSupplyCommand(orderTargets(),target);groundHud();return;}
   if(op.ground&&groundWorkAiming==='bridge'){
     const hit=groundAt(x,y);if(hit)groundBridgeCommand(orderTargets(),hit);return;
   }
@@ -227,7 +228,9 @@ const deployZone=new THREE.Group(); deployZone.visible=false; scene.add(deployZo
 function zoneOf(){ const Z=op.deployZone||{pos:op.deploy||[0,112],r:DEPLOY_R}; return {c:new THREE.Vector3(Z.pos[0],0,Z.pos[1]),r:Z.r}; }
 function startOp(){ deploying=false; deployZone.visible=false; deployEl.hidden=true; startTalk(talkFor(op.talk&&op.talk.before),startDeploy); }
 function startDeploy(){
+  if(op.ground){groundSupplyStartDeploy();return;}
   if(!(lastCfg&&(lastCfg.groups||lastCfg.group))||op.forces==='fixed'||over) return;
+  deployEl.querySelector('p').textContent='戦区軍を選び、光る範囲の中をクリックすると、そこへ置けます。並べ終えたら作戦を始めます。';
   deploying=true; const Z=zoneOf();
   deployZone.clear();
   const ring=new THREE.Mesh(new THREE.RingGeometry(Z.r-.5,Z.r,128),new THREE.MeshBasicMaterial({color:0x7fc8ff,transparent:true,opacity:.75,depthWrite:false,side:THREE.DoubleSide}));
@@ -242,6 +245,7 @@ document.getElementById('deployGo').addEventListener('click',endDeploy);
 /* put the selected army group (or fleet) with its flagship at p, kept inside the zone; the others keep their places around it */
 function placeAt(p){
   const t=orderTargets(); if(!t.length) return false;
+  if(op.ground)return groundSupplyPlace(t,p);
   const lead=selGroup?groupFlag(selGroup):t[0], Z=zoneOf(), d=new THREE.Vector3(p.x-Z.c.x,0,p.z-Z.c.z);
   if(d.length()>Z.r-4) d.setLength(Z.r-4);
   const mv=new THREE.Vector3(Z.c.x+d.x-lead.pos.x,0,Z.c.z+d.z-lead.pos.z);
@@ -285,7 +289,7 @@ addEventListener('pointerdown',hideHint,{capture:true});
 const stanceEl=document.getElementById('stance');
 function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selGroup?`${selGroup.name} 全軍`:null); }
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
-function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f));if(!t.length)return; if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
+function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f)&&groundCommandAllowed(f,'stance'));if(!t.length)return; if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
@@ -295,7 +299,7 @@ function toggleSync(g){ if(!g) return; g.sync=!g.sync;
   updateRoster();
   logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各打撃群がそれぞれの速度で進む。'); }
 function syncStance(){ const t=orderTargets(), v=t.length&&t.every(f=>f.stance==='evade')?'evade':'engage';
-  stanceEl.querySelectorAll('button[data-st]').forEach(b=>{b.disabled=!!op.ground&&!!t.length&&t.every(groundPermissionOnly);b.setAttribute('aria-pressed',String(!b.disabled&&b.dataset.st===v));}); }
+  stanceEl.querySelectorAll('button[data-st]').forEach(b=>{b.disabled=!!op.ground&&!!t.length&&t.every(f=>groundPermissionOnly(f)||!groundCommandAllowed(f,'stance'));b.setAttribute('aria-pressed',String(!b.disabled&&b.dataset.st===v));}); }
 stanceEl.querySelectorAll('button[data-st]').forEach(b=>b.addEventListener('click',()=>setStance(b.dataset.st)));
 stanceEl.querySelector('.undo').addEventListener('click',()=>undo());
 addEventListener('keydown',e=>{ if(e.code!=='KeyR'||e.repeat||e.target.tagName==='INPUT') return; const t=orderTargets(); if(t.length) setStance(t.every(f=>f.stance==='evade')?'engage':'evade'); });
@@ -324,7 +328,7 @@ addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.pre
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(op.ground&&groundWorkAiming){groundWorkAiming=null;groundHud();return;} if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
+  if(e.code==='Escape'){ if(op.ground&&groundSupplyAiming){groundSupplyAiming=false;groundHud();return;} if(op.ground&&groundWorkAiming){groundWorkAiming=null;groundHud();return;} if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
   if(e.code==='KeyB'&&op.ground&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); groundStrikeToggle(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }

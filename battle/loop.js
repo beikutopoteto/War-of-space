@@ -163,6 +163,7 @@ function frame(now){
     const sub=lost?`最終確認位置　<span class="num">${Math.round(gameSec-u.lostAt)}秒前</span>`:u.kind==='fortress'?`${u.defend?'耐久':'装甲'} <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/u.max))}%</span>`
       :u.type==='thr'||u.mark==='site'?`${u.restore?'狙いを戻せる　':''}耐久 <span class="num">${Math.max(0,Math.ceil(100*u.hpPool/(u.n*u.hp)))}%</span>`:subText(u);
     if(u._sub!==sub){u._sub=sub; u.el.querySelector('.flag span').innerHTML=sub;}
+    if(op.ground&&groundAbsent(u)){u.el.style.visibility='hidden';continue;}
     if(u.kind==='fleet'){ updateFleetLabel(u,lost,sub); pinchMarks(u,s,lost); const nk=nukeCarrier(u); if(u._nk!==nk){ u._nk=nk; u.el.classList.toggle('nk',nk); } }
   }
   drawRoute();   // 第6節: the battleships' way down to the mine (hud.js)

@@ -11,6 +11,10 @@ window.WOS_TERRAIN.exercise2 = {
   landing: { capacity:2, seconds:10, damageFactor:1.3 }, // 海の揚陸艦だけの仮値。沈没時は搭載中隊を全滅扱い。
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
+  supply: {max:100,refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:1,give:2,
+    terrainMove:{'平地':1,'沼地':3,'山岳':3,'砂漠':2},terrainIdle:['沼地','山岳','砂漠'],idleMorale:.05,
+    moraleRefill:2,restWait:5,hitSlow:.65,hitSeconds:2,routArrivalKm:1,routRepath:2,rally:30,
+    aiSupply:25,aiMorale:30,aiResume:60,airIdle:.05,airShot:2,airStrike:8,airReturn:15,airBase:20}, // 全て地上試作の仮値
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2},
     heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4},
@@ -23,6 +27,7 @@ window.WOS_TERRAIN.exercise2 = {
     scout:{name:'斥候',speed:4,range:7,hp:20,dmg:1},
     apc:{name:'装甲兵員輸送車',speed:4,range:8,hp:60,dmg:1},
     engineer:{name:'工兵',speed:2,range:7,hp:40,dmg:1},
+    supply:{name:'補給部隊',speed:2.5,range:0,hp:40,dmg:0},
     artillery:{name:'自走砲',speed:2.5,range:45,hp:40,dmg:12},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2},

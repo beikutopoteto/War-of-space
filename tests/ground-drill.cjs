@@ -4,8 +4,10 @@ const {createGroundContext}=require('./ground-landing.cjs');
 function drillAction(){
   const r=groundDrillRow(),f=groundDrillUnit(r.actor),m=r.marks[0],p=m&&new THREE.Vector3(m.pos[0],groundHeight(...m.pos),m.pos[1]);
   select(f);
+  if(r.condition==='groundSupplyDeploy'){groundSupplyPlace([f],f.pos.clone());endDeploy();return true;}
+  if(r.condition==='groundSupplyGive')return groundSupplyCommand([f],groundDrillUnit(r.target));
   if(r.condition==='groundSelect')return true;
-  if(['groundMove','groundCapture','groundSight'].includes(r.condition)){order(f,{type:'move',dest:p});return !!f.order;}
+  if(['groundMove','groundCapture','groundSight','groundSupplyRoad','groundSupplyRecapture','groundSupplyHalf','groundSupplyRout','groundSupplyRally'].includes(r.condition)){order(f,{type:'move',dest:p});return !!f.order;}
   if(r.condition==='groundAttack'){const t=groundDrillUnit(r.target);if(!shown(t))throw new Error('案内の攻撃対象が未発見: '+r.target);order(f,{type:'attack',target:t});return true;}
   if(r.condition==='groundBand')return groundSetBand([f],r.band);
   if(r.condition==='groundStrike')return groundStrikeCommand([f],p)>0;
@@ -29,7 +31,7 @@ function createDrillContext(){
   const {ctx,read,run}=createGroundContext(),THREE=ctx.THREE;
   const context2d=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}});
   const element=()=>{const children={};return {style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},appendChild(){},append(){},remove(){},addEventListener(){},setAttribute(){},getContext:()=>context2d,querySelector:k=>children[k]||(children[k]=element())};};
-  Object.assign(ctx,{document:{getElementById:()=>element(),querySelectorAll:()=>[],createElement:element,body:element()},renderer:{domElement:element(),shadowMap:{},capabilities:{getMaxAnisotropy:()=>1}},addEventListener(){},scene:new THREE.Scene(),labelsEl:element(),grid:{},starField:{},skyObj:{},fieldRocks:{},debrisObj:{},cloudObj:{},farPlanet:{},ambient:new THREE.AmbientLight(),sun:new THREE.DirectionalLight(),rim:{},flyTo(){},proj:()=>({x:0,y:0,z:0}),selected:null,orderTargets:()=>ctx.selected?[ctx.selected]:[],select:f=>{ctx.selected=f;},shown:f=>f.team===0||run('groundSeenBy')(0,f),step:dt=>{ctx.gameSec+=dt;run('groundStep')(dt);},end:win=>{ctx.over=true;ctx.outcome=win;}});
+  Object.assign(ctx,{document:{getElementById:()=>element(),querySelectorAll:()=>[],createElement:element,body:element()},renderer:{domElement:element(),shadowMap:{},capabilities:{getMaxAnisotropy:()=>1}},addEventListener(){},scene:new THREE.Scene(),labelsEl:element(),grid:{},starField:{},skyObj:{},fieldRocks:{},debrisObj:{},cloudObj:{},farPlanet:{},ambient:new THREE.AmbientLight(),sun:new THREE.DirectionalLight(),rim:{},flyTo(){},proj:()=>({x:0,y:0,z:0}),deploying:false,deployZone:{visible:false},deployEl:element(),autoMode:false,endDeploy:()=>{ctx.deploying=false;},selected:null,orderTargets:()=>ctx.selected?[ctx.selected]:[],select:f=>{ctx.selected=f;},shown:f=>f.team===0||run('groundSeenBy')(0,f),step:dt=>{ctx.gameSec+=dt;run('groundStep')(dt);},end:win=>{ctx.over=true;ctx.outcome=win;}});
   run(read('battle/tutorial.js'));run(read('battle/ground-drill.js'));
   run('tutorialRender=()=>{};groundHud=()=>{};');
   run(`op=WOS_DATA.operations.find(o=>o.id==='ch2drill');groundSetup(op.ground);
@@ -42,7 +44,9 @@ function createDrillContext(){
 }
 async function performDrillAction(page){
   const r=await page.evaluate(()=>{const r=groundDrillRow();return {condition:r.condition,actor:r.actor,band:r.band,selected:orderTargets().length===1&&orderTargets()[0].name===r.actor};});
-  if(!r.selected)await page.locator('#roster').getByRole('button',{name:r.actor,exact:true}).click();
+  if(!r.selected)await page.locator('#roster').getByRole('button',{name:new RegExp('^'+r.actor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( /|$)')}).click();
+  if(r.condition==='groundSupplyDeploy'){await page.evaluate(()=>drillAction());return true;}
+  if(r.condition==='groundSupplyGive'){await page.click('#groundSupply');return page.evaluate(()=>groundSupplyCommand(orderTargets(),groundDrillUnit(groundDrillRow().target)));}
   if(r.condition==='groundSelect')return true;
   if(r.condition==='groundBand'){
     await page.click(`#groundCommand [data-band="${r.band}"]`);
@@ -148,12 +152,12 @@ async function checkGroundDrill(page,check){
     await page.evaluate('window.drillAction='+drillAction.toString());
     await page.evaluate('window.drillAdvance='+drillAdvance.toString());
     const times=[];
-    for(let i=0;i<19;i++){
+    for(let i=0;i<(await page.evaluate(()=>op.tutorial.length));i++){
       check(await page.evaluate(()=>{const before=tutorial.step;step(.05);return tutorial.step===before&&!over;}),'バイコヌール演習: 無操作で手順'+(i+1)+'を飛ばさない');
       if(!await performDrillAction(page))throw new Error('案内の操作が失敗: '+i);
       times.push(await page.evaluate(()=>drillAdvance()));
     }
-    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length),'バイコヌール演習: 19手順を順番に終えて勝利');
+    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length),'バイコヌール演習: 全手順を順番に終えて勝利');
     await page.waitForSelector('#result:not([hidden])');
     check(await page.evaluate(base=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.funds===base+op.reward&&s.prog.cleared.includes(op.id)&&document.getElementById('result').textContent.includes('資金 +100');},funds),'バイコヌール演習: 勝利で初回資金100を保存・表示');
     await page.evaluate(()=>{reset({op:'ch2drill'});fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);});
@@ -184,14 +188,14 @@ function runDrill(){
   run(`globalThis.counterfire={early:0,late:0,damage:0};const realDamage=damage;
     damage=(t,amount,src)=>{const hp=t.hpPool;realDamage(t,amount,src);if(src?.team===1&&t.hpPool<hp){counterfire[groundDrillRow()?.section>=6?'late':'early']++;counterfire.damage+=hp-t.hpPool;}};`);
   const times=[];
-  for(let i=0;i<19;i++){
+  for(let i=0;i<run('op.tutorial.length');i++){
     assert.equal(run('(()=>{const s=tutorial.step;step(0);return !over&&s===tutorial.step;})()'),true,'無操作で手順を飛ばさない');
     assert.equal(run('drillAction()'),true,'案内の操作を受理');
     const r=run('drillAdvance()');times.push(r);
   }
-  assert.equal(run('over&&outcome===true&&tutorial.complete&&tutorial.times.length===19'),true);
+  assert.equal(run('over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length'),true);
   assert.equal(run('counterfire.early===0&&counterfire.late>0'),true,'前半の敵打撃0・後半は実際に打撃');
-  assert.equal(run('fleets.filter(f=>f.team===0&&f.alive).length'),12,'自軍全12隊が残存');
+  assert.equal(run('fleets.filter(f=>f.team===0&&f.alive).length'),14,'専用2隊を含む自軍14隊が残存');
   times.counterfire=run('counterfire');
   assert.equal(run('(()=>{over=false;fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);groundCaptureStep(.05);return over&&outcome===false;})()'),true,'全滅で敗北');
   const skipped=createDrillContext();
