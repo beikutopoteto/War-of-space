@@ -2,7 +2,7 @@
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='';
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
-  if(!op.ground||groundStaticTarget(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
+  if(!op.ground||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
@@ -45,7 +45,7 @@ function groundStrikeStep(dt){
   });
 }
 function groundStrikeAI(f){
-  if(!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
+  if(groundStaticTarget(f)||!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
   const seen=fleets.filter(t=>t.team!==f.team&&t.alive&&!t.embarked&&t.band==='ground'&&groundSeenBy(f.team,t));
   let best=null,count=0;
   for(const t of seen){

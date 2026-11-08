@@ -69,18 +69,32 @@ function fixesCases(){
   groundSupplyCommand([truck],observer);truck.groundSupply=0;groundSupplyAfter(1);groundSupplyLinksDraw();check('供給側の残量ゼロでは線なし',groundSupplyLinks.size===0);
   groundSupplyLinksClear();
 
-  // 初期の全敵（海上も含む）を射程内に置く。実damageを数え、残った攻撃命令も試す。
+  // 初期の全敵（海上も含む）を射程内に置く。命令なしの自動交戦と残った射撃目標を試す。
   groundSites=[];groundSupplyNet=null;op={...realOp,groundHQ:null};
   const blue=unit(0,'infantry',20,25),reds=realOp.enemies.map(s=>makeFleet(1,s));
   for(const spec of realOp.groundSea.filter(s=>s.team===1))reds.push(makeFleet(1,spec));
-  for(const f of reds){f.band=groundBands(f)[0];f.pos.copy(blue.pos).add(new THREE.Vector3(1,0,0));f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);f.stance='engage';f.order={type:'attack',target:blue};}
+  for(const f of reds){f.band=groundBands(f)[0];f.pos.copy(blue.pos).add(new THREE.Vector3(1,0,0));f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);f.stance='engage';f.fireTarget=blue;}
   fleets=[blue,...reds];const starts=reds.map(f=>f.pos.clone()),realDamage=damage;let hits=0;
   damage=(t,n,src,...rest)=>{if(src?.team===1)hits++;return realDamage(t,n,src,...rest);};
   for(let i=0;i<200;i++)groundStep(.05);
   check('演習の敵5隊は10秒間、実打撃ゼロ・移動ゼロ',reds.length===5&&hits===0&&reds.every((f,i)=>f.pos.equals(starts[i])));
+  check('固定敵は自動で攻撃命令を作らず残った射撃目標も消す',reds.every(f=>!f.order&&!f.fireTarget));
+  const tank=reds.find(f=>f.groundKind==='vehicle'),hp=blue.hpPool;
+  order(tank,{type:'attack',target:blue});groundStep(.05);
+  check('固定敵への明示した攻撃命令は実打撃になる',hits>0&&blue.hpPool<hp);
+  groundClearOrders(tank);const stopped=hits;groundStep(.05);
+  check('命令取消後は自動射撃に戻らない',hits===stopped&&!tank.fireTarget);
+  const rocket=unit(1,'guidedRocket',20,25);rocket.stance='engage';fleets.push(rocket);groundStep(.05);
+  check('固定敵の許可制兵科は自動で攻撃命令を作らない',!rocket.order&&!rocket.fireTarget);
+  const sea=reds.find(f=>f.groundKind==='sea');groundStrikes=[];
+  for(let i=1;i<groundStrikeRules().aiCluster;i++)fleets.push(unit(0,'infantry',20,25));
+  groundUpdateSight();
+  groundStrikeAI(sea);
+  check('固定敵の艦砲は自動で地点攻撃しない',groundStrikes.length===0);
+  check('固定敵の艦砲への明示した地点攻撃は受理する',!!groundStrikeLaunch(sea,blue.pos));
+  groundStrikes=[];
   op=realOp;for(const f of reds){f.groundSupply=0;f.groundMorale=0;}groundSupplyBefore(1);
   check('固定敵は補給切れ・士気ゼロでも移動命令を作らない',reds.every(f=>!f.groundRecover&&!f.groundRout&&!f.groundAirState));
-  check('固定敵の艦砲も地点攻撃を受理しない',reds.filter(f=>f.groundKind==='sea').every(f=>!groundStrikeWeapon(f)));
   damage=realDamage;
   check('バイコヌール演習は固定指定の対象外',!WOS_DATA.operations.find(o=>o.id==='ch2drill').groundStaticEnemies);
   return {rows,vertices,minClearance,buried};
@@ -96,7 +110,16 @@ function nodeChecks(){
   run(tutorial.slice(tutorial.indexOf('function tutorialRender(){'),tutorial.indexOf('function tutorialAdvance(){')));
   // Canvasの色はcheckGroundFixesの実画面で確認。Nodeでは輪・札・観測記憶を実行。
   run("tutorialTalk=()=>{};groundPaintTerritory=()=>{};");
-  return run(`(${fixesCases.toString()})()`);
+  const result=run(`(${fixesCases.toString()})()`);
+  // npm test と同じ固定指定つきの作戦で、輸送・架橋・上陸の実関数も通す。
+  const {createGroundContext,landingCases}=require('./ground-landing.cjs');
+  const {transportCases}=require('./ground-transport.cjs');
+  for(const cases of [transportCases,landingCases]){
+    const scene=createGroundContext();
+    scene.run("op={...WOS_DATA.operations.find(o=>o.id==='groundExercise2'),wipeLose:false}");
+    result.rows.push(...scene.run(`(${cases.toString()})()`));
+  }
+  return result;
 }
 async function checkGroundFixes(page,check){
   await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
