@@ -124,14 +124,15 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   });await drawn();
 }
 async function checkGroundDrill(page,check){
-  require('./ground-drill-menu.cjs').runMenuChecks();
+  const {runMenuChecks,openSortieMenu,checkSortieSections}=require('./ground-drill-menu.cjs');
+  runMenuChecks();
   const campaign=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
-  const menu=async()=>{await page.reload();await page.waitForFunction(()=>window.WOS_MENU);await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');};
+  const menu=()=>openSortieMenu(page,{reload:true});
   try{
     await page.evaluate(seedDrillCampaign,false);await menu();
     check(await page.locator('[data-op="tutorial2"]').isDisabled(),'チュートリアル2: 第一章最終節の前は鍵付き');
     check(await page.locator('[data-op="baikonur"]').isDisabled(),'バイコヌール演習: 第一章最終節の前は鍵付き');
-    await require('./ground-drill-menu.cjs').checkSortieSections(page,check,menu);
+    await checkSortieSections(page,check,menu);
     check(await page.locator('[data-op="tutorial2"]').isEnabled()&&await page.locator('[data-op="baikonur"]').isDisabled(),'第一章後はチュートリアル2だけ解放');
     for(const [id,name] of [['tutorial2','チュートリアル2'],['baikonur','バイコヌール演習']]){
       check(await page.locator(`[data-op="${id}"]`).evaluate((e,name)=>e.textContent.includes(name)&&e.closest('[data-section]')?.dataset.section==='演習',name),name+': 演習欄で別々に表示');
@@ -160,7 +161,7 @@ async function checkGroundDrill(page,check){
     await page.evaluate(()=>{order(fleets[0],{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);});
     check(await page.evaluate(()=>over&&outcome===true&&tut2Hits===0),'チュートリアル2: とばした後も敵打撃0・占拠勝利');
     await page.waitForSelector('#result:not([hidden])');
-    await page.evaluate(()=>WOS.openMenu());await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');
+    await openSortieMenu(page);
     check(await page.locator('[data-op="baikonur"]').isEnabled(),'バイコヌール演習: チュートリアル2後に解放');
     await page.click('[data-op="baikonur"]');
     check(await page.locator('#goQuick').isVisible(),'バイコヌール演習: クイック出撃あり');

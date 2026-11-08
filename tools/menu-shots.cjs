@@ -4,14 +4,14 @@
 const fs=require('fs'),path=require('path');
 const {openGame,ROOT}=require('./browser.cjs');
 const {seedDrillCampaign}=require('../tests/ground-drill.cjs');
-const {checkSortieSections}=require('../tests/ground-drill-menu.cjs');
+const {openSortieMenu,checkSortieSections}=require('../tests/ground-drill-menu.cjs');
 (async()=>{
   fs.mkdirSync(path.join(ROOT,'.shots'),{recursive:true});
   const {browser,page,errors}=await openGame({width:1600,height:900});
   let count=0;
   const fail=()=>{if(errors.length)throw new Error(errors.join('\n'));};
   const check=(ok,name)=>{fail();if(!ok)throw new Error(name);count++;};
-  const menu=async()=>{await page.reload();await page.waitForFunction(()=>window.WOS_MENU);await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');};
+  const menu=()=>openSortieMenu(page,{reload:true});
   try{
     await page.evaluate(seedDrillCampaign,false);await menu();
     await checkSortieSections(page,check,menu,async letter=>{

@@ -3,6 +3,7 @@
    --sim はブラウザ不要。ページ例外は失敗。カメラ変更後は描画を2回待つ。 */
 const fs=require('fs'),path=require('path');
 const {drillAction,drillAdvance,performDrillAction,seedDrillCampaign,runDrill}=require('../tests/ground-drill.cjs');
+const {openSortieMenu}=require('../tests/ground-drill-menu.cjs');
 if(process.argv.includes('--sim')){
   const times=runDrill();
   for(let section=1;section<=10;section++)console.log(`| ${section} | ${times.filter(r=>r.section===section).reduce((s,r)=>s+r.seconds,0).toFixed(2)}秒 |`);
@@ -20,14 +21,19 @@ if(process.argv.includes('--sim')){
   try{
     await page.evaluate(seedDrillCampaign,true);
     await page.evaluate(()=>{
-      const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared.push('tutorial2');localStorage.setItem('wos.save.v1',JSON.stringify(s));
       localStorage.setItem('wos.opt',JSON.stringify({...WOS_OPT,story:false}));
     });
-    await page.reload();await page.waitForFunction(()=>window.WOS_MENU);
-    await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');await page.click('[data-op="tutorial2"]');
-    await page.locator('[data-op="baikonur"]').scrollIntoViewIfNeeded();
+    await openSortieMenu(page,{reload:true});
+    check(await page.locator('[data-op="tutorial2"]').isEnabled()&&await page.locator('[data-op="baikonur"]').isDisabled(),'デナリ破砕後はチュートリアル2だけ解放');
+    // 写真は演習欄に絞る。章タブの保存状態や、末尾1枚への自動スクロールに頼らない。
+    for(const id of ['第一章','第二章','演習']){
+      const tab=page.locator(`[data-op-section="${id}"]`),open=id==='演習';
+      if((await tab.getAttribute('aria-expanded')==='true')!==open)await tab.click();
+    }
+    await page.click('[data-op="tutorial2"]');await drawn();
+    check(await page.locator('[data-op-section="演習"]').getAttribute('aria-expanded')==='true','撮影前に演習欄を開く');
     for(const id of ['tutorial2','baikonur']){
-      check(await page.locator(`[data-op="${id}"]`).evaluate(e=>{const r=e.getBoundingClientRect(),s=document.getElementById('opList').getBoundingClientRect();return e.closest('[data-section]')?.dataset.section==='演習'&&r.top>=s.top&&r.bottom<=s.bottom;}),'演習欄の2作戦が同時に見えない: '+id);
+      check(await page.locator(`[data-op="${id}"]`).isVisible()&&await page.locator(`[data-op="${id}"]`).evaluate(e=>{const r=e.getBoundingClientRect(),s=document.getElementById('opList').getBoundingClientRect();return e.closest('[data-section]')?.dataset.section==='演習'&&r.top>=s.top&&r.bottom<=s.bottom;}),'演習欄の2作戦が同時に見えない: '+id);
     }
     await shot('a');
     await page.click('#goBattle');await page.evaluate(()=>{setSpeed(0);if(talking)endTalk();
@@ -48,7 +54,10 @@ if(process.argv.includes('--sim')){
     }
     await page.waitForSelector('#result:not([hidden])');
     check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tutorial.times.length===26&&enemyHits===0),'全26手順の勝利・敵打撃0が揃わない');
-    await page.evaluate(()=>WOS.openMenu());await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');await page.click('[data-op="baikonur"]');
+    check(await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).prog.cleared.includes('tutorial2')),'全26手順の勝利でチュートリアル2のクリアを保存');
+    await openSortieMenu(page);
+    check(await page.locator('[data-op-section="演習"]').getAttribute('aria-expanded')==='true'&&await page.locator('[data-op="baikonur"]').isEnabled(),'チュートリアル2クリア後に開いた演習欄でバイコヌールを解放');
+    await page.click('[data-op="baikonur"]');
     await page.click('#goQuick');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();camAnim=null;const v=op.view,at=new THREE.Vector3(v.target[0],0,v.target[1]);controls.target.copy(at);camera.position.copy(at).add(new THREE.Vector3(...v.dir).normalize().multiplyScalar(v.dist));camera.lookAt(at);controls.update();updateGoal();});
     check(await page.evaluate(()=>op.name==='バイコヌール演習'&&!tutorial&&!op.groundDrill&&!over),'通常演習が案内付きになっている');
     check(await page.locator('#training').isHidden()&&await page.locator('#talkText').isHidden(),'案内が残っている');

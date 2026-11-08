@@ -975,8 +975,14 @@ function renderData(){
 /* back to the menu from the battle */
 /* Enter decides: 出撃 on the sortie screen, 研究する on the tech tree (user decision 2026-10-04). Called by battle/scene.js while the menu is open */
 function onKey(e){
-  if(e.key!=='Enter'||e.isComposing||menu.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||'')) return;
-  if(e.target&&e.target.closest&&e.target.closest('[data-op-section]')) return; // native Enter toggles the chapter instead of starting a battle
+  if(e.isComposing||menu.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||'')) return;
+  const section=e.target&&e.target.closest&&e.target.closest('[data-op-section]');
+  // scene.js intercepts keydown before it reaches the button. Activate it here, once per press.
+  if(section){
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(!e.repeat) section.click(); }
+    return;
+  }
+  if(e.key!=='Enter') return;
   const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }

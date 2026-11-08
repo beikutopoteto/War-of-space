@@ -2,12 +2,12 @@
 const assert=require('assert/strict'),fs=require('fs'),path=require('path'),vm=require('vm');
 function runMenuChecks(){
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),nodes=new Map(),stored=new Map(),calls=[];
-  // Only button attributes are needed here; layout and native keyboard behavior are checked in Chromium below.
+  // Button clicks run the real handlers; focus and layout are checked in Chromium below.
   const node=id=>{if(!nodes.has(id)){
     const n={innerHTML:'',textContent:'',hidden:false,scrollTop:0};
     Object.defineProperty(n,'innerHTML',{get(){return this.html||'';},set(html){this.html=html;this.buttons=[...html.matchAll(/<button\b([^>]*)>/g)].map(([,attrs])=>{
       const dataset=Object.fromEntries([...attrs.matchAll(/data-([\w-]+)="([^"]*)"/g)].map(([,k,v])=>[k.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),v]));
-      return {dataset,focus(){}};
+      return {dataset,tagName:'BUTTON',closest(){return this.dataset.opSection!==undefined?this:null;},click(){this.onclick();},focus(){}};
     });}});
     n.querySelectorAll=selector=>(n.buttons||[]).filter(({dataset})=>{
       const key=selector.includes('op-section')?'opSection':'op',value=selector.match(/="([^"]*)"/)?.[1];
@@ -94,38 +94,74 @@ function runMenuChecks(){
   run("persist()");
   assert.ok(!stored.get('wos.save.v1').includes('ch2drill'));count++;
   node('goBattle').click=()=>run('shortcutCalls++');
-  run("onKey({key:'Enter',target:{tagName:'BUTTON',closest:()=>true},preventDefault(){throw Error('章タブの標準操作を妨げた');}})");
-  check("shortcutCalls===0",'章タブのEnterは出撃せず標準の開閉に任せる');
+  run("prog().cleared=prog().cleared.filter(id=>id!=='tutorial2'&&id!=='baikonur');save.sortieMenu={closed:{'演習':true},seen:[]};renderSortie();let keyPrevents=0;");
+  run("function sectionKey(key,repeat=false){onKey({key,repeat,target:document.getElementById('opList').querySelector('[data-op-section=\"演習\"]'),preventDefault(){keyPrevents++;}});}");
+  check("sortieUnseen(TUT2)&&save.sortieMenu.closed['演習']",'Enter前は畳んだ演習欄に未読通知');
+  run("sectionKey('Enter')");
+  check("shortcutCalls===0&&keyPrevents===1&&!save.sortieMenu.closed['演習']&&!sortieUnseen(TUT2)",'章タブのEnterは実クリックで開き既読にする・出撃しない');
+  assert.doesNotMatch(section('演習'),/op-tab unseen|op-new/);count++;
+  run("sectionKey('Enter',true)");
+  check("keyPrevents===2&&!save.sortieMenu.closed['演習']",'Enter長押しで開閉を繰り返さない・標準クリックも抑止');
+  run("sectionKey(' ');sectionKey(' ',true)");
+  check("shortcutCalls===0&&keyPrevents===4&&save.sortieMenu.closed['演習']",'Spaceは1回だけ畳む・長押しで開閉しない');
+  run("sectionKey(' ');save=load();renderSortie()");
+  check("!save.sortieMenu.closed['演習']&&!sortieUnseen(TUT2)",'Spaceでも開き、キー操作の開閉と既読を保存');
   run("onKey({key:'Enter',target:{tagName:'BODY',closest:()=>null},preventDefault(){}})");
   check("shortcutCalls===1",'画面のEnterは従来どおり出撃');
   run("onKey({key:'Enter',target:{tagName:'BUTTON',closest:()=>null},preventDefault(){}})");
   check("shortcutCalls===2",'既存ボタンにフォーカスがあっても従来のEnter出撃を保つ');
   console.log(`| メニューの章タブ・解放・報酬・保存移行（ブラウザ不要） | ${count}/${count} 成功 |`);
 }
+// Reloading ?ground=exercise2 starts a battle again. Always reopen the menu before navigating.
+async function openSortieMenu(page,{reload=false}={}){
+  if(reload)await page.reload();
+  await page.waitForFunction(()=>window.WOS_MENU&&window.WOS?.openMenu);
+  await page.evaluate(()=>WOS.openMenu());
+  await page.locator('#mainNav [data-go="mode"]').click();
+  await page.locator('[data-s="mode"]:not([hidden]) [data-go="sortie"]').click();
+  await page.locator('[data-s="sortie"]:not([hidden]) #goBattle').waitFor({state:'visible'});
+}
 async function checkSortieSections(page,check,menu,onState=async()=>{}){
   const tabs=page.locator('[data-op-section]'),tab=id=>page.locator(`[data-op-section="${id}"]`);
-  check(await tabs.count()===3,'章タブ: 第一章・第二章・演習');
+  const state=()=>page.evaluate(()=>{
+    const active=document.activeElement,sortie=document.querySelector('[data-s="sortie"]'),rect=sortie.getBoundingClientRect();
+    return {tabs:[...document.querySelectorAll('[data-op-section]')].map(e=>({id:e.dataset.opSection,expanded:e.getAttribute('aria-expanded'),unseen:e.classList.contains('unseen'),tagName:e.tagName,tabIndex:e.tabIndex,focused:e===active,rowsHidden:document.getElementById(e.getAttribute('aria-controls'))?.hidden})),
+      activeElement:{tagName:active?.tagName,id:active?.id,opSection:active?.dataset.opSection},
+      sortie:{hidden:sortie.hidden,menuHidden:document.getElementById('menu').hidden,menuOpen,width:rect.width,height:rect.height}};
+  });
+  const verify=async(ok,name)=>{if(!ok)throw new Error(`${name}: ${JSON.stringify(await state())}`);check(true,name);};
+  const waitFor=async(fn,name)=>{
+    try{await page.waitForFunction(fn);}catch(e){throw new Error(`${name}: ${JSON.stringify(await state())}\n${e.message}`);}
+  };
+  await verify(await tabs.count()===3,'章タブ: 第一章・第二章・演習');
   await tab('演習').click();await tab('演習').click(); // acknowledge only operations available before Denali
   for(const id of ['第一章','第二章','演習'])await tab(id).click();
   await menu();
-  check(await page.locator('[data-op-section][aria-expanded="false"]').count()===3&&await page.locator('.op-rows:visible').count()===0,'章タブ: 3段の折り畳みを再読込して保存');
+  await verify(await page.locator('[data-op-section][aria-expanded="false"]').count()===3&&await page.locator('.op-rows:visible').count()===0,'章タブ: 3段の折り畳みを再読込して保存');
   await onState('a');
   await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared.push('denaliBreak');localStorage.setItem('wos.save.v1',JSON.stringify(s));});await menu();
-  check(await tab('演習').evaluate(e=>e.classList.contains('unseen')),'章タブ: 新しく解放した演習を黄色で通知');
+  await verify(await tab('演習').evaluate(e=>e.classList.contains('unseen')),'章タブ: 新しく解放した演習を黄色で通知');
   await menu();
-  check(await tab('演習').evaluate(e=>getComputedStyle(e).animationName==='op-unseen'),'章タブ: 再読込後も未読なら点滅');
+  await verify(await tab('演習').evaluate(e=>getComputedStyle(e).animationName==='op-unseen'),'章タブ: 再読込後も未読なら点滅');
   await onState('b');
   await page.emulateMedia({reducedMotion:'reduce'});
-  check(await tab('演習').evaluate(e=>getComputedStyle(e).animationName==='none')&&await tab('演習').locator('.op-new').isVisible(),'章タブ: 動きを減らす設定では黄色の印だけ');
+  await verify(await tab('演習').evaluate(e=>getComputedStyle(e).animationName==='none')&&await tab('演習').locator('.op-new').isVisible(),'章タブ: 動きを減らす設定では黄色の印だけ');
   await page.emulateMedia({reducedMotion:'no-preference'});
-  await tab('演習').focus();await page.keyboard.press('Enter');
-  check(await tab('演習').getAttribute('aria-expanded')==='true'&&await tab('演習').evaluate(e=>!e.classList.contains('unseen'))&&await page.locator('[data-s="sortie"]').isVisible(),'章タブ: Enterで開き通知を消す');
+  await tab('演習').focus();
+  await verify(await tab('演習').evaluate(e=>e.tagName==='BUTTON'&&e.tabIndex===0&&e===document.activeElement),'章タブ: Enter前に演習タブへフォーカス');
+  await page.keyboard.press('Enter');
+  await waitFor(()=>{const e=document.querySelector('[data-op-section="演習"]');return e?.getAttribute('aria-expanded')==='true'&&!e.classList.contains('unseen');},'章タブ: Enter後の開閉・未読待ち');
+  // The section has zero height because all its children are absolutely positioned; inspect the controls.
+  await verify(await tab('演習').isVisible()&&await tab('演習').evaluate(e=>e.getAttribute('aria-expanded')==='true'&&!e.classList.contains('unseen')&&e===document.activeElement)&&await page.locator('[data-s="sortie"]:not([hidden]) #goBattle').isVisible(),'章タブ: Enterで開き通知を消す');
   await menu();
-  check(await tab('演習').getAttribute('aria-expanded')==='true'&&await tab('演習').locator('.op-new').count()===0,'章タブ: 開いた状態と既読を保存');
-  await tab('第一章').focus();await page.keyboard.press('Space');
-  check(await tab('第一章').getAttribute('aria-expanded')==='true','章タブ: Spaceでも開く');
+  await verify(await tab('演習').getAttribute('aria-expanded')==='true'&&await tab('演習').locator('.op-new').count()===0,'章タブ: 開いた状態と既読を保存');
+  await tab('第一章').focus();
+  await verify(await tab('第一章').evaluate(e=>e.tagName==='BUTTON'&&e.tabIndex===0&&e===document.activeElement),'章タブ: Space前に第一章タブへフォーカス');
+  await page.keyboard.press('Space');
+  await waitFor(()=>document.querySelector('[data-op-section="第一章"]')?.getAttribute('aria-expanded')==='true','章タブ: Space後の開閉待ち');
+  await verify(await tab('第一章').evaluate(e=>e.getAttribute('aria-expanded')==='true'&&e===document.activeElement),'章タブ: Spaceでも開く');
   // Keep the existing battle checks in their original state: first chapter complete, all sections open.
   await tab('第二章').click();
 }
-module.exports={runMenuChecks,checkSortieSections};
+module.exports={runMenuChecks,openSortieMenu,checkSortieSections};
 if(require.main===module)runMenuChecks();
