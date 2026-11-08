@@ -58,16 +58,19 @@ function groundRoadAt(x,y){
   for(const e of groundSupplyNet.edges){const dist=groundDistance(x,y,e.path);if(dist<best){best=dist;found=e;}}
   return found;
 }
+// 道路は地上の全兵科。拠点の歩兵・W.A.S.限定とは分ける。
+function groundCanCaptureRoad(f){return f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
+function groundRoadCaptureSeconds(){const seconds=WOS_TERRAIN[op.ground].capture.roadSeconds;return Number.isFinite(seconds)&&seconds>0?seconds:5;} // 道路専用の暫定5秒。
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
-  const troops=fleets.filter(groundCanCapture),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const troops=fleets.filter(groundCanCaptureRoad),seconds=groundRoadCaptureSeconds(),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
     const present=[false,false];for(const f of troops)if(groundDistance(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,e.path)<=width+1e-8)present[f.team]=true;
     e.contested=present[0]&&present[1];if(e.contested)continue;
     const team=present[0]?0:present[1]?1:null;if(team===null||team===e.owner)continue;
-    e.progress[team]=Math.min(WOS_TERRAIN[op.ground].capture.seconds,e.progress[team]+dt);
-    if(e.progress[team]>=WOS_TERRAIN[op.ground].capture.seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}
+    e.progress[team]=Math.min(seconds,e.progress[team]+dt);
+    if(e.progress[team]>=seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}
   }
 }
 function groundSupplyRoadOpen(e){
@@ -157,7 +160,7 @@ function groundSupplyCanGive(f,t){
 }
 function groundSupplyCommand(list,t){
   const f=list.length===1?list[0]:null;if(!groundSupplyCanGive(f,t))return false;
-  groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundSupplyAiming=false;groundSupplyMessage='補給先：'+t.name;return true;
+  groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundClearAiming();groundSupplyMessage='補給先：'+t.name;return true;
 }
 function groundSupplyGive(dt,netGains){
   const r=groundSupplyRules(),used=new Set();
@@ -209,6 +212,8 @@ function groundSupplyBefore(dt){
     if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);groundSupplyAI(f);}
   }
 }
+// 未確定: 現在は最初の指示に従い味方色の道路も100%。道路80%案への回答待ち。
+function groundMoraleCap(f,at){return groundSupplyRules().max*(at.owner===f.team&&!at.contested?1:.8);}
 function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
@@ -223,8 +228,9 @@ function groundSupplyAfter(dt){
     const own=at.owner===f.team&&!at.contested;
     const gx=f.pos.x/GROUND_SCALE+24,gy=18-f.pos.z/GROUND_SCALE,type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
     if(!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
-    const restBefore=f.groundRest;f.groundRest=own&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
-    if(f.groundRest>r.restWait)f.groundMorale=Math.min(r.max,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
+    const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
+    const moraleCap=groundMoraleCap(f,at);
+    if(f.groundKind!=='supply'&&f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
     if(f.groundRout==='regroup'&&f.groundMorale>=r.rally)f.groundRout=null;
     if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
   }
@@ -236,7 +242,7 @@ function groundSupplyStatus(f){
   if(f.groundRout)return f.groundRout==='routing'?'敗走中・操作不可':'再集結・移動と搭乗のみ';
   if(f.groundSupplyGiving)return '補給を分配中';
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
-  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/WOS_TERRAIN[op.ground].capture.seconds*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
+  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds()*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
 function groundSupplyReadings(list){
   return [['groundMorale','士気'],['groundSupply','補給']].flatMap(([key,label])=>{
@@ -267,7 +273,7 @@ function groundSupplyHud(list){
 }
 document.querySelectorAll('#groundSupply').forEach(b=>b.addEventListener('click',()=>{
   const list=orderTargets();if(list.length!==1||list[0].groundKind!=='supply'||!groundCommandAllowed(list[0],'give'))return;
-  groundSupplyAiming=!groundSupplyAiming;groundWorkAiming=null;groundStrikeAiming=false;groundHud();
+  const aiming=!groundSupplyAiming;groundClearAiming();groundSupplyAiming=aiming;groundHud();
 }));
 // 既存の配置画面から利用。地上の配置では円外へ押し出さない。
 function groundSupplyPlace(list,p){

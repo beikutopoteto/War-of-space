@@ -80,7 +80,7 @@ function groundSupplyDrillEnter(row){
   red.pos.copy(groundPoint(16,32));shooter.pos.copy(groundPoint(15,25));
   if(row.condition==='groundSupplyDeploy')groundSupplyStartDeploy([f,truck]);
   if(row.condition==='groundSupplyRecapture'){
-    red.pos.copy(groundPoint(16,29.857));groundSupplyRoadCapture(30);red.pos.copy(groundPoint(16,32));groundSupplyRefresh();
+    red.pos.copy(groundPoint(16,29.857));groundSupplyRoadCapture(groundRoadCaptureSeconds());red.pos.copy(groundPoint(16,32));groundSupplyRefresh();
   }
   if(row.condition==='groundSupplyHalf'){
     red.pos.copy(groundPoint(18.5,29.5));f.groundSupply=40;

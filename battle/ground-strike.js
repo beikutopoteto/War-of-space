@@ -58,16 +58,16 @@ function groundStrikeAI(f){
 function groundStrikeCommand(list,p){
   let fired=0;
   for(const f of list)if(groundStrikeLaunch(f,p)){
-    fired++;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;
+    fired++;groundCancelWork(f);groundClearOrders(f);
   }
   groundStrikeMessage=fired?`${fired}隊 発射（味方にも命中）`:'発射不可：射程・高度・再装填を確認';
-  if(fired)groundStrikeAiming=false;
+  if(fired){const message=groundStrikeMessage;groundClearAiming();groundStrikeMessage=message;}
   groundHud();return fired;
 }
 function groundStrikeToggle(){
   if(over||!op.ground)return;
   if(!orderTargets().some(f=>groundStrikeWeapon(f)))return;
-  groundSupplyAiming=false;groundWorkAiming=null;groundStrikeAiming=!groundStrikeAiming;groundStrikeMessage='';closePick();groundHud();
+  const aiming=!groundStrikeAiming;groundClearAiming();groundStrikeAiming=aiming;groundHud();
 }
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');

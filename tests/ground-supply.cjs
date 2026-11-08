@@ -23,11 +23,11 @@ function supplyCases(){
     groundSupplyRoadCapture(.1);groundSupplyRefresh();
     check('道路競合の地点とその先も半速',groundSupplyAt(blue).rate===.5&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===.5);
     const downstream=unit(0,'vehicle',18);downstream.groundSupply=40;downstream.groundSupplyWait=2;fleets.push(downstream);groundSupplyAfter(2);check('競合の下流で実補充量も毎秒1',near(downstream.groundSupply,42));
-    blue.pos.copy(groundPoint(10,27));groundSupplyRoadCapture(30);groundSupplyRefresh();
-    check('敵が道路を30秒で占領し補給を切る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
+    blue.pos.copy(groundPoint(10,27));groundSupplyRoadCapture(groundRoadCaptureSeconds());groundSupplyRefresh();
+    check('敵が道路を5秒で占領し補給を切る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
     red.pos.copy(groundPoint(15,27));groundSupplyRoadCapture(1);groundSupplyRefresh();
     check('敵が去っても道路占領と切断が残る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
-    blue.pos.copy(groundPoint(15,29));groundSupplyRoadCapture(30);groundSupplyRefresh();
+    blue.pos.copy(groundPoint(15,29));groundSupplyRoadCapture(groundRoadCaptureSeconds());groundSupplyRefresh();
     check('味方が道を再占領すれば再接続',groundRoadAt(15,29).owner===0&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===1);
     groundSites[0].owner=1;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営喪失で全網停止',groundSupplyAt(blue).rate===0);
     groundSites[0].owner=0;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営奪還で供給再開',groundSupplyAt(blue).rate===1);
@@ -65,10 +65,10 @@ function supplyCases(){
     f.groundMorale=0;groundRoutStart(f);groundRoutStep(f,.05);check('最寄りの味方へ実経路で自動撤退',f.groundRoutTarget===truck&&f.order?.path&&f.groundRout==='routing');
     const path=f.order?.path;groundSupplyHit(f,1);check('敗走中に撃たれても退路を保持',f.order?.path===path&&f.groundRout==='routing');
     f.pos.copy(truck.pos);groundRoutStep(f,.05);check('到着で再集結し移動と搭乗のみ操作を返す',f.groundRout==='regroup'&&groundCommandAllowed(f,'move')&&groundCommandAllowed(f,'board')&&!groundCommandAllowed(f,'attack'));
-    f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('味方のそばでも色の外では士気回復なし',f.groundMorale===0);
+    f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('色の外でも停止後に士気50まで回復し再集結を終える',near(f.groundMorale,50)&&!f.groundRout);f.groundMorale=0;f.groundRout='regroup';
     f.pos.copy(groundPoint(15,29));f.groundMoved=false;f.groundRest=0;groundSupplyAfter(5);check('味方の道でも回復開始は5秒後',f.groundMorale===0);groundSupplyAfter(15);check('味方色の道で士気30回復し戦闘復帰',near(f.groundMorale,30)&&!f.groundRout);
     const block=groundRoadAt(10,29);block.owner=1;groundSupplyRefresh();f.groundMorale=10;f.groundSupply=40;f.groundRest=5;f.groundSupplyWait=0;groundSupplyAfter(1);check('孤立した味方色では士気だけ回復',near(f.groundMorale,12)&&near(f.groundSupply,40));
-    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(10);check('敵色の道では士気も回復しない',f.groundMorale===10);
+    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(10);check('敵色の非競合道路でも士気回復',near(f.groundMorale,30));
     setup();const enemy=unit(1,'infantry',35),enemyFriend=unit(1,'vehicle',34);fleets=[enemy,enemyFriend];
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=1;groundSupplyRefresh();enemy.groundSupply=40;enemy.groundSupplyWait=2;groundSupplyAfter(1);
     check('敵も自軍本営の接続道路で同じ速度の補充',near(enemy.groundSupply,42));enemy.groundMorale=0;groundRoutStart(enemy);groundRoutStep(enemy,.05);check('敵も士気0で味方へ敗走',enemy.groundRout==='routing'&&enemy.groundRoutTarget===enemyFriend);
@@ -91,7 +91,43 @@ function supplyCases(){
     const mixed=[f,{groundMorale:40,groundSupply:80},plane,ship];
     check('見出しの平均は対象部隊のみ、最低値も説明へ残す',groundSupplyRosterText(mixed)==='士気 56%（最低40%）　補給 68%（最低24%）'&&groundSupplyMeters(mixed).includes('data-low="true"'));
     check('空の見出しには棒なし',groundSupplyMeters([])===''&&groundSupplyRosterText([])==='');
-    op={};check('宇宙では補給と士気の処理が無効',!groundSupplyActive()&&groundSupplyAttackFactor(f)===1&&groundSupplySpeedFactor(f)===1&&groundSupplyHit(f,7)===7);
+    // 道路占領は全地上兵科・暫定5秒。拠点の兵科と30秒は変えない。
+    setup();const captureRules=d.capture,oldRoadSeconds=captureRules.roadSeconds;
+    check('道路5秒と拠点30秒を分離',groundRoadCaptureSeconds()===5&&captureRules.seconds===30);
+    const drillRows=WOS_DATA.operations.find(o=>o.id==='baikonur').tutorial;
+    check('道路奪還の案内は道路設定と一致',drillRows.find(r=>r.condition==='groundSupplyRecapture').text.includes(captureRules.roadSeconds+'秒で道を取り戻して'));
+    check('拠点占拠の案内は30秒を維持',drillRows.find(r=>r.condition==='groundCapture').text.includes(captureRules.seconds+'秒待つ'));
+    try{
+      captureRules.roadSeconds=7;check('道路専用の設定を優先',groundRoadCaptureSeconds()===7);delete captureRules.roadSeconds;check('道路専用値がない旧データも5秒',groundRoadCaptureSeconds()===5);
+      for(const kind of Object.keys(d.unitTypes)){
+        const t=unit(0,kind,15);fleets=[t];const e=groundRoadAt(15,29);e.owner=1;e.progress=[0,0];e.contested=false;
+        const eligible=groundBands(t).includes('ground');t.band=groundBands(t)[0];
+        check(kind+'の道路と拠点の資格を分離',groundCanCaptureRoad(t)===eligible&&groundCanCapture(t)===['infantry','was'].includes(kind));
+        groundSupplyRoadCapture(4.9);check(kind+'は5秒未満で道路を取らない',e.owner===1);
+        groundSupplyRoadCapture(.1);check(kind+'の道路占領対象を適用',e.owner===(eligible?0:1));
+      }
+      const sea=unit(0,'sea',15);sea.band='ground';check('海軍は誤った地上段でも道路占領しない',!groundCanCaptureRoad(sea));
+      const t=unit(0,'vehicle',15),foe=unit(1,'engineer',15),edge=groundRoadAt(15,29);fleets=[t,foe];edge.owner=null;edge.progress=[0,0];
+      groundSupplyRoadCapture(10);check('異なる地上兵科どうしでも競合して占領停止',edge.contested&&edge.owner===null&&edge.progress.every(n=>n===0));
+      fleets=[t];groundSupplyRoadCapture(2);t.pos.copy(groundPoint(15,27));groundSupplyRoadCapture(10);t.pos.copy(groundPoint(15,29));groundSupplyRoadCapture(3);
+      check('道路の中断進捗を保持し合計5秒で占領',edge.owner===0);
+      for(const state of ['routing','regroup']){t.groundRout=state;check(state+'は道路占領しない',!groundCanCaptureRoad(t));}t.groundRout=null;
+      t.groundMorale=0;check('士気ゼロは道路占領しない',!groundCanCaptureRoad(t));t.groundMorale=100;t.embarked={};check('搭乗中は道路占領しない',!groundCanCaptureRoad(t));
+    }finally{if(oldRoadSeconds===undefined)delete captureRules.roadSeconds;else captureRules.roadSeconds=oldRoadSeconds;}
+    // 回復の上限と停止・被弾・競合の条件を実処理で確認。
+    setup();const rested=unit(0,'vehicle',15,27);fleets=[rested];rested.groundMorale=20;
+    groundSupplyAfter(5);check('色の外も停止5秒までは回復なし',rested.groundMorale===20);groundSupplyAfter(1);check('色の外でも停止5秒後は毎秒2回復',near(rested.groundMorale,22));
+    groundSupplyAfter(60);check('色の外の回復上限は80%',near(rested.groundMorale,80));rested.groundMorale=90;groundSupplyAfter(1);check('色の外で80%超を強制的に下げない',rested.groundMorale===90);
+    rested.groundMorale=20;rested.groundMoved=true;groundSupplyAfter(1);check('移動したステップは休止時間をリセット',rested.groundMorale===20&&rested.groundRest===0);rested.groundMoved=false;
+    groundSupplyHit(rested,1);groundSupplyAfter(5);check('被弾後5秒までは色の外でも回復なし',rested.groundMorale===19);groundSupplyAfter(1);check('被弾後5秒を越えれば回復再開',rested.groundMorale===21);
+    rested.pos.copy(groundPoint(41,29));rested.groundMorale=75;rested.groundRest=5;groundSupplyAfter(5);check('敵拠点の非競合圏も80%上限',rested.groundMorale===80);
+    groundSites.find(s=>s.id==='F').contested=true;rested.groundMorale=20;rested.groundRest=5;groundSupplyAfter(10);check('敵色の競合圏では回復せず休止時間もリセット',rested.groundMorale===20&&rested.groundRest===0);
+    rested.pos.copy(groundPoint(12,29));rested.groundMorale=90;rested.groundRest=5;groundSupplyAfter(5);check('味方拠点では100%まで回復',rested.groundMorale===100);
+    groundSites.find(s=>s.id==='B').contested=true;rested.groundMorale=20;groundSupplyAfter(10);check('味方色の競合圏でも回復なし',rested.groundMorale===20);
+    rested.pos.copy(groundPoint(15,29));rested.groundRest=5;rested.groundMorale=90;groundSupplyAfter(5);check('味方色道路の100%上限（回答待ちの仮定）',rested.groundMorale===100);
+    rested.pos.copy(groundPoint(15,27));rested.groundMorale=20;rested.groundRout='routing';groundSupplyAfter(10);check('敗走中は停止扱いにせず回復なし',rested.groundMorale===20&&rested.groundRest===0);
+    const supplyUnit=unit(0,'supply',12,29);fleets=[supplyUnit];supplyUnit.groundMorale=20;supplyUnit.groundRest=5;groundSupplyAfter(10);check('補給部隊の士気は回復対象外',supplyUnit.groundMorale===20);
+    op={};check('宇宙では補給と士気の処理が無効' ,!groundSupplyActive()&&groundSupplyAttackFactor(f)===1&&groundSupplySpeedFactor(f)===1&&groundSupplyHit(f,7)===7);
   }finally{op=saved.op;fleets=saved.fleets;groundSites=saved.groundSites;groundTerritory=saved.groundTerritory;groundSupplyNet=saved.groundSupplyNet;over=saved.over;end=saved.end;groundForests=saved.groundForests;groundBuildings=saved.groundBuildings;d.objects.roads=oldRoads;d.objects.bridges=oldBridges;groundBridges=oldBuilt;groundBridgeRevision=oldBridgeRevision;}
   return results;
 }

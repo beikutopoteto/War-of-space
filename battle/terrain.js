@@ -129,7 +129,35 @@ function groundSeaLeg(a,b){
 }
 function groundPath(from,to,kind='vehicle',dryOnly=false){
   const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
-  const pass=(x,y)=>groundPass(x,y,kind)&&(!dryOnly||groundRiverFactor(x,y,kind)===1);
+  // Query bounds live only for this search: bridge construction/destruction and
+  // terrain edits are always observed by the next call, including dry detours.
+  const bounds=poly=>{let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const [x,y] of poly){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}return {poly,minX,minY,maxX,maxY};};
+  const within=(x,y,b,pad=0)=>x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;
+  const board=bounds(d.display.board),sea=bounds(d.water.sea),ponds=d.water.ponds.map(bounds);
+  const rivers=d.water.rivers.map(river=>({...bounds(river.points),river,pad:Math.max(...river.widths)/2+.12+1e-10}));
+  function riverFactor(x,y){
+    let factor=1;
+    for(const box of rivers){
+      if(!within(x,y,box,box.pad))continue;
+      const river=box.river,r=groundRiverAt(x,y,river);
+      if(r.dist>=r.width/2+.12)continue;
+      const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
+      const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+cell)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+cell);
+      if(!bridge&&!ford)factor=Math.min(factor,d.movement.river[kind]??0);
+    }
+    return factor;
+  }
+  // A leg needs both passability and speed at the exact same sample. Evaluate
+  // water once, retaining the original fine sampling and endpoint checks.
+  function waterFactor(x,y){
+    if(!within(x,y,board)||!groundInside(x,y,board.poly))return 0;
+    const wet=within(x,y,sea)&&groundInside(x,y,sea.poly);
+    if(kind==='sea')return wet&&(!dryOnly||riverFactor(x,y)===1)?1:0;
+    if(wet||ponds.some(p=>within(x,y,p)&&groundInside(x,y,p.poly)))return 0;
+    const factor=riverFactor(x,y);
+    return dryOnly&&factor!==1?0:factor;
+  }
+  const pass=(x,y)=>waterFactor(x,y)>0;
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
     for(let i=0;i<=steps;i++)if(!groundPass(a[0]+(b[0]-a[0])*i/steps,a[1]+(b[1]-a[1])*i/steps,'air'))return null;
@@ -145,8 +173,10 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     let sum=0;
     for(let k=0;k<=n;k++){
       const t=k/n,x=p.x+(q.x-p.x)*t,z=p.z+(q.z-p.z)*t;
-      if(!pass(x/GROUND_SCALE+24,18-z/GROUND_SCALE))return Infinity;
-      const factor=groundFactor(x,z,kind);if(factor<=0)return Infinity;
+      const gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,water=waterFactor(gx,gy);
+      if(water<=0)return Infinity;
+      const marsh=kind!=='sea'&&d.terrain.cells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?(d.movement.marsh[kind]??1):1;
+      const factor=marsh*water;if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
     return length/(cell*GROUND_SCALE)*sum/n;
@@ -203,10 +233,23 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   const L=curve.getLength();
   // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
   // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
-  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>groundRiverFactor(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,kind)<1)){
+  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>riverFactor(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE)<1)){
     const detour=groundPath(from,to,kind,true);
     if(detour&&detour.cost<cost)return detour;
   }
   return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L,s:0,pts:[points[points.length-1]],at:[L]};
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){const before=f.pos.clone();f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);groundSupplyMoved(f,before,f.pos);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+// 地形の迂回点とユーザーの経由地を分け、矢印と実移動には同じ経路を使う。
+function groundMovePath(from,waypoints,kind){
+  const points=[from.clone()],pts=[],at=[],curve=new THREE.CurvePath();let cost=0,length=0;
+  for(const dest of waypoints){
+    const leg=groundPath(points[points.length-1],dest,kind);if(!leg)return null;
+    for(const p of leg.points.slice(1)){
+      const prev=points[points.length-1];length+=Math.hypot(p.x-prev.x,p.z-prev.z);
+      curve.add(new THREE.LineCurve3(prev,p));points.push(p);
+    }
+    pts.push(points[points.length-1].clone());at.push(length);cost+=leg.cost||0;
+  }
+  return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L:curve.getLength(),s:0,pts,at};
+}
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){const before=f.pos.clone();f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);groundSupplyMoved(f,before,f.pos);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}

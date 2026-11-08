@@ -35,7 +35,7 @@ window.WOS_TERRAIN.exercise2 = {
     was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2}
   },
   combat: { tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
-  capture: { seconds:30, radiusKm:2, roadWidthKm:1.25 },
+  capture: { seconds:30, roadSeconds:5, radiusKm:2, roadWidthKm:1.25 }, // 道路だけ暫定5秒。拠点は30秒。
   movement: { marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
