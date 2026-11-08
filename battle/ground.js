@@ -129,6 +129,8 @@ function groundInit(){
     }
     f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
     for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
+    const ring=f.groundSelection=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
+    ring.userData.flat=ring.geometry.attributes.position.array.slice();ring.visible=false;groundVisuals.add(ring);
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
     if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
     else {
@@ -164,9 +166,24 @@ function groundAircraft(group,color){
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),lineMat));
   }
 }
+// 宇宙と同じ輪を、各頂点の地表高に沿わせる。航空部隊も地表に投影する。
+function groundSelectionDraw(f,picked){
+  const ring=f.groundSelection;if(!ring)return;
+  ring.visible=picked&&f.alive&&!f.embarked;
+  if(!ring.visible)return;
+  const radius=Math.sqrt(f.ships.length)*1.35*f.scale+2.5,flat=ring.userData.flat,position=ring.geometry.attributes.position;
+  ring.position.set(f.pos.x,0,f.pos.z);
+  for(let i=0;i<position.count;i++){
+    const x=flat[i*3]*radius,z=flat[i*3+2]*radius;
+    position.setXYZ(i,x,groundHeight(f.pos.x+x,f.pos.z+z)+.15,z);
+  }
+  position.needsUpdate=true;ring.geometry.computeBoundingSphere();
+}
 function groundDraw(){
   if(!groundVisuals) return;
+  const picked=orderTargets();
   for(const f of fleets){
+    groundSelectionDraw(f,picked.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&(f.team===0||groundSeenBy(0,f));
     model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
@@ -275,7 +292,7 @@ function groundCaptureStep(dt){
     if(s.progress[team]>=s.captureSec-1e-8){ s.owner=team; s.progress=[0,0]; }
   }
   if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
-  else if(!op.groundDrill&&groundSites.length&&groundSites.every(s=>s.owner===0)) end(true);
+  else if((!op.groundDrill||tutorial?.skipped)&&groundSites.length&&groundSites.every(s=>s.owner===0)) end(true);
 }
 function groundCaptureInit(){
   const d=WOS_TERRAIN[op.ground], rules=d.capture;

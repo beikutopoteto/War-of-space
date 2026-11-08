@@ -11,7 +11,7 @@ function tutorialClearMarks(){ tutorialMarks.forEach(m=>{scene.remove(m.group); 
 function tutorialInit(cfg){
   if(tutorialArrow){ dropArrow(tutorialArrow); tutorialArrow=null; }
   tutorialClearMarks();
-  tutorial=(op.groundDrill||cfg&&cfg.tutorial)&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null,times:[],folded:false}:null;
+  tutorial=(op.groundDrill||cfg&&cfg.tutorial)&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null,times:[]}:null;
   if(op.groundDrill&&tutorial)groundDrillEnter();
   tutorialRender();
 }
@@ -19,8 +19,8 @@ function tutorialTalk(){
   if(talking) return;
   const row=tutorialActive()&&!over&&op.tutorial[tutorial.step];
   talkEl.classList.toggle('tutorial-talk',!!row);
-  talkText.hidden=!!(row&&op.groundDrill&&tutorial.folded);
-  document.getElementById('talkSkip').textContent=row&&op.groundDrill?(tutorial.folded?'案内を開く':'案内をたたむ'):'とばす';
+  talkText.hidden=false;
+  document.getElementById('talkSkip').textContent='とばす';
   if(!row){talkEl.hidden=true; return;}
   talkEl.hidden=false; talkEl.classList.remove('narr'); talkWho.hidden=false; talkWho.textContent='リコ軍曹'; talkText.textContent=row.text;
   talkEl.querySelector('.ctl span').textContent='演習 '+(tutorial.step+1)+'/'+op.tutorial.length+'　'+row.name;

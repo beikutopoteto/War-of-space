@@ -501,10 +501,9 @@ body.nolabels .fleet-label .nm{display:none}
 
 #alt .cap{font-size:12.5px} #alt .val{font-size:19px} #alt button{width:44px;height:28px;font-size:15px} #altTrack{width:44px;height:112px} #altKnob{width:34px;height:15px} #alt #stance button{width:66px;height:28px;font-size:13px} #camSticks{left:110px} #talk.tutorial-talk{cursor:default} #talk.tutorial-talk .ctl span{color:var(--brass);font-weight:bold} body.noui #talk.tutorial-talk{display:none!important} .tutorial-mark-label{position:absolute;color:#ffd27a;font-size:12px;font-weight:bold;text-shadow:0 1px 3px #000,0 0 4px #000;white-space:nowrap;transform:translate(-50%,-100%);pointer-events:none} body.noui .tutorial-mark-label{display:none}
 
-/* 地上部隊の簡単な兵科印と名前 */
+/* 地上部隊も宇宙と同じ .mk2 / .nm の表示条件を使う。 */
 .ground-label .mk2 .mk{width:20px;height:14px}
 .ground-label .mk2 em{font-family:var(--f-ui);font-size:11px;font-weight:600}
-.ground-label .nm{display:none!important}
 
 /* 地上作戦だけの3段。宇宙の連続バーは元の配置。 */
 #alt.ground-alt{width:226px;box-sizing:border-box;justify-items:stretch}

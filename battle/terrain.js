@@ -113,7 +113,7 @@ populateReeds();populateForest();populateShrubs();
 const buildingGroups={};for(const spec of d.objects.settlements){const site=d.sites.find(s=>s.id===spec.site),mesh=new THREE.InstancedMesh(new THREE.BoxBufferGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xb6bab4}),spec.count),dummy=new THREE.Object3D(),random=rng(d.meta.seed+site.id.charCodeAt(0));for(let i=0;i<spec.count;i++){const road=nearestRoadPoint(site.x,site.y),along=(random()-.5)*spec.spacingKm*8,side=(random()<.5?-1:1)*(spec.alongRoadKm+random()*.13),x=road.x+road.dx*along-road.dy*side,y=road.y+road.dy*along+road.dx*side,h=.16+random()*.2;dummy.position.set(toX(x),elevation(x,y)+h/2+.02,toZ(y));dummy.scale.set(.17,h,.15);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);groundBuildings.push({minX:(toX(x)-.085)*GROUND_SCALE,maxX:(toX(x)+.085)*GROUND_SCALE,minZ:(toZ(y)-.075)*GROUND_SCALE,maxZ:(toZ(y)+.075)*GROUND_SCALE,bottom:(elevation(x,y)+.02)*GROUND_SCALE,top:(elevation(x,y)+h+.02)*GROUND_SCALE});}mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);buildingGroups[site.id]=mesh}
 
 }
-// 4方向のマス経路。辺も検査し、細い川や海岸を飛び越えない。
+// 8方向のマス経路。辺と近道を検査し、細い川や海岸を飛び越えない。
 // セルの中心と実際の出発・到着点を結ぶ線も、海岸や盤の切れ込みを横切らせない。
 function groundSeaLeg(a,b){
   const d=WOS_TERRAIN.exercise2,x=a.x/GROUND_SCALE+24,y=18-a.z/GROUND_SCALE,dx=(b.x-a.x)/GROUND_SCALE,dy=-(b.z-a.z)/GROUND_SCALE,cuts=[0,1];
@@ -127,19 +127,86 @@ function groundSeaLeg(a,b){
   if(!groundPass(x,y,'sea')||!groundPass(x+dx,y+dy,'sea'))return false;
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
-function groundPath(from,to,kind='vehicle'){
+function groundPath(from,to,kind='vehicle',dryOnly=false){
   const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
+  const pass=(x,y)=>groundPass(x,y,kind)&&(!dryOnly||groundRiverFactor(x,y,kind)===1);
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
     for(let i=0;i<=steps;i++)if(!groundPass(a[0]+(b[0]-a[0])*i/steps,a[1]+(b[1]-a[1])*i/steps,'air'))return null;
     const dest=to.clone();dest.y=from.y;const curve=new THREE.LineCurve3(from.clone(),dest),L=curve.getLength();
     return {curve,points:[from.clone(),dest],atIndex:1,L,s:0,pts:[dest],at:[L]};
   }
-  if(!groundPass(...a,kind)||!groundPass(...b,kind)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
-  const centers=i=>[(i%cols+.5)*cell,(Math.floor(i/cols)+.5)*cell],dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
-  function push(i,v){let k=heap.length;heap.push([i,v]);while(k){let p=(k-1)>>1;if(heap[p][1]<=v)break;heap[k]=heap[p];k=p;}heap[k]=[i,v];}
-  function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][1]<heap[c][1])c++;if(heap[c][1]>=last[1])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
-  dist[start]=0;push(start,0);while(heap.length){const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;const x=i%cols,y=Math.floor(i/cols),p=centers(i);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;const j=yy*cols+xx,q=centers(j);let edge=0;for(let k=0;k<4;k++){const t=(k+.5)/4,gx=p[0]+(q[0]-p[0])*t,gy=p[1]+(q[1]-p[1])*t;if(!groundPass(gx,gy,kind)){edge=Infinity;break;}edge+=1/groundFactor((gx-24)*GROUND_SCALE,(18-gy)*GROUND_SCALE,kind)/4;}if(!groundPass(...q,kind)||kind==='sea'&&!groundSeaLeg(groundPoint(...p),groundPoint(...q)))continue;const n=cost+edge;if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}}}
-  if(!Number.isFinite(dist[end]))return null;const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();const points=[from.clone(),...ids.map(i=>groundPoint(...centers(i))),groundPoint(...b)];if(kind==='sea'&&points.slice(1).some((p,i)=>!groundSeaLeg(points[i],p)))return null;const curve=new THREE.CurvePath();for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));return {bridgeRevision:groundBridgeRevision,cost:dist[end],curve,points,atIndex:1,L:curve.getLength(),s:0,pts:[points[points.length-1]],at:[curve.getLength()]};
+  if(!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
+  const centers=i=>new THREE.Vector3(((i%cols+.5)*cell-24)*GROUND_SCALE,0,(18-(Math.floor(i/cols)+.5)*cell)*GROUND_SCALE);
+  // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
+  function leg(p,q){
+    if(kind==='sea'&&!groundSeaLeg(p,q))return Infinity;
+    const length=Math.hypot(q.x-p.x,q.z-p.z),n=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/8)));
+    let sum=0;
+    for(let k=0;k<=n;k++){
+      const t=k/n,x=p.x+(q.x-p.x)*t,z=p.z+(q.z-p.z)*t;
+      if(!pass(x/GROUND_SCALE+24,18-z/GROUND_SCALE))return Infinity;
+      const factor=groundFactor(x,z,kind);if(factor<=0)return Infinity;
+      sum+=(k===0||k===n?.5:1)/factor;
+    }
+    return length/(cell*GROUND_SCALE)*sum/n;
+  }
+  const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
+  const centerCache=new Map(),center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
+  // 通常の地形倍率は1以下。直線距離を下限にした A* で遠方のセルを探しすぎない。
+  function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols));let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
+  function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][2]<heap[c][2])c++;if(heap[c][2]>=last[2])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
+  // セル内の端点を中心へ結ぶ部分も、通れない川岸をまたがない。
+  const first=leg(from,center(start));if(!Number.isFinite(first)||!Number.isFinite(leg(center(end),to)))return null;
+  dist[start]=first;push(start,first);
+  while(heap.length){
+    const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;
+    const x=i%cols,y=Math.floor(i/cols),p=center(i);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+      const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;
+      // 斜めでも通行不可セルの角をすり抜けない。
+      if(dx&&dy&&(!pass((x+dx+.5)*cell,(y+.5)*cell)||!pass((x+.5)*cell,(y+dy+.5)*cell)))continue;
+      const j=yy*cols+xx,n=cost+leg(p,center(j));
+      if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}
+    }
+  }
+  if(!Number.isFinite(dist[end]))return null;
+  const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();
+  const raw=[from.clone(),center(start),...ids.map(center),groundPoint(...b)];
+  const costs=[0];for(let i=1;i<raw.length;i++)costs.push(costs[i-1]+leg(raw[i-1],raw[i]));
+  // 沼地・渡河の時間を増やさない見通しのよい近道だけを採る。
+  const simple=[raw[0]];
+  for(let i=0;i<raw.length-1;){
+    let j=raw.length-1;while(j>i+1&&leg(raw[i],raw[j])>costs[j]-costs[i]+1e-6)j--;
+    if(raw[i].distanceToSquared(raw[j])>1e-10)simple.push(raw[j]);i=j;
+  }
+  // 曲がり角を短い二次曲線で丸める。通行不能なら元の角を残す。
+  const rounded=[simple[0]];
+  for(let i=1;i<simple.length-1;i++){
+    const p=simple[i],before=simple[i-1],after=simple[i+1];
+    const radius=Math.min(cell*GROUND_SCALE/2,p.distanceTo(before)/4,p.distanceTo(after)/4);
+    const a=p.clone().lerp(before,radius/p.distanceTo(before)),b=p.clone().lerp(after,radius/p.distanceTo(after));
+    const arc=new THREE.QuadraticBezierCurve3(a,p,b).getPoints(8);
+    if(arc.slice(1).every((q,k)=>Number.isFinite(leg(arc[k],q))))rounded.push(...arc);
+    else rounded.push(p);
+  }
+  if(simple.length>1)rounded.push(simple[simple.length-1]);
+  // 地形の起伏も拾い、経路の線が地面へ潜らないようにする。
+  const points=[rounded[0]];
+  for(let i=1;i<rounded.length;i++){
+    const p=rounded[i-1],q=rounded[i],n=Math.max(1,Math.ceil(p.distanceTo(q)/(cell*GROUND_SCALE/2)));
+    for(let k=1;k<=n;k++){const v=p.clone().lerp(q,k/n);v.y=kind==='sea'?0:groundHeight(v.x,v.z);points.push(v);}
+  }
+  if(points.length===1)points.push(points[0].clone());
+  const curve=new THREE.CurvePath();let cost=0;
+  for(let i=1;i<points.length;i++){curve.add(new THREE.LineCurve3(points[i-1],points[i]));cost+=leg(points[i-1],points[i]);}
+  const L=curve.getLength();
+  // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
+  // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
+  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>groundRiverFactor(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,kind)<1)){
+    const detour=groundPath(from,to,kind,true);
+    if(detour&&detour.cost<cost)return detour;
+  }
+  return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L,s:0,pts:[points[points.length-1]],at:[L]};
 }
 function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}

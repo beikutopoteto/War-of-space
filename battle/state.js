@@ -164,10 +164,13 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>${groundTransportLabel(f)}${lost?' / 最終確認位置':' / '+GROUND_BAND_NAMES[f.band||'ground']}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>×${f.ships.length}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
-  if(f.groundKind){ if(f._labelContent!==f.name){f._labelContent=f.name;nm.textContent=f.name;} return; }
+  if(f.groundKind){
+    const content=`<b>${f.name}</b><span class="ln">${groundTransportLabel(f)} / ${lost?'最終確認位置':GROUND_BAND_NAMES[f.band||'ground']}</span>`;
+    if(f._labelContent!==content){f._labelContent=content;nm.innerHTML='<b></b><span class="ln"></span>';nm.querySelector('b').textContent=f.name;nm.querySelector('.ln').textContent=groundTransportLabel(f)+' / '+(lost?'最終確認位置':GROUND_BAND_NAMES[f.band||'ground']);} return;
+  }
   const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a));
   const rows=types.map(t=>`<span class="cr${by[t]?'':' z'}"><i class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet):''}</i>${shipLabel(t)}<em>×${by[t]||0}</em></span>`).join('');

@@ -40,7 +40,8 @@ function transportCases(){
     const river=WOS_TERRAIN.exercise2.water.rivers.find(r=>r.id==='east'),i=2,a=river.points[i],b=river.points[i+1],center=groundPoint((a[0]+b[0])/2,(a[1]+b[1])/2),plan=groundBridgePlan(center);
     check('狭い分流の川幅と両岸を判定',!plan.reason&&plan.width<=.3&&plan.banks.length===2);
     engineer.pos.copy(plan.banks[0]);vehicle.pos.copy(plan.banks[0]);const dest=plan.banks[1];
-    const before=groundPath(vehicle.pos,dest,'vehicle');check('架橋前も遠くの浅瀬へ迂回する経路を選ぶ',!!before&&before.L>vehicle.pos.distanceTo(dest)*2);
+    const before=groundPath(vehicle.pos,dest,'vehicle');const ford=WOS_TERRAIN.exercise2.objects.fords.find(f=>f.river===river.id);
+    check('架橋前は既存の浅瀬へ迂回し通行不可の川を横切らない',!!before&&before.L>vehicle.pos.distanceTo(dest)*1.1&&before.points.every(p=>groundPass(p.x/4+24,18-p.z/4,'vehicle'))&&before.points.some(p=>Math.hypot(p.x/4+24-ford.x,18-p.z/4-ford.y)<WOS_TERRAIN.exercise2.meta.cellKm));
     check('川幅0.3 kmちょうどは架橋可能',!groundBridgePlan(groundPoint(...river.points[3])).reason);
     check('川幅0.3 kmを少し超えると架橋不可',groundBridgePlan(groundPoint(24.204,10.996)).reason.includes('上限'));
     const bridge=groundBridgeCommand([engineer],center);tick(.05);check('川岸で架橋作業を開始',!!bridge&&engineer.groundBuilding&&!bridge.complete);
