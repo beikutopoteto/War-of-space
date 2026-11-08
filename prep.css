@@ -303,8 +303,17 @@ body.inmenu .hud,body.inmenu #labels,body.inmenu #cursorAlt,body.inmenu #talk,bo
 .modes .on b{color:#8fe8c0}.modes span{white-space:pre-line;font-size:15px;line-height:1.7;color:var(--ink-dim)}
 .modes .tag{justify-self:start;color:var(--brass);border:1px solid rgba(226,197,138,.5);padding:1px 8px;letter-spacing:.14em}
 .onpanel{position:absolute!important;left:110px;top:250px;width:560px;padding:30px;line-height:1.8}.onpanel b{font-size:26px;color:#8fe8c0}
-.ops{position:absolute;left:110px;top:186px;width:460px;display:grid;gap:6px}
-.ops .grp{margin:8px 0 2px;font-size:12.5px;letter-spacing:.3em;color:var(--brass)}
+.ops{position:absolute;left:110px;top:186px;width:460px;display:grid;gap:8px;max-height:calc((100vh - 44px) / (var(--k,1) * 1.12) - 210px);overflow-y:auto;scrollbar-width:thin;padding:2px 4px 4px}
+.ops .op-tab{display:flex;align-items:center;gap:10px;width:100%;box-sizing:border-box;padding:8px 14px;border:0;text-align:left;font-size:13px;letter-spacing:.18em;color:var(--brass);background:rgba(127,200,255,.08);clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
+.ops .op-tab:hover,.ops .op-tab[aria-expanded="true"]{background:rgba(127,200,255,.14)}
+.ops .op-tab:focus-visible{outline-offset:-2px}
+.op-fold{width:1em;flex:none;letter-spacing:0}
+.ops .op-new{margin-left:auto;font-size:11px;letter-spacing:.08em;color:#ffd27a}
+.ops .op-tab.unseen{color:#ffd27a;animation:op-unseen 2.8s ease-in-out infinite}
+@keyframes op-unseen{0%,100%{background:rgba(255,210,122,.1)}50%{background:rgba(255,210,122,.23)}}
+@media(prefers-reduced-motion:reduce){.ops .op-tab.unseen{animation:none;background:rgba(255,210,122,.12)}}
+.op-rows{display:grid;gap:6px;margin-top:5px}.op-rows[hidden]{display:none}
+.op-rows .empty{margin:0;padding:6px 14px;font-size:13px;color:var(--ink-dim)}
 .ops .op{display:grid;grid-template-columns:4.2em minmax(8.5em,1fr) auto;align-items:center;gap:10px;padding:8px 16px 8px 14px;--cut:10px}
 .ops .op b{font-size:17.5px;font-weight:500}.ops .op span{font-size:12.5px}.ops .op.sel{background:rgba(127,200,255,.2);margin-left:10px}.ops .op.sel b{color:var(--blue)}.ops .op .op-status{text-align:right}
 .det{position:absolute!important;right:70px;bottom:56px;width:620px;box-sizing:border-box;padding:20px 28px 22px;--cut:20px}

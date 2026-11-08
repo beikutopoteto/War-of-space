@@ -63,6 +63,7 @@ function defaults(){
     ],
     groundOrg: GROUND.defaults(),
     prog: newProg(),
+    sortieMenu: {closed:{},seen:[]},
   };
 }
 /* campaign progress: cleared operations, funds, research per branch ([node ids], data/tech.js techTree), story flags */
@@ -75,6 +76,8 @@ const OLD_NAMES={'第41巡洋戦隊':'第9 前衛巡洋 支隊','第11哨戒戦�
   '第31駆逐戦隊':'第24 駆逐突撃 支隊','第22護衛戦隊':'第19 護送護衛 支隊','ネオ信濃駐屯隊':'第2 ネオ信濃駐屯 戦区軍'};
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
 function migrate(s){ s.groundOrg=GROUND.normalize(s.groundOrg); s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
+  s.sortieMenu={closed:s.sortieMenu?.closed||{},seen:Array.isArray(s.sortieMenu?.seen)?s.sortieMenu.seen:[]};
+  s.sortieMenu.seen=[...new Set(s.sortieMenu.seen.map(id=>id==='ch2drill'?'tutorial2':id))];
   /* the first starting fleet (battleships, carriers, W.A.S.) is replaced by the new one while the player has not changed it */
   if(JSON.stringify(s.bgs.map(b=>[b.id,b.name,b.type,b.count]))===OLD_BGS&&s.armies.length===3&&s.groups.length===1){
     const d=defaults(); s.bgs=d.bgs; s.armies=d.armies; s.groups=d.groups; }
@@ -130,9 +133,11 @@ const unlocked=key=>cleared(D.unlocks[key]);
 /* the exercise with the player's own army groups opens once something has been researched (user decision 2026-10-13) */
 const researched=()=>Object.values(prog().tech).some(t=>t&&t.length);
 const ownExercise=()=>unlocked('fleet')&&researched();
+/* Both ground exercises require the end of chapter one, including older saves that already cleared the guide. */
+const opRequirement=o=>(o===TUT2||o===TUT2_BASE)&&!cleared(TUT2.requires)?TUT2.requires:o.requires;
 function opOpen(o){ if(dbg.free||o===TUT) return true;
   if(!tutDone()) return false;   // nothing opens before the tutorial
-  if(o.requires) return cleared(o.requires);
+  const need=opRequirement(o); if(need) return cleared(need);
   const i=CAMP.indexOf(o); if(i<0) return !!o.quick||ownExercise();   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens and a research is done
   return i===0||cleared(CAMP[i-1].id); }
 /* a thin line lock in the text colour (no emoji) */
@@ -466,7 +471,7 @@ function renderDebug(){
     if(a==='tech') BRANCHES.forEach(br=>{ if(br.need) P.flags[br.need]=true; P.tech[br.id]=TREE.map(n=>n.id); });
     /* back to the start: the progress and the fleets (battle groups, armies, army groups) as a new save has them (user decision 2026-10-04) */
     if(a==='reset'){ if(!dbgConfirm){ dbgConfirm=true; renderDebug(); return; } dbgConfirm=false;
-      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,groundOrg:d.groundOrg,prog:newProg()}); selBg=selArmy=selGroup=selGround=null; sortieGroups=[]; sortieInitialized=false; }
+      const d=defaults(); Object.assign(save,{seq:d.seq,bgs:d.bgs,armies:d.armies,groups:d.groups,groundOrg:d.groundOrg,prog:newProg(),sortieMenu:d.sortieMenu}); selBg=selArmy=selGroup=selGround=null; sortieGroups=[]; sortieInitialized=false; }
     persist(); renderTitle(); });
 }
 document.addEventListener('click',e=>{ if(e.target.closest('#dbgT')){ dbgOpen=!dbgOpen; dbgConfirm=false; renderDebug(); } });
@@ -617,23 +622,42 @@ document.addEventListener('wheel',e=>{ const sc=e.target.closest&&e.target.close
 /* ---------- sortie ---------- */
 function renderMode(){ const next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT; document.getElementById('modeNext').textContent='キャンペーンと演習。ひとりで、CPU の敵と戦う。\n'+(next?'次の作戦：'+opLabel(next):'次の作戦は準備中'); }
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
+function sortieSections(){
+  const sections=[{id:'第一章',title:'無重力',ops:[]},{id:'第二章',title:'重力',ops:[]},{id:'演習',title:'',ops:[]}];
+  const camp=tutDone()?CAMP:[TUT,...CAMP], ex=[TUT2,...OPS.filter(o=>!o.chapter&&!o.hidden)];
+  camp.forEach(o=>{ const id=o.chapter?.split(' ')[0]||'第一章'; let section=sections.find(s=>s.id===id);
+    if(!section){ section={id,title:o.chapterTitle||'',ops:[]}; sections.splice(sections.length-1,0,section); }
+    if(o.chapterTitle) section.title=o.chapterTitle; section.ops.push(o); });
+  sections.find(s=>s.id==='演習').ops=tutDone()?[TUT,...ex]:ex;
+  return sections;
+}
+const sortieUnseen=o=>opOpen(o)&&!opDone(o)&&!save.sortieMenu.seen.includes(o.id);
+function seeSortie(ops){
+  save.sortieMenu.seen=[...new Set([...save.sortieMenu.seen,...ops.filter(opOpen).map(o=>o.id)])]; persist();
+}
 function renderSortie(){
   /* the campaign first, then the exercises; a locked operation shows how it opens. At first the next one to play is chosen */
-  const ex=[TUT2,...OPS.filter(o=>!o.chapter&&!o.hidden)], camp=tutDone()?CAMP:[TUT,...CAMP], exs=tutDone()?[TUT,...ex]:ex, list=[...camp,...exs];
+  const sections=sortieSections(), camp=tutDone()?CAMP:[TUT,...CAMP], list=sections.flatMap(s=>s.ops);
   if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(camp.find(o=>!opDone(o)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
   const nextOp=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT;
-  const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
-    const why=!tutDone()?'チュートリアルをクリアで解放':o.requires?`${opLabel(o.requires===TUT2.id?TUT2:OPS.find(x=>x.id===o.requires))}をクリアで解放`:i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
+  const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o), need=opRequirement(o);
+    const why=!tutDone()?'チュートリアルをクリアで解放':need?`${opLabel(need===TUT2.id?TUT2:OPS.find(x=>x.id===need))}をクリアで解放`:i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace(/^第[一二]章 /,'')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
-  let chapter='';
-  const campaignCards=camp.map(o=>{const key=o.chapter?o.chapter.split(' ')[0]:'第一章',title=key==='第一章'?'無重力':o.chapterTitle||'';const heading=chapter===key?'':`<p class="grp">${esc(key+'　'+title)}</p>`;chapter=key;return heading+card(o);}).join('');
-  ol.innerHTML=campaignCards+`<p class="grp">演習</p>${exs.map(card).join('')}`;
-  ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ sortieOp=b.dataset.op; renderSortie(); });
+  const scroll=ol.scrollTop;
+  ol.innerHTML=sections.map((s,i)=>{ const open=!save.sortieMenu.closed[s.id], fresh=s.ops.some(sortieUnseen);
+    return `<section class="op-section" data-section="${esc(s.id)}"><button class="grp op-tab ${fresh?'unseen':''}" data-op-section="${esc(s.id)}" aria-expanded="${open}" aria-controls="opRows${i}"><span class="op-fold" aria-hidden="true">${open?'−':'＋'}</span><span>${esc(s.id+(s.title?'　'+s.title:''))}</span>${fresh?'<span class="op-new">新規</span>':''}</button><div class="op-rows" id="opRows${i}" ${open?'':'hidden'}>${s.ops.length?s.ops.map(card).join(''):'<p class="empty">準備中</p>'}</div></section>`; }).join('');
+  const choose=id=>{ const o=list.find(o=>o.id===id); if(!o||!opOpen(o)) return;
+    sortieOp=id; save.sortieMenu.closed[sections.find(s=>s.ops.includes(o)).id]=false; seeSortie([o]); renderSortie(); };
+  ol.querySelectorAll('[data-op-section]').forEach(b=>b.onclick=()=>{ const s=sections.find(s=>s.id===b.dataset.opSection), open=!!save.sortieMenu.closed[s.id];
+    save.sortieMenu.closed[s.id]=!open; if(open) seeSortie(s.ops); else persist(); renderSortie();
+    ol.querySelector(`[data-op-section="${s.id}"]`).focus({preventScroll:true}); });
+  ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ choose(b.dataset.op); ol.querySelector(`[data-op="${b.dataset.op}"]`).focus({preventScroll:true}); });
+  ol.scrollTop=scroll;
   const op=list.find(o=>o.id===sortieOp), done=opDone(op);
   document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
   document.getElementById('opReward').innerHTML=op===TUT?'報酬　なし':`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*replayRate(op))}）`:''}`;
-  WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
+  WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),choose);
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick}:{op:op.id}); } };
@@ -952,6 +976,7 @@ function renderData(){
 /* Enter decides: 出撃 on the sortie screen, 研究する on the tech tree (user decision 2026-10-04). Called by battle/scene.js while the menu is open */
 function onKey(e){
   if(e.key!=='Enter'||e.isComposing||menu.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test(e.target&&e.target.tagName||'')) return;
+  if(e.target&&e.target.closest&&e.target.closest('[data-op-section]')) return; // native Enter toggles the chapter instead of starting a battle
   const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }

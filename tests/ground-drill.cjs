@@ -72,6 +72,7 @@ function seedDrillCampaign(includeLast=true){
   const s=JSON.parse(localStorage.getItem('wos.save.v1'));
   s.prog.tutorialCleared=true;s.prog.prepDone=true;
   s.prog.cleared=WOS_DATA.operations.filter(o=>o.chapter&&(includeLast||o.id!=='denaliBreak')).map(o=>o.id);
+  s.sortieMenu={closed:{},seen:[]};
   s.groundOrg.companies.push({id:'drill-save-was',name:'保存中の W.A.S.',kind:'was'});
   localStorage.setItem('wos.save.v1',JSON.stringify(s));
 }
@@ -129,10 +130,11 @@ async function checkGroundDrill(page,check){
   try{
     await page.evaluate(seedDrillCampaign,false);await menu();
     check(await page.locator('[data-op="tutorial2"]').isDisabled(),'チュートリアル2: 第一章最終節の前は鍵付き');
-    await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared.push('denaliBreak');localStorage.setItem('wos.save.v1',JSON.stringify(s));});await menu();
+    check(await page.locator('[data-op="baikonur"]').isDisabled(),'バイコヌール演習: 第一章最終節の前は鍵付き');
+    await require('./ground-drill-menu.cjs').checkSortieSections(page,check,menu);
     check(await page.locator('[data-op="tutorial2"]').isEnabled()&&await page.locator('[data-op="baikonur"]').isDisabled(),'第一章後はチュートリアル2だけ解放');
     for(const [id,name] of [['tutorial2','チュートリアル2'],['baikonur','バイコヌール演習']]){
-      check(await page.locator(`[data-op="${id}"]`).evaluate((e,name)=>{let p=e.previousElementSibling;while(p&&!p.classList.contains('grp'))p=p.previousElementSibling;return e.textContent.includes(name)&&p?.textContent==='演習';},name),name+': 演習欄で別々に表示');
+      check(await page.locator(`[data-op="${id}"]`).evaluate((e,name)=>e.textContent.includes(name)&&e.closest('[data-section]')?.dataset.section==='演習',name),name+': 演習欄で別々に表示');
     }
     await page.click('[data-op="tutorial2"]');
     const funds=await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).prog.funds);

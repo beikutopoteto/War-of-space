@@ -27,7 +27,7 @@ if(process.argv.includes('--sim')){
     await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');await page.click('[data-op="tutorial2"]');
     await page.locator('[data-op="baikonur"]').scrollIntoViewIfNeeded();
     for(const id of ['tutorial2','baikonur']){
-      check(await page.locator(`[data-op="${id}"]`).evaluate(e=>{let p=e.previousElementSibling;while(p&&!p.classList.contains('grp'))p=p.previousElementSibling;const r=e.getBoundingClientRect(),s=e.parentElement.getBoundingClientRect();return p?.textContent==='演習'&&r.top>=s.top&&r.bottom<=s.bottom;}),'演習欄の2作戦が同時に見えない: '+id);
+      check(await page.locator(`[data-op="${id}"]`).evaluate(e=>{const r=e.getBoundingClientRect(),s=document.getElementById('opList').getBoundingClientRect();return e.closest('[data-section]')?.dataset.section==='演習'&&r.top>=s.top&&r.bottom<=s.bottom;}),'演習欄の2作戦が同時に見えない: '+id);
     }
     await shot('a');
     await page.click('#goBattle');await page.evaluate(()=>{setSpeed(0);if(talking)endTalk();
