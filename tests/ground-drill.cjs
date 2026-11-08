@@ -43,25 +43,26 @@ function createDrillContext(guided=true){
   run('globalThis.drillAction='+drillAction.toString()+';globalThis.drillAdvance='+drillAdvance.toString());
   return {ctx,run};
 }
+// これらは画面遷移しないボタン。実クリック後は下の状態検証で完了を確かめる。
 async function performDrillAction(page){
   const r=await page.evaluate(()=>{const r=groundDrillRow();return {condition:r.condition,actor:r.actor,band:r.band,selected:orderTargets().length===1&&orderTargets()[0].name===r.actor};});
-  if(!r.selected)await page.locator('#roster').getByRole('button',{name:new RegExp('^'+r.actor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( /|$)')}).click();
+  if(!r.selected)await page.locator('#roster').getByRole('button',{name:new RegExp('^'+r.actor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( /|$)')}).click({noWaitAfter:true});
   if(r.condition==='groundSupplyDeploy'){await page.evaluate(()=>drillAction());return true;}
-  if(r.condition==='groundSupplyGive'){await page.click('#groundSupply');return page.evaluate(()=>groundSupplyCommand(orderTargets(),groundDrillUnit(groundDrillRow().target)));}
+  if(r.condition==='groundSupplyGive'){await page.click('#groundSupply',{noWaitAfter:true});return page.evaluate(()=>groundSupplyCommand(orderTargets(),groundDrillUnit(groundDrillRow().target)));}
   if(r.condition==='groundSelect')return true;
   if(r.condition==='groundBand'){
-    await page.click(`#groundCommand [data-band="${r.band}"]`);
+    await page.click(`#groundCommand [data-band="${r.band}"]`,{noWaitAfter:true});
     return page.evaluate(()=>!!tutorial.ground.issued);
   }
   if(r.condition==='groundUnload'){
-    await page.click('#groundUnload');return page.evaluate(()=>!!tutorial.ground.unloaded);
+    await page.click('#groundUnload',{noWaitAfter:true});return page.evaluate(()=>!!tutorial.ground.unloaded);
   }
   if(r.condition==='groundLand'){
-    await page.click('#groundLand');return page.evaluate(()=>!!tutorial.ground.passengers?.length);
+    await page.click('#groundLand',{noWaitAfter:true});return page.evaluate(()=>!!tutorial.ground.passengers?.length);
   }
-  if(r.condition==='groundStrike')await page.click('#groundStrike');
-  if(r.condition==='groundBridge')await page.click('#groundBridge');
-  if(r.condition==='groundBoard')await page.click('#groundBoard');
+  if(r.condition==='groundStrike')await page.click('#groundStrike',{noWaitAfter:true});
+  if(r.condition==='groundBridge')await page.click('#groundBridge',{noWaitAfter:true});
+  if(r.condition==='groundBoard')await page.click('#groundBoard',{noWaitAfter:true});
   // 地図上の指定は実命令関数へ渡す。部隊の名札の重なりや壁時計に頼らない。
   return page.evaluate(()=>drillAction());
 }

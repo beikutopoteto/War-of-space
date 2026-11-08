@@ -95,7 +95,7 @@ function groundSetBand(list,band){
 }
 function groundHud(){
   const list=orderTargets(), panel=document.getElementById('alt'); panel.hidden=false;
-  groundStrikeHud(list); groundTransportHud(list); groundSupplyHud(list);
+  groundStrikeHud(list); groundTransportHud(list); groundSupplyHud(list); groundCommandBarHud(list);
   document.getElementById('groundSelected').textContent=list.length===1?list[0].name:list.length?`${list.length}隊`:'部隊を選択';
   document.querySelectorAll('#groundCommand button').forEach(b=>{
     const band=b.dataset.band;
@@ -111,6 +111,9 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
+  document.getElementById('groundCommandBar').hidden=!active;
+  document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
+  document.getElementById('groundUniqueCommands').classList.remove('expanded');
   groundStrikeReset(); groundTransportReset(); groundSupplyReset();
   groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
   groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
@@ -389,3 +392,39 @@ function groundCaptureDraw(){
     s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${progress[i]}%`);
   }
 }
+
+// 確定デザインはデータのSVGをそのまま使用する。既存の固有ボタンのID・イベント・titleは維持。
+document.querySelectorAll('[data-command-icon]').forEach(button=>{
+  const icon=WOS_COMMAND_ICONS[button.dataset.commandIcon];
+  button.setAttribute('aria-label',button.textContent.trim());
+  button.innerHTML=icon.svg;
+});
+function groundCommandBarHud(list){
+  const canMove=list.some(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
+  document.getElementById('groundMove').disabled=!canMove||over;
+  document.getElementById('groundMove').setAttribute('aria-pressed',String(groundWorkAiming==='move'));
+  document.getElementById('groundHold').disabled=!canMove||over;
+  const kinds=list.map(f=>f.groundKind), carries=list.some(f=>f.embarked||f.groundPassenger||groundLandingShip(f));
+  const visible={board:list.some(f=>f.groundKind!=='sea'&&groundBands(f).includes('ground')),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
+  const buttons=[...document.querySelectorAll('#groundUniqueCommands button')];
+  buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);
+  const expand=document.getElementById('groundCommandExpand');
+  expand.hidden=buttons.filter(b=>!b.hidden).length<=4;
+  if(expand.hidden){expand.setAttribute('aria-expanded','false');document.getElementById('groundUniqueCommands').classList.remove('expanded');}
+}
+document.getElementById('groundMove').addEventListener('click',()=>{
+  const aiming=groundWorkAiming!=='move';
+  groundSupplyAiming=false;groundStrikeAiming=false;groundWorkAiming=aiming?'move':null;closePick();groundHud();
+});
+document.getElementById('groundHold').addEventListener('click',()=>{
+  const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
+  if(!list.length||over)return;
+  saveUndo(list);
+  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);}
+  groundWorkAiming=null;groundStrikeAiming=false;groundSupplyAiming=false;closePick();groundHud();updateRoster();
+});
+document.getElementById('groundCommandExpand').addEventListener('click',e=>{
+  const button=e.currentTarget,expanded=button.getAttribute('aria-expanded')!=='true';
+  button.setAttribute('aria-expanded',String(expanded));
+  document.getElementById('groundUniqueCommands').classList.toggle('expanded',expanded);
+});

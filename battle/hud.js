@@ -27,6 +27,7 @@ function logEvent(title,desc){
 /* ---------- selection & orders ---------- */
 /* the selection: one fleet, several picked with Shift, or a whole army group (g). `selected` is the one the altitude bar and rings follow */
 function setSel(list,g=null){
+  if(op.ground&&groundWorkAiming==='move')groundWorkAiming=null;
   list=list.filter(f=>f&&f.alive); selGroup=g&&list.length?g:null; selMulti=list;
   selected=(selGroup?groupFlag(selGroup):null)||(list.includes(selected)?selected:list[0])||null;
   if(!selected) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',list.includes(x)));
@@ -195,6 +196,9 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  if(op.ground&&!deploying&&groundWorkAiming==='move'){
+    const hit=groundAt(x,y);if(hit){groundWorkAiming=null;groupOrder({type:'move',dest:hit,queue});groundHud();}return;
+  }
   if(op.ground&&groundSupplyAiming){const {best}=pick(x,y),target=labelTarget||best;if(target)groundSupplyCommand(orderTargets(),target);groundHud();return;}
   if(op.ground&&groundWorkAiming==='bridge'){
     const hit=groundAt(x,y);if(hit)groundBridgeCommand(orderTargets(),hit);return;

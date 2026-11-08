@@ -64,7 +64,7 @@ async function checkGroundStrike(page,check){
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.pos.copy(groundPoint(f.team?44:9,27));});
     select(fleets.find(f=>f.team===0));camAnim=null;controls.target.copy(selected.pos);camera.position.copy(selected.pos).add(new THREE.Vector3(0,90,.01));camera.lookAt(controls.target);controls.update();
   });
-  await page.locator('#groundStrike').click();
+  await page.locator('#groundStrike').click({noWaitAfter:true});
   const button=await page.evaluate(()=>groundStrikeAiming&&document.getElementById('groundStrike').getAttribute('aria-pressed')==='true');
   check(button,'地点攻撃の操作: ボタンで指定開始');
   await page.keyboard.press('Escape');check(await page.evaluate(()=>!groundStrikeAiming&&!paused),'地点攻撃の操作: Escで取消');
