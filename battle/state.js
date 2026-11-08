@@ -111,6 +111,7 @@ function makeFleet(team,o){
       if(d&&!d.closing&&d.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-d.x,e.clientY-d.y)<8&&performance.now()-d.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey,f); });
     mark.addEventListener('contextmenu',e=>e.preventDefault());
   }
+  if(op.ground&&f.groundKind)groundSupplyInitUnit(f);
   return f;
 }
 /* the class of each ship, from comp ({class: count}) or type; shuffled so losses fall on every class */
@@ -187,7 +188,7 @@ function buildRoster(){
   const mine=fleets.filter(f=>f.team===0&&!f.ward);
   const mk=(f)=>{ const i=mine.indexOf(f);
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); b.setAttribute('aria-label',f.name);
-    b.innerHTML=`<span class="mkw"></span><span class="no"><b></b><small></small></span><span class="bar"><i></i></span>`;
+    b.innerHTML=`<span class="mkw"></span><span class="no"><b></b><small></small></span>${op.ground?groundSupplyTile(f):'<span class="bar"><i></i></span>'}`;
     b.addEventListener('click',e=>{ if(b._dragged){ b._dragged=false; return; } if(!f.alive) return;
       if(e.shiftKey) toggleMulti(f); else { const t=orderTargets(); select(t.length===1&&t[0]===f?null:f); } });
     dragSource(b,f);
@@ -247,6 +248,7 @@ function showTip(f,row){ tipFleet=f; tipRow=row; fillTip(); rosterTip.hidden=fal
   rosterTip.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px'; rosterTip.style.top=Math.max(8,r.top-h-6)+'px'; }
 function hideTip(){ tipFleet=null; tipRow=null; rosterTip.hidden=true; }
 function fillTip(){ const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
+  if(op.ground){rosterTip.textContent=f.name+' ×'+f.ships.length+' / '+groundSupplyRosterText([f])+' / '+groundSupplyStatus(f);return;}
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
   rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
     types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${shipLabel(t)}</span><em>×${by[t]||0}</em></div>`).join(''); }
@@ -358,7 +360,7 @@ function saveUndo(t){
 }
 function undo(){
   const u=undoStack.pop(); updateUndo(); if(!u||over) return;
-  for(const s of u){ const f=s.f; if(!f.alive||op.ground&&f.embarked) continue;
+  for(const s of u){ const f=s.f; if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo'))) continue;
     if(op.ground)groundCancelWork(f);
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
@@ -367,7 +369,7 @@ function undo(){
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
-  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked)); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
+  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type))); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   saveUndo(t);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
@@ -407,11 +409,11 @@ function updateRoster(){
     const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); const no=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
     if(nb.dataset.k!==no){ nb.dataset.k=no; if(nn) nb.textContent=no; else nb.innerHTML=no.replace('第','<i>第</i>'); }
     if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
-    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(nn&&f.n===1?'':'×'+f.ships.length);
+    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+f.ships.length);
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
-    f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
+    if(op.ground)groundSupplyUpdateTile(f);else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
-    if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit; }
+    if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit||!!op.ground&&!groundCommandAllowed(f,'stance'); }
   });
   if(tipFleet) fillTip();
   const nb=document.getElementById('newGrp'); if(nb){ nb.disabled=!t.length||!!selGroup; nb.nextSibling.textContent=t.length&&!selGroup?`${t.length}隊で戦区軍を作る`:''; }
@@ -426,6 +428,7 @@ function updateRoster(){
 
 let lastCfg=null, groups=[], selGroup=null, selMulti=[];
 function reset(cfg=lastCfg){
+  deploying=false;deployZone.visible=false;deployEl.hidden=true;document.getElementById('deployGo').disabled=false;
   lastCfg=cfg; undoStack=[]; updateUndo();
   if(fleets) fleets.forEach(f=>{f.el.remove();dropArrow(f.arrow);});
   if(fortress&&fortress.el) fortress.el.remove();

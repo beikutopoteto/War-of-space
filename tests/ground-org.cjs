@@ -22,10 +22,10 @@ function nodeChecks(){
   check(`(()=>{const o=G.defaults();G.remove(o,'companies','gc1');return !o.battalions[0].companies.includes('gc1')&&G.sortie(o).fleets.length===5;})()`);
   check(`(()=>{const o=G.defaults();o.battalions[0].companies=['gc1','gc1','missing','gc2','gc3','gc4','gc5'];o.battalions[1].companies=['gc4','gc5'];const n=G.normalize(o);return n.battalions[0].companies.join() === 'gc1,gc2,gc3,gc4'&&n.battalions[1].companies.join()==='gc5';})()`);
   check(`(()=>{const o=G.defaults();o.companies=[o.companies[2],o.companies[0]];o.companies[0].kind='scout';const before=JSON.stringify(o),s=G.sortie(o);return s.fleets[0].companyId==='gc3'&&s.fleets[0].groundKind==='scout'&&s.fleets[1].companyId==='gc1'&&JSON.stringify(o)===before;})()`);
-  for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA']){
+  for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
     check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
   }
-  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground.js');
+  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground.js');
   const state=read('battle/state.js'),hud=read('battle/hud.js');
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));
@@ -56,7 +56,7 @@ async function checkGroundOrg(page,check){
     await page.click('[data-org-force="space"]');
     check(await page.locator('#orgList [data-army]').count()===saved.armies.length,'地上編成: 宇宙軍の編集を保持');
     const result=await page.evaluate(()=>{
-      WOS.start({op:'groundExercise2'});setSpeed(0);
+      WOS.start({op:'groundExercise2'});setSpeed(0);endDeploy();
       const b=groundOrg.battalions[0];document.querySelector(`[data-level="battalions"][data-id="${b.id}"] .grpBtn`).click();
       const t=orderTargets(),before=fleets.map(f=>f.pos.clone());fleets.forEach(f=>f.stance='evade');
       groupOrder({type:'move',dest:groundPoint(10,30)});

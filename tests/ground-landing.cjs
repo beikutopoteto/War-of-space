@@ -2,7 +2,7 @@
    npm test では同じ判定と、乗艦クリック・上陸ボタン・ゲージ・再初期化を確認する。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function landingCases(){
-  const saved={op,fleets,groundSites,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,groundHud,over,end,shoot,burst};
+  const saved={op,op,fleets,groundSites,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,groundHud,over,end,shoot,burst};
   const results=[],check=(name,ok)=>results.push({name,ok}),made=[];
   const unit=(kind,x,y,team=0)=>{
     const p=groundPoint(x,y),f=makeFleet(team,{name:kind+' '+made.length,groundKind:kind,type:kind==='sea'?'dd':'cv',groundLanding:kind==='sea',n:1,scale:.3,pos:[p.x,p.z]});
@@ -11,6 +11,8 @@ function landingCases(){
   const tick=sec=>{for(let i=0;i<Math.round(sec/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
   try{
+    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
+    op={...op,groundHQ:null};
     op={...op,wipeLose:false};fleets=[];groundSites=[];groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=groundHud=()=>{};
     const ship=unit('sea',12,5),inf=unit('infantry',12,9),tank=unit('vehicle',13,9),heavy=unit('heavyInfantry',11,9),plane=unit('fighter',12,9),red=unit('infantry',12,9,1);
     fleets=[ship,inf,tank,heavy,plane,red];
@@ -69,7 +71,7 @@ function landingCases(){
     check('上陸開始で乗艦待ちの予約を片付ける',groundBoardCommand([heavy],next)&&groundLandCommand([next])===1&&!heavy.order&&!next.groundBoarders.length);
     next.pos.copy(groundPoint(12,5));tick(.05);
     check('海岸を離れた場合も上陸を中止して部隊を艦内に保つ',!next.groundUnloading&&survivor.embarked===next&&groundTransportMessage.includes('上陸中止'));
-  }finally{
+  }finally{op=saved.op;
     made.forEach(f=>{groundLandingDropVisual(f);f.el.remove();});
     ({op,fleets,groundSites,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,groundHud,over,end,shoot,burst}=saved);
   }
@@ -77,14 +79,14 @@ function landingCases(){
 }
 // 撮影と実画面テスト共通。浜の2中隊は離し、他の名札を海岸から遠ざける。
 function setupLandingScene(){
-  reset({op:'groundExercise2'});setSpeed(0);
+  reset({op:'groundExercise2'});setSpeed(0);endDeploy();
   const ship=fleets.find(groundLandingShip);
   fleets.forEach((f,i)=>{f.stance='evade';groundClearOrders(f);if(f!==ship&&!f.embarked)f.pos.copy(groundPoint(30+(i%6)*2,33+Math.floor(i/12)));});
   ship.pos.copy(groundPoint(12,5));groundTransportSync();select(ship);
   return ship.name;
 }
 async function checkGroundLanding(page,check){
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(landingCases))check(c.ok,'海からの上陸: '+c.name);
   await page.evaluate(setupLandingScene);
   check(await page.evaluate(()=>{
@@ -123,15 +125,16 @@ async function checkGroundLanding(page,check){
 }
 function createGroundContext(){
   const label=()=>{const children={};return {style:{},remove(){this.removed=true;},classList:{add(){}},querySelector:key=>children[key]||(children[key]={style:{},addEventListener(){}}),matches:()=>false,insertAdjacentHTML(){}};};
-  const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],createElement:label},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],TEAM_NAME:['連合','共和国'],fid:1,HP_K:7,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
+  const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>null,querySelectorAll:()=>[],createElement:label},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],TEAM_NAME:['連合','共和国'],fid:1,HP_K:7,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));
   run(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')));
   run(sim.slice(sim.indexOf('function nextOrder('),sim.indexOf('function followPath(')));
+  run(sim.split('\n').find(line=>line.startsWith('function speedOf(')));
   ctx.followPath=(f,dt)=>run('groundFollow')(f,dt);
   return {ctx,read,run};
 }

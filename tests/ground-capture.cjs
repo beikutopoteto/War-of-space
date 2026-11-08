@@ -32,21 +32,21 @@ function captureCases() {
   return results;
 }
 async function checkGroundCapture(page, check) {
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   const cases=await page.evaluate(captureCases);
   for(const c of cases)check(c.ok,'地上占拠: '+c.name);
   const integration=await page.evaluate(()=>{
-    reset({op:'groundExercise2'});setSpeed(0);
+    reset({op:'groundExercise2'});setSpeed(0);endDeploy();
     const units=fleets.filter(f=>f.team===0), d=WOS_TERRAIN[op.ground];
     const stats=units.filter(f=>f.groundKind!=='sea').every(f=>f.hp===d.unitTypes[f.groundKind].hp&&f.speed===d.unitTypes[f.groundKind].speed&&f.range===d.unitTypes[f.groundKind].range);
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};
-    let hp=target.hpPool;groundStep(.05);const heavyHit=hp-target.hpPool===heavy.dmg*d.combat.heavyTank;
+    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=hp-target.hpPool-target.groundMorale===heavy.dmg*d.combat.heavyTank;
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
     // 兵科相性の確認にも、その場所の歩兵の遮蔽軽減を含める。
-    hp=enemyInfantry.hpPool;const expectedTankHit=tank.dmg*d.combat.tankInfantry*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-expectedTankHit)<1e-7;
+    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*d.combat.tankInfantry*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();
@@ -55,9 +55,9 @@ async function checkGroundCapture(page, check) {
     for(const f of fleets){f.stance='evade';if(f.team===1)f.alive=false;}
     // 敵全滅だけでは勝たず、3拠点を1つずつ実際に占領する。
     step(.05);const noWipeWin=!over;
-    for(const s of groundSites){infantry.pos.copy(s.pos);for(let i=0;i<600;i++)step(.05);}
+    for(const s of groundSites){infantry.pos.copy(s.pos);for(let i=0;i<600&&!over;i++)step(.05);}
     const victory=over&&outcome===true&&document.getElementById('rh').textContent==='勝利'&&groundSites.every(s=>s.owner===0);
-    groundDraw();const gauge=document.querySelectorAll('.ground-site .capture-track').length===3;
+    groundDraw();const gauge=document.querySelectorAll('.ground-site .capture-track').length===op.groundSites.length;
     const road=groundTerritory.sections.length>0, alpha=new Set();
     const pixels=groundTerritory.canvas.getContext('2d').getImageData(0,0,480,360).data;
     for(let i=3;i<pixels.length;i+=4)if(pixels[i])alpha.add(pixels[i]);
@@ -67,11 +67,11 @@ async function checkGroundCapture(page, check) {
   // 結果表示の既存タイマーを待ってから次の作戦へ。後続の宇宙テストに残さない。
   await page.waitForSelector('#result:not([hidden])');
   const defeat=await page.evaluate(()=>{
-    reset({op:'groundExercise2'});setSpeed(0);fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);return over&&outcome===false;
+    reset({op:'groundExercise2'});setSpeed(0);endDeploy();fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);return over&&outcome===false;
   });
   await page.waitForSelector('#result:not([hidden])');
   const restored=await page.evaluate(()=>{
-    reset({op:'groundExercise2'});setSpeed(0);const clean=groundSites.every(s=>!s.contested&&s.progress.every(n=>n===0))&&document.querySelectorAll('.ground-site').length===3;
+    reset({op:'groundExercise2'});setSpeed(0);endDeploy();const clean=groundSites.every(s=>!s.contested&&s.progress.every(n=>n===0))&&document.querySelectorAll('.ground-site').length===op.groundSites.length;
     reset({op:'charybdis'});const space=groundSites.length===0&&!groundTerritory&&!document.querySelector('.ground-site');
     return {clean,space};
   });
@@ -82,6 +82,7 @@ if(require.main===module){
   const context=vm.createContext({window:{},document:{querySelectorAll:()=>[]},fleets:[],op:{ground:'exercise2'},over:false,end:()=>{}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/terrain/exercise2.js'),'utf8'),context);
   context.WOS_TERRAIN=context.window.WOS_TERRAIN;
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground-supply.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground.js'),'utf8'),context);
   const results=vm.runInContext(`(${captureCases.toString()})()`,context), failed=results.filter(r=>!r.ok);
   console.log(`| 占拠の固定場面（ブラウザ不要） | ${results.length-failed.length}/${results.length} 成功 |`);

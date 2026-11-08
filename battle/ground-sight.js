@@ -68,13 +68,14 @@ function groundClearLine(a,b){
 }
 function groundLineOfSight(f,t){ return groundClearLine(groundEye(f),groundEye(t)); }
 function groundCanSee(f,t){
+  if(groundAbsent(f)||groundAbsent(t))return false;
   return f.alive&&t.alive&&!f.embarked&&!t.embarked&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
 }
 function groundSeenBy(team,t){ return !!(t.groundVisible&&t.groundVisible[team]); }
 // 地点の観測も⑤の距離・地形遮蔽を共有する。敵部隊の有無や射手の直線遮蔽とは独立。
 function groundPointSeenBy(team,p){
   const target={x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight};
-  return fleets.some(f=>f.team===team&&f.alive&&!f.embarked&&Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<=groundSightRange(f)&&groundClearLine(groundEye(f),target));
+  return fleets.some(f=>f.team===team&&f.alive&&!f.embarked&&!groundAbsent(f)&&Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<=groundSightRange(f)&&groundClearLine(groundEye(f),target));
 }
 function groundUpdateSight(){
   if(!op.ground)return;
@@ -82,7 +83,7 @@ function groundUpdateSight(){
   for(const t of fleets){
     t.groundVisible=[false,false];t.groundContacts=t.groundContacts||[null,null];
     for(const team of [0,1]){
-      const visible=t.alive&&!t.embarked&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t)));
+      const visible=t.alive&&!t.embarked&&!groundAbsent(t)&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t)));
       t.groundVisible[team]=visible;
       if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec};
     }

@@ -6,7 +6,7 @@ const fs=require('fs'),path=require('path');
 const {drillAction,drillAdvance,performDrillAction,seedDrillCampaign,checkDrillLabels,runDrill}=require('../tests/ground-drill.cjs');
 if(process.argv.includes('--sim')){
   const times=runDrill();
-  for(let section=1;section<=9;section++)console.log(`| ${section} | ${times.filter(r=>r.section===section).reduce((s,r)=>s+r.seconds,0).toFixed(2)}秒 |`);
+  for(let section=1;section<=10;section++)console.log(`| ${section} | ${times.filter(r=>r.section===section).reduce((s,r)=>s+r.seconds,0).toFixed(2)}秒 |`);
   console.log(`| 全段 | ${times.reduce((s,r)=>s+r.seconds,0).toFixed(2)}秒・勝利 |`);
   console.log(`| 仮想敵の実打撃 | 前半${times.counterfire.early}回・後半${times.counterfire.late}回・損害${times.counterfire.damage} |`);
 }else (async()=>{
@@ -38,7 +38,7 @@ if(process.argv.includes('--sim')){
         groundUpdateSight();groundDraw();groundFogDraw(true);updateGoal();
       },mode);await drawn();
     };
-    for(let i=0;i<19;i++){
+    for(let i=0;i<(await page.evaluate(()=>op.tutorial.length));i++){
       if(!await performDrillAction(page))throw new Error('撮影の操作が失敗: '+i);
       if(i===2){
         check(await page.evaluate(()=>selected.order.path.points.slice(1).some((q,k)=>{const p=selected.order.path.points[k];return Math.abs(q.x-p.x)>.01&&Math.abs(q.z-p.z)>.01;})),'経路が斜めに進んでいない');

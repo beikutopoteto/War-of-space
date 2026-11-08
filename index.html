@@ -63,6 +63,7 @@
     <div id="groundStrikeStatus" aria-live="polite"></div>
     <div class="band-buttons"><button id="groundBoard" title="輸送車に乗車・岸の揚陸艦に乗艦" aria-pressed="false">搭乗</button><button id="groundUnload">降車</button><button id="groundLand">上陸</button><button id="groundBridge" aria-pressed="false">架橋</button></div>
     <div id="groundTransportStatus" aria-live="polite"></div>
+    <details><summary>補給網</summary><button id="groundSupply">補給</button><small id="groundSupplyStatus"></small></details>
     <div>表示</div><div class="band-buttons" id="groundView" role="group" aria-label="高度の表示"><button data-band="all" aria-pressed="true">全部</button><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
   </details>
   <button id="altUp" aria-label="高度を上げる">▲</button>
@@ -134,6 +135,7 @@
 <script src="battle/ground-sight.js"></script>
 <script src="battle/ground-strike.js"></script>
 <script src="battle/ground-transport.js"></script>
+<script src="battle/ground-supply.js"></script>
 <script src="battle/ground.js"></script>
 <script src="battle/cut.js"></script>
 <script src="battle/tutorial.js"></script>

@@ -533,3 +533,12 @@ body.nolabels .ground-site{display:none}
 
 /* 架橋も既存の拠点札・占拠ゲージと同じ表示。 */
 .ground-bridge .capture-track i{height:5px}
+/* 地上の一覧は士気・補給のみ。既存の色と細い棒を再利用する。 */
+#roster.ground-roster .ground-meter{display:grid;gap:1px;width:100%;font-size:8px;text-align:left;line-height:1.2}
+#roster.ground-roster .ground-meter b{font-weight:400}
+#roster.ground-roster .ground-track{display:block;height:3px;background:rgba(127,200,255,.15)}
+#roster.ground-roster .ground-track i{display:block;height:100%;background:var(--blue)}
+#roster .ground-summary{grid-column:1/-1;font-size:9px;white-space:normal;line-height:1.3}
+#roster .ground-unit-status{font-size:8px;white-space:normal;line-height:1.2}
+#groundSupplyStatus{display:block;white-space:normal;font-size:10px}
+.ground-supply-point{position:absolute;left:0;top:0;pointer-events:none;color:#8bdfff;background:rgba(5,14,24,.55);padding:1px 3px;font-size:10px;white-space:nowrap}

@@ -1,11 +1,13 @@
 /* node tests/ground-sight.cjs: ブラウザ不要。npm test では同じ固定場面と実画面を確認。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function sightCases(){
-  const saved={fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow};
+  const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow};
   const results=[],check=(name,ok)=>results.push({name,ok});
   const unit=(team,kind,x,z=0,band='ground')=>({team,groundKind:kind,band,alive:true,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[],stance:'evade',range:20,dmg:2,queue:[],order:null});
   const terrain=height=>{groundHeight=height;groundHeightCacheReset();groundForests=[];groundBuildings=[];};
   try{
+    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
+    op={...op,groundHQ:null};
     over=false;end=()=>{};groundSites=[];shoot=()=>{};groundFog=null;groundFollow=()=>{};
     // 打撃の入り口も実コードの groundCanFire を通す。ブラウザ版は本物の damage でも後で確認する。
     let hits=[];damage=(t,n,f)=>{if(groundCanFire(f,t)){hits.push({t,f,n});t.hpPool-=n;}};
@@ -46,16 +48,16 @@ function sightCases(){
     scout.alive=true;scout.team=0;scout.pos.set(0,0,0);enemy.pos.x=60;fleets=[scout,enemy];groundUpdateSight();check('斥候の視界は60まで',enemy.seen);enemy.pos.x=60.01;groundUpdateSight();check('斥候の視界60の外は未発見',!enemy.seen);
     plane.band='low';plane.bandTo='high';plane.bandLeft=2;
     check('切り替え中の観測高度も元の段',groundEye(plane).y===groundRules().heights.low+groundSightRules().eyeHeight);
-  }finally{
+  }finally{op=saved.op;
     ({fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow}=saved);groundHeightCacheReset();
   }
   return results;
 }
 async function checkGroundSight(page,check){
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(sightCases))check(c.ok,'地上索敵: '+c.name);
   const integration=await page.evaluate(()=>{
-    reset({op:'groundExercise2'});setSpeed(0);
+    reset({op:'groundExercise2'});setSpeed(0);endDeploy();
     const blue=fleets.filter(f=>f.team===0),red=fleets.filter(f=>f.team===1),tank=blue.find(f=>f.groundKind==='vehicle'),enemy=red[0];
     for(const f of fleets){f.stance='evade';f.order=null;f.groundContacts=[null,null];f.pos.copy(groundPoint(f.team?44:4,32));}
     groundUpdateSight();groundDraw();const hidden=red.every(f=>!f.seen&&!f.groundModel.visible&&!f.lastPos);
@@ -65,7 +67,7 @@ async function checkGroundSight(page,check){
     const fog=groundFog;groundFogDraw(true);const alphas=fog.ctx.getImageData(0,0,fog.canvas.width,fog.canvas.height).data;
     const dark=alphas.some((n,i)=>i%4===3&&n===groundSightRules().fogAlpha),clear=alphas.some((n,i)=>i%4===3&&n===0);
     enemy.pos.copy(tank.pos).add(new THREE.Vector3(1,0,0));enemy.band='ground';tank.order={type:'attack',target:enemy};tank.groundShotT=0;
-    let hp=enemy.hpPool;groundStep(.05);const hit=enemy.hpPool<hp;
+    let hp=enemy.hpPool+(enemy.groundMorale||0);groundStep(.05);const hit=enemy.hpPool+(enemy.groundMorale||0)<hp;
     enemy.pos.copy(groundPoint(44,32));tank.groundShotT=0;groundUpdateSight();hp=enemy.hpPool;damage(enemy,1,tank);const blocked=enemy.hpPool===hp;
     reset({op:'groundExercise2'});const fresh=fleets.filter(f=>f.team===1&&!f.seen).every(f=>!f.lastPos)&&groundFog!==fog;
     reset({op:'charybdis'});const space=!groundFog&&groundForests.length===0&&groundBuildings.length===0;
@@ -106,7 +108,7 @@ function nodeSceneChecks(ctx){
 }
 if(require.main===module){
   const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[]},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},damage:()=>{},shoot:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground.js']){
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
   const cases=vm.runInContext(`(${sightCases.toString()})()`,ctx),scene=nodeSceneChecks(ctx);cases.push(...scene.results);const failed=cases.filter(c=>!c.ok);

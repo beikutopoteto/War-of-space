@@ -127,6 +127,7 @@ function damage(t,amt,src,groundImpact=null){
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
   /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */
   if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg)/HP_K,true);   // twice the hit points take twice the fire: the same lives (2026-10-13)
+  if(op.ground)amt=groundSupplyHit(t,amt);
   t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
@@ -288,7 +289,7 @@ function dock(w){
 const SLOW_BY=.4;
 /* the carrier slows with the people aboard (op.carrier.slowFull, 第4節; user decision 2026-10-10: down by 70% when full), in proportion */
 function loadSlow(f){ const C=op.carrier; return f.isCarrier&&C&&C.slowFull&&f.cs?1-C.slowFull*Math.min(1,(f.cs.boarded||0)/C.people):1; }
-function speedOf(f){ return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1)*loadSlow(f); }
+function speedOf(f){ if(op.ground)return (f.syncSpeed||f.speed)*groundSupplySpeedFactor(f); return (f.syncSpeed||f.speed)*(f.slowT>0?SLOW_BY:1)*(f.inCloud?CLOUD_SPEED:1)*(f.inDebris?DEBRIS_SPEED:1)*loadSlow(f); }
 /* 小型機と母艦をつなぐ (user decision 2026-10-22, every operation): a squadron out stays within its carrier's launch distance (launchR):
    it does not go for a target farther than that from the carrier, nor fly out past it. The carrier (an assault ship too, AI or the
    player's on 自動交戦) does not move so that a squadron out is left beyond it: it stops short (a step of a move order is undone), or

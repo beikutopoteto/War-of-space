@@ -4,7 +4,7 @@ window.WOS_DATA=window.WOS_DATA||{};
 
 /* 作戦。座標は [x, z]（-z が北＝敵側）、alt は高度（上が +）。要塞は戦場の中央に置く。
    艦隊の書き方は docs/code.md の「艦隊の仕様の形式」と同じ。艦の形は type（全艦同じ艦種）か comp（{艦種: 隻数}）で決まる。
-   name / summary / threat: 出撃画面に出す名前と説明　brief: 戦闘開始時の作戦概要
+   name / summary / threat: 出撃画面に出す名前と説明　brief: 作戦開始時の作戦概要
    shipNames: {艦種: 呼び名} この作戦の艦隊の札で、艦種をこの名前で出す（まだ知らない艦種。第1・2節の突撃揚陸艦）
    date / start: 画面左上の日付と開始時刻。時計は1秒で15分進む（下の span か clockScale を書いた作戦は別）。日をまたぐと日付も進む
    deploy: 出撃した戦区軍の立方体の中心 [x, z]（立方体の前方は北）
@@ -1684,7 +1684,8 @@ WOS_DATA.operations.push((()=>{
   return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
     brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。敵の占拠可能部隊がいなければ30秒で占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。揚陸艦は歩兵と戦車を搭載済み。海岸へ着けて「上陸」を押し、降りた歩兵を拠点へ進めよう。',
     date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'強化歩兵か地上 W.A.S. で3拠点をすべて占拠せよ'},
-    groundSites:[{site:'A',owner:null},{site:'C',owner:1},{site:'F',owner:1}],
+    groundHQ:{0:'B',1:'F'},groundSupportSites:['B'],
+    groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:1},{site:'F',owner:1}],
     // groundCargo は固定配備の中隊の定義。海の揚陸艦（駆逐艦の元性能・モデルを仮使用）に初めから載せる。
     groundSea:[sea(0,'dd',12,5),sea(0,'cl',17,4),sea(1,'dd',28,5),sea(1,'cl',33,4),
       {...sea(0,'dd',10,4),name:'連合 揚陸艦（仮）',groundLanding:true,groundCargo:[unit('第7 上陸歩兵中隊','infantry',10,4),unit('第8 上陸戦車中隊','vehicle',10,4)]}], // 艦種・隻数・位置は試作用の仮配置。
@@ -1704,8 +1705,9 @@ WOS_DATA.operations.push((()=>{
   return {id:'ch2drill',requires:'denaliBreak',tag:'演習',forces:'fixed',ground:'exercise2',groundDrill:true,
     name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:100,
     summary:'カスピ海沿岸の演習場。中央アジアの新兵と、地上・航空・海岸での操作を一つずつ確かめる。',
-    groundCounterfireSection:6,threat:'仮想敵4隊。⑥から残る斥候・航空が反撃。',brief:'リコ軍曹の案内に沿って、9項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。案内をとばした場合は、西方集落の占拠で演習完了です。',
-    win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、海岸の上陸まで全手順を終える'},
+    groundCounterfireSection:6,threat:'仮想敵4隊。⑥から残る斥候・航空が反撃。',brief:'リコ軍曹の案内に沿って、10項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。案内をとばした場合は、西方集落の占拠で演習完了です。',
+    win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、補給と士気まで全手順を終える'},
+    groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],
     groundSites:[{site:'A',owner:null}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
     quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
     groundSea:[sea(names.ship,'cl',17,4),{...sea(names.landing,'dd',12,5),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',12,5)]}],
@@ -1729,7 +1731,14 @@ WOS_DATA.operations.push((()=>{
       row(9,'⑨ 海の艦を動かす','groundMove','ship','海岸の訓練区画へ移ります。演習砲撃艦を選び、「航行」の輪へ動かしてください。海の艦は海面だけを進み、陸へは上がれません。',{marks:[mark('航行',17,6)]}),
       row(9,'⑨ 艦砲の地点攻撃','groundStrike','ship','演習砲撃艦で、左の「地点攻撃」を押して「艦砲」の輪をクリックしてください。着弾まで8秒です。艦砲も味方に当たります。海の艦どうしは直接射撃、陸へは地点攻撃で撃ちます。',{marks:[mark('艦砲',17,10)],targets:['#groundStrike']}),
       row(9,'⑨ 揚陸艦を海岸へ','groundMove','landing','演習揚陸艦には第10 上陸歩兵中隊が乗っています。演習揚陸艦を選び、「海岸」の輪へ動かしてください。岸に接する場所まで寄せます。',{marks:[mark('海岸',12.2,7.4)],coast:true}),
-      row(9,'⑨ 歩兵を上陸','groundLand','landing','海岸への接岸、確認しました。演習揚陸艦を選んだまま、左の「上陸」を押してください。10秒で歩兵が浜へ降ります。上陸中は被弾が増えます。……これで最後の手順です。',{targets:['#groundLand']})
+      row(9,'⑨ 歩兵を上陸','groundLand','landing','海岸への接岸、確認しました。演習揚陸艦を選んだまま、左の「上陸」を押してください。10秒で歩兵が浜へ降ります。上陸中は被弾が増えます。……次は本営と補給の区画へ進みます。',{targets:['#groundLand']}),
+      row(10,'⑩ 本営から配置','groundSupplyDeploy','inf','補給区画を用意しました。北橋が本営です。専用の第11 補給訓練歩兵中隊を本営内に配置し、「作戦開始」を押してください。',{actor:'第11 補給訓練歩兵中隊',targets:['#deployGo']}),
+      row(10,'⑩ 道路で補充','groundSupplyRoad','inf','本営からつながる道で補充します。第11 補給訓練歩兵中隊を「補充」の輪へ進めてください。士気も味方の色のある道と拠点で回復します。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('補充',18.5,29.5)]}),
+      row(10,'⑩ 道路を奪還','groundSupplyRecapture','inf','訓練敵が道路を占領しました。敵が去っても補給は切れたままです。「奪還」の輪へ進め、30秒で道を取り戻してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('奪還',16,29.857)]}),
+      row(10,'⑩ 競合の先も半速','groundSupplyHalf','inf','道路の競合を照合します……。第11 補給訓練歩兵中隊を「競合」の輪へ進めてください。補充はその先へも半分の速さで流れます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('競合',18.5,29.5)]}),
+      row(10,'⑩ 補給部隊から分配','groundSupplyGive','inf','道路外での補給です。第12 補給中隊を選び、「補給」を押して第11 補給訓練歩兵中隊を指定してください。分けた量だけ補給中隊自身の残量も減ります。',{actor:'第12 補給中隊',target:'第11 補給訓練歩兵中隊',targets:['#groundSupply']}),
+      row(10,'⑩ 士気と敗走','groundSupplyRout','inf','訓練射撃を始めます。第11 補給訓練歩兵中隊を「被弾」の輪へ動かしてください。士気が尽きると、操作を受け付けず最寄りの味方へ逃げ続けます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('被弾',15,26)]}),
+      row(10,'⑩ 味方の道で再集結','groundSupplyRally','inf','敗走先へ着きました。移動と搭乗だけ操作できます。「回復」の輪へ進め、味方の道で士気30まで回復してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('回復',18.5,29.5)]})
     ],
     talk:{before:[['リコ軍曹','カスピ海沿岸の演習場へ到着しました。少佐、中央アジアの新兵と訓練を始めます。']],win:[['リコ軍曹','演習完了、確認しました。……少佐、次の配属に備えてください。']]},
     result:{win:'バイコヌール演習を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','演習完了、確認しました。'],loseLog:['リコ軍曹','自軍の反応、ありません。……演習を終了します。']}

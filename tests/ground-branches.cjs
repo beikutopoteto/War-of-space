@@ -3,7 +3,7 @@
 const fs=require('fs'),path=require('path'),vm=require('vm');
 const NEW_KINDS=['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA'];
 function branchCases(){
-  const saved={fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud};
+  const saved={op,fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,team=0,x=8,y=27)=>{
     const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
@@ -12,8 +12,10 @@ function branchCases(){
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
   try{
+    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
+    op={...op,groundHQ:null};
     groundSites=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=unselect=logEvent=groundHud=()=>{};
-    check('16兵科をデータに収録',Object.keys(WOS_TERRAIN.exercise2.unitTypes).length===16);
+    check('17兵科をデータに収録',Object.keys(WOS_TERRAIN.exercise2.unitTypes).length===17);
     for(const kind of ['guidedRocket','droneHive','mechanicalAssault']){
       const f=unit(kind),target=unit('vehicle',1,9,27),other=unit('infantry',1,8,28);fleets=[f,target,other];
       f.stance='engage';f.fireTarget=other;f.strike=other;groundUpdateSight();const hp=other.hpPool;
@@ -73,14 +75,15 @@ function branchCases(){
       check(kind+'：対岸への経路を作れる',!!route&&route.points.every(p=>groundPass(p.x/4+24,18-p.z/4,move)));
       if(factor>0)check(kind+'：実移動で渡河の減速',(()=>{f.pos.copy(p);f.speed=1;f.order={type:'move',path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}};groundFollow(f,.01);return near(f.pos.x-p.x,.01*factor);})());
     }
-  }finally{({fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud}=saved);groundHeightCacheReset();}
+  }finally{op=saved.op;({fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud}=saved);groundHeightCacheReset();}
   return results;
 }
 // 実画面と写真cで同じ配置を使う。名札の干渉を避けて3隊を三角に離す。
 function setupPermissionScene(){
   const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
-  WOS.start({op:'groundExercise2',fleets:[{...base,name:'機械化突撃兵',groundKind:'mechanicalAssault'}]});setSpeed(0);
+  WOS.start({op:'groundExercise2',fleets:[{...base,name:'機械化突撃兵',groundKind:'mechanicalAssault'}]});setSpeed(0);endDeploy();
   fleets.forEach((f,i)=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(43,29+i));});
+  op={...op,groundHQ:null}; // ここは射撃許可だけの実画面場面。
   const f=fleets.find(f=>f.team===0),targets=fleets.filter(f=>f.team===1).slice(0,2);
   f.pos.copy(groundPoint(8,25));f.stance='engage';targets[0].pos.copy(groundPoint(10,25));targets[1].pos.copy(groundPoint(8,27));
   targets[0].name='許可する目標';targets[1].name='命じない目標';
@@ -91,7 +94,7 @@ function setupAntiAirScene(){
   // 作戦データは撮影用リセット中だけ差し替え、モデルも通常の groundInit で作る。
   try{
     operation.enemies=[{...base,name:'高高度の航空目標',groundKind:'fighter',band:'high',stance:'evade'}];
-    WOS.start({op:operation.id,fleets:[{...base,name:'自走対空砲',groundKind:'mobileAA'}]});setSpeed(0);
+    WOS.start({op:operation.id,fleets:[{...base,name:'自走対空砲',groundKind:'mobileAA'}]});setSpeed(0);endDeploy();
   }finally{operation.enemies=enemies;}
   const gun=fleets.find(f=>f.team===0),air=fleets.find(f=>f.team===1);
   gun.pos.copy(groundPoint(8,25));air.pos.copy(groundPoint(12,25));air.pos.y=groundUnitHeight(air);gun.stance='engage';groundUpdateSight();select(gun);
@@ -99,13 +102,13 @@ function setupAntiAirScene(){
   groundDraw();updateRoster();
 }
 async function checkGroundBranches(page,check){
-  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);});
+  await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(branchCases))check(c.ok,'残り兵科: '+c.name);
   const original=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
   try{
     await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');
     await page.locator('[data-ground-pick="companies"]').first().click();
-    check(await page.locator('#groundKind option').count()===16,'残り兵科: 編成画面に16兵科');
+    check(await page.locator('#groundKind option').count()===17,'残り兵科: 編成画面に17兵科');
     for(const kind of NEW_KINDS){
       await page.selectOption('#groundKind',kind);
       check(await page.inputValue('#groundKind')===kind&&await page.evaluate(kind=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg.companies[0].kind===kind,kind),'残り兵科: 編成選択・保存 '+kind);
@@ -130,7 +133,7 @@ async function checkGroundBranches(page,check){
 function nodeChecks(){
   const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},groundHud:()=>{}});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);
