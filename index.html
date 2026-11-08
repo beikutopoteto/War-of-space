@@ -59,11 +59,9 @@
     <div>命令 <span id="groundSelected">部隊を選択</span></div>
     <div class="band-buttons" id="groundCommand" role="group" aria-label="選択部隊の高度"><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
     <div id="groundBandStatus" aria-live="polite"></div>
-    <div class="band-buttons"><button id="groundStrike" aria-pressed="false">地点攻撃 [B]</button></div>
     <div id="groundStrikeStatus" aria-live="polite"></div>
-    <div class="band-buttons"><button id="groundBoard" title="輸送車に乗車・岸の揚陸艦に乗艦" aria-pressed="false">搭乗</button><button id="groundUnload">降車</button><button id="groundLand">上陸</button><button id="groundBridge" aria-pressed="false">架橋</button></div>
     <div id="groundTransportStatus" aria-live="polite"></div>
-    <details><summary>補給網</summary><button id="groundSupply">補給</button><small id="groundSupplyStatus"></small></details>
+    <details><summary>補給網</summary><small id="groundSupplyStatus"></small></details>
     <div>表示</div><div class="band-buttons" id="groundView" role="group" aria-label="高度の表示"><button data-band="all" aria-pressed="true">全部</button><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
   </details>
   <button id="altUp" aria-label="高度を上げる">▲</button>
@@ -74,6 +72,30 @@
     <button data-st="engage" aria-pressed="true" title="射程内の敵を撃つ。母艦は近い敵に小型機を出す（Rキーで切り替え）">自動交戦</button>
     <button data-st="evade" aria-pressed="false" title="攻撃を命じた敵だけを撃つ。母艦も命じた敵にだけ小型機を出す（Rキーで切り替え）">命令優先</button>
     <button class="undo" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
+  </div>
+</div>
+
+<div id="groundCommandBar" class="hud" hidden aria-label="地上戦の命令">
+  <span class="command-cap"><i>COMMAND</i> 命令</span>
+  <div class="command-row">
+    <span class="command-group">共有</span>
+    <div class="command-common" role="group" aria-label="共有命令">
+      <button data-command-icon="move" id="groundMove" title="移動" aria-pressed="false">移動</button>
+      <button data-command-icon="deploy" title="布陣（未実装）" disabled>布陣</button>
+      <button data-command-icon="plan" title="進撃計画（未実装）" disabled>進撃計画</button>
+      <button data-command-icon="execute" title="実行（未実装）" disabled>実行</button>
+      <button data-command-icon="hold" id="groundHold" title="停止・防衛">停止・防衛</button>
+    </div>
+    <span class="command-divider" aria-hidden="true"></span><span class="command-group">固有</span>
+    <div id="groundUniqueCommands" role="group" aria-label="兵科固有命令">
+      <button data-command-icon="board" id="groundBoard" title="輸送車に乗車・岸の揚陸艦に乗艦" aria-pressed="false">搭乗</button>
+      <button data-command-icon="unload" id="groundUnload">降車</button>
+      <button data-command-icon="land" id="groundLand">上陸</button>
+      <button data-command-icon="strike" id="groundStrike" aria-pressed="false">地点攻撃 [B]</button>
+      <button data-command-icon="bridge" id="groundBridge" aria-pressed="false">架橋</button>
+      <button data-command-icon="supply" id="groundSupply">補給</button>
+    </div>
+    <button data-command-icon="expand" id="groundCommandExpand" title="固有命令を展開" aria-expanded="false" aria-controls="groundUniqueCommands">展開</button>
   </div>
 </div>
 
@@ -123,6 +145,7 @@
 <script src="data/earth.js"></script>
 <script src="data/terrain/exercise2.js"></script>
 <script src="data/ground-org.js"></script>
+<script src="data/command-icons.js"></script>
 <script src="battle/scene.js"></script>
 <script src="battle/terrain.js"></script>
 <script src="battle/effects.js"></script>

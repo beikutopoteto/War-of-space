@@ -551,3 +551,21 @@ body.nolabels .ground-site{display:none}
 #rtip.ground-tip{white-space:pre-line;overflow-wrap:anywhere}
 #groundSupplyStatus{display:block;white-space:normal;font-size:10px}
 .ground-supply-point{position:absolute;left:0;top:0;pointer-events:none;color:#8bdfff;background:rgba(5,14,24,.55);padding:1px 3px;font-size:10px;white-space:nowrap}
+
+/* 命令アイコンはdata/command-icons.jsの確定SVG。線幅・内部の色指定を上書きしない。 */
+#groundCommandBar{left:50%;bottom:24px;transform:translateX(-50%);padding:16px 8px 4px;background:rgba(8,14,26,.53);clip-path:polygon(0 0,112px 0,120px 2px,126px 8px,132px 10px,100% 10px,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%);pointer-events:auto}
+#groundCommandBar .command-cap{position:absolute;left:9px;top:0;height:12px;font-size:10px;font-weight:600;color:var(--ink)}
+#groundCommandBar .command-cap i{font-family:var(--f-num);font-style:italic;color:var(--brass);margin-right:5px}
+#groundCommandBar .command-row,#groundCommandBar .command-common,#groundUniqueCommands{display:flex;align-items:center;gap:3px}
+#groundCommandBar .command-group{font-size:10px;font-weight:600;white-space:nowrap;color:var(--ink-dim);padding:0 4px}
+#groundCommandBar .command-divider{height:26px;border-left:1px solid var(--line);margin:0 3px}
+#groundCommandBar button{flex:none;display:flex;align-items:center;justify-content:center;width:48px;height:27px;padding:1px 4px;border:0;border-radius:0;background:rgba(127,200,255,.08);color:var(--brass);cursor:pointer;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+#groundCommandBar button svg{display:block;width:40px;height:25px;flex:none}
+#groundCommandBar button:hover:not(:disabled){color:var(--ink);background:rgba(127,200,255,.18)}
+#groundCommandBar button[aria-pressed="true"]{color:var(--void);background:var(--blue)}
+#groundCommandBar button:disabled{color:#a4c7d8;--cmd-accent:currentColor;opacity:.5;cursor:default}
+#groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+#groundCommandBar [hidden]{display:none!important}
+#groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:27px;overflow:hidden;align-self:flex-end}
+#groundUniqueCommands.expanded{max-height:none}
+#groundCommandExpand[aria-expanded="true"] svg{transform:rotate(180deg)}
