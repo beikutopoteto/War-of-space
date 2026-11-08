@@ -443,6 +443,7 @@ function reset(cfg=lastCfg){
   lastSpot=null; spotNow=false; spotLogT=-1e9; rescue=null; rescued=false; chase=null; perfect=false; evac=0; evacRate=1; evacShips=0;
   fid=1; gameSec=0; clockHeld=0; over=false; selected=null; engaged=new Map(); nextEvent=0; fortressMarks=new Set(); events=[];
   op=OPS.find(o=>o.id===(cfg&&cfg.op))||OPS[0];
+  if(op.groundTutorial&&cfg?.tutorial)op={...op,...op.groundTutorial,enemies:op.enemies.map(f=>({...f,stance:'evade'}))};
   /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
   fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200; setAltMax(op.altMax||60); setAlt(0,false);
   controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R;

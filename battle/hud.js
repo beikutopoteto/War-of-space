@@ -539,7 +539,7 @@ function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=d
 /* a line with no speaker is narration; a fourth element is the still scene to show behind it (cut.js showCut) */
 function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=fillText(l[1]); showCut(l[3]); }
 function endTalk(){ showCut(null); talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); tutorialTalk(); }
-talkEl.addEventListener('click',e=>{ if(talking){ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); } else if(e.target.id==='talkSkip'&&tutorialActive()){ tutorial.skipped=true; if(op.groundDrill)groundDrillCounterfire(); tutorialRender(); } });
+talkEl.addEventListener('click',e=>{ if(talking){ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); } else if(e.target.id==='talkSkip'&&tutorialActive()){ tutorial.skipped=true; tutorialRender(); } });
 /* holding Ctrl fast-forwards: one line every 0.1 s until it is let go */
 let talkFast=false;
 addEventListener('keydown',e=>{ if(e.key==='Control') talkFast=true; });

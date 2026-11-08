@@ -1695,23 +1695,29 @@ WOS_DATA.operations.push((()=>{
     enemies:[unit('第1 守備戦車中隊','vehicle',24,21),unit('第2 守備歩兵中隊','infantry',22.5,21),unit('第3 守備歩兵中隊','infantry',41,27)]};
 })());
 
-// 演習欄のバイコヌール演習。配置と文は仮。保存中の地上軍を使わず、W.A.S. を配備しない。
+// バイコヌール演習と、その固定配備を案内付きで始めるチュートリアル2。配置と文は仮。
 WOS_DATA.operations.push((()=>{
   const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,stance:'evade'});
   const names={inf:'第1 強化歩兵中隊',tank:'第2 主力戦車中隊',heavy:'第3 重強化歩兵中隊',scout:'第4 斥候中隊',air:'第5 攻撃航空隊',aa:'第6 自走対空砲中隊',gun:'第7 自走砲中隊',apc:'第8 装甲兵員輸送車中隊',eng:'第9 工兵中隊',ship:'演習砲撃艦',landing:'演習揚陸艦',cargo:'第10 上陸歩兵中隊'};
   const sea=(name,type,x,y)=>({...unit(name,'sea',x,y,'sea'),type,team:0});
   const mark=(label,x,y)=>({label,pos:[(x-24)*4,(18-y)*4],alt:0});
   const row=(section,name,condition,actor,text,extra={})=>({section,name,condition,actor:names[actor],text,targets:['#roster'],marks:[],...extra});
-  return {id:'ch2drill',requires:'denaliBreak',tag:'演習',forces:'fixed',ground:'exercise2',groundDrill:true,
-    name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:100,
-    summary:'カスピ海沿岸の演習場。中央アジアの新兵と、地上・航空・海岸での操作を一つずつ確かめる。',
-    groundCounterfireSection:6,threat:'仮想敵4隊。⑥から残る斥候・航空が反撃。',brief:'リコ軍曹の案内に沿って、10項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。案内をとばした場合は、西方集落の占拠で演習完了です。',
-    win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、補給と士気まで全手順を終える'},
+  return {id:'baikonur',requires:'tutorial2',tag:'演習',ground:'exercise2',
+    name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:300,
+    summary:'カスピ海沿岸の演習場。地上・航空・海上の部隊を指揮し、西方集落を占拠する。',
+    threat:'仮想敵4隊。視界と射程に入ると交戦する。',brief:'案内なしの地上演習です。敵の攻撃をしのぎ、西方集落を占拠してください。自軍全滅で敗北です。',
+    win:{type:'capture',text:'西方集落を占拠せよ'},
+    groundTutorial:{name:'チュートリアル2',tag:'チュートリアル',requires:'denaliBreak',forces:'fixed',reward:100,groundDrill:true,
+      summary:'リコ軍曹の案内で、地上・航空・海岸・補給と士気の操作を26手順で確かめる。敵は攻撃しない。',
+      threat:'仮想敵は全手順・とばした後も攻撃しない。',brief:'リコ軍曹の案内に沿って、10項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。案内をとばした場合は、西方集落の占拠で演習完了です。',
+      win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、補給と士気まで全手順を終える'},
+      groundSites:[{site:'A',owner:null}],
+      result:{win:'チュートリアル2を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','全手順の完了、確認しました。'],loseLog:['リコ軍曹','演習を終了します。']}},
     groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],
-    groundSites:[{site:'A',owner:null}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
+    groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:0},{site:'F',owner:1}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
     quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
     groundSea:[sea(names.ship,'cl',17,4),{...sea(names.landing,'dd',12,5),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',12,5)]}],
-    enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')],
+    enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')].map(f=>({...f,stance:'engage'})),
     tutorial:[
       row(1,'① 部隊を選ぶ','groundSelect','inf','少佐、演習場との照合が済みました。リコ軍曹です。……地上の手順を一つずつ確かめます。まず、右下の「第1 強化歩兵中隊」を選んでください。'),
       row(1,'① 地上を移動','groundMove','inf','選択、確認しました。地上では地形に沿って進みます。金色の輪「移動」をクリックして、第1 強化歩兵中隊を動かしてください。',{marks:[mark('移動',7,25)]}),
@@ -1720,7 +1726,7 @@ WOS_DATA.operations.push((()=>{
       row(4,'④ 戦車と歩兵','groundAttack','tank','兵科の相性を照合しました。主力戦車は歩兵に有効です。第2 主力戦車中隊を選び、「仮想敵 歩兵」をクリックし、出た小さなメニューで「攻撃」を選んでください。撃破まで待ちます。',{target:'仮想敵 歩兵',marks:[mark('歩兵',14,25)]}),
       row(4,'④ 重強化歩兵と戦車','groundAttack','heavy','次は対戦車です。重強化歩兵は戦車に有効です。第3 重強化歩兵中隊を選び、「仮想敵 戦車」をクリックし、出た小さなメニューで「攻撃」を選んでください。撃破まで待ちます。',{target:'仮想敵 戦車',marks:[mark('戦車',20,25)]}),
       row(5,'⑤ 斥候の視界','groundSight','scout','東側に未確認の反応です。斥候は遠くまで見渡せます。第4 斥候中隊を選び、「偵察」の輪へ進めてください。この中隊の視界で仮想敵を確認します。',{target:'仮想敵 斥候',marks:[mark('偵察',38,27)]}),
-      row(6,'⑥ 低高度へ','groundBand','air','ここから仮想敵が反撃します。航空の段を確かめます。第5 攻撃航空隊を選び、左の地上の操作から「低」を押してください。切り替えには5秒かかります。低高度なら地上を攻撃できます。',{band:'low',targets:['#groundCommand']}),
+      row(6,'⑥ 低高度へ','groundBand','air','仮想敵は引き続き攻撃しません。航空の段を確かめます。第5 攻撃航空隊を選び、左の地上の操作から「低」を押してください。切り替えには5秒かかります。低高度なら地上を攻撃できます。',{band:'low',targets:['#groundCommand']}),
       row(6,'⑥ 高高度へ','groundBand','air','低高度への到着、確認しました。同じ航空隊で「高」を押してください。高高度では、この攻撃機は地上へ直接射撃できません。',{band:'high',targets:['#groundCommand']}),
       row(6,'⑥ 対空の操作','groundAttack','aa','対空の反応を照合します。第6 自走対空砲中隊を選び、「仮想敵 航空」をクリックし、出た小さなメニューで「攻撃」を選んでください。自走対空砲は低・高の両方を撃てます。撃破まで待ちます。',{target:'仮想敵 航空',marks:[mark('対空',33,17)]}),
       row(7,'⑦ 地点攻撃','groundStrike','gun','第7 自走砲中隊を選び、左の「地点攻撃」を押して「砲撃」の輪をクリックしてください。着弾まで5秒です。視界の外も狙えますが、散布が広がります。味方にも当たるので、輪の中に部隊を入れないでください。',{marks:[mark('砲撃',17,17)],targets:['#groundStrike']}),
@@ -1737,7 +1743,7 @@ WOS_DATA.operations.push((()=>{
       row(10,'⑩ 道路を奪還','groundSupplyRecapture','inf','訓練敵が道路を占領しました。敵が去っても補給は切れたままです。「奪還」の輪へ進め、30秒で道を取り戻してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('奪還',16,29.857)]}),
       row(10,'⑩ 競合の先も半速','groundSupplyHalf','inf','道路の競合を照合します……。第11 補給訓練歩兵中隊を「競合」の輪へ進めてください。補充はその先へも半分の速さで流れます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('競合',18.5,29.5)]}),
       row(10,'⑩ 補給部隊から分配','groundSupplyGive','inf','道路外での補給です。第12 補給中隊を選び、「補給」を押して第11 補給訓練歩兵中隊を指定してください。分けた量だけ補給中隊自身の残量も減ります。',{actor:'第12 補給中隊',target:'第11 補給訓練歩兵中隊',targets:['#groundSupply']}),
-      row(10,'⑩ 士気と敗走','groundSupplyRout','inf','訓練射撃を始めます。第11 補給訓練歩兵中隊を「被弾」の輪へ動かしてください。士気が尽きると、操作を受け付けず最寄りの味方へ逃げ続けます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('被弾',15,26)]}),
+      row(10,'⑩ 士気と敗走','groundSupplyRout','inf','敵の射撃を使わず、士気が尽きた状態を再現します。第11 補給訓練歩兵中隊を「敗走」の輪へ動かしてください。士気が尽きると、操作を受け付けず最寄りの味方へ逃げ続けます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('敗走',15,26)]}),
       row(10,'⑩ 味方の道で再集結','groundSupplyRally','inf','敗走先へ着きました。移動と搭乗だけ操作できます。「回復」の輪へ進め、味方の道で士気30まで回復してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('回復',18.5,29.5)]})
     ],
     talk:{before:[['リコ軍曹','カスピ海沿岸の演習場へ到着しました。少佐、中央アジアの新兵と訓練を始めます。']],win:[['リコ軍曹','演習完了、確認しました。……少佐、次の配属に備えてください。']]},

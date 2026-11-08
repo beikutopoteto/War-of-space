@@ -2,13 +2,7 @@
 function groundDrillActive(){return !!(op.groundDrill&&tutorialActive());}
 function groundDrillRow(){return groundDrillActive()?op.tutorial[tutorial.step]:null;}
 function groundDrillUnit(name){return fleets.find(f=>f.name===name);}
-function groundDrillCounterfire(){
-  if(!op.groundDrill)return;
-  const live=tutorial?.skipped||groundDrillRow()?.section>=op.groundCounterfireSection;
-  for(const f of fleets)if(f.team===1)f.stance=live?'engage':'evade';
-}
 function groundDrillEnter(){
-  groundDrillCounterfire();
   tutorial.ground={};tutorial.startedAt=gameSec;
   const row=groundDrillRow();groundSupplyDrillEnter(row);
   const f=groundDrillUnit(row.actor),m=row.marks[0];
@@ -116,7 +110,9 @@ function groundSupplyDrillTick(row,f,g,dt){
   if(row.condition==='groundSupplyGive')return groundDrillUnit('第12 補給中隊').groundSupplyGiven>=5&&actor.groundSupplyReceived>=5;
   if(row.condition==='groundSupplyRout'){
     const shooter=groundDrillUnit('補給訓練 射撃班');
-    if(g.issued&&!actor.groundRout&&groundDistanceTo(actor,shooter)<=shooter.range)order(shooter,{type:'attack',target:actor});
+    // 敵の発砲や耐久の変更を使わず、既存の士気・敗走処理を体験する。
+    const m=row.marks[0];
+    if(g.issued&&!g.routed&&!actor.groundRout&&Math.hypot(actor.pos.x-m.pos[0],actor.pos.z-m.pos[1])<=6)groundSupplyHit(actor,actor.groundMorale);
     if(actor.groundRout==='routing'){g.routed=true;groundClearOrders(shooter);}
     return g.routed&&actor.groundRout==='regroup';
   }
