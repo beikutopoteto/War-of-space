@@ -2,7 +2,13 @@
 function groundDrillActive(){return !!(op.groundDrill&&tutorialActive());}
 function groundDrillRow(){return groundDrillActive()?op.tutorial[tutorial.step]:null;}
 function groundDrillUnit(name){return fleets.find(f=>f.name===name);}
+function groundDrillCounterfire(){
+  if(!op.groundDrill)return;
+  const live=tutorial?.skipped||groundDrillRow()?.section>=op.groundCounterfireSection;
+  for(const f of fleets)if(f.team===1)f.stance=live?'engage':'evade';
+}
 function groundDrillEnter(){
+  groundDrillCounterfire();
   tutorial.ground={};tutorial.startedAt=gameSec;
   const row=groundDrillRow(),f=groundDrillUnit(row.actor),m=row.marks[0];
   const at=m?new THREE.Vector3(m.pos[0],groundHeight(...m.pos),m.pos[1]):f.pos.clone();

@@ -128,6 +128,7 @@ const researched=()=>Object.values(prog().tech).some(t=>t&&t.length);
 const ownExercise=()=>unlocked('fleet')&&researched();
 function opOpen(o){ if(dbg.free||o===TUT) return true;
   if(!tutDone()) return false;   // nothing opens before the tutorial
+  if(o.requires) return cleared(o.requires);
   const i=CAMP.indexOf(o); if(i<0) return !!o.quick||ownExercise();   // 演習: クイック出撃 (o.quick) from the start, own army groups once 艦隊編集 opens and a research is done
   return i===0||cleared(CAMP[i-1].id); }
 /* a thin line lock in the text colour (no emoji) */
@@ -618,7 +619,7 @@ function renderSortie(){
   const ol=document.getElementById('opList');
   const nextOp=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT;
   const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
-    const why=!tutDone()?'チュートリアルをクリアで解放':i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
+    const why=!tutDone()?'チュートリアルをクリアで解放':o.requires?`${opLabel(OPS.find(x=>x.id===o.requires))}をクリアで解放`:i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace(/^第[一二]章 /,'')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
   let chapter='';
   const campaignCards=camp.map(o=>{const key=o.chapter?o.chapter.split(' ')[0]:'第一章',title=key==='第一章'?'無重力':o.chapterTitle||'';const heading=chapter===key?'':`<p class="grp">${esc(key+'　'+title)}</p>`;chapter=key;return heading+card(o);}).join('');

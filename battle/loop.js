@@ -136,7 +136,7 @@ function frame(now){
     if(!f.arrow||f.arrow.from.distanceTo(f.pos)>1||f.arrow.to.distanceTo(t.pos)>1){
       dropArrow(f.arrow); f.arrow=makeArrow(f.pos,t.pos,TEAM_COL[0]); if(f.arrow){ f.arrow.from=f.pos.clone(); f.arrow.to=t.pos.clone(); } } }
   // selection visuals
-  if(selected&&selected.alive){ selRing.visible=rangeRing.visible=true; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
+  if(selected&&selected.alive){ selRing.visible=rangeRing.visible=!op.ground; const R=Math.sqrt(selected.ships.length)*1.35*selected.scale+2.5;
     selRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); selRing.scale.setScalar(R*(1+.05*Math.sin(time*4)));
     rangeRing.position.set(selected.pos.x,selected.pos.y,selected.pos.z); rangeRing.scale.setScalar(Math.max(selected.range,selected.launchR||0));
     sightRing.visible=!op.ground; sightRing.position.copy(selected.pos); sightRing.scale.setScalar(sightOf(selected)*concealOf({stl:5}));

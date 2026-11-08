@@ -470,8 +470,8 @@ function drawRoute(){
   routeEl.innerHTML=`<path class="ln" d="${d}"/><g class="ch">${ch}</g>${ring}`; }
 function updateGoal(){
   let text='', p=0, label='', subT='', mode='';
-  if(op.groundDrill){const row=groundDrillRow();text=row?row.name:op.win.text;p=tutorial?.complete?1:(tutorial?.step||0)/op.tutorial.length;label=`手順 ${tutorial?.complete?op.tutorial.length:(tutorial?.step||0)+1}/${op.tutorial.length}　自軍全滅で敗北`;}
-  else if(op.ground){ text=op.win.text; const n=groundSites.filter(s=>s.owner===0).length; p=groundSites.length?n/groundSites.length:0; label=`拠点 ${n}/${groundSites.length}　自軍全滅で敗北`; }
+  if(op.groundDrill&&!tutorial?.skipped){const row=groundDrillRow();text=row?row.name:op.win.text;p=tutorial?.complete?1:(tutorial?.step||0)/op.tutorial.length;label=`手順 ${tutorial?.complete?op.tutorial.length:(tutorial?.step||0)+1}/${op.tutorial.length}　自軍全滅で敗北`;}
+  else if(op.ground){ text=op.groundDrill?'西方集落を占拠せよ':op.win.text; const n=groundSites.filter(s=>s.owner===0).length; p=groundSites.length?n/groundSites.length:0; label=`拠点 ${n}/${groundSites.length}　自軍全滅で敗北`; }
   else if(convoy){ const C=op.convoy, lose=op.win&&op.win.lose||convoy.n, left=convoy.alive||convoy.escaped?convoy.ships.length:0;
     if(convoy.escaped){ text='輸送船団は離脱点を越えた'; p=1; label='離脱完了'; mode='done'; }
     else if(!convoy.alive){ text='輸送船団は全滅した'; p=0; label=''; mode='fail'; }
@@ -535,7 +535,7 @@ function startTalk(lines,done){ talkQ=(storyOn()&&lines||[]).slice(); talkDone=d
 /* a line with no speaker is narration; a fourth element is the still scene to show behind it (cut.js showCut) */
 function nextTalk(){ const l=talkQ.shift(); if(!l){ endTalk(); return; } talkWho.textContent=l[0]; talkWho.hidden=!l[0]; talkEl.classList.toggle('narr',!l[0]); talkText.textContent=fillText(l[1]); showCut(l[3]); }
 function endTalk(){ showCut(null); talkEl.hidden=true; talking=false; talkQ=[]; const d=talkDone; talkDone=null; if(d) d(); tutorialTalk(); }
-talkEl.addEventListener('click',e=>{ if(talking){ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); } else if(e.target.id==='talkSkip'&&tutorialActive()){ if(op.groundDrill)tutorial.folded=!tutorial.folded;else tutorial.skipped=true; tutorialRender(); } });
+talkEl.addEventListener('click',e=>{ if(talking){ if(e.target.id==='talkSkip') endTalk(); else nextTalk(); } else if(e.target.id==='talkSkip'&&tutorialActive()){ tutorial.skipped=true; if(op.groundDrill)groundDrillCounterfire(); tutorialRender(); } });
 /* holding Ctrl fast-forwards: one line every 0.1 s until it is let go */
 let talkFast=false;
 addEventListener('keydown',e=>{ if(e.key==='Control') talkFast=true; });
