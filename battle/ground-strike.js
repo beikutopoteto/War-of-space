@@ -45,7 +45,7 @@ function groundStrikeStep(dt){
   });
 }
 function groundStrikeAI(f){
-  if(!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
+  if(groundStaticTarget(f)||!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
   const seen=fleets.filter(t=>t.team!==f.team&&t.alive&&!t.embarked&&t.band==='ground'&&groundSeenBy(f.team,t));
   let best=null,count=0;
   for(const t of seen){

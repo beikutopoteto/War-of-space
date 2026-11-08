@@ -1681,7 +1681,7 @@ WOS_DATA.operations.push((()=>{
 WOS_DATA.operations.push((()=>{
   const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
   const sea=(team,type,x,y)=>({name:(team?'共和国 ':'連合 ')+WOS_DATA.ships.find(s=>s.id===type).name,groundKind:'sea',band:'sea',team,type,n:1,pos:[(x-24)*4,(18-y)*4],alt:0});
-  return {id:'groundExercise2',hidden:true,ground:'exercise2',name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
+  return {id:'groundExercise2',hidden:true,ground:'exercise2',groundStaticEnemies:true,name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
     brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。敵の占拠可能部隊がいなければ30秒で占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。揚陸艦は歩兵と戦車を搭載済み。海岸へ着けて「上陸」を押し、降りた歩兵を拠点へ進めよう。',
     date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'強化歩兵か地上 W.A.S. で3拠点をすべて占拠せよ'},
     groundHQ:{0:'B',1:'F'},groundSupportSites:['B'],

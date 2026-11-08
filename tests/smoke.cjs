@@ -15,6 +15,7 @@ const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
 const { checkGroundSupply } = require('./ground-supply.cjs');
 const { checkGroundDrill } = require('./ground-drill.cjs');
+const { checkGroundFixes } = require('./ground-fixes.cjs');
 const { crossingCases } = require('./ground-path.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
@@ -148,6 +149,7 @@ function check(ok, label, detail = '') {
     await checkGroundLanding(page, check);
     await checkGroundSupply(page, check);
     await checkGroundDrill(page, check);
+    await checkGroundFixes(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {

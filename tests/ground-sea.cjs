@@ -10,8 +10,8 @@ function seaCases(){
   };
   const tick=sec=>{for(let i=0;i<Math.round(sec/.05);i++)groundStep(.05);};
   try{
-    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
-    op={...op,groundHQ:null};
+    // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
+    op={...op,groundHQ:null,groundStaticEnemies:false};
     groundSites=[];groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=groundHud=()=>{};
     for(const type of ['dd','cl']){
       op.stage=0;const a=unit('sea',0,12,5,type);op.stage=1;const b=unit('sea',1,14,5,type),base=WOS_DATA.ships.find(s=>s.id===type);
