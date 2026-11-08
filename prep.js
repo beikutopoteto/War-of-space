@@ -16,6 +16,8 @@ const CAMP=OPS.filter(o=>o.chapter&&!o.hidden);   // hidden: still being made; n
    the exercises; nothing else opens before it (user decision 2026-11-05). Only the menu knows it: the battle starts charybdis with tutorial:true */
 const TUT={...OPS.find(o=>o.id==='charybdis'), id:'tutorial', tag:'チュートリアル', name:'士官学校の卒業演習', card:'チュートリアル', reward:0, quick:null,   // card: its name in the list
   summary:'艦隊指揮の卒業演習。リコ軍曹の案内に従って操作を11段で覚え、最後に演習用の要塞カリュブディスを落とす。'};
+const TUT2_BASE=OPS.find(o=>o.id==='baikonur');
+const TUT2={...TUT2_BASE,...TUT2_BASE.groundTutorial,id:'tutorial2'};
 const SHIP=Object.fromEntries(SHIPS.map(s=>[s.id,s]));
 const hangarStr=h=>h?Object.entries(h).map(([k,v])=>`${D.crafts[k].name}${Math.round(v)}`).join('・'):'';
 /* a bonus applies when every condition in its `when` holds (format: data/bonuses.js) */
@@ -87,6 +89,8 @@ function migrate(s){ s.groundOrg=GROUND.normalize(s.groundOrg); s.bgs.forEach(b=
   const tutKnown=!!(s.prog&&'tutorialCleared' in s.prog);
   const prepKnown=!!(s.prog&&'prepDone' in s.prog);
   s.prog=Object.assign(newProg(),s.prog||{});
+  // 旧 ch2drill は案内付き演習。通常演習の初回報酬・クリアは引き継がない。
+  s.prog.cleared=[...new Set(s.prog.cleared.map(id=>id==='ch2drill'?'tutorial2':id))];
   if(!prepKnown&&s.prog.cleared.includes('retreat')) s.prog.prepDone=true;
   /* saves from before the tutorial (2026-11-05) that have cleared an operation do not have to go back to it */
   if(!tutKnown&&s.prog.cleared.length) s.prog.tutorialCleared=true;
@@ -192,11 +196,12 @@ function onEnd(opId,win,res={}){
   /* the tutorial counts as cleared on any win: at whatever step, and after とばす too (2026-11-06: a win before the last step did not open 第1節) */
   if(running&&running.tutorial){ if(!win) return ''; const first=!tutDone(); prog().tutorialCleared=true; sortieOp=CAMP[0].id; persist(); return first?`　${opLabel(CAMP[0])}が出撃できるようになった。`:''; }
   if(!running||running.quick||running.op!==opId||!win) return '';
-  const o=OPS.find(x=>x.id===opId), first=!cleared(opId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
+  const progressId=running.progress||opId;
+  const o=progressId===TUT2.id?TUT2:OPS.find(x=>x.id===opId), first=!cleared(progressId), before={fleet:unlocked('fleet'),tech:unlocked('tech')};
   /* the story remembers whether the distress call was answered (the latest win counts); later conversations use it */
   if(o.rescue) prog().flags['rescued:'+opId]=!!res.rescued;
   const gain=Math.round((o.reward||0)*(first?1:replayRate(o)));
-  prog().funds+=gain; if(first) prog().cleared.push(opId);
+  prog().funds+=gain; if(first) prog().cleared.push(progressId);
   /* branches the story opens on a clear (o.opens: flag names, data/tech.js branches need; 第5節 opens the battleship) */
   const newBr=BRANCHES.filter(b=>b.need&&(o.opens||[]).includes(b.need)&&!prog().flags[b.need]); newBr.forEach(b=>{ prog().flags[b.need]=true; });
   const aid=first&&aidNow(o)?grantAid(o):0; persist();
@@ -614,12 +619,12 @@ function renderMode(){ const next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT; do
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function renderSortie(){
   /* the campaign first, then the exercises; a locked operation shows how it opens. At first the next one to play is chosen */
-  const ex=OPS.filter(o=>!o.chapter&&!o.hidden), camp=tutDone()?CAMP:[TUT,...CAMP], exs=tutDone()?[TUT,...ex]:ex, list=[...camp,...exs];
+  const ex=[TUT2,...OPS.filter(o=>!o.chapter&&!o.hidden)], camp=tutDone()?CAMP:[TUT,...CAMP], exs=tutDone()?[TUT,...ex]:ex, list=[...camp,...exs];
   if(!list.some(o=>o.id===sortieOp&&opOpen(o))) sortieOp=(camp.find(o=>!opDone(o)&&opOpen(o))||list.find(opOpen)||list[0]).id;
   const ol=document.getElementById('opList');
   const nextOp=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT;
   const card=o=>{ const ok=opOpen(o), done=opDone(o), i=CAMP.indexOf(o);
-    const why=!tutDone()?'チュートリアルをクリアで解放':o.requires?`${opLabel(OPS.find(x=>x.id===o.requires))}をクリアで解放`:i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
+    const why=!tutDone()?'チュートリアルをクリアで解放':o.requires?`${opLabel(o.requires===TUT2.id?TUT2:OPS.find(x=>x.id===o.requires))}をクリアで解放`:i>0?`${opLabel(CAMP[i-1])}をクリアで解放`:unlocked('fleet')?'技術ツリーで研究を1つ終えると解放':unlockText('fleet');
     return `<button class="plate op ${o.id===sortieOp?'sel':''} ${ok?'':'locked'}" data-op="${o.id}" aria-pressed="${o.id===sortieOp}" ${ok?'':'disabled'}><span>${o.chapter?esc(o.chapter.replace(/^第[一二]章 /,'')):'演習'}</span><b>${ok?'':LOCK}${esc(o.card||o.name)}</b><span class="op-status">${done?'クリア済み':!ok?esc(why):o===nextOp?'次の作戦':''}</span></button>`; };
   let chapter='';
   const campaignCards=camp.map(o=>{const key=o.chapter?o.chapter.split(' ')[0]:'第一章',title=key==='第一章'?'無重力':o.chapterTitle||'';const heading=chapter===key?'':`<p class="grp">${esc(key+'　'+title)}</p>`;chapter=key;return heading+card(o);}).join('');
@@ -631,10 +636,10 @@ function renderSortie(){
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),id=>{sortieOp=id; renderSortie();});
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
-  if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start({op:op.id}); } };
+  if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick}:{op:op.id}); } };
   document.getElementById('fixedNote').textContent=op.ground&&!fixedOp?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
   const btn=document.getElementById('goBattle'); btn.disabled=false;
-  btn.onclick=()=>{ if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
+  btn.onclick=()=>{ if(op===TUT2){ running={op:TUT2_BASE.id,progress:TUT2.id};window.WOS.start({op:TUT2_BASE.id,tutorial:true}); } else if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
 function renderForces(){
   const op=OPS.find(o=>o.id===sortieOp), load=document.getElementById('sgLoad'); load.innerHTML='';

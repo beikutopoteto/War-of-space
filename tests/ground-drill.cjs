@@ -27,18 +27,19 @@ function drillAdvance(){
   if(over&&outcome!==true)throw new Error('案内どおりの操作で敗北: '+r.name);
   return tutorial.times[tutorial.times.length-1];
 }
-function createDrillContext(){
+function createDrillContext(guided=true){
   const {ctx,read,run}=createGroundContext(),THREE=ctx.THREE;
   const context2d=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}});
   const element=()=>{const children={};return {style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},appendChild(){},append(){},remove(){},addEventListener(){},setAttribute(){},getContext:()=>context2d,querySelector:k=>children[k]||(children[k]=element())};};
   Object.assign(ctx,{document:{getElementById:()=>element(),querySelectorAll:()=>[],createElement:element,body:element()},renderer:{domElement:element(),shadowMap:{},capabilities:{getMaxAnisotropy:()=>1}},addEventListener(){},scene:new THREE.Scene(),labelsEl:element(),grid:{},starField:{},skyObj:{},fieldRocks:{},debrisObj:{},cloudObj:{},farPlanet:{},ambient:new THREE.AmbientLight(),sun:new THREE.DirectionalLight(),rim:{},flyTo(){},proj:()=>({x:0,y:0,z:0}),deploying:false,deployZone:{visible:false},deployEl:element(),autoMode:false,endDeploy:()=>{ctx.deploying=false;},selected:null,orderTargets:()=>ctx.selected?[ctx.selected]:[],select:f=>{ctx.selected=f;},shown:f=>f.team===0||run('groundSeenBy')(0,f),step:dt=>{ctx.gameSec+=dt;run('groundStep')(dt);},end:win=>{ctx.over=true;ctx.outcome=win;}});
   run(read('battle/tutorial.js'));run(read('battle/ground-drill.js'));
   run('tutorialRender=()=>{};groundHud=()=>{};');
-  run(`op=WOS_DATA.operations.find(o=>o.id==='ch2drill');groundSetup(op.ground);
+  run(`op=WOS_DATA.operations.find(o=>o.id==='baikonur');
+    if(${guided})op={...op,...op.groundTutorial,enemies:op.enemies.map(f=>({...f,stance:'evade'}))};groundSetup(op.ground);
     fleets=[...op.quick.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];groundSeaDeploy();
     globalThis.shipMeshes=[0,1].map(()=>Object.fromEntries(['cv','dd','cl'].map(t=>[t,new THREE.Mesh(shapeGeo(t),new THREE.MeshStandardMaterial())])));
     globalThis.SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
-    groundSightInit=groundDraw=()=>{};groundInit();tutorialInit({op:'ch2drill'});`);
+    groundSightInit=groundDraw=()=>{};groundInit();tutorialInit({tutorial:${guided}});`);
   run('globalThis.drillAction='+drillAction.toString()+';globalThis.drillAdvance='+drillAdvance.toString());
   return {ctx,run};
 }
@@ -70,14 +71,17 @@ function seedDrillCampaign(includeLast=true){
   document.querySelector('[data-dbga="skip"]').click(); // 通常の保存処理で初期編成も用意する。
   const s=JSON.parse(localStorage.getItem('wos.save.v1'));
   s.prog.tutorialCleared=true;s.prog.prepDone=true;
-  s.prog.cleared=WOS_DATA.operations.filter(o=>o.chapter&&o.id!=='ch2drill'&&(includeLast||o.id!=='denaliBreak')).map(o=>o.id);
+  s.prog.cleared=WOS_DATA.operations.filter(o=>o.chapter&&(includeLast||o.id!=='denaliBreak')).map(o=>o.id);
   s.groundOrg.companies.push({id:'drill-save-was',name:'保存中の W.A.S.',kind:'was'});
   localStorage.setItem('wos.save.v1',JSON.stringify(s));
 }
 async function checkDrillLabels(page,check,onSelected=async()=>{}){
-  // 初期の歩兵・戦車は別の位置。カメラ変更後、描画と名札の更新を待つ。
+  // 実クリックする2隊を離し、他の名札を遠ざける。終了後に元の位置へ戻す。
   await page.evaluate(()=>{
     select(null);camAnim=null;const a=groundDrillUnit(op.tutorial[0].actor),b=groundDrillUnit(op.tutorial.find(r=>r.target==='仮想敵 歩兵').actor);
+    window.drillLabelPositions=fleets.map(f=>({f,pos:f.pos.clone()}));
+    fleets.forEach((f,i)=>{if(f!==a&&f!==b&&!f.embarked)f.pos.copy(groundPoint(40+i%4,33));});
+    b.pos.copy(groundPoint(13,27));
     a.el.dataset.drillLabel='normal';b.el.dataset.drillLabel='pick';
     controls.target.copy(a.pos).add(b.pos).multiplyScalar(.5);camera.position.copy(controls.target).add(new THREE.Vector3(0,80,32));camera.lookAt(controls.target);controls.update();
   });
@@ -100,6 +104,7 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   await checkStill();
   check(await normal.locator('.nm').isHidden()&&await picked.locator('.nm').isHidden(),'地上名札: ふだんは名前を隠す');
   check(await normal.locator('.mk2 em').textContent()==='×1','地上名札: ふだんは兵科印と数だけ');
+  check(await picked.locator('.mk2').evaluate(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return e===hit||e.contains(hit);}),'地上名札: クリック位置に他の名札が重ならない');
   await picked.locator('.mk2').click();await page.mouse.move(1590,10);await drawn();
   await checkStill(); // 選択の輪を出した状態でも静止する。
   check(await picked.locator('.nm').isVisible()&&await normal.locator('.nm').isHidden(),'地上名札: 実クリックで選んだ隊だけ名前を表示');
@@ -113,58 +118,78 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   check(await normal.locator('.nm').isVisible(),'地上名札: マウスを載せると名前を表示');
   await page.mouse.move(1590,10);await page.evaluate(()=>{const f=fleets.find(f=>f.el.dataset.drillLabel==='normal');f.ace=true;updateFleetLabel(f,false,'');});await drawn();
   check(await normal.locator('.nm').isVisible(),'地上名札: 名前付きの隊は常に表示');
-  await page.evaluate(()=>{const f=fleets.find(f=>f.el.dataset.drillLabel==='normal');delete f.ace;updateFleetLabel(f,false,'');select(null);});
+  await page.evaluate(()=>{const f=fleets.find(f=>f.el.dataset.drillLabel==='normal');delete f.ace;updateFleetLabel(f,false,'');select(null);
+    for(const {f,pos} of window.drillLabelPositions)f.pos.copy(pos);delete window.drillLabelPositions;groundDraw();
+  });await drawn();
 }
 async function checkGroundDrill(page,check){
-  // 既存の保存を戻す。第一章最終節の前後で鍵が変わることを実メニューで確認。
-  const campaign=await page.evaluate(()=>{
-    const old=localStorage.getItem('wos.save.v1');return old;
-  });
+  require('./ground-drill-menu.cjs').runMenuChecks();
+  const campaign=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
+  const menu=async()=>{await page.reload();await page.waitForFunction(()=>window.WOS_MENU);await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');};
   try{
-    await page.evaluate(seedDrillCampaign,false);
-    await page.goto(page.url().split('?')[0]);await page.waitForFunction(()=>window.WOS_MENU);
-    await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');
-    check(await page.locator('[data-op="ch2drill"]').isDisabled(),'バイコヌール演習: 第一章最終節の前は鍵付き');
-    await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared.push('denaliBreak');s.prog.prepDone=true;localStorage.setItem('wos.save.v1',JSON.stringify(s));});
-    await page.reload();await page.waitForFunction(()=>window.WOS_MENU);
-    await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');
-    check(await page.locator('[data-op="ch2drill"]').isEnabled(),'バイコヌール演習: 第一章の次に解放');
-    check(await page.locator('[data-op="ch2drill"]').evaluate(e=>{let p=e.previousElementSibling;while(p&&!p.classList.contains('grp'))p=p.previousElementSibling;return e.textContent.includes('バイコヌール演習')&&p?.textContent==='演習';}),'バイコヌール演習: 演習欄にあり第二章の並びにない');
-    await page.click('[data-op="ch2drill"]');await page.click('#goBattle');
-    await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);});
-    check(await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg.companies.some(c=>c.kind==='was')&&op.id==='ch2drill'&&tutorialActive()&&tutorial.step===0&&!fleets.some(f=>f.team===0&&f.groundKind==='was')),'バイコヌール演習: メニューから固定配備・W.A.S. なし');
-    // story オフでも案内を表示。宇宙と同じ「とばす」で手順も飛ばす。
-    await page.evaluate(()=>{window.WOS_OPT.story=false;tutorialTalk();});
-    check(await page.locator('#talkText').isVisible(),'バイコヌール演習: ストーリーが切でも必須の通信を表示');
-    await page.click('#talkSkip');
-    check(await page.evaluate(()=>!tutorialActive()&&tutorial.skipped&&tutorialMarks.length===0&&fleets.filter(f=>f.team===1).every(f=>f.stance==='engage')),'バイコヌール演習: とばすで案内・手順を終了し反撃を開始');
-    check(await page.locator('#talkText').isHidden(),'バイコヌール演習: とばすで通信を隠す');
-    await page.evaluate(()=>{const f=groundDrillUnit(op.tutorial[0].actor);order(f,{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);});
-    check(await page.evaluate(()=>over&&outcome===true),'バイコヌール演習: とばした後も通常の占拠で勝利');
-    // 正式なメニュー出撃で初回報酬も確かめるため、今の飛ばした回の記録を戻す。
-    await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared=s.prog.cleared.filter(id=>id!=='ch2drill');s.prog.funds-=WOS_DATA.operations.find(o=>o.id==='ch2drill').reward;localStorage.setItem('wos.save.v1',JSON.stringify(s));});
-    await page.reload();await page.waitForFunction(()=>window.WOS_MENU);
-    await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');await page.click('[data-op="ch2drill"]');
+    await page.evaluate(seedDrillCampaign,false);await menu();
+    check(await page.locator('[data-op="tutorial2"]').isDisabled(),'チュートリアル2: 第一章最終節の前は鍵付き');
+    await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared.push('denaliBreak');localStorage.setItem('wos.save.v1',JSON.stringify(s));});await menu();
+    check(await page.locator('[data-op="tutorial2"]').isEnabled()&&await page.locator('[data-op="baikonur"]').isDisabled(),'第一章後はチュートリアル2だけ解放');
+    for(const [id,name] of [['tutorial2','チュートリアル2'],['baikonur','バイコヌール演習']]){
+      check(await page.locator(`[data-op="${id}"]`).evaluate((e,name)=>{let p=e.previousElementSibling;while(p&&!p.classList.contains('grp'))p=p.previousElementSibling;return e.textContent.includes(name)&&p?.textContent==='演習';},name),name+': 演習欄で別々に表示');
+    }
+    await page.click('[data-op="tutorial2"]');
     const funds=await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).prog.funds);
-    await page.evaluate(()=>{window.WOS_OPT.story=false;});
     await page.click('#goBattle');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);});
+    check(await page.evaluate(()=>op.id==='baikonur'&&op.name==='チュートリアル2'&&tutorialActive()&&!fleets.some(f=>f.team===0&&f.groundKind==='was')),'チュートリアル2: 基本演習を案内付き・固定配備で開始');
+    await page.evaluate(()=>{window.WOS_OPT.story=false;tutorialTalk();});
+    check(await page.locator('#talkText').isVisible(),'チュートリアル2: ストーリー切でも案内を表示');
     await checkDrillLabels(page,check);
-    await page.evaluate('window.drillAction='+drillAction.toString());
-    await page.evaluate('window.drillAdvance='+drillAdvance.toString());
+    await page.evaluate('window.drillAction='+drillAction.toString());await page.evaluate('window.drillAdvance='+drillAdvance.toString());
+    await page.evaluate(()=>{window.tut2Hits=0;const realDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)tut2Hits++;return realDamage(t,n,src,...rest);};});
     const times=[];
     for(let i=0;i<(await page.evaluate(()=>op.tutorial.length));i++){
-      check(await page.evaluate(()=>{const before=tutorial.step;step(.05);return tutorial.step===before&&!over;}),'バイコヌール演習: 無操作で手順'+(i+1)+'を飛ばさない');
+      check(await page.evaluate(()=>{const before=tutorial.step;step(.05);return tutorial.step===before&&!over;}),'チュートリアル2: 無操作で手順'+(i+1)+'を飛ばさない');
       if(!await performDrillAction(page))throw new Error('案内の操作が失敗: '+i);
       times.push(await page.evaluate(()=>drillAdvance()));
     }
-    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length),'バイコヌール演習: 全手順を順番に終えて勝利');
+    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tut2Hits===0&&tutorial.times.length===26),'チュートリアル2: 全26手順勝利・敵打撃0');
     await page.waitForSelector('#result:not([hidden])');
-    check(await page.evaluate(base=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.funds===base+op.reward&&s.prog.cleared.includes(op.id)&&document.getElementById('result').textContent.includes('資金 +100');},funds),'バイコヌール演習: 勝利で初回資金100を保存・表示');
-    await page.evaluate(()=>{reset({op:'ch2drill'});fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);});
-    check(await page.evaluate(()=>over&&outcome===false),'バイコヌール演習: 全滅で敗北');
+    check(await page.evaluate(base=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.funds===base+100&&s.prog.cleared.includes('tutorial2')&&!s.prog.cleared.includes('baikonur')&&document.getElementById('result').textContent.includes('資金 +100');},funds),'チュートリアル2: 初回100・専用クリアを保存');
+    await page.evaluate(()=>{reset({op:'baikonur',tutorial:true});if(talking)endTalk();setSpeed(0);});
+    await page.click('#talkSkip');
+    check(await page.evaluate(()=>!tutorialActive()&&tutorial.skipped&&tutorialMarks.length===0),'チュートリアル2: とばすで案内終了');
+    await page.evaluate(()=>{order(fleets[0],{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);});
+    check(await page.evaluate(()=>over&&outcome===true&&tut2Hits===0),'チュートリアル2: とばした後も敵打撃0・占拠勝利');
     await page.waitForSelector('#result:not([hidden])');
-    await page.evaluate(()=>{reset({op:'charybdis'});});
-    check(await page.evaluate(()=>!tutorialActive()&&!groundSites.length),'バイコヌール演習: 再初期化で宇宙に復帰');
+    await page.evaluate(()=>WOS.openMenu());await page.click('[data-go="mode"]');await page.click('[data-go="sortie"]');
+    check(await page.locator('[data-op="baikonur"]').isEnabled(),'バイコヌール演習: チュートリアル2後に解放');
+    await page.click('[data-op="baikonur"]');
+    check(await page.locator('#goQuick').isVisible(),'バイコヌール演習: クイック出撃あり');
+    const beforeQuick=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
+    await page.click('#goQuick');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
+    check(await page.evaluate(()=>!tutorial&&!op.groundDrill&&fleets.some(f=>f.name==='第2 主力戦車中隊')),'バイコヌール演習: クイックは既定部隊・案内なし');
+    check(await page.locator('#training').isHidden()&&await page.locator('#talkText').isHidden(),'バイコヌール演習: 案内のUIなし');
+    await page.evaluate(()=>{
+      window.baikonurHits=0;const realDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)baikonurHits++;return realDamage(t,n,src,...rest);};
+      order(groundDrillUnit('第2 主力戦車中隊'),{type:'attack',target:groundDrillUnit('仮想敵 歩兵')});
+      order(groundDrillUnit('第3 重強化歩兵中隊'),{type:'attack',target:groundDrillUnit('仮想敵 戦車')});
+      for(let i=0;i<300&&!over;i++)step(.05);
+      order(fleets[0],{type:'move',dest:groundSites.find(s=>s.id==='A').pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);
+    });
+    check(await page.evaluate(()=>!tutorial&&baikonurHits>0&&over&&outcome===true),'バイコヌール演習: 敵が撃ち占拠で勝利');
+    await page.waitForSelector('#result:not([hidden])');
+    check(await page.evaluate(before=>localStorage.getItem('wos.save.v1')===before,beforeQuick),'バイコヌール演習: クイックは報酬・クリアを記録しない');
+    // 古い保存は tutorial2 だけに移し、二重報酬を出さない。
+    await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared=s.prog.cleared.filter(id=>id!=='tutorial2');s.prog.cleared.push('ch2drill');localStorage.setItem('wos.save.v1',JSON.stringify(s));});await menu();
+    check(await page.locator('[data-op="tutorial2"] .op-status').textContent()==='クリア済み'&&await page.locator('[data-op="baikonur"]').isEnabled(),'旧 ch2drill 保存を移行して通常演習を解放');
+    await page.click('[data-op="baikonur"]');await page.click('#goBattle');
+    await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
+    check(await page.evaluate(()=>!tutorial&&fleets.some(f=>f.groundKind==='was')),'通常出撃は保存中の地上軍を使う');
+    await page.evaluate(()=>{const s=groundSites.find(s=>s.id==='A');s.owner=0;step(.05);});
+    await page.waitForSelector('#result:not([hidden])');
+    check(await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.cleared.includes('tutorial2')&&s.prog.cleared.includes('baikonur')&&!s.prog.cleared.includes('ch2drill')&&document.getElementById('result').textContent.includes('資金 +300');}),'通常演習: 別クリア・初回300を保存、移行済みidを永続化');
+    await page.evaluate(()=>{reset({op:'baikonur',tutorial:true});fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);});
+    check(await page.evaluate(()=>over&&outcome===false),'チュートリアル2: 全滅で敗北');
+    await page.waitForSelector('#result:not([hidden])');
+    await page.evaluate(()=>reset({op:'charybdis'}));
+    check(await page.evaluate(()=>!tutorialActive()&&!groundSites.length),'再初期化で宇宙に復帰');
     return times;
   }finally{
     await page.evaluate(old=>{if(old===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',old);},campaign);
@@ -176,7 +201,7 @@ function runDrill(){
   const bg=require('fs').readFileSync(require('path').join(__dirname,'../prep-bg.js'),'utf8');
   assert.equal(run(`(()=>{${bg.slice(bg.indexOf('const DEG='),bg.indexOf('const cv='))}${bg.slice(bg.indexOf('function opW('),bg.indexOf('function dayOf('))}return opW({place:{body:'地球'}},0).every(Number.isFinite);})()`),true,'地球の作戦マーカーは有効な座標');
   assert.equal(run("WOS_DATA.operations.filter(o=>o.chapter&&!o.hidden).at(-1).id"),'denaliBreak');
-  assert.equal(run("op.name==='バイコヌール演習'&&!op.chapter&&op.requires==='denaliBreak'&&op.reward===100"),true,'演習の名前・配置・解放・報酬');
+  assert.equal(run("op.name==='チュートリアル2'&&!op.chapter&&op.requires==='denaliBreak'&&op.reward===100"),true,'チュートリアル2の名前・配置・解放・報酬');
   assert.equal(run('fleets.some(f=>f.team===0&&f.groundKind===\'was\')'),false);
   assert.equal(run('groundBuildings.length>0&&groundForests.length>0'),true);
   assert.equal(run(`(()=>{const s=groundSites[0];s.owner=0;groundCaptureStep(.05);s.owner=null;return !over;})()`),true,'全占拠だけでは勝たない');
@@ -186,7 +211,7 @@ function runDrill(){
   assert.equal(run(`(()=>{const f=fleets[0];groundSelectionDraw(f,true);const r=f.groundSelection,p=r.geometry.attributes.position;const ok=r.visible&&Array.from({length:p.count},(_,i)=>Math.abs(p.getY(i)-groundSurfaceHeight(f.pos.x+p.getX(i),f.pos.z+p.getZ(i))-.15)<1e-5).every(Boolean);groundSelectionDraw(f,false);return ok&&!r.visible;})()`),true,'輪が地表の起伏に沿い選択解除で消える');
   // 実 damage を数える。目標の選択だけでは反撃の証拠にしない。
   run(`globalThis.counterfire={early:0,late:0,damage:0};const realDamage=damage;
-    damage=(t,amount,src)=>{const hp=t.hpPool;realDamage(t,amount,src);if(src?.team===1&&t.hpPool<hp){counterfire[groundDrillRow()?.section>=6?'late':'early']++;counterfire.damage+=hp-t.hpPool;}};`);
+    damage=(t,amount,src,...rest)=>{const hp=t.hpPool;realDamage(t,amount,src,...rest);if(src?.team===1&&amount>0){counterfire[groundDrillRow()?.section>=6?'late':'early']++;counterfire.damage+=hp-t.hpPool;}};`);
   const times=[];
   for(let i=0;i<run('op.tutorial.length');i++){
     assert.equal(run('(()=>{const s=tutorial.step;step(0);return !over&&s===tutorial.step;})()'),true,'無操作で手順を飛ばさない');
@@ -194,17 +219,42 @@ function runDrill(){
     const r=run('drillAdvance()');times.push(r);
   }
   assert.equal(run('over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length'),true);
-  assert.equal(run('counterfire.early===0&&counterfire.late>0'),true,'前半の敵打撃0・後半は実際に打撃');
+  assert.equal(run('counterfire.early===0&&counterfire.late===0&&counterfire.damage===0'),true,'全26手順で敵の打撃0');
   assert.equal(run('fleets.filter(f=>f.team===0&&f.alive).length'),14,'専用2隊を含む自軍14隊が残存');
   times.counterfire=run('counterfire');
   assert.equal(run('(()=>{over=false;fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);groundCaptureStep(.05);return over&&outcome===false;})()'),true,'全滅で敗北');
   const skipped=createDrillContext();
-  assert.equal(skipped.run(`(()=>{tutorial.skipped=true;groundDrillCounterfire();tutorialRender();const f=fleets[0];order(f,{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);return !tutorialActive()&&over&&outcome===true;})()`),true,'案内をとばしても占拠で勝てる');
+  assert.equal(skipped.run(`(()=>{tutorial.skipped=true;tutorialRender();const f=fleets[0];order(f,{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);return !tutorialActive()&&over&&outcome===true;})()`),true,'案内をとばしても占拠で勝てる');
+  const normal=createDrillContext(false);
+  normal.run(`globalThis.enemyHits=0;const originalDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)enemyHits++;return originalDamage(t,n,src,...rest);};
+    order(groundDrillUnit('第2 主力戦車中隊'),{type:'attack',target:groundDrillUnit('仮想敵 歩兵')});
+    order(groundDrillUnit('第3 重強化歩兵中隊'),{type:'attack',target:groundDrillUnit('仮想敵 戦車')});
+    for(let i=0;i<300&&!over;i++)step(.05);
+    order(fleets[0],{type:'move',dest:groundSites.find(s=>s.id==='A').pos.clone()});
+    for(let i=0;i<2400&&!over;i++)step(.05);`);
+  assert.equal(normal.run('!tutorial&&enemyHits>0&&over&&outcome===true'),true,'通常演習は案内なし・敵の実打撃あり・占拠で勝利');
+  times.normal=normal.run('({hits:enemyHits,seconds:gameSec})');
+  runPeaceChecks();
   return times;
 }
-module.exports={createDrillContext,drillAction,drillAdvance,performDrillAction,seedDrillCampaign,checkDrillLabels,checkGroundDrill,runDrill};
+function runPeaceChecks(){
+  const assert=require('assert/strict'),peace=createDrillContext();
+  peace.run(`globalThis.enemyAttempts=0;const original=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)enemyAttempts++;return original(t,n,src,...rest);};`);
+  for(const skip of [false,true]){
+    assert.equal(peace.run(`(()=>{tutorial.skipped=${skip};const red=fleets.find(f=>f.team===1),blue=fleets[0],at=red.pos.clone();
+      blue.pos.copy(red.pos).add(new THREE.Vector3(1,0,0));groundUpdateSight();
+      if(!groundSeenBy(1,blue)||groundDistanceTo(red,blue)>red.range||!groundLineOfSight(red,blue))throw new Error('射撃禁止を調べる場面が射程・視界外');
+      red.stance='engage';red.fireTarget=blue;order(red,{type:'attack',target:blue});step(.05);
+      const gun={...red,groundKind:'artillery',band:'ground',groundStrikeCooldown:0};
+      const pending={source:gun,impact:blue.pos.clone(),radius:2,resolving:true};
+      return !red.order&&!red.fireTarget&&red.pos.equals(at)&&!groundCanFire(red,blue)&&!groundStrikeLaunch(gun,blue.pos)&&!groundStrikeHits(pending,blue,gun)&&enemyAttempts===0;})()`),true,'射程・視界内でも敵の自発攻撃・明示攻撃・追撃・地点攻撃・残弾を禁止（とばす='+skip+'）');
+  }
+  return 2;
+}
+module.exports={createDrillContext,drillAction,drillAdvance,performDrillAction,seedDrillCampaign,checkDrillLabels,checkGroundDrill,runDrill,runPeaceChecks};
 if(require.main===module){
   const times=runDrill();for(const r of times)console.log(`| ${r.name} | ${r.seconds.toFixed(2)}秒 |`);
   console.log(`| 仮想敵の実打撃 | 前半${times.counterfire.early}回・後半${times.counterfire.late}回・損害${times.counterfire.damage} |`);
+  console.log(`| バイコヌール演習 | 案内なし・敵打撃${times.normal.hits}回・${times.normal.seconds.toFixed(2)}秒で占拠勝利 |`);
   console.log('| 演習の順序・全段勝利・全滅敗北・W.A.S.なし | 成功 |');
 }

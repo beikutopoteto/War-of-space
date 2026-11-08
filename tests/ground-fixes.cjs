@@ -96,7 +96,7 @@ function fixesCases(){
   op=realOp;for(const f of reds){f.groundSupply=0;f.groundMorale=0;}groundSupplyBefore(1);
   check('固定敵は補給切れ・士気ゼロでも移動命令を作らない',reds.every(f=>!f.groundRecover&&!f.groundRout&&!f.groundAirState));
   damage=realDamage;
-  check('バイコヌール演習は固定指定の対象外',!WOS_DATA.operations.find(o=>o.id==='ch2drill').groundStaticEnemies);
+  check('バイコヌール演習は固定指定の対象外',!WOS_DATA.operations.find(o=>o.id==='baikonur').groundStaticEnemies);
   return {rows,vertices,minClearance,buried};
 }
 

@@ -11,7 +11,7 @@ function tutorialClearMarks(){ tutorialMarks.forEach(m=>{scene.remove(m.group); 
 function tutorialInit(cfg){
   if(tutorialArrow){ dropArrow(tutorialArrow); tutorialArrow=null; }
   tutorialClearMarks();
-  tutorial=(op.groundDrill||cfg&&cfg.tutorial)&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null,times:[]}:null;
+  tutorial=(cfg&&cfg.tutorial)&&op.tutorial?{step:0,skipped:false,attack:null,launched:false,group:null,rotation:0,angles:null,passed:null,times:[]}:null;
   if(op.groundDrill&&tutorial)groundDrillEnter();
   tutorialRender();
 }

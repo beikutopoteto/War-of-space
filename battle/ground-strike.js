@@ -2,7 +2,7 @@
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='';
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
-  if(!op.ground||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
+  if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
@@ -21,7 +21,7 @@ function groundStrikeLaunch(f,p){
 }
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。
 function groundStrikeHits(s,t,src){
-  return s.resolving&&s.source===src&&t.alive&&!t.embarked&&t.band==='ground'&&groundDistanceTo(t,{pos:s.impact})<=s.radius;
+  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.embarked&&t.band==='ground'&&groundDistanceTo(t,{pos:s.impact})<=s.radius;
 }
 function groundStrikeStep(dt){
   for(const f of fleets)f.groundStrikeCooldown=Math.max(0,(f.groundStrikeCooldown||0)-dt);

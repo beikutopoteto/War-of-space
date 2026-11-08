@@ -73,13 +73,15 @@ function groundFireFactor(f,t){
   return row&&row[target]||0;
 }
 function groundDistanceTo(f,t){ return Math.hypot(f.pos.x-t.pos.x,f.pos.z-t.pos.z); }
+// チュートリアル2は、とばした後も敵の射撃・追撃を止める。
+function groundTrainingEnemy(f){return !!(op.ground&&op.groundDrill&&f?.team===1);}
 // デバッグ演習の固定は AI の自発行動だけ。明示した命令や打撃の可否には使わない。
 function groundStaticTarget(f){return !!(op.ground&&op.groundStaticEnemies&&f.team===1);}
 // 地表の解析高と、描画格子の三角形補間の両方より上に置く。
 function groundSurfaceHeight(x,z){return Math.max(groundHeight(x,z),groundSightHeight(x,z));}
 function groundCanFire(f,t){ return (!groundPermissionOnly(f)||f.order?.type==='attack'&&f.order.target===t)&&groundFireSolution(f,t); }
 // AI の目標指定も、射程・共有視界・遮蔽の同じ規則で候補を調べる。
-function groundFireSolution(f,t){ return f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t); }
+function groundFireSolution(f,t){ return !groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundFireFactor(f,t)>0&&groundDistanceTo(f,t)<=f.range&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t); }
 function groundLandable(f){ return groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&!f.embarked&&groundCommandAllowed(f,'band')&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
@@ -203,6 +205,8 @@ function groundDraw(){
 function groundStep(dt){
   if(over) return;
   groundSupplyBefore(dt);
+  // 案内をとばした後も、残った命令・追撃・射撃目標を毎回消す。
+  for(const f of fleets)if(groundTrainingEnemy(f)){groundClearOrders(f);f.stance='evade';}
   groundStrikeStep(dt);
   groundTransportStep(dt);
   groundUpdateSight();
