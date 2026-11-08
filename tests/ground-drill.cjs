@@ -44,7 +44,7 @@ function createDrillContext(){
 }
 async function performDrillAction(page){
   const r=await page.evaluate(()=>{const r=groundDrillRow();return {condition:r.condition,actor:r.actor,band:r.band,selected:orderTargets().length===1&&orderTargets()[0].name===r.actor};});
-  if(!r.selected)await page.locator('#roster').getByRole('button',{name:r.actor,exact:true}).click();
+  if(!r.selected)await page.locator('#roster').getByRole('button',{name:new RegExp('^'+r.actor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( /|$)')}).click();
   if(r.condition==='groundSupplyDeploy'){await page.evaluate(()=>drillAction());return true;}
   if(r.condition==='groundSupplyGive'){await page.click('#groundSupply');return page.evaluate(()=>groundSupplyCommand(orderTargets(),groundDrillUnit(groundDrillRow().target)));}
   if(r.condition==='groundSelect')return true;
