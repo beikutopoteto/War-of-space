@@ -79,10 +79,25 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   });
   const drawn=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
   const normal=page.locator('[data-drill-label="normal"]'),picked=page.locator('[data-drill-label="pick"]');
+  const checkStill=async()=>{
+    const result=await page.evaluate(async()=>{
+      const marks=[...document.querySelectorAll('[data-drill-label] .mk2')];
+      const rects=()=>marks.map(e=>{const r=e.getBoundingClientRect();return [r.x,r.y,r.width,r.height];});
+      const before=rects();let moved=0,resized=0;
+      for(let i=0;i<8;i++){
+        await new Promise(resolve=>requestAnimationFrame(resolve));
+        rects().forEach((r,k)=>{if(r[0]!==before[k][0]||r[1]!==before[k][1])moved++;if(r[2]!==before[k][2]||r[3]!==before[k][3])resized++;});
+      }
+      return {paused:speed===0,moved,resized};
+    });
+    check(result.paused&&result.moved===0&&result.resized===0,`地上名札: 停止中8フレームで位置・寸法が不変 ${JSON.stringify(result)}`);
+  };
   await page.mouse.move(1590,10);await drawn();
+  await checkStill();
   check(await normal.locator('.nm').isHidden()&&await picked.locator('.nm').isHidden(),'地上名札: ふだんは名前を隠す');
   check(await normal.locator('.mk2 em').textContent()==='×1','地上名札: ふだんは兵科印と数だけ');
   await picked.locator('.mk2').click();await page.mouse.move(1590,10);await drawn();
+  await checkStill(); // 選択の輪を出した状態でも静止する。
   check(await picked.locator('.nm').isVisible()&&await normal.locator('.nm').isHidden(),'地上名札: 実クリックで選んだ隊だけ名前を表示');
   check(await page.evaluate(()=>{
     const f=selected,r=f.groundSelection;if(!r?.visible)return false;

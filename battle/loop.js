@@ -69,6 +69,8 @@ function setClockText(t){ if(t===clockShown) return; clockShown=t; clockEl.inner
 function frame(now){
   const rdt=Math.min(.05,(now-last)/1000); last=now; time+=rdt;
   const dt=(over||menuOpen||talking||deploying)?0:rdt*speed; controls.autoRotate=menuOpen;
+  // メニューの自動回転の慣性を出撃後へ持ち越さない。戦闘中の手動操作には慣性を残す。
+  controls.enableDamping=!menuOpen;
   /* the debug auto mode reads the talk on by itself, a line every AUTO_TALK seconds of real time (仮) */
   if(autoMode&&talking&&!menuOpen){ if(!autoTalkAt) autoTalkAt=now; else if(now-autoTalkAt>=AUTO_TALK*1000){ autoTalkAt=now; nextTalk(); } } else autoTalkAt=0;
   if(dt>0) step(dt);

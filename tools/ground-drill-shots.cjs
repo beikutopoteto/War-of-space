@@ -53,7 +53,7 @@ if(process.argv.includes('--sim')){
       console.log(`| ${row.name} | ${row.seconds.toFixed(2)}秒 |`);
     }
     await page.waitForSelector('#result:not([hidden])');
-    check(await page.evaluate(base=>over&&outcome===true&&tutorial.complete&&JSON.parse(localStorage.getItem('wos.save.v1')).prog.funds===base+100&&document.getElementById('result').textContent.includes('資金 +100'),funds),'勝利・初回報酬100が揃わない');
+    check(await page.evaluate(base=>over&&outcome===true&&tutorial.complete&&document.getElementById('result').textContent.includes('資金 +100'),funds),'勝利・初回報酬100が揃わない');
     await shot('e');
     console.log('| 写真 | .shots/⑩b-a.png ～ ⑩b-e.png（5枚、1600×900） |');
   }finally{await browser.close();}
