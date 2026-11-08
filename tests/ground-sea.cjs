@@ -43,10 +43,13 @@ function seaCases(){
     const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{op=saved.op;Math.random=random;}
     check('艦砲は予告8秒・半径10',s&&s.left===8&&s.radius===10&&s.kind==='sea');
     check('艦砲は再装填中に連射不可',!groundStrikeLaunch(ship,target.pos));
-    const before=[target.hpPool,friend.hpPool,seaTarget.hpPool,air.hpPool];tick(7.95);
-    check('8秒直前には艦砲の損害なし',target.hpPool===before[0]&&friend.hpPool===before[1]&&groundStrikes.length===1);
-    tick(.05);check('8秒で着弾し陸上の敵味方に損害',target.hpPool<before[0]&&friend.hpPool<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
-    check('艦砲は海・航空には当たらない',seaTarget.hpPool===before[2]&&air.hpPool===before[3]);
+    // 本営ありでは打撃が先に士気へ入る。士気を持たない艦・航空も同じ尺度で確認する。
+    const remaining=f=>f.hpPool+(f.groundMorale??0);
+    // 地形滞在による士気消費などを混ぜず、艦砲の着弾処理だけを進める。
+    const before=[target,friend,seaTarget,air].map(remaining);groundStrikeStep(7.95);
+    check('8秒直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
+    groundStrikeStep(.05);check('8秒で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
+    check('艦砲は海・航空には当たらない',remaining(seaTarget)===before[2]&&remaining(air)===before[3]);
     ship.groundStrikeCooldown=0;const p=groundPoint(23.47,26),was=unit('was',0,23.47,26),infantry=unit('infantry',0,23.47,26);
     const travel=f=>{f.speed=1;f.order={path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}};groundFollow(f,.01);return f.pos.x-p.x;};
     const w=travel(was),i=travel(infantry);
@@ -98,6 +101,9 @@ function nodeChecks(){
   run(sim.slice(sim.indexOf('function nextOrder('),sim.indexOf('function followPath(')));
   ctx.followPath=(f,dt)=>run('groundFollow')(f,dt);
   const results=run(`(${seaCases.toString()})()`);
+  // ブラウザと同じ本営ありの作戦でも実行し、士気で吸収される着弾を確認する。
+  run("op=WOS_DATA.operations.find(o=>o.id==='groundExercise2')");
+  results.push(...run(`(${seaCases.toString()})()`).map(c=>({...c,name:'本営あり：'+c.name})));
   ctx.TEAM_COL=['blue','red'].map(c=>new ctx.THREE.Color(c));
   Object.assign(ctx,{labelsEl:{appendChild(){}},proj:p=>({x:p.x,y:p.z,z:0}),SHIP_SIZE:Object.fromEntries(ctx.WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]))});
   ctx.document.createElement=()=>({style:{},remove(){this.removed=true;}});
