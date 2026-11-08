@@ -35,9 +35,14 @@ function tutorialRender(){
   for(const spec of row.marks||[]){
     const mark=op.ground?{...spec,alt:groundHeight(...spec.pos)}:spec;
     const group=new THREE.Group(), color=0xffd27a;
-    const ring=(inner,outer,opacity,y)=>{const m=new THREE.Mesh(new THREE.RingGeometry(inner,outer,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false})); m.rotation.x=-Math.PI/2; m.position.y=y; group.add(m);};
+    const ring=(inner,outer,opacity,y)=>{const m=new THREE.Mesh(new THREE.RingGeometry(inner,outer,op.ground?96:48,op.ground?26:1),new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false})); if(op.ground){
+      m.geometry.rotateX(-Math.PI/2);const p=m.geometry.attributes.position;
+      for(let i=0;i<p.count;i++)p.setY(i,groundSurfaceHeight(mark.pos[0]+p.getX(i),mark.pos[1]+p.getZ(i))+.18);
+      m.geometry.computeBoundingSphere();m.renderOrder=5;
+    }else {m.rotation.x=-Math.PI/2;m.position.y=y;}
+    group.add(m);};
     ring(5.5,6.5,1,mark.alt); ring(0,5.5,.12,mark.alt);
-    if(mark.alt){ ring(1.5,2,.8,0); const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,mark.alt,0)]); const line=new THREE.Line(geo,new THREE.LineDashedMaterial({color,dashSize:2,gapSize:1,transparent:true,opacity:.8})); line.computeLineDistances(); group.add(line); }
+    if(mark.alt&&!op.ground){ ring(1.5,2,.8,0); const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(0,mark.alt,0)]); const line=new THREE.Line(geo,new THREE.LineDashedMaterial({color,dashSize:2,gapSize:1,transparent:true,opacity:.8})); line.computeLineDistances(); group.add(line); }
     group.position.set(mark.pos[0],0,mark.pos[1]); scene.add(group);
     const label=document.createElement('div'); label.className='tutorial-mark-label'; label.textContent='目標 '+mark.label+(mark.alt&&!op.ground?'　高度 '+(mark.alt>0?'+':'')+mark.alt:''); document.getElementById('labels').appendChild(label);
     tutorialMarks.push({mark,group,label});

@@ -7,8 +7,8 @@ function strikeCases(){
   const unit=(team,kind,x,z=0,band='ground')=>({id:10+team,name:kind,kind:'fleet',team,groundKind:kind,band,alive:true,hp:1000,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[{}],stance:'evade',range:45,dmg:12,queue:[],order:null});
   const fresh=()=>{groundStrikes=[];groundImpacts=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];over=false;groundSites=[];end=()=>{};shoot=burst=()=>{};groundFog=null;Math.random=()=>0;};
   try{
-    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
-    op={...op,groundHQ:null};
+    // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
+    op={...op,groundHQ:null,groundStaticEnemies:false};
     fresh();const gun=unit(0,'artillery',-20),enemy=unit(1,'infantry',0),friend=unit(0,'infantry',3),edge=unit(1,'infantry',7),outside=unit(1,'infantry',7.01),air=unit(1,'fighter',0,0,'low');
     fleets=[gun,enemy,friend,edge,outside,air];const aim=enemy.pos.clone(),s=groundStrikeLaunch(gun,aim);
     check('自走砲は予告5秒・半径7',s&&s.left===5&&s.radius===7);

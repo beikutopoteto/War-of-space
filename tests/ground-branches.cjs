@@ -12,8 +12,8 @@ function branchCases(){
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
   try{
-    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
-    op={...op,groundHQ:null};
+    // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
+    op={...op,groundHQ:null,groundStaticEnemies:false};
     groundSites=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=unselect=logEvent=groundHud=()=>{};
     check('17兵科をデータに収録',Object.keys(WOS_TERRAIN.exercise2.unitTypes).length===17);
     for(const kind of ['guidedRocket','droneHive','mechanicalAssault']){

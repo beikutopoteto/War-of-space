@@ -6,8 +6,8 @@ function sightCases(){
   const unit=(team,kind,x,z=0,band='ground')=>({team,groundKind:kind,band,alive:true,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[],stance:'evade',range:20,dmg:2,queue:[],order:null});
   const terrain=height=>{groundHeight=height;groundHeightCacheReset();groundForests=[];groundBuildings=[];};
   try{
-    // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
-    op={...op,groundHQ:null};
+    // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
+    op={...op,groundHQ:null,groundStaticEnemies:false};
     over=false;end=()=>{};groundSites=[];shoot=()=>{};groundFog=null;groundFollow=()=>{};
     // 打撃の入り口も実コードの groundCanFire を通す。ブラウザ版は本物の damage でも後で確認する。
     let hits=[];damage=(t,n,f)=>{if(groundCanFire(f,t)){hits.push({t,f,n});t.hpPool-=n;}};

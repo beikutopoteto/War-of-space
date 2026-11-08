@@ -106,7 +106,7 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   check(await page.evaluate(()=>{
     const f=selected,r=f.groundSelection;if(!r?.visible)return false;
     const p=r.geometry.attributes.position;
-    return Array.from({length:p.count},(_,i)=>Math.abs(p.getY(i)-groundHeight(r.position.x+p.getX(i),r.position.z+p.getZ(i))-.15)<1e-5).every(Boolean)&&fleets.filter(t=>t!==f).every(t=>!t.groundSelection.visible);
+    return Array.from({length:p.count},(_,i)=>Math.abs(p.getY(i)-groundSurfaceHeight(r.position.x+p.getX(i),r.position.z+p.getZ(i))-.15)<1e-5).every(Boolean)&&fleets.filter(t=>t!==f).every(t=>!t.groundSelection.visible);
   }),'地上選択: 選んだ隊の輪だけ表示し各頂点が地表高に一致');
   await onSelected();
   await page.evaluate(()=>select(null));await normal.locator('.mk2').hover();await drawn();
@@ -183,7 +183,7 @@ function runDrill(){
   assert.equal(run(`(()=>{const reds=fleets.filter(f=>f.team===1);reds.forEach(f=>f.alive=false);groundCaptureStep(.05);reds.forEach(f=>f.alive=true);return !over;})()`),true,'仮想敵全滅だけでは勝たない');
   assert.equal(run("!shown(groundDrillUnit('仮想敵 斥候'))"),true,'偵察対象は初めは未発見');
   assert.equal(run(`(()=>{const a=groundPoint(35,29),b=groundPoint(39,31),p=groundPath(a,b,'scout');return p&&p.L<Math.abs(b.x-a.x)+Math.abs(b.z-a.z)-1&&p.points.slice(1).some((q,i)=>Math.abs(q.x-p.points[i].x)>.01&&Math.abs(q.z-p.points[i].z)>.01);})()`),true,'開けた所は斜めの近道を使う');
-  assert.equal(run(`(()=>{const f=fleets[0];groundSelectionDraw(f,true);const r=f.groundSelection,p=r.geometry.attributes.position;const ok=r.visible&&Array.from({length:p.count},(_,i)=>Math.abs(p.getY(i)-groundHeight(f.pos.x+p.getX(i),f.pos.z+p.getZ(i))-.15)<1e-5).every(Boolean);groundSelectionDraw(f,false);return ok&&!r.visible;})()`),true,'輪が地表の起伏に沿い選択解除で消える');
+  assert.equal(run(`(()=>{const f=fleets[0];groundSelectionDraw(f,true);const r=f.groundSelection,p=r.geometry.attributes.position;const ok=r.visible&&Array.from({length:p.count},(_,i)=>Math.abs(p.getY(i)-groundSurfaceHeight(f.pos.x+p.getX(i),f.pos.z+p.getZ(i))-.15)<1e-5).every(Boolean);groundSelectionDraw(f,false);return ok&&!r.visible;})()`),true,'輪が地表の起伏に沿い選択解除で消える');
   // 実 damage を数える。目標の選択だけでは反撃の証拠にしない。
   run(`globalThis.counterfire={early:0,late:0,damage:0};const realDamage=damage;
     damage=(t,amount,src)=>{const hp=t.hpPool;realDamage(t,amount,src);if(src?.team===1&&t.hpPool<hp){counterfire[groundDrillRow()?.section>=6?'late':'early']++;counterfire.damage+=hp-t.hpPool;}};`);

@@ -1,7 +1,8 @@
 /* 地上専用の視線と共有視界。レーダーもこの判定を通す。宇宙の canSee は変えない。 */
+let groundTerritorySight=null;
 let groundSightHeights=null, groundFog=null, groundSightBuildingSource=null, groundSightBuildingBins=new Map();
 function groundSightRules(){ return WOS_TERRAIN[op.ground].sight; }
-function groundHeightCacheReset(){ groundSightHeights=null; }
+function groundHeightCacheReset(){ groundSightHeights=null;groundTerritorySight=null; }
 function groundSightReset(){ groundHeightCacheReset(); groundFog=null; groundSightBuildingSource=null; }
 // 描画の地表メッシュ（1戦闘単位の格子、対角線で二分）と同じ面を参照する。
 function groundSightVertex(index,x,z){
@@ -77,6 +78,25 @@ function groundPointSeenBy(team,p){
   const target={x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight};
   return fleets.some(f=>f.team===team&&f.alive&&!f.embarked&&!groundAbsent(f)&&Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<=groundSightRange(f)&&groundClearLine(groundEye(f),target));
 }
+// 所有者は現在見える地点でだけ更新する。自軍の占領は命令の結果として既知。
+function groundRememberTerritory(){
+  const observers=fleets.filter(f=>f.team===0&&f.alive&&!f.embarked&&!groundAbsent(f)).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
+  const net=groundSupplyActive()?groundSupplyNet:null;
+  const key=observers.map(o=>`${o.eye.x},${o.eye.y},${o.eye.z},${o.range}`).join('|')+'/'+groundSites.map(s=>`${s.owner}:${s.contested}:${s.progress}`).join('|')+'/'+(net?.edges.map(e=>`${e.owner}:${e.contested}`).join('|')||'');
+  // 同じ観測位置と所有状態で、移動前後・描画ごとに視線を引き直さない。
+  if(groundTerritorySight?.sites===groundSites&&groundTerritorySight.net===net&&groundTerritorySight.key===key)return;
+  groundTerritorySight={sites:groundSites,net,key};
+  const remember=(s,p)=>{
+    s.observed=s.owner===0||observers.some(o=>Math.hypot(p.x-o.eye.x,p.z-o.eye.z)<=o.range&&groundClearLine(o.eye,{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}));
+    if(s.observed){s.knownOwner=s.owner;s.knownContested=s.contested;s.knownProgress=s.progress?.slice();}
+    else if(s.knownOwner===undefined){s.knownOwner=null;s.knownContested=false;}
+  };
+  for(const s of groundSites)remember(s,s.pos);
+  if(net)for(const e of net.edges){
+    if(e.circle)continue;
+    remember(e,groundPoint(e.x,e.y));
+  }
+}
 function groundUpdateSight(){
   if(!op.ground)return;
   const live=fleets.filter(f=>f.alive&&!f.embarked);
@@ -93,6 +113,7 @@ function groundUpdateSight(){
     const contact=t.groundContacts[1-t.team];
     t.lastPos=contact?contact.pos.clone():null;t.lostAt=contact?contact.at:-1e9;
   }
+  groundRememberTerritory();
 }
 function groundSightInit(){
   const d=WOS_TERRAIN[op.ground],r=d.sight,canvas=document.createElement('canvas');

@@ -111,7 +111,8 @@ function makeArrow(from,to,col,opt={}){
   ent.forEach(([t,wd],k)=>{
     const p=curve.getPointAt(Math.min(t,1)), tg=curve.getTangentAt(Math.min(t,.999)), s=new THREE.Vector3(-tg.z,0,tg.x);
     if(s.lengthSq()<1e-4) s.set(1,0,0); s.normalize().multiplyScalar(wd/2);
-    P.push(p.x+s.x,p.y+.5,p.z+s.z,p.x-s.x,p.y+.5,p.z-s.z); U.push(t,0,t,1);
+    const y=(x,z)=>op.ground?Math.max(p.y,groundSurfaceHeight(x,z))+.5:p.y+.5;
+    P.push(p.x+s.x,y(p.x+s.x,p.z+s.z),p.z+s.z,p.x-s.x,y(p.x-s.x,p.z-s.z),p.z-s.z); U.push(t,0,t,1);
     if(k>0){const o=(k-1)*2;I.push(o,o+1,o+2,o+1,o+3,o+2);}
   });
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('uv',new THREE.Float32BufferAttribute(U,2)); g.setIndex(I);

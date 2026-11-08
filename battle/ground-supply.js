@@ -9,9 +9,9 @@ function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMor
 function groundSupplyInitUnit(f){
   if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
   if(groundSupplyLand(f))f.groundMorale=groundSupplyRules().max;
-  f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
+  f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
 }
-function groundSupplyReset(){groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
+function groundSupplyReset(){groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
 function groundCircleAt(x,y){
   let best=null,weight=Infinity;
   for(const s of groundSites){const k=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(k<=1&&k<weight){best=s;weight=k;}}
@@ -133,6 +133,7 @@ function groundSupplyHit(f,amount){
   return amount-absorbed;
 }
 function groundRoutStart(f){
+  if(groundStaticTarget(f))return;
   groundCancelWork(f);groundClearOrders(f);f.groundGiving=null;f.bandTo=null;f.bandLeft=0;f.groundRout='routing';f.groundRoutRepath=0;f.groundRest=0;
 }
 function groundSupplyInternalMove(f,p,path){groundClearOrders(f);f.order={type:'move',dest:p.clone(),path:path||groundPath(f.pos,p,groundMoveKind(f))};if(!f.order.path)f.order=null;}
@@ -168,7 +169,7 @@ function groundSupplyGive(dt,netGains){
     if((netGains.get(t)||0)>=gain)continue;
     // ネットワークを既に受けた分を差し替える。実増加量だけを供給側から引く。
     const extra=Math.min(gain-prior,r.max-t.groundSupply);if(extra<=0)continue;
-    t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;used.add(t);f.groundSupplyGiving=true;
+    t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};
   }
 }
 function groundAirStep(f,dt){
@@ -201,7 +202,7 @@ function groundSupplyBefore(dt){
   if(!groundSupplyActive())return;
   if(op.groundDrill&&!groundSites.some(s=>s.id==='B'))groundSupplyDrillSetup(!!tutorial?.skipped);
   if(!groundSupplyNet)groundSupplyBuild();
-  for(const f of fleets){if(!f.alive||f.embarked)continue;
+  for(const f of fleets){if(!f.alive||f.embarked||groundStaticTarget(f))continue;
     if((groundSupplyLand(f)||groundSupplyAir(f))&&!Number.isFinite(f.groundSupply))groundSupplyInitUnit(f);
     f.groundHitLeft=Math.max(0,(f.groundHitLeft||0)-dt);f.groundMoved=false;f.groundSupplyAITimer=Math.max(0,(f.groundSupplyAITimer||0)-dt);
     if(groundSupplyAir(f))groundAirStep(f,dt);
@@ -209,6 +210,7 @@ function groundSupplyBefore(dt){
   }
 }
 function groundSupplyAfter(dt){
+  for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
   groundSupplyRoadCapture(dt);groundSupplyRefresh();const r=groundSupplyRules(),netGains=new Map(),d=WOS_TERRAIN[op.ground];
   for(const f of fleets){if(!f.alive||f.embarked||!groundSupplyLand(f))continue;
@@ -216,6 +218,7 @@ function groundSupplyAfter(dt){
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
     const gain=Math.min(r.max-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
     f.groundSupply+=gain;netGains.set(f,gain);
+    if(gain>0)f.groundSupplySource=at.site?{site:at.site}:{edge:at.edge};
     if(f.groundBuilding)groundSupplySpend(f,r.build*dt);
     const own=at.owner===f.team&&!at.contested;
     const gx=f.pos.x/GROUND_SCALE+24,gy=18-f.pos.z/GROUND_SCALE,type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
@@ -302,7 +305,39 @@ function groundSupplyMapClear(){
   for(const line of groundSupplyMap.lines){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}
   for(const el of groundSupplyMap.labels)el.remove();groundSupplyMap=null;
 }
+// 受給の実増加があった自軍部隊だけ。網の表示欄を閉じても線は残す。
+let groundSupplyLinks=new Map();
+function groundSupplyLinksClear(){
+  for(const line of groundSupplyLinks.values()){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}
+  groundSupplyLinks.clear();
+}
+function groundSupplyLinkSource(f){
+  const s=f.groundSupplySource;
+  if(!groundSupplyActive()||!f.alive||f.embarked||f.team!==0||!s)return null;
+  if(s.unit)return groundSupplyCanGive(s.unit,f)&&s.unit.groundGiving===f&&s.unit.groundSupplyGiving?s.unit.pos:null;
+  const at=groundSupplyAt(f);
+  if(!at.rate||s.site!==at.site||s.edge!==at.edge)return null;
+  return s.site?s.site.pos:s.edge?groundPoint(s.edge.x,s.edge.y):null;
+}
+function groundSupplyLinksDraw(){
+  const live=new Set();
+  for(const f of fleets){
+    const source=groundSupplyLinkSource(f);if(!source)continue;live.add(f);
+    let line=groundSupplyLinks.get(f);
+    if(!line){
+      line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0x8bdfff,transparent:true,opacity:.35,dashSize:.25,gapSize:.65,depthWrite:false}));
+      line.renderOrder=5;groundVisuals.add(line);groundSupplyLinks.set(f,line);
+    }
+    const key=`${source.x},${source.z}/${f.pos.x},${f.pos.z}`;
+    if(line.userData.key===key)continue;line.userData.key=key;
+    const n=Math.max(1,Math.ceil(Math.hypot(source.x-f.pos.x,source.z-f.pos.z)/.5)),points=[];
+    for(let i=0;i<=n;i++){const p=source.clone().lerp(f.pos,i/n);p.y=groundSurfaceHeight(p.x,p.z)+.24;points.push(p);}
+    line.geometry.dispose();line.geometry=new THREE.BufferGeometry().setFromPoints(points);line.computeLineDistances();
+  }
+  for(const [f,line] of groundSupplyLinks)if(!live.has(f)){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();groundSupplyLinks.delete(f);}
+}
 function groundSupplyDraw(){
+  groundSupplyLinksDraw();
   const panel=document.getElementById('groundSupply')?.parentElement,net=groundSupplyNet;
   if(!net||!panel?.open){groundSupplyMapClear();return;}
   if(groundSupplyMap?.key!==net.key){

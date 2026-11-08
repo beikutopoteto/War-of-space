@@ -2,7 +2,7 @@
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='';
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
-  if(!op.ground||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
+  if(!op.ground||groundStaticTarget(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
