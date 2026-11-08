@@ -127,15 +127,16 @@ function groundSeaLeg(a,b){
   if(!groundPass(x,y,'sea')||!groundPass(x+dx,y+dy,'sea'))return false;
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
-function groundPath(from,to,kind='vehicle'){
+function groundPath(from,to,kind='vehicle',dryOnly=false){
   const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
+  const pass=(x,y)=>groundPass(x,y,kind)&&(!dryOnly||groundRiverFactor(x,y,kind)===1);
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
     for(let i=0;i<=steps;i++)if(!groundPass(a[0]+(b[0]-a[0])*i/steps,a[1]+(b[1]-a[1])*i/steps,'air'))return null;
     const dest=to.clone();dest.y=from.y;const curve=new THREE.LineCurve3(from.clone(),dest),L=curve.getLength();
     return {curve,points:[from.clone(),dest],atIndex:1,L,s:0,pts:[dest],at:[L]};
   }
-  if(!groundPass(...a,kind)||!groundPass(...b,kind)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
+  if(!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
   const centers=i=>new THREE.Vector3(((i%cols+.5)*cell-24)*GROUND_SCALE,0,(18-(Math.floor(i/cols)+.5)*cell)*GROUND_SCALE);
   // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
   function leg(p,q){
@@ -144,7 +145,7 @@ function groundPath(from,to,kind='vehicle'){
     let sum=0;
     for(let k=0;k<=n;k++){
       const t=k/n,x=p.x+(q.x-p.x)*t,z=p.z+(q.z-p.z)*t;
-      if(!groundPass(x/GROUND_SCALE+24,18-z/GROUND_SCALE,kind))return Infinity;
+      if(!pass(x/GROUND_SCALE+24,18-z/GROUND_SCALE))return Infinity;
       const factor=groundFactor(x,z,kind);if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
@@ -164,7 +165,7 @@ function groundPath(from,to,kind='vehicle'){
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
       const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;
       // 斜めでも通行不可セルの角をすり抜けない。
-      if(dx&&dy&&(!groundPass((x+dx+.5)*cell,(y+.5)*cell,kind)||!groundPass((x+.5)*cell,(y+dy+.5)*cell,kind)))continue;
+      if(dx&&dy&&(!pass((x+dx+.5)*cell,(y+.5)*cell)||!pass((x+.5)*cell,(y+dy+.5)*cell)))continue;
       const j=yy*cols+xx,n=cost+leg(p,center(j));
       if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}
     }
@@ -200,6 +201,12 @@ function groundPath(from,to,kind='vehicle'){
   const curve=new THREE.CurvePath();let cost=0;
   for(let i=1;i<points.length;i++){curve.add(new THREE.LineCurve3(points[i-1],points[i]));cost+=leg(points[i-1],points[i]);}
   const L=curve.getLength();
+  // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
+  // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
+  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>groundRiverFactor(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,kind)<1)){
+    const detour=groundPath(from,to,kind,true);
+    if(detour&&detour.cost<cost)return detour;
+  }
   return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L,s:0,pts:[points[points.length-1]],at:[L]};
 }
 function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const updated=groundPath(f.pos,p.points[p.points.length-1],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
