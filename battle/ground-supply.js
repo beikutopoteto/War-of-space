@@ -235,9 +235,24 @@ function groundSupplyStatus(f){
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
   const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/WOS_TERRAIN[op.ground].capture.seconds*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
-function groundSupplyRosterText(list){
-  const values=key=>list.filter(f=>Number.isFinite(f[key])),show=(key,label)=>{const a=values(key);return a.length?`${label}${Math.round(a.reduce((n,f)=>n+f[key],0)/a.length)}%（最低${Math.floor(Math.min(...a.map(f=>f[key])))}）`:'';};
-  return [show('groundMorale','士気'),show('groundSupply','補給'),list.some(f=>f.groundRout)?`敗走・再集結${list.filter(f=>f.groundRout).length}`:''].filter(Boolean).join(' ');
+function groundSupplyReadings(list){
+  return [['groundMorale','士気'],['groundSupply','補給']].flatMap(([key,label])=>{
+    const values=list.filter(f=>Number.isFinite(f[key])).map(f=>Math.max(0,Math.min(100,100*f[key]/groundSupplyRules().max)));
+    return values.length?[{key,label,value:Math.round(values.reduce((a,b)=>a+b,0)/values.length),min:Math.floor(Math.min(...values)),low:values.some(v=>v<=30)}]:[];
+  });
+}
+function groundSupplyRosterText(list,aggregate=true){
+  const rows=groundSupplyReadings(list).map(r=>`${r.label} ${r.value}%${aggregate?`（最低${r.min}%）`:''}`);
+  if(aggregate&&list.some(f=>f.groundRout))rows.push(`敗走・再集結 ${list.filter(f=>f.groundRout).length}`);
+  return rows.join('　');
+}
+// 名札・中隊タイル・旅団/大隊で同じ細い棒を使う。対象外には文字も棒も置かない。
+function groundSupplyMeters(list){
+  const rows=groundSupplyReadings(list);
+  return rows.length?'<span class="ground-meters">'+rows.map(r=>`<span class="ground-track" data-meter="${r.key}" data-low="${r.low}" role="meter" aria-label="${r.label}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${r.value}"><i style="width:${r.value}%"></i></span>`).join('')+'</span>':'';
+}
+function groundSupplyUpdateMeters(el,list){
+  const html=groundSupplyMeters(list);if(el._groundMeters!==html){el._groundMeters=html;el.innerHTML=html;}
 }
 function groundSupplyHud(list){
   const button=document.getElementById('groundSupply'),status=document.getElementById('groundSupplyStatus');if(!button||!status)return;
@@ -259,15 +274,12 @@ function groundSupplyPlace(list,p){
   list.forEach((f,i)=>{f.pos.copy(positions[i]);f.pos.y=groundUnitHeight(f);f.home.copy(f.pos);f.post.copy(f.pos);groundClearOrders(f);for(const s of f.ships)s.pos.copy(f.pos);if(op.groundDrill)groundDrillEvent('supplyPlace',f,p);});return true;
 }
 function groundSupplyTile(f){
-  const meter=(key,label)=>`<span class="ground-meter" data-meter="${key}"><span>${label} <b></b></span><span class="ground-track"><i></i></span></span>`;
-  return (groundSupplyLand(f)?meter('groundMorale','士気'):'')+(groundSupplyLand(f)||groundSupplyAir(f)?meter('groundSupply','補給'):'<small>対象外</small>')+'<small class="ground-unit-status"></small>';
+  return '<span class="ground-tile-meters">'+groundSupplyMeters([f])+'</span>';
 }
 function groundSupplyUpdateTile(f){
-  for(const key of ['groundMorale','groundSupply']){
-    const meter=f.btn.querySelector(`[data-meter="${key}"]`);if(!meter)continue;
-    const value=Math.round(f[key]??groundSupplyRules().max);meter.querySelector('b').textContent=value+'%';meter.querySelector('i').style.width=value+'%';
-  }
-  const status=f.btn.querySelector('.ground-unit-status');if(status)status.textContent=groundSupplyStatus(f);
+  groundSupplyUpdateMeters(f.btn.querySelector('.ground-tile-meters'),[f]);
+  const meters=groundSupplyRosterText([f],false);
+  f.btn.setAttribute('aria-label',f.name+' / '+(meters?meters+' / ':'')+groundSupplyStatus(f));
 }
 function groundSupplyStartDeploy(only=null){
   if(!groundSupplyActive()||over)return;

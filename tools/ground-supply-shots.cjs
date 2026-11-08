@@ -1,7 +1,8 @@
-/* Claude用: node tools/ground-supply-shots.cjs。1600×900、補給-a～e.png。
-   --sim はブラウザ不要の固定場面54項目。写真では実関数・実UIを使い、ページ例外は失敗。
+/* Claude用: node tools/ground-supply-shots.cjs。1600×900、補給-a～i.png。
+   --sim はブラウザ不要の固定場面。写真では実関数・実UIを使い、ページ例外は失敗。
    (a) 本営と網の接続/切断/半速 (b) 一覧（士気・補給のみ） (c) 敗走
-   (d) 補給切れの航空帰投 (e) 補給部隊の分配。カメラ後は描画2回待つ。 */
+   (d) 補給切れの航空帰投 (e) 補給部隊の分配 (f) 地図の名札の棒
+   (g) 名札のマウス (h) 一覧の通常表示 (i) 一覧タイルのマウス。カメラ後は描画2回待つ。 */
 const fs=require('fs'),path=require('path');
 if(process.argv.includes('--sim')){
   const rows=require('../tests/ground-supply.cjs').nodeChecks(),bad=rows.filter(r=>!r.ok);
@@ -37,7 +38,7 @@ if(process.argv.includes('--sim')){
     await fresh();await page.evaluate(()=>{
       for(const f of fleets){if(Number.isFinite(f.groundSupply))f.groundSupply=58;if(Number.isFinite(f.groundMorale))f.groundMorale=72;}
       updateRoster();const row=fleets.find(f=>f.team===0&&f.groundKind==='infantry').btn,air=fleets.find(f=>f.team===0&&f.groundKind==='fighter').btn;
-      if(!row.textContent.includes('士気')||!row.textContent.includes('補給')||row.querySelector('.bar')||air.textContent.includes('士気')||!air.textContent.includes('補給'))throw new Error('一覧の項目が違う');
+      if(row.querySelectorAll('.ground-track').length!==2||row.textContent.includes('%')||row.querySelector('.bar')||air.querySelector('[data-meter="groundMorale"]')||air.querySelectorAll('.ground-track').length!==1)throw new Error('一覧の項目が違う');
     });await draw(23.5,29,110);await shot('b');
     // c: 敗走の実命令と実移動。味方を1kmより遠くに置いて逃走を撮る。
     await fresh();await page.evaluate(()=>{
@@ -72,6 +73,19 @@ if(process.argv.includes('--sim')){
       const f=selected,t=f.groundGiving;if(!t)throw new Error('補給先をクリックできない');const a=f.groundSupply,b=t.groundSupply;
       for(let i=0;i<40;i++)step(.05);if(!(f.groundSupply<a&&t.groundSupply>b&&Math.abs(a-f.groundSupply-(t.groundSupply-b))<1e-6))throw new Error('分配の収支が一致しない');
     });await draw(15.3,26,25);await shot('e');
-    console.log('| 写真 | .shots/補給-a.png ～ 補給-e.png（5枚、1600×900） |');
+    // f～i: テストと同じ部隊・残量で、通常の棒とマウス時の数値を撮る。
+    await page.mouse.move(5,450);
+    const ids=await page.evaluate(require('../tests/ground-supply.cjs').setupSupplyUIScene);
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await shot('f');
+    const tag=await page.evaluate(id=>{const r=fleets.find(f=>f.id===id).el.querySelector('.mk2').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};},ids.land);
+    await page.mouse.move(tag.x,tag.y);
+    if(!await page.evaluate(id=>{const nm=fleets.find(f=>f.id===id).el.querySelector('.nm');return getComputedStyle(nm).display!=='none'&&nm.textContent.includes('士気 72%　補給 24%');},ids.land))throw new Error('名札のマウスで数値が出ない');
+    await shot('g');
+    await page.mouse.move(5,450);await shot('h');
+    await page.hover('#'+ids.tile);
+    if(!await page.evaluate(()=>!rosterTip.hidden&&rosterTip.textContent.includes('士気 72%　補給 24%')))throw new Error('タイルのマウスで数値が出ない');
+    await shot('i');
+    console.log('| 写真 | .shots/補給-a.png ～ 補給-i.png（9枚、1600×900） |');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

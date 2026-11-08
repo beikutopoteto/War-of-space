@@ -165,12 +165,13 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>×${f.ships.length}</em>`:'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>×${f.ships.length}</em>`+groundSupplyMeters([f]):'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
   if(f.groundKind){
-    const content=`<b>${f.name}</b><span class="ln">${groundTransportLabel(f)} / ${lost?'最終確認位置':GROUND_BAND_NAMES[f.band||'ground']}</span>`;
-    if(f._labelContent!==content){f._labelContent=content;nm.innerHTML='<b></b><span class="ln"></span>';nm.querySelector('b').textContent=f.name;nm.querySelector('.ln').textContent=groundTransportLabel(f)+' / '+(lost?'最終確認位置':GROUND_BAND_NAMES[f.band||'ground']);} return;
+    const meters=groundSupplyRosterText([f],false),line=groundTransportLabel(f)+' / '+(lost?'最終確認位置':GROUND_BAND_NAMES[f.band||'ground']);
+    const content=JSON.stringify([f.name,line,meters]);
+    if(f._labelContent!==content){f._labelContent=content;nm.innerHTML='<b></b><span class="ln"></span><span class="ground-label-values"></span>';nm.querySelector('b').textContent=f.name;nm.querySelector('.ln').textContent=line;nm.querySelector('.ground-label-values').textContent=meters;} return;
   }
   const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a));
@@ -242,13 +243,17 @@ function buildRoster(){
 /* the small window over a tile: the army's name, the ships left of each class at the start (a class all sunk stays, faint),
    the hull and the stance */
 const rosterTip=document.createElement('div'); rosterTip.id='rtip'; rosterTip.hidden=true; document.body.appendChild(rosterTip);
-let tipFleet=null, tipRow=null;
-function showTip(f,row){ tipFleet=f; tipRow=row; fillTip(); rosterTip.hidden=false;
+let tipFleet=null, tipRow=null, tipGroundSummary=null;
+function positionRosterTip(row){
   const r=row.getBoundingClientRect(), w=rosterTip.offsetWidth, h=rosterTip.offsetHeight;
   rosterTip.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px'; rosterTip.style.top=Math.max(8,r.top-h-6)+'px'; }
-function hideTip(){ tipFleet=null; tipRow=null; rosterTip.hidden=true; }
-function fillTip(){ const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
-  if(op.ground){rosterTip.textContent=f.name+' ×'+f.ships.length+' / '+groundSupplyRosterText([f])+' / '+groundSupplyStatus(f);return;}
+function showTip(f,row){ tipFleet=f; tipGroundSummary=null; tipRow=row; rosterTip.classList.toggle('ground-tip',!!op.ground);fillTip(); rosterTip.hidden=false;positionRosterTip(row); }
+function showGroundSummaryTip(level,item,row){ tipFleet=null;tipGroundSummary={level,item};tipRow=row;rosterTip.classList.add('ground-tip');fillTip();rosterTip.hidden=false;positionRosterTip(row); }
+function hideTip(){ tipFleet=null; tipRow=null; tipGroundSummary=null;rosterTip.hidden=true; }
+function fillTip(){
+  if(tipGroundSummary){const {level,item}=tipGroundSummary;rosterTip.textContent=item.name+'\n'+(groundSupplyRosterText(groundMembers(level,item.id))||'対象外');return;}
+  const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
+  if(op.ground){const meters=groundSupplyRosterText([f],false);rosterTip.textContent=f.name+' ×'+f.ships.length+'\n'+(meters?meters+'\n':'')+groundSupplyStatus(f);return;}
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
   rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
     types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${shipLabel(t)}</span><em>×${by[t]||0}</em></div>`).join(''); }
@@ -415,7 +420,7 @@ function updateRoster(){
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
     if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit||!!op.ground&&!groundCommandAllowed(f,'stance'); }
   });
-  if(tipFleet) fillTip();
+  if(tipFleet||tipGroundSummary) fillTip();
   const nb=document.getElementById('newGrp'); if(nb){ nb.disabled=!t.length||!!selGroup; nb.nextSibling.textContent=t.length&&!selGroup?`${t.length}隊で戦区軍を作る`:''; }
   groups.forEach(g=>{ if(!g.ui) return; const {gb,gs,gt,gf}=g.ui, m=groupAlive(g), ev=m.filter(f=>f.stance==='evade').length;
     gb.setAttribute('aria-pressed',String(selGroup===g)); gb.disabled=!m.length;

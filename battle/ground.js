@@ -27,6 +27,7 @@ function groundBuildRoster(mk){
     fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
     const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
     const meters=document.createElement('small');meters.className='ground-summary';head.append(fold,pick,meters);node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters});
+    head.addEventListener('pointerenter',()=>showGroundSummaryTip(level,item,head));head.addEventListener('pointerleave',hideTip);
     if(item.open===false)return;
     const body=document.createElement('div');body.className='ground-rbody';node.append(body);
     if(level==='brigades')item.battalions.forEach(id=>{const b=groundOrg.battalions.find(b=>b.id===id);if(b)branch('battalions',b,body);});
@@ -47,7 +48,7 @@ function groundOpenSelected(list){
   open(groundOrg.brigades,'brigades');open(groundOrg.battalions,'battalions');if(changed)buildRoster();
 }
 function groundUpdateRoster(targets){
-  for(const {level,item,pick,meters} of groundRosterNodes){const m=groundMembers(level,item.id);meters.textContent=groundSupplyRosterText(m)||'対象外';pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
+  for(const {level,item,pick,meters} of groundRosterNodes){const m=groundMembers(level,item.id);groundSupplyUpdateMeters(meters,m);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
 }
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
 // 元の艦種の完成値を通常の換算式で読む。研究・陣営差・編成ボーナス・共通倍率は掛けない。

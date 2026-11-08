@@ -504,6 +504,8 @@ body.nolabels .fleet-label .nm{display:none}
 /* 地上部隊も宇宙と同じ .mk2 / .nm の表示条件を使う。 */
 .ground-label .mk2 .mk{width:20px;height:14px}
 .ground-label .mk2 em{font-family:var(--f-ui);font-size:11px;font-weight:600}
+.ground-label .mk2{display:grid;grid-template-columns:20px auto;column-gap:3px;row-gap:2px}
+.ground-label .mk2>.ground-meters{grid-column:1/-1}
 
 /* 地上作戦だけの3段。宇宙の連続バーは元の配置。 */
 #alt.ground-alt{width:226px;box-sizing:border-box;justify-items:stretch}
@@ -533,12 +535,19 @@ body.nolabels .ground-site{display:none}
 
 /* 架橋も既存の拠点札・占拠ゲージと同じ表示。 */
 .ground-bridge .capture-track i{height:5px}
-/* 地上の一覧は士気・補給のみ。既存の色と細い棒を再利用する。 */
-#roster.ground-roster .ground-meter{display:grid;gap:1px;width:100%;font-size:8px;text-align:left;line-height:1.2}
-#roster.ground-roster .ground-meter b{font-weight:400}
-#roster.ground-roster .ground-track{display:block;height:3px;background:rgba(127,200,255,.15)}
-#roster.ground-roster .ground-track i{display:block;height:100%;background:var(--blue)}
-#roster .ground-summary{grid-column:1/-1;font-size:9px;white-space:normal;line-height:1.3}
-#roster .ground-unit-status{font-size:8px;white-space:normal;line-height:1.2}
+/* 上から士気・補給。低残量は短さ・斜線・枠で示し、色だけに頼らない。 */
+.ground-meters{display:grid;gap:2px;width:100%;min-width:0}
+.ground-track{display:block;height:3px;background:rgba(127,200,255,.15);box-shadow:inset 0 0 0 1px rgba(220,235,245,.18)}
+.ground-track i{display:block;height:100%;background:var(--blue)}
+.ground-track[data-meter="groundMorale"] i{background:var(--brass)}
+.ground-track[data-low="true"]{outline:1px dashed var(--red);outline-offset:0;background:repeating-linear-gradient(135deg,rgba(255,153,139,.35) 0 1px,transparent 1px 3px)}
+.ground-track[data-low="true"] i{background:var(--red)}
+#roster.ground-roster button[id^="fl"]{grid-template-columns:minmax(0,1fr);grid-template-rows:17px auto 8px;height:50px;min-width:0}
+#roster.ground-roster .frow{min-width:0}
+#roster.ground-roster .no{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#roster .ground-tile-meters{display:block;width:100%;align-self:start}
+#roster .ground-summary{grid-column:1/-1;display:block;padding:2px 3px;min-width:0}
+#roster.ground-roster .ground-rhead{grid-template-columns:25px minmax(0,1fr)}
+#rtip.ground-tip{white-space:pre-line;overflow-wrap:anywhere}
 #groundSupplyStatus{display:block;white-space:normal;font-size:10px}
 .ground-supply-point{position:absolute;left:0;top:0;pointer-events:none;color:#8bdfff;background:rgba(5,14,24,.55);padding:1px 3px;font-size:10px;white-space:nowrap}
