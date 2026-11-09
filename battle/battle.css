@@ -569,3 +569,6 @@ body.nolabels .ground-site{display:none}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
 #groundUniqueCommands.expanded{max-height:none}
 #groundCommandExpand[aria-expanded="true"] svg{transform:rotate(180deg)}
+.ground-range-label,.ground-road-label{position:absolute;left:0;top:0;padding:2px 5px;background:rgba(8,14,26,.68);font:10px var(--f-ui);white-space:nowrap;pointer-events:none;border-top:1px solid currentColor}
+.ground-range-label{color:var(--brass)}
+body.noui .ground-range-label,body.noui .ground-road-label,body.nolabels .ground-range-label,body.nolabels .ground-road-label{display:none}

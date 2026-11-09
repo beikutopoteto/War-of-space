@@ -117,6 +117,7 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
+  groundRangesClear();
   document.getElementById('groundCommandBar').hidden=!active;
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
@@ -202,6 +203,7 @@ function groundSelectionDraw(f,picked){
 function groundDraw(){
   if(!groundVisuals) return;
   const picked=orderTargets();
+  groundRangesDraw(picked);
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
@@ -309,7 +311,7 @@ function groundCaptureStep(dt){
   for(const s of groundSites){
     const present=[false,false];
     for(const f of fleets) if(groundCanCapture(f)&&groundDistanceTo(f,s)<=s.captureRadius) present[f.team]=true;
-    s.contested=present[0]&&present[1];
+    s.contested=present[0]&&present[1];s.capturingTeam=s.contested?null:present[0]?0:present[1]?1:null;
     if(s.contested) continue;
     const team=present[0]?0:present[1]?1:null;
     if(team===null||s.owner===team) continue;
@@ -435,13 +437,13 @@ function groundPaintTerritory(){
   ctx.putImageData(img,0,0);t.texture.needsUpdate=true;t.key=key;
 }
 function groundCaptureDraw(){
-  groundRememberTerritory();groundPaintTerritory();
+  groundRememberTerritory();groundPaintTerritory();groundRoadLabelsDraw();
   for(const s of groundSites){
     const color=s.knownOwner===0?'#8bdfff':s.knownOwner===1?'#ff998b':'#cad1c5',p=proj(s.pos.clone().add(new THREE.Vector3(0,1,0)));
     s.ring.material.color.set(color); s.el.style.color=color;
     s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
     const owner=s.knownOwner===0?'地球連合':s.knownOwner===1?'惑星共和国':'中立',progress=(s.knownProgress||[0,0]).map(n=>Math.floor(n/s.captureSec*100));
-    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner}${s.knownContested?' / 争奪中':''}　青${progress[0]}% 赤${progress[1]}%${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
+    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,s.captureSec)}　青${progress[0]}% 赤${progress[1]}%${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
     s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${progress[i]}%`);
   }
 }
@@ -481,3 +483,47 @@ document.getElementById('groundCommandExpand').addEventListener('click',e=>{
   button.setAttribute('aria-expanded',String(expanded));
   document.getElementById('groundUniqueCommands').classList.toggle('expanded',expanded);
 });
+
+// 射程は地表へ投影した破線。着弾範囲の塗り円とは別に表示する。
+let groundRanges=new Map();
+function groundRangesClear(){
+  for(const v of groundRanges.values()){v.line.parent?.remove(v.line);v.line.geometry.dispose();v.line.material.dispose();v.el.remove();}
+  groundRanges.clear();
+}
+function groundRangeInfo(f){
+  if(!f?.alive||f.embarked||groundAbsent(f)||!Number.isFinite(f.range)||f.range<=0)return null;
+  const bands=['ground','low','high','sea'].filter(band=>groundFireFactor(f,{band})>0);
+  const strike=!bands.length&&groundStrikeWeapon(f);
+  return bands.length?{text:'直接射撃',bands}:strike?{text:'砲撃射程',bands:[]}:null;
+}
+function groundRangesDraw(list){
+  if(!groundVisuals)return;
+  const live=new Set();
+  for(const f of list){
+    const info=groundRangeInfo(f);if(!info)continue;live.add(f);
+    let v=groundRanges.get(f);
+    if(!v){
+      const line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.7,depthWrite:false,dashSize:.7,gapSize:.45}));line.renderOrder=5;groundVisuals.add(line);
+      const el=document.createElement('div');el.className='ground-range-label';labelsEl.appendChild(el);v={line,el};groundRanges.set(f,v);
+    }
+    const key=[f.pos.x,f.pos.z,f.range].join('/');
+    if(v.key!==key){
+      const points=[];for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=f.pos.x+Math.cos(a)*f.range,z=f.pos.z+Math.sin(a)*f.range;points.push(new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z));}
+      v.line.geometry.dispose();v.line.geometry=new THREE.BufferGeometry().setFromPoints(points);v.line.computeLineDistances();v.key=key;
+    }
+    v.line.visible=true;const p=proj(new THREE.Vector3(f.pos.x+f.range,groundSurfaceHeight(f.pos.x+f.range,f.pos.z)+.4,f.pos.z));
+    v.el.hidden=p.z>1||p.x<0||p.y<0||p.x>innerWidth||p.y>innerHeight;
+    v.el.style.transform=`translate(${p.x}px,${p.y}px)`;
+    v.el.textContent=info.text+' '+(f.range/GROUND_SCALE).toFixed(1)+'km'+(info.bands.length?' · '+info.bands.map(b=>GROUND_BAND_NAMES[b]).join('/'):'');
+  }
+  for(const [f,v] of groundRanges)if(!live.has(f)){v.line.parent?.remove(v.line);v.line.geometry.dispose();v.line.material.dispose();v.el.remove();groundRanges.delete(f);}
+}
+// 進捗は観測済み情報だけを使う。視界外の最新の所有者・進捗を漏らさない。
+function groundCaptureReadout(s,seconds){
+  const prefix=s.observed===false?'最終確認：':'';
+  if(s.knownContested)return prefix+'競合中・占領停止';
+  const p=s.knownProgress||[0,0],team=p[0]>0&&s.knownOwner!==0?0:p[1]>0&&s.knownOwner!==1?1:null;
+  if(team===null)return prefix+(s.knownOwner==null?'未占領':'占領済み');
+  const remaining=Math.max(0,Math.ceil(seconds-p[team]));
+  return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+' あと'+remaining+'秒';
+}
