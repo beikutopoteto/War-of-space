@@ -60,6 +60,7 @@ Codex／ChatGPT が「The War of Sol」（リポジトリ名 War of Space）を�
 | `docs/campaign.md` | キャンペーンの作戦の表、各節の実装メモ |
 | `docs/chapter1.md` | 第一章の物語の正本 |
 | `docs/chapter2.md` | 第二章の物語の正本（叩き台） |
+| `docs/ground-redesign-plan.md` | 地上・海上戦の再設計作業表（確定事項・仮案・未着手） |
 | `docs/terrain.md` | 地上戦のマップの地形作成方針書（地形・オブジェクト・地表、作る順、設計図の形）。作戦ごとの設計図は `docs/terrain/` |
 | `docs/supply.md` | 地上戦の補給と士気（仕様と仮の数値） |
 | `docs/weather.md` | 天候（雲・雨・雷・雪）のまとめ。実装は地上戦の土台のあと |
