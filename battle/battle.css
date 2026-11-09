@@ -558,14 +558,14 @@ body.nolabels .ground-site{display:none}
 #groundCommandBar .command-cap i{font-family:var(--f-num);font-style:italic;color:var(--brass);margin-right:5px}
 #groundCommandBar .command-row,#groundCommandBar .command-common,#groundUniqueCommands{display:flex;align-items:center;gap:3px}
 #groundCommandBar .command-group{font-size:10px;font-weight:600;white-space:nowrap;color:var(--ink-dim);padding:0 4px}
-#groundCommandBar .command-divider{height:26px;border-left:1px solid var(--line);margin:0 3px}
-#groundCommandBar button{flex:none;display:flex;align-items:center;justify-content:center;width:48px;height:27px;padding:1px 4px;border:0;border-radius:0;background:rgba(127,200,255,.08);color:var(--brass);cursor:pointer;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
-#groundCommandBar button svg{display:block;width:40px;height:25px;flex:none}
+#groundCommandBar .command-divider{height:24px;border-left:1px solid var(--line);margin:0 3px}
+#groundCommandBar button{flex:none;display:flex;align-items:center;justify-content:center;width:48px;height:25px;padding:1px 4px;border:0;border-radius:0;background:rgba(127,200,255,.08);color:var(--brass);cursor:pointer;clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+#groundCommandBar button svg{display:block;width:36px;height:22.5px;flex:none}
 #groundCommandBar button:hover:not(:disabled){color:var(--ink);background:rgba(127,200,255,.18)}
 #groundCommandBar button[aria-pressed="true"]{color:var(--void);background:var(--blue)}
 #groundCommandBar button:disabled{color:#a4c7d8;--cmd-accent:currentColor;opacity:.5;cursor:default}
 #groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 #groundCommandBar [hidden]{display:none!important}
-#groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:27px;overflow:hidden;align-self:flex-end}
+#groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
 #groundUniqueCommands.expanded{max-height:none}
 #groundCommandExpand[aria-expanded="true"] svg{transform:rotate(180deg)}

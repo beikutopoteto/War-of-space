@@ -69,4 +69,4 @@ localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `mi
 - 早送りの道具（`tools/`）は回すたびに `data/` を読み込む。回しているあいだにデータを書き換えない（途中から別の値で測ることになる）。数を試すときは `PATCH=` を使う。
 `npm install` のあと `npm test`（`tests/smoke.cjs`、ヘッドレス Chromium。CDN の代わりに `node_modules/three` を返す）。git のワークツリーで並行して作業するときは、そこでも `npm install` する。`node_modules` をリンクで置くと、片付けたときに本体の `node_modules` が消える（2026-10-14。`.gitignore` はリンクも除外する）。同じテストが GitHub Actions で PR ごとに走る（上限30分。2026-10-24 に19分かかり20分で切れたので上げた）。`package.json` は確認用の道具だけ。Codex と併用するときのセットアップとテストの手順は `docs/collaboration.md`。
 
-確定済みの地上命令アイコンは `data/command-icons.js` の `window.WOS_COMMAND_ICONS`。普通のscriptで `battle/ground.js` より先に読み、SVGをそのままボタンに入れる。寸法は40×25px（縮小指示後）。SVG内の線幅・パス・動作部分の色指定は変更しない。
+確定済みの地上命令アイコンは `data/command-icons.js` の `window.WOS_COMMAND_ICONS`。普通のscriptで `battle/ground.js` より先に読み、SVGをそのままボタンに入れる。寸法は36×22.5px（縮小指示後）。SVG内の線幅・パス・動作部分の色指定は変更しない。

@@ -27,7 +27,7 @@ function logEvent(title,desc){
 /* ---------- selection & orders ---------- */
 /* the selection: one fleet, several picked with Shift, or a whole army group (g). `selected` is the one the altitude bar and rings follow */
 function setSel(list,g=null){
-  if(op.ground&&groundWorkAiming==='move')groundWorkAiming=null;
+  if(op.ground)groundClearAiming();
   list=list.filter(f=>f&&f.alive); selGroup=g&&list.length?g:null; selMulti=list;
   selected=(selGroup?groupFlag(selGroup):null)||(list.includes(selected)?selected:list[0])||null;
   if(!selected) hideGhost(); if(typeof closePick==='function') closePick(); fleets.forEach(x=>x.el.classList.toggle('sel',list.includes(x)));
@@ -196,6 +196,16 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  // 味方クリックは通常の選択。搭乗・補給を明示したときだけ相手指定。
+  if(op.ground&&!deploying&&!cmdOnly){
+    const target=labelTarget||pick(x,y).best;
+    if(target&&target.team===0){
+      const list=orderTargets();
+      if(!queue&&groundSupplyAiming&&groundSupplyCanGive(list.length===1?list[0]:null,target)){groundSupplyCommand(list,target);groundHud();return;}
+      if(!queue&&groundWorkAiming==='board'&&(target.groundKind==='apc'||groundLandingShip(target))){groundBoardCommand(list,target);return;}
+      if(queue)toggleMulti(target);else select(list.length===1&&list[0]===target?null:target);return;
+    }
+  }
   if(op.ground&&!deploying&&groundWorkAiming==='move'){
     const hit=groundAt(x,y);if(hit){groundWorkAiming=null;groupOrder({type:'move',dest:hit,queue});groundHud();}return;
   }
@@ -213,7 +223,7 @@ function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(deploying){ if(best&&best.team===0){ if(!cmdOnly){ const g=groupOf(best); if(g) selectGroup(g); else select(best); } return; }
     const hit=groundAt(x,y); if(hit) placeAt(hit); return; }
   /* an own fleet: select it (again to let go); with Shift, add it to the selection or take it out */
-  if(op.ground&&best&&best.team===0&&(best.groundKind==='apc'||groundLandingShip(best))&&(groundWorkAiming==='board'||orderTargets().length===1&&(groundLandingShip(best)?groundShipBoardable(orderTargets()[0]):groundBoardable(orderTargets()[0])))){groundBoardCommand(orderTargets(),best);return;}
+  if(op.ground&&cmdOnly&&best&&best.team===0&&(best.groundKind==='apc'||groundLandingShip(best))&&orderTargets().length===1&&(groundLandingShip(best)?groundShipBoardable(orderTargets()[0]):groundBoardable(orderTargets()[0]))){groundBoardCommand(orderTargets(),best);return;}
   if(op.ground&&groundWorkAiming==='board')return;
   if(best&&best.team===0){ if(cmdOnly) return; if(queue){ toggleMulti(best); return; } const t=orderTargets(); select(t.length===1&&t[0]===best?null:best); return; }
   if(selected&&selected.alive){
@@ -332,7 +342,7 @@ addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.pre
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(op.ground&&groundSupplyAiming){groundSupplyAiming=false;groundHud();return;} if(op.ground&&groundWorkAiming){groundWorkAiming=null;groundHud();return;} if(op.ground&&groundStrikeAiming){groundStrikeAiming=false;groundHud();return;} openPause(); return; }
+  if(e.code==='Escape'){ if(op.ground&&(groundSupplyAiming||groundWorkAiming||groundStrikeAiming)){groundClearAiming();groundHud();return;} openPause(); return; }
   if(e.code==='KeyB'&&op.ground&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); groundStrikeToggle(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }

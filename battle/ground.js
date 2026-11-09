@@ -93,6 +93,12 @@ function groundSetBand(list,band){
   }
   groundHud(); return true;
 }
+// 入力待ちだけを解除し、すでに発行した部隊命令は残す。
+function groundClearAiming(){
+  groundWorkAiming=null;groundStrikeAiming=false;groundSupplyAiming=false;
+  groundTransportMessage=groundStrikeMessage=groundSupplyMessage='';
+  if(typeof closePick==='function')closePick();
+}
 function groundHud(){
   const list=orderTargets(), panel=document.getElementById('alt'); panel.hidden=false;
   groundStrikeHud(list); groundTransportHud(list); groundSupplyHud(list); groundCommandBarHud(list);
@@ -414,14 +420,14 @@ function groundCommandBarHud(list){
 }
 document.getElementById('groundMove').addEventListener('click',()=>{
   const aiming=groundWorkAiming!=='move';
-  groundSupplyAiming=false;groundStrikeAiming=false;groundWorkAiming=aiming?'move':null;closePick();groundHud();
+  groundClearAiming();groundWorkAiming=aiming?'move':null;groundHud();
 });
 document.getElementById('groundHold').addEventListener('click',()=>{
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
   saveUndo(list);
   for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);}
-  groundWorkAiming=null;groundStrikeAiming=false;groundSupplyAiming=false;closePick();groundHud();updateRoster();
+  groundClearAiming();groundHud();updateRoster();
 });
 document.getElementById('groundCommandExpand').addEventListener('click',e=>{
   const button=e.currentTarget,expanded=button.getAttribute('aria-expanded')!=='true';
