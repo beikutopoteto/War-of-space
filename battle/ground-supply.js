@@ -11,7 +11,7 @@ function groundSupplyInitUnit(f){
   if(groundSupplyLand(f))f.groundMorale=groundSupplyRules().max;
   f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
 }
-function groundSupplyReset(){groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
+function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
 function groundCircleAt(x,y){
   let best=null,weight=Infinity;
   for(const s of groundSites){const k=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(k<=1&&k<weight){best=s;weight=k;}}
@@ -58,16 +58,18 @@ function groundRoadAt(x,y){
   for(const e of groundSupplyNet.edges){const dist=groundDistance(x,y,e.path);if(dist<best){best=dist;found=e;}}
   return found;
 }
+function groundCanCaptureRoad(f){return f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
+function groundRoadCaptureSeconds(){const n=WOS_TERRAIN[op.ground].capture.roadSeconds;return Number.isFinite(n)&&n>0?n:5;} // 道路専用の仮値
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
-  const troops=fleets.filter(groundCanCapture),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const troops=fleets.filter(groundCanCaptureRoad),seconds=groundRoadCaptureSeconds(),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
     const present=[false,false];for(const f of troops)if(groundDistance(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,e.path)<=width+1e-8)present[f.team]=true;
-    e.contested=present[0]&&present[1];if(e.contested)continue;
+    e.contested=present[0]&&present[1];e.capturingTeam=e.contested?null:present[0]?0:present[1]?1:null;if(e.contested)continue;
     const team=present[0]?0:present[1]?1:null;if(team===null||team===e.owner)continue;
-    e.progress[team]=Math.min(WOS_TERRAIN[op.ground].capture.seconds,e.progress[team]+dt);
-    if(e.progress[team]>=WOS_TERRAIN[op.ground].capture.seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}
+    e.progress[team]=Math.min(seconds,e.progress[team]+dt);
+    if(e.progress[team]>=seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}
   }
 }
 function groundSupplyRoadOpen(e){
@@ -236,7 +238,7 @@ function groundSupplyStatus(f){
   if(f.groundRout)return f.groundRout==='routing'?'敗走中・操作不可':'再集結・移動と搭乗のみ';
   if(f.groundSupplyGiving)return '補給を分配中';
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
-  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/WOS_TERRAIN[op.ground].capture.seconds*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
+  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds()*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
 function groundSupplyReadings(list){
   return [['groundMorale','士気'],['groundSupply','補給']].flatMap(([key,label])=>{
@@ -354,4 +356,23 @@ function groundSupplyDraw(){
     }
   }
   for(const el of groundSupplyMap.labels){const p=proj(el.supplyPos);el.hidden=p.z>1;el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;}
+}
+
+let groundRoadLabels=[];
+function groundRoadLabelsClear(){groundRoadLabels.forEach(el=>el.remove());groundRoadLabels=[];}
+function groundRoadLabelsDraw(){
+  if(!groundSupplyActive()||!groundSupplyNet){groundRoadLabelsClear();return;}
+  const focus=orderTargets()[0],placed=[];let count=0;
+  const edges=groundSupplyNet.edges.filter(e=>!e.circle&&(e.knownContested||(e.knownProgress||[]).some((p,i)=>p>0&&e.knownOwner!==i)));
+  if(focus){const x=focus.pos.x/GROUND_SCALE+24,y=18-focus.pos.z/GROUND_SCALE;edges.sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y));}
+  for(const e of edges){
+    const p=proj(groundPoint(e.x,e.y).add(new THREE.Vector3(0,1,0)));
+    if(p.z>1||p.x<0||p.x>innerWidth||p.y<0||p.y>innerHeight||placed.some(q=>Math.abs(q.x-p.x)<170&&Math.abs(q.y-p.y)<28))continue;
+    placed.push(p);let el=groundRoadLabels[count++];
+    if(!el){el=document.createElement('div');el.className='ground-road-label';labelsEl.appendChild(el);groundRoadLabels.push(el);}
+    el.hidden=false;el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
+    el.textContent='道路 · '+groundCaptureReadout(e,groundRoadCaptureSeconds());
+    el.style.color=e.knownContested?'#e2c58a':e.knownOwner===1?'#ff998b':'#8bdfff';
+  }
+  groundRoadLabels.slice(count).forEach(el=>el.hidden=true);
 }

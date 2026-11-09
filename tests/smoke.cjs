@@ -19,6 +19,7 @@ const { checkCommandIcons } = require('./command-icons.cjs');
 const { checkGroundFixes } = require('./ground-fixes.cjs');
 const { crossingCases } = require('./ground-path.cjs');
 const {nodeChecks:groundControlChecks}=require('./ground-controls.cjs');
+const {nodeChecks:groundReadoutChecks}=require('./ground-readouts.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -34,6 +35,7 @@ function check(ok, label, detail = '') {
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
+  for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)

@@ -23,11 +23,11 @@ function supplyCases(){
     groundSupplyRoadCapture(.1);groundSupplyRefresh();
     check('道路競合の地点とその先も半速',groundSupplyAt(blue).rate===.5&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===.5);
     const downstream=unit(0,'vehicle',18);downstream.groundSupply=40;downstream.groundSupplyWait=2;fleets.push(downstream);groundSupplyAfter(2);check('競合の下流で実補充量も毎秒1',near(downstream.groundSupply,42));
-    blue.pos.copy(groundPoint(10,27));groundSupplyRoadCapture(30);groundSupplyRefresh();
-    check('敵が道路を30秒で占領し補給を切る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
+    blue.pos.copy(groundPoint(10,27));groundSupplyRoadCapture(5);groundSupplyRefresh();
+    check('敵が道路を5秒で占領し補給を切る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
     red.pos.copy(groundPoint(15,27));groundSupplyRoadCapture(1);groundSupplyRefresh();
     check('敵が去っても道路占領と切断が残る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
-    blue.pos.copy(groundPoint(15,29));groundSupplyRoadCapture(30);groundSupplyRefresh();
+    blue.pos.copy(groundPoint(15,29));groundSupplyRoadCapture(5);groundSupplyRefresh();
     check('味方が道を再占領すれば再接続',groundRoadAt(15,29).owner===0&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===1);
     groundSites[0].owner=1;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営喪失で全網停止',groundSupplyAt(blue).rate===0);
     groundSites[0].owner=0;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営奪還で供給再開',groundSupplyAt(blue).rate===1);
@@ -68,7 +68,7 @@ function supplyCases(){
     f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('味方のそばでも色の外では士気回復なし',f.groundMorale===0);
     f.pos.copy(groundPoint(15,29));f.groundMoved=false;f.groundRest=0;groundSupplyAfter(5);check('味方の道でも回復開始は5秒後',f.groundMorale===0);groundSupplyAfter(15);check('味方色の道で士気30回復し戦闘復帰',near(f.groundMorale,30)&&!f.groundRout);
     const block=groundRoadAt(10,29);block.owner=1;groundSupplyRefresh();f.groundMorale=10;f.groundSupply=40;f.groundRest=5;f.groundSupplyWait=0;groundSupplyAfter(1);check('孤立した味方色では士気だけ回復',near(f.groundMorale,12)&&near(f.groundSupply,40));
-    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(10);check('敵色の道では士気も回復しない',f.groundMorale===10);
+    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(1);check('敵色の道をまだ占領していない間は士気も回復しない',f.groundMorale===10);
     setup();const enemy=unit(1,'infantry',35),enemyFriend=unit(1,'vehicle',34);fleets=[enemy,enemyFriend];
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=1;groundSupplyRefresh();enemy.groundSupply=40;enemy.groundSupplyWait=2;groundSupplyAfter(1);
     check('敵も自軍本営の接続道路で同じ速度の補充',near(enemy.groundSupply,42));enemy.groundMorale=0;groundRoutStart(enemy);groundRoutStep(enemy,.05);check('敵も士気0で味方へ敗走',enemy.groundRout==='routing'&&enemy.groundRoutTarget===enemyFriend);

@@ -51,7 +51,7 @@ async function checkGroundCapture(page, check) {
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();
     const contestedSite=groundSites.find(s=>s.contested), raw=groundTerritory.canvas.getContext('2d').getImageData(0,0,480,360).data;
-    const hatch=!!contestedSite&&contestedSite.owner===1&&contestedSite.el.textContent.includes('争奪中')&&raw.some((n,i)=>i%4===3&&n===190);
+    const hatch=!!contestedSite&&contestedSite.owner===1&&contestedSite.el.textContent.includes('競合中')&&raw.some((n,i)=>i%4===3&&n===190);
     for(const f of fleets){f.stance='evade';if(f.team===1)f.alive=false;}
     // 敵全滅だけでは勝たず、3拠点を1つずつ実際に占領する。
     step(.05);const noWipeWin=!over;
