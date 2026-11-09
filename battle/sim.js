@@ -365,7 +365,7 @@ function makePath(from,pts){
 /* when an order is done, the next queued one starts (an attack on a target already gone is skipped) */
 function nextOrder(f){ while(f.queue&&f.queue.length){ const o=f.queue.shift(); if(o.type==='attack'&&!o.target.alive) continue; order(f,o); return; } }
 /* the waypoints (and destination) still ahead of a move order */
-function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+.5):[...(o.via||[]),o.dest]; }
+function pathLeft(o){ const p=o.path; return p?p.pts.filter((_,i)=>p.at[i]>p.s+(op.ground?1e-8:.5)):[...(o.via||[]),o.dest]; }
 /* advance along the path; true when the end is reached */
 function followPath(f,dt){
   if(op.ground) return groundFollow(f,dt);

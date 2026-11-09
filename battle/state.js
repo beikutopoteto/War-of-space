@@ -364,6 +364,7 @@ function saveUndo(t){
   if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
 }
 function undo(){
+  if(op.ground)groundClearAiming();
   const u=undoStack.pop(); updateUndo(); if(!u||over) return;
   for(const s of u){ const f=s.f; if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo'))) continue;
     if(op.ground)groundCancelWork(f);
@@ -375,6 +376,7 @@ function undo(){
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
   const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type))); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
+  if(op.ground)groundClearAiming();
   saveUndo(t);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
@@ -385,7 +387,7 @@ function groupOrder(o){
     /* with formation on, every army heads straight for its own place around the point (it does not chase the flagship);
        the formation is turned so that ahead is the way the flagship goes from where it is (or from its last point) */
     const formation=g&&g.form&&groupFlag(g), point=g&&!g.form;
-    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]; } return x.type==='bridge'?f.pos:x.target.pos; };
+    const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]||x.dest; } return x.type==='bridge'?f.pos:x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
     const dir=formation?o.dest.clone().sub(base(formation)):null; if(dir&&dir.x*dir.x+dir.z*dir.z<1e-4) dir.copy(formation.march);
     t.forEach(f=>{ const x=tail(f), dest=point?o.dest.clone():formation?o.dest.clone().add(turnTo(formationOffset(g,f),dir)):o.dest.clone().add(base(f).clone().sub(c)); f.syncSpeed=sync;
