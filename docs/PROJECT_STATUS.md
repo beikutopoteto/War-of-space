@@ -15,8 +15,9 @@
 
 |ブランチ|内容|状態|
 |---|---|---|
-|claude/ground-scatter|段階3：距離依存の最小散布円|実装・対象確認・写真済み。段階2のPR #383の最新CIを確認中|
-|claude/ground-ballistics|段階2：弾道・予想着弾・地形遮蔽|実装・対象確認・写真保存済み。PR/CIへ|
+|claude/ground-volley|段階4：斉射・ロケット連射と装填|別worktreeで実装・確認中|
+|claude/ground-scatter|段階3：距離依存の最小散布円|実装・対象確認・写真済み。PR/CIへ|
+|claude/ground-ballistics|段階2：弾道・予想着弾・地形遮蔽|PR #383の最新a0f0e84でCI成功・a0228b4へマージ|
 |claude/ground-fire-ranges|段階1：射程データ・射撃方式の分離|PR #382を最新8598df8のCI成功後にマージ（bc42158）|
 |claude/ground-redesign-plan|今回の決定・射程仮案・未着手作業の整理|資料PR #381はドラフト保持。承認済み計画は実装ブランチにも含む|
 |claude/ground-area-strike|#380の実装と写真|マージ済み。撮影ファイル保持|
@@ -57,3 +58,5 @@
 ## 段階3の確認
 
 専用32、範囲27、砲撃46、兵科91、実発射と射程23、表示34、対象ブラウザ141が成功。円・曲線帯の下限、混成、距離変化、射程端の精度迂回を確認。`docs/ground-scatter.md` に方式と仮の補間を記録。`.shots/ground-scatter-minimum.png` は実演習1600×900。段階4の一斉射・ロケット連射はまだ未実装。
+
+段階2のCI42712237464はa0f0e84で成功。PR #383をa0228b4へマージ済み。段階3へmainを取り込み、確認済みf63ba6eと内容一致を確認。次は段階3の最新CI成功後にマージ。段階4は並行実装中。
