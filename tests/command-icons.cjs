@@ -16,6 +16,9 @@ function commandIconCases(){
    const carrier=fleets.find(f=>f.team===0&&f.groundKind==='apc');
    select(troop);tap(0,0,false,false,carrier);
    const friendSelect=selected===carrier&&!troop.order;
+   select(troop);tap(0,0,true,false,carrier);
+   const directBoard=troop.order?.type==='board'&&troop.order.target===carrier;
+   groundCancelWork(troop);groundClearOrders(troop);
    select(troop);document.getElementById('groundBoard').click();
    dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true}));
    const cancelled=!groundWorkAiming&&!groundStrikeAiming&&!groundSupplyAiming&&!paused;
@@ -29,12 +32,12 @@ function commandIconCases(){
    const svg=document.querySelector('#groundStrike svg'),r=svg.getBoundingClientRect();
    const shared=['deploy','plan','execute'].every(id=>document.querySelector(`[data-command-icon="${id}"]`).disabled);
    const left=!!document.querySelector('#groundView button')&&!document.getElementById('groundAlt').hidden;
-   return {cleared,friendSelect,cancelled,buttonSize:[document.getElementById('groundMove').getBoundingClientRect().width,document.getElementById('groundMove').getBoundingClientRect().height],identical,board,move,hold,expanded,collapsed,shared,left,ratio:r.width/r.height,size:[r.width,r.height],title,bar:!document.getElementById('groundCommandBar').hidden};
+   return {directBoard,cleared,friendSelect,cancelled,buttonSize:[document.getElementById('groundMove').getBoundingClientRect().width,document.getElementById('groundMove').getBoundingClientRect().height],identical,board,move,hold,expanded,collapsed,shared,left,ratio:r.width/r.height,size:[r.width,r.height],title,bar:!document.getElementById('groundCommandBar').hidden};
 
 }
 async function checkCommandIcons(page,check){
  const r=await page.evaluate(commandIconCases);
- for(const k of ['cleared','friendSelect','cancelled','identical','board','move','hold','expanded','collapsed','shared','left','bar'])check(r[k],'命令アイコン: '+k);
+ for(const k of ['directBoard','cleared','friendSelect','cancelled','identical','board','move','hold','expanded','collapsed','shared','left','bar'])check(r[k],'命令アイコン: '+k);
  check(r.ratio===1.6&&r.size.join(',')==='36,22.5','命令アイコン: 実寸36×22.5・縦横比維持');
  check(r.title==='輸送車に乗車・岸の揚陸艦に乗艦','命令アイコン: 既存titleを保持');
 }

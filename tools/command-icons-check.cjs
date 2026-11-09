@@ -10,7 +10,7 @@ const path=require('path'),fs=require('fs'),assert=require('assert/strict');
   await page.evaluate(()=>window.requestAnimationFrame=()=>0);
   const result=await page.evaluate(require('../tests/command-icons.cjs').commandIconCases);
   console.log(JSON.stringify(result));
-  for(const k of ['cleared','friendSelect','cancelled','identical','board','move','hold','expanded','collapsed','shared','left','bar'])assert.equal(result[k],true,k);
+  for(const k of ['directBoard','cleared','friendSelect','cancelled','identical','board','move','hold','expanded','collapsed','shared','left','bar'])assert.equal(result[k],true,k);
   assert.deepEqual(result.buttonSize,[48,25]);assert.equal(result.ratio,1.6);assert.deepEqual(result.size,[36,22.5]);
   assert.equal(result.title,'輸送車に乗車・岸の揚陸艦に乗艦');
   for(const [file,key] of [['ground-transport','transportCases'],['ground-strike','strikeCases'],['ground-supply','supplyCases']]){
