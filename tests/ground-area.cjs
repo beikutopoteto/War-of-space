@@ -17,7 +17,10 @@ function areaCases(){
   check('再装填に従い3回だけ発射して終了',seen.length===3&&!gun.groundAreaSalvo);
   check('全着弾中心は指定した円の内側',seen.every(s=>groundAreaClosest(circle,s.impact).distance<=circle.radius+1e-6));
   select(gun);gun.groundStrikeCooldown=0;groundSalvoCount=31;groundStrikeToggle();groundAreaTap(center);groundAreaTap(center);
-  check('回数上限30・半径ゼロで集中射撃',gun.groundAreaSalvo.remaining===29&&Math.hypot(seen[seen.length-1].impact.x-center.x,seen[seen.length-1].impact.z-center.z)<1e-6);
+  const concentrated=seen[seen.length-1],minimum=groundScatterRadius(gun,center),concentratedArea=concentrated.area;
+  check('回数上限30・半径ゼロ指定も最小散布円へ拡張',gun.groundAreaSalvo.remaining===29&&concentratedArea===gun.groundAreaSalvo.area&&concentratedArea.radius>=minimum-1e-8&&Math.abs(minimum-.05)<1e-8);
+  const deviation=Math.hypot(concentrated.impact.x-concentrated.aim.x,concentrated.impact.z-concentrated.aim.z);
+  check('最小円でも狙点と実着弾を分け、実弾は円内に散る',Math.hypot(concentrated.aim.x-center.x,concentrated.aim.z-center.z)<1e-8&&deviation>0&&deviation<=minimum+1e-8&&groundAreaClosest(concentratedArea,concentrated.impact).distance<=concentratedArea.radius+1e-8);
   undo();check('戻すで未発射の残り回数を取り消す',!gun.groundAreaSalvo);
   gun.groundStrikeCooldown=0;groundSalvoCount=2;groundStrikeToggle();groundAreaTap(center);groundAreaTap(center);
   groundClearOrders(gun);const stopped=seen.length;for(let i=0;i<100;i++)groundStrikeStep(.1);check('停止で未発射の残り回数を取り消す',seen.length===stopped);
@@ -31,6 +34,21 @@ function areaCases(){
   const ship=unit('sea');check('混成上限は兵科別の最大直径を合算',groundAreaLimits([gun,ship]).length===34);
   select(ship);groundStrikeToggle();check('単艦でも線状指定が標準',groundAreaAim.type==='line');
   groundAreaTap(groundPoint(12,27));const end=groundAreaEnd(groundAreaAim,groundPoint(40,27));check('長すぎる中心線は上限で止まる',groundAreaCurve([...groundAreaAim.points,end]).length<=20+1e-6);groundClearAiming();
+  // 確定後に遠ざかった射手は、古い狭い円で次弾を撃たない。発射済み弾は残す。
+  select(gun);gun.groundStrikeCooldown=0;groundSalvoCount=2;groundStrikeToggle();groundAreaTap(center);groundAreaTap(center);
+  const queued=gun.groundAreaSalvo,lateStart=seen.length,pending=groundStrikes.filter(s=>s.source===gun);
+  gun.pos.copy(groundPoint(2,27));const tooNarrow=groundScatterRadius(gun,center)>queued.area.radius;
+  gun.groundStrikeCooldown=0;groundAreaSalvoStep();
+  check('射手が遠ざかり最小幅を満たさなくなった次弾だけ中止',queued.remaining===1&&tooNarrow&&!gun.groundAreaSalvo&&seen.length===lateStart&&pending.length>0&&pending.every(s=>groundStrikes.includes(s)));
+  gun.pos.copy(groundPoint(8,27));
+  // 自走砲より下限の大きいロケットを混ぜ、実際の2発と互換の狙点APIを確認。
+  const rocket=unit('guidedRocket',9);gun.groundStrikeCooldown=0;setSel([gun,rocket]);groundSalvoCount=2;groundStrikeToggle();
+  groundAreaTap(center);groundAreaTap(center);const mixedStart=seen.length;groundAreaTap(center);
+  const mixedArea=gun.groundAreaSalvo.area,mixedShots=seen.slice(mixedStart);
+  check('混成の最小円はロケット直径30mを守り各隊の実弾も円内',Math.abs(mixedArea.radius-.06)<1e-8&&groundAreaLimits([gun,rocket]).radius===7&&mixedShots.length===2&&mixedShots.some(s=>s.source===gun)&&mixedShots.some(s=>s.source===rocket)&&mixedShots.every(s=>groundAreaClosest(mixedArea,s.impact).distance<=mixedArea.radius+1e-8&&Math.hypot(s.impact.x-s.aim.x,s.impact.z-s.aim.z)<=groundScatterRadius(s.source,s.aim)+1e-8));
+  const replaySeed=seed,planned=groundAreaShot(gun,mixedArea);seed=replaySeed;const nominal=groundAreaTarget(gun,mixedArea);
+  check('互換APIは実着弾ではなく同じ乱数の狙点を返す',planned&&nominal&&nominal.equals(planned.aim)&&Math.hypot(nominal.x-planned.impact.x,nominal.z-planned.impact.z)>0);
+  groundClearOrders(gun);groundClearOrders(rocket);
   const tank=unit('vehicle'),target=groundPoint(11,27),scout=unit('scout',11);groundBuildings=[{minX:groundPoint(9.5,27).x-.2,maxX:groundPoint(9.5,27).x+.2,minZ:target.z-3,maxZ:target.z+3,bottom:0,top:1}];
   check('遮蔽確認の狙点は戦車の直接射程3km境界',groundDistanceTo(tank,{pos:target})===groundStrikeRange(tank).max);
   check('観測済みでも戦車は壁越しに射撃しない',groundPointSeenBy(0,target)&&!groundStrikeInRange(tank,target));

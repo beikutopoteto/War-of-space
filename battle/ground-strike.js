@@ -21,7 +21,7 @@ function groundStrikeInRange(f,p){
 function groundStrikeCanLaunch(f,p){return groundStrikeInRange(f,p)&&(f.groundStrikeCooldown||0)<=0;}
 function groundStrikeLaunch(f,p,impactOverride=null,area=null){
   if(!groundStrikeCanLaunch(f,p))return null;
-  const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),spread=w.spread*(observed?1:groundStrikeRules().unseenSpread);
+  const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),distanceScatter=['artillery','guidedRocket'].includes(f.groundKind),spread=distanceScatter?groundScatterRadius(f,p):w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
   if(impactOverride)impact.copy(impactOverride);
@@ -29,7 +29,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null){
   if(flight&&(!flight.origin||!flight.impact||!Number.isFinite(flight.duration)||flight.duration<=0))return null;
   if(flight?.impact)impact.copy(flight.impact);
   const duration=flight?(flight.hitTime??flight.duration):w.delay;
-  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),flight,duration,left:duration,resolving:false,visual:null};
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),distanceScatter,flight,duration,left:duration,resolving:false,visual:null};
   if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
@@ -130,7 +130,7 @@ function groundStrikeDraw(){
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     const visible=s.team===0||groundPointSeenBy(0,p);ring.visible=visible;el.hidden=!visible||at.z>1;
     if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
-    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
+    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
   }
