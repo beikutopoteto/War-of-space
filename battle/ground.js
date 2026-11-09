@@ -522,7 +522,8 @@ function groundRangesDraw(list){
 function groundCaptureReadout(s,seconds){
   const prefix=s.observed===false?'最終確認：':'';
   if(s.knownContested)return prefix+'競合中・占領停止';
-  const p=s.knownProgress||[0,0],team=p[0]>0&&s.knownOwner!==0?0:p[1]>0&&s.knownOwner!==1?1:null;
+  const p=s.knownProgress||[0,0],teams=[0,1].filter(team=>p[team]>0&&s.knownOwner!==team);
+  const team=teams.includes(s.knownCapturingTeam)?s.knownCapturingTeam:teams.sort((a,b)=>p[b]-p[a])[0]??null;
   if(team===null)return prefix+(s.knownOwner==null?'未占領':'占領済み');
   const remaining=Math.max(0,Math.ceil(seconds-p[team]));
   return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+' あと'+remaining+'秒';
