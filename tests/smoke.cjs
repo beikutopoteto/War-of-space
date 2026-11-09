@@ -22,6 +22,7 @@ const {nodeChecks:groundControlChecks}=require('./ground-controls.cjs');
 const {nodeChecks:groundReadoutChecks}=require('./ground-readouts.cjs');
 const {nodeChecks:groundPlanChecks}=require('./ground-plan.cjs');
 const {nodeChecks:groundAreaChecks}=require('./ground-area.cjs');
+const {nodeChecks:groundRangeChecks}=require('./ground-ranges.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -40,6 +41,7 @@ function check(ok, label, detail = '') {
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
+  for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)
@@ -97,7 +99,7 @@ function check(ok, label, detail = '') {
         for(let i=0;i<20;i++)step(.05);
         const n=hits.length;for(let i=0;i<25;i++)step(.05);
         arrived=attack.band==='high'&&!attack.bandTo&&hits.length===n&&attack.fireTarget===null;
-        // W.A.S. は上昇中も地上だけを撃つ。到着後は高の航空を撃つ。
+        // W.A.S. は上昇中も元の地上射程で命じた地上目標を撃ち、到着後は高の航空を撃つ。
         attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.band='high';
         const target=by('vehicle',1);target.pos.copy(at);was.band='ground';was.order={type:'attack',target};was.pos.copy(at);
         groundSetBand([was],'high'); hits.length=0;
@@ -109,11 +111,11 @@ function check(ok, label, detail = '') {
       }finally{damage=originalDamage;}
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
       const f=fleets.find(f=>f.team===0),t=fleets.find(f=>f.team===1),saved=fleets;
-      const rows=[['heavyInfantry','ground',[1,1,1]],['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,0,0]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,0]],['attack','high',[0,0,0]],['was','ground',[1,0,0]],['was','low',[1,1,0]],['was','high',[0,1,1]]];
+      const rows=[['heavyInfantry','ground',[1,1,1]],['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,.5,.5]],['apc','ground',[1,.5,.5]],['mechanicalAssault','ground',[1,.5,.5]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,1]],['attack','high',[0,1,1]],['was','ground',[1,1,1]],['was','low',[1,1,1]],['was','high',[1,1,1]]];
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
       const original=damage;
       try{
-        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.range=20;f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
+        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
         for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;
           let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
@@ -123,9 +125,9 @@ function check(ok, label, detail = '') {
           // damage 自体も、無効な段への残った射撃を拒む。
           if(!expected[i]){original(t,1,f);if(t.hpPool!==hp)bad++;}
         }
-        // 高さによる距離でなく水平射程。射程外は撃たない。
-        f.groundKind='fighter';f.band='low';t.band='high';t.pos.y=1000;f.groundShotT=0;const hp=t.hpPool;groundStep(.05);
-        const horizontal=t.hpPool<hp;t.pos.x+=21;f.groundShotT=0;const hp2=t.hpPool;groundStep(.05);if(!horizontal||t.hpPool!==hp2)bad++;
+        // 高さによる距離でなく水平射程。追撃移動を止め、射程のすぐ外は撃たない。
+        f.groundKind='fighter';f.band='low';f.speed=0;t.band='high';t.pos.y=1000;f.groundShotT=0;const hp=t.hpPool;groundStep(.05);
+        const horizontal=t.hpPool<hp;t.pos.x=f.pos.x+groundTargetRange(f,t)+.01;f.groundShotT=0;const hp2=t.hpPool;groundStep(.05);if(!horizontal||t.hpPool!==hp2)bad++;
       }finally{damage=original;fleets=saved;}
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
       const plane=fleets.find(f=>f.groundKind==='fighter'), groundWas=fleets.find(f=>f.groundKind==='was');
@@ -146,7 +148,7 @@ function check(ok, label, detail = '') {
     });
     check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
-    check(bands.cases===33&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表33通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
+    check(bands.cases===39&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表39通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);

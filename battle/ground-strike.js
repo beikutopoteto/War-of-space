@@ -3,11 +3,20 @@ let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMe
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
-  const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
-  return capable?groundStrikeRules()[f.groundKind]:null;
+  const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
+  return capable?(groundStrikeRules()[f.groundKind]||(['guidedRocket','was'].includes(f.groundKind)?groundStrikeRules().artillery:null)):null;
+}
+// 地点攻撃も操作用の武器射程を使用。戦車は直射、航空は暫定対地、その他は間接。
+function groundStrikeRange(f){
+  const r=groundFireRanges(f);
+  if(f.groundKind==='vehicle')return {min:0,max:r.direct||0,direct:true};
+  if(f.groundKind==='supportAircraft')return {min:0,max:r.ground||0};
+  return r.indirect||{min:0,max:0};
 }
 function groundStrikeInRange(f,p){
-  return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundKind!=='vehicle'||groundDistanceTo(f,{pos:p})<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}));
+  if(!groundStrikeWeapon(f)||!Number.isFinite(p.x)||!Number.isFinite(p.z))return false;
+  const r=groundStrikeRange(f),distance=groundDistanceTo(f,{pos:p});
+  return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}));
 }
 function groundStrikeCanLaunch(f,p){return groundStrikeInRange(f,p)&&(f.groundStrikeCooldown||0)<=0;}
 function groundStrikeLaunch(f,p,impactOverride=null,area=null){
@@ -36,7 +45,7 @@ function groundStrikeStep(dt){
     try{
       for(const t of fleets.filter(t=>groundStrikeHits(s,t,s.source))){
         const falloff=1-(1-groundStrikeRules().edgeDamage)*groundDistanceTo(t,{pos:s.impact})/s.radius;
-        damage(t,s.dmg*falloff,s.source,s);
+        damage(t,s.dmg*falloff*(s.kind==='guidedRocket'?groundMatchup(s.source,t):1),s.source,s);
       }
       groundBridgeHit(s);
     }finally{s.resolving=false;}

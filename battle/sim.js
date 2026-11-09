@@ -106,7 +106,7 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
 function damage(t,amt,src,groundImpact=null){
-  if(op.ground&&src&&!(groundImpact&&groundStrikeHits(groundImpact,t,src))&&!groundCanFire(src,t)) return;
+  if(op.ground&&src&&(groundImpact?!groundStrikeHits(groundImpact,t,src):!groundCanFire(src,t)||groundFireMode(src,t)!=='direct')) return;
   if(tutorialProtected()&&src&&src.team===1&&t.team===0) return;
   tutorialDamage(t,amt,src);
   if(!t.alive) return;

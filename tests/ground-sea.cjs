@@ -28,7 +28,10 @@ function seaCases(){
     check('海岸線を横切る線分を拒否',!groundSeaLeg(groundPoint(14,7.6),groundPoint(17,7.6)));
     ship.pos.copy(groundPoint(12,5));const start=ship.pos.clone(),enemyLand=unit('infantry',1,12,10);fleets=[ship,enemyLand];
     order(ship,{type:'attack',target:enemyLand});tick(1);
-    check('陸上の目標を直接射撃せず陸へ追跡しない',enemyLand.hpPool===enemyLand.hp&&ship.pos.equals(start)&&!ship.fireTarget);
+    const landShots=groundStrikes.filter(s=>s.source===ship);
+    check('陸上への攻撃命令は遅延弾1発・即時打撃なし・陸へ追跡しない',enemyLand.hpPool===enemyLand.hp&&ship.pos.equals(start)&&!ship.order.path&&ship.fireTarget===enemyLand&&landShots.length===1&&landShots[0].left>0&&landShots[0].aim.x===enemyLand.pos.x&&landShots[0].aim.z===enemyLand.pos.z);
+    if(landShots.length===1){groundStrikeStep(landShots[0].left);check('命じた陸上目標には遅延弾の着弾で打撃',enemyLand.hpPool<enemyLand.hp);}
+    groundStrikeReset();ship.groundStrikeCooldown=0;
     for(const band of ['low','high','sea']){
       const target=unit(band==='sea'?'sea':'fighter',1,13,5);target.band=band;target.pos.y=groundUnitHeight(target);fleets=[ship,target];ship.order=null;ship.stance='engage';ship.groundShotT=0;
       const hp=target.hpPool;groundStep(.05);check('艦が '+band+' を実際に直接射撃',target.hpPool<hp&&ship.fireTarget===target);
@@ -92,7 +95,7 @@ async function checkGroundSea(page,check){
 }
 function nodeChecks(){
   const label=()=>({style:{},remove(){},classList:{add(){}},querySelector:()=>({addEventListener(){}}),matches:()=>false,insertAdjacentHTML(){}});
-  const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>null,querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
+  const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>({addEventListener(){}}),querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
   for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}

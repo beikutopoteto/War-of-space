@@ -34,12 +34,17 @@ function strikeCases(){
     gun.groundStrikeCooldown=0;groundBuildings=[{minX:-21,maxX:-19,minZ:-2,maxZ:2,bottom:0,top:40}];scout.pos.set(0,0,8);
     const blocked=groundStrikeLaunch(gun,new THREE.Vector3());check('射手の直線が建物で遮られても観測共有で発射',!groundClearLine(groundEye(gun),{x:0,y:.35,z:0})&&blocked&&blocked.observed);
     gun.groundStrikeCooldown=0;scout.alive=false;const unseenWall=groundStrikeLaunch(gun,new THREE.Vector3());check('観測者も遮蔽されたら未観測の散布で発射',unseenWall&&!unseenWall.observed);
-    fresh();gun.pos.set(-20,0,0);gun.groundStrikeCooldown=0;fleets=[gun];
-    check('射程45の境界は発射できる',!!groundStrikeLaunch(gun,new THREE.Vector3(25,0,0)));
-    gun.groundStrikeCooldown=0;const count=groundStrikes.length;check('射程外45.01は撃てず弾も再装填も増えない',!groundStrikeLaunch(gun,new THREE.Vector3(25.01,0,0))&&groundStrikes.length===count&&gun.groundStrikeCooldown===0);
+    fresh();gun.pos.set(-60,0,0);gun.groundStrikeCooldown=0;fleets=[gun];
+    const range=groundStrikeRange(gun),at=d=>gun.pos.clone().add(new THREE.Vector3(d,0,0));
+    check('自走砲の間接射程は2〜30km',range.min===2*GROUND_SCALE&&range.max===30*GROUND_SCALE);
+    check('新しい最大射程の境界は発射できる',!!groundStrikeLaunch(gun,at(range.max)));
+    gun.groundStrikeCooldown=0;const count=groundStrikes.length;check('最大射程の外0.01は撃てず弾も再装填も増えない',!groundStrikeLaunch(gun,at(range.max+.01))&&groundStrikes.length===count&&gun.groundStrikeCooldown===0);
+    check('最小射程の内0.01も弾・再装填なし',!groundStrikeLaunch(gun,at(range.min-.01))&&groundStrikes.length===count&&gun.groundStrikeCooldown===0);
+    check('新しい最小射程の境界は発射できる',!!groundStrikeLaunch(gun,at(range.min)));
+    gun.groundStrikeCooldown=0;
     check('盤外と非有限の地点は撃てない',!groundStrikeLaunch(gun,new THREE.Vector3(NaN,0,0))&&!groundStrikeLaunch(gun,new THREE.Vector3(900,0,0)));
     check('自走砲の通行は戦車と同じ',groundMoveKind(gun)==='vehicle');
-    fresh();const plane=unit(0,'supportAircraft',-10,0,'high');plane.range=20;enemy.pos.set(0,0,0);enemy.hpPool=1000;fleets=[plane,enemy];
+    fresh();const plane=unit(0,'supportAircraft',-10,0,'high');enemy.pos.set(0,0,0);enemy.hpPool=1000;fleets=[plane,enemy];
     const bomb=groundStrikeLaunch(plane,enemy.pos);check('高高度爆撃は予告7秒・半径9',bomb&&bomb.left===7&&bomb.radius===9);
     groundStep(6.99);check('爆撃も7秒直前は打撃0',enemy.hpPool===1000);groundStep(.01);check('爆撃は7秒で実際に着弾',enemy.hpPool<1000);
     plane.groundStrikeCooldown=0;plane.band='low';plane.bandTo='high';check('低から高へ遷移中は爆撃不可',!groundStrikeLaunch(plane,enemy.pos));
@@ -48,7 +53,7 @@ function strikeCases(){
     check('敵自走砲は見える2隊の密集中心を砲撃',groundStrikes.length===1&&groundStrikes[0].team===1&&groundStrikes[0].aim.x===1);
     const redAim=groundStrikes[0].aim.clone();a.pos.x=40;b.pos.x=42;groundStep(5);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
     red.groundStrikeCooldown=0;groundStrikes=[];groundStep(.05);check('敵は視界外の密集を狙わない',groundStrikes.length===0);
-    a.pos.set(0,0,0);b.pos.set(20,0,0);c.pos.set(40,0,0);groundStep(.05);check('敵は孤立部隊を密集と数えない',groundStrikes.length===0);
+    a.pos.set(0,0,0);b.pos.set(20,0,0);c.pos.set(40,0,0);groundUpdateSight();groundStrikeAI(red);check('密集選択AIは孤立部隊を密集と数えない',groundStrikes.length===0);
   }finally{op=saved.op;
     groundStrikes.forEach(groundStrikeDropVisual);groundImpacts.forEach(groundStrikeDropVisual);
     ({fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,shoot,burst,groundFog,groundStrikes,groundImpacts}=saved);Math.random=saved.random;groundHeightCacheReset();
@@ -69,7 +74,7 @@ async function checkGroundStrike(page,check){
   check(button,'地点攻撃の操作: ボタンで指定開始');
   await page.keyboard.press('Escape');check(await page.evaluate(()=>!groundStrikeAiming&&!paused),'地点攻撃の操作: Escで取消');
   await page.keyboard.press('b');
-  const p=await page.evaluate(()=>{const p=proj(selected.pos);return {x:p.x+35,y:p.y+25};});
+  const p=await page.evaluate(()=>{const p=proj(groundPoint(13,27));return {x:p.x,y:p.y};});
   await page.mouse.click(p.x,p.y);
   await page.mouse.click(p.x,p.y);
   const display=await page.evaluate(()=>{
@@ -116,7 +121,7 @@ function nodeRenderCases(ctx){
   })()`,ctx);
 }
 if(require.main===module){
-  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[]},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,
+  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,
     tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;

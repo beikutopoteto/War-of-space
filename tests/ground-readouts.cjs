@@ -23,7 +23,8 @@ function readoutCases(){
  check('双方の進捗が残っても現在占領中の軍を優先',groundCaptureReadout({knownOwner:null,knownProgress:[20,5],knownCapturingTeam:1},30).includes('赤 あと25秒'));
  check('未発見の拠点は敵情報を表示しない',groundCaptureReadout({knownOwner:null},30)==='未占領');
  check('戦車は直接射撃の射程',groundRangeInfo(tank).text==='直接射撃');
- const gun=make('artillery');check('自走砲は直接射撃と分けた砲撃射程',groundRangeInfo(gun).text==='砲撃射程');
+ const gun=make('artillery'),info=groundRangeInfo(gun);check('自走砲は間接砲撃を主表示',info.text==='間接砲撃');
+ check('自走砲は直射2kmと間接2〜30kmを別枠で表示',info.entries.length===2&&info.entries.some(e=>e.id==='direct'&&e.range===2*GROUND_SCALE)&&info.entries.some(e=>e.id==='indirect'&&e.min===2*GROUND_SCALE&&e.range===30*GROUND_SCALE));
  check('補給部隊に射程は出さない',groundRangeInfo(make('supply'))===null);
  check('拠点占領時間は30秒を維持',WOS_TERRAIN.exercise2.capture.seconds===30);
  return rows;
