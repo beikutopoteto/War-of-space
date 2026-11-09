@@ -211,6 +211,8 @@ function groundSupplyBefore(dt){
     if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);groundSupplyAI(f);}
   }
 }
+// 味方の占領色は100%、それ以外は80%。現在値を上限へ切り下げない。
+function groundMoraleCap(f,at){return groundSupplyRules().max*(at.owner===f.team&&!at.contested?1:.8);}
 function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
@@ -225,8 +227,9 @@ function groundSupplyAfter(dt){
     const own=at.owner===f.team&&!at.contested;
     const gx=f.pos.x/GROUND_SCALE+24,gy=18-f.pos.z/GROUND_SCALE,type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
     if(!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
-    const restBefore=f.groundRest;f.groundRest=own&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
-    if(f.groundRest>r.restWait)f.groundMorale=Math.min(r.max,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
+    const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
+    const moraleCap=groundMoraleCap(f,at);
+    if(f.groundKind!=='supply'&&f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
     if(f.groundRout==='regroup'&&f.groundMorale>=r.rally)f.groundRout=null;
     if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
   }

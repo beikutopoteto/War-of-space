@@ -32,6 +32,9 @@ function createDrillContext(guided=true){
   const context2d=new Proxy({createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}}),createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get:(o,k)=>k in o?o[k]:()=>{}});
   const element=()=>{const children={};return {style:{},dataset:{},classList:{add(){},remove(){},toggle(){}},appendChild(){},append(){},remove(){},addEventListener(){},setAttribute(){},getContext:()=>context2d,querySelector:k=>children[k]||(children[k]=element())};};
   Object.assign(ctx,{document:{getElementById:()=>element(),querySelectorAll:()=>[],createElement:element,body:element()},renderer:{domElement:element(),shadowMap:{},capabilities:{getMaxAnisotropy:()=>1}},addEventListener(){},scene:new THREE.Scene(),labelsEl:element(),grid:{},starField:{},skyObj:{},fieldRocks:{},debrisObj:{},cloudObj:{},farPlanet:{},ambient:new THREE.AmbientLight(),sun:new THREE.DirectionalLight(),rim:{},flyTo(){},proj:()=>({x:0,y:0,z:0}),deploying:false,deployZone:{visible:false},deployEl:element(),autoMode:false,endDeploy:()=>{ctx.deploying=false;},selected:null,orderTargets:()=>ctx.selected?[ctx.selected]:[],select:f=>{ctx.selected=f;},shown:f=>f.team===0||run('groundSeenBy')(0,f),step:dt=>{ctx.gameSec+=dt;run('groundStep')(dt);},end:win=>{ctx.over=true;ctx.outcome=win;}});
+  const state=read('battle/state.js'),sim=read('battle/sim.js');
+  run(state.slice(state.indexOf('const UNDO_MAX='),state.indexOf('function openSelectedRoster(')));
+  run(sim.slice(sim.indexOf('const MAX_WAYPOINTS='),sim.indexOf('/* advance along the path;')));
   run(read('battle/tutorial.js'));run(read('battle/ground-drill.js'));
   run('tutorialRender=()=>{};groundHud=()=>{};');
   run(`op=WOS_DATA.operations.find(o=>o.id==='baikonur');
@@ -199,6 +202,16 @@ async function checkGroundDrill(page,check){
     await page.evaluate(old=>{if(old===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',old);},campaign);
   }
 }
+function rallyChecks(){
+  const {run}=createDrillContext(),assert=require('assert/strict');
+  run(`tutorial.step=op.tutorial.findIndex(r=>r.condition==='groundSupplyRally');groundDrillEnter();
+    globalThis.actor=groundDrillUnit('第11 補給訓練歩兵中隊');actor.groundRout=null;actor.groundMorale=80;actor.pos.copy(groundPoint(16,26));`);
+  assert.equal(run("groundSupplyDrillTick(groundDrillRow(),actor,{issued:true})"),false,'領域外で回復しただけでは道の案内を完了しない');
+  run('actor.pos.copy(groundSites.find(s=>s.owner===0).pos)');
+  assert.equal(run("groundSupplyDrillTick(groundDrillRow(),actor,{issued:false})"),false,'移動の操作前に完了しない');
+  assert.equal(run("groundSupplyDrillTick(groundDrillRow(),actor,{issued:true})"),true,'味方領域への移動と回復で完了する');
+  return 3;
+}
 function runDrill(){
   const {run}=createDrillContext();
   const assert=require('assert/strict');
@@ -255,8 +268,9 @@ function runPeaceChecks(){
   }
   return 2;
 }
-module.exports={createDrillContext,drillAction,drillAdvance,performDrillAction,seedDrillCampaign,checkDrillLabels,checkGroundDrill,runDrill,runPeaceChecks};
+module.exports={rallyChecks,createDrillContext,drillAction,drillAdvance,performDrillAction,seedDrillCampaign,checkDrillLabels,checkGroundDrill,runDrill,runPeaceChecks};
 if(require.main===module){
+  console.log('再集結の到着条件 '+rallyChecks()+'/3');
   const times=runDrill();for(const r of times)console.log(`| ${r.name} | ${r.seconds.toFixed(2)}秒 |`);
   console.log(`| 仮想敵の実打撃 | 前半${times.counterfire.early}回・後半${times.counterfire.late}回・損害${times.counterfire.damage} |`);
   console.log(`| バイコヌール演習 | 案内なし・敵打撃${times.normal.hits}回・${times.normal.seconds.toFixed(2)}秒で占拠勝利 |`);
