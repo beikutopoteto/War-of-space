@@ -72,6 +72,7 @@ function groundLandCommand(list){
     ship.groundBoarders=[];ship.groundUnloading={progress:0};count++;
     if(op.groundDrill)groundDrillEvent('land',ship,groundPassengers(ship));
   }
+  if(count)groundClearAiming();
   groundTransportMessage=count?`上陸開始（${groundLandingRules().seconds}秒・被弾${groundLandingRules().damageFactor}倍）`:'上陸不可：'+reason;
   groundHud();return count;
 }
@@ -110,7 +111,7 @@ function groundBoardCommand(list,carrier){
     if(!reason&&!path)reason='浜まで通れる道がない';
     if(reason){groundTransportMessage='乗艦不可：'+reason;groundHud();return false;}
     groundCancelWork(f);groundClearOrders(f);carrier.groundBoarders=[...reserved,f];
-    f.order={type:'board',target:carrier,path,repath:groundTransportRules().repathSec};groundWorkAiming=null;groundTransportMessage='乗艦する浜へ移動中';groundHud();return true;
+    f.order={type:'board',target:carrier,path,repath:groundTransportRules().repathSec};groundClearAiming();groundTransportMessage='乗艦する浜へ移動中';groundHud();return true;
   }
   if(!groundBoardable(f)||!carrier.alive||carrier.locked||carrier.groundKind!=='apc'||carrier.groundRout||carrier.team!==f.team||carrier.groundPassenger||carrier.groundBoarder&&carrier.groundBoarder!==f){
     groundTransportMessage='乗車不可：歩兵1中隊と空の味方輸送車を指定';groundHud();return false;
@@ -118,7 +119,7 @@ function groundBoardCommand(list,carrier){
   const path=groundPath(f.pos,carrier.pos,groundMoveKind(f));
   if(!path){groundTransportMessage='乗車不可：輸送車まで通れる道がない';groundHud();return false;}
   groundCancelWork(f);groundClearOrders(f);carrier.groundBoarder=f;
-  f.order={type:'board',target:carrier,path,repath:0};if(op.groundDrill)groundDrillEvent('board',f,carrier);groundWorkAiming=null;groundTransportMessage='輸送車へ移動中';groundHud();return true;
+  f.order={type:'board',target:carrier,path,repath:0};if(op.groundDrill)groundDrillEvent('board',f,carrier);groundClearAiming();groundTransportMessage='輸送車へ移動中';groundHud();return true;
 }
 function groundExitPoint(f,carrier,emergency=false){
   const km=groundTransportRules().unloadKm,kind=groundMoveKind(f),x=carrier.pos.x/GROUND_SCALE+24,y=18-carrier.pos.z/GROUND_SCALE;
@@ -148,6 +149,7 @@ function groundUnload(carrier,emergency=false){
 function groundUnloadCommand(list){
   let count=0;
   for(const carrier of new Set(list.map(f=>f.embarked||f)))if(carrier.alive&&groundCommandAllowed(carrier,'unload')&&groundUnload(carrier))count++;
+  if(count)groundClearAiming();
   groundTransportMessage=count?`${count}中隊 降車`:'降車不可：搭載部隊か通れる隣接地がない';groundHud();return count;
 }
 function groundTransportDestroyed(f,src){
@@ -206,7 +208,7 @@ function groundBridgeCommand(list,p){
   if(reason){groundTransportMessage='架橋不可：'+reason;groundHud();return null;}
   groundCancelWork(f);groundClearOrders(f);
   const b={...plan,builder:f,team:f.team,progress:0,complete:false,hp:groundEngineeringRules().hp,visual:null};
-  groundBridges.push(b);f.order={type:'bridge',bridge:b,path};groundWorkAiming=null;groundTransportMessage='川岸へ移動中';groundHud();if(op.groundDrill)groundDrillEvent('bridge',f,b);return b;
+  groundBridges.push(b);f.order={type:'bridge',bridge:b,path};groundClearAiming();groundTransportMessage='川岸へ移動中';groundHud();if(op.groundDrill)groundDrillEvent('bridge',f,b);return b;
 }
 function groundBridgeDropVisual(b){
   if(!b.visual)return;
@@ -275,7 +277,7 @@ function groundTransportHud(list){
 function groundWorkToggle(mode){
   if(over||!op.ground)return;
   const list=orderTargets();if(list.length!==1||!(mode==='board'?groundCanBoardAny(list[0]):groundEngineer(list[0])))return;
-  groundSupplyAiming=false;groundStrikeAiming=false;groundWorkAiming=groundWorkAiming===mode?null:mode;groundTransportMessage='';closePick();groundHud();
+  const aiming=groundWorkAiming!==mode;groundClearAiming();groundWorkAiming=aiming?mode:null;groundHud();
 }
 document.querySelectorAll('#groundBoard').forEach(b=>b.addEventListener('click',()=>groundWorkToggle('board')));
 document.querySelectorAll('#groundUnload').forEach(b=>b.addEventListener('click',()=>groundUnloadCommand(orderTargets())));

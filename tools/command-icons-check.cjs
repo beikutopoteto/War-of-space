@@ -10,9 +10,13 @@ const path=require('path'),fs=require('fs'),assert=require('assert/strict');
   await page.evaluate(()=>window.requestAnimationFrame=()=>0);
   const result=await page.evaluate(require('../tests/command-icons.cjs').commandIconCases);
   console.log(JSON.stringify(result));
-  for(const k of ['identical','board','move','hold','expanded','collapsed','shared','left','bar'])assert.equal(result[k],true,k);
-  assert.equal(result.ratio,1.6);assert.deepEqual(result.size,[40,25]);
+  for(const k of ['cleared','friendSelect','cancelled','identical','board','move','hold','expanded','collapsed','shared','left','bar'])assert.equal(result[k],true,k);
+  assert.deepEqual(result.buttonSize,[48,25]);assert.equal(result.ratio,1.6);assert.deepEqual(result.size,[36,22.5]);
   assert.equal(result.title,'輸送車に乗車・岸の揚陸艦に乗艦');
+  for(const [file,key] of [['ground-transport','transportCases'],['ground-strike','strikeCases'],['ground-supply','supplyCases']]){
+   const rows=await page.evaluate(require('../tests/'+file+'.cjs')[key]);
+   const failed=rows.filter(r=>!r.ok);console.log(file+': '+(rows.length-failed.length)+'/'+rows.length);assert.deepEqual(failed,[]);
+  }
   // 実部隊の固有命令を選んだ実寸写真。描画を待ってから保存。
   await page.evaluate(()=>{reset({op:'baikonur',fleets:OPS.find(o=>o.id==='baikonur').quick});setSpeed(0);if(talking)endTalk();endDeploy();setSpeed(0);const f=fleets.find(f=>f.team===0&&f.groundKind==='artillery');select(f);camAnim=null;controls.target.copy(f.pos);camera.position.copy(f.pos).add(new THREE.Vector3(0,65,80));camera.lookAt(f.pos);controls.update();groundHud();groundDraw();renderer.render(scene,camera);});
   await page.waitForTimeout(500);

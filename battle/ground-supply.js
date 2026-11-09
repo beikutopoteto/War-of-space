@@ -157,7 +157,7 @@ function groundSupplyCanGive(f,t){
 }
 function groundSupplyCommand(list,t){
   const f=list.length===1?list[0]:null;if(!groundSupplyCanGive(f,t))return false;
-  groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundSupplyAiming=false;groundSupplyMessage='補給先：'+t.name;return true;
+  groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundClearAiming();groundSupplyMessage='補給先：'+t.name;return true;
 }
 function groundSupplyGive(dt,netGains){
   const r=groundSupplyRules(),used=new Set();
@@ -267,7 +267,7 @@ function groundSupplyHud(list){
 }
 document.querySelectorAll('#groundSupply').forEach(b=>b.addEventListener('click',()=>{
   const list=orderTargets();if(list.length!==1||list[0].groundKind!=='supply'||!groundCommandAllowed(list[0],'give'))return;
-  groundSupplyAiming=!groundSupplyAiming;groundWorkAiming=null;groundStrikeAiming=false;groundHud();
+  const aiming=!groundSupplyAiming;groundClearAiming();groundSupplyAiming=aiming;groundHud();
 }));
 // 既存の配置画面から利用。地上の配置では円外へ押し出さない。
 function groundSupplyPlace(list,p){
