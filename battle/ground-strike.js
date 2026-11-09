@@ -18,9 +18,9 @@ function groundStrikeInRange(f,p){
   const r=groundStrikeRange(f),distance=groundDistanceTo(f,{pos:p});
   return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}))&&(f.groundKind==='supportAircraft'||groundBallisticPoint(f,p).clear);
 }
-function groundStrikeCanLaunch(f,p){return groundStrikeInRange(f,p)&&(f.groundStrikeCooldown||0)<=0;}
-function groundStrikeLaunch(f,p,impactOverride=null,area=null){
-  if(!groundStrikeCanLaunch(f,p))return null;
+function groundStrikeCanLaunch(f,p,volley=null){return groundStrikeInRange(f,p)&&(volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);}
+function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){
+  if(!groundStrikeCanLaunch(f,p,volley))return null;
   const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),distanceScatter=['artillery','guidedRocket'].includes(f.groundKind),spread=distanceScatter?groundScatterRadius(f,p):w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
@@ -31,7 +31,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null){
   const duration=flight?(flight.hitTime??flight.duration):w.delay;
   const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),distanceScatter,flight,duration,left:duration,resolving:false,visual:null};
   if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
-  groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true);
+  groundStrikes.push(strike);if(!volley)f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true,volley?1/volley.ledger.entries.length:1);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
   return strike;
 }
@@ -59,6 +59,7 @@ function groundStrikeStep(dt){
     burst(s.impact,TEAM_COL[s.team],24,9,groundStrikeRules().effectSec);
     return false;
   });
+  groundVolleyStep(dt);
   if(typeof groundAreaSalvoStep==='function')groundAreaSalvoStep();
 }
 function groundStrikeAI(f){
@@ -70,12 +71,13 @@ function groundStrikeAI(f){
     cluster.forEach(u=>p.add(u.pos));p.divideScalar(cluster.length);
     if(cluster.length>=groundStrikeRules().aiCluster&&cluster.length>count&&groundStrikeCanLaunch(f,p)&&groundPointSeenBy(f.team,p)){best=p;count=cluster.length;}
   }
-  if(best)groundStrikeLaunch(f,best); // 予告円を避ける AI は未決定なので追加しない。
+  if(best)groundVolleyStart(f,{point:best}); // 予告円を避ける AI は未決定なので追加しない。
 }
 function groundStrikeCommand(list,p){
   let fired=0;
-  for(const f of list)if(groundStrikeLaunch(f,p)){
-    fired++;groundCancelWork(f);groundClearOrders(f);
+  for(const f of list)if(groundStrikeCanLaunch(f,p)){
+    groundCancelWork(f);groundClearOrders(f);
+    if(groundVolleyStart(f,{point:p}))fired++;
   }
   groundStrikeMessage=fired?`${fired}隊 発射（味方にも命中）`:'発射不可：射程・高度・再装填を確認';
   if(fired){const message=groundStrikeMessage;groundClearAiming();groundStrikeMessage=message;}
@@ -93,8 +95,8 @@ function groundStrikeHud(list){
   button.disabled=!eligible.length;button.setAttribute('aria-pressed',String(groundStrikeAiming));
   const reload=Math.max(0,...eligible.map(f=>f.groundStrikeCooldown||0));
   const count=document.getElementById('groundSalvoCount');if(count)count.disabled=!eligible.length;
-  const salvo=Math.max(0,...eligible.map(f=>f.groundAreaSalvo?.remaining||0));
-  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?(typeof groundAreaHint==='function'&&groundAreaHint()||'地図をクリック（Escで取消）'):salvo?'砲撃 残り最大'+salvo+'回 / 再装填 '+reload.toFixed(1)+'秒':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
+  const salvo=Math.max(0,...eligible.map(f=>f.groundAreaSalvo?.remaining||0)),burst=Math.max(0,...eligible.map(f=>f.groundVolley?f.groundVolley.ledger.entries.length-f.groundVolley.ledger.fired.size-f.groundVolley.ledger.skipped.size:0));
+  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?(typeof groundAreaHint==='function'&&groundAreaHint()||'地図をクリック（Escで取消）'):burst?'連射 残り最大'+burst+'発 / 斉射残り最大'+salvo+'回':salvo?'斉射 残り最大'+salvo+'回 / 再装填 '+reload.toFixed(1)+'秒':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
 }
 function groundStrikeDropVisual(s){
   if(!s.visual)return;
@@ -104,6 +106,7 @@ function groundStrikeDropVisual(s){
   ring.geometry.dispose();ring.material.dispose();el.remove();s.visual=null;
 }
 function groundStrikeReset(){
+  groundVolleyReset();
   groundBallisticReset();
   groundFlightPreviewDrop();
   if(typeof groundAreaReset==='function')groundAreaReset();
@@ -121,7 +124,7 @@ function groundStrikeDraw(){
       const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:TEAM_COL[s.team],transparent:true,opacity:.85,depthWrite:false}));
       groundVisuals.add(ring);
       const el=document.createElement('div');el.className='ground-strike-label';el.style.color='#'+TEAM_COL[s.team].getHexString();labelsEl.appendChild(el);s.visual={ring,el};
-      if(s.flight){
+      if(s.flight&&pending){
         const path=[];for(let i=0;i<=48;i++)path.push(groundBallisticAt(s.flight,s.duration*i/48));
         const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(path),new THREE.LineDashedMaterial({color:TEAM_COL[s.team],transparent:true,opacity:.65,depthWrite:false,dashSize:.5,gapSize:.4}));arc.computeLineDistances();groundVisuals.add(arc);
         const projectile=new THREE.Mesh(new THREE.SphereGeometry(.16,6,4),new THREE.MeshBasicMaterial({color:0xe2c58a}));groundVisuals.add(projectile);s.visual.arc=arc;s.visual.projectile=projectile;

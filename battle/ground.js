@@ -291,14 +291,14 @@ function groundStep(dt){
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)) continue;
-    if(f.groundAreaSalvo){f.fireTarget=null;continue;}
+    if(f.groundAreaSalvo||f.groundVolley){f.fireTarget=null;continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
     if(f.team===1&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','was','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
     if(f.fireTarget&&f.groundShotT===0){
-      if(groundFireMode(f,f.fireTarget)==='indirect'){groundStrikeLaunch(f,f.fireTarget.pos);continue;}
+      if(groundFireMode(f,f.fireTarget)==='indirect'){groundVolleyStart(f,{point:f.fireTarget.pos});continue;}
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
       damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget)*groundSupplyAttackFactor(f),f);
       groundSupplyShot(f);

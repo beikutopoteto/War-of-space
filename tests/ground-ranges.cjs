@@ -1,11 +1,11 @@
 /* 地上・海上専用の射程契約。到達距離、死角、対象・視界、発射経路を実関数で確認。 */
 const assert=require('assert/strict');
 function rangeCases(){
- const saved={op,fleets,groundHeight,groundSightHeight,groundBuildings,groundForests,groundSites,shoot,burst};
+ const saved={op,fleets,groundHeight,groundSightHeight,groundBuildings,groundForests,groundSites,shoot,burst,groundHud};
  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
  try{
-  op={ground:'exercise2'};fleets=[];groundHeight=groundSightHeight=()=>0;groundBuildings=[];groundForests=[];groundSites=[];shoot=burst=()=>{};
-  const unit=(kind,team=0,type='cv')=>{const p=groundPoint(18,24),f=makeFleet(team,{name:kind,groundKind:kind,type,n:1,scale:.3,pos:[p.x,p.z],stance:'evade'});f.band=groundBands(f)[0];return f;};
+  op={ground:'exercise2'};fleets=[];groundHeight=groundSightHeight=()=>0;groundBuildings=[];groundForests=[];groundSites=[];shoot=burst=groundHud=()=>{};
+  const unit=(kind,team=0,type='cv',n=1)=>{const p=groundPoint(18,24),f=makeFleet(team,{name:kind,groundKind:kind,type,n,scale:.3,pos:[p.x,p.z],stance:'evade'});f.band=groundBands(f)[0];return f;};
   const gun=unit('artillery'),tank=unit('vehicle'),rocket=unit('guidedRocket'),target=unit('infantry',1),fighter=unit('fighter'),attack=unit('attack'),was=unit('was'),ship=unit('sea',0,'cl');
   const aim=km=>gun.pos.clone().add(new THREE.Vector3(km*GROUND_SCALE,0,0));
   check('自走砲の直射2kmと間接2〜30kmを分離',groundFireRanges(gun).direct===8&&groundStrikeRange(gun).min===8&&groundStrikeRange(gun).max===120);
@@ -44,6 +44,13 @@ function rangeCases(){
    const inner=groundStrikeLaunch(gun,gun.pos.clone().add(new THREE.Vector3(8,0,0)));
    check('最小2kmの狙点から内側へ散った弾も発射',inner&&groundDistanceTo(gun,{pos:inner.impact})<8&&inner.left>0);
   }finally{Math.random=savedRandom;}
+  gun.groundStrikeCooldown=0;gun.groundVolley=null;const stale={ledger:{source:gun,entries:[{}]}},oldCount=groundStrikes.length;
+  check('古い連射トークンは装填済みでも発射・装填迂回不可',!groundStrikeLaunch(gun,gun.pos.clone().add(new THREE.Vector3(12,0,0)),null,null,stale)&&groundStrikes.length===oldCount&&gun.groundStrikeCooldown===0);
+  const company=unit('artillery',0,'cv',2);fleets=[company];groundStrikes=[];
+  check('地点攻撃コマンドも2台の一斉射へ接続',groundStrikeCommand([company],company.pos.clone().add(new THREE.Vector3(12,0,0)))===1&&groundStrikes.length===2&&company.groundStrikeCooldown>0);
+  const battery=unit('guidedRocket');fleets=[battery];groundStrikes=[];
+  const started=groundStrikeCommand([battery],battery.pos.clone().add(new THREE.Vector3(12,0,0))),ledger=battery.groundVolley?.ledger;groundStrikeStep(1.25);
+  check('地点攻撃コマンドのロケットも1斉射6発・長い装填',started===1&&ledger?.fired.size===6&&groundStrikes.length===6&&!battery.groundVolley&&battery.groundStrikeCooldown>=30-1e-6);
   op={};check('宇宙に地上射程・地点攻撃を適用しない',Object.keys(groundFireRanges(gun)).length===0&&!groundStrikeWeapon(gun));
  }finally{Object.assign(globalThis,saved);groundStrikes=[];groundImpacts=[];groundHeightCacheReset();}
  return rows;
