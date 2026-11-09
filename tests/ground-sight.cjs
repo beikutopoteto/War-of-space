@@ -1,7 +1,7 @@
 /* node tests/ground-sight.cjs: ブラウザ不要。npm test では同じ固定場面と実画面を確認。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function sightCases(){
-  const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow};
+  const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow,sight:WOS_TERRAIN[op.ground].sight,sightBasic:WOS_TERRAIN[op.ground].sight.basic};
   const results=[],check=(name,ok)=>results.push({name,ok});
   const unit=(team,kind,x,z=0,band='ground')=>({team,groundKind:kind,band,alive:true,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[],stance:'evade',range:20,dmg:2,queue:[],order:null});
   const terrain=height=>{groundHeight=height;groundHeightCacheReset();groundForests=[];groundBuildings=[];};
@@ -24,7 +24,8 @@ function sightCases(){
     fleets=[tank,infantry];groundUpdateSight();check('開けた場所の歩兵を発見',infantry.seen);
     groundForests=[{x:22,z:0,r:2}];groundUpdateSight();check('森の歩兵は基本視界30の0.6倍より遠いと隠れる',!infantry.seen);
     tank.pos.x=4;groundUpdateSight();check('森の歩兵も18以内に近づくと発見',infantry.seen);
-    tank.pos.x=0;infantry.pos.x=19;groundForests=[{x:19,z:0,r:2}];
+    // 視界30/森18の境界確認は上で維持。共有視界の場面だけ視界を18へ縮め、戦車の実射程12内に置く。
+    saved.sight.basic=18;tank.pos.x=0;infantry.pos.x=11;groundForests=[{x:11,z:0,r:2}];
     scout.pos.set(-10,0,0);fleets=[tank,scout,infantry];groundUpdateSight();
     check('戦車自身は未発見、斥候から全軍に共有',!groundCanSee(tank,infantry)&&groundCanSee(scout,infantry)&&groundSeenBy(0,infantry)&&groundCanFire(tank,infantry));
     tank.order={type:'attack',target:infantry};hits=[];groundStep(.05);
@@ -34,21 +35,21 @@ function sightCases(){
     const last=infantry.lastPos.clone();infantry.pos.x=70;groundUpdateSight();
     check('最終確認位置は見失った後の移動を追わない',infantry.lastPos.equals(last)&&!infantry.lastPos.equals(infantry.pos));
     terrain(()=>0);groundBuildings=[{minX:9.1,maxX:9.2,minZ:-2,maxZ:2,bottom:0,top:3}];
-    scout.alive=true;scout.pos.set(19,0,5);infantry.pos.set(19,0,0);fleets=[tank,scout,infantry];groundUpdateSight();
+    scout.alive=true;scout.pos.set(11,0,5);infantry.pos.set(11,0,0);fleets=[tank,scout,infantry];groundUpdateSight();
     check('薄い市街地の建物も視線を遮る',!groundCanSee(tank,infantry)&&groundCanSee(scout,infantry));
     check('味方が発見しても射手と目標の間の建物で直接射撃不可',infantry.seen&&!groundCanFire(tank,infantry));
-    groundBuildings=[];tank.team=1;infantry.team=0;scout.team=1;groundForests=[{x:19,z:0,r:2}];scout.pos.set(-10,0,0);
+    groundBuildings=[];tank.team=1;infantry.team=0;scout.team=1;groundForests=[{x:11,z:0,r:2}];scout.pos.set(-10,0,0);
     groundUpdateSight();tank.order={type:'attack',target:infantry};tank.groundShotT=0;hits=[];groundStep(.05);
     check('敵軍も斥候の発見を共有して射撃',groundSeenBy(1,infantry)&&hits.some(h=>h.f===tank&&h.t===infantry));
     scout.alive=false;tank.groundShotT=0;hits=[];groundStep(.05);check('敵軍も未発見の敵を撃たず追わない',!infantry.seen&&hits.length===0&&!tank.order);
-    terrain(()=>1.2);check('高台の視界は最大1.3倍',Math.abs(groundSightRange(tank)-39)<1e-6);
+    saved.sight.basic=saved.sightBasic;terrain(()=>1.2);check('高台の視界は最大1.3倍',Math.abs(groundSightRange(tank)-39)<1e-6);
     terrain(()=>12);check('高台の視界の上限を越えない',Math.abs(groundSightRange(tank)-39)<1e-6);
     terrain(()=>0);plane.pos.set(0,0,0);enemy.pos.set(95,0,0);fleets=[plane,enemy];groundUpdateSight();check('支援機は95の敵を発見',enemy.seen);
     enemy.pos.x=101;groundUpdateSight();check('支援機も100を越えると未発見',!enemy.seen);
     scout.alive=true;scout.team=0;scout.pos.set(0,0,0);enemy.pos.x=60;fleets=[scout,enemy];groundUpdateSight();check('斥候の視界は60まで',enemy.seen);enemy.pos.x=60.01;groundUpdateSight();check('斥候の視界60の外は未発見',!enemy.seen);
     plane.band='low';plane.bandTo='high';plane.bandLeft=2;
     check('切り替え中の観測高度も元の段',groundEye(plane).y===groundRules().heights.low+groundSightRules().eyeHeight);
-  }finally{op=saved.op;
+  }finally{saved.sight.basic=saved.sightBasic;op=saved.op;
     ({fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow}=saved);groundHeightCacheReset();
   }
   return results;
@@ -107,7 +108,7 @@ function nodeSceneChecks(ctx){
   return {results,ms};
 }
 if(require.main===module){
-  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[]},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},damage:()=>{},shoot:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false});
+  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},damage:()=>{},shoot:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false});
   for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
