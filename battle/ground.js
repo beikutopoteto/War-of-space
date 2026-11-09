@@ -91,7 +91,7 @@ function groundSetBand(list,band){
     f.pos.y=groundUnitHeight(f);
     if(op.groundDrill)groundDrillEvent('band',f,band);
   }
-  groundHud(); return true;
+  groundClearAiming();groundHud(); return true;
 }
 // 入力待ちだけを解除し、すでに発行した部隊命令は残す。
 function groundClearAiming(){
@@ -121,6 +121,7 @@ function groundConfigure(active){
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
   groundStrikeReset(); groundTransportReset(); groundSupplyReset();
+  groundInfluenceCache=null;groundTerritoryPixels=null;
   groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
   groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
   document.getElementById('alt').classList.toggle('ground-alt',active);
@@ -145,8 +146,7 @@ function groundInit(){
     }
     f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
     for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
-    const ring=f.groundSelection=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xdff2ff,transparent:true,opacity:.9,depthWrite:false,side:THREE.DoubleSide}));
-    ring.userData.flat=ring.geometry.attributes.position.array.slice();ring.visible=false;groundVisuals.add(ring);
+    groundSelectionInit(f);
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
     if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
     else {
@@ -183,11 +183,15 @@ function groundAircraft(group,color){
   }
 }
 // 宇宙と同じ輪を、各頂点の地表高に沿わせる。航空部隊も地表に投影する。
+function groundSelectionInit(f){
+  const ring=f.groundSelection=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.95,depthWrite:false,side:THREE.DoubleSide}));
+  ring.renderOrder=6;ring.userData.flat=ring.geometry.attributes.position.array.slice();ring.visible=false;groundVisuals.add(ring);return ring;
+}
 function groundSelectionDraw(f,picked){
-  const ring=f.groundSelection;if(!ring)return;
+  const ring=f.groundSelection||(picked&&groundVisuals?groundSelectionInit(f):null);if(!ring)return;
   ring.visible=picked&&f.alive&&!f.embarked&&!groundAbsent(f);
   if(!ring.visible)return;
-  const radius=Math.sqrt(f.ships.length)*1.35*f.scale+2.5,flat=ring.userData.flat,position=ring.geometry.attributes.position;
+  const radius=Math.sqrt(f.ships.length)*1.35*(Number.isFinite(f.scale)?f.scale:.3)+2.5,flat=ring.userData.flat,position=ring.geometry.attributes.position;
   ring.position.set(f.pos.x,0,f.pos.z);
   for(let i=0;i<position.count;i++){
     const x=flat[i*3]*radius,z=flat[i*3+2]*radius;
@@ -231,7 +235,7 @@ function groundStep(dt){
         if(arrived) f.band=f.bandTo;
         f.bandTo=null; f.bandLeft=0; f.pos.y=groundUnitHeight(f);
         if(arrived&&f.order&&f.order.type==='move'){
-          const dest=f.order.dest.clone(); order(f,{type:'move',dest});
+          const left=pathLeft(f.order),dest=f.order.dest.clone();order(f,{type:'move',via:left.slice(0,-1),dest});
           if(!f.order) nextOrder(f);
         }
       }
@@ -247,7 +251,7 @@ function groundStep(dt){
     if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     else if(target&&groundFireFactor(f,target)>0&&groundDistanceTo(f,target)>f.range*.8){
       f.groundChaseT=(f.groundChaseT||0)-dt;
-      if(!f.order.path||f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
+      if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
       if(f.order.path) groundFollow(f,dt);
     }
   }
@@ -365,27 +369,70 @@ function groundRoadSections(roads,sites){
   }
   return sections;
 }
-function groundInfluenceAt(x,y){
-  let site=null, weight=Infinity;
-  for(const s of groundSites){const ratio=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(ratio<=1&&ratio<weight){site=s;weight=ratio;}}
-  if(site) return site;
-  if(groundSupplyActive()&&groundSupplyNet)return groundRoadAt(x,y);
-  let distance=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
-  for(const section of groundTerritory.sections){const d=groundDistance(x,y,section.path);if(d<distance){site=section.site;distance=d;}}
+// Geometry only: retain live site/edge references, never cache ownership or visibility.
+let groundInfluenceCache=null, groundTerritoryPixels=null;
+function groundInfluenceAt(x,y,cache=null){
+  if(!cache){
+    const d=WOS_TERRAIN[op.ground],grid=d.terrain,active=groundSupplyActive(),net=groundSupplyNet,
+      sections=groundTerritory?.sections,sources=active&&net?net.edges:sections||[],c=groundInfluenceCache;
+    if(!c||c.terrain!==d||c.grid!==grid||c.cells!==grid.cells||c.cols!==grid.cols||c.rows!==grid.rows||c.cellKm!==d.meta.cellKm||
+      c.board!==d.display.board||c.sea!==d.water.sea||c.sites!==groundSites||c.net!==net||c.active!==active||
+      c.sections!==sections||c.sources!==sources||c.roadWidth!==d.capture.roadWidthKm||
+      c.siteGeometry.length!==groundSites.length||c.siteGeometry.some((v,i)=>v.ref!==groundSites[i]||v.x!==v.ref.x||v.y!==v.ref.y||v.r!==v.ref.radiusKm)||
+      c.sourceRefs.length!==sources.length||c.sourceRefs.some((v,i)=>v.ref!==sources[i]||v.path!==v.ref.path)){
+      const floor=Math.floor,min=Math.min,max=Math.max,siteBins=new Map(),roadBins=new Map(),
+        roadLimit=d.capture.roadWidthKm/2+(active&&net?1e-8:0);
+      // One-km bins contain candidates in original order, including equal-distance ties.
+      const add=(bins,ref,x0,y0,x1,y1)=>{
+        for(let bx=floor(x0);bx<=floor(x1);bx++)for(let by=floor(y0);by<=floor(y1);by++){
+          const key=bx+','+by;let list=bins.get(key);if(!list)bins.set(key,list=[]);
+          if(list[list.length-1]!==ref)list.push(ref);
+        }
+      };
+      for(const site of groundSites){const r=site.radiusKm+1e-8;add(siteBins,site,site.x-r,site.y-r,site.x+r,site.y+r);}
+      for(const source of sources)for(let i=1;i<source.path.length;i++){
+        const a=source.path[i-1],b=source.path[i],r=roadLimit+1e-8;
+        add(roadBins,source,min(a[0],b[0])-r,min(a[1],b[1])-r,max(a[0],b[0])+r,max(a[1],b[1])+r);
+      }
+      groundInfluenceCache={terrain:d,grid,cells:grid.cells,cols:grid.cols,rows:grid.rows,cellKm:d.meta.cellKm,
+        board:d.display.board,sea:d.water.sea,sites:groundSites,net,active,sections,sources,roadWidth:d.capture.roadWidthKm,
+        siteGeometry:groundSites.map(ref=>({ref,x:ref.x,y:ref.y,r:ref.radiusKm})),sourceRefs:sources.map(ref=>({ref,path:ref.path})),
+        siteBins,roadBins,roadLimit,supply:!!(active&&net)};
+    }
+    cache=groundInfluenceCache;
+  }
+  if(x===null&&y===null)return cache; // Paint validates geometry without a spatial query.
+  const key=Math.floor(x)+','+Math.floor(y);let site=null,weight=Infinity;
+  for(const s of cache.siteBins.get(key)||[]){const ratio=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(ratio<=1&&ratio<weight){site=s;weight=ratio;}}
+  if(site)return site;
+  let distance=cache.roadLimit;
+  for(const source of cache.roadBins.get(key)||[]){const dist=groundDistance(x,y,source.path);if(dist<distance){site=cache.supply?source:source.site;distance=dist;}}
   return site;
 }
 function groundPaintTerritory(){
-  const t=groundTerritory, key=groundSites.map(s=>`${s.knownOwner}:${s.knownContested}`).join('|')+'/'+(groundSupplyActive()?groundSupplyNet?.edges.map(e=>`${e.knownOwner}:${e.knownContested}`).join('|'):'');
-  if(!t||t.key===key)return; t.key=key;
-  const d=WOS_TERRAIN[op.ground],ctx=t.canvas.getContext('2d'),img=ctx.createImageData(480,360),colors=[[75,160,225],[230,85,72],[160,168,165]];
-  for(let py=0;py<360;py++)for(let px=0;px<480;px++){
-    const x=(px+.5)/10,y=36-(py+.5)/10;
-    if(!groundInside(x,y,d.display.board)||groundInside(x,y,d.water.sea))continue;
-    const s=groundInfluenceAt(x,y); if(!s)continue;
-    const known=s.circle||s,stripe=known.knownContested&&(px+py)%12<3, color=stripe?[238,225,183]:colors[known.knownOwner??2],k=(py*480+px)*4;
-    img.data.set([...color,stripe?190:102],k); // 同じ軍の円と帯も1画素1回だけ。重なっても濃くならない。
+  const t=groundTerritory;if(!t)return;
+  // Validate once per paint, not once per pixel. Bridge state does not change spatial membership.
+  const spatial=groundInfluenceAt(null,null),key=groundSites.map(s=>`${s.knownOwner}:${s.knownContested}`).join('|')+'/'+(groundSupplyActive()?groundSupplyNet?.edges.map(e=>`${e.knownOwner}:${e.knownContested}`).join('|'):'');
+  let pixels=groundTerritoryPixels;
+  const rebuild=!pixels||pixels.spatial!==spatial||pixels.territory!==t;
+  if(!rebuild&&t.key===key)return;
+  if(rebuild){
+    const mask=new Uint8Array(480*360),members=new Array(480*360);
+    for(let py=0;py<360;py++)for(let px=0;px<480;px++){
+      const x=(px+.5)/10,y=36-(py+.5)/10,i=py*480+px;
+      if(!groundInside(x,y,spatial.board))continue;
+      if(groundInside(x,y,spatial.sea)){mask[i]=1;continue;}
+      mask[i]=2;members[i]=groundInfluenceAt(x,y,spatial);
+    }
+    pixels=groundTerritoryPixels={spatial,territory:t,mask,members};
   }
-  ctx.putImageData(img,0,0);t.texture.needsUpdate=true;
+  const ctx=t.canvas.getContext('2d'),img=ctx.createImageData(480,360),raw=img.data,colors=[[75,160,225],[230,85,72],[160,168,165]];
+  for(let py=0;py<360;py++)for(let px=0;px<480;px++){
+    const i=py*480+px,s=pixels.members[i];if(pixels.mask[i]!==2||!s)continue;
+    const known=s.circle||s,stripe=known.knownContested&&(px+py)%12<3,color=stripe?[238,225,183]:colors[known.knownOwner??2],k=i*4;
+    raw[k]=color[0];raw[k+1]=color[1];raw[k+2]=color[2];raw[k+3]=stripe?190:102;
+  }
+  ctx.putImageData(img,0,0);t.texture.needsUpdate=true;t.key=key;
 }
 function groundCaptureDraw(){
   groundRememberTerritory();groundPaintTerritory();
