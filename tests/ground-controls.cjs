@@ -108,5 +108,5 @@ function controlsCases(){
   return rows;
 }
 function nodeChecks(){const {ctx,run}=createControlsContext();ctx.pauseOpened=false;return run(`(${controlsCases.toString()})()`);}
-module.exports={nodeChecks};
+module.exports={nodeChecks,createControlsContext};
 if(require.main===module){const rows=nodeChecks(),bad=rows.filter(r=>!r.ok);console.log(`| 地上入力・予約・選択輪 | ${rows.length-bad.length}/${rows.length} 成功 |`);assert.equal(bad.length,0,bad.map(r=>r.name).join('\n'));}

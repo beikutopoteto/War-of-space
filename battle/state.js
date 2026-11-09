@@ -360,7 +360,7 @@ function copyOrder(o){
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
 }
 function saveUndo(t){
-  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed})));
+  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null})));
   if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
 }
 function undo(){
@@ -370,7 +370,7 @@ function undo(){
     if(op.ground)groundCancelWork(f);
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
-    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync; }
+    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
   updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
@@ -378,6 +378,7 @@ function groupOrder(o){
   const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type))); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
   saveUndo(t);
+  if(op.ground)t.forEach(f=>f.groundPlan=null);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
   const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;
