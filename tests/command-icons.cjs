@@ -30,7 +30,7 @@ function commandIconCases(){
    expand.click();const collapsed=expand.getAttribute('aria-expanded')==='false'&&getComputedStyle(expand.firstElementChild).transform==='none';
    select(extras[0]);camAnim=null;controls.target.copy(extras[0].pos);camera.position.copy(extras[0].pos).add(new THREE.Vector3(0,65,80));camera.lookAt(controls.target);controls.update();groundDraw();renderer.render(scene,camera);
    const svg=document.querySelector('#groundStrike svg'),r=svg.getBoundingClientRect();
-   const shared=['deploy','plan','execute'].every(id=>document.querySelector(`[data-command-icon="${id}"]`).disabled);
+   const shared=['deploy','plan'].every(id=>!document.querySelector(`[data-command-icon="${id}"]`).disabled)&&document.getElementById('groundExecute').disabled;
    const left=!!document.querySelector('#groundView button')&&!document.getElementById('groundAlt').hidden;
    return {directBoard,cleared,friendSelect,cancelled,buttonSize:[document.getElementById('groundMove').getBoundingClientRect().width,document.getElementById('groundMove').getBoundingClientRect().height],identical,board,move,hold,expanded,collapsed,shared,left,ratio:r.width/r.height,size:[r.width,r.height],title,bar:!document.getElementById('groundCommandBar').hidden};
 

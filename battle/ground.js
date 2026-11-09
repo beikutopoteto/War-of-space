@@ -95,6 +95,7 @@ function groundSetBand(list,band){
 }
 // 入力待ちだけを解除し、すでに発行した部隊命令は残す。
 function groundClearAiming(){
+  if(typeof groundPlanCancelInput==='function')groundPlanCancelInput();
   groundWorkAiming=null;groundStrikeAiming=false;groundSupplyAiming=false;
   groundTransportMessage=groundStrikeMessage=groundSupplyMessage='';
   if(typeof closePick==='function')closePick();
@@ -117,6 +118,7 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
+  if(typeof groundPlanReset==='function')groundPlanReset();
   groundRangesClear();
   document.getElementById('groundCommandBar').hidden=!active;
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
@@ -216,6 +218,7 @@ function groundDraw(){
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundTransportDraw(); groundSupplyDraw();
+  if(typeof groundPlanDraw==='function')groundPlanDraw();
 }
 function groundStep(dt){
   if(over) return;
@@ -455,6 +458,7 @@ document.querySelectorAll('[data-command-icon]').forEach(button=>{
   button.innerHTML=icon.svg;
 });
 function groundCommandBarHud(list){
+  if(typeof groundPlanHud==='function')groundPlanHud(list);
   const canMove=list.some(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   document.getElementById('groundMove').disabled=!canMove||over;
   document.getElementById('groundMove').setAttribute('aria-pressed',String(groundWorkAiming==='move'));
@@ -475,7 +479,7 @@ document.getElementById('groundHold').addEventListener('click',()=>{
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
   saveUndo(list);
-  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);}
+  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
   groundClearAiming();groundHud();updateRoster();
 });
 document.getElementById('groundCommandExpand').addEventListener('click',e=>{

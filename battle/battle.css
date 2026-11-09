@@ -572,3 +572,6 @@ body.nolabels .ground-site{display:none}
 .ground-range-label,.ground-road-label{position:absolute;left:0;top:0;padding:2px 5px;background:rgba(8,14,26,.68);font:10px var(--f-ui);white-space:nowrap;pointer-events:none;border-top:1px solid currentColor}
 .ground-range-label{color:var(--brass)}
 body.noui .ground-range-label,body.noui .ground-road-label,body.nolabels .ground-range-label,body.nolabels .ground-road-label{display:none}
+
+#groundPlanStatus{font-size:10px;color:var(--brass)}
+#groundPlanStatus:empty{display:none}

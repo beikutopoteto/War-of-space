@@ -60,6 +60,7 @@
     <div class="band-buttons" id="groundCommand" role="group" aria-label="選択部隊の高度"><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
     <div id="groundBandStatus" aria-live="polite"></div>
     <div id="groundStrikeStatus" aria-live="polite"></div>
+    <div id="groundPlanStatus"></div>
     <div id="groundTransportStatus" aria-live="polite"></div>
     <details><summary>補給網</summary><small id="groundSupplyStatus"></small></details>
     <div>表示</div><div class="band-buttons" id="groundView" role="group" aria-label="高度の表示"><button data-band="all" aria-pressed="true">全部</button><button data-band="ground">地上</button><button data-band="low">低</button><button data-band="high">高</button></div>
@@ -81,9 +82,9 @@
     <span class="command-group">共有</span>
     <div class="command-common" role="group" aria-label="共有命令">
       <button data-command-icon="move" id="groundMove" title="移動" aria-pressed="false">移動</button>
-      <button data-command-icon="deploy" title="布陣（未実装）" disabled>布陣</button>
-      <button data-command-icon="plan" title="進撃計画（未実装）" disabled>進撃計画</button>
-      <button data-command-icon="execute" title="実行（未実装）" disabled>実行</button>
+      <button data-command-icon="deploy" id="groundDeploy" title="布陣：線の両端を指定" aria-pressed="false" disabled>布陣</button>
+      <button data-command-icon="plan" id="groundPlan" title="進撃計画：線の両端を指定し実行で開始" aria-pressed="false" disabled>進撃計画</button>
+      <button data-command-icon="execute" id="groundExecute" title="選択部隊の進撃計画を実行" disabled>実行</button>
       <button data-command-icon="hold" id="groundHold" title="停止・防衛">停止・防衛</button>
     </div>
     <span class="command-divider" aria-hidden="true"></span><span class="command-group">固有</span>
@@ -160,6 +161,7 @@
 <script src="battle/ground-transport.js"></script>
 <script src="battle/ground-supply.js"></script>
 <script src="battle/ground.js"></script>
+<script src="battle/ground-plan.js"></script>
 <script src="battle/cut.js"></script>
 <script src="battle/tutorial.js"></script>
 <script src="battle/ground-drill.js"></script>
