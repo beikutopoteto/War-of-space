@@ -86,7 +86,7 @@ function panCamera(dt){
 }
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
-  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundCancelWork(f);f.groundPlan=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
+  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundCancelWork(f);f.groundPlan=null;f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?(o.groundPreparedPath?.bridgeRevision===groundBridgeRevision&&o.groundPreparedPath.s===0&&Math.hypot(o.groundPreparedPath.points[0].x-f.pos.x,o.groundPreparedPath.points[0].z-f.pos.z)<1e-6?o.groundPreparedPath:groundMovePath(f.pos,[...(o.via||[]),o.dest],groundMoveKind(f))):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(op.ground)delete o.groundPreparedPath;
@@ -113,7 +113,7 @@ function hideGhost(){ ghost.visible=ghostFoot.visible=ghostStalk.visible=false; 
 renderer.domElement.addEventListener('pointermove',e=>{
   if(e.pointerType==='mouse'&&!e.buttons) renderer.domElement.style.cursor=clickable(e.clientX,e.clientY)?'pointer':'';
   if(e.pointerType!=='mouse'||!selected||!selected.alive||over||e.buttons){ hideGhost(); return; }
-  if(op.ground){ hideGhost();if(typeof groundPlanHover==='function'&&['deploy','plan'].includes(groundWorkAiming))groundPlanHover(groundAt(e.clientX,e.clientY));return; }
+  if(op.ground){ hideGhost();if(typeof groundPlanHover==='function'&&['deploy','plan'].includes(groundWorkAiming))groundPlanHover(groundAt(e.clientX,e.clientY));if(groundStrikeAiming&&typeof groundAreaHover==='function')groundAreaHover(groundAt(e.clientX,e.clientY));return; }
   ray.setFromCamera({x:e.clientX/W*2-1,y:-(e.clientY/H)*2+1},camera); plane.constant=-selAlt;
   const hit=new THREE.Vector3();
   if(!ray.ray.intersectPlane(plane,hit)||Math.hypot(hit.x-fieldC.x,hit.z-fieldC.z)>REACH){ hideGhost(); return; }
@@ -216,7 +216,7 @@ function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
     const hit=groundAt(x,y);if(hit)groundBridgeCommand(orderTargets(),hit);return;
   }
   if(op.ground&&groundStrikeAiming){
-    const hit=groundAt(x,y); if(hit) groundStrikeCommand(orderTargets(),hit); return;
+    const hit=groundAt(x,y); if(hit){if(typeof groundAreaTap!=='function'||!groundAreaTap(hit,queue))groundStrikeCommand(orderTargets(),hit);} return;
   }
   const found=pick(x,y), best=labelTarget&&shown(labelTarget)&&!labelTarget.ward?labelTarget:found.best, fort=labelTarget?false:found.fort;
   if(labelEnemy) labelEnemy.el.classList.remove('label-picked');

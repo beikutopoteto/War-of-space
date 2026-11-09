@@ -65,10 +65,19 @@ function supplyCases(){
     f.groundMorale=0;groundRoutStart(f);groundRoutStep(f,.05);check('最寄りの味方へ実経路で自動撤退',f.groundRoutTarget===truck&&f.order?.path&&f.groundRout==='routing');
     const path=f.order?.path;groundSupplyHit(f,1);check('敗走中に撃たれても退路を保持',f.order?.path===path&&f.groundRout==='routing');
     f.pos.copy(truck.pos);groundRoutStep(f,.05);check('到着で再集結し移動と搭乗のみ操作を返す',f.groundRout==='regroup'&&groundCommandAllowed(f,'move')&&groundCommandAllowed(f,'board')&&!groundCommandAllowed(f,'attack'));
-    f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('味方のそばでも色の外では士気回復なし',f.groundMorale===0);
-    f.pos.copy(groundPoint(15,29));f.groundMoved=false;f.groundRest=0;groundSupplyAfter(5);check('味方の道でも回復開始は5秒後',f.groundMorale===0);groundSupplyAfter(15);check('味方色の道で士気30回復し戦闘復帰',near(f.groundMorale,30)&&!f.groundRout);
+    f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('色の外でも停止5秒後から士気回復',near(f.groundMorale,50));
+    f.pos.copy(groundPoint(15,29));f.groundMorale=0;f.groundRout='regroup';f.groundMoved=false;f.groundRest=0;groundSupplyAfter(5);check('味方の道でも回復開始は5秒後',f.groundMorale===0);groundSupplyAfter(15);check('味方色の道で士気30回復し戦闘復帰',near(f.groundMorale,30)&&!f.groundRout);
     const block=groundRoadAt(10,29);block.owner=1;groundSupplyRefresh();f.groundMorale=10;f.groundSupply=40;f.groundRest=5;f.groundSupplyWait=0;groundSupplyAfter(1);check('孤立した味方色では士気だけ回復',near(f.groundMorale,12)&&near(f.groundSupply,40));
-    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(1);check('敵色の道をまだ占領していない間は士気も回復しない',f.groundMorale===10);
+    f.groundMorale=10;groundRoadAt(15,29).owner=1;groundSupplyAfter(1);check('敵色の道でも補給は増えず士気だけ回復',near(f.groundMorale,12)&&near(f.groundSupply,40));
+    // 平地での実回復を確認し、上限値の代入だけの確認にしない。
+    f.pos.copy(groundPoint(15,27));f.groundRest=5;f.groundMorale=79;f.groundMoved=false;groundSupplyAfter(1);
+    check('味方色の外では士気80で回復が止まる',near(f.groundMorale,80));
+    f.groundMorale=90;groundSupplyAfter(1);check('領域外でも80を超える現在値を切り下げない',near(f.groundMorale,90));
+    f.pos.copy(groundPoint(12,29));f.groundMorale=99;groundSupplyAfter(1);check('味方拠点では士気100まで回復',near(f.groundMorale,100));
+    f.pos.copy(groundPoint(15,29));groundRoadAt(15,29).owner=0;f.groundMorale=99;groundSupplyAfter(1);check('味方道路でも士気100まで回復',near(f.groundMorale,100));
+    f.pos.copy(groundPoint(15,27));f.groundMorale=50;f.groundMoved=true;groundSupplyAfter(1);check('移動中は領域外回復の停止待ちをリセット',near(f.groundMorale,50)&&f.groundRest===0);
+    f.groundMoved=false;f.groundRest=5;groundSupplyHit(f,1);const afterHit=f.groundMorale;groundSupplyAfter(1);check('被弾後も停止待ちをやり直す',near(f.groundMorale,afterHit)&&f.groundRest===1);
+    const supplyBefore=truck.groundMorale;truck.groundRest=5;truck.groundMoved=false;truck.groundMorale=50;fleets=[truck];groundSupplyAfter(10);check('補給部隊は士気を自己回復しない',near(truck.groundMorale,50));truck.groundMorale=supplyBefore;
     setup();const enemy=unit(1,'infantry',35),enemyFriend=unit(1,'vehicle',34);fleets=[enemy,enemyFriend];
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=1;groundSupplyRefresh();enemy.groundSupply=40;enemy.groundSupplyWait=2;groundSupplyAfter(1);
     check('敵も自軍本営の接続道路で同じ速度の補充',near(enemy.groundSupply,42));enemy.groundMorale=0;groundRoutStart(enemy);groundRoutStep(enemy,.05);check('敵も士気0で味方へ敗走',enemy.groundRout==='routing'&&enemy.groundRoutTarget===enemyFriend);

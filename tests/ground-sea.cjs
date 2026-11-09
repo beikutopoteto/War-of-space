@@ -82,9 +82,11 @@ async function checkGroundSea(page,check){
   await page.mouse.click(pos.x,pos.y);
   check(await page.evaluate(()=>selected?.groundKind==='sea'&&document.getElementById('groundBandStatus').textContent==='海面'&&[...document.querySelectorAll('#groundCommand button')].every(b=>b.disabled)&&!document.getElementById('groundStrike').disabled),'海の艦: 実クリックで選択・海面表示・艦砲ボタン');
   await page.keyboard.press('b');
-  const aim=await page.evaluate(()=>proj(groundPoint(12,8.6)));await page.mouse.click(aim.x,aim.y);
+  for(const point of [[12,8.6],[12.5,8.6]]){const aim=await page.evaluate(p=>proj(groundPoint(...p)),point);await page.mouse.click(aim.x,aim.y);}
+  check(await page.evaluate(()=>groundAreaAim?.stage==='width'&&!groundStrikes.length),'海の艦: 始点と終点だけでは発射しない');
+  const width=await page.evaluate(()=>proj(groundPoint(12.25,9.1)));await page.mouse.click(width.x,width.y);
   const display=await page.evaluate(()=>{groundDraw();const s=groundStrikes[0];return s?.kind==='sea'&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes('艦砲 8.0秒');});
-  check(display,'海の艦: Bと陸のクリックで予告円・残り8秒');
+  check(display,'海の艦: Bと始点・終点・幅の3クリックで予告円・残り8秒');
   const clean=await page.evaluate(()=>{reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');reset({op:'charybdis'});return clean&&fleets.every(f=>f.groundKind!=='sea')&&!groundVisuals;});
   check(clean,'海の艦: 再初期化で予告を消し宇宙戦へ復帰');
 }

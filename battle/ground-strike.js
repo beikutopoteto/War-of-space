@@ -3,18 +3,21 @@ let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMe
 function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
-  const capable=f.groundKind==='sea'&&f.band==='sea'||f.groundKind==='artillery'&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
+  const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind]:null;
 }
-function groundStrikeCanLaunch(f,p){
-  return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundStrikeCooldown||0)<=0;
+function groundStrikeInRange(f,p){
+  return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundKind!=='vehicle'||groundDistanceTo(f,{pos:p})<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}));
 }
-function groundStrikeLaunch(f,p){
+function groundStrikeCanLaunch(f,p){return groundStrikeInRange(f,p)&&(f.groundStrikeCooldown||0)<=0;}
+function groundStrikeLaunch(f,p,impactOverride=null,area=null){
   if(!groundStrikeCanLaunch(f,p))return null;
   const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),spread=w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
-  const strike={source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),left:w.delay,resolving:false,visual:null};
+  if(impactOverride)impact.copy(impactOverride);
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),left:w.delay,resolving:false,visual:null};
+  if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
   return strike;
@@ -43,6 +46,7 @@ function groundStrikeStep(dt){
     burst(s.impact,TEAM_COL[s.team],24,9,groundStrikeRules().effectSec);
     return false;
   });
+  if(typeof groundAreaSalvoStep==='function')groundAreaSalvoStep();
 }
 function groundStrikeAI(f){
   if(groundStaticTarget(f)||!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
@@ -58,7 +62,7 @@ function groundStrikeAI(f){
 function groundStrikeCommand(list,p){
   let fired=0;
   for(const f of list)if(groundStrikeLaunch(f,p)){
-    fired++;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;
+    fired++;groundCancelWork(f);groundClearOrders(f);
   }
   groundStrikeMessage=fired?`${fired}隊 発射（味方にも命中）`:'発射不可：射程・高度・再装填を確認';
   if(fired){const message=groundStrikeMessage;groundClearAiming();groundStrikeMessage=message;}
@@ -67,14 +71,17 @@ function groundStrikeCommand(list,p){
 function groundStrikeToggle(){
   if(over||!op.ground)return;
   if(!orderTargets().some(f=>groundStrikeWeapon(f)))return;
-  const aiming=!groundStrikeAiming;groundClearAiming();groundStrikeAiming=aiming;groundHud();
+  const aiming=!groundStrikeAiming;groundClearAiming();groundStrikeAiming=aiming;if(aiming&&typeof groundAreaStart==='function')groundAreaStart();groundHud();
 }
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');
-  if(groundStrikeAiming&&!eligible.length)groundStrikeAiming=false;
+  if(groundStrikeAiming&&!eligible.length)groundClearAiming();
+  button.title=eligible.length&&eligible.every(f=>f.groundKind==='vehicle')?'直射による範囲射撃（射手自身の視界・見通しが必要）':'範囲砲撃：中心・半径、または中心線・幅';
   button.disabled=!eligible.length;button.setAttribute('aria-pressed',String(groundStrikeAiming));
   const reload=Math.max(0,...eligible.map(f=>f.groundStrikeCooldown||0));
-  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?'地図をクリック（Escで取消）':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
+  const count=document.getElementById('groundSalvoCount');if(count)count.disabled=!eligible.length;
+  const salvo=Math.max(0,...eligible.map(f=>f.groundAreaSalvo?.remaining||0));
+  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?(typeof groundAreaHint==='function'&&groundAreaHint()||'地図をクリック（Escで取消）'):salvo?'砲撃 残り最大'+salvo+'回 / 再装填 '+reload.toFixed(1)+'秒':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
 }
 function groundStrikeDropVisual(s){
   if(!s.visual)return;
@@ -83,6 +90,7 @@ function groundStrikeDropVisual(s){
   ring.geometry.dispose();ring.material.dispose();el.remove();s.visual=null;
 }
 function groundStrikeReset(){
+  if(typeof groundAreaReset==='function')groundAreaReset();
   [...groundStrikes,...groundImpacts].forEach(groundStrikeDropVisual);
   groundStrikes=[];groundImpacts=[];groundStrikeAiming=false;groundStrikeMessage='';
 }
@@ -99,7 +107,7 @@ function groundStrikeDraw(){
     }
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     const visible=s.team===0||groundPointSeenBy(0,p);ring.visible=visible;el.hidden=!visible||at.z>1;
-    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
+    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y}px) translate(-50%,-100%)`;
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
   }

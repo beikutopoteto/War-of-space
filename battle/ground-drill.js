@@ -116,6 +116,6 @@ function groundSupplyDrillTick(row,f,g,dt){
     if(actor.groundRout==='routing'){g.routed=true;groundClearOrders(shooter);}
     return g.routed&&actor.groundRout==='regroup';
   }
-  if(row.condition==='groundSupplyRally')return g.issued&&!actor.groundRout&&actor.groundMorale>=groundSupplyRules().rally;
+  if(row.condition==='groundSupplyRally'){const at=groundSupplyAt(actor);return g.issued&&at.owner===actor.team&&!at.contested&&!actor.groundRout&&actor.groundMorale>=groundSupplyRules().rally;}
   return false;
 }

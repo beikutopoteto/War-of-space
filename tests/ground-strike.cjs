@@ -71,10 +71,11 @@ async function checkGroundStrike(page,check){
   await page.keyboard.press('b');
   const p=await page.evaluate(()=>{const p=proj(selected.pos);return {x:p.x+35,y:p.y+25};});
   await page.mouse.click(p.x,p.y);
+  await page.mouse.click(p.x,p.y);
   const display=await page.evaluate(()=>{
     groundDraw();const s=groundStrikes[0];if(!s)return false;
     return !groundStrikeAiming&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes('5.0秒');
-  });check(display,'地点攻撃の操作: Bと地図クリックで予告円と残り秒');
+  });check(display,'地点攻撃の操作: Bと中心・半径指定で予告円と残り秒');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
     friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
