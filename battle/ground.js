@@ -96,6 +96,7 @@ function groundSetBand(list,band){
 // 入力待ちだけを解除し、すでに発行した部隊命令は残す。
 function groundClearAiming(){
   if(typeof groundPlanCancelInput==='function')groundPlanCancelInput();
+  if(typeof groundAreaCancelInput==='function')groundAreaCancelInput();
   groundWorkAiming=null;groundStrikeAiming=false;groundSupplyAiming=false;
   groundTransportMessage=groundStrikeMessage=groundSupplyMessage='';
   if(typeof closePick==='function')closePick();
@@ -219,6 +220,7 @@ function groundDraw(){
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundTransportDraw(); groundSupplyDraw();
   if(typeof groundPlanDraw==='function')groundPlanDraw();
+  if(typeof groundAreaDraw==='function')groundAreaDraw();
 }
 function groundStep(dt){
   if(over) return;
@@ -265,6 +267,7 @@ function groundStep(dt){
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)) continue;
+    if(f.groundKind==='vehicle'&&f.groundAreaSalvo){f.fireTarget=null;continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
@@ -464,11 +467,12 @@ function groundCommandBarHud(list){
   document.getElementById('groundMove').setAttribute('aria-pressed',String(groundWorkAiming==='move'));
   document.getElementById('groundHold').disabled=!canMove||over;
   const kinds=list.map(f=>f.groundKind), carries=list.some(f=>f.embarked||f.groundPassenger||groundLandingShip(f));
-  const visible={board:list.some(f=>f.groundKind!=='sea'&&groundBands(f).includes('ground')),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
+  const visible={board:list.some(f=>f.groundKind!=='sea'&&groundBands(f).includes('ground')),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
   const buttons=[...document.querySelectorAll('#groundUniqueCommands button')];
   buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);
   const expand=document.getElementById('groundCommandExpand');
-  expand.hidden=buttons.filter(b=>!b.hidden).length<=4;
+  document.getElementById('groundStrikeControl').hidden=!visible.strike;
+  expand.hidden=buttons.filter(b=>!b.hidden).length*51+(visible.strike?36:0)<=204;
   if(expand.hidden){expand.setAttribute('aria-expanded','false');document.getElementById('groundUniqueCommands').classList.remove('expanded');}
 }
 document.getElementById('groundMove').addEventListener('click',()=>{

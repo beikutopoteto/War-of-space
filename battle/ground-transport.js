@@ -90,7 +90,7 @@ function groundLandStep(ship,dt){
 }
 function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'board')&&f.band==='ground'&&['infantry','heavyInfantry','commando'].includes(f.groundKind);}
 function groundTransportLabel(f){const passengers=groundPassengers(f);return f.name+(passengers.length?' / 搭載：'+passengers.map(p=>p.name).join('・'):'')+(groundPermissionOnly(f)?' / 許可制':'')+(f.groundRout||f.groundAirState||f.groundSupplyGiving?' / '+groundSupplyStatus(f):'');}
-function groundClearOrders(f){f.groundPlan=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;}
+function groundClearOrders(f){f.groundPlan=null;f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;}
 function groundCancelWork(f){
   if(f.order&&f.order.type==='board'&&f.order.target.groundBoarder===f)f.order.target.groundBoarder=null;
   if(f.order&&f.order.type==='board'&&groundLandingShip(f.order.target))f.order.target.groundBoarders=(f.order.target.groundBoarders||[]).filter(p=>p!==f);

@@ -575,3 +575,6 @@ body.noui .ground-range-label,body.noui .ground-road-label,body.nolabels .ground
 
 #groundPlanStatus{font-size:10px;color:var(--brass)}
 #groundPlanStatus:empty{display:none}
+#groundStrikeControl{display:flex;align-items:center;gap:2px;flex:none}
+#groundSalvoCount{box-sizing:border-box;width:34px;height:25px;padding:0 2px;font:11px var(--f-num);background:rgba(8,14,26,.7);color:var(--brass);border:1px solid var(--line)}
+#groundSalvoCount:disabled{color:var(--ink-dim);opacity:.5}
