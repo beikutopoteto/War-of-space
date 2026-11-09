@@ -88,6 +88,8 @@ async function checkGroundTransport(page,check){
   });
   await page.locator('#groundBoard').click();check(await page.evaluate(()=>groundWorkAiming==='board'),'輸送の操作: 乗車ボタン');
   await page.keyboard.press('Escape');check(await page.evaluate(()=>!groundWorkAiming&&!paused),'輸送の操作: Esc取消');
+  // 取消後の通常クリックは選択。搭乗先の指定には改めて搭乗ボタンを押す。
+  await page.locator('#groundBoard').click({noWaitAfter:true});
   // カメラ・部隊を直接動かしたあとは、描画ループが行列と名札の位置を
   // 更新してから座標を取る。proj() は camera.matrixWorldInverse を使い、
   // controls.update() だけではその行列も DOM の名札も更新されない。
