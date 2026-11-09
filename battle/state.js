@@ -360,17 +360,17 @@ function copyOrder(o){
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
 }
 function saveUndo(t){
-  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null})));
+  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null,groundAreaSalvo:op.ground&&f.groundAreaSalvo?{...f.groundAreaSalvo}:null})));
   if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
 }
 function undo(){
   if(op.ground)groundClearAiming();
   const u=undoStack.pop(); updateUndo(); if(!u||over) return;
   for(const s of u){ const f=s.f; if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo'))) continue;
-    if(op.ground)groundCancelWork(f);
+    if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;}
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
-    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
+    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
   updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }

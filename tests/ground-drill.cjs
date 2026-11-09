@@ -10,7 +10,7 @@ function drillAction(){
   if(['groundMove','groundCapture','groundSight','groundSupplyRoad','groundSupplyRecapture','groundSupplyHalf','groundSupplyRout','groundSupplyRally'].includes(r.condition)){order(f,{type:'move',dest:p});return !!f.order;}
   if(r.condition==='groundAttack'){const t=groundDrillUnit(r.target);if(!shown(t))throw new Error('案内の攻撃対象が未発見: '+r.target);order(f,{type:'attack',target:t});return true;}
   if(r.condition==='groundBand')return groundSetBand([f],r.band);
-  if(r.condition==='groundStrike')return groundStrikeCommand([f],p)>0;
+  if(r.condition==='groundStrike'){const before=groundStrikes.length;if(!groundStrikeAiming)groundStrikeToggle();groundAreaTap(p);if(groundAreaAim?.stage==='end')groundAreaTap(p);groundAreaTap(p);return groundStrikes.length>before;}
   if(r.condition==='groundBoard')return groundBoardCommand([f],groundDrillUnit(r.target));
   if(r.condition==='groundUnload')return groundUnloadCommand([f])>0;
   if(r.condition==='groundBridge')return !!groundBridgeCommand([f],p);

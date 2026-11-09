@@ -10,13 +10,13 @@ function groundStrikeInRange(f,p){
   return !!groundStrikeWeapon(f)&&Number.isFinite(p.x)&&Number.isFinite(p.z)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(f.groundKind!=='sea'||!groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea))&&groundDistanceTo(f,{pos:p})<=f.range&&(f.groundKind!=='vehicle'||groundDistanceTo(f,{pos:p})<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}));
 }
 function groundStrikeCanLaunch(f,p){return groundStrikeInRange(f,p)&&(f.groundStrikeCooldown||0)<=0;}
-function groundStrikeLaunch(f,p,impactOverride=null){
+function groundStrikeLaunch(f,p,impactOverride=null,area=null){
   if(!groundStrikeCanLaunch(f,p))return null;
   const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),spread=w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
   if(impactOverride)impact.copy(impactOverride);
-  const strike={areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),left:w.delay,resolving:false,visual:null};
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),left:w.delay,resolving:false,visual:null};
   if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
@@ -62,7 +62,7 @@ function groundStrikeAI(f){
 function groundStrikeCommand(list,p){
   let fired=0;
   for(const f of list)if(groundStrikeLaunch(f,p)){
-    fired++;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;
+    fired++;groundCancelWork(f);groundClearOrders(f);
   }
   groundStrikeMessage=fired?`${fired}隊 発射（味方にも命中）`:'発射不可：射程・高度・再装填を確認';
   if(fired){const message=groundStrikeMessage;groundClearAiming();groundStrikeMessage=message;}
@@ -75,7 +75,8 @@ function groundStrikeToggle(){
 }
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');
-  if(groundStrikeAiming&&!eligible.length)groundStrikeAiming=false;
+  if(groundStrikeAiming&&!eligible.length)groundClearAiming();
+  button.title=eligible.length&&eligible.every(f=>f.groundKind==='vehicle')?'直射による範囲射撃（射手自身の視界・見通しが必要）':'範囲砲撃：中心・半径、または中心線・幅';
   button.disabled=!eligible.length;button.setAttribute('aria-pressed',String(groundStrikeAiming));
   const reload=Math.max(0,...eligible.map(f=>f.groundStrikeCooldown||0));
   const count=document.getElementById('groundSalvoCount');if(count)count.disabled=!eligible.length;
