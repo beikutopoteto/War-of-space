@@ -8,7 +8,7 @@ function transportCases(){
     const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
     return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:'ground',alive:true,hpPool:type.hp*4,groundMaxHp:type.hp*4,n:4,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:4},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
   };
-  const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
+  const tick=seconds=>{let left=seconds;while(left>1e-8){const dt=Math.min(.05,left);groundStep(dt);left-=dt;}};
   try{
     // 兵科・視線・輸送の固定場面には本営を置かない。補給との組合せはground-supplyで確認。
     op={...op,groundHQ:null};
@@ -141,7 +141,7 @@ function nodeTransportScene(ctx){
       return {...type,id:1,kind:'fleet',el:{remove(){}},name:type.name,groundKind:kind,team:0,band:'ground',alive:true,pos,n:4,hpPool:type.hp*4,groundMaxHp:type.hp*4,ships:Array.from({length:4},()=>({pos:pos.clone()})),heading:new THREE.Vector3(),march:new THREE.Vector3(),stance:'evade',queue:[]};
     };
     const infantry=make('infantry',8,27),apc=make('apc',10,27),engineer=make('engineer',4,30),vehicle=make('vehicle',4,30);fleets=[infantry,apc,engineer,vehicle];
-    const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
+    const tick=seconds=>{let left=seconds;while(left>1e-8){const dt=Math.min(.05,left);groundStep(dt);left-=dt;}};
     groundBoardCommand([infantry],apc);tick(8);
     check('写真aの配置：生成済み地形で乗車',infantry.embarked===apc&&groundTransportLabel(apc).includes(infantry.name));
     check('写真bの配置：通れる隣接地へ降車',groundUnload(apc)&&!infantry.embarked&&groundPass(infantry.pos.x/4+24,18-infantry.pos.z/4,'infantry'));
@@ -171,9 +171,9 @@ function nodeTransportScene(ctx){
 }
 module.exports={transportCases,checkGroundTransport};
 if(require.main===module){
-  const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){}};
+  const element={style:{},remove(){},classList:{add(){},remove(){},toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')),ctx);

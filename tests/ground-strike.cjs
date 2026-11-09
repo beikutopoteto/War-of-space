@@ -11,19 +11,19 @@ function strikeCases(){
     op={...op,groundHQ:null,groundStaticEnemies:false};
     fresh();const gun=unit(0,'artillery',-20),enemy=unit(1,'infantry',0),friend=unit(0,'infantry',3),edge=unit(1,'infantry',7),outside=unit(1,'infantry',7.01),air=unit(1,'fighter',0,0,'low');
     fleets=[gun,enemy,friend,edge,outside,air];const aim=enemy.pos.clone(),s=groundStrikeLaunch(gun,aim);
-    check('自走砲は予告5秒・半径7',s&&s.left===5&&s.radius===7);
+    check('自走砲は弾道から求めた飛翔時間・半径7',s&&s.left>0&&s.left===groundBallisticSolution(gun,aim).duration&&s.radius===7);
     check('再装填中は連射できない',groundStrikeLaunch(gun,aim)===null&&groundStrikes.length===1);
-    groundStep(4.99);check('予告時間の直前は敵味方とも打撃0',enemy.hpPool===1000&&friend.hpPool===1000&&groundStrikes.length===1);
-    groundStep(.01);check('5秒で着弾し敵と味方に損害',enemy.hpPool===988&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
+    const flight=s.left;groundStep(flight-.01);check('予告時間の直前は敵味方とも打撃0',enemy.hpPool===1000&&friend.hpPool===1000&&groundStrikes.length===1);
+    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',enemy.hpPool===988&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
     check('中心ほど強く円周にも当たる',1000-enemy.hpPool>1000-friend.hpPool&&1000-friend.hpPool>1000-edge.hpPool&&edge.hpPool<1000);
     check('円外と低高度には当たらない',outside.hpPool===1000&&air.hpPool===1000);
     const hp=friend.hpPool;damage(friend,5,gun,s);check('着弾処理の外から味方へ damage を呼んでも損害0',friend.hpPool===hp);
     fresh();gun.alive=true;gun.groundStrikeCooldown=0;gun.pos.set(-20,0,0);enemy.hpPool=1000;enemy.pos.set(0,0,0);fleets=[gun,enemy];
-    const fixed=groundStrikeLaunch(gun,enemy.pos);enemy.pos.x=20;gun.pos.x=-70;gun.alive=false;groundStep(5);
+    const fixed=groundStrikeLaunch(gun,enemy.pos);enemy.pos.x=20;gun.pos.x=-70;gun.alive=false;groundStep(fixed.left);
     check('移動目標を追わず指定地点へ着弾',enemy.hpPool===1000&&fixed.impact.x===0&&groundImpacts[0].impact.x===0);
     check('射手が移動・撃破されても発射済み弾は消えない',groundStrikes.length===0&&groundImpacts.length===1);
     fresh();gun.alive=true;gun.pos.set(-20,0,0);gun.groundStrikeCooldown=0;enemy.pos.set(0,0,0);fleets=[gun,enemy];
-    const deadShot=groundStrikeLaunch(gun,enemy.pos);gun.alive=false;enemy.hpPool=1000;groundStep(5);
+    const deadShot=groundStrikeLaunch(gun,enemy.pos);gun.alive=false;enemy.hpPool=1000;groundStep(deadShot.left);
     check('射手撃破後の着弾も実際に損害を与える',enemy.hpPool<1000&&!deadShot.resolving);
     fresh();gun.alive=true;gun.groundStrikeCooldown=0;gun.pos.set(-40,0,0);fleets=[gun,enemy];Math.random=()=>.25;
     const blind=groundStrikeLaunch(gun,new THREE.Vector3());check('未観測地点でも射程内なら発射',blind&&!blind.observed);
@@ -31,8 +31,8 @@ function strikeCases(){
     gun.groundStrikeCooldown=0;const scout=unit(0,'scout',0,8);fleets.push(scout);
     const observed=groundStrikeLaunch(gun,new THREE.Vector3());check('斥候の観測を共有し散布2、同じ乱数でずれ1',observed.observed&&observed.spread===2&&Math.abs(observed.impact.distanceTo(observed.aim)*2-offset)<1e-8);
     const snap=blind.impact.clone();scout.pos.x=60;enemy.pos.x=50;groundUpdateSight();check('発射後に観測・目標が変わっても着弾点は固定',blind.impact.equals(snap));
-    gun.groundStrikeCooldown=0;groundBuildings=[{minX:-21,maxX:-19,minZ:-2,maxZ:2,bottom:0,top:40}];scout.pos.set(0,0,8);
-    const blocked=groundStrikeLaunch(gun,new THREE.Vector3());check('射手の直線が建物で遮られても観測共有で発射',!groundClearLine(groundEye(gun),{x:0,y:.35,z:0})&&blocked&&blocked.observed);
+    gun.groundStrikeCooldown=0;groundBuildings=[{minX:-21,maxX:-19,minZ:-2,maxZ:2,bottom:0,top:1}];scout.pos.set(0,0,8);
+    const blocked=groundStrikeLaunch(gun,new THREE.Vector3());check('直線を遮る低い建物は曲射で越え、観測共有で発射',!groundClearLine(groundEye(gun),{x:0,y:.35,z:0})&&blocked&&blocked.observed);
     gun.groundStrikeCooldown=0;scout.alive=false;const unseenWall=groundStrikeLaunch(gun,new THREE.Vector3());check('観測者も遮蔽されたら未観測の散布で発射',unseenWall&&!unseenWall.observed);
     fresh();gun.pos.set(-60,0,0);gun.groundStrikeCooldown=0;fleets=[gun];
     const range=groundStrikeRange(gun),at=d=>gun.pos.clone().add(new THREE.Vector3(d,0,0));
@@ -51,7 +51,7 @@ function strikeCases(){
     plane.band='high';plane.bandTo='low';check('高から低へ遷移中は元の高高度で爆撃可',!!groundStrikeLaunch(plane,enemy.pos));
     fresh();const red=unit(1,'artillery',-20),a=unit(0,'infantry',0),b=unit(0,'infantry',2),c=unit(0,'infantry',20);red.stance='engage';fleets=[red,a,b,c];groundStep(.05);
     check('敵自走砲は見える2隊の密集中心を砲撃',groundStrikes.length===1&&groundStrikes[0].team===1&&groundStrikes[0].aim.x===1);
-    const redAim=groundStrikes[0].aim.clone();a.pos.x=40;b.pos.x=42;groundStep(5);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
+    const redShot=groundStrikes[0],redAim=redShot.aim.clone();a.pos.x=40;b.pos.x=42;groundStep(redShot.left);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
     red.groundStrikeCooldown=0;groundStrikes=[];groundStep(.05);check('敵は視界外の密集を狙わない',groundStrikes.length===0);
     a.pos.set(0,0,0);b.pos.set(20,0,0);c.pos.set(40,0,0);groundUpdateSight();groundStrikeAI(red);check('密集選択AIは孤立部隊を密集と数えない',groundStrikes.length===0);
   }finally{op=saved.op;
@@ -79,12 +79,12 @@ async function checkGroundStrike(page,check){
   await page.mouse.click(p.x,p.y);
   const display=await page.evaluate(()=>{
     groundDraw();const s=groundStrikes[0];if(!s)return false;
-    return !groundStrikeAiming&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes('5.0秒');
+    return !groundStrikeAiming&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes(s.left.toFixed(1)+'秒');
   });check(display,'地点攻撃の操作: Bと中心・半径指定で予告円と残り秒');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
     friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
-    for(let i=0;i<100;i++)step(.05);groundDraw();
+    let left=s.left;while(left>1e-8){const dt=Math.min(.05,left);step(dt);left-=dt;}groundDraw();
     const hit=friend.hpPool+(friend.groundMorale||0)<hp[0]&&enemy.hpPool+(enemy.groundMorale||0)<hp[1],impact=groundImpacts.length===1&&document.querySelector('.ground-strike-label').textContent==='着弾';
     reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');
     reset({op:'charybdis'});return {hit,impact,clean,space:!groundStrikeAiming&&document.getElementById('groundAlt').hidden};
@@ -114,7 +114,7 @@ function nodeRenderCases(ctx){
       groundStrikeStep(WOS_TERRAIN.exercise2.strike.effectSec);check('着弾表示は期限後に片付ける',!effectRing.parent&&!groundImpacts.length);
     }
     fleets[0].groundStrikeCooldown=0;groundStrikeLaunch(fleets[0],groundPoint(19,27));groundStrikeDraw();
-    check('再初期化の前に発射済みの予告がある',groundStrikes.length===1&&groundVisuals.children.length===1);
+    const pending=groundStrikes[0];check('再初期化の前に予告円・弾道・砲弾がある',groundStrikes.length===1&&groundVisuals.children.length===3&&[pending.visual.ring,pending.visual.arc,pending.visual.projectile].every(v=>v&&v.parent===groundVisuals));
     groundStrikeReset();
     check('再初期化は予告・着弾・指定モードを消す',!groundStrikes.length&&!groundImpacts.length&&!groundStrikeAiming&&groundVisuals.children.length===0);
     return results;
@@ -123,7 +123,7 @@ function nodeRenderCases(ctx){
 if(require.main===module){
   const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,
     tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
   const sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);

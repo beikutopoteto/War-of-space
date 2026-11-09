@@ -34,6 +34,16 @@ function rangeCases(){
   const sight=groundSightRange(tank);tank.range=99999;check('旧rangeを書換えても武器・索敵射程を拡大しない',groundTargetRange(tank,{band:'ground'})===12&&groundSightRange(tank)===sight);
   check('全兵科の操作枠は最大2つ',Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(kind=>{const f=unit(kind),r=groundFireRanges(f);return [r.direct,r.indirect?.max,r.ground,r.air].filter(n=>n>0).length<=2;}));
   check('自走砲の表示は直射と間接、補給部隊は武器射程なし',groundRangeInfo(gun).entries.map(e=>e.id).join(',')==='direct,indirect'&&!groundRangeInfo(unit('supply')));
+  // 射程は狙点へ適用。散布で境界を越えた実弾を発射取消にしない。
+  gun.pos.copy(groundPoint(4,24));gun.order=null;gun.groundStrikeCooldown=0;fleets=[gun];groundStrikes=[];
+  const savedRandom=Math.random;let draw=0;Math.random=()=>draw++%2?1:0;
+  try{
+   const shot=groundStrikeLaunch(gun,gun.pos.clone().add(new THREE.Vector3(120,0,0)));
+   check('最大30kmの狙点から外側へ散った弾も発射して再装填',shot&&groundDistanceTo(gun,{pos:shot.impact})>120&&gun.groundStrikeCooldown>0&&shot.left>0);
+   gun.groundStrikeCooldown=0;draw=0;Math.random=()=>draw++%2?1:.5;
+   const inner=groundStrikeLaunch(gun,gun.pos.clone().add(new THREE.Vector3(8,0,0)));
+   check('最小2kmの狙点から内側へ散った弾も発射',inner&&groundDistanceTo(gun,{pos:inner.impact})<8&&inner.left>0);
+  }finally{Math.random=savedRandom;}
   op={};check('宇宙に地上射程・地点攻撃を適用しない',Object.keys(groundFireRanges(gun)).length===0&&!groundStrikeWeapon(gun));
  }finally{Object.assign(globalThis,saved);groundStrikes=[];groundImpacts=[];groundHeightCacheReset();}
  return rows;

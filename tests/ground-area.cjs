@@ -31,10 +31,10 @@ function areaCases(){
   const ship=unit('sea');check('混成上限は兵科別の最大直径を合算',groundAreaLimits([gun,ship]).length===34);
   select(ship);groundStrikeToggle();check('単艦でも線状指定が標準',groundAreaAim.type==='line');
   groundAreaTap(groundPoint(12,27));const end=groundAreaEnd(groundAreaAim,groundPoint(40,27));check('長すぎる中心線は上限で止まる',groundAreaCurve([...groundAreaAim.points,end]).length<=20+1e-6);groundClearAiming();
-  const tank=unit('vehicle'),target=groundPoint(11,27),scout=unit('scout',11);groundBuildings=[{minX:groundPoint(9.5,27).x-.2,maxX:groundPoint(9.5,27).x+.2,minZ:target.z-3,maxZ:target.z+3,bottom:0,top:10}];
+  const tank=unit('vehicle'),target=groundPoint(11,27),scout=unit('scout',11);groundBuildings=[{minX:groundPoint(9.5,27).x-.2,maxX:groundPoint(9.5,27).x+.2,minZ:target.z-3,maxZ:target.z+3,bottom:0,top:1}];
   check('遮蔽確認の狙点は戦車の直接射程3km境界',groundDistanceTo(tank,{pos:target})===groundStrikeRange(tank).max);
   check('観測済みでも戦車は壁越しに射撃しない',groundPointSeenBy(0,target)&&!groundStrikeInRange(tank,target));
-  check('自走砲の間接照準は維持',groundStrikeInRange(gun,target));
+  check('自走砲は弾道が越えられる壁へ間接照準できる',groundStrikeInRange(gun,target));
   groundBuildings=[];groundSightHeight=(x,z)=>Math.abs(x-groundPoint(9.5,27).x)<1?10:0;check('戦車は尾根越しにも射撃しない',!groundStrikeInRange(tank,target));groundSightHeight=()=>0;
   check('戦車は見通せる地点なら範囲射撃できる',groundStrikeInRange(tank,target));
   select(gun);groundStrikeToggle();groundAreaTap(center);select(tank);check('選択変更で指定途中の円とモードを解除',!groundAreaAim&&!groundStrikeAiming);

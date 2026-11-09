@@ -27,7 +27,7 @@ function seaCases(){
     check('実際の海上移動は水面固定で目的地へ到着',safe&&!ship.order&&ship.pos.distanceTo(dest)<1e-6);
     check('海岸線を横切る線分を拒否',!groundSeaLeg(groundPoint(14,7.6),groundPoint(17,7.6)));
     ship.pos.copy(groundPoint(12,5));const start=ship.pos.clone(),enemyLand=unit('infantry',1,12,10);fleets=[ship,enemyLand];
-    order(ship,{type:'attack',target:enemyLand});tick(1);
+    order(ship,{type:'attack',target:enemyLand});tick(.05);
     const landShots=groundStrikes.filter(s=>s.source===ship);
     check('陸上への攻撃命令は遅延弾1発・即時打撃なし・陸へ追跡しない',enemyLand.hpPool===enemyLand.hp&&ship.pos.equals(start)&&!ship.order.path&&ship.fireTarget===enemyLand&&landShots.length===1&&landShots[0].left>0&&landShots[0].aim.x===enemyLand.pos.x&&landShots[0].aim.z===enemyLand.pos.z);
     if(landShots.length===1){groundStrikeStep(landShots[0].left);check('命じた陸上目標には遅延弾の着弾で打撃',enemyLand.hpPool<enemyLand.hp);}
@@ -44,14 +44,14 @@ function seaCases(){
     fleets=[ship,target,friend,seaTarget,air];groundUpdateSight();
     check('艦砲の狙点は陸のみ、海は直接射撃',!groundStrikeLaunch(ship,groundPoint(13,5)));
     const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{op=saved.op;Math.random=random;}
-    check('艦砲は予告8秒・半径10',s&&s.left===8&&s.radius===10&&s.kind==='sea');
+    check('艦砲は弾道から求めた飛翔時間・半径10',s&&s.left>0&&s.left===groundBallisticSolution(ship,target.pos).duration&&s.radius===10&&s.kind==='sea');
     check('艦砲は再装填中に連射不可',!groundStrikeLaunch(ship,target.pos));
     // 本営ありでは打撃が先に士気へ入る。士気を持たない艦・航空も同じ尺度で確認する。
     const remaining=f=>f.hpPool+(f.groundMorale??0);
     // 地形滞在による士気消費などを混ぜず、艦砲の着弾処理だけを進める。
-    const before=[target,friend,seaTarget,air].map(remaining);groundStrikeStep(7.95);
-    check('8秒直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
-    groundStrikeStep(.05);check('8秒で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
+    const before=[target,friend,seaTarget,air].map(remaining),flight=s.left;groundStrikeStep(flight-.01);
+    check('計算した着弾時刻の直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
+    groundStrikeStep(.01);check('計算した飛翔時間で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
     check('艦砲は海・航空には当たらない',remaining(seaTarget)===before[2]&&remaining(air)===before[3]);
     ship.groundStrikeCooldown=0;const p=groundPoint(23.47,26),was=unit('was',0,23.47,26),infantry=unit('infantry',0,23.47,26);
     const travel=f=>{f.speed=1;f.order={path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}};groundFollow(f,.01);return f.pos.x-p.x;};
@@ -88,8 +88,8 @@ async function checkGroundSea(page,check){
   for(const point of [[12,8.6],[12.5,8.6]]){const aim=await page.evaluate(p=>proj(groundPoint(...p)),point);await page.mouse.click(aim.x,aim.y);}
   check(await page.evaluate(()=>groundAreaAim?.stage==='width'&&!groundStrikes.length),'海の艦: 始点と終点だけでは発射しない');
   const width=await page.evaluate(()=>proj(groundPoint(12.25,9.1)));await page.mouse.click(width.x,width.y);
-  const display=await page.evaluate(()=>{groundDraw();const s=groundStrikes[0];return s?.kind==='sea'&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes('艦砲 8.0秒');});
-  check(display,'海の艦: Bと始点・終点・幅の3クリックで予告円・残り8秒');
+  const display=await page.evaluate(()=>{groundDraw();const s=groundStrikes[0];return s?.kind==='sea'&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes('艦砲 '+s.left.toFixed(1)+'秒');});
+  check(display,'海の艦: Bと始点・終点・幅の3クリックで予告円・計算した残り秒');
   const clean=await page.evaluate(()=>{reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');reset({op:'charybdis'});return clean&&fleets.every(f=>f.groundKind!=='sea')&&!groundVisuals;});
   check(clean,'海の艦: 再初期化で予告を消し宇宙戦へ復帰');
 }
@@ -98,7 +98,7 @@ function nodeChecks(){
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>({addEventListener(){}}),querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));
@@ -127,8 +127,8 @@ function nodeChecks(){
     check('海の5隻とも実モデルの頂点と大きさを流用',ships.length===5&&ships.every(f=>{const mesh=f.groundModel.children[0],src=shipMeshes[f.team][f.type];return mesh.geometry!==src.geometry&&mesh.geometry.attributes.position.count===src.geometry.attributes.position.count&&[...mesh.geometry.attributes.position.array].every(Number.isFinite)&&mesh.scale.x===SHIP_SIZE[f.type]&&f.pos.y===0;}));
     groundView='high';groundDraw();check('海面表示も高度ビューの濃淡に従い論理的な段は維持',ships.filter(f=>f.team===0).every(f=>f.band==='sea'&&f.groundModel.position.y===0&&+f.el.style.opacity===groundRules().dimOpacity));
     groundView='all';const f=ships[0],target=groundPoint(12,8.6),s=groundStrikeLaunch(f,target);groundDraw();
-    check('艦砲の円・残り8秒を実描画',s&&s.visual.ring.parent===groundVisuals&&[...s.visual.ring.geometry.attributes.position.array].every(Number.isFinite)&&s.visual.el.textContent.includes('艦砲 8.0秒'));
-    groundStrikeStep(8);groundDraw();check('着弾の円へ切り替わる',!s.visual&&groundImpacts.length===1&&groundImpacts[0].visual.el.textContent==='着弾');
+    check('艦砲の円・計算した残り秒を実描画',s&&s.visual.ring.parent===groundVisuals&&[...s.visual.ring.geometry.attributes.position.array].every(Number.isFinite)&&s.visual.el.textContent.includes('艦砲 '+s.left.toFixed(1)+'秒'));
+    groundStrikeStep(s.left);groundDraw();check('着弾の円へ切り替わる',!s.visual&&groundImpacts.length===1&&groundImpacts[0].visual.el.textContent==='着弾');
     groundStrikeReset();check('予告と着弾の表示をリセットで破棄',!groundStrikes.length&&!groundImpacts.length);
     return results;
   })()`));
