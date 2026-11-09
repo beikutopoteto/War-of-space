@@ -26,11 +26,12 @@ const path=require('path'),fs=require('fs'),assert=require('assert/strict');
    },[kind,offset]);
    await page.screenshot({path:path.join(ROOT,'.shots',name+'.png')});return state;
   }
+  const maskMs=await page.evaluate(()=>{const f=fleets.find(f=>f.team===0&&f.groundKind==='artillery'),e=groundRangeInfo(f).entries.find(e=>e.id==='indirect');groundBallisticReset();const start=performance.now();const points=groundRangeMask(f,e);return {ms:performance.now()-start,vertices:points.length};});
   const gun=await scene('artillery','ground-range-artillery',[0,100,75]);assert(gun.label.includes('直接射撃 2.0km')&&gun.label.includes('間接砲撃 2.0〜30.0km')&&gun.rings===3);
   const tank=await scene('vehicle','ground-range-tank',[0,58,44]);assert(tank.label.includes('直接射撃 3.0km')&&tank.label.includes('対空 1.0km')&&!tank.label.includes('間接'));
   const air=await scene('attack','ground-range-air',[0,95,70]);assert(air.label.includes('対地・対艦 10.0km')&&air.label.includes('対空 15.0km'));
   await page.evaluate(()=>{reset({op:'charybdis'});setSpeed(0);});assert.equal(await page.locator('.ground-range-label').count(),0);
   assert.deepEqual(errors,[]);assert.equal(results.filter(r=>!r.ok).length,0,JSON.stringify(results.filter(r=>!r.ok)));
-  console.log(JSON.stringify({checks:results.length,gun,tank,air,spaceClean:true,errors}));
+  console.log(JSON.stringify({checks:results.length,maskMs,gun,tank,air,spaceClean:true,errors}));
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

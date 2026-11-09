@@ -533,6 +533,28 @@ function groundRangeInfo(f){
   if(r.aa>0)entries.push({id:'aa',text:'対空',range:r.aa,bands:bands.filter(b=>['low','high'].includes(b))});
   return entries.length?{...entries.find(e=>e.id==='indirect')||entries[0],entries}:null;
 }
+// 選択隊だけの可射マスク。32方向×12距離の境界を描き、内側の遮蔽も残す。
+// 点ごとの厳密な発射判定は共有の射線・弾道判定。マスクは表示用の離散近似。
+function groundRangeMask(f,e){
+  const angles=32,steps=12,R=e.range,dr=R/steps,da=2*Math.PI/angles,mask=[];
+  const point=(a,r)=>{const x=f.pos.x+Math.cos(a)*r,z=f.pos.z+Math.sin(a)*r;return new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z);};
+  const clear=(a,r)=>{
+    if(e.min&&r<e.min)return false;
+    const p=point(a,r);
+    if(e.id==='indirect')return groundStrikeInRange(f,p);
+    return groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight});
+  };
+  for(let j=0;j<steps;j++){mask[j]=[];for(let i=0;i<angles;i++)mask[j][i]=clear((i+.5)*da,(j+.5)*dr);}
+  const points=[];
+  for(let j=0;j<steps;j++)for(let i=0;i<angles;i++)if(mask[j][i]){
+    const a=i*da,b=(i+1)*da,inner=j*dr,outer=(j+1)*dr;
+    if(j===steps-1||!mask[j+1][i])points.push(point(a,outer),point(b,outer));
+    if(j>0&&!mask[j-1][i])points.push(point(a,inner),point(b,inner));
+    if(!mask[j][(i+angles-1)%angles])points.push(point(a,inner),point(a,outer));
+    if(!mask[j][(i+1)%angles])points.push(point(b,inner),point(b,outer));
+  }
+  return points;
+}
 function groundRangesDraw(list){
   if(!groundVisuals)return;
   const live=new Set();
@@ -541,13 +563,14 @@ function groundRangesDraw(list){
     let v=groundRanges.get(f);
     if(!v){const el=document.createElement('div');el.className='ground-range-label';labelsEl.appendChild(el);v={lines:[],el};groundRanges.set(f,v);}
     const rings=info.entries.flatMap(e=>[e,...(e.min>0?[{...e,id:e.id+'Min',range:e.min}]:[])]);
-    const key=[f.pos.x,f.pos.z,f.band,...rings.map(e=>e.range)].join('/');
-    if(v.key!==key){
+    const key=[f.pos.x,f.pos.z,f.band,...rings.map(e=>e.id+':'+e.range)].join('/');
+    if((v.key!==key||v.buildings!==groundBuildings)&&(!v.updatedAt||performance.now()-v.updatedAt>750||v.band!==f.band||v.buildings!==groundBuildings)){
       for(const line of v.lines){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}
       v.lines=rings.map(e=>{
-        const points=[];for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=f.pos.x+Math.cos(a)*e.range,z=f.pos.z+Math.sin(a)*e.range;points.push(new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z));}
-        const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.7,depthWrite:false,dashSize:e.id==='aa'?.3:.7,gapSize:.45}));line.renderOrder=5;line.computeLineDistances();groundVisuals.add(line);return line;
-      });v.line=v.lines[0];v.key=key;
+        const masked=['direct','indirect'].includes(e.id),points=masked?groundRangeMask(f,e):[];
+        if(!masked)for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=f.pos.x+Math.cos(a)*e.range,z=f.pos.z+Math.sin(a)*e.range;points.push(new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z));}
+        const line=new (masked?THREE.LineSegments:THREE.Line)(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.7,depthWrite:false,dashSize:e.id==='aa'?.3:.7,gapSize:.45}));line.renderOrder=5;line.computeLineDistances();groundVisuals.add(line);return line;
+      });v.line=v.lines[0];v.key=key;v.updatedAt=performance.now();v.band=f.band;v.buildings=groundBuildings;
     }
     const p=proj(new THREE.Vector3(f.pos.x,groundSurfaceHeight(f.pos.x,f.pos.z)+1.5,f.pos.z));
     v.el.hidden=p.z>1||p.x<0||p.y<0||p.x>innerWidth||p.y>innerHeight;
