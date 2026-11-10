@@ -70,13 +70,16 @@ function groundTargetRange(f,t){
   const r=groundFireRanges(f),airborne=['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&['low','high'].includes(f.band);
   return groundAirTarget(t)?(airborne?r.air:r.aa)||0:(airborne?r.ground:r.direct)||0;
 }
+function groundManualTargetAllowed(f,t){return !groundAirTarget(t)||!groundAutoAASource(f);}
 function groundFireMode(f,t){
+  if(!groundManualTargetAllowed(f,t))return null;
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);
   if(groundFireFactor(f,t)>0&&direct>0&&distance<=direct&&groundLineOfSight(f,t))return 'direct';
   const r=groundFireRanges(f).indirect;
   return (t.band||'ground')==='ground'&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
 }
 function groundEngagementRange(f,t){
+  if(!groundManualTargetAllowed(f,t))return 0;
   const direct=groundTargetRange(f,t),indirect=groundFireRanges(f).indirect;
   return Math.max(groundFireFactor(f,t)>0?direct:0,(t.band||'ground')==='ground'&&groundStrikeWeapon(f)?indirect?.max||0:0);
 }
@@ -305,6 +308,7 @@ function groundStep(dt){
       f.groundShotT=groundRules().fireEvery;
     }
   }
+  groundAutoAAStep(dt);
   groundCaptureStep(dt);
   groundSupplyAfter(dt);
   if(op.groundDrill)groundDrillTick();
@@ -529,8 +533,8 @@ function groundRangeInfo(f){
   if(r.direct>0)entries.push({id:'direct',text:'直接射撃',range:r.direct,bands:bands.filter(b=>!['low','high'].includes(b))});
   if(r.indirect&&groundStrikeWeapon(f))entries.push({id:'indirect',text:'間接砲撃',range:r.indirect.max,min:r.indirect.min,bands:[]});
   if(r.ground>0&&(bands.includes('ground')||bands.includes('sea')||groundStrikeWeapon(f)))entries.push({id:'ground',text:'対地・対艦',range:r.ground,bands:bands.filter(b=>['ground','sea'].includes(b))});
-  if(r.air>0)entries.push({id:'air',text:'対空',range:r.air,bands:bands.filter(b=>['low','high'].includes(b))});
-  if(r.aa>0)entries.push({id:'aa',text:'対空',range:r.aa,bands:bands.filter(b=>['low','high'].includes(b))});
+  if(r.air>0)entries.push({id:'air',text:groundAutoAASource(f)?'自動対空':'対空',range:r.air,bands:bands.filter(b=>['low','high'].includes(b))});
+  if(r.aa>0)entries.push({id:'aa',text:'自動対空',range:r.aa,bands:bands.filter(b=>['low','high'].includes(b))});
   return entries.length?{...entries.find(e=>e.id==='indirect')||entries[0],entries}:null;
 }
 // 選択隊だけの可射マスク。32方向×12距離の境界を描き、内側の遮蔽も残す。

@@ -2,6 +2,13 @@
 function groundDrillActive(){return !!(op.groundDrill&&tutorialActive());}
 function groundDrillRow(){return groundDrillActive()?op.tutorial[tutorial.step]:null;}
 function groundDrillUnit(name){return fleets.find(f=>f.name===name);}
+// 案内前の自動撃墜で訓練が進めなくならないよう、対空目標は選択の手順で有効にする。
+function groundDrillAATargetAvailable(t){
+  if(!groundDrillActive())return true;
+  const lesson=op.tutorial.find(r=>r.condition==='groundAutoAA'&&r.target===t.name);
+  if(!lesson)return true;
+  return groundDrillRow()===lesson&&orderTargets().some(f=>f.name===lesson.actor);
+}
 function groundDrillEnter(){
   tutorial.ground={};tutorial.startedAt=gameSec;
   const row=groundDrillRow();groundSupplyDrillEnter(row);
@@ -40,6 +47,7 @@ function groundDrillTick(){
   else if(row.condition==='groundMove')done=g.issued&&near&&!f.order&&(!row.coast||groundCoastCells(f).length>0);
   else if(row.condition==='groundCapture')done=g.issued&&groundSites.find(s=>s.id===row.site)?.owner===0;
   else if(row.condition==='groundAttack')done=g.hit&&!groundDrillUnit(row.target)?.alive;
+  else if(row.condition==='groundAutoAA')done=orderTargets().includes(f)&&!groundDrillUnit(row.target)?.alive;
   else if(row.condition==='groundSight')done=g.issued&&near&&!f.order&&groundCanSee(f,groundDrillUnit(row.target));
   else if(row.condition==='groundBand')done=g.issued&&f.band===row.band&&!f.bandTo;
   else if(row.condition==='groundStrike')done=g.strike&&g.strike.left<=1e-8;

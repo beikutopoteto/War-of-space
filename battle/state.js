@@ -375,7 +375,7 @@ function undo(){
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
-  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type))); if(!t.length){ if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
+  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'&&groundAirTarget(o.target)){groundStrikeMessage='対空は装備部隊が自動迎撃';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
   saveUndo(t);
   if(op.ground)t.forEach(f=>f.groundPlan=null);
