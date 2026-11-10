@@ -33,8 +33,8 @@ function seaCases(){
     if(landShots.length===1){groundStrikeStep(landShots[0].left);check('命じた陸上目標には遅延弾の着弾で打撃',enemyLand.hpPool<enemyLand.hp);}
     groundStrikeReset();ship.groundStrikeCooldown=0;
     for(const band of ['low','high','sea']){
-      const target=unit(band==='sea'?'sea':'fighter',1,13,5);target.band=band;target.pos.y=groundUnitHeight(target);fleets=[ship,target];ship.order=null;ship.stance='engage';ship.groundShotT=0;
-      const hp=target.hpPool;groundStep(.05);check('艦が '+band+' を実際に直接射撃',target.hpPool<hp&&ship.fireTarget===target);
+      const target=unit(band==='sea'?'sea':'fighter',1,13,5);target.band=band;target.pos.y=groundUnitHeight(target);fleets=[ship,target];ship.order=null;ship.stance='engage';ship.groundShotT=ship.groundAATimer=0;
+      const hp=target.hpPool;groundStep(.05);check('艦が '+band+' を通常射撃または独立した自動対空で攻撃',target.hpPool<hp&&(band==='sea'?ship.fireTarget===target:ship.groundAATarget===target&&!ship.fireTarget));
     }
     ship.stance='evade';ship.order=null;const plane=unit('attack',1,13,5);plane.band='low';fleets=[ship,plane];order(plane,{type:'attack',target:ship});let hp=ship.hpPool;groundStep(.05);
     check('低空の攻撃機が艦を実際に射撃',ship.hpPool<hp&&plane.fireTarget===ship);
@@ -98,7 +98,7 @@ function nodeChecks(){
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>({addEventListener(){}}),querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));

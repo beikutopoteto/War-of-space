@@ -7,7 +7,7 @@ function branchCases(){
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,team=0,x=8,y=27)=>{
     const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y),n=kind==='guidedRocket'?1:4;
-    return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:groundBands({groundKind:kind})[0],alive:true,n,hpPool:type.hp*n,groundMaxHp:type.hp*n,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:n},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
+    return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:groundBands({groundKind:kind})[0],alive:true,groundAATimer:0,groundAATarget:null,n,hpPool:type.hp*n,groundMaxHp:type.hp*n,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:n},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
   };
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
@@ -58,12 +58,12 @@ function branchCases(){
     for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-        check(kind+'：段別の実打撃 '+band,near(hp-t.hpPool,hits[i]));
+        check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i])&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
       }
     }
     for(const band of ['low','high','ground']){
       const f=unit('mobileAA'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;tick(.05);
-      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,band==='ground'?2:8));
+      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,band==='ground'?2:8)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
     }
     for(const band of ['ground','low','high']){
       const f=unit('guidedRocket'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
@@ -142,13 +142,13 @@ async function checkGroundBranches(page,check){
     await page.click('#pick [data-pk="attack"]');
     check(await page.evaluate(()=>{const t=fleets.find(f=>f.name==='許可する目標'),other=fleets.find(f=>f.name==='命じない目標'),f=selected,hp=t.hpPool,otherHP=other.hpPool;const ordered=f.order?.target===t;for(let i=0;i<22;i++)step(.05);groundDraw();return ordered&&t.hpPool<hp&&other.hpPool===otherHP&&f.fireTarget===t;}),'残り兵科: 実クリックで許可した目標だけを撃つ');
     await page.evaluate(setupAntiAirScene);
-    check(await page.evaluate(()=>{const gun=selected,air=fleets.find(f=>f.team===1),hp=air.hpPool;step(.05);groundDraw();return air.hpPool<hp&&gun.fireTarget===air&&air.groundModel.visible&&air.band==='high';}),'残り兵科: 実画面の自走対空砲が高高度の航空機を撃つ');
+    check(await page.evaluate(()=>{const gun=selected,air=fleets.find(f=>f.team===1),hp=air.hpPool;step(.05);groundDraw();return air.hpPool<hp&&gun.groundAATarget===air&&!gun.fireTarget&&air.groundModel.visible&&air.band==='high';}),'残り兵科: 実画面の自走対空砲が高高度の航空機を撃つ');
   }finally{await page.evaluate(s=>{if(s===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',s);},original);await page.reload();}
 }
 function nodeChecks(){
   const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},groundHud:()=>{}});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);

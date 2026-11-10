@@ -105,6 +105,14 @@ function controlsCases(){
     groundStep(.125);check('失敗した追撃経路は0.5秒後に再探索',searches===2);
     for(let i=0;i<4;i++)groundStep(.125);check('失敗が続いても0.5秒ごとの再探索',searches===3);
   }finally{groundPath=realPath;groundUpdateSight=realSight;groundSeenBy=realSeen;}
+  // 手動の対空指定を拒否しても、移動・予約経路・undo履歴と自動迎撃は独立。
+  const guard=unit('vehicle',8,27),air=unit('fighter',8.2,27,1);fleets=[guard,air];groundSites=[];groundForests=[];groundBuildings=[];
+  guard.stance=air.stance='evade';select(guard);groupOrder({type:'move',dest:groundPoint(9,27)});groupOrder({type:'move',dest:groundPoint(9,29),queue:true});
+  const move=guard.order,queued=guard.queue,history=undoStack.length,at=guard.pos.clone();
+  groupOrder({type:'attack',target:air});order(guard,{type:'attack',target:air});
+  check('敵航空への手動攻撃は予約移動とundo履歴を変えない',guard.order===move&&guard.order.path.pts.length===2&&guard.queue===queued&&undoStack.length===history);
+  guard.groundAATimer=0;const airHP=air.hpPool;groundStep(.05);
+  check('交戦回避でも移動と予約を保って別対象として自動迎撃',air.hpPool<airHP&&guard.groundAATarget===air&&!guard.fireTarget&&guard.order===move&&guard.order.path.pts.length===2&&guard.queue===queued&&guard.pos.distanceTo(at)>0);
   return rows;
 }
 function nodeChecks(){const {ctx,run}=createControlsContext();ctx.pauseOpened=false;return run(`(${controlsCases.toString()})()`);}
