@@ -6,17 +6,18 @@ function branchCases(){
   const saved={op,fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,team=0,x=8,y=27)=>{
-    const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
-    return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:groundBands({groundKind:kind})[0],alive:true,n:4,hpPool:type.hp*4,groundMaxHp:type.hp*4,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:4},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
+    const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y),n=kind==='guidedRocket'?1:4;
+    return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:groundBands({groundKind:kind})[0],alive:true,n,hpPool:type.hp*n,groundMaxHp:type.hp*n,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:n},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
   };
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
-  // 間接射撃は1回だけ発射し、地上ステップを追加せず着弾まで進める。
+  // 許可制と1発の相性を確認する場面。ロケットは1両、最初の発射後に未発射分を取り消す。6連射は専用斉射テストで確認。
   const fireOnce=(f,t)=>{
     const hp=t.hpPool,start=groundStrikes.length;tick(.05);
     if(f.groundKind==='guidedRocket'&&t.band==='ground'){
       const shots=groundStrikes.slice(start).filter(s=>s.source===f);
-      check('ロケット：許可した目標へ1発、発射直後の打撃0',shots.length===1&&t.hpPool===hp);
+      check('ロケット：許可した1両の斉射は先頭1発、発射直後の打撃0',f.ships.length===1&&shots.length===1&&t.hpPool===hp);
+      groundVolleyCancel(f);
       if(shots.length===1){const s=shots[0];groundStrikeStep(s.left-.01);check('ロケット：着弾直前も打撃0',t.hpPool===hp);groundStrikeStep(.01);}
     }
   };
@@ -147,7 +148,7 @@ async function checkGroundBranches(page,check){
 function nodeChecks(){
   const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},groundHud:()=>{}});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);

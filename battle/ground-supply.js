@@ -116,7 +116,7 @@ function groundSupplySpeedFactor(f){
   if(!groundSupplyActive())return 1;const r=groundSupplyRules();return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.7+.3*f.groundSupply/r.max:1)*(f.groundRout==='routing'||!(f.groundHitLeft>0)?1:r.hitSlow);
 }
 function groundSupplySpend(f,amount){if(groundSupplyActive()&&Number.isFinite(f.groundSupply))f.groundSupply=Math.max(0,f.groundSupply-amount);}
-function groundSupplyShot(f,strike=false){groundSupplySpend(f,groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot));}
+function groundSupplyShot(f,strike=false,share=1){groundSupplySpend(f,(groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot))*Math.max(0,Number.isFinite(share)?share:1));}
 function groundSupplyMoved(f,a,b){
   if(!groundSupplyActive()||f.embarked||!Number.isFinite(f.groundSupply))return;
   if(!groundSupplyLand(f))return;f.groundMoved=true;
