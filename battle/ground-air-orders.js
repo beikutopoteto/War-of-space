@@ -30,7 +30,10 @@ function groundAirTurnMove(f,target,dt){
  if(desired.lengthSq()<1e-10)desired.copy(heading);
  // 境界を突き抜ける前に盤の中央へ旋回。空域の海陸通行は同じ。
  const look=Math.max(speed*2/turn,speed*dt),future=f.pos.clone().addScaledVector(heading,look);
- if(!groundPass(groundMapX(future.x),groundMapY(future.z),'air')&&!f.groundAirBoundary)f.groundAirBoundary=f.pos.clone();
+ const waypoint=f.order?.type==='move'&&f.order.path?.points[f.order.path.atIndex]===target&&desired.length()<look*2;
+ // 有効な盤内の移動先は先読み回避で避け続けない。実際の次の位置は下で必ず境界検査する。
+ if(waypoint)f.groundAirBoundary=null;
+ else if(!groundPass(groundMapX(future.x),groundMapY(future.z),'air')&&!f.groundAirBoundary)f.groundAirBoundary=f.pos.clone();
  if(f.groundAirBoundary){
   if(groundDistanceTo(f,{pos:f.groundAirBoundary})>look*2)f.groundAirBoundary=null;
   else desired.set(-f.pos.x,0,-f.pos.z);

@@ -17,6 +17,10 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
    return {moved:f.pos.distanceTo(at)>0,hit:t.hpPool<hp,rangeKm:groundTargetRange(f,t)/GROUND_SCALE,order:f.order?.target===t};
   });assert(dogfight.moved&&dogfight.hit&&dogfight.rangeKm===2&&dogfight.order);
   fs.mkdirSync(path.join(ROOT,'.shots'),{recursive:true});await page.screenshot({path:path.join(ROOT,'.shots','ground-air-dogfight.png')});
+  const menu=await page.evaluate(()=>{
+   const b=fleets.find(f=>f.team===0&&f.groundKind==='supportAircraft'),f=fleets.find(f=>f.team===0&&f.groundKind==='fighter'),t=fleets.find(f=>f.team===1&&f.groundKind==='fighter'),land=fleets.find(f=>f.groundKind==='infantry'),button=()=>document.querySelector('#pick [data-pk="attack"]');
+   select(b);openPick(800,450,t,t.pos,false);const rejected=button().disabled&&button().textContent.includes('対応兵器');closePick();openPick(800,450,land,land.pos,false);const ground=!button().disabled;closePick();setSel([b,f],null);openPick(800,450,t,t.pos,false);const mixed=!button().disabled&&button().textContent.includes('対応隊のみ');closePick();return {rejected,ground,mixed};
+  });assert(Object.values(menu).every(Boolean));
   const bombing=await page.evaluate(()=>{
    const f=fleets.find(f=>f.team===0&&f.groundKind==='supportAircraft'),t=fleets.find(f=>f.groundKind==='infantry');groundClearOrders(fleets.find(f=>f.team===0&&f.groundKind==='fighter'));f.heading.set(1,0,0);select(f);groundSalvoInput.value=2;groundStrikeToggle();groundAreaTap(t.pos.clone());groundAreaTap(t.pos.clone().add(new THREE.Vector3(1.5,0,0)));if(!f.groundBombRun)throw Error('爆撃進入が始まらない');const ledger=f.groundBombRun.ledger,aim=ledger.shot.aim.clone(),before=t.hpPool;
    for(let i=0;i<4000&&!groundStrikes.some(s=>s.source===f);i++)groundStep(.05);
@@ -26,8 +30,8 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
    return {keptAim:s.aim.equals(aim),fromActual:s.flight.origin.distanceTo(f.pos)<1e-6,duration:s.duration,physicalSeconds:s.flight.physicalDuration,velocityMps:s.flight.velocityMeters.toArray(),noInstantDamage:t.hpPool===before,remaining:f.groundAreaSalvo?.remaining,issued:ledger.issued,unseen:!s.observed,impact:impact.toArray()};
   });assert(bombing.keptAim&&bombing.fromActual&&bombing.noInstantDamage&&bombing.remaining===1&&bombing.issued&&bombing.duration>0&&Math.abs(bombing.velocityMps[0]-125)<1);
   await page.screenshot({path:path.join(ROOT,'.shots','ground-air-bombing.png')});
-  const landing=await page.evaluate(()=>{const {s,t,before,f}=window.bombBrowserCheck,p=s.impact.clone();f.heading.set(0,0,1);groundStrikeStep(s.left);const hit=t.hpPool<before,unchanged=s.impact.equals(p);groundHold([f]);return {hit,unchanged,cancelled:!f.groundAreaSalvo&&!f.groundBombRun};});assert(landing.hit&&landing.unchanged&&landing.cancelled);
+  const landing=await page.evaluate(()=>{const {s,t,before,f}=window.bombBrowserCheck,p=s.impact.clone();f.heading.set(0,0,1);groundStrikeStep(s.left);const hit=t.hpPool<before,unchanged=s.impact.equals(p);select(f);document.getElementById('groundHold').click();return {hit,unchanged,cancelled:!f.groundAreaSalvo&&!f.groundBombRun};});assert(landing.hit&&landing.unchanged&&landing.cancelled);
   await page.evaluate(()=>{reset({op:'charybdis'});setSpeed(0);});assert.equal(await page.locator('.ground-range-label').count(),0);assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({dogfight,bombing,landing,spaceClean:true,errors}));
+  console.log(JSON.stringify({dogfight,menu,bombing,landing,spaceClean:true,errors}));
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

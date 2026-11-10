@@ -23,6 +23,7 @@ const {nodeChecks:groundReadoutChecks}=require('./ground-readouts.cjs');
 const {nodeChecks:groundPlanChecks}=require('./ground-plan.cjs');
 const {nodeChecks:groundAreaChecks}=require('./ground-area.cjs');
 const {nodeChecks:groundRangeChecks}=require('./ground-ranges.cjs');
+const {nodeChecks:groundCapabilityChecks}=require('./ground-command-capabilities.cjs');
 const {nodeChecks:groundAirChecks}=require('./ground-air.cjs');
 const {nodeChecks:groundAirOrderChecks}=require('./ground-air-orders.cjs');
 const {nodeChecks:groundAirIntegrationChecks}=require('./ground-air-integration.cjs');
@@ -53,6 +54,7 @@ function check(ok, label, detail = '') {
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
   for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
+  for(const r of groundCapabilityChecks())check(r.ok,'地上命令能力: '+r.name);
   for(const r of groundAirChecks())check(r.ok,'航空物理: '+r.name);
   for(const r of groundAirOrderChecks())check(r.ok,'航空運動: '+r.name);
   for(const r of groundAirIntegrationChecks())check(r.ok,'航空統合: '+r.name);
