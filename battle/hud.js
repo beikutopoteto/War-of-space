@@ -86,6 +86,7 @@ function panCamera(dt){
 }
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
+  if(op.ground&&o.type==='attack'&&!groundManualTargetAllowed(f,o.target))return;
   if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundCancelWork(f);f.groundPlan=null;f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?(o.groundPreparedPath?.bridgeRevision===groundBridgeRevision&&o.groundPreparedPath.s===0&&Math.hypot(o.groundPreparedPath.points[0].x-f.pos.x,o.groundPreparedPath.points[0].z-f.pos.z)<1e-6?o.groundPreparedPath:groundMovePath(f.pos,[...(o.via||[]),o.dest],groundMoveKind(f))):makePath(f.pos,[...(o.via||[]),o.dest]);
@@ -276,7 +277,8 @@ function groundAt(x,y){
 const pickEl=document.getElementById('pick'); let pickCtx=null;
 function openPick(x,y,target,dest,queue){
   pickCtx={target,dest,queue};
-  pickEl.querySelector('[data-pk="attack"]').textContent=queue?`攻撃を予約：${target.name}`:`攻撃：${target.name}`;
+  const attack=pickEl.querySelector('[data-pk="attack"]'),units=orderTargets(),automatic=op.ground&&groundAirTarget(target)&&units.length>0&&units.every(groundAutoAASource);
+  attack.disabled=!!automatic;attack.textContent=automatic?'対空：装備部隊が自動迎撃':queue?`攻撃を予約：${target.name}`:`攻撃：${target.name}`;
   pickEl.querySelector('[data-pk="move"]').textContent=queue?'ここを経由地に予約':'ここへ移動';
   pickEl.querySelector('[data-pk="move"]').disabled=!dest;
   pickEl.hidden=false;

@@ -106,6 +106,7 @@ function groundStrikeDropVisual(s){
   ring.geometry.dispose();ring.material.dispose();el.remove();s.visual=null;
 }
 function groundStrikeReset(){
+  groundAutoAAReset();
   groundVolleyReset();
   groundBallisticReset();
   groundFlightPreviewDrop();

@@ -6,7 +6,7 @@ function drillAction(){
   select(f);
   if(r.condition==='groundSupplyDeploy'){groundSupplyPlace([f],f.pos.clone());endDeploy();return true;}
   if(r.condition==='groundSupplyGive')return groundSupplyCommand([f],groundDrillUnit(r.target));
-  if(r.condition==='groundSelect')return true;
+  if(r.condition==='groundSelect'||r.condition==='groundAutoAA')return true;
   if(['groundMove','groundCapture','groundSight','groundSupplyRoad','groundSupplyRecapture','groundSupplyHalf','groundSupplyRout','groundSupplyRally'].includes(r.condition)){order(f,{type:'move',dest:p});return !!f.order;}
   if(r.condition==='groundAttack'){const t=groundDrillUnit(r.target);if(!shown(t))throw new Error('案内の攻撃対象が未発見: '+r.target);order(f,{type:'attack',target:t});return true;}
   if(r.condition==='groundBand')return groundSetBand([f],r.band);
@@ -52,7 +52,7 @@ async function performDrillAction(page){
   if(!r.selected)await page.locator('#roster').getByRole('button',{name:new RegExp('^'+r.actor.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'( /|$)')}).click({noWaitAfter:true});
   if(r.condition==='groundSupplyDeploy'){await page.evaluate(()=>drillAction());return true;}
   if(r.condition==='groundSupplyGive'){await page.click('#groundSupply',{noWaitAfter:true});return page.evaluate(()=>groundSupplyCommand(orderTargets(),groundDrillUnit(groundDrillRow().target)));}
-  if(r.condition==='groundSelect')return true;
+  if(r.condition==='groundSelect'||r.condition==='groundAutoAA')return true;
   if(r.condition==='groundBand'){
     await page.click(`#groundCommand [data-band="${r.band}"]`,{noWaitAfter:true});
     return page.evaluate(()=>!!tutorial.ground.issued);
