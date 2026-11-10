@@ -93,12 +93,12 @@ function groundStrikeToggle(){
 function groundStrikeHud(list){
   const eligible=list.filter(f=>groundStrikeWeapon(f)),button=document.getElementById('groundStrike');
   if(groundStrikeAiming&&!eligible.length)groundClearAiming();
-  button.title=eligible.length&&eligible.every(f=>f.groundKind==='vehicle')?'直射による範囲射撃（射手自身の視界・見通しが必要）':'範囲砲撃：中心・半径、または中心線・幅';
+  button.title=eligible.length&&eligible.every(f=>f.groundKind==='vehicle')?'直射による範囲射撃（射手自身の視界・見通しが必要）':eligible.length&&eligible.every(f=>f.groundKind==='supportAircraft')?'爆撃範囲：中心・半径、または中心線・幅を指定すると自動進入':eligible.some(f=>f.groundKind==='supportAircraft')?'砲撃・爆撃範囲：中心・半径、または中心線・幅':'範囲砲撃：中心・半径、または中心線・幅';
   button.disabled=!eligible.length;button.setAttribute('aria-pressed',String(groundStrikeAiming));
   const reload=Math.max(0,...eligible.map(f=>f.groundStrikeCooldown||0));
   const count=document.getElementById('groundSalvoCount');if(count)count.disabled=!eligible.length;
   const salvo=Math.max(0,...eligible.map(f=>f.groundAreaSalvo?.remaining||0)),burst=Math.max(0,...eligible.map(f=>f.groundVolley?f.groundVolley.ledger.entries.length-f.groundVolley.ledger.fired.size-f.groundVolley.ledger.skipped.size:0));
-  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?(typeof groundAreaHint==='function'&&groundAreaHint()||'地図をクリック（Escで取消）'):eligible.some(f=>f.groundBombRun)?'爆撃進入中 / 斉射残り最大'+salvo+'回':burst?'連射 残り最大'+burst+'発 / 斉射残り最大'+salvo+'回':salvo?'斉射 残り最大'+salvo+'回 / 再装填 '+reload.toFixed(1)+'秒':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
+  document.getElementById('groundStrikeStatus').textContent=groundStrikeAiming?(typeof groundAreaHint==='function'&&groundAreaHint()||'地図をクリック（Escで取消）').replace('砲撃：',eligible.length&&eligible.every(f=>f.groundKind==='supportAircraft')?'爆撃範囲：':eligible.some(f=>f.groundKind==='supportAircraft')?'砲撃・爆撃範囲：':'砲撃：'):eligible.some(f=>f.groundBombRun)?'爆撃進入中'+(salvo?' / 斉射残り最大'+salvo+'回':' / 投下待ち'):burst?'連射 残り最大'+burst+'発'+(salvo?' / 斉射残り最大'+salvo+'回':''):salvo?'斉射残り最大'+salvo+'回 / 再装填 '+reload.toFixed(1)+'秒':reload>0?`再装填 ${reload.toFixed(1)}秒`:groundStrikeMessage;
 }
 function groundStrikeDropVisual(s){
   if(!s.visual)return;
@@ -156,5 +156,5 @@ function groundFlightPreviewDraw(){
   if(!groundFlightPreview){const line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.55,depthWrite:false,dashSize:.6,gapSize:.4}));groundVisuals.add(line);const el=document.createElement('div');el.className='ground-strike-label';labelsEl.appendChild(el);groundFlightPreview={line,el};}
   const {line,el}=groundFlightPreview;
   if(groundFlightPreview.solution!==solution){const points=[];for(let i=0;i<=32;i++)points.push(groundBallisticAt(solution,duration*i/32));line.geometry.dispose();line.geometry=new THREE.BufferGeometry().setFromPoints(points);line.computeLineDistances();groundFlightPreview.solution=solution;}
-  const p=proj((solution.impact||target).clone().add(new THREE.Vector3(0,.6,0)));el.hidden=p.z>1;el.style.transform=`translate(${p.x}px,${p.y-30}px) translate(-50%,-100%)`;el.textContent=solution.clear?'予想着弾 '+duration.toFixed(1)+'秒':'地形・建物で遮断';
+  const p=proj((solution.impact||target).clone().add(new THREE.Vector3(0,.6,0)));el.hidden=p.z>1;el.style.transform=`translate(${p.x}px,${p.y-30}px) translate(-50%,-100%)`;el.textContent=solution.clear?(f.groundKind==='supportAircraft'?'今投下した場合：着弾まで ':'予想着弾 ')+duration.toFixed(1)+'秒':'地形・建物で遮断';
 }

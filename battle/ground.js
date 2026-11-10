@@ -72,7 +72,20 @@ function groundTargetRange(f,t){
   const range=groundAirTarget(t)?(airborne?r.air:r.aa)||0:(airborne?r.ground:r.direct)||0;
   return f.groundKind==='sea'&&groundNavalClass(f)&&!groundAirTarget(t)?Math.min(range,(groundNavalHorizonKm(f,t)??0)*GROUND_SCALE):range;
 }
-function groundManualTargetAllowed(f,t){return !groundAirTarget(t)||!groundAutoAASource(f);}
+function groundManualTargetAllowed(f,t){
+  if(!op.ground)return true;
+  if(!f?.groundKind||!t)return false;
+  // 能力だけを調べる。groundFireMode／発射可否／距離／LOSへ戻らない。
+  const r=groundFireRanges(f),band=f.band||'ground',target=t.band||'ground',positive=n=>Number.isFinite(n)&&n>0;
+  if(groundAirTarget(t))return !groundAutoAASource(f)&&positive(r.air)&&groundFireFactor(f,t)>0;
+  if(!['ground','sea'].includes(target))return false;
+  const rules=groundStrikeRules(),weapon=rules[f.groundKind]||(['guidedRocket','was'].includes(f.groundKind)?rules.artillery:null);
+  if(f.groundKind==='supportAircraft')return band==='high'&&!!weapon;
+  const airborne=['fighter','attack'].includes(f.groundKind)||f.groundKind==='was'&&['low','high'].includes(band);
+  if(positive(airborne?r.ground:r.direct)&&groundFireFactor(f,t)>0)return true;
+  const indirectTarget=target==='ground'||f.groundKind==='sea'&&target==='sea',indirectSource=f.groundKind==='sea'?band==='sea':['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&band==='ground';
+  return !!(indirectTarget&&indirectSource&&weapon&&r.indirect&&positive(r.indirect.max)&&Number.isFinite(r.indirect.min)&&r.indirect.min>=0&&r.indirect.min<=r.indirect.max);
+}
 function groundFireMode(f,t){
   if(!groundManualTargetAllowed(f,t)||!groundAirInFront(f,t))return null;
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);

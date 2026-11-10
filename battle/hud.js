@@ -277,8 +277,9 @@ function groundAt(x,y){
 const pickEl=document.getElementById('pick'); let pickCtx=null;
 function openPick(x,y,target,dest,queue){
   pickCtx={target,dest,queue};
-  const attack=pickEl.querySelector('[data-pk="attack"]'),units=orderTargets(),automatic=op.ground&&groundAirTarget(target)&&units.length>0&&units.every(groundAutoAASource);
-  attack.disabled=!!automatic;attack.textContent=automatic?'対空：装備部隊が自動迎撃':queue?`攻撃を予約：${target.name}`:`攻撃：${target.name}`;
+  const attack=pickEl.querySelector('[data-pk="attack"]'),units=orderTargets(),capable=op.ground?units.filter(f=>groundManualTargetAllowed(f,target)):units;
+  const unavailable=!!op.ground&&!capable.length,automatic=unavailable&&groundAirTarget(target)&&units.some(f=>groundAutoAASource(f)&&groundAARange(f)>0);
+  attack.disabled=unavailable;attack.textContent=unavailable?(automatic?'対空：装備部隊が自動迎撃':'攻撃不可：対応兵器なし'):(queue?'攻撃を予約':'攻撃')+(op.ground&&capable.length<units.length?'（対応隊のみ）':'')+'：'+target.name;
   pickEl.querySelector('[data-pk="move"]').textContent=queue?'ここを経由地に予約':'ここへ移動';
   pickEl.querySelector('[data-pk="move"]').disabled=!dest;
   pickEl.hidden=false;
@@ -309,7 +310,7 @@ function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selG
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
 function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f)&&groundCommandAllowed(f,'stance'));if(!t.length)return; if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
-  logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
+  logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, op.ground?(v==='evade'?'通常攻撃は命じた敵だけ。航空機以外の対空装備は、発見・射程・射線を満たすと独立して自動迎撃する。':'攻撃可能な観測済みの敵と自動交戦する。航空機以外の対空装備は、通常命令を続けながら独立して自動迎撃する。'):v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
 function toggleSync(g){ if(!g) return; g.sync=!g.sync;
   const m=groupAlive(g), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
