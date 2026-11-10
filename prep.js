@@ -989,5 +989,5 @@ function onKey(e){
 window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
   groundConfig(cfg){ return {...cfg,groundOrg:GROUND.normalize(save.groundOrg)}; } };
 render();
-if(new URLSearchParams(location.search).get('ground')==='exercise2') window.WOS.start({op:'groundExercise2'});
+{const groundPreview=new URLSearchParams(location.search).get('ground'),previewOps={exercise2:'groundExercise2',field150:'groundfield150',field300:'groundfield300'};if(previewOps[groundPreview])window.WOS.start({op:previewOps[groundPreview]});}
 })();

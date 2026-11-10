@@ -15,6 +15,7 @@
 |---|---|---|
 |claude/ground-air-flight|段階7：連続航空運動・物理投下の統合|接続保存済み。物理21・運動8・進入/実投下/帰投/Undoの対象Node確認中。ブラウザ・全作戦・git禁止の指示を維持|
 |claude/ground-auto-aa|段階5：独立した自動対空|実装・対象確認・実画面撮影済み。親ブランチ更新を統合しPRへ|
+|claude/ground-wide-fields|段階8：広い地形と性能|設計図・別データを作成中。地形APIは別担当。段階7統合後に確認|
 |claude/ground-naval-types|段階6：海上分類・モデル・地平線|実装・対象確認・写真済み。自動対空を統合しPRへ|
 |claude/ground-volley|段階4：一斉射・ロケット連射|PR #385、最新2babd77、CI42782314627待ち|
 |claude/ground-scatter|段階3：距離依存の最小散布円|PR #384、最新b9bdb58のCI42716445985成功後、5019299へマージ済み|
@@ -52,3 +53,7 @@
 - 写真 `.shots/ground-naval-models.png` / `ground-naval-indirect.png`、台本 `tools/ground-naval-check.cjs`。詳細 `docs/ground-naval.md`。段階7はclaude/ground-air-flightで物理投下部品を準備中（未統合）。
 
 - PR #385のCI42782314627とPR #386のCI42783422294は、旧散布確認のロケット装填8秒期待だけが失敗。他の全確認は通過。段階4の仮仕様（6発・0.25秒間隔・最終発後30秒）を散布確認にも反映し、専用32件を再確認。両PRの最新headで通常CIを再実行する。
+
+- 段階8はclaude/ground-wide-fields、設計図 `docs/terrain/wide-fields.md` を先に保存。field150/field300は別河道・集落・道路を定義する隠し検証場。現時点は未統合・未確認で、演習や第二章の新ステージへ昇格しない。
+
+- 段階8の寸法23・広域データ21・AA31・弾道30・操作53・輸送46・補給70が成功。実画面で2種類の広域地形と演習・宇宙への解除を確認。経路CPUは53km約3.5ms/143km約3.6ms、可射計算は分散1回最大約3.7〜4.0ms。この版は航空統合前で、最終CI待ち。最終統合はclaude/ground-integrationで行い、段階6〜9をまとめてマージする。

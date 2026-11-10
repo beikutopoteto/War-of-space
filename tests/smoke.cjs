@@ -29,6 +29,8 @@ const {nodeChecks:groundAirIntegrationChecks}=require('./ground-air-integration.
 const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
+const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
+const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
 const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
@@ -57,6 +59,8 @@ function check(ok, label, detail = '') {
   for(const r of groundBallisticChecks())check(r.ok,'地上弾道: '+r.name);
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
+  for(const r of groundDimensionChecks())check(r.ok,'地上寸法: '+r.name);
+  for(const r of groundWideChecks())check(r.ok,'広域地形: '+r.name);
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);

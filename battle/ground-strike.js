@@ -17,7 +17,7 @@ function groundStrikeInRange(f,p){
   if(!groundStrikeWeapon(f)||!Number.isFinite(p.x)||!Number.isFinite(p.z))return false;
   if(f.groundKind==='supportAircraft')return groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&!!groundBombPlan(f,p);
   const r=groundStrikeRange(f),distance=groundDistanceTo(f,{pos:p});
-  return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}))&&(f.groundKind==='supportAircraft'||groundBallisticPoint(f,p).clear);
+  return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(groundMapX(p.x),groundMapY(p.z),'air')&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}))&&(f.groundKind==='supportAircraft'||groundBallisticPoint(f,p).clear);
 }
 function groundStrikeCanLaunch(f,p,volley=null){return groundStrikeInRange(f,p)&&(f.groundKind!=='supportAircraft'||groundBombPose(f,p))&&(volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);}
 function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){

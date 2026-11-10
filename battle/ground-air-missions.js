@@ -2,7 +2,7 @@
 const GROUND_BOMB_APPROACH=Object.freeze({tolerance:.5,alignment:.15,maxVerticalSpeedMps:1}); // 仮: 125m、約8.6度。
 function groundBombPlan(f,p){
  const state=groundBombState(f);if(!state)return null;
- const radius=Math.max(1,state.speedWorld/GROUND_AIR_CONTROL.turnRate),inside=p=>groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air');
+ const radius=Math.max(1,state.speedWorld/GROUND_AIR_CONTROL.turnRate),inside=p=>groundPass(groundMapX(p.x),groundMapY(p.z),'air');
  const valid=plan=>plan&&inside(plan.releasePos)&&inside(plan.releasePos.clone().addScaledVector(plan.heading,-radius*6));
  const first=groundBombRelease(f,p);if(valid(first))return first;
  // 盤端でも盤内から進入できる方向を探す。これは計画だけで、実投下を操舵しない。

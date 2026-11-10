@@ -15,9 +15,9 @@ function groundFreeFall(originMeters,velocityMeters,physicalSeconds){
 }
 function groundBallisticScene(){
   if(typeof op==='undefined'||!op.ground||typeof WOS_TERRAIN==='undefined'||typeof groundSightHeight!=='function')return null;
-  const data=WOS_TERRAIN[op.ground],scale=typeof GROUND_SCALE==='number'?GROUND_SCALE:NaN,e=data?.meta?.elevationExaggeration;
+  const data=groundData(),grid=groundSightGrid(),scale=typeof GROUND_SCALE==='number'?GROUND_SCALE:NaN,e=data?.meta?.elevationExaggeration;
   if(!data||!(scale>0)||!Number.isFinite(scale)||!(e>0)||!Number.isFinite(e))return null;
-  return {data,scale,e,m:1000/scale,height:groundSightHeight,buildings:typeof groundBuildings==='undefined'?[]:groundBuildings,
+  return {data,grid,scale,e,m:1000/scale,height:groundSightHeight,buildings:typeof groundBuildings==='undefined'?[]:groundBuildings,
     terrain:data.terrain,heightSpec:data.height,cells:data.terrain?.cells,heights:typeof groundSightHeights==='undefined'?null:groundSightHeights,
     board:typeof groundBoard==='undefined'?null:groundBoard,
     analyticHeight:typeof groundHeight==='function'?groundHeight:null};
@@ -63,13 +63,13 @@ function groundBallisticSlab(start,delta,min,max,interval){
   let a=(min-start)/delta,b=(max-start)/delta;if(a>b)[a,b]=[b,a];
   interval[0]=Math.max(interval[0],a);interval[1]=Math.min(interval[1],b);return interval[0]<=interval[1];
 }
-// 格子線を横切る全てのu。現在のgroundSightHeightと同じ1戦闘単位三角形。
-function groundBallisticGridCuts(x,z,dx,dz,size=1){
+// 格子線を横切る全てのu。地表は描画格子、建物indexは従来4 world区画。
+function groundBallisticGridCuts(x,z,dx,dz,size=1,originX=0,originZ=0,stepZ=size){
   const cuts=[0,1];
-  for(const [start,delta] of [[x,dx],[z,dz]]){
+  for(const [start,delta,origin,step] of [[x,dx,originX,size],[z,dz,originZ,stepZ]]){
     if(Math.abs(delta)<1e-12)continue;
     const low=Math.min(start,start+delta),high=Math.max(start,start+delta);
-    for(let k=Math.floor(low/size)+1;k*size<high;k++){const u=(k*size-start)/delta;if(u>0&&u<1)cuts.push(u);}
+    for(let k=Math.floor((low-origin)/step)+1;origin+k*step<high;k++){const u=(origin+k*step-start)/delta;if(u>0&&u<1)cuts.push(u);}
   }
   return cuts.sort((a,b)=>a-b).filter((u,i,a)=>!i||u-a[i-1]>1e-12);
 }
@@ -97,11 +97,11 @@ function groundBallisticTrace(s){
   let first=null,reason=null;
   const accept=(u,why)=>{if(u!==null&&u>=lo&&u<=hi&&(first===null||u<first)){first=u;reason=why;}};
   const height=(wx,wz)=>{const h=scene.height(wx,wz);return physical?h*scene.m/scene.e:h;};
-  const cuts=groundBallisticGridCuts(x,z,dx,dz),triangles=[];
+  const g=scene.grid,cuts=groundBallisticGridCuts(x,z,dx,dz,g.stepX,g.originX,g.originZ,g.stepZ),triangles=[];
   for(let i=1;i<cuts.length;i++){
-    const from=cuts[i-1],to=cuts[i],mid=(from+to)/2,ix=Math.floor(x+dx*mid),iz=Math.floor(z+dz*mid),den=dx+dz;
+    const from=cuts[i-1],to=cuts[i],mid=(from+to)/2,ix=Math.floor((x+dx*mid-g.originX)/g.stepX),iz=Math.floor((z+dz*mid-g.originZ)/g.stepZ),den=dx/g.stepX+dz/g.stepZ;
     triangles.push(from);
-    if(Math.abs(den)>1e-12){const cross=(ix+iz+1-x-z)/den;if(cross>from+1e-12&&cross<to-1e-12)triangles.push(cross);}
+    if(Math.abs(den)>1e-12){const cross=(ix+iz+1-(x-g.originX)/g.stepX-(z-g.originZ)/g.stepZ)/den;if(cross>from+1e-12&&cross<to-1e-12)triangles.push(cross);}
   }
   triangles.push(1);
   for(let i=1;i<triangles.length;i++){
@@ -177,16 +177,15 @@ function groundBallisticSolution(f,p,options={ignoreRange:false}){
     duration:T/profile.physicalSecondsPerGameSecond,physicalDuration:T,timeScale:profile.physicalSecondsPerGameSecond,
     gravity:mode==='indirect'?profile.gravity:0,scene,impact:target.clone(),collision:null};
   if(mode==='legacy-support')return solution;
-  // 直射の可否は既存LOSだけを正本とし、traceは拒否時の衝突位置を特定するためだけ。
+  // 直射も描画三角形との厳密交差を通す。LOSのサンプル間の細い隆起を抜けない。
   const directClear=mode==='direct'?groundClearLine(origin,target):null;
-  if(directClear)return solution;
   const hit=groundBallisticTrace(solution);
   if(hit){
     const time=hit.fraction*solution.duration,point=groundBallisticAt(solution,time);
     solution.clear=false;solution.reason=hit.reason;solution.hitTime=time;solution.impact=point;solution.collision={point:point.clone(),time};
   }
   // 直射は既存の射線規則も満たす。通常は上の厳密traceで同じ障害物を特定済み。
-  if(mode==='direct'&&solution.clear){solution.clear=false;solution.reason='direct-blocked';solution.hitTime=0;solution.impact=origin.clone();solution.collision={point:origin.clone(),time:0};}
+  if(mode==='direct'&&!directClear&&solution.clear){solution.clear=false;solution.reason='direct-blocked';solution.hitTime=0;solution.impact=origin.clone();solution.collision={point:origin.clone(),time:0};}
   return solution;
 }
 function groundBallisticPoint(f,p,options={ignoreRange:false}){
@@ -194,7 +193,7 @@ function groundBallisticPoint(f,p,options={ignoreRange:false}){
   const scene=groundBallisticScene();if(!scene)return groundBallisticFail('invalid-scene');
   const range=groundStrikeRange(f),sourceKey=[f.pos.x,f.pos.y,f.pos.z,f.band,f.groundKind,f.type,f.alive,!!f.embarked,f.groundAirState,range?.direct,range?.min,range?.max].join('/');
   let entry=groundBallisticCache.get(f);
-  if(!entry||entry.key!==sourceKey||['data','terrain','heightSpec','cells','height','heights','buildings','board','analyticHeight','e','scale'].some(k=>entry.scene[k]!==scene[k])){
+  if(!entry||entry.key!==sourceKey||['data','terrain','heightSpec','cells','height','heights','buildings','board','analyticHeight','grid','e','scale'].some(k=>entry.scene[k]!==scene[k])){
     entry={key:sourceKey,scene,points:new Map()};groundBallisticCache.set(f,entry);
   }
   const key=[p.x,p.y,p.z,options?.ignoreRange===true].join('/');if(entry.points.has(key))return entry.points.get(key);

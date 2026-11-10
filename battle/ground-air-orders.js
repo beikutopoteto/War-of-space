@@ -13,11 +13,12 @@ function groundAirInFront(f,t){
  return groundAirForward(f).dot(d.normalize())>=Math.cos(GROUND_AIR_CONTROL.fireCone);
 }
 // AGL巡航。爆撃進入だけ海面基準の実高度を保持する（障害物回避を優先）。
-function groundAirPhysicalY(p){const h=groundSightHeight(p.x,p.z),e=WOS_TERRAIN[op.ground].meta.elevationExaggeration||1;return h/e+p.y-h;}
+function groundAirPhysicalY(p){const h=groundSightHeight(p.x,p.z),e=groundData().meta.elevationExaggeration||1;return h/e+p.y-h;}
 function groundAirSafeHeight(f,p,from){
- const run=f.groundBombRun,h=groundSightHeight(p.x,p.z),e=WOS_TERRAIN[op.ground].meta.elevationExaggeration||1;
+ const run=f.groundBombRun,h=groundSightHeight(p.x,p.z),e=groundData().meta.elevationExaggeration||1;
  let y=run?h+(run.ledger.altitudeMeters*GROUND_SCALE/1000-h/e):Math.max(groundUnitHeight({...f,pos:p}),groundSurfaceHeight(p.x,p.z)+groundUnitHeight({...f,pos:p})-groundHeight(p.x,p.z));
- const dx=p.x-from.x,dz=p.z-from.z,cuts=[...groundBallisticGridCuts(from.x,from.z,dx,dz),...groundBallisticGridCuts(from.x+from.z,0,dx+dz,0)];
+ const dx=p.x-from.x,dz=p.z-from.z,g=groundMeshGrid(),gx=(from.x-g.originX)/g.stepX,gz=(from.z-g.originZ)/g.stepZ,vx=dx/g.stepX,vz=dz/g.stepZ;
+ const cuts=[...groundBallisticGridCuts(gx,gz,vx,vz),...groundBallisticGridCuts(gx+gz,0,vx+vz,0)];
  for(const u of cuts)y=Math.max(y,groundSurfaceHeight(from.x+dx*u,from.z+dz*u)+.5);
  for(const box of groundBuildings){const interval=[0,1];if(groundBallisticSlab(from.x,dx,box.minX,box.maxX,interval)&&groundBallisticSlab(from.z,dz,box.minZ,box.maxZ,interval))y=Math.max(y,box.top+.5);}
  return y;
@@ -29,14 +30,14 @@ function groundAirTurnMove(f,target,dt){
  if(desired.lengthSq()<1e-10)desired.copy(heading);
  // 境界を突き抜ける前に盤の中央へ旋回。空域の海陸通行は同じ。
  const look=Math.max(speed*2/turn,speed*dt),future=f.pos.clone().addScaledVector(heading,look);
- if(!groundPass(future.x/GROUND_SCALE+24,18-future.z/GROUND_SCALE,'air')&&!f.groundAirBoundary)f.groundAirBoundary=f.pos.clone();
+ if(!groundPass(groundMapX(future.x),groundMapY(future.z),'air')&&!f.groundAirBoundary)f.groundAirBoundary=f.pos.clone();
  if(f.groundAirBoundary){
   if(groundDistanceTo(f,{pos:f.groundAirBoundary})>look*2)f.groundAirBoundary=null;
   else desired.set(-f.pos.x,0,-f.pos.z);
  }
  const a=Math.atan2(heading.x,heading.z),b=Math.atan2(desired.x,desired.z),delta=groundAirAngleDelta(a,b),next=a+Math.max(-turn*dt,Math.min(turn*dt,delta));
  const d=new THREE.Vector3(Math.sin(next),0,Math.cos(next)),p=f.pos.clone().addScaledVector(d,speed*dt);
- if(!groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')){
+ if(!groundPass(groundMapX(p.x),groundMapY(p.z),'air')){
   // 境界上からの初期配置も盤外へ置かない。次のフレームも中央への旋回を続ける。
   f.heading.copy(d);f.march.copy(d);f.groundFlightVelocity=new THREE.Vector3();return;
  }
