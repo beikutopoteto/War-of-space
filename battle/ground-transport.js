@@ -30,7 +30,7 @@ function groundTransportInit(){
 }
 // 海面のセルと隣接8セルだけを見る。遠い浜・池・盤外への飛び降りは認めない。
 function groundCoastCells(ship,kind='infantry'){
-  const cell=WOS_TERRAIN[op.ground].meta.cellKm,x=ship.pos.x/GROUND_SCALE+24,y=18-ship.pos.z/GROUND_SCALE;
+  const cell=WOS_TERRAIN[op.ground].meta.cellKm,x=groundMapX(ship.pos.x),y=groundMapY(ship.pos.z);
   if(!groundPass(x,y,'sea'))return [];
   const col=Math.floor(x/cell),row=Math.floor(y/cell);
   if(!groundPass((col+.5)*cell,(row+.5)*cell,'sea'))return [];
@@ -90,8 +90,9 @@ function groundLandStep(ship,dt){
 }
 function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'board')&&f.band==='ground'&&['infantry','heavyInfantry','commando'].includes(f.groundKind);}
 function groundTransportLabel(f){const passengers=groundPassengers(f);return f.name+(passengers.length?' / 搭載：'+passengers.map(p=>p.name).join('・'):'')+(groundPermissionOnly(f)?' / 許可制':'')+(f.groundRout||f.groundAirState||f.groundSupplyGiving?' / '+groundSupplyStatus(f):'');}
-function groundClearOrders(f){groundVolleyCancel(f);f.groundPlan=null;f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;}
+function groundClearOrders(f){groundBombCancel(f);groundVolleyCancel(f);f.groundPlan=null;f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;}
 function groundCancelWork(f){
+  groundBombCancel(f);
   groundVolleyCancel(f);
   if(f.order&&f.order.type==='board'&&f.order.target.groundBoarder===f)f.order.target.groundBoarder=null;
   if(f.order&&f.order.type==='board'&&groundLandingShip(f.order.target))f.order.target.groundBoarders=(f.order.target.groundBoarders||[]).filter(p=>p!==f);
@@ -123,7 +124,7 @@ function groundBoardCommand(list,carrier){
   f.order={type:'board',target:carrier,path,repath:0};if(op.groundDrill)groundDrillEvent('board',f,carrier);groundClearAiming();groundTransportMessage='輸送車へ移動中';groundHud();return true;
 }
 function groundExitPoint(f,carrier,emergency=false){
-  const km=groundTransportRules().unloadKm,kind=groundMoveKind(f),x=carrier.pos.x/GROUND_SCALE+24,y=18-carrier.pos.z/GROUND_SCALE;
+  const km=groundTransportRules().unloadKm,kind=groundMoveKind(f),x=groundMapX(carrier.pos.x),y=groundMapY(carrier.pos.z);
   // 隣接8方向。隣へ向かう辺も検査して海・池を飛び越えない。
   for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
     const length=Math.hypot(dx,dy),xx=x+dx/length*km,yy=y+dy/length*km;
@@ -183,7 +184,7 @@ function groundBuiltBridgeAt(x,y,river){
   return groundBridges.some(b=>b.complete&&b.hp>0&&b.river===river&&Math.abs((x-b.x)*b.tx+(y-b.y)*b.ty)<=b.laneHalfKm&&Math.abs(-(x-b.x)*b.ty+(y-b.y)*b.tx)<=b.halfSpanKm);
 }
 function groundBridgePlan(p){
-  const d=WOS_TERRAIN[op.ground],x=p.x/GROUND_SCALE+24,y=18-p.z/GROUND_SCALE;
+  const d=WOS_TERRAIN[op.ground],x=groundMapX(p.x),y=groundMapY(p.z);
   if(!Number.isFinite(x)||!Number.isFinite(y)||!groundPass(x,y,'air'))return {reason:'盤の外には架けられない'};
   const rivers=d.water.rivers.map(r=>groundRiverAt(x,y,r)).filter(r=>r.dist<=r.width/2+.12).sort((a,b)=>a.dist-b.dist),r=rivers[0];
   if(!r)return {reason:'川の地点を指定'};
@@ -191,7 +192,7 @@ function groundBridgePlan(p){
   if(d.objects.bridges.some(b=>b.river===r.river&&Math.hypot(r.x-b.x,r.y-b.y)<.9)||groundBridges.some(b=>b.river===r.river&&Math.hypot(r.x-b.x,r.y-b.y)<b.laneHalfKm*2))return {reason:'この地点には橋があるか架橋中'};
   const rules=groundEngineeringRules(),halfSpanKm=r.width/2+rules.bankMarginKm+d.meta.cellKm;
   const banks=[-1,1].map(side=>groundPoint(r.x-side*r.ty*halfSpanKm,r.y+side*r.tx*halfSpanKm));
-  if(!banks.every(p=>groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'vehicle')))return {reason:'両岸に車両が通れる足場がない'};
+  if(!banks.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle')))return {reason:'両岸に車両が通れる足場がない'};
   return {...r,pos:groundPoint(r.x,r.y),banks,halfSpanKm,laneHalfKm:rules.laneHalfKm};
 }
 function groundEngineer(f){return f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'bridge')&&f.groundKind==='engineer'&&f.band==='ground';}

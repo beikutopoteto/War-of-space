@@ -31,12 +31,18 @@ function groundAutoAAStep(dt){
   for(const f of fleets){
     if(!f)continue;
     f.groundAATimer=Math.max(0,(Number.isFinite(f.groundAATimer)?f.groundAATimer:0)-dt);
-    f.groundAATarget=null;
+    const previous=f.groundAATarget;f.groundAATarget=null;
     if(!groundAutoAAReady(f)||groundAARange(f)<=0)continue;
-    let target=null,distance=Infinity;
-    for(const t of air){const d=groundDistanceTo(f,t);if(d<distance&&groundAASolution(f,t)){target=t;distance=d;}}
+    // 装填中は射線を全隊ぶん再探索しない。これは表示用の保持だけで、発射時は必ず実射線を確認する。
+    if(f.groundAATimer>1e-8){
+      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&['low','high'].includes(previous.band)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;
+      continue;
+    }
+    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).map(t=>({t,d:groundDistanceTo(f,t)})).filter(p=>p.d<=groundAARange(f)).sort((a,b)=>a.d-b.d);
+    let target=null;
+    for(const candidate of candidates)if(groundAASolution(f,candidate.t)){target=candidate.t;break;}
     f.groundAATarget=target;
-    if(!target||f.groundAATimer>1e-8)continue;
+    if(!target)continue;
     // 対空の時計を先に進め、同期callbackでも同じ迎撃を重複発射しない。
     f.groundAATimer=groundRules().fireEvery;
     f.groundAAResolving=target;

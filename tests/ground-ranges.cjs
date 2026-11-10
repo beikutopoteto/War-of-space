@@ -27,7 +27,7 @@ function rangeCases(){
   attack.band='low';check('攻撃機は対地10km・対空15km',groundTargetRange(attack,{band:'ground'})===40&&groundTargetRange(attack,{band:'high'})===60);
   check('地上W.A.S.は直射3km・間接12km・対空6km',groundTargetRange(was,{band:'ground'})===12&&groundFireRanges(was).indirect.max===48&&groundTargetRange(was,{band:'high'})===24);
   was.band='high';check('空中W.A.S.は対地5km・対空15kmに切替・間接なし',groundTargetRange(was,{band:'ground'})===20&&groundTargetRange(was,{band:'low'})===60&&!groundFireRanges(was).indirect&&!groundStrikeWeapon(was));
-  check('海上巡洋艦の直接24km・間接24km・対空150kmを分離',groundTargetRange(ship,{band:'sea'})===96&&groundStrikeRange(ship).max===96&&groundTargetRange(ship,{band:'high'})===600);
+  check('イージス艦は直射24kmと地平線の小さい方・間接24km・対空150km',groundFireRanges(ship).direct===96&&groundTargetRange(ship,ship)===Math.min(96,groundNavalHorizonKm(ship,ship)*GROUND_SCALE)&&groundStrikeRange(ship).max===96&&groundTargetRange(ship,{band:'high'})===600);
   ship.pos.copy(groundPoint(12,5));target.pos.copy(groundPoint(12,10));target.band='ground';check('艦の地上部隊目標は直射せず間接を選ぶ',groundFireMode(ship,target)==='indirect');
   fleets=[ship,target];target.band='high';target.pos.copy(groundPoint(45,30));groundUpdateSight();
   const unseenHP=target.hpPool;ship.groundAATimer=0;groundStep(.05);

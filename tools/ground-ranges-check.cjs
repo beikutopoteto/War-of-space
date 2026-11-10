@@ -3,13 +3,14 @@ const {openGame,ROOT}=require('./browser.cjs');
 const path=require('path'),fs=require('fs'),assert=require('assert/strict');
 (async()=>{
  const {browser,page,errors}=await openGame({width:1600,height:900});const results=[];
- const check=(ok,name)=>{results.push({name,ok:!!ok});if(!ok)console.error(name);};
+ const check=(ok,name,detail)=>{results.push({name,ok:!!ok,detail});if(!ok)console.error(name,detail);};
  try{
   await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');await page.waitForFunction(()=>window.WOS);
   if(!process.env.SHOTS_ONLY){
    const smoke=fs.readFileSync(path.join(ROOT,'tests/smoke.cjs'),'utf8');
    const altitude=smoke.slice(smoke.indexOf('    const bands = await page.evaluate'),smoke.indexOf('    await checkGroundCapture(page, check);'));
    await new (Object.getPrototypeOf(async function(){}).constructor)('page','check',altitude)(page,check);
+   if(process.env.ALTITUDE_ONLY){console.log(JSON.stringify({results,errors}));assert.equal(results.filter(r=>!r.ok).length,0);assert.deepEqual(errors,[]);return;}
    await require('../tests/ground-sight.cjs').checkGroundSight(page,check);
    await require('../tests/ground-strike.cjs').checkGroundStrike(page,check);
    await require('../tests/ground-branches.cjs').checkGroundBranches(page,check);
@@ -22,6 +23,7 @@ const path=require('path'),fs=require('fs'),assert=require('assert/strict');
    const state=await page.evaluate(([kind,offset])=>{
     const f=fleets.find(f=>f.team===0&&f.groundKind===kind);if(!f)throw Error(kind+'が演習にいません');if(kind==='attack'){f.band='low';f.bandTo=null;f.pos.y=groundUnitHeight(f);}select(f);camAnim=null;
     controls.target.copy(f.pos);camera.position.copy(f.pos).add(new THREE.Vector3(...offset));camera.lookAt(f.pos);controls.update();camera.updateMatrixWorld(true);frame(performance.now());
+    for(let i=0;i<1000&&groundRanges.get(f)?.jobs;i++)groundRangesDraw([f]);frame(performance.now());
     return {label:groundRanges.get(f)?.el.textContent,rings:groundRanges.get(f)?.lines.length,bar:!document.getElementById('groundCommandBar').hidden};
    },[kind,offset]);
    await page.screenshot({path:path.join(ROOT,'.shots',name+'.png')});return state;

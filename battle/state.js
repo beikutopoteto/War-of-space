@@ -73,7 +73,7 @@ function techFleet(team,o){
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
-  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type):WOS_TERRAIN[op.ground].unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
+  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type,!!o.groundLanding):WOS_TERRAIN[op.ground].unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
   if(o.hp==null){ const derived=techFleet(team,o); if(o.dmg!=null) delete derived.byType; o={...o,...derived}; }
   if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
   if(!o.groundKind&&o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
@@ -360,7 +360,7 @@ function copyOrder(o){
   return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
 }
 function saveUndo(t){
-  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null,groundAreaSalvo:op.ground&&f.groundAreaSalvo?{...f.groundAreaSalvo}:null,groundVolley:op.ground&&typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null})));
+  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null,groundAreaSalvo:op.ground&&f.groundAreaSalvo?{...f.groundAreaSalvo}:null,groundVolley:op.ground&&typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null,groundBombRun:op.ground?groundCopyBombRun(f.groundBombRun):null})));
   if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
 }
 function undo(){
@@ -370,12 +370,12 @@ function undo(){
     if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;}
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
-    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;f.groundVolley=typeof groundRestoreVolley==='function'?groundRestoreVolley(f,s.groundVolley):null;if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
+    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;f.groundVolley=typeof groundRestoreVolley==='function'?groundRestoreVolley(f,s.groundVolley):null;f.groundBombRun=groundRestoreBombRun(f,s.groundBombRun);if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
   updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
-  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'&&groundAirTarget(o.target)){groundStrikeMessage='対空は装備部隊が自動迎撃';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
+  const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'){groundStrikeMessage=groundAirTarget(o.target)&&orderTargets().some(f=>groundAutoAASource(f)&&groundAARange(f)>0)?'対空は装備部隊が自動迎撃':'攻撃不可：対応兵器・高度を確認';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
   saveUndo(t);
   if(op.ground)t.forEach(f=>f.groundPlan=null);

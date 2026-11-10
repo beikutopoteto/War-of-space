@@ -71,7 +71,7 @@
   <span class="val" id="altVal">±0</span>
   <div id="stance" role="group" aria-label="攻撃の方針（Rキーで切り替え）">
     <button data-st="engage" aria-pressed="true" title="射程内の敵を撃つ。母艦は近い敵に小型機を出す（Rキーで切り替え）">自動交戦</button>
-    <button data-st="evade" aria-pressed="false" title="攻撃を命じた敵だけを撃つ。母艦も命じた敵にだけ小型機を出す（Rキーで切り替え）">命令優先</button>
+    <button data-st="evade" aria-pressed="false" title="攻撃を命じた敵だけを撃つ。母艦も命じた敵にだけ小型機を出す。地上戦の非航空部隊の対空装備は独立して自動迎撃（Rキーで切り替え）">命令優先</button>
     <button class="undo" title="一つ前の指示を取り消す（Ctrl+Z / Backspace）" disabled>戻す</button>
   </div>
 </div>
@@ -92,7 +92,7 @@
       <button data-command-icon="board" id="groundBoard" title="輸送車に乗車・岸の揚陸艦に乗艦" aria-pressed="false">搭乗</button>
       <button data-command-icon="unload" id="groundUnload">降車</button>
       <button data-command-icon="land" id="groundLand">上陸</button>
-      <span id="groundStrikeControl"><button data-command-icon="strike" id="groundStrike" aria-pressed="false">地点攻撃 [B]</button><input id="groundSalvoCount" type="number" min="1" max="30" step="1" value="1" aria-label="各部隊の一斉射回数" title="各部隊の一斉射回数（1〜30）"></span>
+      <span id="groundStrikeControl"><button data-command-icon="strike" id="groundStrike" aria-pressed="false">地点攻撃 [B]</button><input id="groundSalvoCount" type="number" min="1" max="30" step="1" value="1" aria-label="各部隊の一斉射回数" title="各部隊の一斉射回数（1〜30）。爆撃は一斉投下、ロケットは6発連射で1回（仮）"></span>
       <button data-command-icon="bridge" id="groundBridge" aria-pressed="false">架橋</button>
       <button data-command-icon="supply" id="groundSupply">補給</button>
     </div>
@@ -114,12 +114,12 @@
   <div class="pbtns"><button data-pm="resume">続ける</button><button data-pm="retry">やり直す</button><button data-pm="quit">やめる（敗北）</button><button data-pm="keys" aria-pressed="false">操作の一覧</button><button data-pm="dwin" class="dbg">勝利にする（デバッグ）</button><button data-pm="dlose" class="dbg">敗北にする（デバッグ）</button></div>
   <table id="keys" hidden><tbody>
     <tr><th>選ぶ</th><td>青い艦隊をクリック、1〜9、G で戦区軍の全軍（押すたびに次の戦区軍）。同じ艦隊をもう一度クリックで解除。Shift+クリックでまとめて選ぶ</td></tr>
-    <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令</td></tr>
+    <tr><th>移動・攻撃</th><td>宙域をクリックで移動。敵や要塞をクリックで「攻撃」か「ここへ移動」。右クリックでも命令。地上戦の攻撃は現在の高度・対応兵器で可能な隊だけに指示する</td></tr>
     <tr><th>戦区軍</th><td>まとめて選んで右下の一覧の「＋」。右下の一覧の左のタブを押すと、その戦区軍の打撃群を開く・閉じる（全部開くと全部見える）。マスにマウスを載せると残っている艦種と隻数。マスの右上の三角で自動交戦/命令優先。最初に選んだ艦隊が旗艦。「陣形ON」は陣形を保って動き（出撃時の陣形・横陣・縦陣・輪形陣から選べる）、「陣形OFF」は指示した一点に集まる。「解散」で独立行動へ。一覧のドラッグで打撃群を出し入れ</td></tr>
     <tr><th>予約</th><td>Shift+クリックで経由地や攻撃を予約</td></tr>
-    <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す</td></tr>
+    <tr><th>戻す</th><td>Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す。地上戦の砲撃・爆撃は未発射分だけを再開し、発射済み弾や消費した補給は戻さない</td></tr>
     <tr><th>高度</th><td>左下の高度バー、Q / E</td></tr>
-    <tr><th>自動交戦・命令優先</th><td>R、高度バーの下のボタン、右下の艦隊一覧。自動交戦は射程内の敵を撃ち、命令優先は攻撃を命じた敵だけを撃つ</td></tr>
+    <tr><th>自動交戦・命令優先</th><td>R、高度バーの下のボタン、右下の艦隊一覧。自動交戦は射程内の敵を撃ち、命令優先は攻撃を命じた敵だけを撃つ。地上戦では航空機以外の対空装備が、発見・射程・射線を満たすとどちらの方針でも独立して迎撃する</td></tr>
     <tr><th>視点</th><td>ドラッグで回転、ホイールで拡大、WASD で平行移動、十字キーか下の視点のスティック（左右で横回転、上下で上下の角度）で回転、V で斜め/真上/真横</td></tr>
     <tr><th>時間</th><td>Space で一時停止、停止・1×・2×・4×</td></tr>
     <tr><th>表示</th><td>H でパネル、L で名札</td></tr>
@@ -145,6 +145,8 @@
 <script src="data/tech.js"></script>
 <script src="data/earth.js"></script>
 <script src="data/terrain/exercise2.js"></script>
+<script src="data/terrain/wide-fields.js"></script>
+<script src="data/ground-fields.js"></script>
 <script src="data/ground-org.js"></script>
 <script src="data/command-icons.js"></script>
 <script src="battle/scene.js"></script>
@@ -158,11 +160,15 @@
 <script src="battle/sim.js"></script>
 <script src="battle/ground-sight.js"></script>
 <script src="battle/ground-ballistics.js"></script>
+<script src="battle/ground-air.js"></script>
+<script src="battle/ground-air-orders.js"></script>
+<script src="battle/ground-air-missions.js"></script>
 <script src="battle/ground-scatter.js"></script>
 <script src="battle/ground-aa.js"></script>
 <script src="battle/ground-strike.js"></script>
 <script src="battle/ground-transport.js"></script>
 <script src="battle/ground-supply.js"></script>
+<script src="battle/ground-naval.js"></script>
 <script src="battle/ground.js"></script>
 <script src="battle/ground-plan.js"></script>
 <script src="battle/ground-volley.js"></script>

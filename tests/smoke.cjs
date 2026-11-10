@@ -23,9 +23,17 @@ const {nodeChecks:groundReadoutChecks}=require('./ground-readouts.cjs');
 const {nodeChecks:groundPlanChecks}=require('./ground-plan.cjs');
 const {nodeChecks:groundAreaChecks}=require('./ground-area.cjs');
 const {nodeChecks:groundRangeChecks}=require('./ground-ranges.cjs');
+const {nodeChecks:groundCapabilityChecks}=require('./ground-command-capabilities.cjs');
+const {nodeChecks:groundAirChecks}=require('./ground-air.cjs');
+const {nodeChecks:groundAirOrderChecks}=require('./ground-air-orders.cjs');
+const {nodeChecks:groundAirIntegrationChecks}=require('./ground-air-integration.cjs');
 const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
+const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
+const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
+const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
+const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
@@ -46,9 +54,17 @@ function check(ok, label, detail = '') {
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
   for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
+  for(const r of groundCapabilityChecks())check(r.ok,'地上命令能力: '+r.name);
+  for(const r of groundAirChecks())check(r.ok,'航空物理: '+r.name);
+  for(const r of groundAirOrderChecks())check(r.ok,'航空運動: '+r.name);
+  for(const r of groundAirIntegrationChecks())check(r.ok,'航空統合: '+r.name);
   for(const r of groundBallisticChecks())check(r.ok,'地上弾道: '+r.name);
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
+  for(const r of groundDimensionChecks())check(r.ok,'地上寸法: '+r.name);
+  for(const r of groundWideChecks())check(r.ok,'広域地形: '+r.name);
+  for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
+  for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -123,7 +139,7 @@ function check(ok, label, detail = '') {
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
       const original=damage;
       try{
-        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.stance='evade';t.stance='evade';t.order=null;
+        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.speed=0;f.stance='evade';t.stance='evade';t.order=null;
         for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;f.groundAATimer=0;f.groundAATarget=null;
           let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
@@ -143,7 +159,7 @@ function check(ok, label, detail = '') {
       const plane=fleets.find(f=>f.groundKind==='fighter'), groundWas=fleets.find(f=>f.groundKind==='was');
       plane.pos.copy(groundPoint(14,22));plane.pos.y=groundUnitHeight(plane);
       order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)step(.05);
-      const flight=!plane.order&&plane.pos.distanceTo(groundPoint(12,3).add(new THREE.Vector3(0,groundRules().heights.high,0)))<.001;
+      const arrivedAt=plane.pos.clone(),flight=!plane.order&&groundDistanceTo(plane,{pos:groundPoint(12,3)})<=GROUND_AIR_CONTROL.waypoint+speedOf(plane)*.05;step(.1);const continued=plane.pos.distanceTo(arrivedAt)>0;
       groundWas.pos.copy(plane.pos);groundWas.band='high';const noSeaLanding=!groundSetBand([groundWas],'ground');
       const rendered=plane.groundModel.children.filter(o=>o.isMesh).length;
       const logical=plane.band;select(null);
@@ -154,7 +170,7 @@ function check(ok, label, detail = '') {
       document.querySelector('#groundView [data-band="all"]').click();const viewAll=+plane.el.style.opacity===1&&plane.band===logical&&!document.getElementById('alt').hidden;
       const details=document.getElementById('groundAlt');details.open=false;const fold=!details.open;details.open=true;
       reset({op:'charybdis'});const space=!document.getElementById('alt').classList.contains('ground-alt')&&document.getElementById('groundAlt').hidden&&!groundVisuals;
-      return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight,noSeaLanding,rendered,viewLow,viewHigh,viewGround,viewAll,fold,space};
+      return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight:flight&&continued,noSeaLanding,rendered,viewLow,viewHigh,viewGround,viewAll,fold,space};
     });
     check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));

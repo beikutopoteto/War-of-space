@@ -1,13 +1,50 @@
 /* 地上演習の盤。見本 ground-b.html と同じ地形・水系・高度を使う。座標は 1 km = 4 戦闘単位。 */
 const GROUND_SCALE=4;
 let groundBoard=null, groundWaterMaterial=null;
+let groundTerrainId=null, groundDimensionCache=null;
+// setup の明示IDを優先。setup前のNode確認等では作戦、最後に旧演習を使う。
+function groundData(){ return WOS_TERRAIN[groundTerrainId||(typeof op!=='undefined'&&op.ground)||'exercise2']; }
+// 仮の性能上限。距離の尺度（4 world/km）とデータの物体密度は変えない。
+const GROUND_MESH_MAX_SEGMENTS=512, GROUND_TEXTURE_MAX_SIZE=2048;
+function groundDimensions(){
+  const d=groundData(),widthKm=d.meta.widthKm,heightKm=d.meta.heightKm;
+  if(groundDimensionCache?.data===d&&groundDimensionCache.widthKm===widthKm&&groundDimensionCache.heightKm===heightKm)return groundDimensionCache;
+  const widthWorld=widthKm*GROUND_SCALE,heightWorld=heightKm*GROUND_SCALE;
+  const spacing=Math.max(1,2**Math.ceil(Math.log2(Math.max(widthWorld,heightWorld)/GROUND_MESH_MAX_SEGMENTS)));
+  const segmentsX=Math.max(1,Math.ceil(widthWorld/spacing)),segmentsZ=Math.max(1,Math.ceil(heightWorld/spacing));
+  const textureScale=Math.min(24,GROUND_TEXTURE_MAX_SIZE/Math.max(widthKm,heightKm));
+  const mesh=Object.freeze({originX:-widthWorld/2,originZ:-heightWorld/2,stepX:widthWorld/segmentsX,stepZ:heightWorld/segmentsZ,segmentsX,segmentsZ,verticesX:segmentsX+1,verticesZ:segmentsZ+1});
+  return groundDimensionCache=Object.freeze({data:d,widthKm,heightKm,widthWorld,heightWorld,halfWidthWorld:widthWorld/2,halfHeightWorld:heightWorld/2,halfWidthKm:widthKm/2,halfHeightKm:heightKm/2,
+    minX:-widthWorld/2,maxX:widthWorld/2,minZ:-heightWorld/2,maxZ:heightWorld/2,mesh,
+    texture:Object.freeze({scale:textureScale,width:Math.ceil(widthKm*textureScale),height:Math.ceil(heightKm*textureScale)})});
+}
+function groundMeshGrid(){ return groundDimensions().mesh; }
+function groundMapX(worldX){ return worldX/GROUND_SCALE+groundDimensions().halfWidthKm; }
+function groundMapY(worldZ){ return groundDimensions().halfHeightKm-worldZ/GROUND_SCALE; }
+function groundWorldX(mapX){ return (mapX-groundDimensions().halfWidthKm)*GROUND_SCALE; }
+function groundWorldZ(mapY){ return (groundDimensions().halfHeightKm-mapY)*GROUND_SCALE; }
 // 描画と同じ樹冠・建物の位置を地上の索敵に渡す（戦闘単位）。
 let groundForests=[], groundBuildings=[];
 function groundInside(x,y,poly){ let hit=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i],b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) hit=!hit; } return hit; }
 function groundDistance(x,y,points){ let best=Infinity; for(let i=0;i<points.length-1;i++){ const a=points[i],b=points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy))); best=Math.min(best,Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy)); } return best; }
-function groundElevation(x,y){ const d=WOS_TERRAIN.exercise2; if(groundInside(x,y,d.water.sea)) return 0; let sum=0,weight=0; for(const p of d.height.points){ const w=1/(1+((x-p.x)**2+(y-p.y)**2)/d.height.interpolationRadiusKm**2); sum+=p.m*w; weight+=w; } let h=sum/weight; const l=d.height.levee,dist=groundDistance(x,y,d.water.rivers.find(r=>r.id===l.river).points); h+=l.heightM*Math.exp(-(((dist-l.bankOffsetKm)/l.widthKm)**2))-l.channelCutM*Math.exp(-((dist/l.channelHalfWidthKm)**2)); const t=d.height.terrace; h+=t.heightM/(1+Math.exp(-(y-t.edgeYKm)/t.widthKm)); const hill=p=>Math.exp(-(((x-p.x)/p.widthXKm)**2+((y-p.y)/p.widthYKm)**2)); for(const p of d.height.depressions) h-=p.depthM*hill(p); for(const p of d.height.sandbars) h+=p.heightM*hill(p); h+=d.height.observationHill.heightM*hill(d.height.observationHill)+d.height.noiseM*Math.sin(x*1.71+y*.62)*Math.cos(y*1.19); return Math.max(0,h*d.meta.elevationExaggeration/1000)*GROUND_SCALE; }
-function groundHeight(x,z){ return groundElevation(x/GROUND_SCALE+24,18-z/GROUND_SCALE); }
-function groundPoint(x,y){ return new THREE.Vector3((x-24)*GROUND_SCALE,groundElevation(x,y),(18-y)*GROUND_SCALE); }
+function groundElevation(x,y){
+  const d=groundData(),spec=d.height;
+  if(groundInside(x,y,d.water.sea))return 0;
+  let sum=0,weight=0;
+  for(const p of spec.points){const w=1/(1+((x-p.x)**2+(y-p.y)**2)/spec.interpolationRadiusKm**2);sum+=p.m*w;weight+=w;}
+  let h=weight?sum/weight:spec.baseM;
+  const l=spec.levee,river=l&&d.water.rivers.find(r=>r.id===l.river);
+  if(river){const dist=groundDistance(x,y,river.points);h+=l.heightM*Math.exp(-(((dist-l.bankOffsetKm)/l.widthKm)**2))-l.channelCutM*Math.exp(-((dist/l.channelHalfWidthKm)**2));}
+  const t=spec.terrace;if(t)h+=t.heightM/(1+Math.exp(-(y-t.edgeYKm)/t.widthKm));
+  const hill=p=>Math.exp(-(((x-p.x)/p.widthXKm)**2+((y-p.y)/p.widthYKm)**2));
+  for(const p of spec.depressions||[])h-=p.depthM*hill(p);
+  for(const p of spec.sandbars||[])h+=p.heightM*hill(p);
+  if(spec.observationHill)h+=spec.observationHill.heightM*hill(spec.observationHill);
+  h+=(spec.noiseM||0)*Math.sin(x*1.71+y*.62)*Math.cos(y*1.19);
+  return Math.max(0,h*d.meta.elevationExaggeration/1000)*GROUND_SCALE;
+}
+function groundHeight(x,z){ return groundElevation(groundMapX(x),groundMapY(z)); }
+function groundPoint(x,y){ return new THREE.Vector3(groundWorldX(x),groundElevation(x,y),groundWorldZ(y)); }
 // 川幅は各区間で補間し、橋と浅瀬は川ごとに判定する。
 function groundRiverAt(x,y,river){
   let best=null;
@@ -18,7 +55,7 @@ function groundRiverAt(x,y,river){
   return best;
 }
 function groundRiverFactor(x,y,kind){
-  const d=WOS_TERRAIN.exercise2; let factor=1;
+  const d=groundData(); let factor=1;
   for(const river of d.water.rivers){
     const r=groundRiverAt(x,y,river);
     if(r.dist>=r.width/2+.12)continue;
@@ -28,10 +65,13 @@ function groundRiverFactor(x,y,kind){
   }
   return factor;
 }
-function groundPass(x,y,kind='vehicle'){ const d=WOS_TERRAIN.exercise2,sea=groundInside(x,y,d.water.sea); return groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0)); }
-function groundFactor(x,z,kind){ if(kind==='air'||kind==='sea') return 1; const d=WOS_TERRAIN.exercise2,gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
+function groundPass(x,y,kind='vehicle'){ const d=groundData(),sea=groundInside(x,y,d.water.sea); return x>=0&&x<d.meta.widthKm&&y>=0&&y<d.meta.heightKm&&groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0)); }
+function groundFactor(x,z,kind){ if(kind==='air'||kind==='sea') return 1; const d=groundData(),gx=groundMapX(x),gy=groundMapY(z),c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
 let groundBackground=null;
 function groundSetup(id){
+  groundTerrainId=id||null;groundDimensionCache=null;
+  if(typeof groundSightReset==='function')groundSightReset();
+  if(typeof groundBallisticReset==='function')groundBallisticReset();
   if(groundWaterMaterial){ groundWaterMaterial.uniforms.mask.value.dispose(); groundWaterMaterial=null; }
   if(groundBoard){ scene.remove(groundBoard); groundBoard.traverse(o=>{if(o.geometry)o.geometry.dispose(); if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose();}}); groundBoard=null; }
   groundForests=[]; groundBuildings=[];
@@ -42,10 +82,11 @@ function groundSetup(id){
   ambient.color.setHex(active?0xb7cbd0:0x3a4a66); ambient.intensity=active?.5:.9;
   sun.intensity=active?1.1:1.6; sun.castShadow=active; rim.visible=!active;
   if(!active){ scene.background=new THREE.Color(0x05080f); return; }
-  sun.position.set(-144,72,-104); sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-140,right:140,top:120,bottom:-120,near:.5,far:440}); sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias=-.0003;
+  const dimensions=groundDimensions(),shadowScale=Math.max(1,dimensions.widthWorld/192,dimensions.heightWorld/144);
+  sun.position.set(-144*shadowScale,72*shadowScale,-104*shadowScale); sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-140*shadowScale,right:140*shadowScale,top:120*shadowScale,bottom:-120*shadowScale,near:.5,far:440*shadowScale}); sun.shadow.camera.updateProjectionMatrix(); sun.shadow.bias=-.0003;
   if(!groundBackground){ const bg=document.createElement('canvas'); bg.width=512; bg.height=512; const c=bg.getContext('2d'),gradient=c.createRadialGradient(256,230,0,256,230,360); gradient.addColorStop(0,'#122c42'); gradient.addColorStop(.5,'#071422'); gradient.addColorStop(1,'#020913'); c.fillStyle=gradient; c.fillRect(0,0,512,512); groundBackground=new THREE.CanvasTexture(bg); }
   scene.background=groundBackground;
-  const d=WOS_TERRAIN[id],W=d.meta.widthKm,H=d.meta.heightKm,seaMode='real',inside=groundInside,segmentDistance=groundDistance,elevation=(x,y)=>groundElevation(x,y)/GROUND_SCALE,toX=x=>x-W/2,toZ=y=>H/2-y;
+  const d=groundData(),W=d.meta.widthKm,H=d.meta.heightKm,seaMode='real',inside=groundInside,segmentDistance=groundDistance,elevation=(x,y)=>groundElevation(x,y)/GROUND_SCALE,toX=x=>groundWorldX(x)/GROUND_SCALE,toZ=y=>groundWorldZ(y)/GROUND_SCALE;
   function nearestRoadPoint(x,y){let best=Infinity,result={x,y,dx:1,dy:0};for(const road of d.objects.roads)for(let i=0;i<road.points.length-1;i++){const a=road.points[i],b=road.points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],len=dx*dx+dy*dy,t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/len)),px=a[0]+t*dx,py=a[1]+t*dy,dist=Math.hypot(x-px,y-py);if(dist<best){best=dist;result={x:px,y:py,dx:dx/Math.sqrt(len),dy:dy/Math.sqrt(len)}}}return result}
   const world=groundBoard=new THREE.Group(); world.scale.setScalar(GROUND_SCALE); scene.add(world);
 function polyPath(ctx,points,scale){ctx.beginPath();points.forEach(([x,y],i)=>{const px=x*scale,py=(H-y)*scale;i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.closePath()}
@@ -53,7 +94,7 @@ function smoothPath(ctx,points,scale){ctx.beginPath();const n=points.length;for(
 function smoothOutline(points){const curve=new THREE.CatmullRomCurve3(points.map(([x,y])=>new THREE.Vector3(...onGround(x,y,.03))),true,'centripetal');return curve.getPoints(points.length*8).map(p=>[p.x,p.y,p.z])}
 function drawLine(ctx,points,width,color,scale){ctx.beginPath();points.forEach(([x,y],i)=>{const px=x*scale,py=(H-y)*scale;i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=width*scale;ctx.strokeStyle=color;ctx.stroke()}
 const outlineControl=d.display.board.filter((_,i)=>i%3===0),outlineCurve=new THREE.CatmullRomCurve3(outlineControl.map(([x,y])=>new THREE.Vector3(x,y,0)),true,'centripetal'),boardOutline=outlineCurve.getPoints(320).map(p=>[p.x,p.y]);
-const scale=24,canvas=document.createElement('canvas');canvas.width=W*scale;canvas.height=H*scale;const ctx=canvas.getContext('2d');ctx.fillStyle='#988e64';ctx.fillRect(0,0,canvas.width,canvas.height);
+const scale=dimensions.texture.scale,canvas=document.createElement('canvas');canvas.width=dimensions.texture.width;canvas.height=dimensions.texture.height;const ctx=canvas.getContext('2d');ctx.fillStyle='#988e64';ctx.fillRect(0,0,canvas.width,canvas.height);
 // Draw cell colours to an offscreen map, then interpolate for continuous ground texture.
 const cell=d.meta.cellKm,ground=document.createElement('canvas');ground.width=d.terrain.cols;ground.height=d.terrain.rows;const groundCtx=ground.getContext('2d');groundCtx.fillStyle='#a29c75';groundCtx.fillRect(0,0,ground.width,ground.height);
 const terrainColors={'平地':'#a4aa7b','沼地':'#526e59','山岳':'#85818e','砂漠':'#c4b69a'};
@@ -63,7 +104,7 @@ ctx.save();ctx.imageSmoothingEnabled=true;ctx.filter='blur(5px)';ctx.drawImage(g
 function textureNoise(poly,seed,count,palette){let state=seed;function next(){state=state*16807%2147483647;return (state-1)/2147483646}ctx.save();if(poly){polyPath(ctx,poly,scale);ctx.clip()}for(let i=0;i<count;i++){const x=next()*canvas.width,y=next()*canvas.height;ctx.fillStyle=palette[Math.floor(next()*palette.length)];const size=1+next()*5;ctx.fillRect(x,y,size,size*(.4+next()))}ctx.restore()}
 textureNoise(null,d.meta.seed,55000,['rgba(58,79,47,.12)','rgba(230,218,164,.15)','rgba(74,68,43,.09)']);
 // A low-angle relief shade makes metre-scale banks and hollows readable at map scale.
-const shade=document.createElement('canvas');shade.width=240;shade.height=180;const sh=shade.getContext('2d'),shadePixels=sh.createImageData(shade.width,shade.height);for(let py=0;py<shade.height;py++)for(let px=0;px<shade.width;px++){const x=px/shade.width*W,y=H-py/shade.height*H,k=(py*shade.width+px)*4;if(inside(x,y,d.water.sea))continue;const h=elevation(x,y),slope=(elevation(x+.18,y)-h)*38+(elevation(x,y+.18)-h)*24;let light=Math.max(-.22,Math.min(.22,slope));shadePixels.data[k]=light>0?240:25;shadePixels.data[k+1]=light>0?229:38;shadePixels.data[k+2]=light>0?190:29;shadePixels.data[k+3]=Math.round(Math.abs(light)*255)}sh.putImageData(shadePixels,0,0);ctx.save();ctx.globalAlpha=.85;ctx.drawImage(shade,0,0,canvas.width,canvas.height);ctx.restore();
+const shade=document.createElement('canvas');const shadeScale=Math.min(5,512/Math.max(W,H));shade.width=Math.ceil(W*shadeScale);shade.height=Math.ceil(H*shadeScale);const sh=shade.getContext('2d'),shadePixels=sh.createImageData(shade.width,shade.height);for(let py=0;py<shade.height;py++)for(let px=0;px<shade.width;px++){const x=px/shade.width*W,y=H-py/shade.height*H,k=(py*shade.width+px)*4;if(inside(x,y,d.water.sea))continue;const h=elevation(x,y),slope=(elevation(x+.18,y)-h)*38+(elevation(x,y+.18)-h)*24;let light=Math.max(-.22,Math.min(.22,slope));shadePixels.data[k]=light>0?240:25;shadePixels.data[k+1]=light>0?229:38;shadePixels.data[k+2]=light>0?190:29;shadePixels.data[k+3]=Math.round(Math.abs(light)*255)}sh.putImageData(shadePixels,0,0);ctx.save();ctx.globalAlpha=.85;ctx.drawImage(shade,0,0,canvas.width,canvas.height);ctx.restore();
 // Light undergrowth follows the same discontinuous river bands as the trees.
 ctx.save();ctx.filter='blur(5px)';for(const band of d.objects.forest.bands){const river=d.water.rivers.find(r=>r.id===band.river);for(let i=0;i<river.points.length-1;i++){const a=river.points[i],b=river.points[i+1],y=(a[1]+b[1])/2;if(y<band.yMin||y>band.yMax||y>d.objects.forest.terraceMaxYKm)continue;const fade=Math.max(0,Math.min(1,(y-band.yMin)/(band.fadeStartYKm-band.yMin)));ctx.globalAlpha=.08+.15*fade;drawLine(ctx,[a,b],2*(band.bankMinKm+(band.bankMaxNorthKm-band.bankMinKm)*fade),'#30563e',scale)}}ctx.restore();
 ctx.save();smoothPath(ctx,d.water.sea,scale);ctx.clip();
@@ -74,8 +115,8 @@ if(seaMode==='board'){
   for(const offset of [.7,1.8,3.1,4.4])drawLine(ctx,d.water.coast.map(([x,y])=>[x,y-offset]),.045,'rgba(153,232,222,.72)',scale);
 }else{
   // Distances from the local coast control shallow water and deeper offshore colour.
-  const seaCanvas=document.createElement('canvas');seaCanvas.width=480;seaCanvas.height=360;const seaCtx=seaCanvas.getContext('2d'),seaPixels=seaCtx.createImageData(480,360);function coastAt(x){const coast=d.water.coast;for(let i=0;i<coast.length-1;i++){const a=coast[i],b=coast[i+1];if(x<=b[0]){const t=Math.max(0,Math.min(1,(x-a[0])/(b[0]-a[0])));return a[1]+(b[1]-a[1])*t}}return coast[coast.length-1][1]}
-  for(let py=0;py<360;py++)for(let px=0;px<480;px++){const x=(px+.5)/10,y=H-(py+.5)/10,depth=Math.max(0,coastAt(x)-y),f=Math.max(0,Math.min(1,(depth-1)/2)),t=f*f*(3-2*f),shallow=[115,192,179],deep=[9,32,57];let color=shallow.map((v,i)=>v*(1-t)+deep[i]*t);const sun=Math.exp(-(((x-39)/8)**2+((depth-1.5)/2.6)**2))*.34;color=color.map((v,i)=>v+(255-v)*sun);for(const river of d.water.rivers){const end=river.points[river.points.length-1],mouthY=coastAt(end[0]),plume=Math.exp(-(((x-end[0])/2.5)**2+((y-(mouthY-.7))/1.2)**2))*.52;color=color.map((v,i)=>v*(1-plume)+[180,158,118][i]*plume)}let k=(py*480+px)*4;for(let i=0;i<3;i++)seaPixels.data[k+i]=color[i];seaPixels.data[k+3]=255}seaCtx.putImageData(seaPixels,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(seaCanvas,0,0,canvas.width,canvas.height);
+  const seaCanvas=document.createElement('canvas');const seaScale=Math.min(10,1024/Math.max(W,H));seaCanvas.width=Math.ceil(W*seaScale);seaCanvas.height=Math.ceil(H*seaScale);const seaCtx=seaCanvas.getContext('2d'),seaPixels=seaCtx.createImageData(seaCanvas.width,seaCanvas.height);function coastAt(x){const coast=d.water.coast;for(let i=0;i<coast.length-1;i++){const a=coast[i],b=coast[i+1];if(x<=b[0]){const t=Math.max(0,Math.min(1,(x-a[0])/(b[0]-a[0])));return a[1]+(b[1]-a[1])*t}}return coast[coast.length-1][1]}
+  for(let py=0;py<seaCanvas.height;py++)for(let px=0;px<seaCanvas.width;px++){const x=(px+.5)/seaCanvas.width*W,y=H-(py+.5)/seaCanvas.height*H,depth=Math.max(0,coastAt(x)-y),f=Math.max(0,Math.min(1,(depth-1)/2)),t=f*f*(3-2*f),shallow=[115,192,179],deep=[9,32,57];let color=shallow.map((v,i)=>v*(1-t)+deep[i]*t);const sun=Math.exp(-(((x-W*39/48)/8)**2+((depth-1.5)/2.6)**2))*.34;color=color.map((v,i)=>v+(255-v)*sun);for(const river of d.water.rivers){const end=river.points[river.points.length-1],mouthY=coastAt(end[0]),plume=Math.exp(-(((x-end[0])/2.5)**2+((y-(mouthY-.7))/1.2)**2))*.52;color=color.map((v,i)=>v*(1-plume)+[180,158,118][i]*plume)}let k=(py*seaCanvas.width+px)*4;for(let i=0;i<3;i++)seaPixels.data[k+i]=color[i];seaPixels.data[k+3]=255}seaCtx.putImageData(seaPixels,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(seaCanvas,0,0,canvas.width,canvas.height);
 
 }
 ctx.restore();if(seaMode==='real'){const shorelineCurve=new THREE.CatmullRomCurve3(d.water.coast.map(([x,y])=>new THREE.Vector3(x,y,0)),false,'centripetal'),foam=shorelineCurve.getPoints(500).map((p,i)=>[p.x,p.y-.06+.035*Math.sin(i*.19)]);drawLine(ctx,foam,.11,'rgba(235,247,232,.96)',scale);drawLine(ctx,foam.map(([x,y],i)=>[x,y-.12+.018*Math.sin(i*.29)]),.035,'rgba(229,246,239,.7)',scale)}
@@ -86,7 +127,7 @@ for(const road of d.objects.roads){drawLine(ctx,road.points,.19,'#5d594c',scale)
 for(const bridge of d.objects.bridges)drawLine(ctx,[[bridge.x-.45,bridge.y],[bridge.x+.45,bridge.y]],.14,'#eee7d4',scale);
 ctx.save();ctx.globalCompositeOperation='destination-in';polyPath(ctx,boardOutline,scale);ctx.fillStyle='#fff';ctx.fill();ctx.restore();
 const texture=new THREE.CanvasTexture(canvas);texture.anisotropy=renderer.capabilities.getMaxAnisotropy();
-const geometry=new THREE.PlaneGeometry(W,H,192,144);geometry.rotateX(-Math.PI/2);const pos=geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setY(i,elevation(pos.getX(i)+W/2,H/2-pos.getZ(i)));geometry.computeVertexNormals();const groundMesh=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));groundMesh.receiveShadow=true;world.add(groundMesh);
+const geometry=new THREE.PlaneGeometry(W,H,dimensions.mesh.segmentsX,dimensions.mesh.segmentsZ);geometry.rotateX(-Math.PI/2);const pos=geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setY(i,elevation(pos.getX(i)+W/2,H/2-pos.getZ(i)));geometry.computeVertexNormals();const groundMesh=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));groundMesh.receiveShadow=true;world.add(groundMesh);
 
 // Animated specular flecks are masked to the sea and excluded from dry ground.
 const waterMask=document.createElement('canvas');waterMask.width=canvas.width;waterMask.height=canvas.height;const wm=waterMask.getContext('2d');smoothPath(wm,d.water.sea,scale);wm.fillStyle='#fff';wm.fill();wm.globalCompositeOperation='destination-in';polyPath(wm,boardOutline,scale);wm.fill();const waterMaskTexture=new THREE.CanvasTexture(waterMask);const waterGeo=geometry.clone(),wp=waterGeo.attributes.position;for(let i=0;i<wp.count;i++)wp.setY(i,wp.getY(i)+.008);const waterMaterial=groundWaterMaterial=new THREE.ShaderMaterial({uniforms:{mask:{value:waterMaskTexture},time:{value:0}},vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'uniform sampler2D mask; uniform float time; varying vec2 vUv; void main(){float m=texture2D(mask,vUv).a; float a=sin(vUv.x*780.0+vUv.y*280.0+time*.65); float b=sin(vUv.y*620.0-vUv.x*120.0-time*.43); float glint=pow(max(0.0,a*b),13.0);gl_FragColor=vec4(.68,.86,.84,m*glint*.25);}',transparent:true,depthWrite:false});const waterLayer=new THREE.Mesh(waterGeo,waterMaterial);waterLayer.visible=seaMode==='real';world.add(waterLayer);
@@ -99,7 +140,7 @@ function forestBandWidth(b,y){const t=Math.max(0,Math.min(1,(y-b.yMin)/(b.fadeSt
 function populateForest(){const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*.55),mesh=new THREE.InstancedMesh(new THREE.IcosahedronBufferGeometry(.154,0),new THREE.MeshLambertMaterial({color:0xffffff}),treeCount),dummy=new THREE.Object3D();let count=0;for(let attempt=0;attempt<treeCount*80&&count<treeCount;attempt++){const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)continue;const fade=Math.max(0,Math.min(1,(cy-band.yMin)/(band.fadeStartYKm-band.yMin)));if(random()>.18+.82*fade)continue;const gap=(Math.sin((cy/band.gapPeriodKm)*Math.PI*2+band.gapFraction*7)+1)/2;if(gap<band.gapFraction)continue;const width=forestBandWidth(band,cy),distance=band.bankMinKm+random()*Math.max(0,width-band.bankMinKm),side=random()<.5?-1:1,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),x=cx-side*dy/len*distance,y=cy+side*dx/len*distance;if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea))continue;const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color(random()<.5?0x446e4c:0x638456));groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE});count++}mesh.count=count;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh)}
 // Bushes form little clusters on steppe, river margins, and salt margins only.
 function populateShrubs(){
- const spec={...d.objects.shrubs,count:650},random=rng(spec.seed),geo=new THREE.IcosahedronBufferGeometry(1,1),positions=geo.attributes.position;
+ const spec={...d.objects.shrubs,count:d.objects.shrubs.renderCount??(d.meta.id==='exercise2'?650:d.objects.shrubs.count)},random=rng(spec.seed),geo=new THREE.IcosahedronBufferGeometry(1,1),positions=geo.attributes.position;
  // One fixed irregular low-poly shape is varied in scale, rotation and colour per lobe.
  const jitter=rng(spec.seed+313);for(let i=0;i<positions.count;i++){const f=.78+jitter()*.44;positions.setXYZ(i,positions.getX(i)*f,positions.getY(i)*f,positions.getZ(i)*f)}geo.computeVertexNormals();
  const mesh=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:0xffffff}),spec.count*7),shadow=new THREE.InstancedMesh(new THREE.CircleBufferGeometry(.17,8),new THREE.MeshBasicMaterial({color:0x122017,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide}),spec.count),dummy=new THREE.Object3D();let plants=0,lobes=0;
@@ -116,7 +157,7 @@ const buildingGroups={};for(const spec of d.objects.settlements){const site=d.si
 // 8方向のマス経路。辺と近道を検査し、細い川や海岸を飛び越えない。
 // セルの中心と実際の出発・到着点を結ぶ線も、海岸や盤の切れ込みを横切らせない。
 function groundSeaLeg(a,b){
-  const d=WOS_TERRAIN.exercise2,x=a.x/GROUND_SCALE+24,y=18-a.z/GROUND_SCALE,dx=(b.x-a.x)/GROUND_SCALE,dy=-(b.z-a.z)/GROUND_SCALE,cuts=[0,1];
+  const d=groundData(),x=groundMapX(a.x),y=groundMapY(a.z),dx=(b.x-a.x)/GROUND_SCALE,dy=-(b.z-a.z)/GROUND_SCALE,cuts=[0,1];
   for(const poly of [d.water.sea,d.display.board])for(let i=0;i<poly.length;i++){
     const p=poly[i],q=poly[(i+1)%poly.length],ex=q[0]-p[0],ey=q[1]-p[1],den=dx*ey-dy*ex;
     if(Math.abs(den)<1e-10)continue;
@@ -128,7 +169,7 @@ function groundSeaLeg(a,b){
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
 function groundPath(from,to,kind='vehicle',dryOnly=false){
-  const d=WOS_TERRAIN.exercise2,cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
+  const d=groundData(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   // Query bounds live only for this search: bridge construction/destruction and
   // terrain edits are always observed by the next call, including dry detours.
   const bounds=poly=>{let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const [x,y] of poly){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}return {poly,minX,minY,maxX,maxY};};
@@ -164,8 +205,8 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     const dest=to.clone();dest.y=from.y;const curve=new THREE.LineCurve3(from.clone(),dest),L=curve.getLength();
     return {curve,points:[from.clone(),dest],atIndex:1,L,s:0,pts:[dest],at:[L]};
   }
-  if(!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
-  const centers=i=>new THREE.Vector3(((i%cols+.5)*cell-24)*GROUND_SCALE,0,(18-(Math.floor(i/cols)+.5)*cell)*GROUND_SCALE);
+  if(a.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||b.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
+  const centers=i=>new THREE.Vector3(groundWorldX((i%cols+.5)*cell),0,groundWorldZ((Math.floor(i/cols)+.5)*cell));
   // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
   function leg(p,q){
     if(kind==='sea'&&!groundSeaLeg(p,q))return Infinity;
@@ -173,13 +214,20 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     let sum=0;
     for(let k=0;k<=n;k++){
       const t=k/n,x=p.x+(q.x-p.x)*t,z=p.z+(q.z-p.z)*t;
-      const gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,water=waterFactor(gx,gy);
+      const gx=groundMapX(x),gy=groundMapY(z),water=waterFactor(gx,gy);
       if(water<=0)return Infinity;
       const marsh=kind!=='sea'&&d.terrain.cells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?(d.movement.marsh[kind]??1):1;
       const factor=marsh*water;if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
     return length/(cell*GROUND_SCALE)*sum/n;
+  }
+  // 全区間が通常速度なら直線はコスト下限そのもの。巨大な盤でもA*を起動しない。
+  // legは細い川・浅瀬・橋・沼地も従来と同じ間隔で検査し、減速や遮断があれば通常探索へ戻る。
+  const direct=leg(from,to),lower=Math.hypot(to.x-from.x,to.z-from.z)/(cell*GROUND_SCALE);
+  if(Number.isFinite(direct)&&Math.abs(direct-lower)<=1e-9*Math.max(1,lower)){
+    const endPoint=to.clone();endPoint.y=groundHeight(endPoint.x,endPoint.z);const points=[from.clone(),endPoint],curve=new THREE.LineCurve3(points[0],points[1]),L=curve.getLength();
+    return {cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
   }
   const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
   const centerCache=new Map(),center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
@@ -233,7 +281,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   const L=curve.getLength();
   // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
   // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
-  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>riverFactor(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE)<1)){
+  if(!dryOnly&&kind!=='sea'&&d.movement.river[kind]>0&&points.some(p=>riverFactor(groundMapX(p.x),groundMapY(p.z))<1)){
     const detour=groundPath(from,to,kind,true);
     if(detour&&detour.cost<cost)return detour;
   }

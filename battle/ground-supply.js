@@ -65,7 +65,7 @@ function groundSupplyRoadCapture(dt){
   const troops=fleets.filter(groundCanCaptureRoad),seconds=groundRoadCaptureSeconds(),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
-    const present=[false,false];for(const f of troops)if(groundDistance(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,e.path)<=width+1e-8)present[f.team]=true;
+    const present=[false,false];for(const f of troops)if(groundDistance(groundMapX(f.pos.x),groundMapY(f.pos.z),e.path)<=width+1e-8)present[f.team]=true;
     e.contested=present[0]&&present[1];e.capturingTeam=e.contested?null:present[0]?0:present[1]?1:null;if(e.contested)continue;
     const team=present[0]?0:present[1]?1:null;if(team===null||team===e.owner)continue;
     e.progress[team]=Math.min(seconds,e.progress[team]+dt);
@@ -100,7 +100,7 @@ function groundSupplyRefresh(){
   }
 }
 function groundSupplyAt(f){
-  const x=f.pos.x/GROUND_SCALE+24,y=18-f.pos.z/GROUND_SCALE,s=groundCircleAt(x,y),net=groundSupplyNet;
+  const x=groundMapX(f.pos.x),y=groundMapY(f.pos.z),s=groundCircleAt(x,y),net=groundSupplyNet;
   if(s){const hq=s.id===op.groundHQ?.[f.team]&&s.owner===f.team,rate=hq?(s.contested?.5:1):net?.nodes[net.sites.get(s)]?.rates[f.team]||0;return {owner:s.owner,contested:s.contested,rate:(s.owner===f.team||s.contested)?rate:0,site:s};}
   const e=groundRoadAt(x,y);return {owner:e?.owner??null,contested:e?.contested||false,rate:e?.rates[f.team]||0,edge:e};
 }
@@ -123,7 +123,7 @@ function groundSupplyMoved(f,a,b){
   const km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;groundSupplySpend(f,km*groundSupplyRules().move);
   if(!Number.isFinite(f.groundMorale)||f.groundRout)return;
   const d=WOS_TERRAIN[op.ground],r=d.supply,n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
-  for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=x/GROUND_SCALE+24,gy=18-z/GROUND_SCALE,type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=d.capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
+  for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=groundMapX(x),gy=groundMapY(z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=d.capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
   f.groundMorale=Math.max(0,f.groundMorale-spent);f.groundMoved=true;
 }
 function groundSupplyHit(f,amount){
@@ -177,16 +177,16 @@ function groundSupplyGive(dt,netGains){
 function groundAirStep(f,dt){
   const r=groundSupplyRules();
   if(f.groundAirState==='base'){
-    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';groundSupplyInternalMove(f,f.groundAirResume);}
+    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
     return;
   }
   groundSupplySpend(f,r.airIdle*dt);
   if(!f.groundAirState&&f.groundSupply<=r.airReturn){
-    f.groundAirResume=f.pos.clone();const base=groundSites.find(s=>s.id===op.groundHQ[f.team]&&s.owner===f.team);f.groundAirState='out';groundSupplyInternalMove(f,base?.pos||f.home);
+    const task=groundCopyAirTask(f);f.groundAirResume=f.pos.clone();const base=groundSites.find(s=>s.id===op.groundHQ[f.team]&&s.owner===f.team);f.groundAirState='out';groundSupplyInternalMove(f,base?.pos||f.home);f.groundAirTask=task;
   }
   if(f.groundAirState&&!f.order){
     if(f.groundAirState==='out'){f.groundAirState='base';f.groundAirLeft=r.airBase;f.fireTarget=null;}
-    else f.groundAirState=null;
+    else {const task=f.groundAirTask;f.groundAirState=null;f.groundAirTask=null;groundRestoreAirTask(f,task);}
   }
 }
 function groundSupplyAI(f){
@@ -225,7 +225,7 @@ function groundSupplyAfter(dt){
     if(gain>0)f.groundSupplySource=at.site?{site:at.site}:{edge:at.edge};
     if(f.groundBuilding)groundSupplySpend(f,r.build*dt);
     const own=at.owner===f.team&&!at.contested;
-    const gx=f.pos.x/GROUND_SCALE+24,gy=18-f.pos.z/GROUND_SCALE,type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
+    const gx=groundMapX(f.pos.x),gy=groundMapY(f.pos.z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
     if(!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
     const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
     const moraleCap=groundMoraleCap(f,at);
@@ -278,7 +278,7 @@ document.querySelectorAll('#groundSupply').forEach(b=>b.addEventListener('click'
 function groundSupplyPlace(list,p){
   const hq=groundSites.find(s=>s.id===op.groundHQ?.[0]&&s.owner===0);if(!hq||!list.length||list.some(f=>f.embarked||groundMoveKind(f)==='air'||f.groundKind==='sea'))return false;
   const lead=list[0],mv=p.clone().sub(lead.pos),positions=list.map(f=>f.pos.clone().add(mv));
-  if(positions.some((p,i)=>groundDistanceTo({pos:p},hq)>hq.radiusKm*GROUND_SCALE||!groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,groundMoveKind(list[i]))))return false;
+  if(positions.some((p,i)=>groundDistanceTo({pos:p},hq)>hq.radiusKm*GROUND_SCALE||!groundPass(groundMapX(p.x),groundMapY(p.z),groundMoveKind(list[i]))))return false;
   list.forEach((f,i)=>{f.pos.copy(positions[i]);f.pos.y=groundUnitHeight(f);f.home.copy(f.pos);f.post.copy(f.pos);groundClearOrders(f);for(const s of f.ships)s.pos.copy(f.pos);if(op.groundDrill)groundDrillEvent('supplyPlace',f,p);});return true;
 }
 function groundSupplyTile(f){
@@ -296,7 +296,7 @@ function groundSupplyStartDeploy(only=null){
   for(let y=hq.y-hq.radiusKm;y<=hq.y+hq.radiusKm;y+=d.meta.cellKm)for(let x=hq.x-hq.radiusKm;x<=hq.x+hq.radiusKm;x+=d.meta.cellKm)if(Math.hypot(x-hq.x,y-hq.y)<=hq.radiusKm)slots.push(groundPoint(x,y));
   slots.sort((a,b)=>groundDistanceTo({pos:a},hq)-groundDistanceTo({pos:b},hq));
   const plan=[],used=new Set();
-  for(const f of list){const p=slots.find(p=>!used.has(p)&&groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,groundMoveKind(f)));if(!p){groundSupplyMessage='本営内に配置できる場所が足りません';deploying=true;deployEl.hidden=false;deployEl.querySelector('p').textContent=groundSupplyMessage;document.getElementById('deployGo').disabled=true;return;}used.add(p);plan.push([f,p]);}
+  for(const f of list){const p=slots.find(p=>!used.has(p)&&groundPass(groundMapX(p.x),groundMapY(p.z),groundMoveKind(f)));if(!p){groundSupplyMessage='本営内に配置できる場所が足りません';deploying=true;deployEl.hidden=false;deployEl.querySelector('p').textContent=groundSupplyMessage;document.getElementById('deployGo').disabled=true;return;}used.add(p);plan.push([f,p]);}
   for(const [f,p] of plan)groundSupplyPlace([f],p);
   deploying=true;deployZone.visible=false;deployEl.hidden=false;document.getElementById('deployGo').disabled=false;
   deployEl.querySelector('p').textContent='地上中隊を選び、本営の味方色の円内をクリックして配置します。航空・海上・搭載中隊は固定位置です。配置後に「作戦開始」を押してください。';
@@ -367,7 +367,7 @@ function groundRoadLabelsDraw(){
   if(!groundSupplyActive()||!groundSupplyNet){groundRoadLabelsClear();return;}
   const focus=orderTargets()[0],placed=[];let count=0;
   const edges=groundSupplyNet.edges.filter(e=>!e.circle&&(e.knownContested||(e.knownProgress||[]).some((p,i)=>p>0&&e.knownOwner!==i)));
-  if(focus){const x=focus.pos.x/GROUND_SCALE+24,y=18-focus.pos.z/GROUND_SCALE;edges.sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y));}
+  if(focus){const x=groundMapX(focus.pos.x),y=groundMapY(focus.pos.z);edges.sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y));}
   for(const e of edges){
     const p=proj(groundPoint(e.x,e.y).add(new THREE.Vector3(0,1,0)));
     if(p.z>1||p.x<0||p.x>innerWidth||p.y<0||p.y>innerHeight||placed.some(q=>Math.abs(q.x-p.x)<170&&Math.abs(q.y-p.y)<28))continue;

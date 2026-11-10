@@ -79,7 +79,7 @@ async function checkGroundCapture(page, check) {
 }
 module.exports={checkGroundCapture};
 if(require.main===module){
-  const context=vm.createContext({window:{},document:{querySelectorAll:()=>[]},fleets:[],op:{ground:'exercise2'},over:false,end:()=>{}});
+  const context=vm.createContext({window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},over:false,end:()=>{}});
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/terrain/exercise2.js'),'utf8'),context);
   context.WOS_TERRAIN=context.window.WOS_TERRAIN;
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground-supply.js'),'utf8'),context);

@@ -128,7 +128,7 @@ function createGroundContext(){
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:id=>['groundMove','groundHold','groundCommandExpand','groundDeploy','groundPlan','groundExecute'].includes(id)?{addEventListener(){}}:null,querySelectorAll:()=>[],createElement:label},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],TEAM_NAME:['連合','共和国'],fid:1,HP_K:7,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js','battle/ground-plan.js','battle/ground-area.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js','battle/ground-plan.js','battle/ground-area.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));
@@ -158,7 +158,7 @@ function nodeChecks(){
     const org={companies:[{id:'test',name:'test',kind:'vehicle'}],battalions:[],brigades:[]},before=JSON.stringify(org);
     groundInitOrg(org);groundInit();const c=fleets.find(groundLandingShip),cargo=groundPassengers(c);
     check('opの初期搭載を実生成し編成の保存データは変えない',cargo.length===2&&JSON.stringify(org)===before&&cargo.every(f=>f.embarked===c&&!f.groundModel.visible&&groundMembers('companies',f.companyId)[0]===f));
-    check('揚陸艦は研究・共通倍率を使わず駆逐艦の固定性能',c.hp===groundSeaStats('dd').hp&&c.speed===groundSeaStats('dd').speed&&c.band==='sea');
+    check('揚陸艦は研究・共通倍率を使わず駆逐艦の固定性能',c.hp===groundSeaStats('dd',true).hp&&c.speed===groundSeaStats('dd',true).speed&&c.band==='sea');
     c.pos.copy(groundPoint(12.2,7.4));groundTransportSync();groundLandCommand([c]);groundStep(5);groundDraw();const el=c.groundLandingVisual;
     check('既存ゲージの形で上陸5秒と被弾倍率を描く',el&&el.querySelector('small').textContent==='5.0 / 10秒・被弾1.3倍'&&parseFloat(el.querySelector('i').style.width)===50);
     groundTransportReset();check('再初期化で上陸ゲージと時計を破棄',el.removed&&!c.groundUnloading&&!c.groundLandingVisual);
