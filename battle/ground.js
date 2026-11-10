@@ -111,7 +111,7 @@ function groundSurfaceHeight(x,z){return Math.max(groundHeight(x,z),groundSightH
 function groundCanFire(f,t){ return (!groundPermissionOnly(f)||f.order?.type==='attack'&&f.order.target===t)&&groundFireSolution(f,t); }
 // AI の目標指定も、射程・共有視界・遮蔽の同じ規則で候補を調べる。
 function groundFireSolution(f,t){ return !groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundSeenBy(f.team,t)&&!!groundFireMode(f,t); }
-function groundLandable(f){ return groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,'infantry'); }
+function groundLandable(f){ return groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&!f.embarked&&groundCommandAllowed(f,'band')&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
   for(const f of list){
@@ -148,6 +148,7 @@ function groundSetView(band){
   groundDraw();
 }
 function groundConfigure(active){
+  if(typeof camera!=='undefined'&&camera){camera.far=active?Math.max(3000,Math.max(groundDimensions().widthWorld,groundDimensions().heightWorld)*5):3000;camera.updateProjectionMatrix?.();}
   if(typeof groundPlanReset==='function')groundPlanReset();
   groundRangesClear();
   document.getElementById('groundCommandBar').hidden=!active;
@@ -170,9 +171,9 @@ function groundInit(){
     f.groundMaxHp=f.hpPool;
     f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
     // 兵科変更・追加で元の配置が通れなくなった時は、同じ出発点付近の通行可能なセルへ置く。
-    if(!groundPass(f.pos.x/GROUND_SCALE+24,18-f.pos.z/GROUND_SCALE,groundMoveKind(f))){
+    if(!groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),groundMoveKind(f))){
       const size=WOS_TERRAIN[op.ground].meta.cellKm;let best=null,dist=Infinity;
-      for(let y=size/2;y<36;y+=size)for(let x=size/2;x<48;x+=size){
+      for(let y=size/2;y<groundDimensions().heightKm;y+=size)for(let x=size/2;x<groundDimensions().widthKm;x+=size){
         if(!groundPass(x,y,groundMoveKind(f)))continue;const p=groundPoint(x,y),d=p.distanceToSquared(f.pos);if(d<dist){best=p;dist=d;}
       }
       if(best)f.pos.copy(best);
@@ -189,15 +190,15 @@ function groundInit(){
     }
   }
   // 見本と同じ薄い格子。地表の起伏と同じ高さを足し、盤の輪郭内だけに置く。
-  const d=WOS_TERRAIN[op.ground], gap=d.bands.gridStep;
+  const d=WOS_TERRAIN[op.ground],dims=groundDimensions(),span=Math.max(dims.widthWorld,dims.heightWorld),gap=Math.max(d.bands.gridStep,span/48),segment=Math.max(1.6,span/192);
   for(const band of ['ground','low','high']){
     const points=[], height=d.bands.heights[band]+.12;
     const add=(x,z,xx,zz)=>{
-      if(!groundPass(x/GROUND_SCALE+24,18-z/GROUND_SCALE,'air')||!groundPass(xx/GROUND_SCALE+24,18-zz/GROUND_SCALE,'air'))return;
+      if(!groundPass(groundMapX(x),groundMapY(z),'air')||!groundPass(groundMapX(xx),groundMapY(zz),'air'))return;
       points.push(new THREE.Vector3(x,groundHeight(x,z)+height,z),new THREE.Vector3(xx,groundHeight(xx,zz)+height,zz));
     };
-    for(let x=-96;x<=96;x+=gap)for(let z=-72;z<72;z+=1.6)add(x,z,x,z+1.6);
-    for(let z=-72;z<=72;z+=gap)for(let x=-96;x<96;x+=1.6)add(x,z,x+1.6,z);
+    for(let x=-dims.halfWidthWorld;x<=dims.halfWidthWorld;x+=gap)for(let z=-dims.halfHeightWorld;z<dims.halfHeightWorld;z+=segment)add(x,z,x,Math.min(dims.halfHeightWorld,z+segment));
+    for(let z=-dims.halfHeightWorld;z<=dims.halfHeightWorld;z+=gap)for(let x=-dims.halfWidthWorld;x<dims.halfWidthWorld;x+=segment)add(x,z,Math.min(dims.halfWidthWorld,x+segment),z);
     const grid=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:band==='high'?0xe1d7ff:0xd5f8ff,transparent:true,opacity:.08,depthWrite:false}));
     groundGrids[band]=grid; groundVisuals.add(grid);
   }
@@ -376,10 +377,10 @@ function groundCaptureInit(){
     const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xcad1c5,transparent:true,opacity:.9,depthWrite:false}));
     ring.renderOrder=5;groundVisuals.add(ring); s.ring=ring;
   }
-  const canvas=document.createElement('canvas'); canvas.width=480; canvas.height=360;
-  const texture=new THREE.CanvasTexture(canvas), geometry=new THREE.PlaneBufferGeometry(d.meta.widthKm,d.meta.heightKm,192,144);
+  const canvas=document.createElement('canvas'),pixelScale=Math.min(10,480/Math.max(d.meta.widthKm,d.meta.heightKm));canvas.width=Math.round(d.meta.widthKm*pixelScale);canvas.height=Math.round(d.meta.heightKm*pixelScale);
+  const texture=new THREE.CanvasTexture(canvas), geometry=new THREE.PlaneBufferGeometry(d.meta.widthKm,d.meta.heightKm,groundMeshGrid().segmentsX,groundMeshGrid().segmentsZ);
   geometry.rotateX(-Math.PI/2); const p=geometry.attributes.position;
-  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(p.getX(i)+24,18-p.getZ(i))/GROUND_SCALE+.025);
+  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(p.getX(i)+d.meta.widthKm/2,d.meta.heightKm/2-p.getZ(i))/GROUND_SCALE+.025);
   const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
   mesh.renderOrder=4; groundBoard.add(mesh);
   groundTerritory={canvas,texture,mesh,key:null,sections:groundRoadSections(d.objects.roads,groundSites)};
@@ -452,22 +453,23 @@ function groundPaintTerritory(){
   const t=groundTerritory;if(!t)return;
   // Validate once per paint, not once per pixel. Bridge state does not change spatial membership.
   const spatial=groundInfluenceAt(null,null),key=groundSites.map(s=>`${s.knownOwner}:${s.knownContested}`).join('|')+'/'+(groundSupplyActive()?groundSupplyNet?.edges.map(e=>`${e.knownOwner}:${e.knownContested}`).join('|'):'');
+  const width=t.canvas.width,height=t.canvas.height,d=WOS_TERRAIN[op.ground];
   let pixels=groundTerritoryPixels;
   const rebuild=!pixels||pixels.spatial!==spatial||pixels.territory!==t;
   if(!rebuild&&t.key===key)return;
   if(rebuild){
-    const mask=new Uint8Array(480*360),members=new Array(480*360);
-    for(let py=0;py<360;py++)for(let px=0;px<480;px++){
-      const x=(px+.5)/10,y=36-(py+.5)/10,i=py*480+px;
+    const mask=new Uint8Array(width*height),members=new Array(width*height);
+    for(let py=0;py<height;py++)for(let px=0;px<width;px++){
+      const x=(px+.5)/width*d.meta.widthKm,y=d.meta.heightKm-(py+.5)/height*d.meta.heightKm,i=py*width+px;
       if(!groundInside(x,y,spatial.board))continue;
       if(groundInside(x,y,spatial.sea)){mask[i]=1;continue;}
       mask[i]=2;members[i]=groundInfluenceAt(x,y,spatial);
     }
     pixels=groundTerritoryPixels={spatial,territory:t,mask,members};
   }
-  const ctx=t.canvas.getContext('2d'),img=ctx.createImageData(480,360),raw=img.data,colors=[[75,160,225],[230,85,72],[160,168,165]];
-  for(let py=0;py<360;py++)for(let px=0;px<480;px++){
-    const i=py*480+px,s=pixels.members[i];if(pixels.mask[i]!==2||!s)continue;
+  const ctx=t.canvas.getContext('2d'),img=ctx.createImageData(width,height),raw=img.data,colors=[[75,160,225],[230,85,72],[160,168,165]];
+  for(let py=0;py<height;py++)for(let px=0;px<width;px++){
+    const i=py*width+px,s=pixels.members[i];if(pixels.mask[i]!==2||!s)continue;
     const known=s.circle||s,stripe=known.knownContested&&(px+py)%12<3,color=stripe?[238,225,183]:colors[known.knownOwner??2],k=i*4;
     raw[k]=color[0];raw[k+1]=color[1];raw[k+2]=color[2];raw[k+3]=stripe?190:102;
   }
@@ -541,7 +543,7 @@ function groundRangeInfo(f){
 }
 // 選択隊だけの可射マスク。32方向×12距離の境界を描き、内側の遮蔽も残す。
 // 点ごとの厳密な発射判定は共有の射線・弾道判定。マスクは表示用の離散近似。
-function groundRangeMask(f,e){
+function* groundRangeMaskSteps(f,e){
   const angles=32,steps=12,R=e.range,dr=R/steps,da=2*Math.PI/angles,mask=[];
   const point=(a,r)=>{const x=f.pos.x+Math.cos(a)*r,z=f.pos.z+Math.sin(a)*r;return new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z);};
   const clear=(a,r)=>{
@@ -549,12 +551,12 @@ function groundRangeMask(f,e){
     const p=point(a,r);
     if(e.id==='indirect')return groundStrikeInRange(f,p);
     if(f.groundKind==='sea'&&groundNavalClass(f)){
-      const sea=groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea),target={pos:p,band:sea?'sea':'ground',groundKind:sea?'sea':'infantry',type:'ff'};
+      const sea=groundInside(groundMapX(p.x),groundMapY(p.z),WOS_TERRAIN[op.ground].water.sea),target={pos:p,band:sea?'sea':'ground',groundKind:sea?'sea':'infantry',type:'ff'};
       if(r>(groundNavalHorizonKm(f,target)??0)*GROUND_SCALE)return false;
     }
     return groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight});
   };
-  for(let j=0;j<steps;j++){mask[j]=[];for(let i=0;i<angles;i++)mask[j][i]=clear((i+.5)*da,(j+.5)*dr);}
+  for(let j=0;j<steps;j++){mask[j]=[];for(let i=0;i<angles;i++){mask[j][i]=clear((i+.5)*da,(j+.5)*dr);yield;}}
   const points=[];
   for(let j=0;j<steps;j++)for(let i=0;i<angles;i++)if(mask[j][i]){
     const a=i*da,b=(i+1)*da,inner=j*dr,outer=(j+1)*dr;
@@ -565,29 +567,44 @@ function groundRangeMask(f,e){
   }
   return points;
 }
+// 同期APIは対象確認用にも保持。描画では同じ計算をフレームへ分散する。
+function groundRangeMask(f,e){const task=groundRangeMaskSteps(f,e);let result;do{result=task.next();}while(!result.done);return result.value;}
+const GROUND_RANGE_FRAME_BUDGET_MS=3.5; // 仮。単一の弾道計算は途中で中断しない協調予算。
+let groundRangeBudgetStats={lastMs:0,maxMs:0,pending:0};
+function groundRangeSetPoints(line,points){line.geometry.dispose();line.geometry=new THREE.BufferGeometry().setFromPoints(points);line.computeLineDistances();}
 function groundRangesDraw(list){
   if(!groundVisuals)return;
-  const live=new Set();
+  const started=performance.now(),live=new Set();let pending=0;
   for(const f of list){
     const info=groundRangeInfo(f);if(!info)continue;live.add(f);
     let v=groundRanges.get(f);
-    if(!v){const el=document.createElement('div');el.className='ground-range-label';labelsEl.appendChild(el);v={lines:[],el};groundRanges.set(f,v);}
+    if(!v){const el=document.createElement('div');el.className='ground-range-label';labelsEl.appendChild(el);v={lines:[],el,jobs:null};groundRanges.set(f,v);}
     const rings=info.entries.flatMap(e=>[e,...(e.min>0?[{...e,id:e.id+'Min',range:e.min}]:[])]);
-    const key=[f.pos.x,f.pos.z,f.band,...rings.map(e=>e.id+':'+e.range)].join('/');
-    if((v.key!==key||v.buildings!==groundBuildings)&&(!v.updatedAt||performance.now()-v.updatedAt>750||v.band!==f.band||v.buildings!==groundBuildings)){
+    const key=[f.pos.x,f.pos.z,f.band,...rings.map(e=>e.id+':'+e.range)].join('/'),changed=v.band!==f.band||v.buildings!==groundBuildings;
+    if(changed)v.jobs=null;
+    if((v.key!==key||changed)&&!v.jobs&&(!v.updatedAt||performance.now()-v.updatedAt>750||changed)){
       for(const line of v.lines){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}
+      // 全サンプルが同じ射手位置・段を使う。移動中の値を途中で混ぜない。
+      const snapshot={...f,pos:f.pos.clone(),heading:f.heading?.clone()};v.jobs=[];
       v.lines=rings.map(e=>{
-        const masked=['direct','indirect'].includes(e.id),points=masked?groundRangeMask(f,e):[];
-        if(!masked)for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=f.pos.x+Math.cos(a)*e.range,z=f.pos.z+Math.sin(a)*e.range;points.push(new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z));}
-        const line=new (masked?THREE.LineSegments:THREE.Line)(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.7,depthWrite:false,dashSize:e.id==='aa'?.3:.7,gapSize:.45}));line.renderOrder=5;line.computeLineDistances();groundVisuals.add(line);return line;
+        const masked=['direct','indirect'].includes(e.id),points=[];
+        if(!masked)for(let i=0;i<=128;i++){const a=i/128*Math.PI*2,x=snapshot.pos.x+Math.cos(a)*e.range,z=snapshot.pos.z+Math.sin(a)*e.range;points.push(new THREE.Vector3(x,groundSurfaceHeight(x,z)+.28,z));}
+        const line=new (masked?THREE.LineSegments:THREE.Line)(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.7,depthWrite:false,dashSize:e.id==='aa'?.3:.7,gapSize:.45}));line.renderOrder=5;line.computeLineDistances();groundVisuals.add(line);
+        if(masked)v.jobs.push({line,task:groundRangeMaskSteps(snapshot,e)});return line;
       });v.line=v.lines[0];v.key=key;v.updatedAt=performance.now();v.band=f.band;v.buildings=groundBuildings;
     }
+    while(v.jobs?.length&&performance.now()-started<GROUND_RANGE_FRAME_BUDGET_MS){
+      const job=v.jobs[0],result=job.task.next();
+      if(result.done){groundRangeSetPoints(job.line,result.value);v.jobs.shift();}
+    }
+    if(v.jobs&&!v.jobs.length)v.jobs=null;if(v.jobs)pending++;
     const p=proj(new THREE.Vector3(f.pos.x,groundSurfaceHeight(f.pos.x,f.pos.z)+1.5,f.pos.z));
     v.el.hidden=p.z>1||p.x<0||p.y<0||p.x>innerWidth||p.y>innerHeight;
     v.el.style.transform=`translate(${p.x}px,${p.y+30}px)`;
-    v.el.textContent=info.entries.map(e=>e.text+' '+(e.min>0?(e.min/GROUND_SCALE).toFixed(1)+'〜':'')+(e.range/GROUND_SCALE).toFixed(1)+'km').join(' / ');
+    v.el.textContent=info.entries.map(e=>e.text+' '+(e.min>0?(e.min/GROUND_SCALE).toFixed(1)+'〜':'')+(e.range/GROUND_SCALE).toFixed(1)+'km').join(' / ')+(v.jobs?' / 射程計算中':'');
   }
-  for(const [f,v] of groundRanges)if(!live.has(f)){for(const line of v.lines){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}v.el.remove();groundRanges.delete(f);}
+  for(const [f,v] of groundRanges)if(!live.has(f)){v.jobs=null;for(const line of v.lines){line.parent?.remove(line);line.geometry.dispose();line.material.dispose();}v.el.remove();groundRanges.delete(f);}
+  const elapsed=performance.now()-started;groundRangeBudgetStats={lastMs:elapsed,maxMs:Math.max(groundRangeBudgetStats.maxMs,elapsed),pending};
 }
 // 進捗は観測済み情報だけを使う。視界外の最新の所有者・進捗を漏らさない。
 function groundCaptureReadout(s,seconds){

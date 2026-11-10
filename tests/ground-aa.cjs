@@ -52,6 +52,7 @@ function nodeChecks(){
   check('初回のfleets未定義でもreset可能',`(()=>{const saved=fleets;fleets=undefined;try{groundAutoAAReset();return true;}finally{fleets=saved;}})()`);
   check('地上作戦外・不正dtでは発射も通常時計変更もしない',`(()=>{const {f}=scene();f.groundShotT=7;groundAutoAAStep(NaN);groundAutoAAStep(-1);op={};groundAutoAAStep(1);return hits.length===0&&f.groundShotT===7;})()`);
   check('案内前の訓練航空は撃たず、手順で有効になれば迎撃',`(()=>{const {f,t}=scene();groundDrillAATargetAvailable=()=>false;try{groundAutoAAStep(.05);if(hits.length)return false;groundDrillAATargetAvailable=()=>true;groundAutoAAStep(.05);return hits.length===1;}finally{groundDrillAATargetAvailable=undefined;}})()`);
+  check('装填中は射線探索を増やさず、次の発射時に遮蔽を再確認',`(()=>{const {f,t}=scene(),real=groundLineOfSight;let rays=0,blocked=false;groundLineOfSight=(...args)=>{rays++;return !blocked&&real(...args);};try{groundAutoAAStep(.05);const first=rays;if(hits.length!==1||!first)return false;for(let i=0;i<8;i++)groundAutoAAStep(.1);if(rays!==first)return false;blocked=true;groundAutoAAStep(.2);return rays>first&&hits.length===1&&f.groundAATarget===null;}finally{groundLineOfSight=real;}})()`);
   return rows;
 }
 module.exports={nodeChecks,createContext};

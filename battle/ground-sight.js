@@ -1,22 +1,32 @@
 /* 地上専用の視線と共有視界。レーダーもこの判定を通す。宇宙の canSee は変えない。 */
 let groundTerritorySight=null;
+let groundSightHeightSource=null;
 let groundSightHeights=null, groundFog=null, groundSightBuildingSource=null, groundSightBuildingBins=new Map();
-function groundSightRules(){ return WOS_TERRAIN[op.ground].sight; }
-function groundHeightCacheReset(){ groundSightHeights=null;groundTerritorySight=null; }
+function groundSightRules(){ return groundData().sight; }
+function groundHeightCacheReset(){ groundSightHeights=null;groundSightHeightSource=null;groundTerritorySight=null; }
 function groundSightReset(){ groundHeightCacheReset(); groundFog=null; groundSightBuildingSource=null; }
-// 描画の地表メッシュ（1戦闘単位の格子、対角線で二分）と同じ面を参照する。
+// 描画と同じ格子原点・間隔・対角線（三角形 a,b,d / b,c,d）。
+function groundSightGrid(){
+  const dimensions=groundDimensions(),d=dimensions.data,source=groundSightHeightSource;
+  if(!source||source.dimensions!==dimensions||source.height!==d.height||source.terrain!==d.terrain||source.cells!==d.terrain.cells||source.analytic!==groundHeight){
+    groundHeightCacheReset();
+    groundSightHeightSource={dimensions,height:d.height,terrain:d.terrain,cells:d.terrain.cells,analytic:groundHeight};
+    groundSightHeights=new Float64Array(dimensions.mesh.verticesX*dimensions.mesh.verticesZ);groundSightHeights.fill(NaN);
+  }
+  return dimensions.mesh;
+}
 function groundSightVertex(index,x,z){
   let h=groundSightHeights[index];
   if(Number.isNaN(h)){h=groundHeight(x,z);groundSightHeights[index]=h;}
   return h;
 }
 function groundSightHeight(x,z){
-  if(!groundSightHeights){groundSightHeights=new Float64Array(193*145);groundSightHeights.fill(NaN);}
-  const ix=Math.floor(x),iz=Math.floor(z),tx=x-ix,tz=z-iz;
-  if(ix< -96||ix>=96||iz< -72||iz>=72)return groundHeight(x,z);
-  const i=(iz+72)*193+ix+96;
-  if(tx+tz<=1)return groundSightVertex(i,ix,iz)*(1-tx-tz)+groundSightVertex(i+1,ix+1,iz)*tx+groundSightVertex(i+193,ix,iz+1)*tz;
-  return groundSightVertex(i+194,ix+1,iz+1)*(tx+tz-1)+groundSightVertex(i+193,ix,iz+1)*(1-tx)+groundSightVertex(i+1,ix+1,iz)*(1-tz);
+  const g=groundSightGrid(),gx=(x-g.originX)/g.stepX,gz=(z-g.originZ)/g.stepZ;
+  if(gx<0||gx>g.segmentsX||gz<0||gz>g.segmentsZ)return groundHeight(x,z);
+  const ix=Math.min(g.segmentsX-1,Math.floor(gx)),iz=Math.min(g.segmentsZ-1,Math.floor(gz)),tx=gx-ix,tz=gz-iz;
+  const x0=g.originX+ix*g.stepX,z0=g.originZ+iz*g.stepZ,i=iz*g.verticesX+ix;
+  if(tx+tz<=1)return groundSightVertex(i,x0,z0)*(1-tx-tz)+groundSightVertex(i+1,x0+g.stepX,z0)*tx+groundSightVertex(i+g.verticesX,x0,z0+g.stepZ)*tz;
+  return groundSightVertex(i+g.verticesX+1,x0+g.stepX,z0+g.stepZ)*(tx+tz-1)+groundSightVertex(i+g.verticesX,x0,z0+g.stepZ)*(1-tx)+groundSightVertex(i+1,x0+g.stepX,z0)*(1-tz);
 }
 // 高度切り替え中の索敵も、射撃と同じく到着までは元の段を使う。
 function groundEye(f){
@@ -47,13 +57,13 @@ function groundBuildingsBlock(a,b){
   if(groundSightBuildingSource!==groundBuildings){
     groundSightBuildingSource=groundBuildings;groundSightBuildingBins=new Map();
     for(const box of groundBuildings)for(let z=Math.floor(box.minZ/4);z<=Math.floor(box.maxZ/4);z++)for(let x=Math.floor(box.minX/4);x<=Math.floor(box.maxX/4);x++){
-      const key=(z+128)*256+x+128;if(!groundSightBuildingBins.has(key))groundSightBuildingBins.set(key,[]);groundSightBuildingBins.get(key).push(box);
+      const key=x+','+z;if(!groundSightBuildingBins.has(key))groundSightBuildingBins.set(key,[]);groundSightBuildingBins.get(key).push(box);
     }
   }
   if(!groundBuildings.length)return false;
   const minX=Math.floor(Math.min(a.x,b.x)/4),maxX=Math.floor(Math.max(a.x,b.x)/4),minZ=Math.floor(Math.min(a.z,b.z)/4),maxZ=Math.floor(Math.max(a.z,b.z)/4);
   for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
-    const boxes=groundSightBuildingBins.get((z+128)*256+x+128);
+    const boxes=groundSightBuildingBins.get(x+','+z);
     if(boxes)for(const box of boxes)if(groundBuildingBlocks(a,b,box))return true;
   }
   return false;
@@ -116,11 +126,11 @@ function groundUpdateSight(){
   groundRememberTerritory();
 }
 function groundSightInit(){
-  const d=WOS_TERRAIN[op.ground],r=d.sight,canvas=document.createElement('canvas');
+  const d=groundData(),r=d.sight,canvas=document.createElement('canvas');
   canvas.width=Math.ceil(d.meta.widthKm*GROUND_SCALE/r.fogStep);canvas.height=Math.ceil(d.meta.heightKm*GROUND_SCALE/r.fogStep);
-  const texture=new THREE.CanvasTexture(canvas),geo=new THREE.PlaneGeometry(d.meta.widthKm,d.meta.heightKm,192,144);
+  const texture=new THREE.CanvasTexture(canvas),geo=new THREE.PlaneGeometry(d.meta.widthKm,d.meta.heightKm,groundDimensions().mesh.segmentsX,groundDimensions().mesh.segmentsZ);
   geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
-  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(p.getX(i)+24,18-p.getZ(i))/GROUND_SCALE+.04);
+  for(let i=0;i<p.count;i++)p.setY(i,groundElevation(groundMapX(p.getX(i)*GROUND_SCALE),groundMapY(p.getZ(i)*GROUND_SCALE))/GROUND_SCALE+.04);
   const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({map:texture,transparent:true,depthWrite:false,side:THREE.DoubleSide}));
   mesh.renderOrder=3;groundBoard.add(mesh);
   const ctx=canvas.getContext('2d');
@@ -128,10 +138,10 @@ function groundSightInit(){
 }
 function groundFogDraw(force=false){
   const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
-  const d=WOS_TERRAIN[op.ground],r=d.sight,{width,height}=fog.canvas,raw=fog.pixels.data;
+  const d=groundData(),r=d.sight,{width,height}=fog.canvas,raw=fog.pixels.data;
   const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
-    const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=(gx-24)*GROUND_SCALE,z=(18-gy)*GROUND_SCALE;
+    const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=groundWorldX(gx),z=groundWorldZ(gy);
     const k=(py*width+px)*4;let visible=false;
     if(groundInside(gx,gy,d.display.board)){
       const target={x,z,y:groundSightHeight(x,z)+r.eyeHeight};
