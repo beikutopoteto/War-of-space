@@ -202,8 +202,11 @@ function npcThink(c,sit){
       if(sum<=0||(st.stage==='assault'||st.stage==='pin')&&t-st.since>=D.commit&&(sum<E.get(k.zone).foe*weak||sum<D.abort*st.power0)){
         mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'押し返された'); k.aborted=true; }
     } else set(k.type==='hold'&&E.get(k.zone).threat>0?'defend':'wait');
-    k.stage=st.stage; k.since=st.since; if(!k.aborted)now.set(k.key,st);
+    st.ids=mains.map(u=>u.id); k.stage=st.stage; k.since=st.since; if(!k.aborted)now.set(k.key,st);
   }
+  for(const old of c.tasks.values()){ // 突入した隊が全滅か敗走して任務ごと消えたときも、失敗として覚える（突入の前に消えた任務は失敗に数えない）
+    if(now.has(old.key)||tasksOut.has(old.key)||old.stage!=='assault'&&old.stage!=='pin'||isOwn(old.zone))continue;
+    if((old.ids||[]).length&&old.ids.every(id=>!powerOf.has(id)||powerOf.get(id).free===false)){ mem(old.zone).failAt=t; npcLog(c,t,old.type+':abort',old.zone,'隊を失った'); } }
   for(const k of [...tasksOut.values()].filter(k=>k.aborted)){ // 中止した隊は出発した拠点へ下げる
     const back=k.from??spot; tasksOut.delete(k.key); if(back==null)continue;
     const w={key:'reserve:'+back,type:'reserve',zone:back,from:null,pri:10,why:'下がって立て直す',stage:'wait',since:t};

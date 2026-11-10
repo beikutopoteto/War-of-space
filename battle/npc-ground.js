@@ -110,19 +110,128 @@ function npcGroundDestination(c,sit,k,x,index,count){
   // 占拠担当を除き横一列。占拠担当は必ず小さな占拠円内に置く。
   return npcGroundPassPoint(f,px-dx*back-dy*offset,py-dy*back+dx*offset);
 }
+// 開いている道路の最短木。辺の所有変更では作り直さず、閉鎖・開通と始点を鍵にする。
+function npcGroundRoadTree(site){
+  const state=npcGroundState,net=groundSupplyNet,start=net?.sites.get(site);if(start===undefined)return null;
+  const key=net.edges.map(e=>e.open===false?'x':'o').join('');
+  if(state.roadNet!==net||state.roadKey!==key){state.roadNet=net;state.roadKey=key;state.roadTrees=new Map();}
+  if(state.roadTrees.has(start))return state.roadTrees.get(start);
+  const dist=new Map([[start,0]]),prev=new Map(),queue=[[start,0]];
+  while(queue.length){
+    queue.sort((a,b)=>b[1]-a[1]);const [i,d]=queue.pop();if(d!==dist.get(i))continue;
+    for(const ei of net.nodes[i].edges){const e=net.edges[ei];if(e.open===false)continue;
+      const j=e.a===i?e.b:e.a,a=net.nodes[i],b=net.nodes[j],v=d+Math.hypot(a.x-b.x,a.y-b.y);
+      if(v<(dist.get(j)??Infinity)){dist.set(j,v);prev.set(j,{i,ei});queue.push([j,v]);}
+    }
+  }
+  const path=target=>{let j=net.sites.get(target);if(!dist.has(j))return [];const out=[];
+    while(j!==start){const p=prev.get(j);out.unshift(net.edges[p.ei]);j=p.i;}return out;};
+  const tree={dist,path};state.roadTrees.set(start,tree);return tree;
+}
+function npcGroundRoadUnit(f){return npcGroundFree(f)&&groundCanCaptureRoad(f)&&!['air','sea'].includes(groundMoveKind(f));}
+function npcGroundRoadPoint(f,e){
+  // 中点が通れない兵科には任せない。近傍補正で道路帯から外れるのを防ぐ。
+  if(!groundPass(e.x,e.y,groundMoveKind(f)))return null;
+  const p=groundPoint(e.x,e.y);p.y=f.pos.y;return p;
+}
+function npcGroundRoadOrders(c,sit,plan){
+  const state=npcGroundState,overrides=new Map(),net=groundSupplyNet;if(!net)return overrides;
+  if(!state.roadWork)state.roadWork=new Map();
+  let work=state.roadWork.get(c.team);
+  const visible=sit.contacts.some(e=>e.age===0),byId=new Map(fleets.map(f=>[f.id,f]));
+  const eligible=plan.tasks.filter(k=>k.type==='reserve'||k.type==='hold'&&k.stage==='wait');
+  const candidates=eligible.flatMap(k=>k.units.map(x=>({k,f:byId.get(x.id)}))).filter(({f})=>f&&npcGroundRoadUnit(f));
+  if(work&&(visible||!candidates.some(({f})=>f.id===work.id))){state.last.delete(work.id);state.roadWork.delete(c.team);work=null;}
+  if(!visible){
+    const home=groundSites.find(s=>s.id===op.groundHQ?.[c.team]&&s.owner===c.team),tree=home&&npcGroundRoadTree(home),edges=new Set();
+    if(tree)for(const s of groundSites.filter(s=>s.owner===c.team)){
+      const path=tree.path(s);
+      // 所有を知っている敵拠点を越して補給路を作らない。
+      if(path.some(e=>e.circle&&e.circle.owner!==c.team))continue;
+      for(const e of path)if(!e.circle&&e.open!==false&&e.owner!==c.team)edges.add(e);
+    }
+    const ordered=[...edges].sort((a,b)=>Math.min(tree.dist.get(a.a),tree.dist.get(a.b))-Math.min(tree.dist.get(b.a),tree.dist.get(b.b)));
+    if(!work&&ordered.length){const candidate=candidates.find(({f})=>npcGroundRoadPoint(f,ordered[0]));
+      if(candidate){work={id:candidate.f.id,origin:candidate.f.pos.clone()};state.roadWork.set(c.team,work);}}
+    if(work){const f=byId.get(work.id),edge=ordered[0],dest=edge?npcGroundRoadPoint(f,edge):work.origin;
+      if(dest){overrides.set(f.id,dest);work.edge=edge||null;
+        if(!edge&&f.pos.distanceTo(dest)<.01*GROUND_SCALE){state.roadWork.delete(c.team);state.last.delete(f.id);}}
+      else {state.roadWork.delete(c.team);state.last.delete(f.id);}
+    }
+  }
+  // 前進する主攻の最後尾だけを道路で止める。先頭は通常の目的地を維持。
+  if(!state.roadRear)state.roadRear=new Map();
+  const active=new Set();
+  for(const k of plan.tasks.filter(k=>k.type==='seize'&&k.stage==='advance'&&k.from)){
+    const key=c.team+':'+k.key;active.add(key);
+    if(visible){const id=state.roadRear.get(key);state.last.delete(id);state.roadRear.delete(key);continue;}
+    const from=groundSites.find(s=>s.id===k.from),to=groundSites.find(s=>s.id===k.zone),tree=from&&npcGroundRoadTree(from);
+    const edge=tree&&tree.path(to).find(e=>!e.circle&&e.owner!==c.team&&e.open!==false);
+    if(!edge){const id=state.roadRear.get(key);state.last.delete(id);state.roadRear.delete(key);continue;}
+    const pool=k.units.map(x=>byId.get(x.id)).filter(f=>f&&npcGroundRoadUnit(f)&&!overrides.has(f.id)&&npcGroundRoadPoint(f,edge));
+    if(pool.length<2){state.roadRear.delete(key);continue;} // 地上の先頭が1隊だけなら止めない。
+    let f=pool.find(f=>f.id===state.roadRear.get(key));
+    if(!f)f=pool.sort((a,b)=>groundDistanceTo(b,to)-groundDistanceTo(a,to))[0];
+    if(f){state.roadRear.set(key,f.id);overrides.set(f.id,npcGroundRoadPoint(f,edge));}
+  }
+  for(const [key,id] of state.roadRear)if(key.startsWith(c.team+':')&&!active.has(key)){state.roadRear.delete(key);state.last.delete(id);}
+  if(!state.roadOverrides)state.roadOverrides=new Map();
+  for(const id of state.roadOverrides.get(c.team)||[])if(!overrides.has(id))state.last.delete(id);
+  state.roadOverrides.set(c.team,new Set(overrides.keys()));
+  return overrides;
+}
+// 経路の各線分と補給円・道路帯の境界を交差させ、最初に補給率>0となる地点を取る。
+function npcGroundRefitEntry(f,points){
+  const net=groundSupplyNet,team=f.team,r=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const circles=groundSites.filter(s=>s.owner===team&&groundSupplyAt({team,pos:s.pos}).rate>0);
+  const roads=(net?.edges||[]).filter(e=>e.owner===team&&e.open!==false&&e.rates[team]>0&&!e.circle);
+  if(groundSupplyAt(f).rate>0)return f.pos.clone();
+  for(let i=1;i<points.length;i++){
+    const a=points[i-1],b=points[i],ax=groundMapX(a.x),ay=groundMapY(a.z),dx=groundMapX(b.x)-ax,dy=groundMapY(b.z)-ay,cuts=[0,1];
+    const add=t=>{if(t>0&&t<1)cuts.push(t);};
+    const circle=(x,y,radius)=>{const x0=ax-x,y0=ay-y,A=dx*dx+dy*dy,B=2*(x0*dx+y0*dy),C=x0*x0+y0*y0-radius*radius,D=B*B-4*A*C;
+      if(A>0&&D>=0){add((-B-Math.sqrt(D))/(2*A));add((-B+Math.sqrt(D))/(2*A));}};
+    for(const s of circles)circle(s.x,s.y,s.radiusKm);
+    for(const e of roads){const [p,q]=e.path,ex=q[0]-p[0],ey=q[1]-p[1],len=Math.hypot(ex,ey);if(!len)continue;
+      circle(...p,r);circle(...q,r);
+      const cross=(ax-p[0])*ey-(ay-p[1])*ex,delta=dx*ey-dy*ex;
+      if(Math.abs(delta)>1e-12)for(const sign of [-1,1]){const t=(sign*r*len-cross)/delta,u=((ax+t*dx-p[0])*ex+(ay+t*dy-p[1])*ey)/(len*len);if(u>=0&&u<=1)add(t);}
+    }
+    cuts.sort((a,b)=>a-b);
+    for(let j=1;j<cuts.length;j++){
+      const lo=cuts[j-1],hi=cuts[j];if(hi-lo<1e-12)continue;
+      const middle=a.clone().lerp(b,(lo+hi)/2);if(groundSupplyAt({team,pos:middle}).rate<=0)continue;
+      const p=a.clone().lerp(b,Math.min((lo+hi)/2,lo+1e-5/Math.max(1e-9,Math.hypot(dx,dy))));
+      if(groundSupplyAt({team,pos:p}).rate>0)return p;
+    }
+  }
+  return null;
+}
+function npcGroundRefitPoint(f,z){
+  const state=npcGroundState;if(!state.refit)state.refit=new Map();
+  if(groundSupplyAt(f).rate>0)return f.pos.clone();
+  const key=z.id+':'+groundSupplyNet?.key+':'+groundBridgeRevision,old=state.refit.get(f.id);
+  if(old?.key===key&&groundSupplyAt({team:f.team,pos:old.dest}).rate>0)return old.dest;
+  const path=groundPath(f.pos,groundPoint(z.x,z.z),groundMoveKind(f));
+  const dest=path&&npcGroundRefitEntry(f,path.points);if(dest)state.refit.set(f.id,{key,dest});return dest;
+}
+
 function npcGroundApply(c,sit,plan){
+  const road=npcGroundRoadOrders(c,sit,plan);
   for(const k of plan.tasks)for(let i=0;i<k.units.length;i++){
     const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||f.groundKind==='sea'||!npcGroundFree(f))continue;
-    const dest=npcGroundDestination(c,sit,k,x,i,k.units.length);if(!dest)continue;
+    const z=sit.zones.find(z=>z.id===k.zone),special=road.has(f.id)||k.type==='refit';
+    if(k.type!=='refit')npcGroundState.refit?.delete(f.id);
+    const dest=road.get(f.id)||(k.type==='refit'?(z&&npcGroundRefitPoint(f,z)):npcGroundDestination(c,sit,k,x,i,k.units.length));if(!dest)continue;
     const last=npcGroundState.last.get(f.id),distance=p=>Math.hypot(p.x-dest.x,p.z-dest.z)/GROUND_SCALE;
     let target=null;
-    if(k.type==='seize'&&k.stage==='assault'&&!groundCanCapture(f)&&x.as!=='support'){
+    if(!special&&k.type==='seize'&&k.stage==='assault'&&!groundCanCapture(f)&&x.as!=='support'){
       const zone=sit.zones.find(z=>z.id===k.zone);
       target=fleets.filter(t=>t.team!==c.team&&groundSeenBy(c.team,t)&&groundManualTargetAllowed(f,t)&&
         Math.hypot(groundMapX(t.pos.x)-zone.x,groundMapY(t.pos.z)-zone.z)<=zone.r).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
     }
     if(target){if(f.order?.type!=='attack'||f.order.target!==target){order(f,{type:'attack',target});npcGroundState.last.set(f.id,dest.clone());}}
-    else if(!last||distance(last)>=1||!f.order&&distance(f.pos)>=1){order(f,{type:'move',dest});npcGroundState.last.set(f.id,dest.clone());}
+    else if(!last||distance(last)>=(special ? .001 : 1)||f.order?.type==='attack'&&special||!f.order&&distance(f.pos)>=(special ? .001 : 1)){order(f,{type:'move',dest});npcGroundState.last.set(f.id,dest.clone());}
   }
 }
 function npcGroundStep(){

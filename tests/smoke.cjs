@@ -15,6 +15,7 @@ const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
 const { checkGroundSupply } = require('./ground-supply.cjs');
 const {nodeChecks:npcCoreChecks}=require('./npc-core.cjs');
+const {nodeChecks:npcSimChecks}=require('./npc-sim.cjs');
 const {nodeChecks:npcGroundChecks,checkNpcGround}=require('./npc-ground.cjs');
 const { checkGroundDrill } = require('./ground-drill.cjs');
 const { checkCommandIcons } = require('./command-icons.cjs');
@@ -68,6 +69,7 @@ function check(ok, label, detail = '') {
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);
+  for(const r of npcSimChecks())check(r.ok,'NPC計測器: '+r.name);
   for(const r of npcCoreChecks())check(r.ok,'NPC頭: '+r.name,r.detail||'');
   for(const r of npcGroundChecks())check(r.ok,'NPC橋渡し: '+r.name);
   const browser = await chromium.launch();

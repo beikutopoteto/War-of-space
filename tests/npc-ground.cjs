@@ -28,6 +28,49 @@ function bridgeCases(){
  red.order=null;red.pos.copy(groundPoint(26,27));npcGroundApply(c,sit,plan);check('命令なしで1km以上離れた隊には再発令',issued===2);order=original;
  return rows;
 }
+function logisticsCases(){
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
+ const red=fleets.find(f=>f.team===1&&f.groundKind==='vehicle'),other=fleets.find(f=>f.team===1&&f.groundKind==='infantry');
+ fleets=[red,other];
+ const site=(id,x,owner)=>({id,x,y:29,pos:groundPoint(x,29),radiusKm:1,captureRadius:GROUND_SCALE,owner,contested:false});
+ groundSites=[site('H',7,1),site('T',17,1),site('X',25,0)];op={...op,groundHQ:{0:'X',1:'H'}};
+ const nodes=[7,9,11,13,15,17,25].map(x=>({x,y:29,edges:[],rates:[0,0]}));
+ const edges=nodes.slice(1).map((n,i)=>({a:i,b:i+1,path:[[nodes[i].x,29],[n.x,29]],x:(nodes[i].x+n.x)/2,y:29,open:true,owner:i===0?1:null,progress:[0,0],rates:[0,i===0?1:0]}));
+ edges.forEach((e,i)=>{nodes[e.a].edges.push(i);nodes[e.b].edges.push(i);});
+ groundSupplyNet={nodes,edges,sites:new Map(groundSites.map((s,i)=>[s,[0,5,6][i]])),revision:0,key:'logistics-test'};
+ npcGroundInit();const c=npcGroundState.commanders.get(1),sit=npcGroundSituation(c);sit.contacts=[];
+ const task=(type,stage,zone,units,from=null)=>({key:type+':'+zone,type,stage,zone,from,units:units.map(f=>({id:f.id,as:'main'}))});
+ red.pos.copy(groundPoint(8,27));other.pos.copy(groundPoint(16,29));
+ const hold=task('hold','wait','H',[red]),reserve=task('reserve','wait','H',[other]),plan={tasks:[hold,reserve]};
+ let road=npcGroundRoadOrders(c,sit,plan);
+ check('安全な守備・予備から道路係は1隊、未占領区間を本営側から選ぶ',road.size===1&&road.has(red.id)&&groundMapX(road.get(red.id).x)===10);
+ red.pos.copy(road.get(red.id));const seconds=groundRoadCaptureSeconds();
+ groundSupplyRoadCapture(seconds-.1);road=npcGroundRoadOrders(c,sit,plan);
+ check('通常の占領秒数までは中点で止まる',groundMapX(road.get(red.id).x)===10&&edges[1].owner!==1);
+ groundSupplyRoadCapture(.1);road=npcGroundRoadOrders(c,sit,plan);
+ check('占領完了後に次の区間へ進む',edges[1].owner===1&&groundMapX(road.get(red.id).x)===12);
+ sit.contacts=[{id:'visible',age:0}];check('敵が見えたら道路係を中断する',npcGroundRoadOrders(c,sit,plan).size===0);sit.contacts=[];
+ hold.stage='defend';reserve.type='refit';check('脅威のある守備や再編から道路係を取らない',npcGroundRoadOrders(c,sit,plan).size===0);
+ hold.stage='wait';reserve.type='reserve';red.pos.copy(groundPoint(8,27));road=npcGroundRoadOrders(c,sit,plan);
+ edges.forEach(e=>e.owner=1);road=npcGroundRoadOrders(c,sit,plan);
+ check('道路が全部自軍になれば元の位置へ戻る',road.get(red.id)?.distanceTo(groundPoint(8,27))<1e-8);
+ npcGroundState.roadWork.clear();edges[2].owner=null;edges[3].owner=null;
+ const seize=task('seize','advance','T',[red,other],'H');road=npcGroundRoadOrders(c,sit,{tasks:[seize]});
+ check('主攻の先頭を止めず最後尾の地上隊だけが取る',road.size===1&&road.has(red.id)&&!road.has(other.id));
+ check('主攻の地上隊が1隊なら先頭を道路で止めない',npcGroundRoadOrders(c,sit,{tasks:[task('seize','advance','T',[red],'H')]}).size===0);
+ edges[2].open=false;edges[3].open=false;check('閉じた道路へ占領命令を出さない',npcGroundRoadOrders(c,sit,{tasks:[seize]}).size===0);
+ // 供給円の縁と道路帯を横切る経路。実際のgroundSupplyAtで結果を確かめる。
+ edges.forEach(e=>{e.owner=1;e.open=true;e.rates=[0,0];});red.pos.copy(groundPoint(20,29));
+ let p=npcGroundRefitEntry(red,[red.pos,groundPoint(7,29)]);
+ check('再編は本営の中心でなく補給円の手前の縁に止まる',p&&Math.abs(groundMapX(p.x)-8)<.001&&groundSupplyAt({team:1,pos:p}).rate>0);
+ edges[3].rates[1]=.5;red.pos.copy(groundPoint(14,26));p=npcGroundRefitEntry(red,[red.pos,groundPoint(14,32),groundPoint(7,29)]);
+ check('再編経路が最初に交差する補給道路帯を選ぶ',p&&Math.abs(groundMapY(p.z)-(29-WOS_TERRAIN[op.ground].capture.roadWidthKm/2))<.001&&groundSupplyAt({team:1,pos:p}).rate>0);
+ edges[3].rates[1]=0;p=npcGroundRefitEntry(red,[red.pos,groundPoint(14,32),groundPoint(7,29)]);
+ check('未補給の自軍道路は再編先にしない',p&&groundMapX(p.x)<8.1);
+ red.pos.copy(groundPoint(7.5,29));p=npcGroundRefitEntry(red,[red.pos,groundPoint(7,29)]);
+ check('すでに補給範囲内ならその場で再編する',p?.equals(red.pos));
+ return rows;
+}
 function nodeChecks(){
  const {run}=require('./ground-drill.cjs').createDrillContext(false);
  const movement=run(`(()=>{
@@ -37,7 +80,9 @@ function nodeChecks(){
    const moves=tasks.flatMap(k=>k.units.map(x=>({f:fleets.find(f=>f.id===x.id),k}))).filter(({f})=>f&&start.get(f.id).distanceTo(f.pos)>GROUND_SCALE);
    return {name:'通常演習で敵が動き出し任務の拠点へ近づく',ok:moves.some(({f,k})=>{const s=groundSites.find(s=>s.id===k.zone);return s.pos.distanceTo(f.pos)<s.pos.distanceTo(start.get(f.id));})};
  })()`);
- return [movement,...run('('+bridgeCases.toString()+')()')];
+ const bridge=run('('+bridgeCases.toString()+')()');
+ const logistics=require('./ground-drill.cjs').createDrillContext(false).run('('+logisticsCases.toString()+')()');
+ return [movement,...bridge,...logistics];
 }
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
