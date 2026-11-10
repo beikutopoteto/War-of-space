@@ -39,9 +39,48 @@ function nodeChecks(){
   s.units.forEach(u=>u.engaged=true);s.contacts.forEach(e=>e.power=5);s.time=3;
   k=main(npcThink(c,s));assert.equal(k.stage,'advance');assert(!c.log.some(l=>l.what==='seize:abort'));
  });
- test('主攻の隊が目標r×1.5以内に入ると交戦なしで突入する',()=>{
-  const c=commander(),s=fixture();const k=main(npcThink(c,s)),z=s.zones.find(z=>z.id===k.zone),u=s.units.find(u=>u.id===k.units.find(x=>x.as==='main').id);
-  u.x=z.x-z.r*1.5;u.z=z.z;u.engaged=false;s.time=3;assert.equal(main(npcThink(c,s)).stage,'assault');
+ test('r×2.5以内の主攻の力がmassing未満なら待ち、そろうと突入する',()=>{
+  const c=commander(),s=fixture();s.units.forEach((u,i)=>u.power=i%2?1:2);
+  let k=main(npcThink(c,s));assert.equal(k.stage,'advance');const z=s.zones.find(z=>z.id===k.zone);
+  const group=k.units.filter(x=>x.as==='main').map(x=>s.units.find(u=>u.id===x.id));
+  const total=group.reduce((n,u)=>n+u.power,0);let arrived=0;
+  group[0].x=z.x-z.r*1.5;group[0].z=z.z;arrived+=group[0].power;
+  s.time=3;assert.equal(main(npcThink(c,s)).stage,'advance');
+  // 支援の到着は主攻の集結率に足さない。
+  s.units.filter(u=>!group.includes(u)).forEach(u=>{u.x=z.x;u.z=z.z;});
+  for(const u of group.slice(1)){
+   if((arrived+u.power)/total>=c.D.massing)break;
+   u.x=z.x-z.r*2.5;u.z=z.z;arrived+=u.power;
+  }
+  s.time=6;assert.equal(main(npcThink(c,s)).stage,'advance');
+  for(const u of group){u.x=z.x-z.r*2.5-.001;u.z=z.z;}
+  s.time=9;assert.equal(main(npcThink(c,s)).stage,'advance');
+  arrived=0;for(const u of group){u.x=z.x-z.r*2.5;arrived+=u.power;if(arrived/total>=c.D.massing)break;}
+  s.time=12;assert.equal(main(npcThink(c,s)).stage,'assault');
+ });
+ test('前進の打ち切りは最初の到着からassembleMax/2秒を超えてから',()=>{
+  const c=commander(),s=fixture(),k=main(npcThink(c,s)),z=s.zones.find(z=>z.id===k.zone);
+  s.time=c.D.assembleMax*2;assert.equal(main(npcThink(c,s)).stage,'advance');
+  const u=s.units.find(u=>u.id===k.units.find(x=>x.as==='main').id);u.x=z.x-z.r*2.5;u.z=z.z;
+  s.time++;const at=s.time;assert.equal(main(npcThink(c,s)).stage,'advance');
+  s.time=at+c.D.assembleMax/2;assert.equal(main(npcThink(c,s)).stage,'advance');
+  s.time+=.001;assert.equal(main(npcThink(c,s)).stage,'assault');
+ });
+ test('memoryを過ぎた敵の数は力の比に残り、拠点の脅威には残らない',()=>{
+  const c=commander(),s=fixture();s.contacts=[{id:'old',x:0,z:0,power:24,age:c.L.memory+1}];
+  const p=npcThink(c,s),seen=npcThink(commander(),{...structuredClone(s),contacts:[{...s.contacts[0],age:0}]});
+  assert.equal(p.foe,seen.foe);assert.equal(p.ratio,seen.ratio);assert.equal(p.posture,'defend');
+  const empty=npcThink(commander(),{...structuredClone(s),goal:{type:'hold'},contacts:[]});
+  const guard=p.tasks.find(k=>k.type==='hold'&&k.zone==='A');
+  assert.equal(guard.stage,'wait');assert.equal(guard.units.length,empty.tasks.find(k=>k.type==='hold'&&k.zone==='A').units.length);
+  assert.equal(seen.tasks.find(k=>k.type==='hold'&&k.zone==='A').stage,'defend');
+ });
+ test('守りの姿勢でも隣の薄い中立拠点を余力で取り、余力なしでは出さない',()=>{
+  const s=fixture();s.goal={type:'hold'};s.zones.find(z=>z.id==='C').owner='none';s.zones.find(z=>z.id==='C').known='none';s.contacts=[];s.zones=s.zones.filter(z=>z.id!=='D');s.links=s.links.filter(l=>l.a!=='D'&&l.b!=='D');
+  const p=npcThink(commander(),s);assert.equal(p.posture,'defend');assert.equal(main(p).zone,'C');assert.equal(main(p).why,'空いた所を取る');
+  const remembered=commander();s.contacts=[{id:'forgotten-position',x:20,z:0,power:24,age:remembered.L.memory+1}];const stale=npcThink(remembered,s);assert.equal(stale.posture,'defend');assert.equal(main(stale).zone,'C');assert.equal(main(stale).units.length,main(p).units.length);
+  const poor=fixture();poor.goal={type:'hold'};poor.zones.find(z=>z.id==='C').owner='none';poor.contacts=[];poor.units=poor.units.slice(0,1);
+  const q=npcThink(commander(),poor);assert.equal(q.posture,'defend');assert(!main(q));
  });
  test('拠点を取れる唯一の隊は本営守備でなく主攻に入る',()=>{
   const c=commander(),s=fixture();s.units.forEach((u,i)=>u.canHold=i===0);const p=npcThink(c,s);

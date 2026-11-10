@@ -71,6 +71,94 @@ function logisticsCases(){
  check('すでに補給範囲内ならその場で再編する',p?.equals(red.pos));
  return rows;
 }
+// 平坦な固定場面。実際の命令・経路・斉射を使い、頭の再割当てから切り離す。
+function tacticsCases(){
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok}),near=(a,b)=>Math.abs(a-b)<1e-7;
+ op={...op,groundHQ:null,npc:{0:{doctrine:'earth',level:'standard'},1:{doctrine:'mars',level:'standard'}}};
+ groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundPass=()=>true;groundSupplyNet=null;
+ groundSites=[{id:'H',x:6,y:29,pos:groundPoint(6,29),radiusKm:2,captureRadius:GROUND_SCALE*.3,owner:1},
+  {id:'T',x:18,y:29,pos:groundPoint(18,29),radiusKm:2,captureRadius:GROUND_SCALE*.3,owner:null}];
+ const unit=(team,kind,x,y=29,band='ground')=>{
+  const f=makeFleet(team,{...op.quick[0],groundKind:kind,n:1,band,name:kind});f.pos.copy(groundPoint(x,y));f.band=band;f.pos.y=groundUnitHeight(f);
+  f.groundVisible=[true,true];f.groundContacts=[];f.groundMorale=f.groundSupply=100;f.groundShotT=1000;return f;
+ };
+ const tank=unit(1,'vehicle',8),inf=unit(1,'infantry',8,30),heavy=unit(1,'heavyInfantry',8,28),air=unit(1,'attack',8,29,'low');
+ const trucks=['apc','engineer','supply'].map((kind,i)=>unit(1,kind,7,28+i)),enemy=unit(0,'infantry',18),enemy2=unit(0,'vehicle',19);
+ fleets=[tank,inf,heavy,air,...trucks,enemy,enemy2];npcGroundInit();const c=npcGroundState.commanders.get(1);
+ const sit=npcGroundSituation(c),task=(type,stage,group)=>({key:type+':T',type,stage,zone:'T',from:'H',units:group.map(f=>({id:f.id,as:'main'}))});
+ const advance=task('seize','advance',[tank,inf,heavy]);
+ const destinations=advance.units.map((x,i)=>npcGroundDestination(c,sit,advance,x,i,3));
+ check('前進は手前r+1kmを中心に横1.5km間隔、全隊が影響円外',destinations.every(p=>near(groundMapX(p.x),15)&&groundDistanceTo({pos:p},groundSites[1])>2*GROUND_SCALE)&&near(destinations[0].distanceTo(destinations[1])/GROUND_SCALE,1.5)&&near(destinations[1].distanceTo(destinations[2])/GROUND_SCALE,1.5));
+ const diagonal={...sit,zones:sit.zones.map(z=>z.id==='H'?{...z,x:10,z:21}:z)},dp=npcGroundDestination(c,diagonal,advance,advance.units[1],1,3);
+ check('斜めの前進もfromから目標への向きで手前に置く',near(groundMapX(dp.x),18-3/Math.sqrt(2))&&near(groundMapY(dp.z),29-3/Math.sqrt(2)));
+ groundPass=(x,y)=>x>=17.5;const corrected=npcGroundDestination(c,sit,advance,advance.units[1],1,3);check('通行補正でも前進先を影響円内へ入れない',corrected&&groundMapX(corrected.x)>=17.5&&groundDistanceTo({pos:corrected},groundSites[1])>2*GROUND_SCALE);groundPass=()=>true;
+ const fix=task('fix','pin',[heavy]),fp=npcGroundDestination(c,sit,fix,fix.units[0],0,1);
+ check('助攻は拘束でも直射射程の8割で止まる',near(groundMapX(fp.x),18-groundFireRanges(heavy).direct/GROUND_SCALE*.8));
+ let calls=0;const original=order;order=(...args)=>{calls++;return original(...args);};
+ const assault=task('seize','assault',[tank,inf,heavy,...trucks]);npcGroundApply(c,sit,{tasks:[assault]});
+ check('突入では占拠担当を含む武装全隊が最寄りの敵を攻撃', [tank,inf,heavy].every(f=>f.order?.type==='attack'&&f.order.target===enemy));
+ check('輸送車・工兵・補給は突入でも攻撃の位置に残る',trucks.every(f=>f.order?.type==='move'&&near(groundMapX(f.order.dest.x),15)));
+ const first=calls;enemy2.pos.copy(groundPoint(16,29));npcGroundApply(c,sit,{tasks:[assault]});
+ check('より近い敵が来ても生存・可視の攻撃命令を出し直さない',calls===first&&tank.order.target===enemy);
+ enemy.groundVisible[1]=false;npcGroundApply(c,sit,{tasks:[assault]});check('見失った攻撃先から次の見える敵へ切り替える',tank.order.target===enemy2&&inf.order.target===enemy2);
+ enemy2.alive=false;enemy.groundVisible[1]=true;npcGroundApply(c,sit,{tasks:[assault]});check('死亡した攻撃先は選ばない',tank.order.target===enemy);
+ enemy.groundVisible[1]=false;npcGroundApply(c,sit,{tasks:[assault]});
+ check('敵が見えなければ占拠隊は占拠円、ほかの武装隊は1km以内へ分散',inf.order?.type==='move'&&groundDistanceTo({pos:inf.order.dest},groundSites[1])<groundSites[1].captureRadius&&[tank,heavy].every(f=>f.order?.type==='move'&&groundDistanceTo({pos:f.order.dest},groundSites[1])<=GROUND_SCALE)&&!tank.order.dest.equals(heavy.order.dest));
+ enemy.alive=true;enemy.groundVisible[1]=true;enemy.pos.copy(groundPoint(20.9,29));npcGroundApply(c,sit,{tasks:[assault]});
+ check('攻撃候補は影響半径rの1.5倍までを含む',tank.order.target===enemy);
+ enemy.pos.copy(groundPoint(21.01,29));tank.order=inf.order=heavy.order=null;npcGroundApply(c,sit,{tasks:[assault]});check('rの1.5倍の外にいる敵は新しい攻撃先にしない',tank.order?.type==='move');
+ // 守備の配置、射程、視界と追撃境界。
+ const hold=task('hold','wait',[inf,tank,heavy]);npcGroundApply(c,sit,{tasks:[hold]});
+ const homes=[inf,tank,heavy].map(f=>f.order.dest.clone());
+ check('守備の占拠隊は占拠円、ほかは異なる位置で中心1km以内',groundDistanceTo({pos:homes[0]},groundSites[1])<groundSites[1].captureRadius&&homes.slice(1).every(pos=>groundDistanceTo({pos},groundSites[1])<=GROUND_SCALE+1e-7)&&!homes[1].equals(homes[2]));
+ [inf,tank,heavy].forEach((f,i)=>{f.pos.copy(homes[i]);});enemy.pos.copy(groundPoint(18.9,29));hold.stage='defend';npcGroundApply(c,sit,{tasks:[hold]});
+ check('脅威時は占拠隊も直射射程の1.5倍以内の可視敵を攻撃',inf.order?.target===enemy&&tank.order?.target===enemy);
+ const repeated=calls;npcGroundApply(c,sit,{tasks:[hold]});check('守備の攻撃命令も同じ敵へ出し直さない',calls===repeated);
+ enemy.groundVisible[1]=false;npcGroundHoldStep();check('思考間隔を待たず見失った敵から元の守備位置へ戻す',inf.order?.type==='move'&&inf.order.dest.equals(homes[0])&&tank.order.dest.equals(homes[1]));
+ enemy.groundVisible[1]=true;enemy.pos.copy(groundPoint(19.21,29));npcGroundApply(c,sit,{tasks:[hold]});check('歩兵の直射射程1.5倍の外へは攻撃命令を出さない',inf.order?.type==='move');
+ enemy.pos.copy(groundPoint(19.9,29));npcGroundApply(c,sit,{tasks:[hold]});tank.order.path={points:[tank.pos.clone(),groundPoint(21,29),enemy.pos.clone()]};
+ check('敵が円内でも、円外を通る追撃経路は進まない',!npcGroundHoldChase(tank,enemy));
+ tank.order.path={points:[tank.pos.clone(),enemy.pos.clone()]};check('円内だけを通る追撃経路は使える',npcGroundHoldChase(tank,enemy));
+ enemy.pos.copy(groundPoint(20.01,29));check('敵が影響円から出た瞬間に追撃を止める',!npcGroundHoldChase(tank,enemy));npcGroundHoldStep();check('円外の敵は射程内なら攻撃を保ち、追撃はしない',tank.order?.type==='attack'&&!npcGroundHoldChase(tank,enemy));enemy.pos.copy(groundPoint(25,29));npcGroundHoldStep();check('交戦範囲を離れた敵から元の守備位置へ戻る',tank.order?.type==='move'&&tank.order.dest.equals(homes[1]));
+ enemy.pos.copy(groundPoint(20.1,29));npcGroundApply(c,sit,{tasks:[hold]});check('円外の敵も直射射程1.5倍以内なら攻撃命令を出す',heavy.order?.target===enemy&&!npcGroundHoldChase(heavy,enemy));
+ hold.stage='wait';npcGroundApply(c,sit,{tasks:[hold]});check('脅威のないwaitでは攻撃命令を出さない',tank.order?.type==='move');
+ // syncSpeedは既存の実移動でも使う。航空・別任務を含めない。
+ advance.units.push({id:air.id,as:'main'});tank.speed=4;inf.speed=2;heavy.speed=3;air.speed=8;
+ npcGroundApply(c,sit,{tasks:[advance]});check('前進中の同任務地上隊は最も遅い速度、航空は同期しない',[tank,inf,heavy].every(f=>f.syncSpeed===2)&&air.syncSpeed==null);
+ op={...op,groundHQ:{1:'H'}};inf.groundSupply=0;
+ npcGroundApply(c,sit,{tasks:[advance]});check('補給による減速も含めて実速度を同期する',near(speedOf(tank),speedOf(inf))&&near(speedOf(heavy),speedOf(inf)));op={...op,groundHQ:null};
+ npcGroundApply(c,sit,{tasks:[advance]});check('前進の再判断で同期速度を累積減速しない',tank.syncSpeed===2);
+ const start=tank.pos.clone();groundFollow(tank,.1);check('実経路の移動もsyncSpeedで進む',near(tank.pos.distanceTo(start),.2));
+ npcGroundApply(c,sit,{tasks:[assault]});check('前進を終えたらsyncSpeedを消す',[tank,inf,heavy].every(f=>f.syncSpeed===null));
+ npcGroundApply(c,sit,{tasks:[advance]});npcGroundApply(c,sit,{tasks:[]});check('任務を外れた隊のsyncSpeedを消す',[tank,inf,heavy].every(f=>f.syncSpeed===null));
+ npcGroundApply(c,sit,{tasks:[advance]});npcGroundReset();check('再初期化でも以前のsyncSpeedを消す',tank.syncSpeed===null);
+ order=original;
+ // 火力支援は両軍、単独目標、射程、装填、味方巻き込み、通常ステップの別経路を確認。
+ for(const team of [0,1])for(const kind of ['artillery','guidedRocket']){
+  const gun=unit(team,kind,5),main=unit(team,'vehicle',10),foe=unit(1-team,'infantry',18),friend=unit(team,'infantry',8,33);
+  fleets=[gun,main,foe,friend];npcGroundInit();const commander=npcGroundState.commanders.get(team),s=npcGroundSituation(commander);
+  const k=task('seize','advance',[main]);k.units.push({id:gun.id,as:'support'});
+  const resetShot=()=>{groundVolleyCancel(gun);groundStrikes=[];gun.groundStrikeCooldown=0;};
+  npcGroundApply(commander,s,{tasks:[k]});check(team+'軍 '+kind+' は目標円内の単独可視敵へ斉射',groundStrikes.length===1&&groundStrikes[0].source===gun&&groundStrikes[0].aim.x===foe.pos.x);
+  const count=groundStrikes.length;npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は装填・斉射中に重ね撃ちしない',groundStrikes.length===count);
+  resetShot();gun.groundStrikeCooldown=1;npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は装填中なら斉射なしでも撃たない',groundStrikes.length===0);gun.groundStrikeCooldown=0;friend.pos.copy(foe.pos);npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は味方のいる着弾円を撃たない',groundStrikes.length===0);
+  friend.pos.copy(groundPoint(8,33));foe.groundVisible[team]=false;npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は未観測の敵を撃たない',groundStrikes.length===0);
+  foe.groundVisible[team]=true;foe.pos.copy(groundPoint(14,29));npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は任務外で主攻から3km超の敵を撃たない',groundStrikes.length===0);
+  foe.pos.copy(groundPoint(13,29));npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は目標円外でも主攻から3km以内を撃つ',groundStrikes.length===1);
+  resetShot();gun.pos.copy(foe.pos).add(new THREE.Vector3(-groundStrikeRange(gun).max-.01,0,0));npcGroundSupportFire(commander,k,s.zones.find(z=>z.id==='T'));check(team+'軍 '+kind+' は射程外を撃たない',groundStrikes.length===0);
+ }
+ // team 1の旧密集砲撃と自動交戦も安全判定を迂回しない。
+ const gun=unit(1,'artillery',5),foe=unit(0,'infantry',18),second=unit(0,'vehicle',18.1),friend=unit(1,'infantry',18.2);
+ fleets=[gun,foe,second,friend];npcGroundInit();for(const commander of npcGroundState.commanders.values())commander.nextThink=Infinity;
+ groundStrikes=[];gun.groundShotT=0;groundStep(.05);check('通常ステップの密集砲撃・自動間接射撃が味方付近へ迂回発射しない',groundStrikes.length===0);
+ const guard=unit(1,'infantry',19.5),runner=unit(0,'infantry',20.5);runner.stance='evade';fleets=[guard,runner];npcGroundInit();
+ const defense=task('hold','defend',[guard]);npcGroundApply(npcGroundState.commanders.get(1),npcGroundSituation(npcGroundState.commanders.get(1)),{tasks:[defense]});
+ for(const commander of npcGroundState.commanders.values())commander.nextThink=Infinity;
+ const post=guard.pos.clone();for(let i=0;i<10;i++)groundStep(.05);
+ check('実地上ステップも円外の敵を追わず守備位置を維持する',guard.order?.type==='attack'&&guard.order.target===runner&&guard.pos.equals(post));
+
+ return rows;
+}
 function nodeChecks(){
  const {run}=require('./ground-drill.cjs').createDrillContext(false);
  const movement=run(`(()=>{
@@ -82,7 +170,11 @@ function nodeChecks(){
  })()`);
  const bridge=run('('+bridgeCases.toString()+')()');
  const logistics=require('./ground-drill.cjs').createDrillContext(false).run('('+logisticsCases.toString()+')()');
- return [movement,...bridge,...logistics];
+ const tactics=require('./ground-drill.cjs').createDrillContext(false);
+ // 実ゲームのspeedOfを読み、同期を無視する土台のstubから差し替える。
+ const sim=require('node:fs').readFileSync(require('node:path').join(__dirname,'../battle/sim.js'),'utf8');
+ tactics.run(sim.slice(sim.indexOf('function speedOf('),sim.indexOf('function speedOf(')+sim.slice(sim.indexOf('function speedOf(')).indexOf('\n')));
+ return [movement,...bridge,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
 }
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
