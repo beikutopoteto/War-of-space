@@ -58,15 +58,17 @@ function npcThink(c,sit){
   const E=new Map(zones.map(z=>[z.id,{own:0,foe:0,threat:0}])), mem=id=>c.zone.get(id), isOwn=id=>mem(id).owner==='own';
   let own=0; for(const u of units){ own+=u.power; E.get(u.zone).own+=u.power; }
   const avg=units.length?own/units.length:1;
-  let foe=0; const contacts=[];
+  // 見失った敵は、位置（拠点ごとの見積もりと脅威）だけが時間とともに薄れる。数は覚えていて、力の比には数え続ける。
+  let foe=0, known=0; const contacts=[];
   for(const e of sit.contacts){
+    const seen=e.power*(1+L.error*(npcHash(c.seed+':'+e.id)*2-1)); known+=seen;
     const conf=e.age<=0?1:Math.max(0,1-e.age/L.memory); if(conf<=0)continue;
-    const est=e.power*conf*(1+L.error*(npcHash(c.seed+':'+e.id)*2-1)), zone=e.zone??nearest(e);
+    const est=seen*conf, zone=e.zone??nearest(e);
     contacts.push({...e,est,zone}); foe+=est; E.get(zone).foe+=est;
   }
   for(const z of zones){ const m=mem(z.id), e=E.get(z.id); // 見ていない敵地には守備がいると仮定する
     if(m.owner!=='own'&&m.owner!=='none'&&t-m.seenAt>L.memory){ const a=D.assume*avg*(z.base==='foe'?2:1); if(e.foe<a){ foe+=a-e.foe; e.foe=a; } } }
-  foe=Math.max(foe,sit.intel||0);
+  foe=Math.max(foe,known,sit.intel||0);
   const ratio=own/Math.max(foe,avg*.25), horizon=L.horizon*g.span;
   for(const z of zones){ if(!isOwn(z.id))continue; const e=E.get(z.id);
     for(const k of contacts)e.threat+=k.est*Math.max(0,1-g.dist(k.zone,z.id)/horizon)**2; }
@@ -130,8 +132,11 @@ function npcThink(c,sit){
     else if(t-c.wonAt>=D.consolidate){ // 点数の高い順に、攻められる所が見つかるまで試す
       for(const best of [...cand].sort((a,b)=>score(b)-score(a)))if(seize(best,best.goal?'目標を取る':cutSet.has(best.id)?'補給線を切る':'前へ出る',D.attack)){ c.main=best.id; break; } }
   } else if(posture==='defend'&&c.side!=='ally'){ // 取られた拠点を、余力があれば取り返す
-    const lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&t-mem(z.id).failAt>=D.retry&&E.get(z.id).foe*D.counter<=Math.max(0,man-holdNeed));
-    for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter))break;
+    const spare=Math.max(0,man-holdNeed), lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&E.get(z.id).foe*D.counter<=spare);
+    // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る
+    const easy=cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
+    let done=false; for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter)){ done=true; break; }
+    if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
   }
   if(posture==='attack'&&mainZone){
     if(D.feint&&offensive<L.tasks){ // 助攻: 主攻とは別の、敵がいる隣の拠点を押さえつける
@@ -197,7 +202,10 @@ function npcThink(c,sit){
       const z=zById.get(k.zone), reach=(z.r||0)*1.5+1e-9, at=mains.filter(u=>k.from!=null&&away(u,k.from)<=Math.max(zById.get(k.from).r||0,1e-9)*1.5||away(u,k.zone)<=reach).reduce((s,u)=>s+u.power,0);
       if(st.stage===null){ set(k.from!=null&&k.type==='seize'?'assemble':'advance'); st.power0=sum; }
       if(st.stage==='assemble'&&(sum>0&&at/sum>=D.massing||t-st.since>D.assembleMax))set('advance');
-      if(st.stage==='advance'&&mains.some(u=>away(u,k.zone)<=reach)){ set(k.type==='fix'?'pin':'assault'); st.power0=sum; } // 突入したときの力を基準に損害を測る
+      // 前進→突入: 目標の手前に主攻がそろってから一斉に入る（先に着いた隊だけで突っ込まない）。待つのは assembleMax の半分まで。
+      const near=mains.filter(u=>away(u,k.zone)<=reach+(z.r||0)).reduce((s,u)=>s+u.power,0);
+      if(st.stage==='advance'&&near>0&&st.arriveAt==null)st.arriveAt=t;
+      if(st.stage==='advance'&&near>0&&(near/sum>=D.massing||t-st.arriveAt>D.assembleMax/2)){ set(k.type==='fix'?'pin':'assault'); st.power0=sum; } // 突入したときの力を基準に損害を測る
       const weak=k.type==='fix'?D.fix*.5:D.break_; // 助攻はもともと弱い力で押さえるので、中止の境目も低い
       if(sum<=0||(st.stage==='assault'||st.stage==='pin')&&t-st.since>=D.commit&&(sum<E.get(k.zone).foe*weak||sum<D.abort*st.power0)){
         mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'押し返された'); k.aborted=true; }
