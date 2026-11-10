@@ -95,7 +95,9 @@ function groundAreaTap(p,shift=false){
 }
 function groundAreaSalvoStep(){
  for(const f of fleets){const salvo=f.groundAreaSalvo;if(!salvo)continue;
-  if(!groundStrikeWeapon(f)){f.groundAreaSalvo=null;continue;}if(f.groundVolley||(f.groundStrikeCooldown||0)>1e-8)continue;
+  if(f.groundAirState)continue;
+  if(!groundStrikeWeapon(f)){f.groundAreaSalvo=null;continue;}if(f.groundAirState||f.groundBombRun||f.groundVolley||(f.groundStrikeCooldown||0)>1e-8)continue;
+  if(f.groundKind==='supportAircraft'){groundBombPrepare(f,{area:salvo.area});continue;}
   const shot=groundAreaTarget(f,salvo.area);if(!shot){f.groundAreaSalvo=null;groundStrikeMessage=f.name+'：射撃可能な地点がなくなったため中止';continue;}
   if(groundVolleyStart(f,{area:salvo.area})){salvo.area.sent.set(f,(salvo.area.sent.get(f)||0)+1);salvo.remaining--;if(f.groundKind==='vehicle')f.groundShotT=Math.max(f.groundShotT||0,groundStrikeWeapon(f).reload);if(salvo.remaining<=0)f.groundAreaSalvo=null;}
  }
@@ -128,6 +130,7 @@ function groundAreaOutline(area){
 function groundAreaDraw(){
  if(!groundVisuals)return;const live=new Map();if(groundAreaAim?.preview)live.set('aim',groundAreaAim.preview);
  for(const f of fleets)if(f.team===0&&f.groundAreaSalvo)live.set(f.groundAreaSalvo.area.id,f.groundAreaSalvo.area);
+ for(const f of fleets)if(f.team===0&&f.groundBombRun?.ledger.area)live.set(f.groundBombRun.ledger.area.id,f.groundBombRun.ledger.area);
  for(const f of fleets)if(f.team===0&&f.groundVolley?.ledger.area)live.set(f.groundVolley.ledger.area.id,f.groundVolley.ledger.area);
  for(const s of groundStrikes)if(s.team===0&&s.area)live.set(s.area.id,s.area);
  for(const [id,area] of live){let v=groundAreaVisuals.get(id);if(!v){const line=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x8bdfff,transparent:true,opacity:.9,depthWrite:false}));line.renderOrder=6;groundVisuals.add(line);const el=document.createElement('div');el.className='ground-strike-label';el.style.color='#8bdfff';labelsEl.appendChild(el);const axis=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0xe2c58a,transparent:true,opacity:.75,depthWrite:false,dashSize:.7,gapSize:.4}));axis.renderOrder=6;groundVisuals.add(axis);v={line,el,axis};groundAreaVisuals.set(id,v);}

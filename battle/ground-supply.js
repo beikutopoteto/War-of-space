@@ -177,16 +177,16 @@ function groundSupplyGive(dt,netGains){
 function groundAirStep(f,dt){
   const r=groundSupplyRules();
   if(f.groundAirState==='base'){
-    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';groundSupplyInternalMove(f,f.groundAirResume);}
+    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
     return;
   }
   groundSupplySpend(f,r.airIdle*dt);
   if(!f.groundAirState&&f.groundSupply<=r.airReturn){
-    f.groundAirResume=f.pos.clone();const base=groundSites.find(s=>s.id===op.groundHQ[f.team]&&s.owner===f.team);f.groundAirState='out';groundSupplyInternalMove(f,base?.pos||f.home);
+    const task=groundCopyAirTask(f);f.groundAirResume=f.pos.clone();const base=groundSites.find(s=>s.id===op.groundHQ[f.team]&&s.owner===f.team);f.groundAirState='out';groundSupplyInternalMove(f,base?.pos||f.home);f.groundAirTask=task;
   }
   if(f.groundAirState&&!f.order){
     if(f.groundAirState==='out'){f.groundAirState='base';f.groundAirLeft=r.airBase;f.fireTarget=null;}
-    else f.groundAirState=null;
+    else {const task=f.groundAirTask;f.groundAirState=null;f.groundAirTask=null;groundRestoreAirTask(f,task);}
   }
 }
 function groundSupplyAI(f){

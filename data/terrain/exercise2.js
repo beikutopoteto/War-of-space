@@ -36,7 +36,7 @@ window.WOS_TERRAIN.exercise2 = {
     artillery:{name:'自走砲',speed:2.5,range:45,hp:40,dmg:12,fireRangesKm:{direct:2,indirect:{min:2,max:30}}},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2,fireRangesKm:{ground:0,air:2}},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2,fireRangesKm:{ground:10,air:15}},
-    supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:5,air:0}}, // 段階7の弾道・投下可能範囲まで旧5kmを仮置き
+    supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
     was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
   },
   // 地上・海上専用の仮射程（km）。既存の艦種IDを使い、宇宙側の艦種・性能は変更しない。

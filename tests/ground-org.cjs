@@ -4,7 +4,7 @@ const ROOT=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(ROOT,p),'utf8');
 function nodeChecks(){
   const THREE=require('three'),store=new Map();
-  const ctx=vm.createContext({console,THREE,window:{},document:{querySelectorAll:()=>[]},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}});
+  const ctx=vm.createContext({console,THREE,window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}});
   const run=s=>vm.runInContext(s,ctx),load=p=>run(read(p));
   ctx.WOS_DATA=ctx.window.WOS_DATA={};load('data/ships.js');
   load('data/operations.js');load('data/terrain/exercise2.js');ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
@@ -25,7 +25,7 @@ function nodeChecks(){
   for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
     check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
   }
-  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground-naval.js','battle/ground.js');
+  load('battle/ground-volley.js');load('battle/ground-air.js');load('battle/ground-air-orders.js');load('battle/ground-air-missions.js');load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground-naval.js');load('battle/ground.js');
   const state=read('battle/state.js'),hud=read('battle/hud.js');
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));

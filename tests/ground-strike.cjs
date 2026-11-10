@@ -4,7 +4,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm');
 function strikeCases(){
   const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,shoot,burst,groundFog,groundStrikes,groundImpacts,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});
-  const unit=(team,kind,x,z=0,band='ground')=>({id:10+team,name:kind,kind:'fleet',team,groundKind:kind,band,alive:true,hp:1000,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[{}],stance:'evade',range:45,dmg:12,queue:[],order:null});
+  const unit=(team,kind,x,z=0,band='ground')=>({id:10+team,name:kind,kind:'fleet',team,groundKind:kind,band,alive:true,hp:1000,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),speed:WOS_TERRAIN.exercise2.unitTypes[kind].speed,ships:[{}],stance:'evade',range:45,dmg:12,queue:[],order:null});
   const fresh=()=>{groundStrikes=[];groundImpacts=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];over=false;groundSites=[];end=()=>{};shoot=burst=()=>{};groundFog=null;Math.random=()=>0;};
   try{
     // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
@@ -45,10 +45,11 @@ function strikeCases(){
     check('盤外と非有限の地点は撃てない',!groundStrikeLaunch(gun,new THREE.Vector3(NaN,0,0))&&!groundStrikeLaunch(gun,new THREE.Vector3(900,0,0)));
     check('自走砲の通行は戦車と同じ',groundMoveKind(gun)==='vehicle');
     fresh();const plane=unit(0,'supportAircraft',-10,0,'high');enemy.pos.set(0,0,0);enemy.hpPool=1000;fleets=[plane,enemy];
-    const bomb=groundStrikeLaunch(plane,enemy.pos);check('高高度爆撃は予告7秒・半径9',bomb&&bomb.left===7&&bomb.radius===9);
-    groundStep(6.99);check('爆撃も7秒直前は打撃0',enemy.hpPool===1000);groundStep(.01);check('爆撃は7秒で実際に着弾',enemy.hpPool<1000);
+    plane.pos.y=groundUnitHeight(plane);const release=groundBombRelease(plane,enemy.pos);plane.pos.copy(release.releasePos);plane.heading.copy(release.heading);
+    const bomb=groundStrikeLaunch(plane,enemy.pos);check('高高度爆撃は実飛翔時間・半径9',bomb&&bomb.left===bomb.flight.duration&&bomb.left!==7&&bomb.radius===9);
+    groundStep(bomb.duration-.01);check('爆撃の実着弾直前は打撃0',enemy.hpPool===1000);groundStep(.01);check('爆撃は物理飛翔時間で実際に着弾',enemy.hpPool<1000);
     plane.groundStrikeCooldown=0;plane.band='low';plane.bandTo='high';check('低から高へ遷移中は爆撃不可',!groundStrikeLaunch(plane,enemy.pos));
-    plane.band='high';plane.bandTo='low';check('高から低へ遷移中は元の高高度で爆撃可',!!groundStrikeLaunch(plane,enemy.pos));
+    plane.band='high';plane.bandTo='low';plane.pos.copy(release.releasePos);plane.heading.copy(release.heading);plane.groundFlightVelocity=null;check('高から低へ遷移中は元の高高度で爆撃可',!!groundStrikeLaunch(plane,enemy.pos));
     fresh();const red=unit(1,'artillery',-20),a=unit(0,'infantry',0),b=unit(0,'infantry',2),c=unit(0,'infantry',20);red.stance='engage';fleets=[red,a,b,c];groundStep(.05);
     check('敵自走砲は見える2隊の密集中心を砲撃',groundStrikes.length===1&&groundStrikes[0].team===1&&groundStrikes[0].aim.x===1);
     const redShot=groundStrikes[0],redAim=redShot.aim.clone();a.pos.x=40;b.pos.x=42;groundStep(redShot.left);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
@@ -104,7 +105,9 @@ function nodeRenderCases(ctx){
     for(const [kind,blind] of [['artillery',false],['supportAircraft',false],['artillery',true]]){
       groundStrikeReset();
       const f={team:0,groundKind:kind,band:kind==='artillery'?'ground':'high',pos:groundPoint(9,27),alive:true,...WOS_TERRAIN.exercise2.unitTypes[kind]};fleets=[f];
-      const s=groundStrikeLaunch(f,groundPoint(blind?19:13,27));
+      const aim=groundPoint(blind?19:13,27);
+      if(kind==='supportAircraft'){f.heading=new THREE.Vector3(1,0,0);f.pos.y=groundUnitHeight(f);const plan=groundBombRelease(f,aim);f.pos.copy(plan.releasePos);f.heading.copy(plan.heading);}
+      const s=groundStrikeLaunch(f,aim);
       check('撮影配置 '+kind+(blind?' 未観測':' 観測')+'（生成済みの建物も判定）',!!s&&s.observed!==blind);
       groundStrikeDraw();
       const ring=s.visual.ring,el=s.visual.el;
@@ -121,9 +124,9 @@ function nodeRenderCases(ctx){
   })()`,ctx);
 }
 if(require.main===module){
-  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,
+  const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'],window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,speedOf:f=>f.speed||0,
     tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){
+  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
   const sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);

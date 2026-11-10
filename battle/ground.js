@@ -74,7 +74,7 @@ function groundTargetRange(f,t){
 }
 function groundManualTargetAllowed(f,t){return !groundAirTarget(t)||!groundAutoAASource(f);}
 function groundFireMode(f,t){
-  if(!groundManualTargetAllowed(f,t))return null;
+  if(!groundManualTargetAllowed(f,t)||!groundAirInFront(f,t))return null;
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);
   if(groundFireFactor(f,t)>0&&direct>0&&distance<=direct&&groundLineOfSight(f,t))return 'direct';
   const r=groundFireRanges(f).indirect;
@@ -155,6 +155,7 @@ function groundConfigure(active){
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
   groundStrikeReset(); groundTransportReset(); groundSupplyReset();
   groundInfluenceCache=null;groundTerritoryPixels=null;
+  if(typeof fleets!=='undefined')for(const f of fleets||[])if(groundFlyingAircraft(f)){groundBombCancel(f);f.groundFlightVelocity=null;f.groundAirBoundary=null;}
   groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
   groundSites.forEach(s=>s.el.remove()); groundSites=[]; groundTerritory=null;
   document.getElementById('alt').classList.toggle('ground-alt',active);
@@ -277,7 +278,11 @@ function groundStep(dt){
       }
     }
     if(f.groundKind==='was') f.speed= WOS_TERRAIN[op.ground].unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
-    f.pos.y=groundUnitHeight(f);
+    if(!groundFlyingAircraft(f)||groundTrainingEnemy(f)||groundStaticTarget(f))f.pos.y=groundUnitHeight(f);
+    if(groundFlyingAircraft(f)){
+      if(f.order?.type==='attack'&&(!f.order.target.alive||!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
+      groundAirMotion(f,dt);continue;
+    }
     if(f.order&&f.order.type==='move'&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
       const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
@@ -292,11 +297,12 @@ function groundStep(dt){
     }
   }
   groundTransportSync();
+  groundBombStep();
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)) continue;
-    if(f.groundAreaSalvo||f.groundVolley){f.fireTarget=null;continue;}
+    if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
@@ -534,7 +540,7 @@ function groundRangeInfo(f){
   const r=groundFireRanges(f),entries=[],bands=['ground','low','high','sea'].filter(band=>groundFireFactor(f,{band})>0);
   if(r.direct>0)entries.push({id:'direct',text:'直接射撃',range:r.direct,bands:bands.filter(b=>!['low','high'].includes(b))});
   if(r.indirect&&groundStrikeWeapon(f))entries.push({id:'indirect',text:'間接砲撃',range:r.indirect.max,min:r.indirect.min,bands:[]});
-  if(r.ground>0&&(bands.includes('ground')||bands.includes('sea')||groundStrikeWeapon(f)))entries.push({id:'ground',text:'対地・対艦',range:r.ground,bands:bands.filter(b=>['ground','sea'].includes(b))});
+  if(f.groundKind!=='supportAircraft'&&r.ground>0&&(bands.includes('ground')||bands.includes('sea')||groundStrikeWeapon(f)))entries.push({id:'ground',text:'対地・対艦',range:r.ground,bands:bands.filter(b=>['ground','sea'].includes(b))});
   if(r.air>0)entries.push({id:'air',text:groundAutoAASource(f)?'自動対空':'対空',range:r.air,bands:bands.filter(b=>['low','high'].includes(b))});
   if(r.aa>0)entries.push({id:'aa',text:'自動対空',range:r.aa,bands:bands.filter(b=>['low','high'].includes(b))});
   return entries.length?{...entries.find(e=>e.id==='indirect')||entries[0],entries}:null;
