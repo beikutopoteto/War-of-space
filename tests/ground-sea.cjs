@@ -14,7 +14,7 @@ function seaCases(){
     op={...op,groundHQ:null,groundStaticEnemies:false};
     groundSites=[];groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=groundHud=()=>{};
     for(const type of ['dd','cl']){
-      op.stage=0;const a=unit('sea',0,12,5,type);op.stage=1;const b=unit('sea',1,14,5,type),base=WOS_DATA.ships.find(s=>s.id===type);
+      op.stage=0;const a=unit('sea',0,12,5,type);op.stage=1;const b=unit('sea',1,14,5,type),base=WOS_DATA.ships.find(s=>s.id===groundNavalModel(a));
       check(type+'：両軍・研究段階によらず固定の元性能',a.hp===6+base.def*5&&a.dmg===.4+base.atk*.45&&a.range===10+base.rng*1.6&&a.speed===2+base.spd&&['hp','dmg','range','speed','eva','scale'].every(k=>a[k]===b[k]));
     }
     const ship=unit('sea',0,12,5),land=groundPoint(12,10),dest=groundPoint(17,4);fleets=[ship];
@@ -42,7 +42,7 @@ function seaCases(){
     ship.pos.copy(groundPoint(12,5));ship.groundStrikeCooldown=0;
     const target=unit('infantry',1,12,8.6),friend=unit('infantry',0,12,8.8),seaTarget=unit('sea',1,12,6.5),air=unit('fighter',1,12,8.6);air.band='low';
     fleets=[ship,target,friend,seaTarget,air];groundUpdateSight();
-    check('艦砲の狙点は陸のみ、海は直接射撃',!groundStrikeLaunch(ship,groundPoint(13,5)));
+    const seaShot=groundStrikeLaunch(ship,groundPoint(13,5));check('艦砲は海の地点にも間接照準できる',!!seaShot&&seaShot.kind==='sea');groundStrikeReset();ship.groundStrikeCooldown=0;
     const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{op=saved.op;Math.random=random;}
     check('艦砲は弾道から求めた飛翔時間・半径10',s&&s.left>0&&s.left===groundBallisticSolution(ship,target.pos).duration&&s.radius===10&&s.kind==='sea');
     check('艦砲は再装填中に連射不可',!groundStrikeLaunch(ship,target.pos));
@@ -52,7 +52,7 @@ function seaCases(){
     const before=[target,friend,seaTarget,air].map(remaining),flight=s.left;groundStrikeStep(flight-.01);
     check('計算した着弾時刻の直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
     groundStrikeStep(.01);check('計算した飛翔時間で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
-    check('艦砲は海・航空には当たらない',remaining(seaTarget)===before[2]&&remaining(air)===before[3]);
+    check('艦砲は海面目標にも命中し航空には当たらない',remaining(seaTarget)<before[2]&&remaining(air)===before[3]);
     ship.groundStrikeCooldown=0;const p=groundPoint(23.47,26),was=unit('was',0,23.47,26),infantry=unit('infantry',0,23.47,26);
     const travel=f=>{f.speed=1;f.order={path:{points:[p.clone(),p.clone().add(new THREE.Vector3(.5,0,0))],atIndex:1,s:0}};groundFollow(f,.01);return f.pos.x-p.x;};
     const w=travel(was),i=travel(infantry);
@@ -98,7 +98,7 @@ function nodeChecks(){
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:()=>({addEventListener(){}}),querySelectorAll:()=>[]},op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'],fid:1,HP_K:7,SPEED_K:9,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground.js','battle/ground-volley.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ships.js','data/operations.js','data/terrain/exercise2.js','battle/shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));
@@ -124,7 +124,7 @@ function nodeChecks(){
     groundInitOrg(org);groundInit();
     const ships=fleets.filter(f=>f.groundKind==='sea');
     check('艦は固定配備、編成の保存データは変えず独立選択できる',JSON.stringify(org)===before&&groundOrg.companies.length===4&&groundMembers('companies',ships[0].companyId)[0]===ships[0]);
-    check('海の5隻とも実モデルの頂点と大きさを流用',ships.length===5&&ships.every(f=>{const mesh=f.groundModel.children[0],src=shipMeshes[f.team][f.type];return mesh.geometry!==src.geometry&&mesh.geometry.attributes.position.count===src.geometry.attributes.position.count&&[...mesh.geometry.attributes.position.array].every(Number.isFinite)&&mesh.scale.x===SHIP_SIZE[f.type]&&f.pos.y===0;}));
+    check('海の5隻とも実モデルの頂点と大きさを流用',ships.length===5&&ships.every(f=>{const mesh=f.groundModel.children[0],src=shipMeshes[f.team][groundNavalModel(f)||f.type];return mesh.geometry!==src.geometry&&mesh.geometry.attributes.position.count===src.geometry.attributes.position.count&&[...mesh.geometry.attributes.position.array].every(Number.isFinite)&&mesh.scale.x===SHIP_SIZE[groundNavalModel(f)||f.type]&&f.pos.y===0;}));
     groundView='high';groundDraw();check('海面表示も高度ビューの濃淡に従い論理的な段は維持',ships.filter(f=>f.team===0).every(f=>f.band==='sea'&&f.groundModel.position.y===0&&+f.el.style.opacity===groundRules().dimOpacity));
     groundView='all';const f=ships[0],target=groundPoint(12,8.6),s=groundStrikeLaunch(f,target);groundDraw();
     check('艦砲の円・計算した残り秒を実描画',s&&s.visual.ring.parent===groundVisuals&&[...s.visual.ring.geometry.attributes.position.array].every(Number.isFinite)&&s.visual.el.textContent.includes('艦砲 '+s.left.toFixed(1)+'秒'));

@@ -52,14 +52,15 @@ function groundUpdateRoster(targets){
 }
 function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
 // 元の艦種の完成値を通常の換算式で読む。研究・陣営差・編成ボーナス・共通倍率は掛けない。
-function groundSeaStats(type){
-  const s=WOS_DATA.ships.find(s=>s.id===type);
-  return {sub:'海の'+s.name,hp:6+s.def*5,dmg:.4+s.atk*.45,eva:Math.min(.4,s.eva*.04),range:10+s.rng*1.6,speed:2+s.spd,scale:s.scale};
+function groundSeaStats(type,landing=false){
+  const model=groundNavalModel({groundKind:'sea',type,groundLanding:landing})||type,s=WOS_DATA.ships.find(s=>s.id===model);
+  const name=landing?'揚陸艦':({ff:'高速艇',cl:'イージス艦',bb:'戦艦'}[model]||s.name);
+  return {sub:'海の'+name,hp:6+s.def*5,dmg:.4+s.atk*.45,eva:Math.min(.4,s.eva*.04),range:10+s.rng*1.6,speed:2+s.spd,scale:s.scale};
 }
 // 作戦専用の武器射程（km）を戦闘単位へ変換。索敵・宇宙のrangeとは独立。
 function groundFireRanges(f){
   if(!op.ground||!f?.groundKind)return {};
-  const data=WOS_TERRAIN[op.ground],spec=f.groundKind==='sea'?data.navalFireRangesKm?.[f.type]:data.unitTypes[f.groundKind]?.fireRangesKm;
+  const data=WOS_TERRAIN[op.ground],spec=f.groundKind==='sea'?(groundNavalClass(f)?.rangesKm||data.navalFireRangesKm?.[f.type]):data.unitTypes[f.groundKind]?.fireRangesKm;
   if(!spec)return {};
   const air=f.groundKind==='was'&&['low','high'].includes(f.band),r=air?spec.airborne||{}:spec;
   return {direct:(r.direct||0)*GROUND_SCALE,ground:(r.ground||0)*GROUND_SCALE,air:(r.air||0)*GROUND_SCALE,aa:(r.aa||0)*GROUND_SCALE,
@@ -68,17 +69,18 @@ function groundFireRanges(f){
 function groundAirTarget(t){return ['low','high'].includes(t.band);}
 function groundTargetRange(f,t){
   const r=groundFireRanges(f),airborne=['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&['low','high'].includes(f.band);
-  return groundAirTarget(t)?(airborne?r.air:r.aa)||0:(airborne?r.ground:r.direct)||0;
+  const range=groundAirTarget(t)?(airborne?r.air:r.aa)||0:(airborne?r.ground:r.direct)||0;
+  return f.groundKind==='sea'&&groundNavalClass(f)&&!groundAirTarget(t)?Math.min(range,(groundNavalHorizonKm(f,t)??0)*GROUND_SCALE):range;
 }
 function groundFireMode(f,t){
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);
   if(groundFireFactor(f,t)>0&&direct>0&&distance<=direct&&groundLineOfSight(f,t))return 'direct';
   const r=groundFireRanges(f).indirect;
-  return (t.band||'ground')==='ground'&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
+  return ((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
 }
 function groundEngagementRange(f,t){
   const direct=groundTargetRange(f,t),indirect=groundFireRanges(f).indirect;
-  return Math.max(groundFireFactor(f,t)>0?direct:0,(t.band||'ground')==='ground'&&groundStrikeWeapon(f)?indirect?.max||0:0);
+  return Math.max(groundFireFactor(f,t)>0?direct:0,((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&groundStrikeWeapon(f)?indirect?.max||0:0);
 }
 function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':['artillery','guidedRocket','mobileAA','supply'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
@@ -178,9 +180,9 @@ function groundInit(){
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
     if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
     else {
-      const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?f.type:'cv'];
+      const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];
       const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const mesh=new THREE.Mesh(src.geometry.clone(),mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.type]||f.scale); model.add(mesh);
+      const mesh=new THREE.Mesh(src.geometry.clone(),mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.groundKind==='sea'?(groundNavalModel(f)||f.type):f.type]||f.scale); model.add(mesh);
     }
   }
   // 見本と同じ薄い格子。地表の起伏と同じ高さを足し、盤の輪郭内だけに置く。
@@ -542,6 +544,10 @@ function groundRangeMask(f,e){
     if(e.min&&r<e.min)return false;
     const p=point(a,r);
     if(e.id==='indirect')return groundStrikeInRange(f,p);
+    if(f.groundKind==='sea'&&groundNavalClass(f)){
+      const sea=groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea),target={pos:p,band:sea?'sea':'ground',groundKind:sea?'sea':'infantry',type:f.type,groundLanding:f.groundLanding};
+      if(r>(groundNavalHorizonKm(f,target)??0)*GROUND_SCALE)return false;
+    }
     return groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight});
   };
   for(let j=0;j<steps;j++){mask[j]=[];for(let i=0;i<angles;i++)mask[j][i]=clear((i+.5)*da,(j+.5)*dr);}

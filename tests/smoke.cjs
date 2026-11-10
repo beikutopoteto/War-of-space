@@ -26,6 +26,7 @@ const {nodeChecks:groundRangeChecks}=require('./ground-ranges.cjs');
 const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
+const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -48,6 +49,7 @@ function check(ok, label, detail = '') {
   for(const r of groundBallisticChecks())check(r.ok,'地上弾道: '+r.name);
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
+  for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)

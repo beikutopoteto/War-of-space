@@ -25,7 +25,7 @@ function nodeChecks(){
   for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
     check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
   }
-  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground.js');
+  load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground-naval.js','battle/ground.js');
   const state=read('battle/state.js'),hud=read('battle/hud.js');
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));
