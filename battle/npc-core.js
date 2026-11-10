@@ -113,28 +113,33 @@ function npcThink(c,sit){
   let mainZone=null, offensive=0;
   const stage=k=>c.tasks.get(k), running=[...c.tasks.values()].find(k=>k.type==='seize'&&!isOwn(k.zone));
   const seize=(z,why,ratioNeed)=>{
-    const path=home!=null?g.route(home,z.id,id=>isOwn(id)?0:D.avoid*E.get(id).foe/Math.max(own,1e-9)*g.span):[z.id];
+    // 最近押し返された拠点は、経路でも大きく避ける。ほかに道がなければ、retry が過ぎるまでその方向へは攻めない。
+    const failed=id=>t-mem(id).failAt<D.retry;
+    const path=home!=null?g.route(home,z.id,id=>isOwn(id)?0:D.avoid*E.get(id).foe/Math.max(own,1e-9)*g.span+(failed(id)?g.span*10:0)):[z.id];
     let i=path.findIndex(id=>!isOwn(id)); if(i<0)i=path.length-1;
+    if(failed(path[i]))return false;
     const obj=path[i], from=i>0?path[i-1]:null, need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'?D.mass*man:0);
     mainZone=obj; offensive++;
     push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,(1-D.reserve)*man),why:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id});
+    return true;
   };
   const cand=others.filter(allowed);
   if(posture==='attack'&&cand.length){
     const keep=running&&running.stage!=='assemble'&&cand.find(z=>z.id===(running.goalZone||running.zone)); // 動き出した主攻は変えない
     if(keep)seize(keep,running.why0||'主攻を続ける',D.attack);
-    else if(t-c.wonAt>=D.consolidate){ const best=cand.reduce((a,b)=>score(b)>score(a)?b:a); c.main=best.id; seize(best,best.goal?'目標を取る':cutSet.has(best.id)?'補給線を切る':'前へ出る',D.attack); }
+    else if(t-c.wonAt>=D.consolidate){ // 点数の高い順に、攻められる所が見つかるまで試す
+      for(const best of [...cand].sort((a,b)=>score(b)-score(a)))if(seize(best,best.goal?'目標を取る':cutSet.has(best.id)?'補給線を切る':'前へ出る',D.attack)){ c.main=best.id; break; } }
   } else if(posture==='defend'&&c.side!=='ally'){ // 取られた拠点を、余力があれば取り返す
     const lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&t-mem(z.id).failAt>=D.retry&&E.get(z.id).foe*D.counter<=Math.max(0,man-holdNeed));
-    if(lost.length)seize(lost.reduce((a,b)=>score(b)>score(a)?b:a),'取り返す',D.counter);
+    for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter))break;
   }
   if(posture==='attack'&&mainZone){
     if(D.feint&&offensive<L.tasks){ // 助攻: 主攻とは別の、敵がいる隣の拠点を押さえつける
-      const f=cand.filter(z=>z.id!==mainZone&&g.next(z.id).some(isOwn)&&E.get(z.id).foe>0).sort((a,b)=>E.get(b.id).foe-E.get(a.id).foe)[0];
+      const f=cand.filter(z=>z.id!==mainZone&&t-mem(z.id).failAt>=D.retry&&g.next(z.id).some(isOwn)&&E.get(z.id).foe>0).sort((a,b)=>E.get(b.id).foe-E.get(a.id).foe)[0];
       if(f){ offensive++; push({type:'fix',zone:f.id,from:g.next(f.id).filter(isOwn).sort((a,b)=>g.dist(a,f.id)-g.dist(b,f.id))[0],pri:50,need:Math.max(avg,E.get(f.id).foe*D.fix),cap:Math.max(avg,E.get(f.id).foe*D.fix*1.5),why:'敵を引きつける'}); }
     }
     if(D.wCut>0&&offensive<L.tasks){ // 遮断: 敵の本営と前線のあいだの、守りの薄い拠点
-      const k=cand.filter(z=>cutSet.has(z.id)&&z.id!==mainZone&&!want2.some(w=>w.zone===z.id)&&E.get(z.id).foe<=avg*D.cutMax).sort((a,b)=>E.get(a.id).foe-E.get(b.id).foe)[0];
+      const k=cand.filter(z=>cutSet.has(z.id)&&z.id!==mainZone&&t-mem(z.id).failAt>=D.retry&&!want2.some(w=>w.zone===z.id)&&E.get(z.id).foe<=avg*D.cutMax).sort((a,b)=>E.get(a.id).foe-E.get(b.id).foe)[0];
       if(k){ offensive++; push({type:'cut',zone:k.id,from:ownZ.map(z=>z.id).sort((a,b)=>g.dist(a,k.id)-g.dist(b,k.id))[0]??null,pri:48,need:avg,cap:avg*1.5,max:2,why:'補給線を切る'}); }
     }
   }
@@ -160,14 +165,17 @@ function npcThink(c,sit){
     if(u.free===false){ assign.set(u.id,null); continue; }
     if(m.refit&&safe.length){ const id=safe.reduce((a,b)=>eta(u,b)+E.get(b).threat<eta(u,a)+E.get(a).threat?b:a); give({key:'refit:'+id,type:'refit',zone:id,from:null,pri:0,why:'再編する'},u,'main'); }
   }
-  for(const w of want2.sort((a,b)=>b.pri-a.pri)){
-    const fit=w.fit||NPC_FIT[w.type], target=w.from&&(!stage(w.key)||stage(w.key).stage==='assemble')?w.from:w.zone; let got=0, n=0, holder=false;
+  want2.sort((a,b)=>b.pri-a.pri);
+  const targetOf=w=>w.from&&(!stage(w.key)||stage(w.key).stage==='assemble')?w.from:w.zone, pre=new Map();
+  for(const w of want2){ if(w.type!=='seize'&&w.type!=='cut')continue; // 拠点を取れる隊は少ないので、守りに取られる前に攻めへ1つずつ確保する
+    const h=units.filter(u=>!assign.has(u.id)&&u.canHold).map(u=>({u,cost:eta(u,targetOf(w))-(c.unit.get(u.id).task===w.key?D.sticky:0)+(u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost)[0];
+    if(h){ give(w,h.u,'main'); pre.set(w.key,h.u.power); } }
+  for(const w of want2){
+    const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=pre.get(w.key)||0, n=pre.has(w.key)?1:0;
     const attackTask=w.type==='seize'||w.type==='fix'||w.type==='cut';
     const pool=units.filter(u=>!assign.has(u.id)&&fit[u.role]>0) // 傷んだ隊は攻めでは最後に回す（元気な隊が足りないときだけ使う）
       .map(u=>({u,cost:eta(u,target)-(c.unit.get(u.id).task===w.key?D.sticky:0)-fit[u.role]*D.roleBias+(attackTask&&u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost);
-    for(const {u} of pool){ if(n>=w.max||n>0&&got>=w.need||got+u.power>w.cap&&n>0)break; give(w,u,'main'); got+=u.power; n++; holder=holder||!!u.canHold; }
-    if(!holder&&(w.type==='seize'||w.type==='hold'||w.type==='cut')){ // 拠点を取れる隊を必ず1つ入れる
-      const h=units.filter(u=>!assign.has(u.id)&&u.canHold).sort((a,b)=>eta(a,target)-eta(b,target))[0]; if(h){ give(w,h,'main'); got+=h.power; } }
+    for(const {u} of pool){ if(n>=w.max||n>0&&got>=w.need||got+u.power>w.cap&&n>0)break; give(w,u,'main'); got+=u.power; n++; }
     if(tasksOut.has(w.key))tasksOut.get(w.key).got=got; // 隊を1つも取れなかった任務は立てない
   }
   // 火力・打撃・護衛・支援は、いちばん大事な攻めの任務（なければ脅威のある守り）に付ける
@@ -182,15 +190,16 @@ function npcThink(c,sit){
   for(const k of tasksOut.values()){
     const old=c.tasks.get(k.key), mains=k.units.filter(x=>x.as==='main').map(x=>powerOf.get(x.id)), sum=mains.reduce((s,u)=>s+u.power,0);
     const st=old?{...old}:{key:k.key,type:k.type,zone:k.zone,stage:null,since:t,power0:sum};
-    st.goalZone=k.goalZone; st.why0=k.why0; st.power0=Math.max(st.power0||0,sum);
+    st.goalZone=k.goalZone; st.why0=k.why0;
     if(!old)npcLog(c,t,'task:'+k.type,k.zone,k.why);
     const set=s=>{ if(st.stage!==s){ st.stage=s; st.since=t; npcLog(c,t,k.type+':'+s,k.zone,k.why); } };
     if(k.type==='seize'||k.type==='fix'||k.type==='cut'){
       const z=zById.get(k.zone), reach=(z.r||0)*1.5+1e-9, at=mains.filter(u=>k.from!=null&&away(u,k.from)<=Math.max(zById.get(k.from).r||0,1e-9)*1.5||away(u,k.zone)<=reach).reduce((s,u)=>s+u.power,0);
-      if(st.stage===null)set(k.from!=null&&k.type==='seize'?'assemble':'advance');
+      if(st.stage===null){ set(k.from!=null&&k.type==='seize'?'assemble':'advance'); st.power0=sum; }
       if(st.stage==='assemble'&&(sum>0&&at/sum>=D.massing||t-st.since>D.assembleMax))set('advance');
-      if(st.stage==='advance'&&mains.some(u=>away(u,k.zone)<=reach||u.engaged))set(k.type==='fix'?'pin':'assault');
-      if((st.stage==='assault'||st.stage==='pin'||st.stage==='advance')&&(sum<D.abort*st.power0||sum<E.get(k.zone).foe*D.break_&&st.stage!=='advance')){
+      if(st.stage==='advance'&&mains.some(u=>away(u,k.zone)<=reach)){ set(k.type==='fix'?'pin':'assault'); st.power0=sum; } // 突入したときの力を基準に損害を測る
+      const weak=k.type==='fix'?D.fix*.5:D.break_; // 助攻はもともと弱い力で押さえるので、中止の境目も低い
+      if(sum<=0||(st.stage==='assault'||st.stage==='pin')&&t-st.since>=D.commit&&(sum<E.get(k.zone).foe*weak||sum<D.abort*st.power0)){
         mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'押し返された'); k.aborted=true; }
     } else set(k.type==='hold'&&E.get(k.zone).threat>0?'defend':'wait');
     k.stage=st.stage; k.since=st.since; if(!k.aborted)now.set(k.key,st);

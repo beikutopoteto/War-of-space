@@ -115,7 +115,7 @@ function groundUpdateSight(){
     for(const team of [0,1]){
       const visible=t.alive&&!t.embarked&&!groundAbsent(t)&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t)));
       t.groundVisible[team]=visible;
-      if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec};
+      if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec,...(op.npc&&!op.groundDrill?{power:npcGroundPower(t),role:window.WOS_DATA.npc.roles.ground[t.groundKind]||'line'}:{})};
     }
     // seen は宇宙と同じ「相手に発見されている」。表示は青から見た赤だけを隠す。
     t.seen=t.groundVisible[1-t.team];

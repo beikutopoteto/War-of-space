@@ -22,7 +22,11 @@ function drillAdvance(){
   // 経路のコストと実速から上限を決める。占拠・架橋・射撃の待ち時間を別に取る。
   const travel=f.order?.path?f.order.path.cost*WOS_TERRAIN[op.ground].meta.cellKm*GROUND_SCALE/f.speed:0;
   const limit=travel+120;
-  for(let i=0;i<Math.ceil(limit/.05)&&!over&&tutorial.step===before;i++)step(.05);
+  for(let i=0;i<Math.ceil(limit/.05)&&!over&&tutorial.step===before;i++){
+    const positions=fleets.filter(f=>f.team===1).map(f=>[f,f.pos.clone()]);step(.05);
+    // 次の手順を準備する明示的な配置替えは除く。各手順の実時間中は一切動かない。
+    if(tutorial.step===before)for(const [f,p] of positions)if(!f.pos.equals(p))globalThis.npcTutorialMotion=(globalThis.npcTutorialMotion||0)+1;
+  }
   if(!over&&tutorial.step===before)throw new Error('手順が進まない: '+r.name+' '+JSON.stringify({pos:f.pos,order:f.order?.type,visible:r.target&&shown(groundDrillUnit(r.target)),message:groundTransportMessage}));
   if(over&&outcome!==true)throw new Error('案内どおりの操作で敗北: '+r.name);
   return tutorial.times[tutorial.times.length-1];
@@ -38,7 +42,7 @@ function createDrillContext(guided=true){
   run(read('battle/tutorial.js'));run(read('battle/ground-drill.js'));
   run('tutorialRender=()=>{};groundHud=()=>{};');
   run(`op=WOS_DATA.operations.find(o=>o.id==='baikonur');
-    if(${guided})op={...op,...op.groundTutorial,enemies:op.enemies.map(f=>({...f,stance:'evade'}))};groundSetup(op.ground);
+    if(${guided})op={...op,...op.groundTutorial,enemies:(op.groundTutorial.enemies||op.enemies).map(f=>({...f,stance:'evade'}))};groundSetup(op.ground);
     fleets=[...op.quick.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];groundSeaDeploy();
     globalThis.shipMeshes=[0,1].map(()=>Object.fromEntries(['cv','dd','cl'].map(t=>[t,new THREE.Mesh(shapeGeo(t),new THREE.MeshStandardMaterial())])));
     globalThis.SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
@@ -156,7 +160,7 @@ async function checkGroundDrill(page,check){
       if(!await performDrillAction(page))throw new Error('案内の操作が失敗: '+i);
       times.push(await page.evaluate(()=>drillAdvance()));
     }
-    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tut2Hits===0&&tutorial.times.length===26),'チュートリアル2: 全26手順勝利・敵打撃0');
+    check(await page.evaluate(()=>over&&outcome===true&&tutorial.complete&&tut2Hits===0&&tutorial.times.length===26&&!(globalThis.npcTutorialMotion||0)&&Object.keys(npcDebug()).length===0),'チュートリアル2: 全26手順勝利・敵打撃0・敵移動0・NPC無効');
     await page.waitForSelector('#result:not([hidden])');
     check(await page.evaluate(base=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.funds===base+100&&s.prog.cleared.includes('tutorial2')&&!s.prog.cleared.includes('baikonur')&&document.getElementById('result').textContent.includes('資金 +100');},funds),'チュートリアル2: 初回100・専用クリアを保存');
     await page.evaluate(()=>{reset({op:'baikonur',tutorial:true});if(talking)endTalk();setSpeed(0);});
@@ -175,12 +179,11 @@ async function checkGroundDrill(page,check){
     check(await page.locator('#training').isHidden()&&await page.locator('#talkText').isHidden(),'バイコヌール演習: 案内のUIなし');
     await page.evaluate(()=>{
       window.baikonurHits=0;const realDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)baikonurHits++;return realDamage(t,n,src,...rest);};
-      order(groundDrillUnit('第2 主力戦車中隊'),{type:'attack',target:groundDrillUnit('仮想敵 歩兵')});
-      order(groundDrillUnit('第3 重強化歩兵中隊'),{type:'attack',target:groundDrillUnit('仮想敵 戦車')});
-      for(let i=0;i<300&&!over;i++)step(.05);
-      order(fleets[0],{type:'move',dest:groundSites.find(s=>s.id==='A').pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);
+      const red=groundDrillUnit('仮想敵 歩兵'),blue=groundDrillUnit('第2 主力戦車中隊');blue.pos.copy(red.pos).add(new THREE.Vector3(1,0,0));groundUpdateSight();
+      for(let i=0;i<60&&!over;i++)step(.05);
+      groundSites.find(s=>s.id==='F').owner=0;step(.05);
     });
-    check(await page.evaluate(()=>!tutorial&&baikonurHits>0&&over&&outcome===true),'バイコヌール演習: 敵が撃ち占拠で勝利');
+    check(await page.evaluate(()=>!tutorial&&baikonurHits>0&&over&&outcome===true),'バイコヌール演習: 敵が撃ち敵本営の占領で勝利');
     await page.waitForSelector('#result:not([hidden])');
     check(await page.evaluate(before=>localStorage.getItem('wos.save.v1')===before,beforeQuick),'バイコヌール演習: クイックは報酬・クリアを記録しない');
     // 古い保存は tutorial2 だけに移し、二重報酬を出さない。
@@ -189,7 +192,7 @@ async function checkGroundDrill(page,check){
     await page.click('[data-op="baikonur"]');await page.click('#goBattle');
     await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
     check(await page.evaluate(()=>!tutorial&&fleets.some(f=>f.groundKind==='was')),'通常出撃は保存中の地上軍を使う');
-    await page.evaluate(()=>{const s=groundSites.find(s=>s.id==='A');s.owner=0;step(.05);});
+    await page.evaluate(()=>{const s=groundSites.find(s=>s.id==='F');s.owner=0;step(.05);});
     await page.waitForSelector('#result:not([hidden])');
     check(await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));return s.prog.cleared.includes('tutorial2')&&s.prog.cleared.includes('baikonur')&&!s.prog.cleared.includes('ch2drill')&&document.getElementById('result').textContent.includes('資金 +300');}),'通常演習: 別クリア・初回300を保存、移行済みidを永続化');
     await page.evaluate(()=>{reset({op:'baikonur',tutorial:true});fleets.filter(f=>f.team===0).forEach(f=>f.alive=false);step(.05);});
@@ -236,6 +239,7 @@ function runDrill(){
     const r=run('drillAdvance()');times.push(r);
   }
   assert.equal(run('over&&outcome===true&&tutorial.complete&&tutorial.times.length===op.tutorial.length'),true);
+  assert.equal(run('!(globalThis.npcTutorialMotion||0)&&Object.keys(npcDebug()).length===0'),true,'全手順で敵移動0・NPC無効');
   assert.equal(run('counterfire.early===0&&counterfire.late===0&&counterfire.damage===0'),true,'全26手順で敵の打撃0');
   assert.equal(run('fleets.filter(f=>f.team===0&&f.alive).length'),14,'専用2隊を含む自軍14隊が残存');
   times.counterfire=run('counterfire');
@@ -244,13 +248,12 @@ function runDrill(){
   assert.equal(skipped.run(`(()=>{tutorial.skipped=true;tutorialRender();const f=fleets[0];order(f,{type:'move',dest:groundSites[0].pos.clone()});for(let i=0;i<2400&&!over;i++)step(.05);return !tutorialActive()&&over&&outcome===true;})()`),true,'案内をとばしても占拠で勝てる');
   const normal=createDrillContext(false);
   normal.run(`globalThis.enemyHits=0;const originalDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)enemyHits++;return originalDamage(t,n,src,...rest);};
-    order(groundDrillUnit('第2 主力戦車中隊'),{type:'attack',target:groundDrillUnit('仮想敵 歩兵')});
-    order(groundDrillUnit('第3 重強化歩兵中隊'),{type:'attack',target:groundDrillUnit('仮想敵 戦車')});
-    for(let i=0;i<300&&!over;i++)step(.05);
-    order(fleets[0],{type:'move',dest:groundSites.find(s=>s.id==='A').pos.clone()});
-    for(let i=0;i<2400&&!over;i++)step(.05);`);
+    const red=groundDrillUnit('仮想敵 歩兵'),blue=groundDrillUnit('第2 主力戦車中隊');blue.pos.copy(red.pos).add(new THREE.Vector3(1,0,0));groundUpdateSight();
+    for(let i=0;i<60&&!over;i++)step(.05);
+    groundSites.find(s=>s.id==='F').owner=0;step(.05);`);
   assert.equal(normal.run('!tutorial&&enemyHits>0&&over&&outcome===true'),true,'通常演習は案内なし・敵の実打撃あり・占拠で勝利');
   times.normal=normal.run('({hits:enemyHits,seconds:gameSec})');
+  assert.equal(normal.run(`(()=>{over=false;outcome=null;groundSites.find(s=>s.id==='F').owner=1;fleets.filter(f=>f.team===1).forEach(f=>{f.alive=false;f.hpPool=0;});groundCaptureStep(.05);return over&&outcome===true;})()`),true,'敵全戦力撃破でも勝利');
   runPeaceChecks();
   return times;
 }

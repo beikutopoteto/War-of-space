@@ -208,7 +208,7 @@ function groundSupplyBefore(dt){
     if((groundSupplyLand(f)||groundSupplyAir(f))&&!Number.isFinite(f.groundSupply))groundSupplyInitUnit(f);
     f.groundHitLeft=Math.max(0,(f.groundHitLeft||0)-dt);f.groundMoved=false;f.groundSupplyAITimer=Math.max(0,(f.groundSupplyAITimer||0)-dt);
     if(groundSupplyAir(f))groundAirStep(f,dt);
-    if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);groundSupplyAI(f);}
+    if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);if(!op.npc?.[f.team]||op.groundDrill)groundSupplyAI(f);}
   }
 }
 // 味方の占領色は100%、それ以外は80%。現在値を上限へ切り下げない。

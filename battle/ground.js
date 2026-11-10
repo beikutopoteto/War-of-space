@@ -168,6 +168,7 @@ function groundConfigure(active){
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
   groundStrikeReset(); groundTransportReset(); groundSupplyReset();
+  if(typeof npcGroundReset==='function')npcGroundReset();
   groundInfluenceCache=null;groundTerritoryPixels=null;
   if(typeof fleets!=='undefined')for(const f of fleets||[])if(groundFlyingAircraft(f)){groundBombCancel(f);f.groundFlightVelocity=null;f.groundAirBoundary=null;}
   groundView='all'; groundVisuals=null; groundGrids={}; groundSightReset();
@@ -274,6 +275,7 @@ function groundStep(dt){
   groundStrikeStep(dt);
   groundTransportStep(dt);
   groundUpdateSight();
+  if(op.npc&&!op.groundDrill)npcGroundStep();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)) continue;
     if(f.groundKind==='mechanicalAssault'){
@@ -376,7 +378,8 @@ function groundCaptureStep(dt){
     if(s.progress[team]>=s.captureSec-1e-8){ s.owner=team; s.progress=[0,0]; }
   }
   if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
-  else if((!op.groundDrill||tutorial?.skipped)&&groundSites.length&&(op.groundDrill?groundSites.filter(s=>s.id==='A'):groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id))).every(s=>s.owner===0)) end(true);
+  else if(!op.groundDrill&&op.win?.type==='groundHQ'&&(groundSites.some(s=>s.id===op.groundHQ?.[1]&&s.owner===0)||!fleets.some(f=>f.team===1&&f.alive&&f.hpPool>0))) end(true);
+  else if(op.win?.type!=='groundHQ'&&(!op.groundDrill||tutorial?.skipped)&&groundSites.length&&(op.groundDrill?groundSites.filter(s=>s.id==='A'):groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id))).every(s=>s.owner===0)) end(true);
 }
 function groundCaptureInit(){
   for(const s of groundSites){s.el?.remove();if(s.ring){groundVisuals.remove(s.ring);s.ring.geometry.dispose();s.ring.material.dispose();}}
