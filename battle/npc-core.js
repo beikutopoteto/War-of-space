@@ -139,7 +139,8 @@ function npcThink(c,sit){
     const spare=Math.max(0,man-holdNeed), lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&E.get(z.id).foe*D.counter<=spare);
     // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る
     const easy=cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
-    const cur=running&&[...lost,...easy].find(z=>z.id===(running.goalZone||running.zone)); // 取りに出た所は、条件が合うかぎり変えない
+    // 取りに出た所は、余力が少し減ったくらいでは変えない（出したり引っ込めたりしない）
+    const cur=running&&cand.find(z=>z.id===(running.goalZone||running.zone)&&(lost.includes(z)||Math.max(avg,E.get(z.id).foe*D.attack)<=spare*1.6+avg));
     let done=!!cur&&seize(cur,running.why0||'空いた所を取る',lost.includes(cur)?D.counter:D.attack);
     if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter)){ done=true; break; }
     if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
