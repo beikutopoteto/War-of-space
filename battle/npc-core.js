@@ -119,8 +119,12 @@ function npcThink(c,sit){
     const failed=id=>t-mem(id).failAt<D.retry;
     const path=home!=null?g.route(home,z.id,id=>isOwn(id)?0:D.avoid*E.get(id).foe/Math.max(own,1e-9)*g.span+(failed(id)?g.span*10:0)):[z.id];
     let i=path.findIndex(id=>!isOwn(id)); if(i<0)i=path.length-1;
-    if(failed(path[i]))return false;
-    const obj=path[i], from=i>0?path[i-1]:null, need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'?D.mass*man:0);
+    let obj=path[i], from=i>0?path[i-1]:null;
+    // 同じ目標へ向かっている途中なら、次に取る拠点を変えない（敵の見積もりの揺れで行き先が入れ替わるのを防ぐ）
+    if(running&&(running.goalZone||running.zone)===z.id&&!isOwn(running.zone)&&!failed(running.zone)){
+      obj=running.zone; from=running.from!=null&&isOwn(running.from)?running.from:g.next(obj).filter(isOwn).sort((a,b)=>g.dist(home,a)-g.dist(home,b))[0]??null; }
+    if(failed(obj))return false;
+    const need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'?D.mass*man:0);
     mainZone=obj; offensive++;
     push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,(1-D.reserve)*man),why:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id});
     return true;
@@ -135,7 +139,9 @@ function npcThink(c,sit){
     const spare=Math.max(0,man-holdNeed), lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&E.get(z.id).foe*D.counter<=spare);
     // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る
     const easy=cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
-    let done=false; for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter)){ done=true; break; }
+    const cur=running&&[...lost,...easy].find(z=>z.id===(running.goalZone||running.zone)); // 取りに出た所は、条件が合うかぎり変えない
+    let done=!!cur&&seize(cur,running.why0||'空いた所を取る',lost.includes(cur)?D.counter:D.attack);
+    if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter)){ done=true; break; }
     if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
   }
   if(posture==='attack'&&mainZone){
@@ -195,7 +201,7 @@ function npcThink(c,sit){
   for(const k of tasksOut.values()){
     const old=c.tasks.get(k.key), mains=k.units.filter(x=>x.as==='main').map(x=>powerOf.get(x.id)), sum=mains.reduce((s,u)=>s+u.power,0);
     const st=old?{...old}:{key:k.key,type:k.type,zone:k.zone,stage:null,since:t,power0:sum};
-    st.goalZone=k.goalZone; st.why0=k.why0;
+    st.goalZone=k.goalZone; st.why0=k.why0; st.from=k.from??null;
     if(!old)npcLog(c,t,'task:'+k.type,k.zone,k.why);
     const set=s=>{ if(st.stage!==s){ st.stage=s; st.since=t; npcLog(c,t,k.type+':'+s,k.zone,k.why); } };
     if(k.type==='seize'||k.type==='fix'||k.type==='cut'){
