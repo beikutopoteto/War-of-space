@@ -538,7 +538,7 @@ function groundRangesClear(){
 function groundRangeInfo(f){
   if(!f?.alive||f.embarked||groundAbsent(f))return null;
   const r=groundFireRanges(f),entries=[],bands=['ground','low','high','sea'].filter(band=>groundFireFactor(f,{band})>0);
-  if(r.direct>0)entries.push({id:'direct',text:'直接射撃',range:r.direct,bands:bands.filter(b=>!['low','high'].includes(b))});
+  if(r.direct>0)entries.push({id:'direct',text:f.groundKind==='sea'?'直接射撃（地平線）':'直接射撃',range:r.direct,bands:bands.filter(b=>!['low','high'].includes(b))});
   if(r.indirect&&groundStrikeWeapon(f))entries.push({id:'indirect',text:'間接砲撃',range:r.indirect.max,min:r.indirect.min,bands:[]});
   if(f.groundKind!=='supportAircraft'&&r.ground>0&&(bands.includes('ground')||bands.includes('sea')||groundStrikeWeapon(f)))entries.push({id:'ground',text:'対地・対艦',range:r.ground,bands:bands.filter(b=>['ground','sea'].includes(b))});
   if(r.air>0)entries.push({id:'air',text:groundAutoAASource(f)?'自動対空':'対空',range:r.air,bands:bands.filter(b=>['low','high'].includes(b))});
@@ -555,7 +555,7 @@ function groundRangeMask(f,e){
     const p=point(a,r);
     if(e.id==='indirect')return groundStrikeInRange(f,p);
     if(f.groundKind==='sea'&&groundNavalClass(f)){
-      const sea=groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea),target={pos:p,band:sea?'sea':'ground',groundKind:sea?'sea':'infantry',type:f.type,groundLanding:f.groundLanding};
+      const sea=groundInside(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,WOS_TERRAIN[op.ground].water.sea),target={pos:p,band:sea?'sea':'ground',groundKind:sea?'sea':'infantry',type:'ff'};
       if(r>(groundNavalHorizonKm(f,target)??0)*GROUND_SCALE)return false;
     }
     return groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight});

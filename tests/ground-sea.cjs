@@ -70,8 +70,8 @@ async function checkGroundSea(page,check){
   const initial=await page.evaluate(()=>{
     reset({op:'groundExercise2'});setSpeed(0);endDeploy();
     const ships=fleets.filter(f=>f.groundKind==='sea');
-    return ships.length===5&&ships.filter(f=>!groundLandingShip(f)).length===4&&ships.filter(f=>f.team===0).length===3&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][f.type].geometry.attributes.position.count)&&groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id)).length===3;
-  });check(initial,'海の艦: 双方2隻と揚陸艦1隻・既存の艦種別モデル・海面配置・3拠点を維持');
+    return ships.length===5&&ships.filter(f=>!groundLandingShip(f)).length===4&&ships.filter(f=>f.team===0).length===3&&ships.every(f=>f.band==='sea'&&f.pos.y===0&&groundPass(f.pos.x/4+24,18-f.pos.z/4,'sea')&&f.groundModel.children[0].geometry.attributes.position.count===shipMeshes[f.team][groundNavalModel(f)||f.type].geometry.attributes.position.count)&&groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id)).length===3;
+  });check(initial,'海の艦: 双方2隻と揚陸艦1隻・統合後の艦種別モデル・海面配置・3拠点を維持');
   await page.evaluate(()=>{
     fleets.forEach((f,i)=>{f.stance='evade';f.order=null;f.pos.copy(groundPoint(4+i*2,31));});
     const ship=fleets.find(f=>f.team===0&&f.groundKind==='sea');ship.pos.copy(groundPoint(12,5));
