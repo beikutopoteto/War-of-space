@@ -14,7 +14,7 @@
 |ブランチ|内容|状態|
 |---|---|---|
 |claude/ground-auto-aa|段階5：独立した自動対空|実装・対象確認・実画面撮影済み。親ブランチ更新を統合しPRへ|
-|claude/ground-naval-types|段階6：海上分類・モデル・地平線|準備中。宇宙の艦種・保存は変更しない|
+|claude/ground-naval-types|段階6：海上分類・モデル・地平線|実装・対象確認・写真済み。自動対空を統合しPRへ|
 |claude/ground-volley|段階4：一斉射・ロケット連射|PR #385、最新2babd77、CI42782314627待ち|
 |claude/ground-scatter|段階3：距離依存の最小散布円|PR #384、最新b9bdb58のCI42716445985成功後、5019299へマージ済み|
 |claude/ground-ballistics|段階2：弾道・地形遮蔽|PR #383、最新a0f0e84のCI42712237464成功後、a0228b4へマージ済み|
@@ -43,3 +43,9 @@
 - 段階5：専用30、操作53、既存対象確認成功。ブラウザ204件成功。チュートリアル26手順完走、敵の打撃・損害0。通常演習は敵の攻撃ありで勝利。
 - 実演習で自動対空が移動・予約・砲撃を置き換えないこと、航空機の手動対空、専用入口外の打撃拒否、宇宙へ戻る際の解除を確認。ページ例外なし。詳細 `docs/ground-auto-aa.md`。
 - 台本 `tools/ground-volley-check.cjs` と `tools/ground-aa-check.cjs`。写真 ground-rocket-burst.png / ground-rocket-volley.png / ground-aa-moving.png。
+
+## 段階6の確認
+
+- 海上分類27、実射11、海上52、射程26、兵科91、自動対空30、上陸39。ブラウザ67件成功、ページ例外なし。
+- 旧cv/ff→ff、旧dd/cl→clとbbモデルを実画面確認。30km先へ地平線外から艦砲の間接射撃・遅延着弾。揚陸艦の旧固定性能・容量・上陸処理を維持。
+- 写真 `.shots/ground-naval-models.png` / `ground-naval-indirect.png`、台本 `tools/ground-naval-check.cjs`。詳細 `docs/ground-naval.md`。段階7はclaude/ground-air-flightで物理投下部品を準備中（未統合）。

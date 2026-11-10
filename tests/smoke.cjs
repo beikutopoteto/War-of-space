@@ -27,6 +27,7 @@ const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
+const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
@@ -51,6 +52,7 @@ function check(ok, label, detail = '') {
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
+  for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

@@ -38,7 +38,10 @@ function groundNavalHorizonFromMeters(sourceHeightM,targetHeightM){
 function groundNavalHeightMeters(f,role='target'){
   if(!f?.pos||![f.pos.x,f.pos.y,f.pos.z].every(Number.isFinite)||!['gun','target'].includes(role))return null;
   if(f.groundKind==='sea'){
-    const naval=groundNavalClass(f);return naval?(role==='gun'?naval.gunHeightM:naval.targetHeightM):null;
+    const naval=groundNavalClass(f);
+    if(naval)return role==='gun'?naval.gunHeightM:naval.targetHeightM;
+    // 未統合の旧母艦型も標的にはなる。分類・武装を追加せず代表高4mだけ仮置きする。
+    return role==='target'&&['cvb','mas','masc'].includes(f.type)?4:null;
   }
   if(role==='gun')return null;
   if(typeof op==='undefined'||!op.ground||typeof WOS_TERRAIN==='undefined'||typeof groundSightHeight!=='function'||typeof GROUND_SCALE==='undefined')return null;
