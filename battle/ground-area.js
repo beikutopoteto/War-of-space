@@ -15,6 +15,17 @@ function groundAreaLimits(units){
  const radii=units.map(f=>groundStrikeWeapon(f).areaRadius??groundStrikeWeapon(f).radius);
  return {radius:Math.min(...radii),length:units.reduce((n,f,i)=>n+2*radii[i]*Math.max(1,f.ships?.length??f.n??1),0)};
 }
+// 曲線帯も含め、参加射手と帯の遠端から必要な精度下限を求める。
+function groundAreaClampRadius(units,points,wanted){
+ const cap=groundAreaLimits(units).radius;let radius=Math.max(0,Math.min(cap,wanted)),minimum=0;
+ for(let i=0;i<12;i++){
+  minimum=groundAreaRequiredRadius(units,points,radius);
+  if(minimum>cap+1e-7)return {radius:cap,minimum,valid:false};
+  if(minimum<=radius+1e-8)return {radius,minimum,valid:true};radius=minimum;
+ }
+ return {radius,minimum,valid:minimum<=radius+1e-6};
+}
+function groundAreaDiameterText(radius){const meters=radius/GROUND_SCALE*2000;return meters<1000?Number(meters.toFixed(1))+'m':(meters/1000).toFixed(2)+'km';}
 function groundAreaCurve(points){
  if(points.length<2||points.every(p=>Math.hypot(p.x-points[0].x,p.z-points[0].z)<1e-8))return {points:[points[0].clone()],length:0};
  const flat=points.map(p=>new THREE.Vector3(p.x,0,p.z)),curve=flat.length===2?new THREE.LineCurve3(...flat):new THREE.CatmullRomCurve3(flat,false,'centripetal');
@@ -40,7 +51,7 @@ function groundAreaHover(p){
  const s=groundAreaAim;if(!s||!p||!s.points.length)return;
  const units=groundAreaUnits(s.units);if(!units.length)return;const cap=groundAreaLimits(units);
  if(s.stage==='end')s.preview=groundAreaShape([...s.points,groundAreaEnd(s,p)],0,'aim');
- else{const curve=groundAreaShape(s.points,0,'aim'),r=Math.min(cap.radius,groundAreaClosest(curve,p).distance);s.preview=groundAreaShape(s.points,r,'aim');}
+ else{const curve=groundAreaShape(s.points,0,'aim'),r=Math.min(cap.radius,groundAreaClosest(curve,p).distance),limit=groundAreaClampRadius(units,curve.points,r);s.preview={...groundAreaShape(s.points,limit.radius,'aim'),minRadius:limit.minimum,valid:limit.valid};}
 }
 function groundAreaSample(area){
  const r=area.radius,points=area.points;
@@ -53,13 +64,23 @@ function groundAreaSample(area){
  let at=Math.random()*area.length;
  for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],len=a.distanceTo(b);if(at<=len||i===points.length-1){const p=a.clone().lerp(b,len?at/len:0),offset=(Math.random()*2-1)*r;p.x+=-(b.z-a.z)/(len||1)*offset;p.z+=(b.x-a.x)/(len||1)*offset;return p;}at-=len;}
 }
-function groundAreaTarget(f,area){
- for(let i=0;i<48;i++){const p=groundAreaSample(area);if(groundStrikeInRange(f,p)){p.y=groundHeight(p.x,p.z);return p;}}
- const near=groundAreaClosest(area,f.pos),p=near.point.clone();if(near.distance>0)p.add(new THREE.Vector3(f.pos.x-p.x,0,f.pos.z-p.z).multiplyScalar(Math.min(near.distance,area.radius)/near.distance));
- if(groundStrikeInRange(f,p)){p.y=groundHeight(p.x,p.z);return p;}return null;
+function groundAreaShot(f,area){
+ const minimum=groundAreaRequiredRadius([f],area.points,area.radius);
+ if(minimum>area.radius+1e-6)return null;
+ // 内側の帯で狙点を選んでから最小散布円を足す。射程境界で散布円を切り詰めない。
+ const inner={...area,radius:Math.max(0,area.radius-minimum)};
+ for(let i=0;i<48;i++){
+  const aim=groundAreaSample(inner);if(!groundStrikeInRange(f,aim))continue;
+  const impact=aim.clone().add(groundScatterOffset(minimum));aim.y=groundHeight(aim.x,aim.z);impact.y=groundHeight(impact.x,impact.z);return {aim,impact};
+ }
+ const near=groundAreaClosest(inner,f.pos),aim=near.point.clone();if(near.distance>0)aim.add(new THREE.Vector3(f.pos.x-aim.x,0,f.pos.z-aim.z).multiplyScalar(Math.min(near.distance,inner.radius)/near.distance));
+ if(groundStrikeInRange(f,aim)){const impact=aim.clone().add(groundScatterOffset(minimum));aim.y=groundHeight(aim.x,aim.z);impact.y=groundHeight(impact.x,impact.z);return {aim,impact};}
+ return null;
 }
+function groundAreaTarget(f,area){return groundAreaShot(f,area)?.aim||null;}
 function groundAreaConfirm(area){
  const units=groundAreaUnits(groundAreaAim.units);if(!units.length)return false;
+ const limit=groundAreaClampRadius(units,area.points,area.radius);if(!limit.valid){groundStrikeMessage='距離に必要な最小散布幅が指定上限を超えます';return false;}area.radius=limit.radius;area.minRadius=limit.minimum;area.key=JSON.stringify([area.points,area.radius]);
  const cap=groundAreaLimits(units);if(area.length>cap.length+1e-5){groundStrikeMessage='参加台数が減ったため中心線が長すぎます（Escで再指定）';return false;}
  for(const f of units)if(!groundAreaTarget(f,area)){groundStrikeMessage=f.name+'：指定範囲は射程外または攻撃不可（Escで再指定）';return false;}
  area.id=++groundAreaSerial;area.sent=new Map();const count=groundAreaCount();saveUndo(units);
@@ -75,8 +96,8 @@ function groundAreaTap(p,shift=false){
 function groundAreaSalvoStep(){
  for(const f of fleets){const salvo=f.groundAreaSalvo;if(!salvo)continue;
   if(!groundStrikeWeapon(f)){f.groundAreaSalvo=null;continue;}if((f.groundStrikeCooldown||0)>1e-8)continue;
-  const p=groundAreaTarget(f,salvo.area);if(!p){f.groundAreaSalvo=null;groundStrikeMessage=f.name+'：射撃可能な地点がなくなったため中止';continue;}
-  if(groundStrikeLaunch(f,p,p,salvo.area)){salvo.area.sent.set(f,(salvo.area.sent.get(f)||0)+1);salvo.remaining--;if(f.groundKind==='vehicle')f.groundShotT=Math.max(f.groundShotT||0,groundStrikeWeapon(f).reload);if(salvo.remaining<=0)f.groundAreaSalvo=null;}
+  const shot=groundAreaShot(f,salvo.area);if(!shot){f.groundAreaSalvo=null;groundStrikeMessage=f.name+'：射撃可能な地点がなくなったため中止';continue;}
+  if(groundStrikeLaunch(f,shot.aim,shot.impact,salvo.area)){salvo.area.sent.set(f,(salvo.area.sent.get(f)||0)+1);salvo.remaining--;if(f.groundKind==='vehicle')f.groundShotT=Math.max(f.groundShotT||0,groundStrikeWeapon(f).reload);if(salvo.remaining<=0)f.groundAreaSalvo=null;}
  }
 }
 function groundAreaHint(){
@@ -112,7 +133,7 @@ function groundAreaDraw(){
   if(v.key!==area.key){const points=groundAreaOutline(area);points.forEach(p=>p.y=groundSurfaceHeight(p.x,p.z)+.4);v.line.geometry.dispose();v.line.geometry=new THREE.BufferGeometry().setFromPoints(points);v.axis.visible=area.points.length>1;if(v.axis.visible){const axisPoints=area.points.map(p=>new THREE.Vector3(p.x,groundSurfaceHeight(p.x,p.z)+.42,p.z));v.axis.geometry.dispose();v.axis.geometry=new THREE.BufferGeometry().setFromPoints(axisPoints);v.axis.computeLineDistances();}v.key=area.key;}
   const p=proj(area.points[Math.floor(area.points.length/2)].clone().add(new THREE.Vector3(0,1,0)));v.el.hidden=p.z>1;v.el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
   const remaining=id==='aim'?groundAreaCount():Math.max(0,...fleets.filter(f=>f.groundAreaSalvo?.area===area).map(f=>f.groundAreaSalvo.remaining));
-  v.el.textContent='散布範囲 半径'+(area.radius/GROUND_SCALE).toFixed(1)+'km / '+(id==='aim'?'各'+remaining+'回':remaining?'残り最大'+remaining+'回':'最終弾着弾待ち');
+  v.el.textContent='散布直径'+groundAreaDiameterText(area.radius)+' / '+(id==='aim'?'各'+remaining+'回':remaining?'残り最大'+remaining+'回':'最終弾着弾待ち');
  }
  for(const [id,v] of groundAreaVisuals)if(!live.has(id)){groundAreaDropVisual(v);groundAreaVisuals.delete(id);}
 }
