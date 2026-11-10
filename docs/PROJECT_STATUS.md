@@ -49,3 +49,5 @@
 - 海上分類27、実射11、海上52、射程26、兵科91、自動対空30、上陸39。ブラウザ67件成功、ページ例外なし。
 - 旧cv/ff→ff、旧dd/cl→clとbbモデルを実画面確認。30km先へ地平線外から艦砲の間接射撃・遅延着弾。揚陸艦の旧固定性能・容量・上陸処理を維持。
 - 写真 `.shots/ground-naval-models.png` / `ground-naval-indirect.png`、台本 `tools/ground-naval-check.cjs`。詳細 `docs/ground-naval.md`。段階7はclaude/ground-air-flightで物理投下部品を準備中（未統合）。
+
+- PR #385のCI42782314627とPR #386のCI42783422294は、旧散布確認のロケット装填8秒期待だけが失敗。他の全確認は通過。段階4の仮仕様（6発・0.25秒間隔・最終発後30秒）を散布確認にも反映し、専用32件を再確認。両PRの最新headで通常CIを再実行する。
