@@ -1,7 +1,8 @@
 /* 実ゲームChromium。node tools/npc-sim.cjs exercise2 mars earth standard 1 600
    node tools/npc-sim.cjs baikonur mars earth standard 1 300 --idle
    --intent0 seize --intent1 hold:firm:F,E / delay:delay:F:300 で軍ごとの作戦の意図。
-   charybdis mars earth standard 1 600 [--no-npc]: 自軍はautoAI、敵はNPCまたは元の台本。
+   charybdis mars earth standard 1 600 [--no-npc]: 自軍はNPC（NPCなし比較ではautoAI）、敵はNPCまたは元の台本。
+   --ally 0.5: 地上の軍0を先導と友軍へ分割（隊数の割合、0以上1未満）。
    --brief は経過の要約のみ。--profile は関数別の包括／自己時間を足す（計測負荷あり）。
    seedはゲームの乱数と指揮官の乱数を固定。通常はJSONと表を出す。 */
 const {openGame}=require('./browser.cjs');
@@ -37,8 +38,10 @@ function setupNpcSim(cfg){
     source.quick=force(0);source.enemies=force(1);source.groundSea=[];
   }
   const index=WOS_DATA.operations.findIndex(o=>o.id===source.id);WOS_DATA.operations[index]=source;
+  autoMode=false; // 比較ではデバッグ自軍指揮官を重ねない。
   reset({op:source.id,fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();
-  window.npcMeasure={cfg,start:gameSec,steps:0,stepMs:0,idle:[0,0],unitTime:[0,0],concentration:[0,0],assaultTime:[0,0],firstContact:null,changes:[0,0],last:[null,null],aborts:[0,0],
+  if(cfg.ally>0)npcGroundSplit(cfg.ally);
+  window.npcMeasure={ally:{captures:0,totalCaptures:0,finalCaptures:0,aheadTasks:0,seenTasks:new Set(),modeSeconds:{follow:0,quiet:0,rescue:0},previousLead:new Map(),pending:new Map(),relief:[]},cfg,start:gameSec,steps:0,stepMs:0,idle:[0,0],unitTime:[0,0],concentration:[0,0],assaultTime:[0,0],firstContact:null,changes:[0,0],last:[null,null],aborts:[0,0],
     logs:[],postures:[],lowSupplyMax:[0,0],events:[],initialOwners:groundSites.map(s=>({site:s.id,owner:s.owner})),owners:Object.fromEntries(groundSites.map(s=>[s.id,s.owner])),samples:[]};
   // 中止logは200件のリングを越えても数える。
   const oldLog=npcLog;npcLog=(c,t,what,zone,why)=>{
@@ -53,7 +56,7 @@ function advanceNpcSim(seconds){
   if(npcMeasure.cfg.terrain==='charybdis')return advanceSpaceNpcSim(seconds);
   const m=npcMeasure,end=Math.min(m.cfg.seconds,seconds),dt=.05;
   while(gameSec-m.start<end-1e-8&&!over){
-    const before=performance.now();if(window.npcProfile)npcProfile.active=true;
+    const before=performance.now(),at=gameSec;if(window.npcProfile)npcProfile.active=true;
     try{step(dt);}finally{if(window.npcProfile)npcProfile.active=false;}
     m.stepMs+=performance.now()-before;m.steps++;
     for(const team of [0,1]){
@@ -67,12 +70,17 @@ function advanceNpcSim(seconds){
       const main=plan?.tasks.find(k=>k.type==='seize'&&k.stage==='assault');
       if(main){const assigned=new Set(main.units.map(x=>x.id)),power=live.reduce((s,f)=>s+npcGroundPower(f),0);m.concentration[team]+=live.filter(f=>assigned.has(f.id)).reduce((s,f)=>s+npcGroundPower(f),0)/Math.max(1e-9,power)*dt;m.assaultTime[team]+=dt;}
     }
+    if(m.cfg.ally>0)sampleNpcAlly(gameSec-at);
     if(m.firstContact===null&&fleets.some(f=>f.groundContacts?.[1-f.team]))m.firstContact=gameSec-m.start;
-    for(const s of groundSites)if(m.owners[s.id]!==s.owner){m.events.push({time:+(gameSec-m.start).toFixed(2),site:s.id,owner:s.owner});m.owners[s.id]=s.owner;}
+    for(const s of groundSites)if(m.owners[s.id]!==s.owner){
+      const ally=npcGroundState?.commanders.get('0:ally'),byAlly=s.owner===0&&!!ally&&fleets.some(f=>ally.unitIds.has(f.id)&&groundCanCapture(f)&&groundDistanceTo(f,s)<=s.captureRadius);
+      if(s.owner===0){m.ally.totalCaptures++;if(byAlly){m.ally.captures++;if(s.id===op.groundHQ?.[1])m.ally.finalCaptures++;}}
+      m.events.push({time:+(gameSec-m.start).toFixed(2),site:s.id,owner:s.owner,...(m.cfg.ally>0?{ally:byAlly}:{})});m.owners[s.id]=s.owner;
+    }
     if(m.steps%600===0){
       const units=fleets.filter(f=>f.alive&&f.hpPool>0).map(f=>({id:f.id,team:f.team,groundKind:f.groundKind,
         supply:f.groundSupply??null,morale:f.groundMorale??null,x:+groundMapX(f.pos.x).toFixed(2),y:+groundMapY(f.pos.z).toFixed(2),
-        order:f.order?.type||null,task:npcGroundState?.commanders.get(f.team)?.unit.get(f.id)?.task||null,
+        order:f.order?.type||null,task:[...(npcGroundState?.commanders.values()||[])].find(c=>c.team===f.team&&(!c.unitIds||c.unitIds.has(f.id)))?.unit.get(f.id)?.task||null,
         road:npcGroundState?.roadWork?.get(f.team)?.id===f.id?(npcGroundState.roadWork.get(f.team).edge?'connect':'return'):[...(npcGroundState?.roadRear?.values()||[])].includes(f.id)?'rear':null,
         destination:f.order?.dest?{x:+groundMapX(f.order.dest.x).toFixed(2),y:+groundMapY(f.order.dest.z).toFixed(2)}:null}));
       const tasks=[0,1].map(team=>{const counts={};for(const u of units.filter(u=>u.team===team)){const type=u.task?.split(':')[0]||'none';counts[type]=(counts[type]||0)+1;}return counts;});
@@ -83,12 +91,45 @@ function advanceNpcSim(seconds){
   }
   return over||m.winner!==undefined||gameSec-m.start>=m.cfg.seconds-1e-8;
 }
+// 先頭の定義は頭と同じ道路距離。友軍の任務が新しく向いた時だけ違反を数える（先導の攻撃目標への支援は除く）。
+function sampleNpcAlly(dt){
+  const a=npcMeasure.ally,c=npcGroundState.commanders.get('0:ally');if(!c)return;
+  const sit=npcGroundSituation(c),g=npcGraph(c,sit),home=sit.zones.find(z=>z.base==='own')?.id;
+  const leads=sit.lead.units,nearest=u=>sit.zones.reduce((a,b)=>Math.hypot(u.x-a.x,u.z-a.z)<Math.hypot(u.x-b.x,u.z-b.z)?a:b);
+  const nearLead=new Set(leads.map(u=>[u,nearest(u)]).filter(([u,z])=>Math.hypot(u.x-z.x,u.z-z.z)<=z.r*2.5+1e-9).map(([,z])=>z.id));
+  const own=sit.zones.filter(z=>z.owner==='own'),reach=home==null?Infinity:Math.max(0,...own.map(z=>g.dist(home,z.id)),...[...nearLead].map(id=>g.dist(home,id)));
+  const mode=c.plan?.lead?.mode;if(mode)a.modeSeconds[mode]+=dt;
+  const activeTasks=new Set();
+  for(const k of c.plan?.tasks||[]){
+    if(!['seize','fix','cut'].includes(k.type)||!k.units.length)continue;
+    activeTasks.add(k.key);if(a.seenTasks.has(k.key))continue;
+    // 先導の攻撃目標への支援（fix、占領の円に入らない）は設計どおりなので数えない（docs/npc-doctrine.md 5.2）
+    if(k.type==='fix'&&k.zone===c.plan?.lead?.main)continue;
+    if(mode!=='rescue'&&home!=null&&g.dist(home,k.zone)>reach+1e-6)a.aheadTasks++;
+  }
+  a.seenTasks=activeTasks;
+  for(const z of sit.zones){
+    const front=g.next(z.id).some(id=>sit.zones.find(x=>x.id===id)?.owner!=='own');
+    const at=nearLead.has(z.id);
+    if(z.owner!=='own'||!front){a.pending.delete(z.id);a.previousLead.set(z.id,at);continue;}
+    if(a.previousLead.get(z.id)&&!at&&!a.pending.has(z.id))a.pending.set(z.id,gameSec);
+    if(at)a.pending.delete(z.id);
+    if(a.pending.has(z.id)){
+      const guard=(c.plan?.tasks||[]).filter(k=>k.type==='hold'&&k.zone===z.id).flatMap(k=>k.units).some(x=>{
+        const f=fleets.find(f=>f.id===x.id);return f?.alive&&Math.hypot(groundMapX(f.pos.x)-z.x,groundMapY(f.pos.z)-z.z)<=z.r;
+      });
+      if(guard){a.relief.push(gameSec-a.pending.get(z.id));a.pending.delete(z.id);}
+    }
+    a.previousLead.set(z.id,at);
+  }
+}
 function npcSimResult(){
   if(npcMeasure.cfg.terrain==='charybdis')return spaceNpcSimResult();
   const m=npcMeasure,t=npcGroundState?.timings||{count:0,total:0,max:0},round=x=>+x.toFixed(4),live=team=>fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0);
   return {config:m.cfg,winner:m.winner??(over?(outcome?0:1):null),seconds:round(gameSec-m.start),remaining:[0,1].map(team=>({units:live(team).length,power:round(live(team).reduce((s,f)=>s+npcGroundPower(f),0))})),
     idle:[0,1].map(team=>round(m.idle[team]/Math.max(1e-9,m.unitTime[team]))),mainConcentration:[0,1].map(team=>m.assaultTime[team]?round(m.concentration[team]/m.assaultTime[team]):null),
     firstContact:m.firstContact===null?null:round(m.firstContact),targetChanges:m.changes,aborts:m.aborts,think:{count:t.count,meanMs:round(t.total/Math.max(1,t.count)),maxMs:round(t.max)},step:{count:m.steps,meanMs:round(m.stepMs/Math.max(1,m.steps))},
+    ally:m.cfg.ally>0?{captures:m.ally.captures,captureShare:round(m.ally.captures/Math.max(1,m.ally.totalCaptures)),finalCaptures:m.ally.finalCaptures,aheadTasks:m.ally.aheadTasks,reliefCount:m.ally.relief.length,reliefMeanSec:m.ally.relief.length?round(m.ally.relief.reduce((s,x)=>s+x,0)/m.ally.relief.length):null,reliefPending:m.ally.pending.size,modeShare:Object.fromEntries(Object.entries(m.ally.modeSeconds).map(([k,v])=>[k,round(v/Math.max(1e-9,gameSec-m.start))]))}:null,
     initialOwners:m.initialOwners,sites:m.owners,captures:m.events,postures:m.postures,logs:m.logs,lowSupplyMax:m.lowSupplyMax,
     units:fleets.map(f=>({id:f.id,team:f.team,groundKind:f.groundKind,alive:f.alive,hp:f.hpPool,supply:f.groundSupply??null,morale:f.groundMorale??null})),
     profile:window.npcProfile?Object.fromEntries(Object.entries(npcProfile.rows).map(([name,v])=>[name,{count:v.count,totalMs:round(v.total),selfMs:round(v.self),meanMs:round(v.total/Math.max(1,v.count))}])):null,
@@ -122,6 +163,7 @@ function brief(r){
  const owner=x=>x===null?'中立':String(x),lines=[`${r.config.terrain} ${r.config.doctrines.join('/')} ${r.config.level} seed${r.config.seed} 勝者:${r.winner??'未決'} 時間:${r.seconds}秒 残存:${r.remaining.map((v,i)=>i+'軍 '+v.units+'隊'+(v.ships===undefined?'':' '+v.ships+'隻')).join(' / ')}`];
  if(r.clock)lines.push(`作戦時計: ${r.clock.text}（経過${r.clock.minutes}分）、NPC:${r.config.npc===false?'なし':'あり'}`);
  if(r.armor)lines.push('要塞装甲: '+r.armor.map(s=>s.time+'秒='+s.percent+'%').join(' '));
+ if(r.ally)lines.push(`友軍: 占領${r.ally.captures}（割合${r.ally.captureShare}）、最終目標${r.ally.finalCaptures}、先走り${r.ally.aheadTasks}、引継ぎ平均${r.ally.reliefMeanSec??'未着'}秒（${r.ally.reliefCount}件、未着${r.ally.reliefPending}件）、状態比 ${JSON.stringify(r.ally.modeShare)}`);
  if(r.transitions)for(const s of r.transitions)lines.push(`指揮 ${s.time}秒 ${s.team}軍 ${s.posture}/${s.style} `+s.tasks.map(k=>`${k.type}:${k.zone}/${k.stage} [${k.units.map(x=>x.id).join(',')}]`).join(' '));
  lines.push('拠点: '+r.initialOwners.map(e=>e.site+'='+owner(e.owner)).join(' '));
  const captureLabel=r.config.terrain==='charybdis'?'保有変更':'占領';
@@ -138,7 +180,7 @@ function brief(r){
 }
 async function run(cfg){
  const {browser,page,errors}=await openGame({width:1600,height:900});
- try{for(const fn of [setupSpaceNpcSim,advanceSpaceNpcSim,spaceNpcSimResult])await page.evaluate('window.'+fn.name+'='+fn.toString());
+ try{for(const fn of [setupSpaceNpcSim,advanceSpaceNpcSim,spaceNpcSimResult,sampleNpcAlly])await page.evaluate('window.'+fn.name+'='+fn.toString());
   await page.evaluate(setupNpcSim,cfg);if(cfg.profile)await page.evaluate(installNpcProfile);await page.evaluate('window.advanceNpcSim='+advanceNpcSim.toString());await page.evaluate('window.npcSimResult='+npcSimResult.toString());
   let done=false,elapsed=0;while(!done){elapsed+=5;done=await page.evaluate(sec=>{const done=advanceNpcSim(sec);if(window.npcProfile){npcProfile.active=true;try{if(op.ground)groundDraw();}finally{npcProfile.active=false;}}return done;},elapsed);}
   if(errors.length)throw new Error(errors.join('\n'));return await page.evaluate(()=>npcSimResult());
@@ -154,10 +196,12 @@ function parseIntent(value){
  return goal;
 }
 function parseArgs(args){
- const positional=[],intents={};let idle=false,profile=false,npc=true;
+ const positional=[],intents={};let idle=false,profile=false,npc=true,ally=0;
  for(let i=0;i<args.length;i++){
   const arg=args[i],match=/^--intent([01])(?:=(.*))?$/.exec(arg);
   if(match){const value=match[2]??args[++i];if(!value||value.startsWith('--'))throw new Error(arg+' の意図がありません');intents[match[1]]=parseIntent(value);}
+  else if(arg==='--ally'){const value=args[++i];if(value===undefined||value.startsWith('--')||value.trim()==='')throw new Error('--ally の割合がありません');ally=Number(value);if(!Number.isFinite(ally)||ally<0||ally>=1)throw new Error('--ally は0以上1未満');}
+  else if(arg==='--no-npc')npc=false;
   else if(arg==='--idle')idle=true;
   else if(arg==='--profile')profile=true;
   else if(arg==='--brief')continue;
@@ -165,11 +209,12 @@ function parseArgs(args){
   else positional.push(arg);
  }
  const [terrain='exercise2',d0='mars',d1='earth',level='standard',seed='1',seconds='600']=positional;
- const cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle,profile,intents,npc};
+ const cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle,profile,intents,npc,ally};
+ if(ally>0&&(terrain==='charybdis'||idle))throw new Error('--ally は地上の両軍NPC計測のみ');
  if(positional.length>6||!['exercise2','baikonur','field150','field300','charybdis'].includes(terrain)||![d0,d1].every(x=>['mars','earth'].includes(x))||!['easy','standard','hard'].includes(level)||!Number.isInteger(cfg.seed)||!Number.isFinite(cfg.seconds)||cfg.seconds<=0)throw new Error('引数: exercise2|baikonur|field150|field300 mars|earth mars|earth easy|standard|hard seed 秒 [--idle] [--brief] [--profile] [--intent0 意図] [--intent1 意図]');
  return cfg;
 }
-module.exports={setupNpcSim,advanceNpcSim,npcSimResult,installNpcProfile,brief,table,run,parseIntent,parseArgs};
+module.exports={setupNpcSim,advanceNpcSim,npcSimResult,installNpcProfile,sampleNpcAlly,brief,table,run,parseIntent,parseArgs};
 const {setupSpaceNpcSim,advanceSpaceNpcSim,spaceNpcSimResult}=require('./npc-space-sim.cjs');
 if(require.main===module){
  const args=process.argv.slice(2),cfg=parseArgs(args);

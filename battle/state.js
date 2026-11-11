@@ -302,7 +302,7 @@ function shapeSlots(kind,list){
 }
 /* gather the army group into its formation around the flagship, where the flagship is now (the flagship stops) */
 function reform(g){ const fl=groupFlag(g); if(!fl) return; const m=groupAlive(g);
-  saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
+  npcAutoPlayer(m);saveUndo(m); dropArrow(fl.arrow); fl.arrow=null; fl.order=null; fl.queue=[];
   m.forEach(f=>{ if(f===fl) return; f.queue=[]; f.syncSpeed=null; order(f,{type:'move',dest:fl.pos.clone().add(turnTo(formationOffset(g,f),fl.march))}); }); }
 /* a place in the formation (ahead is -z), turned so that ahead is `dir` (level) */
 const _up=new THREE.Vector3(0,1,0);
@@ -336,7 +336,7 @@ function disband(g){ const i=groups.indexOf(g); if(i<0) return; groups.splice(i,
   if(selGroup===g) select(null); buildRoster(); updateRoster();
   logEvent(`${g.name} 解散`,'各打撃群は独立行動に戻った。'); }
 /* formation on: a move keeps the formation around the flagship. Off: every army goes to the point itself */
-function toggleForm(g){ g.form=!g.form; updateRoster();
+function toggleForm(g){ npcAutoPlayer(groupAlive(g));g.form=!g.form; updateRoster();
   logEvent(g.form?`${g.name} 陣形ON`:`${g.name} 陣形OFF`, g.form?`旗艦の${(groupFlag(g)||{name:'—'}).name}を中心に、陣形を保って動く。`:'移動を命じると、全軍が指示した一点に集まる。'); }
 function selectGroup(g){ const m=groupAlive(g); if(!m.length) return; if(selGroup===g){ select(null); return; } setSel(m,g); }
 /* G: the group of the selected fleet, then the next group, then nothing */
@@ -367,6 +367,7 @@ function undo(){
   if(op.ground)groundClearAiming();
   const u=undoStack.pop(); updateUndo(); if(!u||over) return;
   for(const s of u){ const f=s.f; if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo'))) continue;
+    npcAutoPlayer([f]);
     if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;}
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
@@ -377,7 +378,7 @@ function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=
 function groupOrder(o){
   const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'){groundStrikeMessage=groundAirTarget(o.target)&&orderTargets().some(f=>groundAutoAASource(f)&&groundAARange(f)>0)?'対空は装備部隊が自動迎撃':'攻撃不可：対応兵器・高度を確認';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
-  saveUndo(t);
+  npcAutoPlayer(t);saveUndo(t);
   if(op.ground)t.forEach(f=>f.groundPlan=null);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
@@ -417,7 +418,7 @@ function updateRoster(){
     const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); const no=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
     if(nb.dataset.k!==no){ nb.dataset.k=no; if(nn) nb.textContent=no; else nb.innerHTML=no.replace('第','<i>第</i>'); }
     if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
-    f.btn.querySelector('.no small').textContent=(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+f.ships.length);
+    f.btn.querySelector('.no small').textContent=(npcAutoPlayerUnit(f)?'手動 ':'')+(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+f.ships.length);
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
     if(op.ground)groundSupplyUpdateTile(f);else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));

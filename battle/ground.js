@@ -127,6 +127,7 @@ function groundFireSolution(f,t){ return !groundTrainingEnemy(f)&&f.alive&&t.ali
 function groundLandable(f){ return groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&!f.embarked&&groundCommandAllowed(f,'band')&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
+  npcAutoPlayer(list);
   for(const f of list){
     if(f.bandTo===band) continue; // 同じ命令の連打では時計を戻さない。
     f.bandTo=band===f.band?null:band; f.bandLeft=f.bandTo?groundRules().transitionSec:0;
@@ -539,7 +540,7 @@ document.getElementById('groundMove').addEventListener('click',()=>{
 document.getElementById('groundHold').addEventListener('click',()=>{
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
-  saveUndo(list);
+  npcAutoPlayer(list);saveUndo(list);
   for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
   groundClearAiming();groundHud();updateRoster();
 });

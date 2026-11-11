@@ -67,7 +67,7 @@ function groundLandCommand(list){
     if(ship.groundUnloading){reason='すでに上陸中';continue;}
     const plan=groundLandPlan(ship);
     if(plan.reason){reason=plan.reason;continue;}
-    groundCancelWork(ship);groundClearOrders(ship);
+    npcAutoPlayer([ship,...groundPassengers(ship)]);groundCancelWork(ship);groundClearOrders(ship);
     for(const f of ship.groundBoarders||[])groundClearOrders(f);
     ship.groundBoarders=[];ship.groundUnloading={progress:0};count++;
     if(op.groundDrill)groundDrillEvent('land',ship,groundPassengers(ship));
@@ -112,7 +112,7 @@ function groundBoardCommand(list,carrier){
     const path=reason?null:groundShipBoardPath(f,carrier);
     if(!reason&&!path)reason='浜まで通れる道がない';
     if(reason){groundTransportMessage='乗艦不可：'+reason;groundHud();return false;}
-    groundCancelWork(f);groundClearOrders(f);carrier.groundBoarders=[...reserved,f];
+    npcAutoPlayer([f,carrier]);groundCancelWork(f);groundClearOrders(f);carrier.groundBoarders=[...reserved,f];
     f.order={type:'board',target:carrier,path,repath:groundTransportRules().repathSec};groundClearAiming();groundTransportMessage='乗艦する浜へ移動中';groundHud();return true;
   }
   if(!groundBoardable(f)||!carrier.alive||carrier.locked||carrier.groundKind!=='apc'||carrier.groundRout||carrier.team!==f.team||carrier.groundPassenger||carrier.groundBoarder&&carrier.groundBoarder!==f){
@@ -120,7 +120,7 @@ function groundBoardCommand(list,carrier){
   }
   const path=groundPath(f.pos,carrier.pos,groundMoveKind(f));
   if(!path){groundTransportMessage='乗車不可：輸送車まで通れる道がない';groundHud();return false;}
-  groundCancelWork(f);groundClearOrders(f);carrier.groundBoarder=f;
+  npcAutoPlayer([f,carrier]);groundCancelWork(f);groundClearOrders(f);carrier.groundBoarder=f;
   f.order={type:'board',target:carrier,path,repath:0};if(op.groundDrill)groundDrillEvent('board',f,carrier);groundClearAiming();groundTransportMessage='輸送車へ移動中';groundHud();return true;
 }
 function groundExitPoint(f,carrier,emergency=false){
@@ -150,7 +150,7 @@ function groundUnload(carrier,emergency=false){
 }
 function groundUnloadCommand(list){
   let count=0;
-  for(const carrier of new Set(list.map(f=>f.embarked||f)))if(carrier.alive&&groundCommandAllowed(carrier,'unload')&&groundUnload(carrier))count++;
+  for(const carrier of new Set(list.map(f=>f.embarked||f)))if(carrier.alive&&groundCommandAllowed(carrier,'unload')){const passenger=carrier.groundPassenger;if(groundUnload(carrier)){npcAutoPlayer([carrier,passenger]);count++;}}
   if(count)groundClearAiming();
   groundTransportMessage=count?`${count}中隊 降車`:'降車不可：搭載部隊か通れる隣接地がない';groundHud();return count;
 }
@@ -208,7 +208,7 @@ function groundBridgeCommand(list,p){
     if(!path)reason='川岸まで通れる道がない';
   }
   if(reason){groundTransportMessage='架橋不可：'+reason;groundHud();return null;}
-  groundCancelWork(f);groundClearOrders(f);
+  npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);
   const b={...plan,builder:f,team:f.team,progress:0,complete:false,hp:groundEngineeringRules().hp,visual:null};
   groundBridges.push(b);f.order={type:'bridge',bridge:b,path};groundClearAiming();groundTransportMessage='川岸へ移動中';groundHud();if(op.groundDrill)groundDrillEvent('bridge',f,b);return b;
 }

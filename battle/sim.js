@@ -1071,7 +1071,7 @@ function enemyAI(){
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
   if(packs.length) stepPacks(all);   // ドクトリンの型 (operations with packs only)
   for(const f of fleets){
-    if(f.team!==1&&!npcSpaceActive(f.team)||!f.alive||f.fixed) continue;
+    if(f.team!==1&&!npcSpaceControls(f)||!f.alive||f.fixed) continue;
     if(patrolHunting(f)){ const t=opCarrier.cs.patrolTarget;
       if(opCarrier.cs.patrolEngaged&&t&&t.alive){ if(t.seen){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t}); }
         else moveTo(f,t.pos.x,t.pos.y,t.pos.z); }

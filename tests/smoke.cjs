@@ -19,7 +19,7 @@ const { checkGroundSupply } = require('./ground-supply.cjs');
 const {nodeChecks:npcSpaceChecks,checkNpcSpace}=require('./npc-space.cjs');
 const {nodeChecks:npcCoreChecks}=require('./npc-core.cjs');
 const {nodeChecks:npcSimChecks}=require('./npc-sim.cjs');
-const {nodeChecks:npcGroundChecks,checkNpcGround}=require('./npc-ground.cjs');
+const {nodeChecks:npcGroundChecks,checkNpcGround,checkNpcAuto}=require('./npc-ground.cjs');
 const { checkGroundDrill } = require('./ground-drill.cjs');
 const { checkCommandIcons } = require('./command-icons.cjs');
 const { checkGroundFixes } = require('./ground-fixes.cjs');
@@ -2522,6 +2522,7 @@ function check(ok, label, detail = '') {
       for (let i = 0; i < 40; i++) step(.05); r.orders = fleets.filter(f => f.team === 0 && !f.ward && f.alive && f.order).length; return r; });
     check(au0.auto && au0.talking && au.left < au0.left && !au.deploying && au.orders > 0, 'デバッグ: オートモードでは会話が自動で進み、配置もそのまま始まり、自軍が自分で動く', JSON.stringify([au0, au]));
     await page.evaluate(() => openMenu()); await page.click('#dbgB [data-dbg="auto"]');
+    await checkNpcAuto(page,check);
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }

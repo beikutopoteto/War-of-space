@@ -1,7 +1,7 @@
 /* Node: 実データ・本物の頭・宇宙橋渡し・sortieを固定場面で確認。 */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),THREE=require('three'),{performance}=require('node:perf_hooks');
 function createSpaceContext(){
-  const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8'),box={THREE,performance,console,HP_K:2,ALT_MAX:100,gameSec:0,over:false,chase:null,
+  const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8'),box={THREE,performance,console,HP_K:2,ALT_MAX:100,gameSec:0,over:false,chase:null,autoMode:false,
     tutorial:null,tutorialActive(){return !!this.tutorial&&!this.tutorial.skipped;},inCloud:()=>false,bodyBlocks:()=>false,debris:[],clouds:[],
     fieldC:new THREE.Vector3(),CLOUD_SIGHT:.5,sightOf:f=>60+(f.vis??6)*8,concealOf:f=>1-Math.min(10,f.stl??4)*.04,
     speedOf:f=>f.speed,dropArrow(){},scoutAI(){},npcDebug:()=>({ground:true}),logEvent(){}};
@@ -14,7 +14,7 @@ function createSpaceContext(){
   run(sim.slice(sim.indexOf('function topClass('),sim.indexOf('const sideOf=')));
   run('const ROLES=WOS_DATA.roles;');
   run(sim.slice(sim.indexOf('function stepSorties('),sim.indexOf('let aiTimer=')));
-  run(read('battle/npc-space.js'));
+  run(read('battle/npc-ground.js'));run(read('battle/npc-space.js'));
   run(`op=WOS_DATA.operations.find(o=>o.id==='charybdis');fleets=[];fortress={alive:true,team:1,pos:new THREE.Vector3(0,3,0),hpPool:100,max:100,sortie:[]};`);
   let id=1;
   const unit=(team,x,z,extra={})=>{const f={kind:'fleet',id:id++,team,type:'cl',n:10,ships:Array.from({length:10},()=>({type:'cl'})),hp:84,dmg:4.2,hpPool:840,
@@ -24,6 +24,20 @@ function createSpaceContext(){
 }
 function nodeChecks(){
   const rows=[],test=(name,fn)=>{fn();rows.push({name,ok:true});};
+  test('自軍オートの生成・手動除外・初期戦力・20秒復帰・解除と再生成',()=>{
+    const {box:b,run,unit}=createSpaceContext();const f=unit(0,0,120),other=unit(0,10,120);unit(1,0,0,{seen:true});
+    run('npcSpaceInit()');assert.equal(run('npcSpaceState.commanders.has(0)'),false);
+    b.autoMode=true;run('npcAutoToggle();npcSpaceStep()');assert(run('npcSpaceState.commanders.get(0).plan'));assert(f.npcTask||other.npcTask);
+    b.actor=f;run("npcAutoPlayer([actor]);actor.order={type:'move',dest:new THREE.Vector3(0,0,120)};c=npcSpaceState.commanders.get(0);sit=npcSpaceSituation(c)");
+    assert.equal(run('c.side'),'ally');assert.equal(run('sit.units.some(u=>u.id===actor.id)'),false);assert.equal(run('sit.lead.units[0].to'),'outerS');
+    const old=f.order;b.task={key:'hold:fort',type:'hold',zone:'fort',stage:'wait',units:[{id:f.id,as:'main'}]};run('npcSpaceApply(c,sit,{tasks:[task]});npcSpaceKeepPosts()');assert.equal(f.order,old);assert.equal(run('npcSpaceControls(actor)'),false);
+    f.ships.length=4;run('sit=npcSpaceSituation(c)');assert.equal(run('sit.lead.full'),1);assert.equal(run('sit.lead.units[0].power'),.4);
+    f.order=null;f.queue=[old];run('npcSpaceAutoSync()');b.gameSec=30;run('npcSpaceAutoSync()');assert(run('npcAutoPlayerUnit(actor)'));
+    f.queue=[];run('npcSpaceAutoSync()');b.gameSec=49.99;run('npcSpaceAutoSync()');assert(run('npcAutoPlayerUnit(actor)'));b.gameSec=50;run('npcSpaceAutoSync();sit=npcSpaceSituation(c)');assert.equal(run('npcAutoPlayerUnit(actor)'),false);assert.equal(run('c.side'),'foe');
+    run('npcAutoPlayer([actor]);npcAutoReturn=false;npcSpaceAutoSync()');b.gameSec=100;run('npcSpaceAutoSync()');assert(run('npcAutoPlayerUnit(actor)'));
+    f.order=old;b.autoMode=false;run('npcAutoToggle()');assert.equal(run('npcSpaceState.commanders.has(0)'),false);assert.equal(f.order,old);
+    b.autoMode=true;run('npcAutoToggle()');assert(run('npcSpaceState.commanders.get(0)!==c'));assert.equal(run('npcSpaceState.auto.players.size'),0);
+  });
   test('拠点は片軍だけで連続10秒、競合と無人で時計をリセット、無人は前所有を保持',()=>{
     const {box:b,run,unit}=createSpaceContext();b.op={...b.op,npcZones:[{id:'A',pos:[0,0],r:25,owner:null}],npcLinks:[]};
     const red=unit(1,0,0);run('npcSpaceInit();npcSpaceOwners()');b.gameSec=9.99;run('npcSpaceOwners()');assert.equal(run('npcSpaceState.zones[0].owner'),null);
@@ -73,6 +87,7 @@ function nodeChecks(){
     p=place('seize','advance');assert.equal(p.ai,'guard');assert.equal(p.post.x,53);assert(p.post.distanceTo(new THREE.Vector3(100,20,0))>25);
     p=place('seize','assault');assert.equal(p.ai,'hunt');assert.equal(p.watch.x,100);
     p=place('fix');assert.equal(p.ai,'guard');assert(Math.abs(p.post.x-82.4)<1e-8);assert.equal(p.leash,8);
+    run("c.side='ally'");p=place('fix');assert(Math.hypot(p.post.x-100,p.post.z)>25);assert(Math.hypot(p.post.x-100,p.post.z)-p.leash>=25);run("c.side='foe'");
     assert.equal(place('cut').ai,'hunt');assert.equal(place('recon').ai,'scout');b.scoutAI=undefined;assert.equal(place('recon').ai,'hunt');b.scoutAI=()=>{};
     for(const type of ['reserve','refit','retire']){p=place(type);assert.equal(p.ai,'guard');assert.equal(p.post.x,100);assert.equal(p.leash,8);}
     p=place('seize','assault','support',1,3);assert.equal(p.ai,'guard');assert(p.post.x<100);assert(p.post.distanceTo(new THREE.Vector3(100,20,0))<f.launchR);

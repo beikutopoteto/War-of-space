@@ -51,6 +51,7 @@ function setAlt(v,apply=true){
   altKnob.style.top=(50-50*selAlt/ALT_MAX)+'%'; altVal.textContent=altStr(selAlt); altTrack.setAttribute('aria-valuenow',selAlt);
   if(!apply||!selected||!selected.alive) return;
   const t=orderTargets(); if(!t.length) return;
+  npcAutoPlayer(t);
   const cy=t.reduce((s,f)=>s+(f.order&&f.order.type==='move'?f.order.dest.y:f.pos.y),0)/t.length;
   t.forEach(f=>{
     if(f.order&&f.order.type==='move'){ const via=pathLeft(f.order), d=via.pop().clone(); d.y+=selAlt-cy; order(f,{type:'move',via,dest:d}); }
@@ -334,12 +335,12 @@ addEventListener('pointerdown',hideHint,{capture:true});
 const stanceEl=document.getElementById('stance');
 function setStance(v){ const t=orderTargets(); if(t.length) applyStance(t,v,selGroup?`${selGroup.name} 全軍`:null); }
 /* set 自動交戦/命令優先 on a list of fleets (from the altitude panel, R, or the switches in the fleet list) */
-function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f)&&groundCommandAllowed(f,'stance'));if(!t.length)return; if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
+function applyStance(t,v,label){ if(op.ground)t=t.filter(f=>!groundPermissionOnly(f)&&groundCommandAllowed(f,'stance'));if(!t.length)return; npcAutoPlayer(t);if(v==='evade') tutorialEvent('stance'); t.forEach(f=>f.stance=v); updateRoster();
   const n=label||t.map(f=>f.name).join('・');
   logEvent(v==='evade'?`${n} 命令優先`:`${n} 自動交戦`, op.ground?(v==='evade'?'通常攻撃は命じた敵だけ。航空機以外の対空装備は、発見・射程・射線を満たすと独立して自動迎撃する。':'攻撃可能な観測済みの敵と自動交戦する。航空機以外の対空装備は、通常命令を続けながら独立して自動迎撃する。'):v==='evade'?'攻撃を命じた敵だけを撃ち、母艦も命じた敵にだけ小型機を出す。':'射程内に入った敵を撃ち、母艦は近い敵に小型機を出す。'); }
 /* speed sync of the army group: on, every army moving under a group order keeps to the slowest one */
 function toggleSync(g){ if(!g) return; g.sync=!g.sync;
-  const m=groupAlive(g), slow=m.length?Math.min(...m.map(f=>f.speed)):null;
+  const m=groupAlive(g);npcAutoPlayer(m);const slow=m.length?Math.min(...m.map(f=>f.speed)):null;
   m.forEach(f=>{ if(g.sync){ if(f.order&&f.order.type==='move') f.syncSpeed=slow; } else f.syncSpeed=null; });
   updateRoster();
   logEvent(g.sync?`${g.name} 速度同期`:`${g.name} 個別の速度`, g.sync?'全軍で移動するとき、最も遅い艦に速度を合わせる。':'全軍で移動するときも、各打撃群がそれぞれの速度で進む。'); }
@@ -355,12 +356,17 @@ document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click'
    続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls.
    With the debug switch on (prep.js, body.dbg-battle) it also offers an instant win or defeat */
 const pauseEl=document.getElementById('pause'); let paused=false, pausedSpeed=1;
-function pauseAutoDraw(){const b=pauseEl.querySelector('[data-pm="auto"]');b.textContent='オートモード：'+(autoMode?'オン':'オフ');b.setAttribute('aria-pressed',String(autoMode));}
+function pauseAutoDraw(){
+  for(const [key,label,value] of [['auto','オートモード',autoMode],['autoReturn','自動で指揮官に戻す',npcAutoReturn]]){
+    const b=pauseEl.querySelector('[data-pm="'+key+'"]');b.textContent=label+'：'+(value?'オン':'オフ');b.setAttribute('aria-pressed',String(value));
+  }
+}
 function openPause(){ if(paused||over||menuOpen) return; paused=true; pausedSpeed=speed; setSpeed(0); closePick(); pauseAutoDraw(); pauseEl.hidden=false; pauseEl.querySelector('[data-pm="resume"]').focus(); }
 function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; setSpeed(pausedSpeed); }
 pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const a=b.dataset.pm;
-  if(a==='auto'){autoMode=!autoMode;window.WOS_MENU.setAuto(autoMode);pauseAutoDraw();}
+  if(a==='auto'){autoMode=!autoMode;npcAutoToggle();window.WOS_MENU.setAuto(autoMode);pauseAutoDraw();updateRoster();}
+  if(a==='autoReturn'){npcAutoReturn=!npcAutoReturn;window.WOS_MENU.setAutoReturn(npcAutoReturn);pauseAutoDraw();}
   if(a==='resume') closePause();
   if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startOp(); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
@@ -389,6 +395,7 @@ function openMenu(){ talkDone=null; endTalk(); menuOpen=true; document.body.clas
 window.WOS={ start(cfg){
   if(cfg&&OPS.some(o=>o.id===cfg.op&&o.ground)&&cfg.groundOrg===undefined&&!cfg.fleets&&window.WOS_MENU) cfg=window.WOS_MENU.groundConfig(cfg);
   autoMode=document.body.classList.contains('dbg-auto');   // the debug auto mode (prep.js; sim.js autoAI)
+  npcAutoReturn=window.WOS_MENU?.autoReturn()!==false;
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startOp();
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field (the tutorial: op.tutorialView) */
