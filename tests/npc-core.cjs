@@ -145,6 +145,37 @@ function nodeChecks(){
   const c=commander('mars','hard','ally'),s=fixture();s.lead={front:'C'};
   for(let t=0;t<120;t+=3){s.time=t;const p=npcThink(c,s);for(const k of p.tasks.filter(k=>['seize','fix','cut'].includes(k.type))){assert.notEqual(k.zone,'F');assert(c.graph.dist('A',k.zone)<=c.graph.dist('A','C'));}}
  });
+ // 友軍が先導（プレイヤーの隊）に合わせる動き。lead.units を渡したときだけ働く。
+ const off=p=>p.tasks.filter(k=>['seize','fix','cut'].includes(k.type)),leadAtB=(extra={})=>[{id:'p1',x:10,z:0,power:3,...extra},{id:'p2',x:10,z:0,power:3,...extra}];
+ test('友軍は自分の力の比では攻めず、先導が攻めた拠点を占領せずに支援する',()=>{
+  const c=commander('mars','hard','ally'),s=fixture();s.lead={units:leadAtB()};
+  let p=npcThink(c,s);assert.equal(p.posture,'defend');assert.equal(off(p).length,0);assert.equal(p.lead.mode,'follow');
+  s.lead={units:leadAtB({to:'C'})};s.time=60;p=npcThink(c,s);assert.equal(p.posture,'defend');s.time=63;p=npcThink(c,s);assert.equal(p.posture,'attack'); // 反応の遅れのあとに出る
+  assert.equal(p.lead.main,'C');
+  const fix=p.tasks.find(k=>k.type==='fix'&&k.zone==='C');assert(fix&&fix.why==='攻撃を支援する');assert(!p.tasks.some(k=>k.type==='seize'));
+  const used=off(p).flatMap(k=>k.units).length;assert(used>0&&used<=10); // 攻めに出すのは半分まで
+ });
+ test('友軍は先導がいる拠点に守備を重ねず、離れたら引き継ぐ',()=>{
+  const c=commander('mars','hard','ally'),s=fixture();s.lead={units:leadAtB()};
+  let p=npcThink(c,s);assert(!holds(p).some(k=>k.zone==='B'));
+  s.lead={units:leadAtB({x:0})};s.time=3;p=npcThink(c,s);const h=holds(p).find(k=>k.zone==='B');assert(h&&h.why==='引き継いで守る');
+ });
+ test('友軍は敵のいない横の拠点だけ取り、先導が向かう拠点には手を出さない',()=>{
+  const lateral=s=>{s.zones.push({id:'E',x:10,z:12,r:2,owner:'none',known:'none',seen:true});s.links.push({a:'A',b:'E',len:10});return s;};
+  let c=commander('mars','hard','ally'),s=lateral(fixture());s.lead={units:leadAtB()};
+  let p=npcThink(c,s);assert.deepEqual(p.tasks.filter(k=>k.type==='seize').map(k=>k.zone),['E']);
+  c=commander('mars','hard','ally');s=lateral(fixture());s.lead={units:leadAtB({to:'E'})};
+  for(let t=0;t<90;t+=3){s.time=t;p=npcThink(c,s);assert(!p.tasks.some(k=>k.type==='seize'));}
+ });
+ test('敵が残りわずかになると、友軍は攻めをやめてとどめを先導に残す',()=>{
+  const c=commander('mars','hard','ally'),s=fixture();s.contacts.forEach(e=>e.power=5);s.lead={units:leadAtB({to:'C'})};
+  let p=npcThink(c,s);assert(off(p).length>0);
+  s.contacts=[{id:'e1',x:20,z:0,power:1,age:0}];s.time=60;p=npcThink(c,s);assert.equal(p.lead.mode,'quiet');assert.equal(off(p).length,0);
+ });
+ test('先導が負けそうなら友軍は助けに入るが、最終目標は取らない',()=>{
+  const c=commander('mars','hard','ally'),s=fixture();s.lead={full:10,units:[{id:'p1',x:10,z:0,power:4}]};
+  for(let t=0;t<120;t+=3){s.time=t;const p=npcThink(c,s);assert.equal(p.lead.mode,'rescue');for(const k of off(p))assert.notEqual(k.zone,'F');if(t===0)assert(p.tasks.some(k=>k.type==='seize'));}
+ });
  test('低士気・低補給はrefit、低耐久は攻めの最後',()=>{
   const c=commander(),s=fixture();s.units[0].morale=.1;s.units[1].supply=.1;s.units[2].health=.1;const p=npcThink(c,s),refit=p.tasks.filter(k=>k.type==='refit').flatMap(k=>k.units.map(x=>x.id));
   assert(refit.includes('u0')&&refit.includes('u1'));assert(!main(p).units.some(x=>x.id==='u2'));assert(!refit.includes('u2'));
