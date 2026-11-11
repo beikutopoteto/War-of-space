@@ -78,7 +78,7 @@ function seedDrillCampaign(includeLast=true){
   const debug=document.getElementById('dbgT');if(debug.getAttribute('aria-expanded')!=='true')debug.click();
   document.querySelector('[data-dbga="skip"]').click(); // 通常の保存処理で初期編成も用意する。
   const s=JSON.parse(localStorage.getItem('wos.save.v1'));
-  s.prog.tutorialCleared=true;s.prog.prepDone=true;
+  s.prog.tutorialCleared=true;s.prog.prepDone=true;delete s.prog.flags.groundOpen; // デバッグのスキップが開ける鍵は外して、通常の解放順を確かめる
   s.prog.cleared=WOS_DATA.operations.filter(o=>o.chapter&&(includeLast||o.id!=='denaliBreak')).map(o=>o.id);
   s.sortieMenu={closed:{},seen:[]};
   s.groundOrg.companies.push({id:'drill-save-was',name:'保存中の W.A.S.',kind:'was'});
