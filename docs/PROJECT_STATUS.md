@@ -15,6 +15,7 @@
 |ブランチ|内容・扱い|
 |---|---|
 |claude/npc-intent|Codexがテスト・計測道具・資料を追加。頭・橋渡しの本体は未変更。Node全35ファイル中33成功（頭の新規2件と既存の領域キャッシュ画素比較が失敗）。次はClaudeが頭の修正・実ゲーム4条件の計測。試遊ページは更新しない|
+|claude/npc-space|Codex作業票の実装済み・未コミット。npc-intent上に宇宙橋渡し、演習9拠点16辺、計測器、Node12項目とsmoke・写真台本。頭と規範値は変更なし。下の引き継ぎ参照|
 |claude/ground-integration|段階6〜9の最終版。対象確認と1600×900の写真を保存。全作戦CI成功後にsquashマージする。CI／マージ結果はPRを参照|
 |claude/ground-naval-types|段階6・PR #387。最新233e467のCI42786024421成功。内容は最終版へ統合済み。最終版がmainへ入ったら重複PRを閉じる|
 |claude/ground-air-flight|段階7の保存版e6f9a9e。最終版へ統合済み。単独で重複マージしない|
@@ -44,3 +45,14 @@
 - `npm test` はNode部分を実行後、Chromium起動の `bootstrap_check_in: Permission denied (1100)` で停止。ログは `test-results/npc-intent-smoke.log`。実ゲーム4条件の計測は未実行としてClaudeへ引き継ぐ（`node tools/npc-measure.cjs`）。試遊ページは未更新。
 - 元の資料には9.7節と指定された「決めてほしいこと」3項目が存在しなかったため、実装の9.7節を新設。既存の10節の未決事項は別内容なので保持。
 - Git管理領域への書き込みは禁止され、`git fetch origin` はFETCH_HEADへの書き込みで失敗。未コミットの差分を保持する。
+
+## claude/npc-space の引き継ぎ（2026-11-11、作業票の範囲）
+
+- 実装済み: `battle/npc-space.js`、カリュブディスの案内なし演習の敵指揮官（標準・機動防御・要塞保持）。9拠点16辺の表と仮の値は `docs/menu.md`「宇宙NPC」。チュートリアルは既存台本、追撃開始後は橋渡し停止。勝敗・時間切れ・報酬・共通性能は変更なし。
+- 観測は視界内だけ。見失った敵は位置と力を記憶し、視界外での死は消さない。既存pickFoeの候補ゼロで現目標が残る境界条件をNodeで再現し、NPC守備だけ橋渡しからleash外の攻撃を解除する。共通の頭・規範・pickFoeは変更なし。
+- 確認: smoke以外のNode実行対象38ファイルを順次実行。資料のパス表記は修正後 `npm run check-docs` 成功。宇宙は追加の境界確認を含め `node tests/npc-space.cjs` 12/12成功。既存の頭・地上橋渡し・計測器も成功。残る失敗は `tests/ground-territory-cache.cjs` の road section identity pixel equivalence（最初の不一致byte230440:160対0）。変更前HEAD `68ba776` の独立した展開でも同じ失敗を再現。地上の領域キャッシュは今回変更せず、テストも削除・スキップしていない。
+- 未確認: ChromiumはmacOSのMachPortRendezvous登録がPermission deniedとなり起動不可。`tools/npc-space-shots.cjs` の実画面3条件・1600×900写真、`npm test`、実ゲームでのNPCあり／なし・seed1〜2はClaudeが順次実行する。勝率・装甲推移・棒立ち比・実ゲームの判断／step msは未測定。Nodeの模型での計測器出力と実ゲームの実測を混同しない。
+- 実測の次の一手: `node tools/npc-space-shots.cjs` → `node tools/npc-measure.cjs` → `npm test`（同時に回さない）。計測器は地上の既存5条件に宇宙4条件を追加。宇宙だけは `node tools/npc-sim.cjs charybdis mars earth standard 1 900`、台本比較に `--no-npc`。記録は `.shots/npc/`。
+- 頭に足りない入力: 要塞の残存装甲／被弾の緊急度、宇宙の射程・高度を含む段取りの到着判定。作業票の参照する設計9.7節はこのHEADにまだないため、既存のstylesデータと頭をそのまま使用。詳細は `docs/npc-doctrine.md` 7節。
+- git: 指定ブランチ `claude/npc-space`。開始時の作業ツリーはclean。`git fetch origin` は本体側のGit管理領域への書き込み制限で失敗した。作業票の許可どおりコミット・push・PRは行わず差分を残す。
+- 試遊ページ: 更新しない（今回の作業票）。写真も実測も未生成のため、撮れた／測れたとは報告しない。

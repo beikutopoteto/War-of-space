@@ -76,6 +76,7 @@ function updateFog(){
       if(t.team===1&&gameSec>0&&by!==t&&!thrOff(t)) logEvent(`${t.name} 発見`,`${by.name}が${t.name}（${t.ships.length}隻）を捕捉。`); }
     if(t.team===0&&t.seen&&t.kind==='fleet'&&!t.rescue&&!spotted) spotted=t;
   }
+  npcSpaceObserve();
   /* the enemy has eyes on one of ours: its main force heads there (enemyAI). Losing every contact shakes them off */
   if(spotted){ lastSpot={pos:spotted.pos.clone(),t:gameSec,unit:spotted}; spotEarly(); }
   if(!!spotted!==spotNow&&gameSec>0){ spotNow=!!spotted;
@@ -489,7 +490,7 @@ function stepChase(){
 /* the fortress sends out its defenders as its armour falls (op.fortress.sortie): those fleets leave their posts and hunt.
    With every, one fleet goes every `every` seconds, the one nearest our fleets first */
 function stepSorties(){
-  if(!fortress.alive||!fortress.sortie) return;
+  if(npcSpaceEnabled(0)||npcSpaceEnabled(1)||!fortress.alive||!fortress.sortie) return;
   const pct=fortress.hpPool/fortress.max;
   for(const s of fortress.sortie){
     if(!s.started){ if(pct>=s.below) continue; s.started=true; s.left=fleets.filter(f=>f.team===1&&f.alive&&s.fleets.includes(f.name)); s.next=gameSec; if(s.log) logEvent(...s.log); }
@@ -1070,7 +1071,7 @@ function enemyAI(){
   let dplan;   // the plan of those breaking us one by one (ai:'detail'), made once a round when one of them asks
   if(packs.length) stepPacks(all);   // ドクトリンの型 (operations with packs only)
   for(const f of fleets){
-    if(f.team!==1||!f.alive||f.fixed) continue;
+    if(f.team!==1&&!npcSpaceActive(f.team)||!f.alive||f.fixed) continue;
     if(patrolHunting(f)){ const t=opCarrier.cs.patrolTarget;
       if(opCarrier.cs.patrolEngaged&&t&&t.alive){ if(t.seen){ if(!f.order||f.order.target!==t) order(f,{type:'attack',target:t}); }
         else moveTo(f,t.pos.x,t.pos.y,t.pos.z); }
@@ -1083,7 +1084,8 @@ function enemyAI(){
     /* 第5節: a unit hurt below fallBack of its ships pulls back into the clouds (withdraw; user decision 2026-10-14. 数値は仮).
        Ships that leave are not counted as sunk (mainSunk counts only the ships lost) */
     if(f.fallBack&&f.ai!=='withdraw'&&f.ships.length<f.n*f.fallBack){ f.ai='withdraw'; f.fellBack=true; }
-    let foes=f.spare?all.filter(x=>!spares(f,x)):all;
+    const visible=npcSpaceActive(f.team)?fleets.filter(x=>x.team!==f.team&&x.alive&&x.seen&&!x.ghost):all;
+    let foes=f.spare?visible.filter(x=>!spares(f,x)):visible;
     if(f.prey==='ally'){ const al=fleets.filter(x=>x.ally&&x.alive&&x.seen&&!spares(f,x)); if(al.length) foes=al; }   // the allied main fleet first (第4節 Alvarez)
     /* 第5節 (2026-10-18, user decision): one of Alvarez's units (prey:'front') hunts on the front line, the nearest of our ships, allies
        and ours alike, out in front of the gates (north of FRONT_LINE); with none there, the shield of the gate by its watch point */
@@ -1338,7 +1340,7 @@ function allyAI(){
      (user decision 2026-10-13: the batteries are foes too, and count in the share-out) */
   const foes=fleets.filter(f=>f.team===1&&f.alive&&(f.fixed||f.seen&&!(op.civil&&inZone(f))));
   for(const f of fleets){
-    if(!f.ally||!f.alive||f.fixed) continue;   // a battery on the rock (第5節) only shoots
+    if(!f.ally||!f.alive||f.fixed||npcSpaceActive(f.team)) continue;   // a battery on the rock (第5節) only shoots
     if(opCarrier&&op.carrier.patrol&&opCarrier.cs.patrolStarted&&!opCarrier.cs.patrolReleased&&opCarrier.cs.patrolTarget===f){
       const P=op.carrier.patrol; f.mode='patrol'; moveTo(f,P.pos[0],P.alt||0,P.pos[1]); continue; }
     if(f.mode!=='guard') f.aim=f.waitAt=null;
@@ -2199,7 +2201,7 @@ let autoMode=false;
 const AUTO_R={escort:45, defend:60, port:45, carrier:50, gate:140, near:70}, AUTO_WAIT=12;
 function autoAI(){
   if(!autoMode||over) return;
-  const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.convoy&&!f.isCarrier&&!f.fixed&&!f.rescue);
+  const mine=fleets.filter(f=>f.team===0&&f.alive&&!f.ward&&!f.ally&&!f.convoy&&!f.isCarrier&&!f.fixed&&!f.rescue&&!npcSpaceActive(f.team));
   const seen=fleets.filter(e=>e.team===1&&e.alive&&e.seen&&!(op.civil&&inZone(e)));
   const ships=seen.filter(e=>!e.fixed), near=(p,R,list=ships)=>list.filter(e=>e.pos.distanceTo(p)<R);
   const by=(f,list,key)=>list.slice().sort((a,b)=>key(a,f)-key(b,f))[0];
@@ -2424,6 +2426,7 @@ function step(dt){
   stepConvoy(); stepRescue(dt); stepChase(); stepCarrier(dt);
   for(const u of units()) if(u.revealT>0) u.revealT-=dt;
   fogTimer-=dt; if(fogTimer<=0){fogTimer=FOG_DT; updateFog();}
+  npcSpaceStep();
   aiTimer-=dt; if(aiTimer<=0){aiTimer=.5; enemyAI(); allyAI(); pincers(); autoAI(); stepFronts(); stepAllyFall();}
   stepDefend(dt); stepBase(dt); stepRepel(); stepRotate(); stepPhases(dt); stepTimeUp(); stepLure(); stepNukes(dt);
   stepWings(dt);

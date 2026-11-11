@@ -545,6 +545,7 @@ function reset(cfg=lastCfg){
     ...(BD.port&&!BD.port.mark?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
   resetControlGuide(cfg);
   tutorialInit(cfg);
+  npcSpaceInit();
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
 }

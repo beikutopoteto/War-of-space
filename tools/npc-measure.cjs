@@ -7,7 +7,7 @@ const cases=[
  ...['firm','mobile','delay','depth'].map(style=>({terrain:'exercise2',doctrines:['earth','mars'],level:'standard',seed:1,seconds:600,idle:false,profile:false,
   intents:{0:{type:'seize'},1:{type:style==='delay'?'delay':'hold',style,zones:['F'],...(style==='delay'?{until:300}:{})}}})),
 ];
-function caseName(cfg){return cfg.terrain+'-seed'+cfg.seed+(cfg.idle?'-idle':'')+(cfg.profile?'-profile':'')+(cfg.intents?'-seize-vs-'+cfg.intents[1].style:'');}
+function caseName(cfg){return cfg.terrain+'-seed'+cfg.seed+(cfg.idle?'-idle':'')+(cfg.profile?'-profile':'')+(cfg.intents?'-seize-vs-'+cfg.intents[1].style:'')+(cfg.terrain==='charybdis'?(cfg.npc?'-npc':'-script'):'');}
 async function measure(){
  const out=path.resolve(__dirname,'../.shots/npc');fs.mkdirSync(out,{recursive:true});
  for(const cfg of cases){

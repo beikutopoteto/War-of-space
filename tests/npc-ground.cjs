@@ -214,7 +214,7 @@ async function checkNpcGround(page,check){
  });
  check(movement.moved>0&&movement.heading,'NPC演習: 敵が動き出し任務の拠点へ近づく',JSON.stringify(movement));
  for(const r of await page.evaluate(bridgeCases))check(r.ok,'NPC橋渡し: '+r.name);
- for(const id of ['groundExercise2','charybdis']){
+ for(const id of ['groundExercise2','shinano']){
   const ok=await page.evaluate(id=>{reset({op:id});if(talking)endTalk();setSpeed(0);if(deploying)endDeploy();let calls=0;const original=npcThink;npcThink=(...args)=>{calls++;return original(...args);};for(let i=0;i<80&&!over;i++)step(.05);npcThink=original;return calls===0&&Object.keys(npcDebug()).length===0;},id);
   check(ok,'NPC無効: '+id+'で頭を呼ばずdebugが空');
  }
