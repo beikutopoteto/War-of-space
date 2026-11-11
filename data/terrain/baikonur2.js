@@ -9,7 +9,7 @@
   const rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
   d.meta={id:'baikonur2',name:'カスピ海沿岸演習場（広域）',location:'アティラウ南方・ウラル川デルタと北カスピ海の氾濫原',latitude:46.85,longitude:51.85,widthKm:96,heightKm:72,cellKm:.4,elevationExaggeration:18,seed:28111,seaLevelM:-28,terrainTypes:['河川デルタ','氾濫原'],note:'寸法・密度・配置は演習用の仮値。実測GISではなく、港湾水路は創作。'};
   const coast=[[0,17],[12,18],[23,17],[34,16.5],[43,15.5],[47,16],[60,15],[69,14.5],[76,18],[86,17],[96,16]];
-  d.water={engineerBridgeMaxWidthKm:.3,coast,sea:[[0,0],[96,0],...coast.slice().reverse()],shallow:[...coast,...coast.slice().reverse().map(([x,y])=>[x,y-2.5])],
+  d.water={engineerBridgeMaxWidthKm:.3,coast,sea:[[-20,-20],[116,-20],[116,16],...coast.slice().reverse(),[-20,17]]/*盤の外まで広げる。角を滑らかにしたとき南の隅が陸に見えた（2026-11-11）*/,shallow:[...coast,...coast.slice().reverse().map(([x,y])=>[x,y-2.5])],
    rivers:[{id:'main',points:[[51,72],[50,66],[49,60],[50,53],[48,46],[47,39],[46,32],[46,25],[46,23],[47,16]],widths:[.28,.3,.35,.4,.46,.52,.6,.7,.75,.9]},
     {id:'west',points:[[46,23],[39,21],[36,19],[34,16.5]],widths:[.26,.32,.4,.5]},
     {id:'east',points:[[46,23],[52,22],[56,20],[60,15]],widths:[.25,.28,.36,.5]}],
