@@ -20,7 +20,7 @@ function npcGroundInit(){
   for(const [key,cfg] of Object.entries(op.npc)){
     const team=Number(key),D=N.doctrines[cfg.doctrine],L=N.levels[cfg.level];
     if(![0,1].includes(team)||!D||!L)continue;
-    const c=npcCommander({team,side:cfg.side,doctrine:D,level:L,seed:(op.npcSeed??1)+team*7});
+    const c=npcCommander({team,side:cfg.side,doctrine:D,level:L,styles:N.styles,seed:(op.npcSeed??1)+team*7});
     c.nextThink=gameSec+team*L.think/2;commanders.set(team,c);
     for(const f of fleets)if(f.team===team)f.stance='engage';
   }
@@ -67,7 +67,7 @@ function npcGroundSituation(c){
   for(const f of fleets){if(f.team===team||!f.alive)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
-  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize'}};
+  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...(op.npc[team].intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
   if(c.side==='ally'){
     // 明示の先頭拠点を優先。未指定なら既知の自軍拠点まで（最終目標は頭でも除外する）。
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');
