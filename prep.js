@@ -451,8 +451,8 @@ function renderDebug(){
   t.setAttribute('aria-expanded',String(dbgOpen)); b.hidden=!dbgOpen; if(!dbgOpen) return;
   b.innerHTML=`
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
-    <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
-    <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（自軍が自動で戦い、作戦の目標もこなす。会話と配置も自動で進む）</label>
+    <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北・オート切替</label>
+    <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（会話と配置を自動で進める。宇宙戦では自軍が自動で戦い、作戦の目標もこなす）</label>
     <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬も入り、緊急援助は準備の案内で届く）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="skip" title="演習のチュートリアル、チュートリアル2（バイコヌール演習も開く）と準備画面の案内（第2節のあと）を済みにする。準備画面の案内は「とばす」と同じで、巡洋艦の打撃群を戦区軍に置き、緊急援助を渡す（第2節の前なら、援助は第2節のクリアで入る）">チュートリアルスキップ</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
@@ -988,7 +988,7 @@ function onKey(e){
   const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }
-window.WOS_MENU={ open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
+window.WOS_MENU={ setAuto(value){dbg.auto=!!value;persistDbg();renderDebug();}, open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
   groundConfig(cfg){ return {...cfg,groundOrg:GROUND.normalize(save.groundOrg)}; } };
 render();
 {const groundPreview=new URLSearchParams(location.search).get('ground'),previewOps={exercise2:'groundExercise2',field150:'groundfield150',field300:'groundfield300'};if(previewOps[groundPreview])window.WOS.start({op:previewOps[groundPreview]});}

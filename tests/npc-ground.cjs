@@ -70,9 +70,9 @@ function logisticsCases(){
  const hold=task('hold','wait','H',[red]),reserve=task('reserve','wait','H',[other]),plan={tasks:[hold,reserve]};
  let road=npcGroundRoadOrders(c,sit,plan);
  check('安全な守備・予備から道路係は1隊、未占領区間を本営側から選ぶ',road.size===1&&road.has(red.id)&&groundMapX(road.get(red.id).x)===10);
- red.pos.copy(road.get(red.id));const seconds=groundRoadCaptureSeconds();
+ red.pos.copy(road.get(red.id));const seconds=groundRoadCaptureSeconds(edges[1]);
  groundSupplyRoadCapture(seconds-.1);road=npcGroundRoadOrders(c,sit,plan);
- check('通常の占領秒数までは中点で止まる',groundMapX(road.get(red.id).x)===10&&edges[1].owner!==1);
+ check('中立の占領秒数までは中点で止まる',groundMapX(road.get(red.id).x)===10&&edges[1].owner!==1);
  groundSupplyRoadCapture(.1);road=npcGroundRoadOrders(c,sit,plan);
  check('占領完了後に次の区間へ進む',edges[1].owner===1&&groundMapX(road.get(red.id).x)===12);
  sit.contacts=[{id:'visible',age:0}];check('敵が見えたら道路係を中断する',npcGroundRoadOrders(c,sit,plan).size===0);sit.contacts=[];

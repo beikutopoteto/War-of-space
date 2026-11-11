@@ -365,6 +365,7 @@ function groundMechanicalWear(f,dt){
 // 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
 let groundSites=[], groundTerritory=null;
 function groundCanCapture(f){ return f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
+function groundCaptureSeconds(s,owner=s.owner){return owner===null?WOS_TERRAIN[op.ground].capture.neutralSeconds:s.captureSec;}
 function groundCaptureStep(dt){
   if(over) return;
   for(const s of groundSites){
@@ -374,8 +375,9 @@ function groundCaptureStep(dt){
     if(s.contested) continue;
     const team=present[0]?0:present[1]?1:null;
     if(team===null||s.owner===team) continue;
-    s.progress[team]=Math.min(s.captureSec,s.progress[team]+dt);
-    if(s.progress[team]>=s.captureSec-1e-8){ s.owner=team; s.progress=[0,0]; }
+    const seconds=groundCaptureSeconds(s);
+    s.progress[team]=Math.min(seconds,s.progress[team]+dt);
+    if(s.progress[team]>=seconds-1e-8){ s.owner=team; s.progress=[0,0]; }
   }
   if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
   else if(!op.groundDrill&&op.win?.type==='groundHQ'&&(groundSites.some(s=>s.id===op.groundHQ?.[1]&&s.owner===0)||!fleets.some(f=>f.team===1&&f.alive&&f.hpPool>0))) end(true);
@@ -482,7 +484,7 @@ function groundPaintTerritory(){
   if(rebuild){
     const mask=new Uint8Array(width*height),members=new Array(width*height);
     for(let py=0;py<height;py++)for(let px=0;px<width;px++){
-      const x=(px+.5)/width*d.meta.widthKm,y=d.meta.heightKm-(py+.5)/height*d.meta.heightKm,i=py*width+px;
+      const x=(px+.5)/(width/d.meta.widthKm),y=d.meta.heightKm-(py+.5)/(height/d.meta.heightKm),i=py*width+px;
       if(!groundInside(x,y,spatial.board))continue;
       if(groundInside(x,y,spatial.sea)){mask[i]=1;continue;}
       mask[i]=2;members[i]=groundInfluenceAt(x,y,spatial);
@@ -503,8 +505,8 @@ function groundCaptureDraw(){
     const color=s.knownOwner===0?'#8bdfff':s.knownOwner===1?'#ff998b':'#cad1c5',p=proj(s.pos.clone().add(new THREE.Vector3(0,1,0)));
     s.ring.material.color.set(color); s.el.style.color=color;
     s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
-    const owner=s.knownOwner===0?'地球連合':s.knownOwner===1?'惑星共和国':'中立',progress=(s.knownProgress||[0,0]).map(n=>Math.floor(n/s.captureSec*100));
-    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,s.captureSec)}　青${progress[0]}% 赤${progress[1]}%${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
+    const owner=s.knownOwner===0?'地球連合':s.knownOwner===1?'惑星共和国':'中立',progress=(s.knownProgress||[0,0]).map(n=>Math.floor(n/groundCaptureSeconds(s,s.knownOwner)*100));
+    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,groundCaptureSeconds(s,s.knownOwner))}　青${progress[0]}% 赤${progress[1]}%${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
     s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${progress[i]}%`);
   }
 }

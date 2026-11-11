@@ -51,9 +51,10 @@ window.WOS_TERRAIN.exercise2 = {
     mas:{direct:3.3,indirect:{min:0,max:3.3},aa:3.3},
     masc:{direct:3.7,indirect:{min:0,max:3.7},aa:3.7}
   },
-  combat: { tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
-  capture: { seconds:30, roadSeconds:5, radiusKm:2, roadWidthKm:1.25 },
-  movement: { marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
+  // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
+  combat: { damageScale:1.3, tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
+  capture: { seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25 },
+  movement: { timeScale:1.2, roadFactor:1.75, marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
   height: { baseM:0.5, interpolationRadiusKm:8, noiseM:0.06,
     levee:{river:'main',bankOffsetKm:.48,widthKm:.38,heightM:2.4,channelHalfWidthKm:.17,channelCutM:.7},
     terrace:{edgeYKm:30.5,widthKm:.65,heightM:2.8},

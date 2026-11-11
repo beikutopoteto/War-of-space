@@ -6,6 +6,7 @@ const {nodeChecks:groundHintChecks,checkGroundHint}=require('./ground-hint.cjs')
 const path = require('path'), fs = require('fs');
 const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
+const {nodeChecks:groundTempoChecks,checkGroundTempo}=require('./ground-tempo.cjs');
 const { checkGroundCapture } = require('./ground-capture.cjs');
 const { checkGroundOrg } = require('./ground-org.cjs');
 const { checkGroundSight } = require('./ground-sight.cjs');
@@ -103,7 +104,7 @@ function check(ok, label, detail = '') {
       f.pos.copy(start); order(f,{type:'move',dest});
       let safe=true, bridge=false, height=true, steps=0;
       while(f.order && steps++<5000){ followPath(f,.05); const x=f.pos.x/4+24,y=18-f.pos.z/4; safe=safe&&groundPass(x,y); height=height&&Math.abs(f.pos.y-groundHeight(f.pos.x,f.pos.z))<1e-6; if(WOS_TERRAIN.exercise2.objects.bridges.some(b=>Math.hypot(x-b.x,y-b.y)<.8)) bridge=true; if(f.order.path.atIndex>=f.order.path.points.length) f.order=null; }
-      const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex(t=>t==='沼地'), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
+      const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex((t,i)=>{const x=(i%d.terrain.cols+.5)*d.meta.cellKm,y=(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm;return t==='沼地'&&groundRiverFactor(x,y,'vehicle')===1&&!d.objects.roads.some(r=>groundDistance(x,y,r.points)<=d.capture.roadWidthKm/2);}), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
       const travel=kind=>{ const start=p.clone(), target=p.clone().add(new THREE.Vector3(.5,0,0)), unit={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:{points:[start,target],atIndex:1,s:0}}}; groundFollow(unit,.1); return unit.pos.x-start.x; };
       const vehicleTravel=travel('vehicle'), infantryTravel=travel('infantry');
       return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0&&groundBands(x).length===1).length,fleets.filter(x=>x.team===1&&groundBands(x).length===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
@@ -112,6 +113,7 @@ function check(ok, label, detail = '') {
     for(const c of await page.evaluate(crossingCases))check(c.ok,'地上演習: '+c.name,JSON.stringify(c.detail));
     /* 3段: 命令・到着までの射撃・表の全組み合わせ・表示。場面を固定し、打撃で数える。 */
     const bands = await page.evaluate(() => {
+      const tick=dt=>step(dt/WOS_TERRAIN[op.ground].movement.timeScale);
       reset({op:'groundExercise2'}); setSpeed(0);
       // 高度専用の固定場面。演習の守備隊には航空を置かない。
       for(const kind of ['fighter','attack']){const spec=op.quick.find(f=>f.groundKind===kind),f=makeFleet(1,spec);f.band=spec.band;f.bandLeft=0;fleets.push(f);}
@@ -129,20 +131,20 @@ function check(ok, label, detail = '') {
       let delayed,arrived,repeat,groundToAir,highWas;
       try{
         select(attack); document.querySelector('#groundCommand [data-band="high"]').click();
-        for(let i=0;i<80;i++)step(.05);
+        for(let i=0;i<80;i++)tick(.05);
         delayed=attack.band==='low'&&attack.bandTo==='high'&&hits.length>0&&hits.every(h=>h.band==='low')&&attack.pos.y>groundHeight(attack.pos.x,attack.pos.z);
         const remaining=attack.bandLeft;groundSetBand([attack],'high');repeat=attack.bandLeft===remaining;
-        for(let i=0;i<20;i++)step(.05);
-        const n=hits.length;for(let i=0;i<25;i++)step(.05);
+        for(let i=0;i<20;i++)tick(.05);
+        const n=hits.length;for(let i=0;i<25;i++)tick(.05);
         arrived=attack.band==='high'&&!attack.bandTo&&hits.length===n&&attack.fireTarget===null;
         // W.A.S. は地上命令を維持し、上昇中も元の地上段で高高度を自動迎撃する。
         attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.band='high';
         const target=victim;fleets=[was,target,fighter];target.pos.copy(at);was.band='ground';was.order={type:'attack',target};was.pos.copy(at);was.groundShotT=was.groundAATimer=0;
         groundSetBand([was],'high'); hits.length=0;
-        for(let i=0;i<80;i++)step(.05);
+        for(let i=0;i<80;i++)tick(.05);
         groundToAir=was.band==='ground'&&hits.some(h=>h.target==='ground')&&hits.some(h=>h.target==='high')&&hits.every(h=>h.kind==='was'&&h.band==='ground')&&was.groundAATarget===fighter&&was.order?.target===target;
-        for(let i=0;i<20;i++)step(.05);
-        was.groundShotT=was.groundAATimer=0;hits.length=0;step(.05);
+        for(let i=0;i<20;i++)tick(.05);
+        was.groundShotT=was.groundAATimer=0;hits.length=0;tick(.05);
         highWas=was.band==='high'&&hits.some(h=>h.kind==='was'&&h.band==='high'&&h.target==='high')&&was.groundAATarget===fighter&&was.fireTarget===target&&was.order?.target===target;
       }finally{damage=originalDamage;}
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
@@ -156,7 +158,7 @@ function check(ok, label, detail = '') {
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;f.groundAATimer=0;f.groundAATarget=null;
           let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
           groundStep(.05);damage=original;
-          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i])>1e-6)bad++;
+          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i]*WOS_TERRAIN[op.ground].combat.damageScale)>1e-6)bad++;
           if(expected[i])allowedDamage+=delta;else blockedDamage+=delta;
           const autoAA=!['fighter','attack','supportAircraft'].includes(kind)&&targetBand!=='ground';
           if(expected[i]&&(autoAA?(f.groundAATarget!==t||!!f.fireTarget):(f.fireTarget!==t||!!f.groundAATarget)))bad++;
@@ -170,8 +172,8 @@ function check(ok, label, detail = '') {
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
       const plane=fleets.find(f=>f.groundKind==='fighter'), groundWas=fleets.find(f=>f.groundKind==='was');
       plane.pos.copy(groundPoint(14,22));plane.pos.y=groundUnitHeight(plane);
-      order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)step(.05);
-      const arrivedAt=plane.pos.clone(),flight=!plane.order&&groundDistanceTo(plane,{pos:groundPoint(12,3)})<=GROUND_AIR_CONTROL.waypoint+speedOf(plane)*.05;step(.1);const continued=plane.pos.distanceTo(arrivedAt)>0;
+      order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)tick(.05);
+      const arrivedAt=plane.pos.clone(),flight=!plane.order&&groundDistanceTo(plane,{pos:groundPoint(12,3)})<=GROUND_AIR_CONTROL.waypoint+speedOf(plane)*.05;tick(.1);const continued=plane.pos.distanceTo(arrivedAt)>0;
       groundWas.pos.copy(plane.pos);groundWas.band='high';const noSeaLanding=!groundSetBand([groundWas],'ground');
       const rendered=plane.groundModel.children.filter(o=>o.isMesh).length;
       const logical=plane.band;select(null);
@@ -188,6 +190,8 @@ function check(ok, label, detail = '') {
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
     check(bands.cases===39&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表39通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
+    for(const c of groundTempoChecks())check(c.ok,'地上テンポ: '+c.name);
+    await checkGroundTempo(page,check);
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
     await checkGroundSight(page, check);

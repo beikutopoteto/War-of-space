@@ -98,11 +98,11 @@ async function checkGroundLanding(page,check){
   await page.evaluate(()=>{selected.pos.copy(groundPoint(12.2,7.4));groundTransportSync();});
   await page.click('#groundLand');
   const gauge=await page.evaluate(()=>{
-    for(let i=0;i<100;i++)step(.05);groundDraw();
+    for(let i=0;i<100;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();
     const c=selected,el=c.groundLandingVisual;
     return c.groundUnloading&&el?.textContent.includes('1.3倍')&&Math.abs(parseFloat(el.querySelector('i').style.width)-50)<1e-6;
   });check(gauge,'上陸の実画面: ボタンで開始し5秒で50%ゲージ');
-  await page.evaluate(()=>{for(let i=0;i<100;i++)step(.05);groundDraw();});
+  await page.evaluate(()=>{for(let i=0;i<100;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();});
   check(await page.evaluate(()=>!selected.groundUnloading&&!selected.groundLandingVisual&&fleets.filter(f=>f.groundFixed).every(f=>!f.embarked&&f.groundModel.visible)),'上陸の実画面: 浜へ降りて表示が戻る');
   // 再乗艦を本物のクリックで確認。出発点を離し、速度2で数秒の行程に20秒を取る。
   await page.evaluate(()=>{

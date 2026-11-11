@@ -27,7 +27,7 @@ function transportCases(){
     check('搭載した歩兵は占拠しない',site.owner===null&&site.progress[0]===0);
     order(carrier,{type:'move',dest:groundPoint(12,27)});tick(3);check('輸送車の移動に搭載歩兵も追従',infantry.pos.equals(carrier.pos));
     check('降車で通れる隣接地に出て独立する',groundUnload(carrier)&&!infantry.embarked&&!carrier.groundPassenger&&infantry.pos.distanceTo(carrier.pos)>0&&groundPass(infantry.pos.x/4+24,18-infantry.pos.z/4,groundMoveKind(infantry)));
-    site.pos.copy(infantry.pos);tick(1);check('降車後は占拠を再開',site.progress[0]>0);
+    site.pos.copy(infantry.pos);tick(1);check('降車後は中立拠点を0.5秒で占領',site.owner===0&&site.progress[0]===0);
     groundSites=[];infantry.pos.copy(carrier.pos);check('再乗車できる',groundBoardCommand([infantry],carrier));tick(.05);
     const hp=infantry.hpPool;enemy.pos.copy(carrier.pos);enemy.range=100;groundUpdateSight();damage(carrier,carrier.hpPool,enemy);
     check('本物の damage で輸送車が撃破される',!carrier.alive);
@@ -119,10 +119,10 @@ async function checkGroundTransport(page,check){
   await page.locator('#groundBridge').click();await page.mouse.click(point.x,point.y);
   const drawn=await page.evaluate(()=>{
     const bridge=groundBridges[0];if(!bridge)return false;
-    for(let i=0;i<201;i++)step(.05);groundDraw();
+    for(let i=0;i<201;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();
     return !groundWorkAiming&&bridge.visual.el.textContent.includes('架橋中')&&Math.abs(parseFloat(bridge.visual.el.querySelector('i').style.width)-50)<1e-6&&!bridge.visual.deck.visible;
   });check(drawn,'架橋の実画面: 川のクリックで作業中のゲージ');
-  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge');reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
+  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge');reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
   for(const [key,ok] of Object.entries(resetState))check(ok,'輸送・架橋の実画面: '+key);
 }
 function nodeTransportScene(ctx){

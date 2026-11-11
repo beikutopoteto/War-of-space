@@ -14,7 +14,7 @@ function strikeCases(){
     check('自走砲は弾道から求めた飛翔時間・半径7',s&&s.left>0&&s.left===groundBallisticSolution(gun,aim).duration&&s.radius===7);
     check('再装填中は連射できない',groundStrikeLaunch(gun,aim)===null&&groundStrikes.length===1);
     const flight=s.left;groundStep(flight-.01);check('予告時間の直前は敵味方とも打撃0',enemy.hpPool===1000&&friend.hpPool===1000&&groundStrikes.length===1);
-    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',enemy.hpPool===988&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
+    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',Math.abs(enemy.hpPool-(1000-12*WOS_TERRAIN[op.ground].combat.damageScale))<1e-7&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
     check('中心ほど強く円周にも当たる',1000-enemy.hpPool>1000-friend.hpPool&&1000-friend.hpPool>1000-edge.hpPool&&edge.hpPool<1000);
     check('円外と低高度には当たらない',outside.hpPool===1000&&air.hpPool===1000);
     const hp=friend.hpPool;damage(friend,5,gun,s);check('着弾処理の外から味方へ damage を呼んでも損害0',friend.hpPool===hp);
@@ -85,7 +85,7 @@ async function checkGroundStrike(page,check){
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
     friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
-    let left=s.left;while(left>1e-8){const dt=Math.min(.05,left);step(dt);left-=dt;}groundDraw();
+    let left=s.left;while(left>1e-8){const dt=Math.min(.05,left);step(dt/WOS_TERRAIN[op.ground].movement.timeScale);left-=dt;}groundDraw();
     const hit=friend.hpPool+(friend.groundMorale||0)<hp[0]&&enemy.hpPool+(enemy.groundMorale||0)<hp[1],impact=groundImpacts.length===1&&document.querySelector('.ground-strike-label').textContent==='着弾';
     reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');
     reset({op:'charybdis'});return {hit,impact,clean,space:!groundStrikeAiming&&document.getElementById('groundAlt').hidden};
