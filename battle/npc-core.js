@@ -15,27 +15,36 @@ function npcLog(c,t,what,zone,why){ c.log.push({t:+t.toFixed(1),what,zone:zone??
 
 /* 拠点のつながり。全点間の最短距離と、守りを避ける経路探し。つながらない所は直線の1.6倍で代用する。 */
 function npcGraph(c,sit){
-  const key=sit.zones.map(z=>z.id).join(',')+'|'+sit.links.map(l=>l.a+'-'+l.b+':'+Math.round(l.len*10)+(l.open===false?'x':'')).join(',');
+  const key=sit.zones.map(z=>z.id).join(',')+'|'+sit.links.map(l=>l.a+'-'+l.b+':'+Math.round(l.len*10)+(l.open===false?'x':'')+(l.way?l.way[0]:'')).join(',');
   if(c.graph&&c.graph.key===key)return c.graph;
   const ids=sit.zones.map(z=>z.id), ix=new Map(ids.map((id,i)=>[id,i])), n=ids.length;
-  const d=ids.map((_,i)=>ids.map((_,j)=>i===j?0:Infinity)), adj=ids.map(()=>[]);
+  const d=ids.map((_,i)=>ids.map((_,j)=>i===j?0:Infinity)), adj=ids.map(()=>[]), pot=ids.map(()=>[]);
   for(const l of sit.links){
-    if(l.open===false)continue; const a=ix.get(l.a), b=ix.get(l.b); if(a===undefined||b===undefined||a===b)continue;
+    const a=ix.get(l.a), b=ix.get(l.b); if(a===undefined||b===undefined||a===b)continue;
+    /* 手段があれば通れるつながり: 橋のない川（way:'gap' で閉じている。工兵が架ける）と海（way:'sea'。揚陸艦で渡る）。
+       ふつうの距離と「隣」には数えず、経路探し（route の pen）でだけ使う。 */
+    if(l.way==='sea'||l.way==='gap'&&l.open===false){ pot[a].push({j:b,len:l.len,way:l.way}); pot[b].push({j:a,len:l.len,way:l.way}); continue; }
+    if(l.open===false)continue;
     if(l.len<d[a][b])d[a][b]=d[b][a]=l.len; adj[a].push({j:b,len:l.len}); adj[b].push({j:a,len:l.len});
   }
   for(let k=0;k<n;k++)for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(d[i][k]+d[k][j]<d[i][j])d[i][j]=d[i][k]+d[k][j];
   const pos=sit.zones.map(z=>[z.x,z.z]), air=(i,j)=>Math.hypot(pos[i][0]-pos[j][0],pos[i][1]-pos[j][1])*1.6;
   let span=1; for(let i=0;i<n;i++)for(let j=0;j<n;j++)span=Math.max(span,Number.isFinite(d[i][j])?d[i][j]:air(i,j));
   const dist=(a,b)=>{ const i=ix.get(a), j=ix.get(b); return Number.isFinite(d[i][j])?d[i][j]:air(i,j); };
-  /* cost(id): その拠点に入るときの上乗せ。経路は拠点の id の並び。 */
-  const route=(from,to,cost)=>{
-    const s=ix.get(from), e=ix.get(to), best=ids.map(()=>Infinity), prev=ids.map(()=>-1), done=ids.map(()=>false); best[s]=0;
+  /* cost(id): その拠点に入るときの上乗せ。経路は拠点の id の並び。
+     pen(way,a,b): 手段の要るつながりを a から b へ渡るときの上乗せ（Infinity は使えない）。渡さなければ、ふつうの道だけを通る。
+     返す並びの ways[k] は、k 番目の拠点へ入るときの手段（ふつうの道は null）。 */
+  const route=(from,to,cost,pen)=>{
+    const s=ix.get(from), e=ix.get(to), best=ids.map(()=>Infinity), prev=ids.map(()=>-1), how=ids.map(()=>null), done=ids.map(()=>false); best[s]=0;
     for(;;){ let i=-1; for(let k=0;k<n;k++)if(!done[k]&&best[k]<Infinity&&(i<0||best[k]<best[i]))i=k; if(i<0||i===e)break; done[i]=true;
-      for(const {j,len} of adj[i]){ const v=best[i]+len+(j===e?0:cost(ids[j])); if(v<best[j]){ best[j]=v; prev[j]=i; } } }
+      for(const {j,len} of adj[i]){ const v=best[i]+len+(j===e?0:cost(ids[j])); if(v<best[j]){ best[j]=v; prev[j]=i; how[j]=null; } }
+      if(pen)for(const {j,len,way} of pot[i]){ const x=pen(way,ids[i],ids[j]); if(!(x<Infinity))continue;
+        const v=best[i]+len+x+(j===e?0:cost(ids[j])); if(v<best[j]){ best[j]=v; prev[j]=i; how[j]=way; } } }
     if(best[e]===Infinity)return [from,to];
-    const out=[]; for(let i=e;i>=0;i=prev[i])out.unshift(ids[i]); return out;
+    const out=[], ways=[]; for(let i=e;i>=0;i=prev[i]){ out.unshift(ids[i]); ways.unshift(how[i]); } out.ways=ways; return out;
   };
-  return c.graph={key,ids,ix,adj,span,dist,route,next:id=>adj[ix.get(id)].map(a=>ids[a.j])};
+  const way=(a,b)=>pot[ix.get(a)].find(q=>ids[q.j]===b)?.way||null; // a と b のあいだの、手段の要るつながり
+  return c.graph={key,ids,ix,adj,span,dist,route,way,next:id=>adj[ix.get(id)].map(a=>ids[a.j]),sea:id=>pot[ix.get(id)].filter(q=>q.way==='sea').map(q=>ids[q.j])};
 }
 
 const NPC_FIT={ // 任務ごとの役の向き（0 は割り当てない）
@@ -51,6 +60,12 @@ function npcThink(c,sit){
   /* 友軍（side:'ally'）は先導（プレイヤーの隊、sit.lead.units）に合わせる。同じ軍なので、先導の位置と命令先（to）は知っていてよい。
      先導の隊が渡されなければ、今までどおり front の制限だけ。値は規範の ally（仮）。 */
   const ally=c.side==='ally', A={commit:.5,easy:.5,rescue:.5,finish:.2,main:.3,...(D.ally||{})};
+  /* 手順のある任務（架橋・上陸・補給）。隊の can: 'bridge' 工兵／'ferry' 揚陸艦（lift=運べる隊の数）／'supply' 補給部隊。
+     busy は、任務の手順の途中（乗っている・架けている）で命令を受けられない隊。任務から外さない。値は規範の lift（仮）。 */
+  const T={gap:6,sea:8,gapMax:120,seaMax:240,supplyGo:.5,supplyWait:40,supplyNeed:.3,...(D.lift||{})};
+  const usable=u=>u.free!==false||u.busy, engineers=units.filter(u=>u.can==='bridge'&&usable(u)), ferries=units.filter(u=>u.can==='ferry'&&usable(u));
+  const ferryLift=ferries.reduce((s,u)=>s+(u.lift||0),0), byId=new Map(units.map(u=>[u.id,u]));
+  if(!c.link)c.link=new Map(); const lkey=(a,b)=>a<b?a+'|'+b:b+'|'+a, linkBad=(a,b)=>t-(c.link.get(lkey(a,b))??-1e9)<D.retry; // 渡れなかったつながりは、しばらく使わない
   const leadU=ally?(sit.lead?.units||[]).filter(u=>u.power>0):[]; for(const u of leadU)if(u.zone==null)u.zone=nearest(u);
   const leadP=leadU.reduce((s,u)=>s+u.power,0), leadAt=u=>away(u,u.zone)<=(zById.get(u.zone).r||0)*2.5+1e-9; // 拠点のそばにいるか
   if(ally)c.lead0=Math.max(c.lead0||0,leadP);
@@ -160,19 +175,27 @@ function npcThink(c,sit){
       +(t-m.lostAt<D.counterWindow?D.wLost:0)-(t-m.failAt<D.retry?D.wFail:0)+(c.main===z.id?D.stickObj:0)+m.jit; };
   let mainZone=null, offensive=0;
   const stage=k=>c.tasks.get(k), running=[...c.tasks.values()].find(k=>k.type==='seize'&&!isOwn(k.zone));
+  // 手段の要るつながりの上乗せ。川は工兵がいれば。海は、味方の拠点から、揚陸艦で運べる力で取れる相手へだけ。
+  const pen=(w,a,b)=>linkBad(a,b)?Infinity:w==='gap'?(engineers.length?T.gap:Infinity):ferryLift>0&&isOwn(a)&&!isOwn(b)&&E.get(b).foe*D.attack<=ferryLift*avg?T.sea:Infinity;
   const seize=(z,why,ratioNeed)=>{
     // 最近押し返された拠点は、経路でも大きく避ける。ほかに道がなければ、retry が過ぎるまでその方向へは攻めない。
     const failed=id=>t-mem(id).failAt<D.retry;
-    const path=home!=null?g.route(home,z.id,id=>isOwn(id)?0:D.avoid*E.get(id).foe/Math.max(own,1e-9)*g.span+(failed(id)?g.span*10:0)):[z.id];
+    const path=home!=null?g.route(home,z.id,id=>isOwn(id)?0:D.avoid*E.get(id).foe/Math.max(own,1e-9)*g.span+(failed(id)?g.span*10:0),pen):[z.id];
     let i=path.findIndex(id=>!isOwn(id)); if(i<0)i=path.length-1;
-    let obj=path[i], from=i>0?path[i-1]:null;
+    let obj=path[i], from=i>0?path[i-1]:null, via=null, link=null;
+    // 目標の手前までに、手段の要るつながり（橋のない川・海）があれば、その手前の拠点から始める
+    for(let k=1;k<=i;k++)if(path.ways?.[k]){ via=path.ways[k]; link=[path[k-1],path[k]]; from=path[k-1]; break; }
     // 同じ目標へ向かっている途中なら、次に取る拠点を変えない（敵の見積もりの揺れで行き先が入れ替わるのを防ぐ）
     if(running&&(running.goalZone||running.zone)===z.id&&!isOwn(running.zone)&&!failed(running.zone)){
-      obj=running.zone; from=running.from!=null&&isOwn(running.from)?running.from:g.next(obj).filter(isOwn).sort((a,b)=>g.dist(home,a)-g.dist(home,b))[0]??null; }
+      const same=running.via&&running.link&&!linkBad(...running.link)&&g.way(...running.link)===running.via&&isOwn(running.link[0])&&(running.via!=='sea'||ferryLift>0)&&(running.via!=='gap'||engineers.length);
+      if(same){ obj=running.zone; from=running.from; via=running.via; link=running.link; } // 架けている・渡っている途中は、手段も変えない
+      else if(!via){ obj=running.zone; from=running.from!=null&&isOwn(running.from)?running.from:g.next(obj).filter(isOwn).sort((a,b)=>g.dist(home,a)-g.dist(home,b))[0]??null; } }
     if(failed(obj))return false;
-    const need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'&&!follow?D.mass*man:0);
+    const sea=via==='sea', need=sea?Math.max(avg,E.get(obj).foe*ratioNeed):Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'&&!follow?D.mass*man:0);
     mainZone=obj; offensive++;
-    push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,Math.min((1-D.reserve)*man,commitCap)),why:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id});
+    push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,Math.min((1-D.reserve)*man,commitCap)),max:sea?ferryLift:Infinity,
+      why:sea?`${why}（海から）`:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id,via,link,blocked:via==='gap'}); // 橋ができるまでは集結で待つ
+    if(via==='gap')push({type:'bridge',zone:from,to:link[1],link,pri:82,need:avg,cap:avg*2,max:3,why:'橋を架ける',fit:{line:1,shock:.6}}); // 護衛が岸を押さえ、工兵が架ける
     return true;
   };
   const cand=others.filter(allowed);
@@ -209,7 +232,9 @@ function npcThink(c,sit){
     }
     if(D.wCut>0&&offensive<L.tasks){ // 遮断: 敵の本営と前線のあいだの、守りの薄い拠点
       const k=cand.filter(z=>cutSet.has(z.id)&&z.id!==mainZone&&t-mem(z.id).failAt>=D.retry&&!want2.some(w=>w.zone===z.id)&&E.get(z.id).foe<=avg*D.cutMax).sort((a,b)=>E.get(a.id).foe-E.get(b.id).foe)[0];
-      if(k){ offensive++; push({type:'cut',zone:k.id,from:ownZ.map(z=>z.id).sort((a,b)=>g.dist(a,k.id)-g.dist(b,k.id))[0]??null,pri:48,need:avg,cap:avg*1.5,max:2,why:'補給線を切る'}); }
+      if(k){ offensive++; const port=ferryLift>0?g.sea(k.id).find(id=>isOwn(id)&&!linkBad(id,k.id)):null; // 海でつながっていれば、前線を通らず海から回る
+        push({type:'cut',zone:k.id,from:port??ownZ.map(z=>z.id).sort((a,b)=>g.dist(a,k.id)-g.dist(b,k.id))[0]??null,pri:48,need:avg,cap:avg*1.5,max:port?Math.min(2,ferryLift):2,
+          why:port?'補給線を切る（海から）':'補給線を切る',via:port?'sea':null,link:port?[port,k.id]:null}); }
     }
   }
   // 偵察: 長く見ていない敵地へ。偵察の隊の数まで（偵察の姿勢なら、隊がなくても1つ出す）
@@ -225,28 +250,41 @@ function npcThink(c,sit){
   const give=(w,u,as)=>{ ensure(w).units.push({id:u.id,as}); assign.set(u.id,w.key); };
   const eta=(u,id)=>(away(u,u.zone)+g.dist(u.zone,id))/Math.max(u.speed||1,1e-6);
   const safe=ownZ.filter(z=>(z.supply??1)>0).map(z=>z.id);
+  const keepers=[], kept=new Map();
   for(const u of units){
     let m=c.unit.get(u.id); if(!m)c.unit.set(u.id,m={task:null,refit:false,refitAt:-1e9,block:-1e9});
     // 下げるのは、休めば戻るもの（士気・補給）が減ったときだけ。戻らない耐久が減った隊は、攻めに使わず守りと予備に回す。
     const mo=u.morale??1, su=u.supply??1; u.worn=(u.health??1)<D.pull;
     if(m.refit&&(mo>=D.resume&&su>=D.resume||t-m.refitAt>D.refitMax)){ m.refit=false; if(t-m.refitAt>D.refitMax)m.block=t+D.refitMax; }
     else if(!m.refit&&(mo<D.pullMorale||su<D.pullSupply)&&safe.length&&t>=m.block){ m.refit=true; m.refitAt=t; }
-    if(u.free===false){ assign.set(u.id,null); continue; }
+    if(u.free===false){ if(u.busy&&m.task)keepers.push(u); else assign.set(u.id,null); continue; }
     if(m.refit&&safe.length){ const id=safe.reduce((a,b)=>eta(u,b)+E.get(b).threat<eta(u,a)+E.get(a).threat?b:a); give({key:'refit:'+id,type:'refit',zone:id,from:null,pri:0,why:'再編する'},u,'main'); }
   }
   want2.sort((a,b)=>b.pri-a.pri);
+  for(const u of keepers){ const m=c.unit.get(u.id), w=want2.find(w=>w.key===m.task); // 手順の途中の隊は、任務が続くかぎり外さない
+    if(!w){ assign.set(u.id,null); continue; } give(w,u,m.as||'main'); if((m.as||'main')==='main'){ const v=kept.get(w.key)||{got:0,n:0}; v.got+=u.power; v.n++; kept.set(w.key,v); } }
+  for(const w of want2){ if(w.type!=='bridge')continue; // 橋を架ける工兵（いちばん早く着く1隊）
+    if(tasksOut.get(w.key)?.units.some(x=>x.as==='work'))continue;
+    const e=engineers.filter(u=>!assign.has(u.id)).sort((a,b)=>eta(a,w.zone)-eta(b,w.zone))[0]; if(e)give(w,e,'work'); }
   const targetOf=w=>w.from&&(!stage(w.key)||stage(w.key).stage==='assemble')?w.from:w.zone, pre=new Map();
   for(const w of want2){ if(w.type!=='seize'&&w.type!=='cut')continue; // 拠点を取れる隊は少ないので、守りに取られる前に攻めへ1つずつ確保する
     const h=units.filter(u=>!assign.has(u.id)&&u.canHold).map(u=>({u,cost:eta(u,targetOf(w))-(c.unit.get(u.id).task===w.key?D.sticky:0)+(u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost)[0];
     if(h){ give(w,h.u,'main'); pre.set(w.key,h.u.power); } }
   for(const w of want2){
-    const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=pre.get(w.key)||0, n=pre.has(w.key)?1:0;
+    const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=(pre.get(w.key)||0)+(kept.get(w.key)?.got||0), n=(pre.has(w.key)?1:0)+(kept.get(w.key)?.n||0);
     const attackTask=w.type==='seize'||w.type==='fix'||w.type==='cut';
     const pool=units.filter(u=>!assign.has(u.id)&&fit[u.role]>0) // 傷んだ隊は攻めでは最後に回す（元気な隊が足りないときだけ使う）
       .map(u=>({u,cost:eta(u,target)-(c.unit.get(u.id).task===w.key?D.sticky:0)-fit[u.role]*D.roleBias+(attackTask&&u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost);
     for(const {u} of pool){ if(n>=w.max||n>0&&got>=w.need||got+u.power>w.cap&&n>0)break; give(w,u,'main'); got+=u.power; n++; }
     if(tasksOut.has(w.key))tasksOut.get(w.key).got=got; // 隊を1つも取れなかった任務は立てない
   }
+  for(const k of tasksOut.values()){ if(k.via!=='sea'||!k.units.some(x=>x.as==='main'))continue; // 海から行く任務に揚陸艦を付ける
+    for(const u of ferries)if(!assign.has(u.id))give(k,u,'lift'); }
+  for(const u of units){ if(assign.has(u.id)||u.can!=='supply')continue; // 補給部隊は、補給の減りがいちばん大きい任務へ（攻めの任務を優先）
+    let best=null, bv=T.supplyNeed;
+    for(const k of tasksOut.values()){ if(k.type==='refit'||k.type==='reserve'||k.type==='retire')continue;
+      const v=k.units.reduce((s,x)=>s+(x.as==='main'?1-(byId.get(x.id).supply??1):0),0)*(k.type==='seize'?1.5:1); if(v>bv){ bv=v; best=k; } }
+    if(best)give(best,u,'supply'); }
   // 火力・打撃・護衛・支援は、いちばん大事な攻めの任務（なければ脅威のある守り）に付ける
   const anchor=[...tasksOut.values()].filter(k=>k.type==='seize'&&k.units.length)[0]||[...tasksOut.values()].filter(k=>k.type==='hold'&&k.units.length).sort((a,b)=>b.pri-a.pri)[0];
   const exit=G.type==='withdraw'?(G.zones||[]).find(id=>zById.has(id))??home:null;
@@ -261,13 +299,17 @@ function npcThink(c,sit){
   for(const k of tasksOut.values()){
     const old=c.tasks.get(k.key), mains=k.units.filter(x=>x.as==='main').map(x=>powerOf.get(x.id)), sum=mains.reduce((s,u)=>s+u.power,0);
     const st=old?{...old}:{key:k.key,type:k.type,zone:k.zone,stage:null,since:t,power0:sum};
-    st.goalZone=k.goalZone; st.why0=k.why0; st.from=k.from??null;
+    st.goalZone=k.goalZone; st.why0=k.why0; st.from=k.from??null; st.via=k.via??null; st.link=k.link??null;
     if(!old)npcLog(c,t,'task:'+k.type,k.zone,k.why);
     const set=s=>{ if(st.stage!==s){ st.stage=s; st.since=t; npcLog(c,t,k.type+':'+s,k.zone,k.why); } };
     if(k.type==='seize'||k.type==='fix'||k.type==='cut'){
       const z=zById.get(k.zone), reach=(z.r||0)*1.5+1e-9, at=mains.filter(u=>k.from!=null&&away(u,k.from)<=Math.max(zById.get(k.from).r||0,1e-9)*1.5||away(u,k.zone)<=reach).reduce((s,u)=>s+u.power,0);
-      if(st.stage===null){ set(k.from!=null&&k.type==='seize'?'assemble':'advance'); st.power0=sum; }
-      if(st.stage==='assemble'&&(sum>0&&at/sum>=D.massing||t-st.since>D.assembleMax))set('advance');
+      if(st.stage===null){ set(k.from!=null&&(k.type==='seize'||k.via==='sea')?'assemble':'advance'); st.power0=sum; }
+      // 補給が減っている主攻は、集結地点で補給を待ってから出る（supplyWait まで）。橋を待つあいだは、時間切れでも出ない。
+      const low=k.type==='seize'&&mains.length>0&&mains.reduce((s,u)=>s+(u.supply??1),0)/mains.length<T.supplyGo&&t-st.since<=T.supplyWait;
+      if(low&&!st.resupply&&st.stage==='assemble'){ st.resupply=true; npcLog(c,t,'seize:resupply',k.zone,'補給を待つ'); }
+      if(st.stage==='assemble'&&!k.blocked&&(sum>0&&at/sum>=D.massing&&!low||t-st.since>D.assembleMax))set('advance');
+      if(k.via==='sea'&&st.stage==='advance'&&t-st.since>T.seaMax){ c.link.set(lkey(...k.link),t); mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'上陸できなかった'); k.aborted=true; }
       // 前進→突入: 目標の手前に主攻がそろってから一斉に入る（先に着いた隊だけで突っ込まない）。待つのは assembleMax の半分まで。
       const near=mains.filter(u=>away(u,k.zone)<=reach+(z.r||0)).reduce((s,u)=>s+u.power,0);
       if(st.stage==='advance'&&near>0&&st.arriveAt==null)st.arriveAt=t;
@@ -275,6 +317,8 @@ function npcThink(c,sit){
       const weak=k.type==='fix'?D.fix*.5:D.break_; // 助攻はもともと弱い力で押さえるので、中止の境目も低い
       if(sum<=0||(st.stage==='assault'||st.stage==='pin')&&t-st.since>=D.commit&&(sum<E.get(k.zone).foe*weak||sum<D.abort*st.power0)){
         mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'押し返された'); k.aborted=true; }
+    } else if(k.type==='bridge'){ set('work'); // 手順（岸を押さえる→架ける）は橋渡しが進める。長くかかりすぎたら、そのつながりをしばらくあきらめる
+      if(t-st.since>T.gapMax){ c.link.set(lkey(...k.link),t); npcLog(c,t,'bridge:abort',k.zone,'架けられなかった'); k.aborted=true; }
     } else set(k.type==='hold'&&E.get(k.zone).threat>0?'defend':'wait');
     st.ids=mains.map(u=>u.id); k.stage=st.stage; k.since=st.since; if(!k.aborted)now.set(k.key,st);
   }
@@ -286,10 +330,12 @@ function npcThink(c,sit){
     const w={key:'reserve:'+back,type:'reserve',zone:back,from:null,pri:10,why:'下がって立て直す',stage:'wait',since:t};
     for(const x of k.units){ const u=powerOf.get(x.id); if(!tasksOut.has(w.key))tasksOut.set(w.key,{...w,units:[]}); tasksOut.get(w.key).units.push({id:u.id,as:'main'}); assign.set(u.id,w.key); }
   }
-  c.tasks=now; for(const u of units)c.unit.get(u.id).task=assign.get(u.id)??null;
+  const asOf=new Map(); for(const k of tasksOut.values())for(const x of k.units)asOf.set(x.id,x.as);
+  c.tasks=now; for(const u of units){ const m=c.unit.get(u.id); m.task=assign.get(u.id)??null; m.as=asOf.get(u.id)??null; }
   for(const id of [...c.unit.keys()])if(!powerOf.has(id))c.unit.delete(id);
   return c.plan={time:t,posture,ratio,info,own,foe,main:mainZone,lead:led?{main:leadMain,mode:c.allyMode,power:leadP}:null,
-    tasks:[...tasksOut.values()].map(k=>({key:k.key,type:k.type,zone:k.zone,from:k.from??null,stage:k.stage,since:k.since,why:k.why,units:k.units}))};
+    tasks:[...tasksOut.values()].map(k=>({key:k.key,type:k.type,zone:k.zone,from:k.from??null,stage:k.stage,since:k.since,why:k.why,units:k.units,
+      via:k.via??null,link:k.link??null,to:k.to??null,blocked:!!k.blocked}))};
 }
 
 if(typeof module!=='undefined')module.exports={npcCommander,npcThink,npcGraph,npcRng,npcHash,NPC_FIT};
