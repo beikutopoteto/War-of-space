@@ -36,8 +36,20 @@ function groundSightRange(f){
   const r=groundSightRules(), base=r[f.groundKind==='droneHive'?'scout':f.groundKind]??r.basic;
   return base*(1+r.heightGain*Math.min(1,Math.max(0,groundHeight(f.pos.x,f.pos.z))/r.heightForMax));
 }
+// 木を4戦闘単位の区画に分けて、その点の近くの木だけを調べる（広い演習場で木が数千本あるため）
+let groundForestSource=null,groundForestBins=null;
+function groundInForest(x,z){
+  if(groundForestSource!==groundForests||groundForestBins.n!==groundForests.length){
+    groundForestSource=groundForests;groundForestBins=new Map();groundForestBins.n=groundForests.length;
+    for(const p of groundForests)for(let gz=Math.floor((p.z-p.r)/4);gz<=Math.floor((p.z+p.r)/4);gz++)for(let gx=Math.floor((p.x-p.r)/4);gx<=Math.floor((p.x+p.r)/4);gx++){
+      const key=gx+','+gz;if(!groundForestBins.has(key))groundForestBins.set(key,[]);groundForestBins.get(key).push(p);
+    }
+  }
+  const list=groundForestBins.get(Math.floor(x/4)+','+Math.floor(z/4));
+  return !!list&&list.some(p=>Math.hypot(x-p.x,z-p.z)<=p.r);
+}
 function groundConcealment(f){
-  return (f.band||'ground')==='ground'&&groundForests.some(p=>Math.hypot(f.pos.x-p.x,f.pos.z-p.z)<=p.r)?groundSightRules().forest:1;
+  return (f.band||'ground')==='ground'&&groundInForest(f.pos.x,f.pos.z)?groundSightRules().forest:1;
 }
 // 線分と建物の箱の交差。薄い建物もサンプリングの間から透視しない。
 function groundBuildingBlocks(a,b,box){

@@ -134,7 +134,9 @@ const unlocked=key=>cleared(D.unlocks[key]);
 const researched=()=>Object.values(prog().tech).some(t=>t&&t.length);
 const ownExercise=()=>unlocked('fleet')&&researched();
 /* Both ground exercises require the end of chapter one, including older saves that already cleared the guide. */
-const opRequirement=o=>(o===TUT2||o===TUT2_BASE)&&!cleared(TUT2.requires)?TUT2.requires:o.requires;
+/* デバッグの「チュートリアルスキップ」「全作戦クリア」は、チュートリアル2とバイコヌール演習も開ける（ユーザー決定 2026-11-11） */
+const groundOpen=()=>!!prog().flags?.groundOpen;
+const opRequirement=o=>(o===TUT2||o===TUT2_BASE)&&groundOpen()?null:(o===TUT2||o===TUT2_BASE)&&!cleared(TUT2.requires)?TUT2.requires:o.requires;
 function opOpen(o){ if(dbg.free||o===TUT) return true;
   if(!tutDone()) return false;   // nothing opens before the tutorial
   const need=opRequirement(o); if(need) return cleared(need);
@@ -451,7 +453,7 @@ function renderDebug(){
     <label class="toggle"><input type="checkbox" data-dbg="free" ${dbg.free?'checked':''}> 作戦と画面を自由に選ぶ（鍵と出撃上限を無視）</label>
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北</label>
     <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（自軍が自動で戦い、作戦の目標もこなす。会話と配置も自動で進む）</label>
-    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬も入り、緊急援助は準備の案内で届く）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="skip" title="演習のチュートリアルと準備画面の案内（第2節のあと）を済みにする。準備画面の案内は「とばす」と同じで、巡洋艦の打撃群を戦区軍に置き、緊急援助を渡す（第2節の前なら、援助は第2節のクリアで入る）">チュートリアルスキップ</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
+    <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬も入り、緊急援助は準備の案内で届く）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="skip" title="演習のチュートリアル、チュートリアル2（バイコヌール演習も開く）と準備画面の案内（第2節のあと）を済みにする。準備画面の案内は「とばす」と同じで、巡洋艦の打撃群を戦区軍に置き、緊急援助を渡す（第2節の前なら、援助は第2節のクリアで入る）">チュートリアルスキップ</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
   b.querySelectorAll('[data-dbga]').forEach(x=>x.onclick=()=>{ const a=x.dataset.dbga, P=prog();
@@ -459,10 +461,10 @@ function renderDebug(){
     /* 一節だけ: the first section not cleared yet counts as won (its reward and aid too). At the start it skips the tutorial (user decision 2026-11-05) */
     if(a==='one'){ const o=CAMP.find(x=>!cleared(x.id)); if(!tutDone()) P.tutorialCleared=true; else if(o){ P.funds+=o.reward||0; P.cleared.push(o.id); if(aidNow(o)) grantAid(o); } }
     /* チュートリアルスキップ: both tutorials count as done; the preparation guide as with its とばす (user decision 2026-11-06) */
-    if(a==='skip'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); }
+    if(a==='skip'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); P.flags.groundOpen=true; if(!cleared(TUT2.id)) P.cleared.push(TUT2.id); }
     /* 全作戦クリア: the preparation guide too, as its とばす (the cruisers go into the army group; 2026-11-06: they were left out, so the
        fast-forward tools fought without them) */
-    if(a==='all'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); }
+    if(a==='all'){ P.tutorialCleared=true; if(!P.prepDone) finishPrep(true); P.flags.groundOpen=true; if(!cleared(TUT2.id)) P.cleared.push(TUT2.id); }
     if(a==='all') OPS.forEach(o=>{ if(!cleared(o.id)) P.cleared.push(o.id); if(o.aid) P.flags['aid:'+o.id]=true; });
     if(a==='funds') P.funds+=1000;
     /* 全兵科解放: opens every branch the story has not opened yet, without researching anything (user decision 2026-10-04) */

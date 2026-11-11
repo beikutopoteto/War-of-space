@@ -10,7 +10,7 @@ function bridgeCases(){
   return g.type===type&&g.zones.join(',')==='F,E'&&g.until===300&&g.style==='depth';
  }));
  if(oldIntent===undefined)delete cfg.intent;else cfg.intent=oldIntent;
- check('本営・目標・初期所有・影響半径をkmで渡す',sit.zones.find(z=>z.id==='B').goal&&sit.zones.find(z=>z.id==='B').base==='foe'&&sit.zones.find(z=>z.id==='F').base==='own'&&sit.zones.find(z=>z.id==='A').known==='foe'&&sit.zones.find(z=>z.id==='A').r===5);
+ check('本営・目標・初期所有・影響半径をkmで渡す',sit.zones.find(z=>z.id===op.groundHQ[0]).goal&&sit.zones.find(z=>z.id===op.groundHQ[0]).base==='foe'&&sit.zones.find(z=>z.id==='F').base==='own'&&sit.zones.find(z=>z.id==='A').known==='foe'&&sit.zones.find(z=>z.id==='A').r===groundData().sites.find(s=>s.id==='A').radiusKm);
  const hidden=sit.zones.find(z=>z.id==='A');check('見えていない他軍の拠点はowner:null',!hidden.seen&&hidden.owner===null);
  const red=fleets.find(f=>f.team===1&&f.groundKind==='vehicle'),blue=fleets.find(f=>f.team===0&&f.groundKind==='vehicle'),full=red.hpPool;
  red.hpPool=full/2;check('兵科の重み×残存耐久',Math.abs(npcGroundPower(red)-1)<1e-8);red.hpPool=full;

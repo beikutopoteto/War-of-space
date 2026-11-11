@@ -90,7 +90,8 @@
 
 | 作戦 | 場所 | 設計図 | 状態 |
 |---|---|---|---|
-| 二つ目の演習（第二章の前） | カスピ海沿岸の演習場（ユーザー決定 2026-11-07） | `docs/terrain/exercise2.md`・`data/terrain/exercise2.js` | ラフ（見本の地形） |
+| 二つ目の演習（第二章の前） | カスピ海沿岸の演習場（ユーザー決定 2026-11-07） | `docs/terrain/exercise2.md`・`data/terrain/exercise2.js` | チュートリアル2の48×36kmを維持 |
+| バイコヌール演習（案内なし、2026-11-11） | カスピ海北岸・ウラル川デルタの広域 | `docs/terrain/baikonur2.md`・`data/terrain/baikonur2.js` | 仮96×72km。チュートリアル2とは独立 |
 
 ### 道路占領の表示（2026-11-09）
 

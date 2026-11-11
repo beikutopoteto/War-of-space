@@ -78,7 +78,7 @@ function seedDrillCampaign(includeLast=true){
   const debug=document.getElementById('dbgT');if(debug.getAttribute('aria-expanded')!=='true')debug.click();
   document.querySelector('[data-dbga="skip"]').click(); // 通常の保存処理で初期編成も用意する。
   const s=JSON.parse(localStorage.getItem('wos.save.v1'));
-  s.prog.tutorialCleared=true;s.prog.prepDone=true;
+  s.prog.tutorialCleared=true;s.prog.prepDone=true;delete s.prog.flags.groundOpen; // デバッグのスキップが開ける鍵は外して、通常の解放順を確かめる
   s.prog.cleared=WOS_DATA.operations.filter(o=>o.chapter&&(includeLast||o.id!=='denaliBreak')).map(o=>o.id);
   s.sortieMenu={closed:{},seen:[]};
   s.groundOrg.companies.push({id:'drill-save-was',name:'保存中の W.A.S.',kind:'was'});
@@ -132,11 +132,12 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   });await drawn();
 }
 async function checkGroundDrill(page,check){
-  const {runMenuChecks,openSortieMenu,checkSortieSections}=require('./ground-drill-menu.cjs');
+  const {runMenuChecks,openSortieMenu,checkSortieSections,checkDebugGroundUnlocks}=require('./ground-drill-menu.cjs');
   runMenuChecks();
   const campaign=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
   const menu=()=>openSortieMenu(page,{reload:true});
   try{
+    await checkDebugGroundUnlocks(page,check);
     await page.evaluate(seedDrillCampaign,false);await menu();
     check(await page.locator('[data-op="tutorial2"]').isDisabled(),'チュートリアル2: 第一章最終節の前は鍵付き');
     check(await page.locator('[data-op="baikonur"]').isDisabled(),'バイコヌール演習: 第一章最終節の前は鍵付き');
@@ -148,7 +149,7 @@ async function checkGroundDrill(page,check){
     await page.click('[data-op="tutorial2"]');
     const funds=await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).prog.funds);
     await page.click('#goBattle');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);});
-    check(await page.evaluate(()=>op.id==='baikonur'&&op.name==='チュートリアル2'&&tutorialActive()&&!fleets.some(f=>f.team===0&&f.groundKind==='was')),'チュートリアル2: 基本演習を案内付き・固定配備で開始');
+    check(await page.evaluate(()=>op.id==='baikonur'&&op.ground==='exercise2'&&op.name==='チュートリアル2'&&tutorialActive()&&!fleets.some(f=>f.team===0&&f.groundKind==='was')),'チュートリアル2: 基本演習を案内付き・固定配備で開始');
     await page.evaluate(()=>{window.WOS_OPT.story=false;tutorialTalk();});
     check(await page.locator('#talkText').isVisible(),'チュートリアル2: ストーリー切でも案内を表示');
     await checkDrillLabels(page,check);
@@ -175,7 +176,7 @@ async function checkGroundDrill(page,check){
     check(await page.locator('#goQuick').isVisible(),'バイコヌール演習: クイック出撃あり');
     const beforeQuick=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
     await page.click('#goQuick');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
-    check(await page.evaluate(()=>!tutorial&&!op.groundDrill&&fleets.some(f=>f.name==='第2 主力戦車中隊')),'バイコヌール演習: クイックは既定部隊・案内なし');
+    check(await page.evaluate(()=>!tutorial&&!op.groundDrill&&op.ground==='baikonur2'&&groundSites.length===9&&fleets.filter(f=>f.team===1).length===10&&fleets.some(f=>f.team===0&&f.groundKind==='supply')&&fleets.some(f=>f.name==='第2 主力戦車中隊')),'バイコヌール演習: クイックは既定部隊・案内なし');
     check(await page.locator('#training').isHidden()&&await page.locator('#talkText').isHidden(),'バイコヌール演習: 案内のUIなし');
     await page.evaluate(()=>{
       window.baikonurHits=0;const realDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)baikonurHits++;return realDamage(t,n,src,...rest);};
@@ -222,6 +223,7 @@ function runDrill(){
   assert.equal(run(`(()=>{${bg.slice(bg.indexOf('const DEG='),bg.indexOf('const cv='))}${bg.slice(bg.indexOf('function opW('),bg.indexOf('function dayOf('))}return opW({place:{body:'地球'}},0).every(Number.isFinite);})()`),true,'地球の作戦マーカーは有効な座標');
   assert.equal(run("WOS_DATA.operations.filter(o=>o.chapter&&!o.hidden).at(-1).id"),'denaliBreak');
   assert.equal(run("op.name==='チュートリアル2'&&!op.chapter&&op.requires==='denaliBreak'&&op.reward===100"),true,'チュートリアル2の名前・配置・解放・報酬');
+  assert.equal(run("op.ground==='exercise2'&&op.tutorial.length===26&&op.groundHQ[0]==='B'&&op.groundSea[0].pos[0]===(17-24)*4&&op.view.max===350"),true,'案内の地形・本営・艦・カメラ・26手順は従来通り');
   assert.equal(run('fleets.some(f=>f.team===0&&f.groundKind===\'was\')'),false);
   assert.equal(run('groundBuildings.length>0&&groundForests.length>0'),true);
   assert.equal(run(`(()=>{const s=groundSites[0];s.owner=0;groundCaptureStep(.05);s.owner=null;return !over;})()`),true,'全占拠だけでは勝たない');

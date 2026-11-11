@@ -36,6 +36,7 @@ const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
+const {nodeChecks:baikonurMapChecks}=require('./baikonur-map.cjs');
 const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
 const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
@@ -68,6 +69,7 @@ function check(ok, label, detail = '') {
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
   for(const r of groundDimensionChecks())check(r.ok,'地上寸法: '+r.name);
+  for(const r of baikonurMapChecks())check(r.ok,'広域演習: '+r.name,r.detail||'');
   for(const r of groundWideChecks())check(r.ok,'広域地形: '+r.name);
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
@@ -306,7 +308,7 @@ function check(ok, label, detail = '') {
     await page.click('#dbgB [data-dbga="all"]');
     await page.click('#dbgB [data-dbga="funds"]');
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
-    check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦クリアと資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
+    check(!dbg1.org && dbg1.prog.cleared.length === data.ops + 1 && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦と専用チュートリアル2のクリア・資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
     /* a replay brings 1/6 of the reward, an exercise 2/3 (user decision 2026-11-06) */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');

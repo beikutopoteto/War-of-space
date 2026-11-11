@@ -19,7 +19,7 @@ function runMenuChecks(){
   const ctx=vm.createContext({window:{WOS:{start:cfg=>calls.push(cfg)}},document:{body:{classList:{toggle(){}}},getElementById:node},localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)},WOS_BG:{focus:(o,list,choose)=>{mapChoose=choose;}},scaleText:()=>'',show(){}});
   const run=s=>vm.runInContext(s,ctx);
   run('var WOS_DATA=window.WOS_DATA={}');
-  for(const file of ['data/ships.js','data/bonuses.js','data/operations.js','data/tech.js','data/terrain/exercise2.js','data/ground-org.js'])run(read(file));
+  for(const file of ['data/ships.js','data/bonuses.js','data/operations.js','data/tech.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/ground-org.js'])run(read(file));
   const prep=read('prep.js');
   run(prep.slice(prep.indexOf("'use strict';"),prep.indexOf('const esc=')));
   run("let sortieOp='tutorial2',sortieInitialized=false,sortieGroups=[];const esc=s=>String(s);");
@@ -52,7 +52,8 @@ function runMenuChecks(){
   assert.match(exercises,/data-op="tutorial2"[^>]*>[\s\S]*?チュートリアル2/);count++;
   assert.match(exercises,/data-op="baikonur"[^>]*disabled[\s\S]*?バイコヌール演習/);count++;
   check("TUT2.tutorial===TUT2_BASE.tutorial&&TUT2.groundDrill&&!TUT2_BASE.groundDrill&&TUT2.tutorial.length===26",'案内は基本演習と共有する26手順');
-  check("TUT2.quick.length===9&&TUT2_BASE.quick.length===10&&TUT2.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(33-24)*4&&TUT2_BASE.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(20-24)*4",'案内の旧配備9隊と演習の西側配備10隊を分ける');
+  check("TUT2.quick.length===9&&TUT2_BASE.quick.length===11&&TUT2.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(33-24)*4&&TUT2_BASE.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(8-48)*4",'案内の旧配備9隊と演習の西側配備11隊を分ける');
+  check("TUT2.ground==='exercise2'&&TUT2_BASE.ground==='baikonur2'&&TUT2.groundHQ[0]==='B'&&TUT2_BASE.groundHQ[0]==='A'&&TUT2.groundSea[0].pos[0]===(17-24)*4&&TUT2.view.max===350&&TUT2_BASE.view.max===650",'案内の地形・本営・艦・カメラを従来値で保持');
   assert.equal(node('goQuick').hidden,true);count++;
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur',tutorial:true});count++;
@@ -62,7 +63,7 @@ function runMenuChecks(){
   run("sortieOp='baikonur';renderSortie()");
   assert.equal(node('goQuick').hidden,false);count++;
   node('goQuick').onclick();
-  assert.equal(calls.at(-1).fleets.length,10);count++;
+  assert.equal(calls.at(-1).fleets.length,11);count++;
   check("onEnd('baikonur',true)===''&&!cleared('baikonur')&&prog().funds===167",'クイックは報酬・クリア記録なし');
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur'});count++;
@@ -136,6 +137,32 @@ async function openSortieMenu(page,{reload=false}={}){
   await page.locator('[data-s="mode"]:not([hidden]) [data-go="sortie"]').click();
   await page.locator('[data-s="sortie"]:not([hidden]) #goBattle').waitFor({state:'visible'});
 }
+// 実ボタンと保存の再読込を通し、自由選択の鍵無視に頼らず両方の入口が開くことを確認。
+async function checkDebugGroundUnlocks(page,check){
+  const saved=await page.evaluate(()=>({save:localStorage.getItem('wos.save.v1'),debug:localStorage.getItem('wos.debug')}));
+  try{
+    for(const [action,label] of [['skip','チュートリアルスキップ'],['all','全作戦クリア']]){
+      await page.evaluate(()=>{localStorage.removeItem('wos.save.v1');localStorage.removeItem('wos.debug');});
+      await page.reload();await page.waitForFunction(()=>window.WOS_MENU&&window.WOS?.openMenu);
+      await page.evaluate(()=>WOS.openMenu());
+      if(await page.locator('#dbgT').getAttribute('aria-expanded')!=='true')await page.locator('#dbgT').click();
+      await page.locator('[data-dbga="'+action+'"]').click();
+      const state=await page.evaluate(()=>({save:JSON.parse(localStorage.getItem('wos.save.v1')),debug:JSON.parse(localStorage.getItem('wos.debug')||'{}')}));
+      check(!state.debug.free&&state.save.prog.flags.groundOpen&&state.save.prog.cleared.includes('tutorial2'),'デバッグ: '+label+'で地上の鍵と案内クリアを保存（自由選択なし）');
+      if(action==='skip')check(!state.save.prog.cleared.includes('denaliBreak')&&!state.save.prog.cleared.includes('baikonur'),'デバッグ: スキップは第一章最終節・通常演習の勝利記録を作らず解放');
+      await openSortieMenu(page,{reload:true});
+      const tab=page.locator('[data-op-section="演習"]');if(await tab.getAttribute('aria-expanded')==='false')await tab.click();
+      for(const id of ['tutorial2','baikonur']){
+        check(await page.locator('[data-op="'+id+'"]').isEnabled(),'デバッグ: '+label+'後に再読込しても'+id+'が解放');
+        await page.locator('[data-op="'+id+'"]').click();
+        check(await page.locator('#goBattle').isEnabled(),'デバッグ: '+label+'から'+id+'を選んで出撃可能');
+      }
+    }
+  }finally{
+    await page.evaluate(saved=>{for(const [key,value] of [['wos.save.v1',saved.save],['wos.debug',saved.debug]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}},saved);
+    await page.reload();await page.waitForFunction(()=>window.WOS_MENU&&window.WOS?.openMenu);
+  }
+}
 async function checkSortieSections(page,check,menu,onState=async()=>{}){
   const tabs=page.locator('[data-op-section]'),tab=id=>page.locator(`[data-op-section="${id}"]`);
   const state=()=>page.evaluate(()=>{
@@ -178,5 +205,5 @@ async function checkSortieSections(page,check,menu,onState=async()=>{}){
   // Keep the existing battle checks in their original state: first chapter complete, all sections open.
   await tab('第二章').click();
 }
-module.exports={runMenuChecks,openSortieMenu,checkSortieSections};
+module.exports={runMenuChecks,openSortieMenu,checkSortieSections,checkDebugGroundUnlocks};
 if(require.main===module)runMenuChecks();
