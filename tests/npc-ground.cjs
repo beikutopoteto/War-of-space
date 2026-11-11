@@ -3,6 +3,13 @@ const assert=require('node:assert/strict');
 function bridgeCases(){
  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
  npcGroundInit();const c=npcGroundState.commanders.get(1),sit=npcGroundSituation(c);
+ const cfg=op.npc[c.team],oldIntent=cfg.intent;
+ check('intent未指定はseize、stylesの表も指揮官へ渡す',sit.goal.type==='seize'&&c.styles===window.WOS_DATA.npc.styles);
+ check('軍ごとのintentのtype・zones・until・styleをsit.goalへ渡す',['seize','hold','delay','withdraw'].every(type=>{
+  cfg.intent={type,zones:['F','E'],until:300,style:'depth'};const g=npcGroundSituation(c).goal;
+  return g.type===type&&g.zones.join(',')==='F,E'&&g.until===300&&g.style==='depth';
+ }));
+ if(oldIntent===undefined)delete cfg.intent;else cfg.intent=oldIntent;
  check('本営・目標・初期所有・影響半径をkmで渡す',sit.zones.find(z=>z.id==='B').goal&&sit.zones.find(z=>z.id==='B').base==='foe'&&sit.zones.find(z=>z.id==='F').base==='own'&&sit.zones.find(z=>z.id==='A').known==='foe'&&sit.zones.find(z=>z.id==='A').r===5);
  const hidden=sit.zones.find(z=>z.id==='A');check('見えていない他軍の拠点はowner:null',!hidden.seen&&hidden.owner===null);
  const red=fleets.find(f=>f.team===1&&f.groundKind==='vehicle'),blue=fleets.find(f=>f.team===0&&f.groundKind==='vehicle'),full=red.hpPool;
@@ -26,6 +33,25 @@ function bridgeCases(){
  const u=sit.units.find(u=>u.id===red.id),plan={tasks:[{type:'hold',zone:'E',from:'F',units:[{id:red.id,as:'main'}]}]};
  npcGroundApply(c,sit,plan);const first=issued;npcGroundApply(c,sit,plan);check('同じ目的地へ命令を出し直さない',first===1&&issued===1);
  red.order=null;red.pos.copy(groundPoint(26,27));npcGroundApply(c,sit,plan);check('命令なしで1km以上離れた隊には再発令',issued===2);order=original;
+ return rows;
+}
+// 実際の地上ステップで退避点まで歩かせる。頭の再判断と敵の攻撃は混ぜない。
+function retireCases(){
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
+ const red=fleets.find(f=>f.team===1&&f.groundKind==='infantry'),blue=fleets.find(f=>f.team===0&&f.groundKind==='infantry');
+ blue.pos.copy(groundPoint(7,29));blue.order=null;blue.stance='evade';fleets=[red,blue];
+ red.pos.copy(groundPoint(33,29));red.order=null;red.groundSupply=red.groundMorale=groundSupplyRules().max;
+ npcGroundInit();const c=npcGroundState.commanders.get(1);c.nextThink=Infinity;
+ const sit=npcGroundSituation(c),target=sit.zones.find(z=>z.id==='E');
+ const k={key:'retire:E',type:'retire',stage:'wait',zone:'E',from:null,units:[{id:red.id,as:'main'}]};
+ const start=red.pos.clone();npcGroundApply(c,sit,{tasks:[k]});
+ const dest=red.order?.dest?.clone();
+ check('retireは指定拠点へ通常の移動命令を出す',red.order?.type==='move'&&dest?.distanceTo(groundPoint(target.x,target.z))<.001);
+ const limit=(red.order?.path?.cost||0)*groundDimensions().data.meta.cellKm*GROUND_SCALE/red.speed+60;
+ for(let i=0;i<Math.ceil(limit/.05)&&red.order;i++)step(.05);
+ check('retireの隊は実地上ステップで拠点まで移動して止まる',dest&&red.pos.distanceTo(start)>GROUND_SCALE&&red.pos.distanceTo(dest)<.001&&!red.order);
+ const at=red.pos.clone();npcGroundApply(c,npcGroundSituation(c),{tasks:[k]});for(let i=0;i<100;i++)step(.05);
+ check('退避点へ着いたretireは待機し道路係にもならない',!red.order&&red.pos.distanceTo(at)<.001&&npcGroundRoadOrders(c,sit,{tasks:[k]}).size===0);
  return rows;
 }
 function logisticsCases(){
@@ -169,12 +195,13 @@ function nodeChecks(){
    return {name:'通常演習で敵が動き出し任務の拠点へ近づく',ok:moves.some(({f,k})=>{const s=groundSites.find(s=>s.id===k.zone);return s.pos.distanceTo(f.pos)<s.pos.distanceTo(start.get(f.id));})};
  })()`);
  const bridge=run('('+bridgeCases.toString()+')()');
+ const retire=require('./ground-drill.cjs').createDrillContext(false).run('('+retireCases.toString()+')()');
  const logistics=require('./ground-drill.cjs').createDrillContext(false).run('('+logisticsCases.toString()+')()');
  const tactics=require('./ground-drill.cjs').createDrillContext(false);
  // 実ゲームのspeedOfを読み、同期を無視する土台のstubから差し替える。
  const sim=require('node:fs').readFileSync(require('node:path').join(__dirname,'../battle/sim.js'),'utf8');
  tactics.run(sim.slice(sim.indexOf('function speedOf('),sim.indexOf('function speedOf(')+sim.slice(sim.indexOf('function speedOf(')).indexOf('\n')));
- return [movement,...bridge,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
+ return [movement,...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
 }
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});

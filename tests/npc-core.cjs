@@ -9,7 +9,19 @@ function fixture(){
     contacts:[{id:'e1',x:20,z:0,power:1,age:0},{id:'e2',x:20,z:12,power:1,age:0}],goal:{type:'seize'}};
 }
 const commander=(doctrine='mars',level='standard',side='foe',seed=1)=>npcCommander({team:0,side,doctrine:N.doctrines[doctrine],level:N.levels[level],seed});
+// 既存の確認は styles なしを維持し、型ありの確認だけ明示的に渡す。
+const styled=(doctrine='earth')=>npcCommander({team:0,doctrine:N.doctrines[doctrine],level:N.levels.standard,styles:N.styles,seed:1});
+function defenseFixture(){
+ const s=fixture();
+ s.zones=[['A',0,0,'own','own'],['B',10,0,'own'],['E',20,0,'own'],['D',20,12,'own'],['C',30,0,'foe'],['F',30,12,'foe','foe']]
+  .map(([id,x,z,owner,base])=>({id,x,z,r:2,owner,known:owner,seen:true,base}));
+ s.links=[['A','B'],['B','E'],['B','D'],['E','C'],['D','F'],['C','F']].map(([a,b])=>({a,b,len:10}));
+ s.units.forEach((u,i)=>Object.assign(u,{role:'line',canHold:true,x:i<10?20:10,z:i<5?12:0}));
+ s.contacts=[];s.goal={type:'hold'};return s;
+}
 const main=p=>p.tasks.find(k=>k.type==='seize');
+const holds=p=>p.tasks.filter(k=>k.type==='hold');
+const count=(p,type)=>p.tasks.filter(k=>k.type===type).reduce((n,k)=>n+k.units.length,0);
 function nodeChecks(){
  const rows=[],test=(name,fn)=>{try{fn();rows.push({name,ok:true});}catch(e){rows.push({name,ok:false,detail:e.message});}};
  test('力の比で攻撃・防御・遅滞が変わる',()=>{
@@ -142,6 +154,107 @@ function nodeChecks(){
  });
  test('同じseedと状況で計画・logが一致する',()=>{
   const a=commander(),b=commander();for(let t=0;t<180;t+=3){const s=fixture();s.time=t;assert.deepEqual(npcThink(a,structuredClone(s)),npcThink(b,structuredClone(s)));}assert.deepEqual(a.log,b.log);
+ });
+ // 同じ地形・戦力で型だけを替え、隊の割当まで比べる。
+ test('固守は指定拠点を厚く守り、機動防御は守備を薄く予備を多く持つ',()=>{
+  const s=defenseFixture();s.goal.zones=['E'];s.contacts=[{id:'push',x:20,z:0,power:6,age:0}];
+  const plans=Object.fromEntries(['firm','mobile'].map(style=>{const t=structuredClone(s);t.goal.style=style;return [style,npcThink(styled(),t)];}));
+  assert(holds(plans.firm).find(k=>k.zone==='E').units.length>holds(plans.mobile).find(k=>k.zone==='E').units.length);
+  assert(count(plans.mobile,'hold')<count(plans.firm,'hold'));assert(count(plans.mobile,'reserve')>count(plans.firm,'reserve'));
+ });
+ test('遅滞は前線だけを持ち、縦深は脅威のない後ろの線にも守備を置く',()=>{
+  for(const style of ['firm','delay','mobile','depth']){
+   const s=defenseFixture();s.goal.style=style;const p=npcThink(styled(),s);
+   assert.equal(holds(p).some(k=>k.zone==='B'),style==='depth',style);assert(holds(p).some(k=>k.zone==='A'),style);
+   assert(holds(p).some(k=>k.zone==='E'),style);assert(holds(p).some(k=>k.zone==='D'),style);
+  }
+ });
+ test('遅滞は脅威で前線を手放し、失っても取り返さない',()=>{
+  const c=styled(),s=defenseFixture();s.goal.style='delay';assert(holds(npcThink(c,s)).some(k=>k.zone==='E'));
+  s.time=30;s.contacts=[{id:'push',x:20,z:0,power:20,age:0}];assert(!holds(npcThink(c,s)).some(k=>k.zone==='E'));
+  s.time=33;Object.assign(s.zones.find(z=>z.id==='E'),{owner:'foe'});s.contacts=[];
+  const p=npcThink(c,s);assert(!main(p));assert.equal(p.posture,'defend');
+ });
+ test('機動防御は遠い脅威では守備を増やさず、近い脅威に反応する',()=>{
+  const run=(style,x)=>{const s=defenseFixture();s.goal.style=style;s.goal.zones=['E'];s.contacts=[{id:'push',x,z:0,power:20,age:0}];return holds(npcThink(styled(),s)).find(k=>k.zone==='E').units.length;};
+  assert.equal(run('mobile',30),run('mobile',50));assert(run('mobile',20)>run('mobile',30));assert(run('firm',30)>run('mobile',30));
+ });
+ test('機動防御は余力があれば失った拠点へ取り返し、余力がなければ出さない',()=>{
+  for(const poor of [false,true]){
+   const c=styled(),s=defenseFixture();s.goal.style='mobile';s.contacts=[{id:'guardC',x:30,z:0,power:50,age:0},{id:'guardF',x:30,z:12,power:50,age:0}];npcThink(c,s);s.contacts=[];
+   s.time=30;s.zones.find(z=>z.id==='E').owner='foe';if(poor){s.units=s.units.slice(0,1);s.contacts=[{id:'guard',x:20,z:0,power:100,age:0}];}
+   const k=main(npcThink(c,s));if(poor)assert(!k);else {assert.equal(k.zone,'E');assert.equal(k.why,'取り返す');}
+  }
+ });
+ test('固守は指定拠点だけを取り返し、縦深は二本以上の線が残る間に取り返す',()=>{
+  for(const style of ['firm','depth'])for(const must of [false,true]){
+   const c=styled(),s=defenseFixture();s.goal={type:'hold',style,zones:must?['E']:[]};npcThink(c,s);
+   s.time=30;s.zones.find(z=>z.id==='E').owner='foe';const k=main(npcThink(c,s));assert.equal(!!k,style==='depth'||must);if(k){assert.equal(k.zone,'E');assert.equal(k.why,'取り返す');}
+  }
+  const c=styled(),s=fixture();s.goal={type:'hold',style:'depth'};s.zones.find(z=>z.id==='A').owner='foe';npcThink(c,s);
+  s.time=30;s.zones.find(z=>z.id==='B').owner='foe';assert(!main(npcThink(c,s)));
+ });
+ test('opportunismなしの三型は空いた拠点を取りに行かない',()=>{
+  for(const style of Object.keys(N.styles)){
+   const s=defenseFixture();s.goal.style=style;s.zones.find(z=>z.id==='C').owner='none';const k=main(npcThink(styled(),s));
+   assert.equal(!!k,style==='mobile',style);if(k)assert.equal(k.why,'空いた所を取る');
+  }
+ });
+ test('全型で指定の前線拠点と本営は大きく不利でも手放さない',()=>{
+  for(const style of Object.keys(N.styles))for(const x of [0,20]){
+   const s=defenseFixture();s.goal={type:'hold',style,zones:['E']};s.contacts=[{id:'push',x,z:0,power:100,age:0}];
+   const p=npcThink(styled(),s);assert.equal(p.posture,'defend');assert(holds(p).some(k=>k.zone=== (x===0?'A':'E')),style+' 脅威を受けた必須拠点');
+  }
+ });
+ test('holdは力の比が高くても低くても守りの姿勢を続ける',()=>{
+  for(const power of [0,100]){const c=styled(),s=defenseFixture();s.contacts=[{id:'push',x:30,z:0,power,age:0}];
+   for(const time of [0,30,120]){s.time=time;assert.equal(npcThink(c,s).posture,'defend');}}
+ });
+ test('delayはuntil直前まで守り、期限後は反応遅れを経て力の比で姿勢を決める',()=>{
+  for(const [power,expected] of [[1,'attack'],[15,'defend'],[100,'delay']]){
+   const c=styled(),s=fixture();s.goal={type:'delay',until:300,style:'delay'};s.contacts.forEach(e=>e.power=power);
+   for(const time of [0,299]){s.time=time;assert.equal(npcThink(c,s).posture,'defend');}
+   s.time=300;assert.equal(npcThink(c,s).posture,'defend');assert.equal(c.want,expected);
+   s.time=306;assert.equal(npcThink(c,s).posture,expected);
+  }
+ });
+ test('delayは残り時間が少ないほど同じ脅威でも前線を手放しにくい',()=>{
+  const c=styled(),s=defenseFixture();s.goal={type:'delay',until:300,style:'delay'};s.contacts=[{id:'push',x:20,z:0,power:20,age:0}];
+  assert(!holds(npcThink(c,s)).some(k=>k.zone==='E'));s.time=290;assert(holds(npcThink(c,s)).some(k=>k.zone==='E'));
+ });
+ test('withdrawは前線ごとに殿を一隊残し、ほかを指定退避点へretireにする',()=>{
+  const s=defenseFixture();s.goal={type:'withdraw',zones:['B'],style:'firm'};const c=styled(),p=npcThink(c,s);
+  assert.equal(p.posture,'delay');assert.equal(c.style,'delay');assert.deepEqual(holds(p).map(k=>[k.zone,k.units.length]).sort(),[['D',1],['E',1]]);
+  const k=p.tasks.find(k=>k.type==='retire');assert.equal(k.zone,'B');assert.equal(k.stage,'wait');assert.equal(k.units.length,18);assert(!main(p));
+  const ids=p.tasks.flatMap(k=>k.units.map(u=>u.id));assert.equal(new Set(ids).size,s.units.length);assert.equal(ids.length,s.units.length);
+ });
+ test('withdrawの退避先がなければ本営へ退く',()=>{
+  const s=defenseFixture();s.goal={type:'withdraw'};assert.equal(npcThink(styled(),s).tasks.find(k=>k.type==='retire').zone,'A');
+ });
+ test('型の既定は連合が固守・共和国が機動防御、比による遅滞はdelay',()=>{
+  for(const [doctrine,style] of [['earth','firm'],['mars','mobile']]){const c=styled(doctrine);npcThink(c,defenseFixture());assert.equal(c.style,style);}
+  const c=styled(),s=fixture();s.contacts.forEach(e=>e.power=100);npcThink(c,s);assert.equal(c.style,'delay');
+  const explicit=styled();s.goal.style='depth';npcThink(explicit,s);assert.equal(explicit.style,'depth');
+ });
+ test('攻めの姿勢では型を適用せず、守り方の切り替えだけをlogへ出す',()=>{
+  const c=styled(),s=defenseFixture();s.goal.style='firm';npcThink(c,s);s.time=3;npcThink(c,s);
+  s.goal.style='depth';s.time=6;npcThink(c,s);s.time=9;npcThink(c,s);
+  assert.deepEqual(c.log.filter(l=>l.what.startsWith('style:')).map(l=>[l.t,l.what]),[[0,'style:firm'],[6,'style:depth']]);
+  const attack=fixture(),a=styled();attack.goal.style='firm';const p=npcThink(a,attack);assert.equal(p.posture,'attack');assert.equal(a.style,null);assert(!a.log.some(l=>l.what.startsWith('style:')));
+ });
+ test('stylesを渡さない指揮官は型指定があっても従来の割当とlogを保つ',()=>{
+  for(const type of ['seize','hold','delay']){
+   const s=fixture();s.goal={type};const c=commander(),p=npcThink(c,structuredClone(s));
+   for(const style of Object.keys(N.styles)){const d=commander(),q=structuredClone(s);q.goal.style=style;assert.deepEqual(npcThink(d,q),p);assert.deepEqual(d.log,c.log);}
+  }
+ });
+ test('withdrawは強い脅威の前線にも殿を一隊ずつ残す',()=>{
+  const s=defenseFixture();s.goal={type:'withdraw',zones:['B']};s.contacts=[{id:'push',x:20,z:0,power:100,age:0}];
+  const p=npcThink(styled(),s);assert.deepEqual(holds(p).map(k=>[k.zone,k.units.length]).sort(),[['D',1],['E',1]]);
+ });
+ test('opportunismなしの型へ切り替えたら空いた所を取る任務を続けない',()=>{
+  const c=styled(),s=defenseFixture();s.goal.style='mobile';assert.equal(main(npcThink(c,s)).why,'空いた所を取る');
+  s.time=3;s.goal.style='delay';assert(!main(npcThink(c,s)));
  });
  return rows;
 }

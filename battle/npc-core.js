@@ -122,7 +122,7 @@ function npcThink(c,sit){
     if(S){
       if(S.lines==='front'&&!f&&!keep)need=0;                                  // 遅滞: 前の線だけを持つ
       if(!keep&&S.abandon>0&&e.threat>0&&e.own<e.threat*S.abandon*left)need=0;   // 守りきれない所は手放す（捨てない拠点は別）
-      if(G.type==='withdraw')need=f?Math.min(need,avg):0;                        // 逃がす: 前線に殿を1隊ずつ
+      if(G.type==='withdraw')need=f?avg:0;                                       // 逃がす: 前線に殿を1隊ずつ（脅威が強くても残す）
     } else if(posture==='delay'&&!isBase&&e.own<e.threat*D.break_)need=0; // 守りきれない所は捨てて下がる
     if(need>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:isBase?100:(posture==='attack'?45:65)+Math.min(20,thr/avg*5)+(keep?10:0),need,cap:Math.max(need,avg),
       why:isBase?'本営を守る':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':thr>0?'脅威に備える':'前線を保つ'}); }
@@ -164,9 +164,9 @@ function npcThink(c,sit){
     const rule=S?S.counter:'any', cr=S&&S.counterRatio||D.counter, spare=Math.max(0,man-holdNeed);
     const lost=rule==='none'?[]:cand.filter(z=>(must.has(z.id)&&mem(z.id).lostAt>-1e9||t-mem(z.id).lostAt<D.counterWindow&&(rule==='any'||rule==='depth'&&lines>=2))&&E.get(z.id).foe*cr<=spare);
     // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る（型が許すとき）
-    const easy=S&&!S.opportunism?[]:cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
+    const opp=!S||S.opportunism, easy=!opp?[]:cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
     // 取りに出た所は、余力が少し減ったくらいでは変えない（出したり引っ込めたりしない）
-    const cur=running&&cand.find(z=>z.id===(running.goalZone||running.zone)&&(lost.includes(z)||Math.max(avg,E.get(z.id).foe*D.attack)<=spare*1.6+avg));
+    const cur=running&&cand.find(z=>z.id===(running.goalZone||running.zone)&&(lost.includes(z)||opp&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare*1.6+avg)); // 型が禁じたら、出ていた隊も戻す
     let done=!!cur&&seize(cur,running.why0||'空いた所を取る',lost.includes(cur)?cr:D.attack);
     if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',cr)){ done=true; break; }
     if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
