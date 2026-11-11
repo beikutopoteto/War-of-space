@@ -201,7 +201,8 @@ function check(ok, label, detail = '') {
     await checkGroundFixes(page, check);
     await checkCommandIcons(page, check);
     await checkGroundHint(page, check);
-    /* title */
+    /* title. ここから先の宇宙の確認は、要塞の台本（出撃・迎撃）を前提にするので、指揮官を切る（指揮官は checkNpcSpace で確認済み） */
+    await page.addInitScript(() => { window.WOS_NO_NPC = true; });
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {
       const ship = id => WOS_DATA.ships.find(s => s.id === id), was = WOS_DATA.branches.find(b => b.id === 'was');

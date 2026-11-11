@@ -1,7 +1,8 @@
 /* 宇宙の指揮官。頭には観測した状況だけを渡し、既存の隊AIの持ち場を更新する。
    仮の距離・秒数は docs/menu.md。固定物・艦載機は指揮官の隊にしない。 */
 let npcSpaceState=null;
-function npcSpaceEnabled(team){return !!(!op.ground&&!tutorialActive()&&op.npc?.[team]);}
+// window.WOS_NO_NPC: 台本どおりの要塞を確かめるテストだけが立てる（tests/smoke.cjs）
+function npcSpaceEnabled(team){return !!(!op.ground&&!tutorialActive()&&op.npc?.[team]&&!window.WOS_NO_NPC);}
 function npcSpaceActive(team){
   return npcSpaceEnabled(team)&&!chase&&!over;
 }
