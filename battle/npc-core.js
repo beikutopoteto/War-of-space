@@ -48,6 +48,15 @@ function npcThink(c,sit){
   const nearest=p=>{ let b=null, bd=Infinity; for(const z of zones){ const v=Math.hypot(z.x-p.x,z.z-p.z); if(v<bd){ bd=v; b=z.id; } } return b; };
   const away=(u,id)=>{ const z=zById.get(id); return Math.hypot(z.x-u.x,z.z-u.z); };
   const units=sit.units.filter(u=>u.power>0); for(const u of units)if(u.zone==null)u.zone=nearest(u);
+  /* 友軍（side:'ally'）は先導（プレイヤーの隊、sit.lead.units）に合わせる。同じ軍なので、先導の位置と命令先（to）は知っていてよい。
+     先導の隊が渡されなければ、今までどおり front の制限だけ。値は規範の ally（仮）。 */
+  const ally=c.side==='ally', A={commit:.5,easy:.5,rescue:.5,finish:.2,main:.3,...(D.ally||{})};
+  const leadU=ally?(sit.lead?.units||[]).filter(u=>u.power>0):[]; for(const u of leadU)if(u.zone==null)u.zone=nearest(u);
+  const leadP=leadU.reduce((s,u)=>s+u.power,0), leadAt=u=>away(u,u.zone)<=(zById.get(u.zone).r||0)*2.5+1e-9; // 拠点のそばにいるか
+  if(ally)c.lead0=Math.max(c.lead0||0,leadP);
+  const leadFull=sit.lead?.full??c.lead0??0, led=ally&&leadFull>0; // full: 先導の初めの力（橋渡しが渡さなければ、見た中の最大）
+  const leadIn=new Map(), leadTo=new Map(), bump=(m,id,v)=>m.set(id,(m.get(id)||0)+v);
+  for(const u of leadU){ const at=leadAt(u); if(at)bump(leadIn,u.zone,u.power); const to=u.to??(at?u.zone:null); if(to!=null&&zById.has(to))bump(leadTo,to,u.power); }
 
   /* ① 見積もる。持ち主は「今見えている」か「自軍のもの」のときだけ更新し、あとは覚えている値を使う。 */
   for(const z of zones){
@@ -57,6 +66,7 @@ function npcThink(c,sit){
   }
   const E=new Map(zones.map(z=>[z.id,{own:0,foe:0,threat:0}])), mem=id=>c.zone.get(id), isOwn=id=>mem(id).owner==='own';
   let own=0; for(const u of units){ own+=u.power; E.get(u.zone).own+=u.power; }
+  for(const [id,v] of leadIn)E.get(id).own+=v; // 先導がいる拠点は、その力も味方として数える
   const avg=units.length?own/units.length:1;
   // 見失った敵は、位置（拠点ごとの見積もりと脅威）だけが時間とともに薄れる。数は覚えていて、力の比には数え続ける。
   let foe=0, known=0; const contacts=[];
@@ -69,7 +79,8 @@ function npcThink(c,sit){
   for(const z of zones){ const m=mem(z.id), e=E.get(z.id); // 見ていない敵地には守備がいると仮定する
     if(m.owner!=='own'&&m.owner!=='none'&&t-m.seenAt>L.memory){ const a=D.assume*avg*(z.base==='foe'?2:1); if(e.foe<a){ foe+=a-e.foe; e.foe=a; } } }
   foe=Math.max(foe,known,sit.intel||0);
-  const ratio=own/Math.max(foe,avg*.25), horizon=L.horizon*g.span;
+  const ratio=(own+leadP)/Math.max(foe,avg*.25), horizon=L.horizon*g.span;
+  c.foe0=Math.max(c.foe0||0,known); const quiet=led&&c.foe0>0&&known<A.finish*c.foe0; // 敵が残りわずか: とどめは先導に残す
   for(const z of zones){ if(!isOwn(z.id))continue; const e=E.get(z.id);
     for(const k of contacts)e.threat+=k.est*Math.max(0,1-g.dist(k.zone,z.id)/horizon)**2; }
   const others=zones.filter(z=>!isOwn(z.id)), ownZ=zones.filter(z=>isOwn(z.id));
@@ -77,6 +88,11 @@ function npcThink(c,sit){
   const base=zones.find(z=>z.base==='own'&&isOwn(z.id)), foeBase=zones.find(z=>z.base==='foe');
   const home=base?base.id:ownZ.length?ownZ.reduce((a,b)=>E.get(b.id).own>E.get(a.id).own?b:a).id:units.length?units[0].zone:zones[0]?.id;
   const front=id=>g.next(id).some(j=>!isOwn(j));
+  // 先導が負けそう（力が初めの rescue 倍以下、または本営を失った）なら、友軍は制限をゆるめて助けに入る。最終目標だけは取らない。
+  const rescue=led&&(leadP<=A.rescue*leadFull||!base), follow=led&&!rescue;
+  let leadMain=null; if(led){ let best=A.main*leadP; for(const [id,v] of leadTo)if(!isOwn(id)&&v>0&&v>=best){ best=v; leadMain=id; } } // 先導が攻めている拠点
+  if(led){ const mode=rescue?'rescue':quiet?'quiet':'follow'; if(mode!==c.allyMode){ c.allyMode=mode; npcLog(c,t,'ally:'+mode,leadMain,rescue?'先導が危ない':quiet?'とどめは先導に残す':'先導に合わせる'); }
+    c.leadSeen=c.leadSeen||new Set(); for(const id of leadIn.keys())c.leadSeen.add(id); }
 
   /* ② 姿勢。行ったり来たりしないよう、今の姿勢のときは境目を少しずらし、変えるまでに反応の遅れを置く。 */
   const atk=D.attack*(1-.4*(sit.urgency||0))*(c.posture==='attack'||c.posture==='probe'?1-D.band:1), brk=D.break_*(c.posture==='delay'?1+D.band:1);
@@ -87,6 +103,7 @@ function npcThink(c,sit){
   let want;
   if(G.type==='withdraw')want='delay';
   else if(keeping)want='defend';
+  else if(follow)want=ratio<brk?'delay':leadMain!=null&&!quiet?'attack':'defend'; // 友軍は自分の力の比で攻めを決めず、先導が攻めたら出る
   else if(ratio<brk)want='delay';
   else if(ratio<atk||!others.length)want='defend';
   else if(c.posture==='attack')want='attack'; // 攻め始めたら偵察のために止まらない（偵察は並行して出す）
@@ -124,15 +141,20 @@ function npcThink(c,sit){
       if(!keep&&S.abandon>0&&e.threat>0&&e.own<e.threat*S.abandon*left)need=0;   // 守りきれない所は手放す（捨てない拠点は別）
       if(G.type==='withdraw')need=f?avg:0;                                       // 逃がす: 前線に殿を1隊ずつ（脅威が強くても残す）
     } else if(posture==='delay'&&!isBase&&e.own<e.threat*D.break_)need=0; // 守りきれない所は捨てて下がる
+    const relief=led&&c.leadSeen.has(z.id)&&!leadIn.has(z.id); // 先導が取って離れた拠点
+    if(led)need=Math.max(0,need-(leadIn.get(z.id)||0)); // 先導がいる拠点には守備を重ねない。離れたら引き継ぐ
     if(need>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:isBase?100:(posture==='attack'?45:65)+Math.min(20,thr/avg*5)+(keep?10:0),need,cap:Math.max(need,avg),
-      why:isBase?'本営を守る':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':thr>0?'脅威に備える':'前線を保つ'}); }
+      why:isBase?'本営を守る':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':relief?'引き継いで守る':thr>0?'脅威に備える':'前線を保つ'}); }
   }
   // 攻め
   const cutSet=new Set();
   if(foeBase){ const fronts=others.filter(z=>mem(z.id).owner==='foe'&&g.next(z.id).some(isOwn));
     for(const f of fronts)for(const id of g.route(foeBase.id,f.id,()=>0).slice(1,-1))if(!isOwn(id))cutSet.add(id); }
-  const lead=sit.lead?.front, leadReach=lead!=null&&home!=null?g.dist(home,lead):Infinity;
-  const allowed=z=>c.side!=='ally'||!z.final&&(lead==null||g.dist(home,z.id)<=leadReach+1e-6); // 友軍は最終目標を取らず、プレイヤーより先へ出ない
+  // 友軍は最終目標を取らず、先導より先へ出ない。先頭は front の指定、なければ味方の拠点と先導のいる拠点のうち本営からいちばん遠い所。助けに入るときは先へ出てよい。
+  const lead=sit.lead?.front; let leadReach=Infinity;
+  if(ally&&home!=null&&!rescue){ if(lead!=null)leadReach=g.dist(home,lead); else if(led)leadReach=Math.max(0,...ownZ.map(z=>g.dist(home,z.id)),...[...leadIn.keys()].map(id=>g.dist(home,id))); }
+  const allowed=z=>!ally||!z.final&&g.dist(home,z.id)<=leadReach+1e-6;
+  const commitCap=follow?A.commit*man:Infinity; // 友軍が攻めに出してよい力
   const score=z=>{ const m=mem(z.id);
     return (z.value||1)*(z.goal?D.wGoal:1)+D.wCut*(cutSet.has(z.id)?1:0)-D.wFoe*E.get(z.id).foe/Math.max(own,1e-9)-D.wDist*(home!=null?g.dist(home,z.id):0)/g.span
       +(t-m.lostAt<D.counterWindow?D.wLost:0)-(t-m.failAt<D.retry?D.wFail:0)+(c.main===z.id?D.stickObj:0)+m.jit; };
@@ -148,18 +170,27 @@ function npcThink(c,sit){
     if(running&&(running.goalZone||running.zone)===z.id&&!isOwn(running.zone)&&!failed(running.zone)){
       obj=running.zone; from=running.from!=null&&isOwn(running.from)?running.from:g.next(obj).filter(isOwn).sort((a,b)=>g.dist(home,a)-g.dist(home,b))[0]??null; }
     if(failed(obj))return false;
-    const need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'?D.mass*man:0);
+    const need=Math.max(avg,E.get(obj).foe*ratioNeed,posture==='attack'&&!follow?D.mass*man:0);
     mainZone=obj; offensive++;
-    push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,(1-D.reserve)*man),why:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id});
+    push({type:'seize',zone:obj,from,pri:80,need,cap:Math.max(avg,Math.min((1-D.reserve)*man,commitCap)),why:obj===z.id?why:`${why}（${z.id}への途中）`,why0:why,goalZone:z.id});
     return true;
   };
   const cand=others.filter(allowed);
-  if(posture==='attack'&&cand.length){
+  if(follow){ // 先導に合わせる友軍: 支援攻撃と、空いた拠点だけ
+    if(!quiet&&posture==='attack'&&leadMain!=null&&t-mem(leadMain).failAt>=D.retry){ // 先導が攻める拠点の手前まで出て撃つ。占領の円には入らない（fix と同じ動き）
+      const from=g.next(leadMain).filter(isOwn).sort((a,b)=>g.dist(a,leadMain)-g.dist(b,leadMain))[0]??home; offensive++;
+      push({type:'fix',zone:leadMain,from,pri:70,need:Math.max(avg,E.get(leadMain).foe*D.fix),cap:Math.max(avg,commitCap),why:'攻撃を支援する'}); }
+    if(!quiet&&posture!=='delay'&&t-c.wonAt>=D.consolidate){ // 敵がほぼいない隣の拠点。先導が向かっている所には手を出さない
+      const easy=cand.filter(z=>z.id!==leadMain&&!leadTo.has(z.id)&&g.next(z.id).some(isOwn)&&E.get(z.id).foe<=A.easy*avg);
+      const cur=running&&easy.find(z=>z.id===(running.goalZone||running.zone));
+      if(!(cur&&seize(cur,running.why0||'空いた所を取る',D.attack)))for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
+    }
+  } else if(posture==='attack'&&cand.length){
     const keep=running&&running.stage!=='assemble'&&cand.find(z=>z.id===(running.goalZone||running.zone)); // 動き出した主攻は変えない
     if(keep)seize(keep,running.why0||'主攻を続ける',D.attack);
     else if(t-c.wonAt>=D.consolidate){ // 点数の高い順に、攻められる所が見つかるまで試す
       for(const best of [...cand].sort((a,b)=>score(b)-score(a)))if(seize(best,best.goal?'目標を取る':cutSet.has(best.id)?'補給線を切る':'前へ出る',D.attack)){ c.main=best.id; break; } }
-  } else if(posture==='defend'&&c.side!=='ally'&&G.type!=='withdraw'){ // 取られた拠点を、余力があれば取り返す
+  } else if(posture==='defend'&&(!ally||rescue)&&G.type!=='withdraw'){ // 取られた拠点を、余力があれば取り返す
     // 型ごとの取り返し: 固守は捨てない拠点だけ（何度でも）、遅滞はしない、機動防御は何でも、縦深は線が2本残っているあいだ
     const rule=S?S.counter:'any', cr=S&&S.counterRatio||D.counter, spare=Math.max(0,man-holdNeed);
     const lost=rule==='none'?[]:cand.filter(z=>(must.has(z.id)&&mem(z.id).lostAt>-1e9||t-mem(z.id).lostAt<D.counterWindow&&(rule==='any'||rule==='depth'&&lines>=2))&&E.get(z.id).foe*cr<=spare);
@@ -171,7 +202,7 @@ function npcThink(c,sit){
     if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',cr)){ done=true; break; }
     if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
   }
-  if(posture==='attack'&&mainZone){
+  if(posture==='attack'&&mainZone&&!follow){
     if(D.feint&&offensive<L.tasks){ // 助攻: 主攻とは別の、敵がいる隣の拠点を押さえつける
       const f=cand.filter(z=>z.id!==mainZone&&t-mem(z.id).failAt>=D.retry&&g.next(z.id).some(isOwn)&&E.get(z.id).foe>0).sort((a,b)=>E.get(b.id).foe-E.get(a.id).foe)[0];
       if(f){ offensive++; push({type:'fix',zone:f.id,from:g.next(f.id).filter(isOwn).sort((a,b)=>g.dist(a,f.id)-g.dist(b,f.id))[0],pri:50,need:Math.max(avg,E.get(f.id).foe*D.fix),cap:Math.max(avg,E.get(f.id).foe*D.fix*1.5),why:'敵を引きつける'}); }
@@ -257,7 +288,7 @@ function npcThink(c,sit){
   }
   c.tasks=now; for(const u of units)c.unit.get(u.id).task=assign.get(u.id)??null;
   for(const id of [...c.unit.keys()])if(!powerOf.has(id))c.unit.delete(id);
-  return c.plan={time:t,posture,ratio,info,own,foe,main:mainZone,
+  return c.plan={time:t,posture,ratio,info,own,foe,main:mainZone,lead:led?{main:leadMain,mode:c.allyMode,power:leadP}:null,
     tasks:[...tasksOut.values()].map(k=>({key:k.key,type:k.type,zone:k.zone,from:k.from??null,stage:k.stage,since:k.since,why:k.why,units:k.units}))};
 }
 
