@@ -17,7 +17,7 @@ function nodeChecks(){
  });
  test('追加4条件は演習場・600秒・seed1、青攻撃／赤4型で保存名も重複しない',()=>{
   const {cases,caseName}=require('../tools/npc-measure.cjs'),extra=cases.filter(c=>c.intents);
-  assert.equal(cases.length,11);assert.deepEqual(extra.map(c=>c.intents[1].style),['firm','mobile','delay','depth']);
+  assert.equal(cases.length,15);assert.deepEqual(extra.map(c=>c.intents[1].style),['firm','mobile','delay','depth']);
   for(const c of extra){assert.equal(c.terrain,'exercise2');assert.equal(c.seconds,600);assert.equal(c.seed,1);assert.deepEqual(c.intents[0],{type:'seize'});assert.deepEqual(c.intents[1].zones,['F']);assert.equal(c.intents[1].type,c.intents[1].style==='delay'?'delay':'hold');assert.equal(c.intents[1].until,c.intents[1].style==='delay'?300:undefined);}
   assert.equal(new Set(cases.map(caseName)).size,cases.length);
  });
