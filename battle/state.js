@@ -543,6 +543,7 @@ function reset(cfg=lastCfg){
   const gateLabel=b=>{ const g=gates.find(x=>x.name===b.name); return g?[g.pos.x,g.pos.z-6]:b.pos; };
   buildSectors([...(op.sectors||[]),...(BD?[{name:BD.name,sub:BD.sub,pos:BD.label||[0,0]},...BD.blocks.map(b=>({name:b.name,sub:CV?`${b.sub}　民間区画`:b.sub,pos:b.gate?gateLabel(b):b.pos})),
     ...(BD.port&&!BD.port.mark?[{name:BD.port.name,sub:BD.port.sub||'',pos:BD.port.pos}]:[])]:[])]);
+  resetControlGuide(cfg);
   tutorialInit(cfg);
   fogTimer=0; updateFog();
   buildRoster(); updateRoster(); if(typeof updateGoal==='function') updateGoal();
