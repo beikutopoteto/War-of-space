@@ -297,8 +297,34 @@ let down=null;
 renderer.domElement.addEventListener('pointerdown',e=>{ if(pickCtx&&labelEnemy){ labelEnemy.el.classList.remove('label-picked'); labelEnemy=null; } down={x:e.clientX,y:e.clientY,t:performance.now(),b:e.button,closing:!!pickCtx}; closePick();});
 renderer.domElement.addEventListener('pointerup',e=>{ if(down&&!down.closing&&down.b===e.button&&(e.button===0||e.button===2)&&Math.hypot(e.clientX-down.x,e.clientY-down.y)<8&&performance.now()-down.t<450) tap(e.clientX,e.clientY,e.button===2,e.shiftKey); down=null; });
 renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
-const hintEl=document.getElementById('hint'); let hintGone=false;
-function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); setTimeout(()=>hintEl.hidden=true,800); }
+const hintEl=document.getElementById('hint'), keysEl=document.getElementById('keys');
+const spaceHint=hintEl.textContent, spaceKeys=keysEl.innerHTML;
+const groundHint='青い部隊をクリックで選び、地表をクリックで移動、敵をクリックして「攻撃」を選びます（右クリックでも命令できます）。Shift+クリックで経由地や攻撃を予約。「地点攻撃 [B]」で円・帯を指定し、航空機や W.A.S. の高度は左下の段から選択。R で自動交戦と命令優先を切り替え、航空機以外の対空装備は自動迎撃します。ドラッグで回転、ホイールで拡大、WASD で移動、Space で一時停止、Esc でメニュー。';
+const groundKeys='<tbody>'+[
+  ['選ぶ','青い部隊をクリック、1〜9、Shift+クリックでまとめて選択。同じ部隊をもう一度クリックで解除。G で編成した部隊群を順に選択'],
+  ['移動・攻撃','地表をクリックで移動。敵をクリックして「攻撃」か「ここへ移動」。右クリックでも命令。現在の高度・対応兵器で攻撃可能な隊だけに指示する'],
+  ['地点攻撃 [B]','単独の陸上隊・支援機は中心と半径、海の艦・複数隊は始点・終点・幅を指定。Shiftで中間点を追加。1〜30は各隊の斉射回数。未観測地点も指定でき、爆風は味方にも当たる'],
+  ['予約','Shift+クリックで経由地や攻撃を予約'],
+  ['高度','左下の高度の段から地上・低高度・高高度を選ぶ。航空機と W.A.S. は対応する段だけに切り替えられる'],
+  ['自動交戦・命令優先','R、左下の方針ボタン、右下の部隊一覧。命令優先は通常攻撃を命じた敵だけに行う。航空機以外の対空装備は発見・射程・射線を満たすと、どちらの方針でも独立して自動迎撃'],
+  ['停止・帰投','停止で未投下の任務を解除。発射・投下済みの弾は消えない。帰投補給は未発射の命令・予約を保存し、復帰後に再開'],
+  ['戻す','Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す。砲撃・爆撃は未発射分だけを復元し、発射済み弾・消費した補給・再装填時間は巻き戻さない'],
+  ['視点','ドラッグで回転、ホイールで拡大、WASD で平行移動。十字キーか下の視点のスティックで回転、V で斜め/真上/真横'],
+  ['時間','Space で一時停止、停止・1×・2×・4×'],
+  ['表示','H でパネル、L で名札'],
+  ['会話','クリックか Enter で次へ、Ctrl 長押しで早送り、「とばす」で最後まで。オプションでストーリーをオフにすると会話を出さない'],
+  ['メニュー・取消','Esc で地点指定などの入力待ちを取消。それ以外は Esc か左上の「メニュー」で開く・閉じる']
+].map(([name,text])=>`<tr><th>${name}</th><td>${text}</td></tr>`).join('')+'</tbody>';
+let hintGone=false, hintTimer=null, hintFadeTimer=null;
+function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); hintFadeTimer=setTimeout(()=>hintEl.hidden=true,800); }
+/* reset() is also used by retries and capture tools, without WOS.start(). */
+function resetControlGuide(cfg){
+  clearTimeout(hintTimer); clearTimeout(hintFadeTimer);
+  hintEl.textContent=op.ground?groundHint:spaceHint;
+  keysEl.innerHTML=op.ground?groundKeys:spaceKeys;
+  hintGone=false; hintEl.hidden=!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone');
+  if(!hintEl.hidden) hintTimer=setTimeout(hideHint,7000);
+}
 /* the hint closes on its own after a few seconds, or as soon as the player touches anything */
 hintEl.addEventListener('click',hideHint);
 addEventListener('pointerdown',hideHint,{capture:true});
@@ -366,7 +392,7 @@ window.WOS={ start(cfg){
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field (the tutorial: op.tutorialView) */
   const V=(cfg&&cfg.tutorial&&op.tutorialView)||op.view||{target:[0,24],dist:190}, D=V.dir||[.3,.4,.87];
   setView(0); flyTo(new THREE.Vector3(V.target[0],0,V.target[1]),new THREE.Vector3(...D),V.dist);
-  hintGone=false; hintEl.hidden=!!op.ground||!!(cfg&&cfg.tutorial); hintEl.classList.remove('gone'); if(!hintEl.hidden) setTimeout(hideHint,7000);
+  resetControlGuide(cfg);
 }, openMenu };
 
 /* mission panel (top right, under the legend): what to do now, with a gauge.

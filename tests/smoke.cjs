@@ -2,6 +2,7 @@
    Run with `npm test` (after `npm install`). Screenshots go to test-results/.
    The CDN scripts are served from node_modules/three, so the test also works offline. */
 const { chromium } = require('playwright');
+const {nodeChecks:groundHintChecks,checkGroundHint}=require('./ground-hint.cjs');
 const path = require('path'), fs = require('fs');
 const { checkPrepTutorial } = require('../tools/prep-tutorial-check.cjs');
 const { checkTutorial } = require('../tools/tutorial-check.cjs');
@@ -52,6 +53,7 @@ function check(ok, label, detail = '') {
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  for(const r of groundHintChecks())check(r.ok,'操作案内: '+r.name,r.error||'');
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
@@ -195,6 +197,7 @@ function check(ok, label, detail = '') {
     await checkGroundDrill(page, check);
     await checkGroundFixes(page, check);
     await checkCommandIcons(page, check);
+    await checkGroundHint(page, check);
     /* title */
     await page.goto('file://' + path.join(ROOT, 'index.html'));
     const roles = await page.evaluate(() => {
