@@ -1706,7 +1706,7 @@ WOS_DATA.operations.push((()=>{
     name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:300,
     summary:'カスピ海沿岸の演習場。敵の本営・北東観測地を占領するか、敵の全戦力を撃破する。',
     threat:'仮想敵8隊（仮）: 強化歩兵3、主力戦車2、自走砲1、斥候1、戦闘機1。共和国の指揮官が拠点へ部隊を動かす。',brief:'案内なしの地上演習です。敵の本営・北東観測地 F の占領、または敵の全戦力の撃破で勝利です。自軍全滅で敗北です。',
-    win:{type:'groundHQ',text:'敵本営 F を占領、または敵の全戦力を撃破せよ'},
+    win:{type:'groundHQ',text:'敵の本営（北東観測地）を占領、または敵の全戦力を撃破せよ'},
     groundTutorial:{name:'チュートリアル2',tag:'チュートリアル',requires:'denaliBreak',forces:'fixed',reward:100,groundDrill:true,npc:null,
       quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
       enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')],

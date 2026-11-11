@@ -5,7 +5,7 @@ const {openGame}=require('./browser.cjs'),path=require('node:path'),fs=require('
  const {browser,page,errors}=await openGame({width:1600,height:900});
  try{
   await page.evaluate(()=>{
-    const source=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();
+    const source=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();menuOpen=false;document.body.classList.remove('inmenu');document.getElementById('menu').hidden=true;
     camAnim=null;controls.target.copy(groundPoint(21,25));camera.position.copy(controls.target).add(new THREE.Vector3(0,130,80));camera.lookAt(controls.target);controls.update();select(null);
   });
   const out=path.resolve(__dirname,'../.shots');fs.mkdirSync(out,{recursive:true});
