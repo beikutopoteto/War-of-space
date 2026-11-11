@@ -176,6 +176,54 @@ function nodeChecks(){
   const c=commander('mars','hard','ally'),s=fixture();s.lead={full:10,units:[{id:'p1',x:10,z:0,power:4}]};
   for(let t=0;t<120;t+=3){s.time=t;const p=npcThink(c,s);assert.equal(p.lead.mode,'rescue');for(const k of off(p))assert.notEqual(k.zone,'F');if(t===0)assert(p.tasks.some(k=>k.type==='seize'));}
  });
+ // 手順のある任務: 架橋・上陸・補給。
+ const river=(open=false)=>{const s=fixture();s.zones=s.zones.filter(z=>z.id!=='D');s.contacts=[{id:'e1',x:20,z:0,power:1,age:0}];
+  s.links=[{a:'A',b:'B',len:10},{a:'B',b:'C',len:10,way:'gap',open},{a:'C',b:'F',len:10}];
+  s.units.push({id:'eng',role:'support',power:.2,x:10,z:0,speed:.2,canHold:false,health:1,morale:1,supply:1,free:true,can:'bridge'});return s;};
+ const task=(p,type)=>p.tasks.find(k=>k.type===type);
+ test('橋のない川は工兵と護衛で架け、主攻は橋ができるまで集結で待つ',()=>{
+  const c=commander('earth','hard'),s=river();let p;
+  for(let t=0;t<=96;t+=3){s.time=t;p=npcThink(c,s);}
+  const b=task(p,'bridge'),m=main(p);assert(b&&b.zone==='B'&&b.to==='C'&&b.stage==='work');assert(b.units.some(x=>x.id==='eng'&&x.as==='work'));assert(b.units.some(x=>x.as==='main'));
+  assert(m&&m.zone==='C'&&m.via==='gap'&&m.blocked&&m.stage==='assemble'); // assembleMax（90秒）を過ぎても渡らない
+  s.links[1].open=true;s.time=99;p=npcThink(c,s);assert(!task(p,'bridge'));assert.equal(main(p).stage,'advance');assert(!main(p).blocked);
+ });
+ test('工兵がいなければ架橋を計画せず、架けられなかった川はしばらく使わない',()=>{
+  let c=commander('earth','hard'),s=river();s.units=s.units.filter(u=>u.id!=='eng');assert(!task(npcThink(c,s),'bridge'));
+  c=commander('earth','hard');s=river();let p,aborted=false;
+  for(let t=0;t<=150;t+=3){s.time=t;p=npcThink(c,s);if(c.log.some(l=>l.what==='bridge:abort'))aborted=true;}
+  assert(aborted);assert(!task(p,'bridge'));
+ });
+ test('遠回りが少しなら橋を架けず、大きく遠回りなら架ける',()=>{
+  const run=len=>{const c=commander('earth','hard'),s=river();s.links.push({a:'B',b:'C',len});return npcThink(c,s);};
+  assert(!task(run(12),'bridge'));assert(task(run(40),'bridge'));
+ });
+ const coast=()=>{const s=fixture();s.contacts=[{id:'e1',x:20,z:0,power:8,age:0}];s.zones.find(z=>z.id==='D').owner='foe';
+  s.links=[{a:'A',b:'B',len:10},{a:'B',b:'C',len:10},{a:'C',b:'F',len:10},{a:'D',b:'F',len:10},{a:'B',b:'D',len:14,way:'sea'}];
+  s.units.push({id:'ship',role:'fires',power:2,x:10,z:4,speed:.2,canHold:false,health:1,morale:1,supply:1,free:true,can:'ferry',lift:2});return s;};
+ test('海でつながる守りの薄い拠点へは、揚陸艦で運べる数だけ海から出す',()=>{
+  const c=commander('mars','hard'),s=coast();s.zones.find(z=>z.id==='D').goal=true;const p=npcThink(c,s),k=p.tasks.find(k=>k.via==='sea');
+  assert(k&&k.type==='seize'&&k.zone==='D'&&k.from==='B'&&k.stage==='advance'); // 乗る拠点にそろっているので、すぐ出るassert.deepEqual(k.link,['B','D']);
+  assert(k.units.filter(x=>x.as==='main').length<=2);assert(k.units.some(x=>x.id==='ship'&&x.as==='lift'));
+ });
+ test('守りが固い相手と、揚陸艦がないときは海から行かない',()=>{
+  let c=commander('mars','hard'),s=coast();s.contacts.push({id:'e2',x:20,z:12,power:6,age:0});assert(!npcThink(c,s).tasks.some(k=>k.via==='sea'));
+  c=commander('mars','hard');s=coast();s.units=s.units.filter(u=>u.id!=='ship');assert(!npcThink(c,s).tasks.some(k=>k.via==='sea'));
+ });
+ test('手順の途中で命令を受けられない隊は、任務から外さない',()=>{
+  const c=commander('mars','hard'),s=coast();s.zones.find(z=>z.id==='D').goal=true;let p=npcThink(c,s);const k=p.tasks.find(k=>k.via==='sea'),ids=k.units.map(x=>x.id);
+  for(const u of s.units)if(ids.includes(u.id)){u.free=false;u.busy=true;}
+  s.time=3;p=npcThink(c,s);const k2=p.tasks.find(x=>x.key===k.key);assert(k2);for(const id of ids)assert(k2.units.some(x=>x.id===id));
+  for(const u of s.units)if(ids.includes(u.id))u.busy=false; // 手順と関係なく動けない隊は外す
+  s.time=6;p=npcThink(c,s);for(const id of ids)assert(!p.tasks.some(k=>k.units.some(x=>x.id===id)));
+ });
+ test('補給の減った主攻は集結で補給を待ち、補給部隊はその任務に付く',()=>{
+  const c=commander('mars','hard'),s=fixture();s.units.forEach(u=>{u.supply=.3;});
+  s.units.push({id:'sup',role:'support',power:.2,x:0,z:0,speed:.25,canHold:false,health:1,morale:1,supply:1,free:true,can:'supply'});
+  let p=npcThink(c,s);assert.equal(main(p).stage,'assemble');assert(main(p).units.some(x=>x.id==='sup'&&x.as==='supply'));
+  s.time=30;p=npcThink(c,s);assert.equal(main(p).stage,'assemble');assert(c.log.some(l=>l.what==='seize:resupply'));
+  s.time=45;p=npcThink(c,s);assert.equal(main(p).stage,'advance'); // supplyWait（40秒）で出る
+ });
  test('低士気・低補給はrefit、低耐久は攻めの最後',()=>{
   const c=commander(),s=fixture();s.units[0].morale=.1;s.units[1].supply=.1;s.units[2].health=.1;const p=npcThink(c,s),refit=p.tasks.filter(k=>k.type==='refit').flatMap(k=>k.units.map(x=>x.id));
   assert(refit.includes('u0')&&refit.includes('u1'));assert(!main(p).units.some(x=>x.id==='u2'));assert(!refit.includes('u2'));

@@ -45,6 +45,11 @@
        rescue: 先導の力が初めのこの割合以下になったら助けに入る　finish: 知っている敵がいちばん多かったときのこの割合を切ったら攻めをやめる
        main: 先導の力のこの割合以上が向かっている拠点を、先導の攻撃目標と見る */
     ally: { commit: 0.5, easy: 0.5, rescue: 0.5, finish: 0.2, main: 0.3 },
+    /* 手順のある任務（架橋・上陸・補給）の値（docs/npc-doctrine.md 9.8）
+       gap / sea: 橋を架ける・海を渡るときに道のりへ上乗せする km（手間と時間のぶん）
+       gapMax / seaMax: 架橋・渡海をあきらめるまでの秒　supplyGo: 主攻の補給の平均がこれ未満なら、集結で補給を待つ
+       supplyWait: 補給を待つ最長の秒　supplyNeed: 補給部隊を付けるのは、任務の隊の補給の減りの合計がこれを超えたとき */
+    lift: { gap: 6, sea: 8, gapMax: 120, seaMax: 240, supplyGo: 0.5, supplyWait: 40, supplyNeed: 0.3 },
     defense: 'firm',    // 守るときの型（作戦が指定しなければこれ）
   };
   /* 守り方の型（docs/npc-doctrine.md 9.7）。攻めていないときの守りの値を上書きする。
