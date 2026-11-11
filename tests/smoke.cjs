@@ -14,6 +14,9 @@ const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
 const { checkGroundSupply } = require('./ground-supply.cjs');
+const {nodeChecks:npcCoreChecks}=require('./npc-core.cjs');
+const {nodeChecks:npcSimChecks}=require('./npc-sim.cjs');
+const {nodeChecks:npcGroundChecks,checkNpcGround}=require('./npc-ground.cjs');
 const { checkGroundDrill } = require('./ground-drill.cjs');
 const { checkCommandIcons } = require('./command-icons.cjs');
 const { checkGroundFixes } = require('./ground-fixes.cjs');
@@ -66,6 +69,9 @@ function check(ok, label, detail = '') {
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);
+  for(const r of npcSimChecks())check(r.ok,'NPC計測器: '+r.name);
+  for(const r of npcCoreChecks())check(r.ok,'NPC頭: '+r.name,r.detail||'');
+  for(const r of npcGroundChecks())check(r.ok,'NPC橋渡し: '+r.name);
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)
@@ -185,6 +191,7 @@ function check(ok, label, detail = '') {
     await checkGroundSea(page, check);
     await checkGroundLanding(page, check);
     await checkGroundSupply(page, check);
+    await checkNpcGround(page, check);
     await checkGroundDrill(page, check);
     await checkGroundFixes(page, check);
     await checkCommandIcons(page, check);

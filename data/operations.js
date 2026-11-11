@@ -1702,22 +1702,28 @@ WOS_DATA.operations.push((()=>{
   const sea=(name,type,x,y)=>({...unit(name,'sea',x,y,'sea'),type,team:0});
   const mark=(label,x,y)=>({label,pos:[(x-24)*4,(18-y)*4],alt:0});
   const row=(section,name,condition,actor,text,extra={})=>({section,name,condition,actor:names[actor],text,targets:['#roster'],marks:[],...extra});
-  return {id:'baikonur',requires:'tutorial2',tag:'演習',ground:'exercise2',
+  return {id:'baikonur',requires:'tutorial2',tag:'演習',ground:'exercise2',npc:{1:{doctrine:'mars',level:'standard'}},
     name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:300,
-    summary:'カスピ海沿岸の演習場。地上・航空・海上の部隊を指揮し、西方集落を占拠する。',
-    threat:'仮想敵4隊。視界と射程に入ると交戦する。',brief:'案内なしの地上演習です。敵の攻撃をしのぎ、西方集落を占拠してください。自軍全滅で敗北です。',
-    win:{type:'capture',text:'西方集落を占拠せよ'},
-    groundTutorial:{name:'チュートリアル2',tag:'チュートリアル',requires:'denaliBreak',forces:'fixed',reward:100,groundDrill:true,
+    summary:'カスピ海沿岸の演習場。敵の本営・北東観測地を占領するか、敵の全戦力を撃破する。',
+    threat:'仮想敵8隊（仮）: 強化歩兵3、主力戦車2、自走砲1、斥候1、戦闘機1。共和国の指揮官が拠点へ部隊を動かす。',brief:'案内なしの地上演習です。敵の本営・北東観測地 F の占領、または敵の全戦力の撃破で勝利です。自軍全滅で敗北です。',
+    win:{type:'groundHQ',text:'敵の本営（北東観測地）を占領、または敵の全戦力を撃破せよ'},
+    groundTutorial:{name:'チュートリアル2',tag:'チュートリアル',requires:'denaliBreak',forces:'fixed',reward:100,groundDrill:true,npc:null,
+      quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
+      enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')],
       summary:'リコ軍曹の案内で、地上・航空・海岸・補給と士気の操作を26手順で確かめる。敵は攻撃しない。',
       threat:'仮想敵は全手順・とばした後も攻撃しない。',brief:'リコ軍曹の案内に沿って、10項目の訓練を順に終えてください。編成は固定です。自軍に W.A.S. は配備されません。勝利は全手順の完了、敗北は自軍全滅です。案内をとばした場合は、西方集落の占拠で演習完了です。',
       win:{type:'groundDrill',text:'リコ軍曹の案内に沿って、補給と士気まで全手順を終える'},
       groundSites:[{site:'A',owner:null}],
       result:{win:'チュートリアル2を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','全手順の完了、確認しました。'],loseLog:['リコ軍曹','演習を終了します。']}},
     groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],
-    groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:0},{site:'F',owner:1}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
-    quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
+    groundSites:[{site:'A',owner:0},{site:'B',owner:0},{site:'C',owner:null},{site:'D',owner:null},{site:'E',owner:1},{site:'F',owner:1}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
+    // 案内なしの仮配置。チュートリアル2は groundTutorial.quick に従来配置を保持。
+    quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',22,29),unit(names.air,'attack',15,24,'high'),unit(names.aa,'mobileAA',20,27),unit(names.gun,'artillery',11,22),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',12,27),unit('第11 強化歩兵中隊','infantry',21,28)],
     groundSea:[sea(names.ship,'cl',17,4),{...sea(names.landing,'dd',12,5),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',12,5)]}],
-    enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')].map(f=>({...f,stance:'engage'})),
+    // 演習専用の仮配備。案内付きの敵は groundTutorial 側で従来配備を上書きする。
+    enemies:[unit('仮想敵 歩兵','infantry',34,22),unit('仮想敵 戦車','vehicle',35.5,23),
+      unit('仮想敵 第2歩兵','infantry',40,27),unit('仮想敵 第3歩兵','infantry',42,28),unit('仮想敵 第2戦車','vehicle',40,25.5),
+      unit('仮想敵 自走砲','artillery',42,26),unit('仮想敵 斥候','scout',26,21),unit('仮想敵 航空','fighter',40,28,'low')].map(f=>({...f,stance:'engage'})),
     tutorial:[
       row(1,'① 部隊を選ぶ','groundSelect','inf','少佐、演習場との照合が済みました。リコ軍曹です。……地上の手順を一つずつ確かめます。まず、右下の「第1 強化歩兵中隊」を選んでください。'),
       row(1,'① 地上を移動','groundMove','inf','選択、確認しました。地上では地形に沿って進みます。金色の輪「移動」をクリックして、第1 強化歩兵中隊を動かしてください。',{marks:[mark('移動',7,25)]}),

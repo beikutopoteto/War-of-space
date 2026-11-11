@@ -52,6 +52,7 @@ function runMenuChecks(){
   assert.match(exercises,/data-op="tutorial2"[^>]*>[\s\S]*?チュートリアル2/);count++;
   assert.match(exercises,/data-op="baikonur"[^>]*disabled[\s\S]*?バイコヌール演習/);count++;
   check("TUT2.tutorial===TUT2_BASE.tutorial&&TUT2.groundDrill&&!TUT2_BASE.groundDrill&&TUT2.tutorial.length===26",'案内は基本演習と共有する26手順');
+  check("TUT2.quick.length===9&&TUT2_BASE.quick.length===10&&TUT2.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(33-24)*4&&TUT2_BASE.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(20-24)*4",'案内の旧配備9隊と演習の西側配備10隊を分ける');
   assert.equal(node('goQuick').hidden,true);count++;
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur',tutorial:true});count++;
@@ -61,7 +62,7 @@ function runMenuChecks(){
   run("sortieOp='baikonur';renderSortie()");
   assert.equal(node('goQuick').hidden,false);count++;
   node('goQuick').onclick();
-  assert.equal(calls.at(-1).fleets.length,9);count++;
+  assert.equal(calls.at(-1).fleets.length,10);count++;
   check("onEnd('baikonur',true)===''&&!cleared('baikonur')&&prog().funds===167",'クイックは報酬・クリア記録なし');
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur'});count++;

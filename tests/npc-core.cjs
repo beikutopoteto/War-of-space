@@ -1,0 +1,149 @@
+/* Nodeのみ。頭の規範と段取りを固定状況で確認。既存規範の数値は変更しない。 */
+const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const {npcCommander,npcThink}=require('../battle/npc-core.js');
+const box={window:{}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../data/npc-doctrines.js'),'utf8'),box);const N=box.window.WOS_DATA.npc;
+function fixture(){
+  return {time:0,zones:[['A',0,0,'own','own'],['B',10,0,'own'],['C',20,0,'foe'],['D',20,12,'foe'],['F',30,0,'foe','foe']].map(([id,x,z,owner,base])=>({id,x,z,r:2,owner,known:owner,seen:true,base,goal:id==='F',final:id==='F'})),
+    links:[['A','B'],['B','C'],['B','D'],['C','F'],['D','F']].map(([a,b])=>({a,b,len:10})),
+    units:Array.from({length:20},(_,i)=>({id:'u'+i,role:i%3===0?'shock':'line',power:1,x:10,z:0,speed:.3,canHold:i%3!==0,health:1,morale:1,supply:1,free:true})),
+    contacts:[{id:'e1',x:20,z:0,power:1,age:0},{id:'e2',x:20,z:12,power:1,age:0}],goal:{type:'seize'}};
+}
+const commander=(doctrine='mars',level='standard',side='foe',seed=1)=>npcCommander({team:0,side,doctrine:N.doctrines[doctrine],level:N.levels[level],seed});
+const main=p=>p.tasks.find(k=>k.type==='seize');
+function nodeChecks(){
+ const rows=[],test=(name,fn)=>{try{fn();rows.push({name,ok:true});}catch(e){rows.push({name,ok:false,detail:e.message});}};
+ test('力の比で攻撃・防御・遅滞が変わる',()=>{
+  const post=power=>{const s=fixture();s.contacts.forEach(e=>e.power=power);return npcThink(commander(),s).posture;};
+  assert.equal(post(1),'attack');assert.equal(post(15),'defend');assert.equal(post(50),'delay');
+ });
+ test('姿勢の境目の幅と反応遅れで往復しない',()=>{
+  const c=commander(),s=fixture();assert.equal(npcThink(c,s).posture,'attack');
+  for(let t=3;t<=90;t+=3){s.time=t;s.contacts.forEach(e=>e.power=t%2?9:10);assert.equal(npcThink(c,s).posture,'attack');}
+  s.contacts.forEach(e=>e.power=15);s.time=100;assert.equal(npcThink(c,s).posture,'attack');s.time=106;assert.equal(npcThink(c,s).posture,'defend');
+ });
+ test('主攻は集結→前進→突入、集結率未満では待つ',()=>{
+  const c=commander(),s=fixture();s.units.forEach(u=>{u.x=-10;});let p=npcThink(c,s);assert.equal(main(p).stage,'assemble');
+  const k=main(p),from=s.zones.find(z=>z.id===k.from),target=s.zones.find(z=>z.id===k.zone),ids=k.units.filter(x=>x.as==='main').map(x=>x.id);
+  const group=s.units.filter(u=>ids.includes(u.id));const gathered=Math.ceil(group.length*c.D.massing);
+  group.slice(0,gathered-1).forEach(u=>{u.x=from.x;u.z=from.z;});s.time=3;p=npcThink(c,s);assert.equal(main(p).stage,'assemble');
+  group.forEach(u=>{u.x=from.x;u.z=from.z;});s.time=6;p=npcThink(c,s);assert.equal(main(p).stage,'advance');
+  for(const x of main(p).units){const u=s.units.find(u=>u.id===x.id);u.x=target.x;u.z=target.z;}s.time=9;p=npcThink(c,s);assert.equal(main(p).stage,'assault');
+  assert.deepEqual(c.log.filter(l=>l.what.startsWith('seize:')).map(l=>l.what),['seize:assemble','seize:advance','seize:assault']);
+ });
+ test('assembleMaxまでは進まず、超過時に前進する',()=>{
+  const c=commander(),s=fixture();s.units.forEach(u=>u.x=-30);assert.equal(main(npcThink(c,s)).stage,'assemble');
+  s.time=c.D.assembleMax;assert.equal(main(npcThink(c,s)).stage,'assemble');s.time++;assert.equal(main(npcThink(c,s)).stage,'advance');
+ });
+ test('前進中は損耗・敵の力・交戦中を理由に中止も突入もしない',()=>{
+  const c=commander(),s=fixture();let k=main(npcThink(c,s));const st=c.tasks.get(k.key);st.power0=1000;
+  s.units.forEach(u=>u.engaged=true);s.contacts.forEach(e=>e.power=5);s.time=3;
+  k=main(npcThink(c,s));assert.equal(k.stage,'advance');assert(!c.log.some(l=>l.what==='seize:abort'));
+ });
+ test('r×2.5以内の主攻の力がmassing未満なら待ち、そろうと突入する',()=>{
+  const c=commander(),s=fixture();s.units.forEach((u,i)=>u.power=i%2?1:2);
+  let k=main(npcThink(c,s));assert.equal(k.stage,'advance');const z=s.zones.find(z=>z.id===k.zone);
+  const group=k.units.filter(x=>x.as==='main').map(x=>s.units.find(u=>u.id===x.id));
+  const total=group.reduce((n,u)=>n+u.power,0);let arrived=0;
+  group[0].x=z.x-z.r*1.5;group[0].z=z.z;arrived+=group[0].power;
+  s.time=3;assert.equal(main(npcThink(c,s)).stage,'advance');
+  // 支援の到着は主攻の集結率に足さない。
+  s.units.filter(u=>!group.includes(u)).forEach(u=>{u.x=z.x;u.z=z.z;});
+  for(const u of group.slice(1)){
+   if((arrived+u.power)/total>=c.D.massing)break;
+   u.x=z.x-z.r*2.5;u.z=z.z;arrived+=u.power;
+  }
+  s.time=6;assert.equal(main(npcThink(c,s)).stage,'advance');
+  for(const u of group){u.x=z.x-z.r*2.5-.001;u.z=z.z;}
+  s.time=9;assert.equal(main(npcThink(c,s)).stage,'advance');
+  arrived=0;for(const u of group){u.x=z.x-z.r*2.5;arrived+=u.power;if(arrived/total>=c.D.massing)break;}
+  s.time=12;assert.equal(main(npcThink(c,s)).stage,'assault');
+ });
+ test('前進の打ち切りは最初の到着からassembleMax/2秒を超えてから',()=>{
+  const c=commander(),s=fixture(),k=main(npcThink(c,s)),z=s.zones.find(z=>z.id===k.zone);
+  s.time=c.D.assembleMax*2;assert.equal(main(npcThink(c,s)).stage,'advance');
+  const u=s.units.find(u=>u.id===k.units.find(x=>x.as==='main').id);u.x=z.x-z.r*2.5;u.z=z.z;
+  s.time++;const at=s.time;assert.equal(main(npcThink(c,s)).stage,'advance');
+  s.time=at+c.D.assembleMax/2;assert.equal(main(npcThink(c,s)).stage,'advance');
+  s.time+=.001;assert.equal(main(npcThink(c,s)).stage,'assault');
+ });
+ test('memoryを過ぎた敵の数は力の比に残り、拠点の脅威には残らない',()=>{
+  const c=commander(),s=fixture();s.contacts=[{id:'old',x:0,z:0,power:24,age:c.L.memory+1}];
+  const p=npcThink(c,s),seen=npcThink(commander(),{...structuredClone(s),contacts:[{...s.contacts[0],age:0}]});
+  assert.equal(p.foe,seen.foe);assert.equal(p.ratio,seen.ratio);assert.equal(p.posture,'defend');
+  const empty=npcThink(commander(),{...structuredClone(s),goal:{type:'hold'},contacts:[]});
+  const guard=p.tasks.find(k=>k.type==='hold'&&k.zone==='A');
+  assert.equal(guard.stage,'wait');assert.equal(guard.units.length,empty.tasks.find(k=>k.type==='hold'&&k.zone==='A').units.length);
+  assert.equal(seen.tasks.find(k=>k.type==='hold'&&k.zone==='A').stage,'defend');
+ });
+ test('守りの姿勢でも隣の薄い中立拠点を余力で取り、余力なしでは出さない',()=>{
+  const s=fixture();s.goal={type:'hold'};s.zones.find(z=>z.id==='C').owner='none';s.zones.find(z=>z.id==='C').known='none';s.contacts=[];s.zones=s.zones.filter(z=>z.id!=='D');s.links=s.links.filter(l=>l.a!=='D'&&l.b!=='D');
+  const p=npcThink(commander(),s);assert.equal(p.posture,'defend');assert.equal(main(p).zone,'C');assert.equal(main(p).why,'空いた所を取る');
+  const remembered=commander();s.contacts=[{id:'forgotten-position',x:20,z:0,power:24,age:remembered.L.memory+1}];const stale=npcThink(remembered,s);assert.equal(stale.posture,'defend');assert.equal(main(stale).zone,'C');assert.equal(main(stale).units.length,main(p).units.length);
+  const poor=fixture();poor.goal={type:'hold'};poor.zones.find(z=>z.id==='C').owner='none';poor.contacts=[];poor.units=poor.units.slice(0,1);
+  const q=npcThink(commander(),poor);assert.equal(q.posture,'defend');assert(!main(q));
+ });
+ test('拠点を取れる唯一の隊は本営守備でなく主攻に入る',()=>{
+  const c=commander(),s=fixture();s.units.forEach((u,i)=>u.canHold=i===0);const p=npcThink(c,s);
+  assert(main(p).units.some(x=>x.id==='u0'&&x.as==='main'));assert(!p.tasks.filter(k=>k.type==='hold').some(k=>k.units.some(x=>x.id==='u0')));
+ });
+ function assault(){
+  const c=commander(),s=fixture();let k=main(npcThink(c,s));const z=s.zones.find(z=>z.id===k.zone);
+  for(const x of k.units.filter(x=>x.as==='main')){const u=s.units.find(u=>u.id===x.id);u.x=z.x;u.z=z.z;}
+  s.time=3;k=main(npcThink(c,s));assert.equal(k.stage,'assault');return {c,s,k};
+ }
+ test('突入からcommit秒までは中止せず、その後の損耗で中止する',()=>{
+  const {c,s,k}=assault();c.tasks.get(k.key).power0=1000;
+  s.time=3+c.D.commit-.01;assert.equal(main(npcThink(c,s)).stage,'assault');assert(!c.log.some(l=>l.what==='seize:abort'));
+  s.time=3+c.D.commit;npcThink(c,s);assert(c.log.some(l=>l.what==='seize:abort'&&l.zone===k.zone));assert.equal(c.zone.get(k.zone).failAt,s.time);
+ });
+ test('中止した拠点にはretry中、主攻・助攻・遮断を出さない',()=>{
+  const {c,s,k}=assault();c.tasks.get(k.key).power0=1000;s.time=3+c.D.commit;npcThink(c,s);const failedAt=s.time;
+  for(const t of [failedAt+.01,failedAt+c.D.retry/2,failedAt+c.D.retry-.01]){s.time=t;const p=npcThink(c,s);assert(!p.tasks.some(t=>['seize','fix','cut'].includes(t.type)&&t.zone===k.zone));}
+ });
+ test('失敗拠点を通る道しかない方向にはretry中に攻めない',()=>{
+  const c=commander('earth'),s=fixture();s.links=s.links.filter(l=>l.a!=='D'&&l.b!=='D');s.zones=s.zones.filter(z=>z.id!=='D');s.contacts=s.contacts.slice(0,1);
+  npcThink(c,s);c.zone.get('C').failAt=0;s.time=3;const p=npcThink(c,s);assert(!p.tasks.some(k=>['seize','fix','cut'].includes(k.type)));
+ });
+ test('助攻も拘束に入ってからcommit秒までは中止しない',()=>{
+  const c=commander(),s=fixture();let k=npcThink(c,s).tasks.find(k=>k.type==='fix');assert(k);const z=s.zones.find(z=>z.id===k.zone);
+  for(const x of k.units){const u=s.units.find(u=>u.id===x.id);u.x=z.x;u.z=z.z;}
+  s.time=3;k=npcThink(c,s).tasks.find(k=>k.type==='fix');assert.equal(k.stage,'pin');c.tasks.get(k.key).power0=1000;
+  s.time=3+c.D.commit-.01;npcThink(c,s);assert(!c.log.some(l=>l.what==='fix:abort'));
+  s.time=3+c.D.commit;npcThink(c,s);assert(c.log.some(l=>l.what==='fix:abort'&&l.zone===k.zone));
+ });
+ test('主攻・助攻・遮断それぞれの候補を失敗記録で除外する',()=>{
+  for(const type of ['seize','fix','cut']){
+    const c=commander('mars','hard'),s=fixture();s.zones.push({id:'E',x:25,z:0,r:2,owner:'foe',known:'foe',seen:true});
+    s.links=s.links.filter(l=>!(l.a==='C'&&l.b==='F'));s.links.push({a:'C',b:'E',len:10},{a:'E',b:'F',len:10});
+    const before=npcThink(c,s),k=before.tasks.find(k=>k.type===type);assert(k,'失敗前に'+type+'の候補がある');
+    c.zone.get(k.zone).failAt=0;s.time=3;const after=npcThink(c,s);
+    assert(!after.tasks.some(t=>['seize','fix','cut'].includes(t.type)&&t.zone===k.zone));
+  }
+ });
+ test('本営の脅威で守備が増え前線の隊が戻る',()=>{
+  const c=commander(),s=fixture(),p=npcThink(c,s),before=p.tasks.find(k=>k.type==='hold'&&k.zone==='A').units.length;
+  s.time=3;s.contacts=[{id:'raid',x:0,z:0,power:10,age:0}];const hold=npcThink(c,s).tasks.find(k=>k.type==='hold'&&k.zone==='A');
+  assert(hold.units.length>before);assert(hold.units.some(x=>!p.tasks.find(k=>k.type==='hold'&&k.zone==='A').units.some(y=>y.id===x.id)));
+ });
+ test('owner:nullでは既知の所有を使い、隠れた所有変化を使わない',()=>{
+  const c=commander(),s=fixture();s.zones.find(z=>z.id==='C').owner=null;s.zones.find(z=>z.id==='C').seen=false;npcThink(c,s);assert.equal(c.zone.get('C').owner,'foe');
+  const z=s.zones.find(z=>z.id==='C');z.owner='none';z.seen=true;s.time=3;npcThink(c,s);assert.equal(c.zone.get('C').owner,'none');z.owner=null;z.seen=false;z.known='foe';s.time=6;npcThink(c,s);assert.equal(c.zone.get('C').owner,'none');
+ });
+ test('友軍はfinalを狙わずlead.frontを越えない',()=>{
+  const c=commander('mars','hard','ally'),s=fixture();s.lead={front:'C'};
+  for(let t=0;t<120;t+=3){s.time=t;const p=npcThink(c,s);for(const k of p.tasks.filter(k=>['seize','fix','cut'].includes(k.type))){assert.notEqual(k.zone,'F');assert(c.graph.dist('A',k.zone)<=c.graph.dist('A','C'));}}
+ });
+ test('低士気・低補給はrefit、低耐久は攻めの最後',()=>{
+  const c=commander(),s=fixture();s.units[0].morale=.1;s.units[1].supply=.1;s.units[2].health=.1;const p=npcThink(c,s),refit=p.tasks.filter(k=>k.type==='refit').flatMap(k=>k.units.map(x=>x.id));
+  assert(refit.includes('u0')&&refit.includes('u1'));assert(!main(p).units.some(x=>x.id==='u2'));assert(!refit.includes('u2'));
+ });
+ test('連合は助攻なし・共和国は助攻あり・easyの攻めは主攻だけ',()=>{
+  for(const d of ['earth','mars'])for(const l of ['standard','easy']){const p=npcThink(commander(d,l),fixture());assert.equal(p.tasks.some(k=>k.type==='fix'),d==='mars'&&l==='standard');if(l==='easy')assert(p.tasks.filter(k=>['seize','fix','cut'].includes(k.type)).every(k=>k.type==='seize'));}
+ });
+ test('同じseedと状況で計画・logが一致する',()=>{
+  const a=commander(),b=commander();for(let t=0;t<180;t+=3){const s=fixture();s.time=t;assert.deepEqual(npcThink(a,structuredClone(s)),npcThink(b,structuredClone(s)));}assert.deepEqual(a.log,b.log);
+ });
+ return rows;
+}
+module.exports={nodeChecks,fixture,commander};
+if(require.main===module){const rows=nodeChecks();for(const r of rows)console.log((r.ok?'✓ ':'✗ ')+r.name+(r.detail?' '+r.detail:''));assert(rows.every(r=>r.ok),'NPC頭の固定状況テスト');}
