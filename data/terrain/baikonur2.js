@@ -16,29 +16,48 @@
    ponds:[[[33,30],[35,29],[37,30],[36,32],[34,32]]],
    deepChannel:{name:'演習用沿岸浚渫水路（創作）',points:[[23,0],[23,17],[34,14],[46,12],[60,12],[70,14],[76,18]],widthKm:.8}};
   d.height={baseM:.5,interpolationRadiusKm:12,noiseM:.06,
-   levee:{river:'main',bankOffsetKm:.65,widthKm:.5,heightM:2.4,channelHalfWidthKm:.2,channelCutM:.7},terrace:{edgeYKm:61,widthKm:1.2,heightM:2.8},
-   depressions:[{x:35,y:31,widthXKm:5,widthYKm:2,depthM:1.1},{x:60,y:31,widthXKm:5,widthYKm:2,depthM:1}],
-   sandbars:[{x:23,y:18,widthXKm:2,widthYKm:.7,heightM:1},{x:76,y:19,widthXKm:2,widthYKm:.7,heightM:1}],observationHill:{x:69,y:46,widthXKm:3,widthYKm:2,heightM:3},
+   levee:{river:'main',bankOffsetKm:.65,widthKm:.5,heightM:2.4,channelHalfWidthKm:.2,channelCutM:.7},terrace:{edgeYKm:61,widthKm:.65,heightM:5},
+   depressions:[{x:35,y:31,widthXKm:5,widthYKm:2,depthM:1.1},{x:60,y:31,widthXKm:5,widthYKm:2,depthM:1},{x:40,y:35,widthXKm:3,widthYKm:1,depthM:1.6},{x:56,y:35,widthXKm:3,widthYKm:1,depthM:1.5},{x:18,y:63,widthXKm:4,widthYKm:.7,depthM:2},{x:79,y:64,widthXKm:4,widthYKm:.8,depthM:2}],
+   sandbars:[{x:23,y:18,widthXKm:2,widthYKm:.7,heightM:1},{x:76,y:19,widthXKm:2,widthYKm:.7,heightM:1}],
+   // 東西の砂の高まりは北の乾燥帯に限定。幅はガウスの尺度（裾を含む長さは約4倍）。すべて仮。
+   ridges:[{x:12,y:65,widthXKm:2,widthYKm:.4,heightM:8},{x:22,y:66,widthXKm:1.6,widthYKm:.5,heightM:12},{x:32,y:64,widthXKm:1.8,widthYKm:.45,heightM:7},{x:38,y:67,widthXKm:1.2,widthYKm:.4,heightM:10},
+    {x:62,y:66,widthXKm:1.8,widthYKm:.45,heightM:9},{x:72,y:67,widthXKm:2,widthYKm:.5,heightM:13},{x:81,y:66,widthXKm:1.5,widthYKm:.4,heightM:8},{x:88,y:64,widthXKm:1.2,widthYKm:.45,heightM:11}],
+   observationHills:[{x:18,y:58,widthXKm:1.5,widthYKm:.9,heightM:6},{x:40,y:53,widthXKm:1.4,widthYKm:1,heightM:7},{x:58,y:48,widthXKm:1.5,widthYKm:.9,heightM:7},{x:81,y:42,widthXKm:1.6,widthYKm:1,heightM:6}],
    points:[{x:8,y:67,m:4},{x:39,y:68,m:5},{x:87,y:66,m:4.5},{x:14,y:49,m:2},{x:47,y:48,m:2.1},{x:81,y:47,m:2.4},{x:12,y:25,m:.7},{x:46,y:26,m:.5},{x:82,y:23,m:.6}]};
   const regions=[
    {id:'mouth-west',region:[[27,17],[34,16.5],[43,15.5],[45,23],[39,23],[34,24],[28,22]],mix:{沼地:.75,平地:.25},patch:1.1,seed:912},
    {id:'mouth-east',region:[[48,16],[60,15],[67,15],[68,20],[58,22],[49,22]],mix:{沼地:.75,平地:.25},patch:1.2,seed:913},
    {id:'old-west',region:[[29,30],[34,28],[40,29],[42,31],[38,34],[32,33]],mix:{沼地:.8,平地:.2},patch:.8,seed:914},
    {id:'old-east',region:[[55,30],[59,28],[65,29],[67,32],[62,34],[56,33]],mix:{沼地:.8,平地:.2},patch:.9,seed:915},
+   {id:'old-west-inner',region:rect(38,34,42,36),mix:{沼地:.7,平地:.3},patch:.8,seed:917},
+   {id:'old-east-inner',region:rect(54,34,58,36),mix:{沼地:.7,平地:.3},patch:.8,seed:918},
+   {id:'salt-north-west',region:rect(14,62.4,22,63.6),mix:{砂漠:.8,平地:.2},patch:1,seed:919},
+   {id:'salt-north-east',region:rect(75,63.3,83,64.7),mix:{砂漠:.8,平地:.2},patch:1,seed:920},
+   {id:'sand-north-west',region:rect(7,64,42,68),mix:{砂漠:.65,平地:.35},patch:1.2,seed:921},
+   {id:'sand-north-east',region:rect(58,65,91,69),mix:{砂漠:.65,平地:.35},patch:1.2,seed:922},
    {id:'salt-east',region:[[79,21],[89,20],[94,25],[91,34],[83,34],[78,28]],mix:{砂漠:.7,平地:.3},patch:1.6,seed:916}];
-  d.surface=[...regions.map(r=>({id:r.id,type:r.id==='salt-east'?'salt':'reed',as:r.id==='salt-east'?'砂漠':'沼地',polygon:r.region})),
-   {id:'fields-west',type:'field',as:'平地',polygon:rect(28,45,37,52)},{id:'fields-east',type:'field',as:'平地',polygon:rect(58,45,66,51)}];
+  d.surface=[...regions.map(r=>({id:r.id,type:r.id.startsWith('salt')?'salt':r.id.startsWith('sand')?'sand':'reed',as:r.mix.砂漠?'砂漠':'沼地',polygon:r.region})),
+   {id:'fields-west',type:'field',as:'平地',polygon:rect(23,45,39,53)},{id:'fields-east',type:'field',as:'平地',polygon:rect(56,43,73,52)}];
   d.surfaceDefault={type:'steppe',as:'平地'};
-  // 森は河岸帯、低木は草原区画・林縁・塩性地の縁、集落は下記の結節に限定する。
-  const settlements=[['A',10,56,55],['B',27,49,35],['C',49,60,24],['D',47,39,24],['E',69,44,35],['F',86,55,55],['G',23,19,24],['H',46,25,24],['I',76,20,24]];
-  d.objects={forest:{type:'森林',species:['ヤナギ','ポプラ'],seed:28121,count:1200,roadClearanceKm:.18,terraceMaxYKm:61,bands:[
+  // 道は既存のまま。村と畑を乾いた沿道へ置き、北幹線や浅瀬の迂回路に森を足さない。
+  const villages=[['v1',19,53],['v2',30,47],['v3',36,43],['v4',58,42],['v5',77,48],['v6',26,35],['v7',60,24],['v8',75,32]];
+  for(const [id,x,y] of villages)d.surface.push({id:'fields-'+id,type:'field',as:'平地',polygon:rect(x-2,y-1.4,x+2,y+1.4)});
+  // 森は河岸・防風林・氾濫原の島、低木は草原区画・林縁・塩性地の縁に局在する。
+  const settlements=[['A',10,56,96],['B',27,49,62],['C',49,60,42],['D',47,39,42],['E',69,44,62],['F',86,55,96],['G',23,19,42],['H',46,25,42],['I',76,20,42]];
+  d.objects={forest:{type:'森林',species:['ヤナギ','ポプラ'],seed:28121,count:6000,renderFactor:.55,roadClearanceKm:.32,terraceMaxYKm:61,avoidWater:true,
+    windbreakShare:.25,islandShare:.2,windbreaks:[
+     {points:[[23,51.8],[38,51.8]],widthKm:.2},{points:[[24,45.3],[37,45.3]],widthKm:.2},
+     {points:[[56,50.8],[72,50.8]],widthKm:.2},{points:[[59,44.8],[67,44.8]],widthKm:.2},
+     ...villages.filter(v=>![26,60,75].includes(v[1])).map(([,x,y])=>({points:[[x-1.8,y+1.2],[x+1.8,y+1.2]],widthKm:.18}))],
+    islands:[{polygon:rect(38,36.5,42,38.5)},{polygon:rect(52,37,56,39)},{polygon:rect(36,26,40,28)},{polygon:rect(52,25.5,56,27.5)},{polygon:rect(40,46,43,49)},{polygon:rect(53,48,56,51)}],bands:[
     {river:'main',yMin:24,yMax:61,bankMinKm:.5,bankMaxNorthKm:1.2,bankMaxSouthKm:.7,fadeStartYKm:38,gapPeriodKm:4,gapFraction:.28},
     ...['west','east'].map(river=>({river,yMin:17,yMax:23,bankMinKm:.4,bankMaxNorthKm:.8,bankMaxSouthKm:.5,fadeStartYKm:21,gapPeriodKm:2.5,gapFraction:.35}))]},
-   shrubs:{type:'低木',species:['タマリスク','ヨモギ類','塩生低木'],seed:28131,count:900,renderCount:900,clusterKm:2.8,roadClearanceKm:.18,terraceMaxYKm:69,zones:[
+   shrubs:{type:'低木',species:['タマリスク','ヨモギ類','塩生低木'],seed:28131,count:3000,renderCount:2600,lobeMin:3,lobeMax:4,geometryDetail:0,clusterKm:2.8,roadClearanceKm:.18,terraceMaxYKm:69,zones:[
     {id:'west-steppe',kind:'steppe',polygon:rect(5,35,36,66),density:.22},{id:'east-steppe',kind:'steppe',polygon:rect(62,39,92,65),density:.22},
     {id:'bank-edge',kind:'bank',riverIds:['main','west','east'],minKm:1.3,maxKm:2,density:.6},{id:'salt-edge',kind:'salt',polygon:rect(77,19,94,35),density:.15}]},
-   reeds:{coverIds:regions.filter(r=>r.id!=='salt-east').map(r=>r.id),seed:28141,count:240,densityPerKm2:.87},
-   settlements:settlements.map(([site,x,y,count])=>({site,type:'市街地',count,spacingKm:.14,alongRoadKm:.18,polygon:rect(x-.8,y-.8,x+.8,y+.8)}))};
+   reeds:{coverIds:regions.filter(r=>r.mix.沼地).map(r=>r.id),seed:28141,count:1000,roadClearanceKm:.18},
+   settlements:[...settlements.map(([site,x,y,count])=>({site,type:'市街地',count,spacingKm:.22,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1.3,y-1.3,x+1.3,y+1.3)})),
+    ...villages.map(([id,x,y])=>({id,x,y,type:'市街地',count:14,spacingKm:.15,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1,y-1,x+1,y+1)}))]};
   // 道路は先に定めた乾燥地の集落と渡河点を結ぶ。河口分流は道路より南。
   d.objects.roads=[
    {id:'西本営幹線',type:'main',points:[[10,56],[19,53],[27,49]]},

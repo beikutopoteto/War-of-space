@@ -16,7 +16,7 @@
 |---|---|
 |claude/npc-intent|Codexがテスト・計測道具・資料を追加。頭・橋渡しの本体は未変更。Node全35ファイル中33成功（頭の新規2件と既存の領域キャッシュ画素比較が失敗）。次はClaudeが頭の修正・実ゲーム4条件の計測。試遊ページは更新しない|
 |claude/npc-space|Codex作業票の実装済み・未コミット。npc-intent上に宇宙橋渡し、演習9拠点16辺、計測器、Node12項目とsmoke・写真台本。頭と規範値は変更なし。下の引き継ぎ参照|
-|claude/baikonur-map|2026-11-11 作業票の実装済。地形・配備・tests/tools・資料を更新。Node36/37成功。領域キャッシュの道路区間画素比較1件は変更前HEADでも同じ失敗。npm testはNode部分成功後、ChromiumがOS権限で起動不可。写真・npc-sim・12ms目標の実測とgit操作はClaudeへ。チュートリアル2は旧48×36kmを保持。試遊ページは更新していない。詳細はdocs/terrain/baikonur2.md|
+|claude/baikonur-map|2026-11-11 作業票2実装済。砂丘8列・観測地4・村8、植生と集落を増量。Node37/38成功。領域キャッシュ画素比較1件は変更前95e6d45でも同じ失敗。写真・ブラウザテスト・平均12ms目標の実測とgit操作はClaudeへ。NPC・拠点・道路網・勝敗・チュートリアル2は維持。詳細はdocs/terrain/baikonur2.md、.shots/report2.md。試遊ページは未更新|
 |claude/ground-integration|段階6〜9の最終版。対象確認と1600×900の写真を保存。全作戦CI成功後にsquashマージする。CI／マージ結果はPRを参照|
 |claude/ground-naval-types|段階6・PR #387。最新233e467のCI42786024421成功。内容は最終版へ統合済み。最終版がmainへ入ったら重複PRを閉じる|
 |claude/ground-air-flight|段階7の保存版e6f9a9e。最終版へ統合済み。単独で重複マージしない|

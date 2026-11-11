@@ -132,11 +132,12 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   });await drawn();
 }
 async function checkGroundDrill(page,check){
-  const {runMenuChecks,openSortieMenu,checkSortieSections}=require('./ground-drill-menu.cjs');
+  const {runMenuChecks,openSortieMenu,checkSortieSections,checkDebugGroundUnlocks}=require('./ground-drill-menu.cjs');
   runMenuChecks();
   const campaign=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
   const menu=()=>openSortieMenu(page,{reload:true});
   try{
+    await checkDebugGroundUnlocks(page,check);
     await page.evaluate(seedDrillCampaign,false);await menu();
     check(await page.locator('[data-op="tutorial2"]').isDisabled(),'チュートリアル2: 第一章最終節の前は鍵付き');
     check(await page.locator('[data-op="baikonur"]').isDisabled(),'バイコヌール演習: 第一章最終節の前は鍵付き');

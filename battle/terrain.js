@@ -40,6 +40,8 @@ function groundElevation(x,y){
   for(const p of spec.depressions||[])h-=p.depthM*hill(p);
   for(const p of spec.sandbars||[])h+=p.heightM*hill(p);
   if(spec.observationHill)h+=spec.observationHill.heightM*hill(spec.observationHill);
+  for(const p of spec.ridges||[])h+=p.heightM*hill(p);
+  for(const p of spec.observationHills||[])h+=p.heightM*hill(p);
   h+=(spec.noiseM||0)*Math.sin(x*1.71+y*.62)*Math.cos(y*1.19);
   return Math.max(0,h*d.meta.elevationExaggeration/1000)*GROUND_SCALE;
 }
@@ -107,6 +109,10 @@ textureNoise(null,d.meta.seed,55000,['rgba(58,79,47,.12)','rgba(230,218,164,.15)
 const shade=document.createElement('canvas');const shadeScale=Math.min(5,512/Math.max(W,H));shade.width=Math.ceil(W*shadeScale);shade.height=Math.ceil(H*shadeScale);const sh=shade.getContext('2d'),shadePixels=sh.createImageData(shade.width,shade.height);for(let py=0;py<shade.height;py++)for(let px=0;px<shade.width;px++){const x=px/shade.width*W,y=H-py/shade.height*H,k=(py*shade.width+px)*4;if(inside(x,y,d.water.sea))continue;const h=elevation(x,y),slope=(elevation(x+.18,y)-h)*38+(elevation(x,y+.18)-h)*24;let light=Math.max(-.22,Math.min(.22,slope));shadePixels.data[k]=light>0?240:25;shadePixels.data[k+1]=light>0?229:38;shadePixels.data[k+2]=light>0?190:29;shadePixels.data[k+3]=Math.round(Math.abs(light)*255)}sh.putImageData(shadePixels,0,0);ctx.save();ctx.globalAlpha=.85;ctx.drawImage(shade,0,0,canvas.width,canvas.height);ctx.restore();
 // Light undergrowth follows the same discontinuous river bands as the trees.
 ctx.save();ctx.filter='blur(5px)';for(const band of d.objects.forest.bands){const river=d.water.rivers.find(r=>r.id===band.river);for(let i=0;i<river.points.length-1;i++){const a=river.points[i],b=river.points[i+1],y=(a[1]+b[1])/2;if(y<band.yMin||y>band.yMax||y>d.objects.forest.terraceMaxYKm)continue;const fade=Math.max(0,Math.min(1,(y-band.yMin)/(band.fadeStartYKm-band.yMin)));ctx.globalAlpha=.08+.15*fade;drawLine(ctx,[a,b],2*(band.bankMinKm+(band.bankMaxNorthKm-band.bankMinKm)*fade),'#30563e',scale)}}ctx.restore();
+ctx.save();ctx.globalAlpha=.2;
+for(const row of d.objects.forest.windbreaks||[])drawLine(ctx,row.points,row.widthKm,'#30563e',scale);
+for(const patch of d.objects.forest.islands||[]){polyPath(ctx,patch.polygon,scale);ctx.fillStyle='#30563e';ctx.fill();}
+ctx.restore();
 ctx.save();smoothPath(ctx,d.water.sea,scale);ctx.clip();
 if(seaMode==='board'){
   // Four stepped depth bands measured outwards from the coastline.
@@ -134,24 +140,68 @@ const waterMask=document.createElement('canvas');waterMask.width=canvas.width;wa
 
 function rng(seed){return function(){seed=seed*16807%2147483647;return (seed-1)/2147483646}}
 // Reeds are a surface detail and appear only on wet cells.
-function populateReeds(){const spec=d.objects.reeds,random=rng(spec.seed),polys=d.surface.filter(s=>spec.coverIds.includes(s.id)).map(s=>s.polygon),mesh=new THREE.InstancedMesh(new THREE.ConeBufferGeometry(.07,.17,4),new THREE.MeshLambertMaterial({color:0xb2aa63}),spec.count),dummy=new THREE.Object3D();let count=0;for(let i=0;i<spec.count*120&&count<spec.count;i++){let x=random()*W,y=random()*H;if(!polys.some(p=>inside(x,y,p))||inside(x,y,d.water.sea)||d.terrain.cells[Math.floor(y/cell)*d.terrain.cols+Math.floor(x/cell)]!=='沼地')continue;dummy.position.set(toX(x),elevation(x,y)+.075,toZ(y));dummy.scale.setScalar(.65+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix)}mesh.count=count;mesh.castShadow=true;world.add(mesh)}
+function populateReeds(){const spec=d.objects.reeds,random=rng(spec.seed),polys=d.surface.filter(s=>spec.coverIds.includes(s.id)).map(s=>s.polygon),mesh=new THREE.InstancedMesh(new THREE.ConeBufferGeometry(.07,.17,4),new THREE.MeshLambertMaterial({color:0xb2aa63}),spec.count),dummy=new THREE.Object3D();let count=0;for(let i=0;i<spec.count*120&&count<spec.count;i++){let x=random()*W,y=random()*H;if(!polys.some(p=>inside(x,y,p))||inside(x,y,d.water.sea)||d.terrain.cells[Math.floor(y/cell)*d.terrain.cols+Math.floor(x/cell)]!=='沼地')continue;if(spec.roadClearanceKm){const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;}dummy.position.set(toX(x),elevation(x,y)+.075,toZ(y));dummy.scale.setScalar(.65+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix)}mesh.count=count;mesh.userData.groundObject='reeds';mesh.castShadow=true;world.add(mesh)}
 function forestBandWidth(b,y){const t=Math.max(0,Math.min(1,(y-b.yMin)/(b.fadeStartYKm-b.yMin)));return b.bankMaxSouthKm+(b.bankMaxNorthKm-b.bankMaxSouthKm)*t}
 // Place trees from each actual channel outwards, in reproducible interrupted banks.
-function populateForest(){const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*.55),mesh=new THREE.InstancedMesh(new THREE.IcosahedronBufferGeometry(.154,0),new THREE.MeshLambertMaterial({color:0xffffff}),treeCount),dummy=new THREE.Object3D();let count=0;for(let attempt=0;attempt<treeCount*80&&count<treeCount;attempt++){const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)continue;const fade=Math.max(0,Math.min(1,(cy-band.yMin)/(band.fadeStartYKm-band.yMin)));if(random()>.18+.82*fade)continue;const gap=(Math.sin((cy/band.gapPeriodKm)*Math.PI*2+band.gapFraction*7)+1)/2;if(gap<band.gapFraction)continue;const width=forestBandWidth(band,cy),distance=band.bankMinKm+random()*Math.max(0,width-band.bankMinKm),side=random()<.5?-1:1,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy),x=cx-side*dy/len*distance,y=cy+side*dx/len*distance;if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea))continue;const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color(random()<.5?0x446e4c:0x638456));groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE});count++}mesh.count=count;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh)}
+function populateForest(){
+ const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*(spec.renderFactor??.55)),mesh=new THREE.InstancedMesh(new THREE.IcosahedronBufferGeometry(.154,0),new THREE.MeshLambertMaterial({color:0xffffff}),treeCount),dummy=new THREE.Object3D();
+ function bankCandidate(){
+  const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;
+  if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)return null;
+  const fade=Math.max(0,Math.min(1,(cy-band.yMin)/(band.fadeStartYKm-band.yMin)));if(random()>.18+.82*fade)return null;
+  const gap=(Math.sin((cy/band.gapPeriodKm)*Math.PI*2+band.gapFraction*7)+1)/2;if(gap<band.gapFraction)return null;
+  const width=forestBandWidth(band,cy),distance=band.bankMinKm+random()*Math.max(0,width-band.bankMinKm),side=random()<.5?-1:1,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+  return {x:cx-side*dy/len*distance,y:cy+side*dx/len*distance,zone:'bank'};
+ }
+ function candidate(){
+  // Optional sources use only their declared lines/polygons. Old maps keep their seeded river placement.
+  if(!spec.windbreaks&&!spec.islands)return bankCandidate();
+  const source=(count+.5)/treeCount;
+  if(source<(spec.windbreakShare||0)){
+   const row=spec.windbreaks[Math.floor(random()*spec.windbreaks.length)],i=Math.floor(random()*(row.points.length-1)),a=row.points[i],b=row.points[i+1],t=random(),side=(random()-.5)*row.widthKm,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+   return {x:a[0]+dx*t-dy/len*side,y:a[1]+dy*t+dx/len*side,zone:'windbreak'};
+  }
+  if(source<(spec.windbreakShare||0)+(spec.islandShare||0)){
+   const p=spec.islands[Math.floor(random()*spec.islands.length)].polygon,xs=p.map(p=>p[0]),ys=p.map(p=>p[1]),x=Math.min(...xs)+random()*(Math.max(...xs)-Math.min(...xs)),y=Math.min(...ys)+random()*(Math.max(...ys)-Math.min(...ys));
+   return inside(x,y,p)?{x,y,zone:'island'}:null;
+  }
+  return bankCandidate();
+ }
+ let count=0;
+ for(let attempt=0;attempt<treeCount*80&&count<treeCount;attempt++){
+  const p=candidate();if(!p)continue;const {x,y,zone}=p;
+  if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea)||(spec.avoidWater&&y>spec.terraceMaxYKm))continue;
+  if(spec.avoidWater&&(!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2;})))continue;
+  const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;
+  const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color(random()<.5?0x446e4c:0x638456));
+  groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE,...(spec.windbreaks||spec.islands?{zone}:{})});count++;
+ }
+ mesh.count=count;mesh.userData.groundObject='forest';if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);
+}
 // Bushes form little clusters on steppe, river margins, and salt margins only.
 function populateShrubs(){
- const spec={...d.objects.shrubs,count:d.objects.shrubs.renderCount??(d.meta.id==='exercise2'?650:d.objects.shrubs.count)},random=rng(spec.seed),geo=new THREE.IcosahedronBufferGeometry(1,1),positions=geo.attributes.position;
+ const spec={...d.objects.shrubs,count:d.objects.shrubs.renderCount??(d.meta.id==='exercise2'?650:d.objects.shrubs.count)},random=rng(spec.seed),geo=new THREE.IcosahedronBufferGeometry(1,spec.geometryDetail??1),positions=geo.attributes.position;
  // One fixed irregular low-poly shape is varied in scale, rotation and colour per lobe.
  const jitter=rng(spec.seed+313);for(let i=0;i<positions.count;i++){const f=.78+jitter()*.44;positions.setXYZ(i,positions.getX(i)*f,positions.getY(i)*f,positions.getZ(i)*f)}geo.computeVertexNormals();
  const mesh=new THREE.InstancedMesh(geo,new THREE.MeshLambertMaterial({color:0xffffff}),spec.count*7),shadow=new THREE.InstancedMesh(new THREE.CircleBufferGeometry(.17,8),new THREE.MeshBasicMaterial({color:0x122017,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide}),spec.count),dummy=new THREE.Object3D();let plants=0,lobes=0;
  function cluster(x,y){let gx=Math.floor(x/spec.clusterKm),gy=Math.floor(y/spec.clusterKm),n=Math.sin(gx*127.1+gy*311.7+spec.seed)*43758.5453;return n-Math.floor(n)}
  function eligible(x,y){if(y>spec.terraceMaxYKm||!inside(x,y,d.display.board)||inside(x,y,d.water.sea))return false;let valid=false;for(const zone of spec.zones){if(zone.kind==='bank'){const dist=Math.min(...zone.riverIds.map(id=>segmentDistance(x,y,d.water.rivers.find(r=>r.id===id).points)));if(dist>=zone.minKm&&dist<=zone.maxKm&&random()<zone.density)valid=true}else if(inside(x,y,zone.polygon)&&cluster(x,y)>.58&&random()<zone.density)valid=true}if(!valid)return false;const road=nearestRoadPoint(x,y);return Math.hypot(x-road.x,y-road.y)>=spec.roadClearanceKm}
- for(let attempt=0;attempt<spec.count*100&&plants<spec.count;attempt++){const cx=random()*W,cy=random()*H;if(!eligible(cx,cy))continue;const groupSize=2+Math.floor(random()*4);for(let n=0;n<groupSize&&plants<spec.count;n++){const angle=random()*Math.PI*2,r=n?(.12+random()*.38):0,x=cx+Math.cos(angle)*r,y=cy+Math.sin(angle)*r;if(n&&!eligible(x,y))continue;const base=elevation(x,y),shadeColors=[0x8b9a7a,0x929a67,0xaca378,0x8d7e67,0x78947c],color=new THREE.Color(shadeColors[Math.floor(random()*shadeColors.length)]),lobeCount=3+Math.floor(random()*5);dummy.position.set(toX(x),base+.012,toZ(y));dummy.rotation.set(-Math.PI/2,0,random()*Math.PI);dummy.scale.set(1.05,.75,1);dummy.updateMatrix();shadow.setMatrixAt(plants,dummy.matrix);for(let j=0;j<lobeCount;j++){const a=random()*Math.PI*2,dist=j===0?0:random()*.12,wide=.07+random()*.09,high=.035+random()*.045;dummy.position.set(toX(x)+Math.cos(a)*dist,base+high*.75,toZ(y)+Math.sin(a)*dist);dummy.rotation.set(random()*.25,random()*Math.PI,random()*.25);dummy.scale.set(wide,high,wide*(.75+random()*.5));dummy.updateMatrix();mesh.setMatrixAt(lobes,dummy.matrix);mesh.setColorAt(lobes,color.clone().multiplyScalar(.88+random()*.24));lobes++}plants++}}
- mesh.count=lobes;shadow.count=plants;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(shadow);world.add(mesh)
+ for(let attempt=0;attempt<spec.count*100&&plants<spec.count;attempt++){const cx=random()*W,cy=random()*H;if(!eligible(cx,cy))continue;const groupSize=2+Math.floor(random()*4);for(let n=0;n<groupSize&&plants<spec.count;n++){const angle=random()*Math.PI*2,r=n?(.12+random()*.38):0,x=cx+Math.cos(angle)*r,y=cy+Math.sin(angle)*r;if(n&&!eligible(x,y))continue;const base=elevation(x,y),shadeColors=[0x8b9a7a,0x929a67,0xaca378,0x8d7e67,0x78947c],color=new THREE.Color(shadeColors[Math.floor(random()*shadeColors.length)]),lobeCount=(spec.lobeMin??3)+Math.floor(random()*((spec.lobeMax??7)-(spec.lobeMin??3)+1));dummy.position.set(toX(x),base+.012,toZ(y));dummy.rotation.set(-Math.PI/2,0,random()*Math.PI);dummy.scale.set(1.05,.75,1);dummy.updateMatrix();shadow.setMatrixAt(plants,dummy.matrix);for(let j=0;j<lobeCount;j++){const a=random()*Math.PI*2,dist=j===0?0:random()*.12,wide=.07+random()*.09,high=.035+random()*.045;dummy.position.set(toX(x)+Math.cos(a)*dist,base+high*.75,toZ(y)+Math.sin(a)*dist);dummy.rotation.set(random()*.25,random()*Math.PI,random()*.25);dummy.scale.set(wide,high,wide*(.75+random()*.5));dummy.updateMatrix();mesh.setMatrixAt(lobes,dummy.matrix);mesh.setColorAt(lobes,color.clone().multiplyScalar(.88+random()*.24));lobes++}plants++}}
+ mesh.count=lobes;shadow.count=plants;mesh.userData.groundObject='shrubLobes';shadow.userData.groundObject='shrubs';if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(shadow);world.add(mesh)
 }
 
 populateReeds();populateForest();populateShrubs();
-const buildingGroups={};for(const spec of d.objects.settlements){const site=d.sites.find(s=>s.id===spec.site),mesh=new THREE.InstancedMesh(new THREE.BoxBufferGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xb6bab4}),spec.count),dummy=new THREE.Object3D(),random=rng(d.meta.seed+site.id.charCodeAt(0));for(let i=0;i<spec.count;i++){const road=nearestRoadPoint(site.x,site.y),along=(random()-.5)*spec.spacingKm*8,side=(random()<.5?-1:1)*(spec.alongRoadKm+random()*.13),x=road.x+road.dx*along-road.dy*side,y=road.y+road.dy*along+road.dx*side,h=.16+random()*.2;dummy.position.set(toX(x),elevation(x,y)+h/2+.02,toZ(y));dummy.scale.set(.17,h,.15);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);groundBuildings.push({minX:(toX(x)-.085)*GROUND_SCALE,maxX:(toX(x)+.085)*GROUND_SCALE,minZ:(toZ(y)-.075)*GROUND_SCALE,maxZ:(toZ(y)+.075)*GROUND_SCALE,bottom:(elevation(x,y)+.02)*GROUND_SCALE,top:(elevation(x,y)+h+.02)*GROUND_SCALE});}mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);buildingGroups[site.id]=mesh}
+for(const spec of d.objects.settlements){
+ const site=d.sites.find(s=>s.id===spec.site)||spec,id=spec.site||spec.id,mesh=new THREE.InstancedMesh(new THREE.BoxBufferGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xb6bab4}),spec.count),dummy=new THREE.Object3D(),random=rng(d.meta.seed+Array.from(id).reduce((n,c)=>n+c.charCodeAt(0),0));
+ let count=0;
+ for(let attempt=0;attempt<spec.count*80&&count<spec.count;attempt++){
+  const road=nearestRoadPoint(site.x,site.y),along=(random()-.5)*spec.spacingKm*8,side=(random()<.5?-1:1)*(spec.alongRoadKm+random()*.13),x=road.x+road.dx*along-road.dy*side,y=road.y+road.dy*along+road.dx*side,h=.16+random()*.2;
+  if(spec.avoidWater&&(!inside(x,y,spec.polygon)||!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2+.1;})))continue;
+  dummy.position.set(toX(x),elevation(x,y)+h/2+.02,toZ(y));dummy.scale.set(.17,h,.15);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix);
+  groundBuildings.push({minX:(toX(x)-.085)*GROUND_SCALE,maxX:(toX(x)+.085)*GROUND_SCALE,minZ:(toZ(y)-.075)*GROUND_SCALE,maxZ:(toZ(y)+.075)*GROUND_SCALE,bottom:(elevation(x,y)+.02)*GROUND_SCALE,top:(elevation(x,y)+h+.02)*GROUND_SCALE});
+ }
+ mesh.count=count;mesh.userData={groundObject:'buildings',settlement:id};mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);
+}
 
 }
 // 8方向のマス経路。辺と近道を検査し、細い川や海岸を飛び越えない。

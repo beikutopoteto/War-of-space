@@ -137,6 +137,32 @@ async function openSortieMenu(page,{reload=false}={}){
   await page.locator('[data-s="mode"]:not([hidden]) [data-go="sortie"]').click();
   await page.locator('[data-s="sortie"]:not([hidden]) #goBattle').waitFor({state:'visible'});
 }
+// 実ボタンと保存の再読込を通し、自由選択の鍵無視に頼らず両方の入口が開くことを確認。
+async function checkDebugGroundUnlocks(page,check){
+  const saved=await page.evaluate(()=>({save:localStorage.getItem('wos.save.v1'),debug:localStorage.getItem('wos.debug')}));
+  try{
+    for(const [action,label] of [['skip','チュートリアルスキップ'],['all','全作戦クリア']]){
+      await page.evaluate(()=>{localStorage.removeItem('wos.save.v1');localStorage.removeItem('wos.debug');});
+      await page.reload();await page.waitForFunction(()=>window.WOS_MENU&&window.WOS?.openMenu);
+      await page.evaluate(()=>WOS.openMenu());
+      if(await page.locator('#dbgT').getAttribute('aria-expanded')!=='true')await page.locator('#dbgT').click();
+      await page.locator('[data-dbga="'+action+'"]').click();
+      const state=await page.evaluate(()=>({save:JSON.parse(localStorage.getItem('wos.save.v1')),debug:JSON.parse(localStorage.getItem('wos.debug')||'{}')}));
+      check(!state.debug.free&&state.save.prog.flags.groundOpen&&state.save.prog.cleared.includes('tutorial2'),'デバッグ: '+label+'で地上の鍵と案内クリアを保存（自由選択なし）');
+      if(action==='skip')check(!state.save.prog.cleared.includes('denaliBreak')&&!state.save.prog.cleared.includes('baikonur'),'デバッグ: スキップは第一章最終節・通常演習の勝利記録を作らず解放');
+      await openSortieMenu(page,{reload:true});
+      const tab=page.locator('[data-op-section="演習"]');if(await tab.getAttribute('aria-expanded')==='false')await tab.click();
+      for(const id of ['tutorial2','baikonur']){
+        check(await page.locator('[data-op="'+id+'"]').isEnabled(),'デバッグ: '+label+'後に再読込しても'+id+'が解放');
+        await page.locator('[data-op="'+id+'"]').click();
+        check(await page.locator('#goBattle').isEnabled(),'デバッグ: '+label+'から'+id+'を選んで出撃可能');
+      }
+    }
+  }finally{
+    await page.evaluate(saved=>{for(const [key,value] of [['wos.save.v1',saved.save],['wos.debug',saved.debug]]){if(value===null)localStorage.removeItem(key);else localStorage.setItem(key,value);}},saved);
+    await page.reload();await page.waitForFunction(()=>window.WOS_MENU&&window.WOS?.openMenu);
+  }
+}
 async function checkSortieSections(page,check,menu,onState=async()=>{}){
   const tabs=page.locator('[data-op-section]'),tab=id=>page.locator(`[data-op-section="${id}"]`);
   const state=()=>page.evaluate(()=>{
@@ -179,5 +205,5 @@ async function checkSortieSections(page,check,menu,onState=async()=>{}){
   // Keep the existing battle checks in their original state: first chapter complete, all sections open.
   await tab('第二章').click();
 }
-module.exports={runMenuChecks,openSortieMenu,checkSortieSections};
+module.exports={runMenuChecks,openSortieMenu,checkSortieSections,checkDebugGroundUnlocks};
 if(require.main===module)runMenuChecks();

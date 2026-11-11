@@ -308,7 +308,7 @@ function check(ok, label, detail = '') {
     await page.click('#dbgB [data-dbga="all"]');
     await page.click('#dbgB [data-dbga="funds"]');
     const dbg1 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
-    check(!dbg1.org && dbg1.prog.cleared.length === data.ops && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦クリアと資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
+    check(!dbg1.org && dbg1.prog.cleared.length === data.ops + 1 && dbg1.prog.funds === 1000 && !dbg1.prog.flags.was, 'デバッグ: 全作戦と専用チュートリアル2のクリア・資金+1000（兵科は巡洋艦まで）', JSON.stringify(dbg1.prog));
     await shot('01b-debug');
     /* a replay brings 1/6 of the reward, an exercise 2/3 (user decision 2026-11-06) */
     await page.click('#mainNav [data-go="mode"]'); await page.click('[data-s="mode"] [data-go="sortie"]');
