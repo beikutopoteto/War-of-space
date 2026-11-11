@@ -1,10 +1,12 @@
 /* 実ゲームChromium。node tools/npc-sim.cjs exercise2 mars earth standard 1 600
    node tools/npc-sim.cjs baikonur mars earth standard 1 300 --idle
    --intent0 seize --intent1 hold:firm:F,E / delay:delay:F:300 で軍ごとの作戦の意図。
+   charybdis mars earth standard 1 600 [--no-npc]: 自軍はautoAI、敵はNPCまたは元の台本。
    --brief は経過の要約のみ。--profile は関数別の包括／自己時間を足す（計測負荷あり）。
    seedはゲームの乱数と指揮官の乱数を固定。通常はJSONと表を出す。 */
 const {openGame}=require('./browser.cjs');
 function setupNpcSim(cfg){
+  if(cfg.terrain==='charybdis')return setupSpaceNpcSim(cfg);
   let rng=cfg.seed>>>0||1;Math.random=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
   const source=WOS_DATA.operations.find(o=>o.id===(['exercise2','baikonur'].includes(cfg.terrain)?'baikonur':'ground'+cfg.terrain));
   source.npc=cfg.idle?{1:{doctrine:cfg.doctrines[0],level:cfg.level}}:{0:{doctrine:cfg.doctrines[0],level:cfg.level},1:{doctrine:cfg.doctrines[1],level:cfg.level}};
@@ -32,6 +34,7 @@ function setupNpcSim(cfg){
   };
 }
 function advanceNpcSim(seconds){
+  if(npcMeasure.cfg.terrain==='charybdis')return advanceSpaceNpcSim(seconds);
   const m=npcMeasure,end=Math.min(m.cfg.seconds,seconds),dt=.05;
   while(gameSec-m.start<end-1e-8&&!over){
     const before=performance.now();if(window.npcProfile)npcProfile.active=true;
@@ -65,6 +68,7 @@ function advanceNpcSim(seconds){
   return over||m.winner!==undefined||gameSec-m.start>=m.cfg.seconds-1e-8;
 }
 function npcSimResult(){
+  if(npcMeasure.cfg.terrain==='charybdis')return spaceNpcSimResult();
   const m=npcMeasure,t=npcGroundState?.timings||{count:0,total:0,max:0},round=x=>+x.toFixed(4),live=team=>fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0);
   return {config:m.cfg,winner:m.winner??(over?(outcome?0:1):null),seconds:round(gameSec-m.start),remaining:[0,1].map(team=>({units:live(team).length,power:round(live(team).reduce((s,f)=>s+npcGroundPower(f),0))})),
     idle:[0,1].map(team=>round(m.idle[team]/Math.max(1e-9,m.unitTime[team]))),mainConcentration:[0,1].map(team=>m.assaultTime[team]?round(m.concentration[team]/m.assaultTime[team]):null),
@@ -99,23 +103,28 @@ function installNpcProfile(){
   npcGroundStep=wrap('npcGroundStep',npcGroundStep);npcThink=wrap('npcThink',npcThink);
 }
 function brief(r){
- const owner=x=>x===null?'中立':String(x),lines=[`${r.config.terrain} ${r.config.doctrines.join('/')} ${r.config.level} seed${r.config.seed} 勝者:${r.winner??'未決'} 時間:${r.seconds}秒 残存:${r.remaining.map((v,i)=>i+'軍 '+v.units+'隊').join(' / ')}`];
+ const owner=x=>x===null?'中立':String(x),lines=[`${r.config.terrain} ${r.config.doctrines.join('/')} ${r.config.level} seed${r.config.seed} 勝者:${r.winner??'未決'} 時間:${r.seconds}秒 残存:${r.remaining.map((v,i)=>i+'軍 '+v.units+'隊'+(v.ships===undefined?'':' '+v.ships+'隻')).join(' / ')}`];
+ if(r.clock)lines.push(`作戦時計: ${r.clock.text}（経過${r.clock.minutes}分）、NPC:${r.config.npc===false?'なし':'あり'}`);
+ if(r.armor)lines.push('要塞装甲: '+r.armor.map(s=>s.time+'秒='+s.percent+'%').join(' '));
+ if(r.transitions)for(const s of r.transitions)lines.push(`指揮 ${s.time}秒 ${s.team}軍 ${s.posture}/${s.style} `+s.tasks.map(k=>`${k.type}:${k.zone}/${k.stage} [${k.units.map(x=>x.id).join(',')}]`).join(' '));
  lines.push('拠点: '+r.initialOwners.map(e=>e.site+'='+owner(e.owner)).join(' '));
- if(!r.captures.length)lines.push('占領: なし');
- for(const e of r.captures)lines.push(`占領 ${e.time}秒 ${e.site} → ${owner(e.owner)}`);
+ const captureLabel=r.config.terrain==='charybdis'?'保有変更':'占領';
+ if(!r.captures.length)lines.push(captureLabel+': なし');
+ for(const e of r.captures)lines.push(`${captureLabel} ${e.time}秒 ${e.site} → ${owner(e.owner)}`);
  for(const e of r.postures)lines.push(`姿勢 ${e.time}秒 ${e.team}軍 ${e.what.slice(8)}`);
  for(const e of r.logs)lines.push(`log ${e.time}秒 ${e.team}軍 ${e.what} ${e.zone??''} ${e.why}`);
  for(const s of r.samples)lines.push(`任務 ${s.time}秒 `+s.tasks.map((v,i)=>i+'軍 '+Object.entries(v).map(([k,n])=>k+':'+n).join(' ')).join(' / '));
  lines.push('補給20%未満 最大: '+r.lowSupplyMax.map((n,i)=>i+'軍 '+n+'隊').join(' / '));
- lines.push(`step平均: ${r.step.meanMs}ms`);
+ lines.push(`判断: ${r.think.count}回 平均${r.think.meanMs}ms 最大${r.think.maxMs}ms、棒立ち比: ${r.idle.join('/')}、step平均: ${r.step.meanMs}ms`);
  if(r.profile){lines.push('関数別（計測負荷あり・step内と5秒ごとの明示描画）: 関数 呼数 包括ms 自己ms 平均ms');
    for(const [name,v] of Object.entries(r.profile).sort((a,b)=>b[1].selfMs-a[1].selfMs))lines.push(`${name} ${v.count} ${v.totalMs} ${v.selfMs} ${v.meanMs}`);}
  return lines.join('\n');
 }
 async function run(cfg){
  const {browser,page,errors}=await openGame({width:1600,height:900});
- try{await page.evaluate(setupNpcSim,cfg);if(cfg.profile)await page.evaluate(installNpcProfile);await page.evaluate('window.advanceNpcSim='+advanceNpcSim.toString());await page.evaluate('window.npcSimResult='+npcSimResult.toString());
-  let done=false,elapsed=0;while(!done){elapsed+=5;done=await page.evaluate(sec=>{const done=advanceNpcSim(sec);if(window.npcProfile){npcProfile.active=true;try{groundDraw();}finally{npcProfile.active=false;}}return done;},elapsed);}
+ try{for(const fn of [setupSpaceNpcSim,advanceSpaceNpcSim,spaceNpcSimResult])await page.evaluate('window.'+fn.name+'='+fn.toString());
+  await page.evaluate(setupNpcSim,cfg);if(cfg.profile)await page.evaluate(installNpcProfile);await page.evaluate('window.advanceNpcSim='+advanceNpcSim.toString());await page.evaluate('window.npcSimResult='+npcSimResult.toString());
+  let done=false,elapsed=0;while(!done){elapsed+=5;done=await page.evaluate(sec=>{const done=advanceNpcSim(sec);if(window.npcProfile){npcProfile.active=true;try{if(op.ground)groundDraw();}finally{npcProfile.active=false;}}return done;},elapsed);}
   if(errors.length)throw new Error(errors.join('\n'));return await page.evaluate(()=>npcSimResult());
  }finally{await browser.close();}
 }
@@ -129,7 +138,7 @@ function parseIntent(value){
  return goal;
 }
 function parseArgs(args){
- const positional=[],intents={};let idle=false,profile=false;
+ const positional=[],intents={};let idle=false,profile=false,npc=true;
  for(let i=0;i<args.length;i++){
   const arg=args[i],match=/^--intent([01])(?:=(.*))?$/.exec(arg);
   if(match){const value=match[2]??args[++i];if(!value||value.startsWith('--'))throw new Error(arg+' の意図がありません');intents[match[1]]=parseIntent(value);}
@@ -140,11 +149,12 @@ function parseArgs(args){
   else positional.push(arg);
  }
  const [terrain='exercise2',d0='mars',d1='earth',level='standard',seed='1',seconds='600']=positional;
- const cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle,profile,intents};
- if(positional.length>6||!['exercise2','baikonur','field150','field300'].includes(terrain)||![d0,d1].every(x=>['mars','earth'].includes(x))||!['easy','standard','hard'].includes(level)||!Number.isInteger(cfg.seed)||!Number.isFinite(cfg.seconds)||cfg.seconds<=0)throw new Error('引数: exercise2|baikonur|field150|field300 mars|earth mars|earth easy|standard|hard seed 秒 [--idle] [--brief] [--profile] [--intent0 意図] [--intent1 意図]');
+ const cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle,profile,intents,npc};
+ if(positional.length>6||!['exercise2','baikonur','field150','field300','charybdis'].includes(terrain)||![d0,d1].every(x=>['mars','earth'].includes(x))||!['easy','standard','hard'].includes(level)||!Number.isInteger(cfg.seed)||!Number.isFinite(cfg.seconds)||cfg.seconds<=0)throw new Error('引数: exercise2|baikonur|field150|field300 mars|earth mars|earth easy|standard|hard seed 秒 [--idle] [--brief] [--profile] [--intent0 意図] [--intent1 意図]');
  return cfg;
 }
 module.exports={setupNpcSim,advanceNpcSim,npcSimResult,installNpcProfile,brief,table,run,parseIntent,parseArgs};
+const {setupSpaceNpcSim,advanceSpaceNpcSim,spaceNpcSimResult}=require('./npc-space-sim.cjs');
 if(require.main===module){
  const args=process.argv.slice(2),cfg=parseArgs(args);
  run(cfg).then(r=>{if(args.includes('--brief'))console.log(brief(r));else{console.log(JSON.stringify(r,null,2));console.log(table(r));}}).catch(e=>{console.error(e.message);process.exitCode=1;});

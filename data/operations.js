@@ -227,6 +227,23 @@ WOS_DATA.denaliGun={type:'aa', n:2, hp:20, dmg:1, eva:0, range:22, speed:0, scal
 WOS_DATA.operations=[
   {
     id:'charybdis',
+    // 2026-11-11: 案内なしの演習だけ指揮官へ。拠点の値は仮、表示しない（docs/menu.md）。
+    npc:{1:{doctrine:'mars',level:'standard',intent:{type:'hold',zones:['fort']}}},
+    npcZones:[
+      {id:'fort',name:'要塞',pos:[0,0],alt:3,r:30,owner:1,base:1,final:true},
+      {id:'north',name:'北方防空',pos:[0,-52],alt:18,r:25,owner:1},
+      {id:'south',name:'南方防空',pos:[0,52],alt:-14,r:25,owner:1},
+      {id:'east',name:'東方防空',pos:[54,0],alt:4,r:25,owner:1},
+      {id:'west',name:'西方防空',pos:[-54,0],alt:22,r:25,owner:1},
+      {id:'outerN',name:'北宙域',pos:[22,-82],alt:0,r:35,owner:null},
+      {id:'outerE',name:'東宙域',pos:[86,10],alt:0,r:35,owner:null},
+      {id:'outerS',name:'南宙域',pos:[-20,92],alt:0,r:35,owner:0,base:0},
+      {id:'outerW',name:'西宙域',pos:[-92,-12],alt:0,r:35,owner:null},
+    ],
+    npcLinks:[['fort','north'],['fort','east'],['fort','south'],['fort','west'],
+      ['north','east'],['east','south'],['south','west'],['west','north'],
+      ['north','outerN'],['east','outerE'],['south','outerS'],['west','outerW'],
+      ['outerN','outerE'],['outerE','outerS'],['outerS','outerW'],['outerW','outerN']],
     /* チュートリアルの始めの視点（view と同じ形）。下のセリフの板より上に自軍と目標 A〜E が映るよう、ふだんの [0,24] より手前（2026-11-05、仮） */
     tutorialView:{target:[-15,79], dist:190},
     tutorial:[
