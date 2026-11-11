@@ -68,7 +68,40 @@ function groundRiverFactor(x,y,kind){
   return factor;
 }
 function groundPass(x,y,kind='vehicle'){ const d=groundData(),sea=groundInside(x,y,d.water.sea); return x>=0&&x<d.meta.widthKm&&y>=0&&y<d.meta.heightKm&&groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0)); }
-function groundFactor(x,z,kind){ if(kind==='air'||kind==='sea') return 1; const d=groundData(),gx=groundMapX(x),gy=groundMapY(z),c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1; return marsh*groundRiverFactor(gx,gy,kind); }
+// 道路帯は所有・補給の状態から独立した幾何。探索中の各サンプルで全道路を走査しない。
+const groundRoadGeometry=new WeakMap();
+function groundRoadQuery(d=groundData()){
+  let cache=groundRoadGeometry.get(d);const roads=d.objects.roads,width=d.capture.roadWidthKm/2;
+  if(!cache||cache.roads!==roads||cache.roadCount!==roads.length||cache.width!==width){
+    const bins=new Map();
+    for(const road of roads)for(let i=1;i<road.points.length;i++){
+      const a=road.points[i-1],b=road.points[i],dx=b[0]-a[0],dy=b[1]-a[1],length2=dx*dx+dy*dy;if(!length2)continue;
+      const s={x:a[0],y:a[1],dx,dy,length2};
+      for(let x=Math.floor(Math.min(a[0],b[0])-width);x<=Math.floor(Math.max(a[0],b[0])+width);x++)for(let y=Math.floor(Math.min(a[1],b[1])-width);y<=Math.floor(Math.max(a[1],b[1])+width);y++){
+        const key=y*d.meta.widthKm+x;let list=bins.get(key);if(!list)bins.set(key,list=[]);list.push(s);
+      }
+    }
+    const limit=(width+1e-8)**2;
+    const contains=(x,y)=>{for(const s of bins.get(Math.floor(y)*d.meta.widthKm+Math.floor(x))||[]){const px=x-s.x,py=y-s.y,t=Math.max(0,Math.min(1,(px*s.dx+py*s.dy)/s.length2));if((px-t*s.dx)**2+(py-t*s.dy)**2<=limit)return true;}return false;};
+    // 道路1線分の帯（カプセル）は凸。両端が同じ帯内なら線全体が道路。
+    contains.coversLeg=(ax,ay,bx,by)=>{
+      for(const s of bins.get(Math.floor(ay)*d.meta.widthKm+Math.floor(ax))||[]){
+        const distance=(x,y)=>{const px=x-s.x,py=y-s.y,t=Math.max(0,Math.min(1,(px*s.dx+py*s.dy)/s.length2));return (px-t*s.dx)**2+(py-t*s.dy)**2;};
+        if(distance(ax,ay)<=limit&&distance(bx,by)<=limit)return true;
+      }return false;
+    };
+    cache={roads,roadCount:roads.length,width,contains};groundRoadGeometry.set(d,cache);
+  }
+  return cache.contains;
+}
+function groundFactor(x,z,kind){
+  if(kind==='air'||kind==='sea')return 1;
+  const d=groundData(),gx=groundMapX(x),gy=groundMapY(z),river=groundRiverFactor(gx,gy,kind);
+  // 道路でも通行不能な川は渡れない。橋はriver=1なので道路加速を受ける。
+  if(groundRoadQuery(d)(gx,gy))return d.movement.roadFactor*river;
+  const c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(d.movement.marsh[kind]??1):1;
+  return marsh*river;
+}
 let groundBackground=null;
 function groundSetup(id){
   groundTerrainId=id||null;groundDimensionCache=null;
@@ -218,14 +251,43 @@ function groundSeaLeg(a,b){
   if(!groundPass(x,y,'sea')||!groundPass(x+dx,y+dy,'sea'))return false;
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
+const groundPathGrids=new WeakMap();
 function groundPath(from,to,kind='vehicle',dryOnly=false){
   const d=groundData(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
-  // Query bounds live only for this search: bridge construction/destruction and
-  // terrain edits are always observed by the next call, including dry detours.
+  if(kind==='air'){
+    const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
+    for(let i=0;i<=steps;i++)if(!groundPass(a[0]+(b[0]-a[0])*i/steps,a[1]+(b[1]-a[1])*i/steps,'air'))return null;
+    const dest=to.clone();dest.y=from.y;const curve=new THREE.LineCurve3(from.clone(),dest),L=curve.getLength();
+    return {curve,points:[from.clone(),dest],atIndex:1,L,s:0,pts:[dest],at:[L]};
+  }
+  // 所有・部隊位置はコストに関係しない。地形・道路・橋・規則の変更だけで格子を破棄する。
+  // セル配列の内容も比較し、同じ配列への地形編集を次の探索で反映する。
+  const fingerprint=d.terrain.cells.join('|')+JSON.stringify([d.meta.widthKm,d.meta.heightKm,cell,cols,rows,d.display.board,d.water.sea,d.water.ponds,d.water.rivers,d.objects.roads,d.objects.bridges,d.objects.fords,d.movement.marsh,d.movement.river,d.movement.roadFactor,d.capture.roadWidthKm]);
+  let gridCache=groundPathGrids.get(d);
+  if(!gridCache||gridCache.fingerprint!==fingerprint||gridCache.revision!==groundBridgeRevision){
+    gridCache={fingerprint,revision:groundBridgeRevision,profiles:new Map(),geometry:null};groundPathGrids.set(d,gridCache);groundRoadGeometry.delete(d);
+  }
   const bounds=poly=>{let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const [x,y] of poly){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}return {poly,minX,minY,maxX,maxY};};
   const within=(x,y,b,pad=0)=>x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;
-  const board=bounds(d.display.board),sea=bounds(d.water.sea),ponds=d.water.ponds.map(bounds);
-  const rivers=d.water.rivers.map(river=>({...bounds(river.points),river,pad:Math.max(...river.widths)/2+.12+1e-10}));
+  if(!gridCache.geometry){
+    const board=bounds(d.display.board),sea=bounds(d.water.sea),ponds=d.water.ponds.map(bounds);
+    const rivers=d.water.rivers.map(river=>({...bounds(river.points),river,pad:Math.max(...river.widths)/2+.12+1e-10}));
+    // 多角形の辺がないセル内では内外は一定。細い水際・盤の縁だけは従来どおり正確に検査。
+    for(const box of [board,sea,...ponds]){
+      box.boundary=new Set();box.inside=new Int8Array(cols*rows);
+      for(let i=0;i<box.poly.length;i++){
+        const a=box.poly[i],b=box.poly[(i+1)%box.poly.length];
+        for(let y=Math.max(0,Math.floor(Math.min(a[1],b[1])/cell));y<=Math.min(rows-1,Math.floor(Math.max(a[1],b[1])/cell));y++)for(let x=Math.max(0,Math.floor(Math.min(a[0],b[0])/cell));x<=Math.min(cols-1,Math.floor(Math.max(a[0],b[0])/cell));x++)box.boundary.add(y*cols+x);
+      }
+    }
+    gridCache.geometry={board,sea,ponds,rivers};
+  }
+  const {board,sea,ponds,rivers}=gridCache.geometry;
+  const inside=(x,y,box)=>{
+    if(!within(x,y,box))return false;
+    const i=index(x,y);if(box.boundary.has(i)||i<0||i>=cols*rows)return groundInside(x,y,box.poly);
+    let value=box.inside[i];if(!value)box.inside[i]=value=groundInside(x,y,box.poly)?1:-1;return value===1;
+  };
   function riverFactor(x,y){
     let factor=1;
     for(const box of rivers){
@@ -241,48 +303,56 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   // A leg needs both passability and speed at the exact same sample. Evaluate
   // water once, retaining the original fine sampling and endpoint checks.
   function waterFactor(x,y){
-    if(!within(x,y,board)||!groundInside(x,y,board.poly))return 0;
-    const wet=within(x,y,sea)&&groundInside(x,y,sea.poly);
+    if(!inside(x,y,board))return 0;
+    const wet=inside(x,y,sea);
     if(kind==='sea')return wet&&(!dryOnly||riverFactor(x,y)===1)?1:0;
-    if(wet||ponds.some(p=>within(x,y,p)&&groundInside(x,y,p.poly)))return 0;
+    if(wet||ponds.some(p=>inside(x,y,p)))return 0;
     const factor=riverFactor(x,y);
     return dryOnly&&factor!==1?0:factor;
   }
-  const pass=(x,y)=>waterFactor(x,y)>0;
-  if(kind==='air'){
-    const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
-    for(let i=0;i<=steps;i++)if(!groundPass(a[0]+(b[0]-a[0])*i/steps,a[1]+(b[1]-a[1])*i/steps,'air'))return null;
-    const dest=to.clone();dest.y=from.y;const curve=new THREE.LineCurve3(from.clone(),dest),L=curve.getLength();
-    return {curve,points:[from.clone(),dest],atIndex:1,L,s:0,pts:[dest],at:[L]};
-  }
+  const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'?1:Math.max(1,d.movement.roadFactor,...Object.values(d.movement.marsh),...Object.values(d.movement.river));
   if(a.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||b.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
   const centers=i=>new THREE.Vector3(groundWorldX((i%cols+.5)*cell),0,groundWorldZ((Math.floor(i/cols)+.5)*cell));
   // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
+  const halfWidth=d.meta.widthKm/2,halfHeight=d.meta.heightKm/2,terrainCells=d.terrain.cells,marshSpeed=d.movement.marsh[kind]??1;
+  // 水域・川・盤の縁に触れない道路内の線は等速。サンプルを省ける条件を幾何で証明する。
+  function dryRoadLeg(ax,ay,bx,by){
+    const minX=Math.min(ax,bx),maxX=Math.max(ax,bx),minY=Math.min(ay,by),maxY=Math.max(ay,by);
+    const overlaps=(box,pad=0)=>minX<=box.maxX+pad&&maxX>=box.minX-pad&&minY<=box.maxY+pad&&maxY>=box.minY-pad;
+    if(overlaps(sea)||ponds.some(p=>overlaps(p))||rivers.some(r=>overlaps(r,r.pad)))return false;
+    for(let y=Math.floor(minY/cell);y<=Math.floor(maxY/cell);y++)for(let x=Math.floor(minX/cell);x<=Math.floor(maxX/cell);x++)if(board.boundary.has(y*cols+x))return false;
+    return inside(ax,ay,board)&&inside(bx,by,board);
+  }
   function leg(p,q){
     if(kind==='sea'&&!groundSeaLeg(p,q))return Infinity;
     const length=Math.hypot(q.x-p.x,q.z-p.z),n=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/8)));
-    let sum=0;
+    let sum=0;const ax=p.x/GROUND_SCALE+halfWidth,ay=halfHeight-p.z/GROUND_SCALE,dx=(q.x-p.x)/GROUND_SCALE,dy=-(q.z-p.z)/GROUND_SCALE;
+    if(kind!=='sea'&&onRoad.coversLeg(ax,ay,ax+dx,ay+dy)&&dryRoadLeg(ax,ay,ax+dx,ay+dy))return length/(cell*GROUND_SCALE*d.movement.roadFactor);
     for(let k=0;k<=n;k++){
-      const t=k/n,x=p.x+(q.x-p.x)*t,z=p.z+(q.z-p.z)*t;
-      const gx=groundMapX(x),gy=groundMapY(z),water=waterFactor(gx,gy);
+      const t=k/n,gx=ax+dx*t,gy=ay+dy*t,water=waterFactor(gx,gy);
       if(water<=0)return Infinity;
-      const marsh=kind!=='sea'&&d.terrain.cells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?(d.movement.marsh[kind]??1):1;
-      const factor=marsh*water;if(factor<=0)return Infinity;
+      const marsh=kind!=='sea'&&terrainCells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?marshSpeed:1;
+      const factor=(kind!=='sea'&&onRoad(gx,gy)?d.movement.roadFactor:marsh)*water;if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
     return length/(cell*GROUND_SCALE)*sum/n;
   }
-  // 全区間が通常速度なら直線はコスト下限そのもの。巨大な盤でもA*を起動しない。
+  // 全区間が最大速度なら直線はコスト下限そのもの。巨大な盤でもA*を起動しない。
   // legは細い川・浅瀬・橋・沼地も従来と同じ間隔で検査し、減速や遮断があれば通常探索へ戻る。
-  const direct=leg(from,to),lower=Math.hypot(to.x-from.x,to.z-from.z)/(cell*GROUND_SCALE);
+  const direct=leg(from,to),lower=Math.hypot(to.x-from.x,to.z-from.z)/(cell*GROUND_SCALE*maxFactor);
   if(Number.isFinite(direct)&&Math.abs(direct-lower)<=1e-9*Math.max(1,lower)){
     const endPoint=to.clone();endPoint.y=groundHeight(endPoint.x,endPoint.z);const points=[from.clone(),endPoint],curve=new THREE.LineCurve3(points[0],points[1]),L=curve.getLength();
     return {cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
   }
   const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
-  const centerCache=new Map(),center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
-  // 通常の地形倍率は1以下。直線距離を下限にした A* で遠方のセルを探しすぎない。
-  function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols));let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
+  const profileKey=JSON.stringify([kind==='sea',dryOnly,d.movement.marsh[kind]??1,d.movement.river[kind]??0]);
+  let profile=gridCache.profiles.get(profileKey);
+  if(!profile){profile={edgeCosts:new Float64Array(cols*rows*4).fill(NaN),centerWater:new Float64Array(cols*rows).fill(NaN),centers:new Map()};gridCache.profiles.set(profileKey,profile);}
+  const {edgeCosts,centerWater}=profile;
+  const centerPass=(x,y)=>{const i=y*cols+x;let value=centerWater[i];if(Number.isNaN(value))centerWater[i]=value=waterFactor((x+.5)*cell,(y+.5)*cell);return value>0;};
+  const centerCache=profile.centers,center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
+  // 最大速度で割った距離を下限にし、道路のある盤でも過大評価しない。
+  function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols))/maxFactor;let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
   function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][2]<heap[c][2])c++;if(heap[c][2]>=last[2])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
   // セル内の端点を中心へ結ぶ部分も、通れない川岸をまたがない。
   const first=leg(from,center(start));if(!Number.isFinite(first)||!Number.isFinite(leg(center(end),to)))return null;
@@ -293,8 +363,10 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
       const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;
       // 斜めでも通行不可セルの角をすり抜けない。
-      if(dx&&dy&&(!pass((x+dx+.5)*cell,(y+.5)*cell)||!pass((x+.5)*cell,(y+dy+.5)*cell)))continue;
-      const j=yy*cols+xx,n=cost+leg(p,center(j));
+      if(dx&&dy&&(!centerPass(x+dx,y)||!centerPass(x,y+dy)))continue;
+      const j=yy*cols+xx,key=Math.min(i,j)*4+(dy===0?0:dx===0?1:dx*dy>0?2:3);
+      let edge=edgeCosts[key];if(Number.isNaN(edge))edgeCosts[key]=edge=leg(p,center(j));
+      const n=cost+edge;
       if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}
     }
   }

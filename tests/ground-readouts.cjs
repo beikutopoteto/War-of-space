@@ -7,16 +7,16 @@ function readoutCases(){
   const f=make(kind),ground=groundBands(f).includes('ground');f.band=ground?'ground':groundBands(f)[0];
   check(kind+'の道路占領は地上対応だけ',groundCanCaptureRoad(f)===ground);
  }
- const tank=make('vehicle'),enemy=make('infantry',1),edge={path:[[14,29],[16,29]],x:15,y:29,owner:null,contested:false,progress:[0,0]};
+ const tank=make('vehicle'),enemy=make('infantry',1),edge={path:[[14,29],[16,29]],x:15,y:29,owner:1,contested:false,progress:[0,0]};
  fleets=[tank];groundSupplyNet={edges:[edge],revision:0};
- groundSupplyRoadCapture(4.9);check('5秒直前は未占領',edge.owner===null&&Math.abs(edge.progress[0]-4.9)<1e-6);
+ groundSupplyRoadCapture(4.9);check('敵道路は5秒直前まで敵のまま',edge.owner===1&&Math.abs(edge.progress[0]-4.9)<1e-6);
  groundSupplyRoadCapture(.1);check('戦車も道路を5秒で占領',edge.owner===0&&edge.progress[0]===0);
  edge.owner=1;edge.progress=[0,0];groundSupplyRoadCapture(2);groundRememberTerritory();
  check('静止中も観測した進捗を保持',edge.knownProgress[0]===2&&edge.knownCapturingTeam===0);
  groundSupplyRoadCapture(1);groundRememberTerritory();check('静止中の道路カウントダウンも更新',edge.knownProgress[0]===3&&groundCaptureReadout(edge,5).includes('あと2秒'));
  fleets.push(enemy);groundSupplyRoadCapture(2);groundRememberTerritory();check('競合中は進捗を止め表示',edge.progress[0]===3&&groundCaptureReadout(edge,5).includes('競合中'));
  fleets=[tank];tank.embarked={};check('搭乗中は道路占領しない',!groundCanCaptureRoad(tank));tank.embarked=null;tank.groundRout='routing';check('敗走中は道路占領しない',!groundCanCaptureRoad(tank));tank.groundRout=null;
- const s={knownOwner:null,knownContested:false,knownProgress:[12,0],knownCapturingTeam:0,observed:true};
+ const s={knownOwner:1,knownContested:false,knownProgress:[12,0],knownCapturingTeam:0,observed:true};
  check('拠点は30秒の残り時間',groundCaptureReadout(s,30).includes('あと18秒'));
  s.knownCapturingTeam=null;check('部隊が離れた進捗は中断表示',groundCaptureReadout(s,30).includes('中断'));
  s.observed=false;s.progress=[29,0];check('視界外は最終確認の18秒を維持',groundCaptureReadout(s,30).includes('最終確認')&&groundCaptureReadout(s,30).includes('18秒'));

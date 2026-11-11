@@ -43,7 +43,7 @@ function npcGroundLinks(){
       if(targets.length){for(const target of targets){const k=[source.id,target.id].sort().join(':');
         if(!result.has(k)||onlyOpen)result.set(k,{a:source.id,b:target.id,len:best,open:onlyOpen});}continue;}
       for(const ei of net.nodes[i].edges){const e=net.edges[ei];if(onlyOpen&&e.open===false)continue;
-        const j=e.a===i?e.b:e.a,a=net.nodes[i],b=net.nodes[j],d=best+Math.hypot(a.x-b.x,a.y-b.y);
+        const j=e.a===i?e.b:e.a,d=best+groundSupplyEdgeLength(e);
         if(d<(dist.get(j)??Infinity))dist.set(j,d);
       }
     }
@@ -133,7 +133,7 @@ function npcGroundRoadTree(site){
   while(queue.length){
     queue.sort((a,b)=>b[1]-a[1]);const [i,d]=queue.pop();if(d!==dist.get(i))continue;
     for(const ei of net.nodes[i].edges){const e=net.edges[ei];if(e.open===false)continue;
-      const j=e.a===i?e.b:e.a,a=net.nodes[i],b=net.nodes[j],v=d+Math.hypot(a.x-b.x,a.y-b.y);
+      const j=e.a===i?e.b:e.a,v=d+groundSupplyEdgeLength(e);
       if(v<(dist.get(j)??Infinity)){dist.set(j,v);prev.set(j,{i,ei});queue.push([j,v]);}
     }
   }
@@ -205,7 +205,7 @@ function npcGroundRefitEntry(f,points){
     const circle=(x,y,radius)=>{const x0=ax-x,y0=ay-y,A=dx*dx+dy*dy,B=2*(x0*dx+y0*dy),C=x0*x0+y0*y0-radius*radius,D=B*B-4*A*C;
       if(A>0&&D>=0){add((-B-Math.sqrt(D))/(2*A));add((-B+Math.sqrt(D))/(2*A));}};
     for(const s of circles)circle(s.x,s.y,s.radiusKm);
-    for(const e of roads){const [p,q]=e.path,ex=q[0]-p[0],ey=q[1]-p[1],len=Math.hypot(ex,ey);if(!len)continue;
+    for(const e of roads)for(let j=1;j<e.path.length;j++){const p=e.path[j-1],q=e.path[j],ex=q[0]-p[0],ey=q[1]-p[1],len=Math.hypot(ex,ey);if(!len)continue;
       circle(...p,r);circle(...q,r);
       const cross=(ax-p[0])*ey-(ay-p[1])*ex,delta=dx*ey-dy*ex;
       if(Math.abs(delta)>1e-12)for(const sign of [-1,1]){const t=(sign*r*len-cross)/delta,u=((ax+t*dx-p[0])*ex+(ay+t*dy-p[1])*ey)/(len*len);if(u>=0&&u<=1)add(t);}

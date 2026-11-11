@@ -125,7 +125,7 @@ function damage(t,amt,src,groundImpact=null){
   /* ship fire on the enemy's infantry on the rock (第5節, 2026-10-19): op.base.troops.hp a dot (times the hit points multiplier) */
   if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??40)*HP_K); t.n=Math.max(0,t.n0-infQ(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
   if(t.kind==='block'){ civHit(amt*(op.civil.perRaid||2),false); if(Math.random()<amt*.08) burst(t.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*5,(Math.random()-.5)*8)),HOT,10,6,1); return; }
-  if(op.ground) amt*=groundDamageFactor(t);
+  if(op.ground) amt*=WOS_TERRAIN[op.ground].combat.damageScale*groundDamageFactor(t);
   if(t.eva) amt*=1-t.eva;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
@@ -2392,7 +2392,7 @@ function detailPlan(all){
 }
 
 function step(dt){
-  if(op.ground){ gameSec+=dt; groundStep(dt); return; }
+  if(op.ground){ dt*=WOS_TERRAIN[op.ground].movement.timeScale; gameSec+=dt; groundStep(dt); return; }
   gameSec+=dt; if(tutorialHolding()) clockHeld+=dt; tutorialTick();
   /* timed events, `after` minutes into the operation clock: an enemy fleet arrives, a message, a change of phase, an explosion */
   /* nothing more comes once the enemy falls back (stepRepel) */

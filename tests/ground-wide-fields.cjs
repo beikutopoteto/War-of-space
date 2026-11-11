@@ -15,7 +15,7 @@ function nodeChecks(){
    const spec=op.quick.find(s=>s.groundKind==='guidedRocket'),f=makeFleet(0,spec);f.band='ground';fleets=[f];
    check(id+'でもロケットの物理射程50kmは不変',groundStrikeRange(f).max===200&&Math.abs(groundMapX(f.pos.x)-d.sites[0].x)<2&&Math.abs(groundMapY(f.pos.z)-d.sites[0].y)<2);
    const home=d.sites[0],bridge=d.objects.bridges[0],a=groundPoint(home.x,home.y),b=groundPoint(bridge.x-2,bridge.y),route=groundPath(a,b,'vehicle');
-   check(id+'の長い乾いた平地は安全な直線で到達',route&&route.points.length===2&&Math.abs(route.cost*GROUND_SCALE*d.meta.cellKm-groundDistanceTo({pos:a},{pos:b}))<1e-6&&route.points.at(-1).distanceTo(b)<1e-7);
+   check(id+'の長い平地は道路加速を使い安全に到達',route&&route.cost*GROUND_SCALE*d.meta.cellKm<=groundDistanceTo({pos:a},{pos:b})+1e-6&&route.points.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle'))&&route.points.at(-1).distanceTo(b)<1e-7);
    groundSites=d.sites.map(s=>({...s,pos:groundPoint(s.x,s.y),owner:0,contested:false,progress:[0,0]}));groundTerritory=null;groundSupplyBuild();groundSupplyNet.edges.forEach(e=>{e.owner=0;e.contested=false;});groundSupplyRefresh();const far=groundSites.find(s=>s.id===enemyId);
    check(id+'の道路と恒久橋を通じ本営から遠方まで実補給',groundSupplyAt({team:0,pos:far.pos}).rate===1);
    groundSupplyNet.edges.forEach(e=>{if(!e.circle)e.contested=true;});groundSupplyRefresh();check(id+'でも競合先は半速',groundSupplyAt({team:0,pos:far.pos}).rate===.5);

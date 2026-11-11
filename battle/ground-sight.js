@@ -104,7 +104,7 @@ function groundPointSeenBy(team,p){
 function groundRememberTerritory(){
   const observers=fleets.filter(f=>f.team===0&&f.alive&&!f.embarked&&!groundAbsent(f)).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
   const net=groundSupplyActive()?groundSupplyNet:null;
-  const key=observers.map(o=>`${o.eye.x},${o.eye.y},${o.eye.z},${o.range}`).join('|')+'/'+groundSites.map(s=>`${s.owner}:${s.contested}:${s.progress}:${s.capturingTeam}`).join('|')+'/'+(net?.edges.map(e=>`${e.owner}:${e.contested}:${e.progress?.map(Math.floor)}:${e.capturingTeam}`).join('|')||'');
+  const key=observers.map(o=>`${o.eye.x},${o.eye.y},${o.eye.z},${o.range}`).join('|')+'/'+groundSites.map(s=>`${s.owner}:${s.contested}:${s.progress}:${s.capturingTeam}`).join('|')+'/'+(net?.edges.map(e=>`${e.owner}:${e.contested}:${e.progress}:${e.capturingTeam}`).join('|')||'');
   // 同じ観測位置と所有状態で、移動前後・描画ごとに視線を引き直さない。
   if(groundTerritorySight?.sites===groundSites&&groundTerritorySight.net===net&&groundTerritorySight.key===key)return;
   groundTerritorySight={sites:groundSites,net,key};

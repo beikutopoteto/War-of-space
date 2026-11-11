@@ -17,41 +17,65 @@ function groundCircleAt(x,y){
   for(const s of groundSites){const k=Math.hypot(x-s.x,y-s.y)/s.radiusKm;if(k<=1&&k<weight){best=s;weight=k;}}
   return best;
 }
-// 幾何学的な実交点だけを共有。セル境界・帰属境界も切り、帯の所有と網の辺を一致させる。
+// 道の折れ曲がりは同じ区切りのpathに保持。セル境界では切らない。
 function groundSupplyBuild(){
-  const d=WOS_TERRAIN[op.ground],segments=[],nodes=[],edges=[],byPoint=new Map();
+  const d=WOS_TERRAIN[op.ground],roads=[],segments=[],nodes=[],edges=[],byPoint=new Map();
   const node=(x,y)=>{const key=x.toFixed(6)+','+y.toFixed(6);if(!byPoint.has(key)){byPoint.set(key,nodes.length);nodes.push({x,y,edges:[],rates:[0,0]});}return byPoint.get(key);};
-  for(const road of d.objects.roads)for(let i=1;i<road.points.length;i++)segments.push({a:road.points[i-1],b:road.points[i],cuts:[0,1]});
-  const cut=(s,x,y)=>{const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],t=((x-s.a[0])*dx+(y-s.a[1])*dy)/(dx*dx+dy*dy);if(t>=0&&t<=1&&Math.hypot(x-s.a[0]-t*dx,y-s.a[1]-t*dy)<1e-6)s.cuts.push(t);};
+  for(const data of d.objects.roads){
+    const road={points:data.points,lengths:[0],cuts:[0]};roads.push(road);
+    for(let i=1;i<road.points.length;i++){
+      const a=road.points[i-1],b=road.points[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]),along=road.lengths[i-1];
+      road.lengths.push(along+length);if(length>0)segments.push({a,b,length,along,road});
+    }
+    road.total=road.lengths.at(-1);road.cuts.push(road.total);
+  }
+  const add=(s,t)=>{if(t>=0&&t<=1)s.road.cuts.push(s.along+t*s.length);};
+  const cut=(s,x,y)=>{const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],t=((x-s.a[0])*dx+(y-s.a[1])*dy)/(s.length*s.length);if(Math.hypot(x-s.a[0]-t*dx,y-s.a[1]-t*dy)<1e-6)add(s,t);};
   const projections=new Map();
   for(const site of groundSites){let best=null;
-    for(const s of segments){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],t=Math.max(0,Math.min(1,((site.x-s.a[0])*dx+(site.y-s.a[1])*dy)/(dx*dx+dy*dy))),x=s.a[0]+dx*t,y=s.a[1]+dy*t,dist=Math.hypot(x-site.x,y-site.y);if(!best||dist<best.dist)best={s,t,x,y,dist};}
-    if(best&&best.dist<.8){best.s.cuts.push(best.t);projections.set(site,best);}
+    for(const s of segments){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1],t=Math.max(0,Math.min(1,((site.x-s.a[0])*dx+(site.y-s.a[1])*dy)/(s.length*s.length))),x=s.a[0]+dx*t,y=s.a[1]+dy*t,dist=Math.hypot(x-site.x,y-site.y);if(!best||dist<best.dist)best={x,y,dist};}
+    if(best&&best.dist<.8)projections.set(site,best);
   }
   for(let i=0;i<segments.length;i++){
     const s=segments[i],dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1];
     for(let j=i+1;j<segments.length;j++){
-      const q=segments[j],ex=q.b[0]-q.a[0],ey=q.b[1]-q.a[1],den=dx*ey-dy*ex;
+      const q=segments[j];
+      // 隣り合う折れ点は接続済み。交差だけが必須の切れ目。
+      if(q.road===s.road&&(s.b===q.a||q.b===s.a))continue;
+      const ex=q.b[0]-q.a[0],ey=q.b[1]-q.a[1],den=dx*ey-dy*ex;
       if(Math.abs(den)<1e-10){cut(s,...q.a);cut(s,...q.b);cut(q,...s.a);cut(q,...s.b);continue;}
       const t=((q.a[0]-s.a[0])*ey-(q.a[1]-s.a[1])*ex)/den,u=((q.a[0]-s.a[0])*dy-(q.a[1]-s.a[1])*dx)/den;
-      if(t>=0&&t<=1&&u>=0&&u<=1){s.cuts.push(t);q.cuts.push(u);}
+      if(t>=0&&t<=1&&u>=0&&u<=1){add(s,t);add(q,u);}
     }
-    for(let axis=0;axis<2;axis++){const delta=s.b[axis]-s.a[axis];if(Math.abs(delta)<1e-9)continue;
-      for(let v=Math.ceil(Math.min(s.a[axis],s.b[axis])/d.meta.cellKm)*d.meta.cellKm;v<Math.max(s.a[axis],s.b[axis]);v+=d.meta.cellKm)s.cuts.push((v-s.a[axis])/delta);
+    for(const section of groundTerritory?.sections||[])for(const p of [section.path[0],section.path.at(-1)])cut(s,...p);
+    // 拠点の円の境界と、恒久橋の通行範囲の両端。
+    for(const circle of [...groundSites,...d.objects.bridges.map(b=>({...b,radiusKm:.9}))]){
+      const x=s.a[0]-circle.x,y=s.a[1]-circle.y,A=s.length*s.length,B=2*(x*dx+y*dy),C=x*x+y*y-circle.radiusKm**2,D=B*B-4*A*C;
+      if(D>=0)for(const t of [(-B-Math.sqrt(D))/(2*A),(-B+Math.sqrt(D))/(2*A)])add(s,t);
     }
-    for(const section of groundTerritory?.sections||[])for(const p of [section.path[0],section.path[section.path.length-1]])cut(s,...p);
-    // 円と帯の境界を正確に切る。
-    for(const site of groundSites){const x=s.a[0]-site.x,y=s.a[1]-site.y,A=dx*dx+dy*dy,B=2*(x*dx+y*dy),C=x*x+y*y-site.radiusKm**2,D=B*B-4*A*C;if(D<0)continue;for(const t of [(-B-Math.sqrt(D))/(2*A),(-B+Math.sqrt(D))/(2*A)])if(t>0&&t<1)s.cuts.push(t);}
-    const cuts=[...new Set(s.cuts.map(t=>+t.toFixed(9)))].sort((a,b)=>a-b);
-    for(let k=1;k<cuts.length;k++){
-      const point=t=>[s.a[0]+dx*t,s.a[1]+dy*t],a=point(cuts[k-1]),b=point(cuts[k]);if(Math.hypot(a[0]-b[0],a[1]-b[1])<1e-7)continue;
-      const x=(a[0]+b[0])/2,y=(a[1]+b[1])/2,circle=groundCircleAt(x,y),section=(groundTerritory?.sections||[]).find(v=>groundDistance(x,y,v.path)<1e-6);
-      const e={a:node(...a),b:node(...b),path:[a,b],x,y,circle,owner:circle?circle.owner:section?.site.owner??null,contested:false,progress:[0,0],rates:[0,0]};
+  }
+  for(const road of roads){
+    const at=t=>{for(let i=1;i<road.points.length;i++)if(t<=road.lengths[i]+1e-8){const k=(t-road.lengths[i-1])/(road.lengths[i]-road.lengths[i-1]);return [road.points[i-1][0]+(road.points[i][0]-road.points[i-1][0])*k,road.points[i-1][1]+(road.points[i][1]-road.points[i-1][1])*k];}return road.points.at(-1);};
+    const mandatory=road.cuts.sort((a,b)=>a-b).filter((v,i,all)=>!i||v-all[i-1]>1e-7),cuts=[mandatory[0]];
+    for(let i=1;i<mandatory.length;i++){
+      const from=mandatory[i-1],to=mandatory[i];
+      for(let t=from+d.capture.roadSegmentKm;t<to-1e-7;t+=d.capture.roadSegmentKm)cuts.push(t);
+      cuts.push(to);
+    }
+    for(let i=1;i<cuts.length;i++){
+      const from=cuts[i-1],to=cuts[i],path=[at(from),...road.points.filter((p,j)=>road.lengths[j]>from+1e-7&&road.lengths[j]<to-1e-7),at(to)],a=path[0],b=path.at(-1),[x,y]=at((from+to)/2),circle=groundCircleAt(x,y),section=(groundTerritory?.sections||[]).find(v=>groundDistance(x,y,v.path)<1e-6);
+      const e={a:node(...a),b:node(...b),path,lengthKm:to-from,x,y,circle,owner:circle?circle.owner:section?.site.owner??null,contested:false,progress:[0,0],rates:[0,0]};
       nodes[e.a].edges.push(edges.length);nodes[e.b].edges.push(edges.length);edges.push(e);
     }
   }
-  const sites=new Map();for(const [site,p] of projections)sites.set(site,node(p.x,p.y));
+  // 円の境界のノードへ載せる。拠点中心だけの追加の切れ目は作らない。
+  const sites=new Map();for(const [site,p] of projections){let best=null;nodes.forEach((n,i)=>{if(!n.edges.some(e=>edges[e].circle===site))return;const dist=Math.hypot(n.x-p.x,n.y-p.y);if(!best||dist<best.dist)best={i,dist};});if(best)sites.set(site,best.i);}
   groundSupplyNet={nodes,edges,sites,key:null,revision:0};groundSupplyRefresh();
+}
+function groundSupplyEdgeLength(e){
+  if(Number.isFinite(e.lengthKm))return e.lengthKm;
+  if(e.path)return e.path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-e.path[i][0],p[1]-e.path[i][1]),0);
+  const a=groundSupplyNet.nodes[e.a],b=groundSupplyNet.nodes[e.b];return Math.hypot(a.x-b.x,a.y-b.y);
 }
 function groundRoadAt(x,y){
   if(!groundSupplyNet)return null;let found=null,best=WOS_TERRAIN[op.ground].capture.roadWidthKm/2+1e-8;
@@ -59,15 +83,16 @@ function groundRoadAt(x,y){
   return found;
 }
 function groundCanCaptureRoad(f){return f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
-function groundRoadCaptureSeconds(){const n=WOS_TERRAIN[op.ground].capture.roadSeconds;return Number.isFinite(n)&&n>0?n:5;} // 道路専用の仮値
+function groundRoadCaptureSeconds(e,owner=e?.owner){const r=WOS_TERRAIN[op.ground].capture;return owner===null?r.neutralSeconds:r.roadSeconds;}
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
-  const troops=fleets.filter(groundCanCaptureRoad),seconds=groundRoadCaptureSeconds(),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const troops=fleets.filter(groundCanCaptureRoad),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
     const present=[false,false];for(const f of troops)if(groundDistance(groundMapX(f.pos.x),groundMapY(f.pos.z),e.path)<=width+1e-8)present[f.team]=true;
     e.contested=present[0]&&present[1];e.capturingTeam=e.contested?null:present[0]?0:present[1]?1:null;if(e.contested)continue;
     const team=present[0]?0:present[1]?1:null;if(team===null||team===e.owner)continue;
+    const seconds=groundRoadCaptureSeconds(e);
     e.progress[team]=Math.min(seconds,e.progress[team]+dt);
     if(e.progress[team]>=seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}
   }
@@ -75,10 +100,12 @@ function groundSupplyRoadCapture(dt){
 function groundSupplyRoadOpen(e){
   const d=WOS_TERRAIN[op.ground];
   // 細い川も飛び越さない。浅瀬は物流を通さない。
-  const [a,b]=e.path,n=Math.max(2,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/(d.meta.cellKm/8)));
-  for(let i=0;i<=n;i++){const x=a[0]+(b[0]-a[0])*i/n,y=a[1]+(b[1]-a[1])*i/n;
-    if(!groundPass(x,y,'air')||groundInside(x,y,d.water.sea)||d.water.ponds.some(p=>groundInside(x,y,p)))return false;
-    for(const river of d.water.rivers){const r=groundRiverAt(x,y,river);if(r.dist<r.width/2+.12&&!d.objects.bridges.some(p=>p.river===river.id&&Math.hypot(p.x-x,p.y-y)<.9)&&!groundBuiltBridgeAt(x,y,river.id))return false;}
+  for(let leg=1;leg<e.path.length;leg++){
+    const a=e.path[leg-1],b=e.path[leg],n=Math.max(2,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/(d.meta.cellKm/8)));
+    for(let i=0;i<=n;i++){const x=a[0]+(b[0]-a[0])*i/n,y=a[1]+(b[1]-a[1])*i/n;
+      if(!groundPass(x,y,'air')||groundInside(x,y,d.water.sea)||d.water.ponds.some(p=>groundInside(x,y,p)))return false;
+      for(const river of d.water.rivers){const r=groundRiverAt(x,y,river);if(r.dist<r.width/2+.12&&!d.objects.bridges.some(p=>p.river===river.id&&Math.hypot(p.x-x,p.y-y)<.9)&&!groundBuiltBridgeAt(x,y,river.id))return false;}
+    }
   }return true;
 }
 function groundSupplyRefresh(){
@@ -241,7 +268,7 @@ function groundSupplyStatus(f){
   if(f.groundRout)return f.groundRout==='routing'?'敗走中・操作不可':'再集結・移動と搭乗のみ';
   if(f.groundSupplyGiving)return '補給を分配中';
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
-  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds()*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
+  const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds(at.edge)*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
 function groundSupplyReadings(list){
   return [['groundMorale','士気'],['groundSupply','補給']].flatMap(([key,label])=>{
@@ -349,7 +376,7 @@ function groundSupplyDraw(){
     groundSupplyMapClear();groundSupplyMap={key:net.key,lines:[],labels:[]};
     for(const rate of [1,.5,0]){
       const edges=net.edges.filter(e=>!e.circle&&e.owner===0&&e.rates[0]===rate),points=[];
-      for(const e of edges)for(const [x,y] of e.path){const p=groundPoint(x,y);p.y+=.25;points.push(p);}
+      for(const e of edges)for(let i=1;i<e.path.length;i++)for(const [x,y] of [e.path[i-1],e.path[i]]){const p=groundPoint(x,y);p.y+=.25;points.push(p);}
       const material=rate===1?new THREE.LineBasicMaterial({color:0x8bdfff,transparent:true,opacity:.9,depthWrite:false}):new THREE.LineDashedMaterial({color:0x8bdfff,transparent:true,opacity:rate===.5?.8:.35,dashSize:rate===.5?1:.3,gapSize:rate===.5?1:1.5,depthWrite:false});
       const line=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),material);line.computeLineDistances();groundVisuals.add(line);groundSupplyMap.lines.push(line);
       // 最大各2枚の小さな文字札。敵の位置や名前は載せない。
@@ -374,7 +401,7 @@ function groundRoadLabelsDraw(){
     placed.push(p);let el=groundRoadLabels[count++];
     if(!el){el=document.createElement('div');el.className='ground-road-label';labelsEl.appendChild(el);groundRoadLabels.push(el);}
     el.hidden=false;el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
-    el.textContent='道路 · '+groundCaptureReadout(e,groundRoadCaptureSeconds());
+    el.textContent='道路 · '+groundCaptureReadout(e,groundRoadCaptureSeconds(e,e.knownOwner));
     el.style.color=e.knownContested?'#e2c58a':e.knownOwner===1?'#ff998b':'#8bdfff';
   }
   groundRoadLabels.slice(count).forEach(el=>el.hidden=true);

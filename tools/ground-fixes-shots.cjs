@@ -72,7 +72,8 @@ if(process.argv.includes('--sim')){
       const f=selected;let e,at;
       for(const edge of groundSupplyNet.edges){
         if(edge.circle||edge.owner!==0||!edge.rates[0])continue;
-        const [a,b]=edge.path,L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<.2)continue;
+        const j=edge.path.findIndex((p,i)=>i&&groundDistance(edge.x,edge.y,[edge.path[i-1],p])<1e-6);if(j<1)continue;
+        const a=edge.path[j-1],b=edge.path[j],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(L<.2)continue;
         for(const side of [1,-1]){
           const x=edge.x-(b[1]-a[1])/L*.3*side,y=edge.y+(b[0]-a[0])/L*.3*side;
           if(!groundCircleAt(x,y)&&groundRoadAt(x,y)===edge&&groundPass(x,y,'infantry')){e=edge;at=groundPoint(x,y);break;}

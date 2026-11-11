@@ -88,11 +88,11 @@ function checks(){
     groundSupplyBuild();for(const e of groundSupplyNet.edges){e.knownOwner=e.owner;e.knownContested=false;}
     __distanceCalls=0;groundDistance=(...args)=>{__distanceCalls++;return __dist(...args)};
     groundPaintTerritory();groundDistance=__dist;`);
-  ok('real map cold build compares local candidates, not all 359 edges per pixel',run('groundSupplyNet.edges.length===359&&__distanceCalls<480*360*359/10'));
+  ok('real map cold build compares local candidates with the coarser road segments',run('groundSupplyNet.edges.length<150&&__distanceCalls<480*360*groundSupplyNet.edges.length/10'));
   ok('real map sampled memberships and every edge boundary equal legacy',run(`(()=>{
     for(let i=0;i<1024;i++){const x=((i*137)%480+.5)/10,y=36-((i*53)%360+.5)/10;
       if(groundInfluenceAt(x,y)!==legacyGroundInfluenceAt(x,y))return false;}
-    for(const e of groundSupplyNet.edges){const a=e.path[0],b=e.path[1],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+    for(const e of groundSupplyNet.edges)for(let j=1;j<e.path.length;j++){const a=e.path[j-1],b=e.path[j],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
       for(const offset of [0,.625,.625+5e-9,.625+2e-8]){const x=(a[0]+b[0])/2-dy/len*offset,y=(a[1]+b[1])/2+dx/len*offset;
         if(groundInfluenceAt(x,y)!==legacyGroundInfluenceAt(x,y))return false;}}
     return true;})()`));

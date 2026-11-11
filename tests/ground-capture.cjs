@@ -11,12 +11,15 @@ function captureCases() {
     end=win=>{over=true;outcome=win;}; over=false;
     const s=site(), blue=unit(0), red=unit(1);groundSites=[s,site()];groundSites[1].pos.x=200;fleets=[blue,red];
     groundCaptureStep(10);check('両軍の占拠部隊で停止',s.contested&&s.progress.every(x=>x===0));
-    red.pos.x=50;groundCaptureStep(12);check('単独の歩兵で12秒進む',!s.contested&&s.progress[0]===12);
+    s.owner=1;red.pos.x=50;groundCaptureStep(12);check('単独の歩兵で12秒進む',!s.contested&&s.progress[0]===12);
     blue.pos.x=50;groundCaptureStep(20);check('離脱後も12秒保持',s.progress[0]===12);
-    red.pos.x=0;groundCaptureStep(7);check('敵軍の進捗を別に保持',s.progress[0]===12&&s.progress[1]===7);
-    blue.pos.x=0;groundCaptureStep(10);check('進捗がある競合でも停止',s.contested&&s.progress[0]===12&&s.progress[1]===7);
+    red.pos.x=0;groundCaptureStep(7);check('所有者側の滞在では占領進捗を増やさない',s.progress[0]===12&&s.progress[1]===0);
+    blue.pos.x=0;groundCaptureStep(10);check('進捗がある競合でも停止',s.contested&&s.progress[0]===12&&s.progress[1]===0);
     red.alive=false;groundCaptureStep(18);check('死亡した敵は阻止せず占領',s.owner===0&&s.progress.every(x=>x===0)&&!over);
     blue.pos.x=50;red.alive=true;red.pos.x=0;groundCaptureStep(30);check('敵軍も再占領できる',s.owner===1);
+    s.owner=null;s.progress=[0,0];blue.pos.x=0;red.pos.x=50;fleets=[blue,red];
+    groundCaptureStep(.49);check('中立拠点は0.5秒直前まで中立',s.owner===null&&Math.abs(s.progress[0]-.49)<1e-8);
+    groundCaptureStep(.01);check('中立拠点は0.5秒で占領',s.owner===0&&s.progress[0]===0);
     for(const kind of ['vehicle','heavyInfantry','scout','fighter','attack']){
       s.owner=null;s.progress=[0,0];fleets=[unit(0,kind)];groundCaptureStep(40);check(`${kind} は占拠しない`,s.owner===null&&s.progress[0]===0);
     }
@@ -42,11 +45,11 @@ async function checkGroundCapture(page, check) {
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};
-    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=hp-target.hpPool-target.groundMorale===heavy.dmg*d.combat.heavyTank;
+    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=Math.abs(hp-target.hpPool-target.groundMorale-heavy.dmg*d.combat.heavyTank*d.combat.damageScale)<1e-7;
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
     // 兵科相性の確認にも、その場所の歩兵の遮蔽軽減を含める。
-    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*d.combat.tankInfantry*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
+    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*d.combat.tankInfantry*d.combat.damageScale*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();

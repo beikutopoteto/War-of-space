@@ -355,10 +355,12 @@ document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click'
    続ける closes it, やり直す starts the operation again, やめる gives up (a defeat), 操作の一覧 shows the controls.
    With the debug switch on (prep.js, body.dbg-battle) it also offers an instant win or defeat */
 const pauseEl=document.getElementById('pause'); let paused=false, pausedSpeed=1;
-function openPause(){ if(paused||over||menuOpen) return; paused=true; pausedSpeed=speed; setSpeed(0); closePick(); pauseEl.hidden=false; pauseEl.querySelector('[data-pm="resume"]').focus(); }
+function pauseAutoDraw(){const b=pauseEl.querySelector('[data-pm="auto"]');b.textContent='オートモード：'+(autoMode?'オン':'オフ');b.setAttribute('aria-pressed',String(autoMode));}
+function openPause(){ if(paused||over||menuOpen) return; paused=true; pausedSpeed=speed; setSpeed(0); closePick(); pauseAutoDraw(); pauseEl.hidden=false; pauseEl.querySelector('[data-pm="resume"]').focus(); }
 function closePause(){ if(!paused) return; paused=false; pauseEl.hidden=true; setSpeed(pausedSpeed); }
 pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const a=b.dataset.pm;
+  if(a==='auto'){autoMode=!autoMode;window.WOS_MENU.setAuto(autoMode);pauseAutoDraw();}
   if(a==='resume') closePause();
   if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startOp(); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }

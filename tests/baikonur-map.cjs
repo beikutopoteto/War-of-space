@@ -46,13 +46,13 @@ function nodeChecks(){
   check('港と河口橋に海上から24km艦砲が届く',[['G',23,14],['H',46,12],['I',76,15]].every(([id,x,y])=>groundPass(x,y,'sea')&&distance(site(id),{x,y})<=d.navalFireRangesKm.cl.indirect.max));
   const net=groundSupplyNet,start=net.sites.get(site('A')),end=net.sites.get(site('F'));
   const lengths=Array(net.nodes.length).fill(Infinity),done=new Set();lengths[start]=0;
-  while(true){let at=-1;for(let i=0;i<lengths.length;i++)if(!done.has(i)&&(at<0||lengths[i]<lengths[at]))at=i;if(at<0||!Number.isFinite(lengths[at])||at===end)break;done.add(at);for(const i of net.nodes[at].edges){const e=net.edges[i],next=e.a===at?e.b:e.a;if(e.open)lengths[next]=Math.min(lengths[next],lengths[at]+distance(net.nodes[at],net.nodes[next]));}}
+  while(true){let at=-1;for(let i=0;i<lengths.length;i++)if(!done.has(i)&&(at<0||lengths[i]<lengths[at]))at=i;if(at<0||!Number.isFinite(lengths[at])||at===end)break;done.add(at);for(const i of net.nodes[at].edges){const e=net.edges[i],next=e.a===at?e.b:e.a;if(e.open)lengths[next]=Math.min(lengths[next],lengths[at]+e.path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-e.path[i][0],p[1]-e.path[i][1]),0));}}
   check('実補給グラフの本営間最短路は60km以上',lengths[end]>=60&&Number.isFinite(lengths[end]));
   rows.push({name:'本営間の最短道路距離',ok:true,detail:lengths[end].toFixed(3)+'km'});
   groundSites.forEach(s=>s.owner=0);net.edges.forEach(e=>e.owner=0);groundSupplyRefresh();
   check('道路と橋を通じ西本営から東本営へ実補給',groundSupplyAt({team:0,pos:site('F').pos}).rate===1);
   for(const [name,p] of [['西の共通幹線',[19,53]],['東の共通幹線',[77,48]]]){
-   const changed=net.edges.filter(e=>Math.hypot(e.x-p[0],e.y-p[1])<.6);changed.forEach(e=>e.owner=1);groundSupplyRefresh();
+   const changed=net.edges.filter(e=>groundDistance(...p,e.path)<1e-6);changed.forEach(e=>e.owner=1);groundSupplyRefresh();
    check(name+'の占領で補給を切断',changed.length>0&&groundSupplyAt({team:0,pos:site('F').pos}).rate===0);
    changed.forEach(e=>e.owner=0);groundSupplyRefresh();
   }
