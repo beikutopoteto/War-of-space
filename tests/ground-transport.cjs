@@ -69,6 +69,16 @@ function transportCases(){
     // 工兵撃破は直接同地点から行う。
     enemyTank.pos.copy(engineer.pos);groundUpdateSight();damage(engineer,engineer.hpPool,enemyTank);
     check('工兵の撃破で未完成の架橋を片付ける',!engineer.alive&&!groundBridges.length);
+    op={ground:'baikonur2'};groundTerrainId=null;
+    check('baikonur2だけ架橋上限0.5km、exercise2は0.3kmを維持',WOS_TERRAIN.baikonur2.water.engineerBridgeMaxWidthKm===.5&&WOS_TERRAIN.exercise2.water.engineerBridgeMaxWidthKm===.3);
+    for(const [name,x,y] of [['本流北半分',50,53],['西支流上流',39,21],['東支流上流',52,22]]){
+      const p=groundBridgePlan(groundPoint(x,y));check('baikonur2の'+name+'に架橋できる',!p.reason&&p.width<=.5);
+    }
+    // 本流の0.46→0.52km区間。補間幅がちょうど0.5となる点と、そのすぐ下流。
+    const atWidth=t=>groundPoint(48-t,46-7*t);
+    check('baikonur2の川幅0.5kmちょうどは架橋可能',!groundBridgePlan(atWidth(2/3)).reason);
+    for(const [name,p] of [['上限直後',atWidth(2/3+.001)],['本流下流',groundPoint(46,32)],['本流河口手前',groundPoint(46.5,19.5)]])check('baikonur2の'+name+'は幅上限で拒否',groundBridgePlan(p).reason?.includes('上限 0.5 km'));
+
   }finally{op=saved.op;
     groundBridges.forEach(groundBridgeDropVisual);groundStrikes.forEach(groundStrikeDropVisual);groundImpacts.forEach(groundStrikeDropVisual);
     ({fleets,groundSites,groundBridges,groundBridgeRevision,groundWorkAiming,groundTransportMessage,groundStrikes,groundImpacts,groundHeight,groundForests,groundBuildings,groundFog,over,end,shoot,burst,groundHud}=saved);Math.random=saved.random;groundHeightCacheReset();
@@ -173,7 +183,7 @@ module.exports={transportCases,checkGroundTransport};
 if(require.main===module){
   const element={style:{},remove(){},classList:{add(){},remove(){},toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'],dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')),ctx);

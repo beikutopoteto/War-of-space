@@ -63,3 +63,16 @@ npm test
 ```
 
 この作業では `git fetch origin` が共有Git管理領域の書き込み制限で失敗した。ユーザー指定によりコミットせず、差分を残して引き渡す。
+
+
+## 試遊後の小修正（ユーザー決定 2026-11-12）
+
+1. 補給部隊の士気自己回復: `groundSupplyAfter` が補給兵科を明示的に除外していたため、止まって休んでも回復しなかった。分配・移動の誤認ではない。除外を削除し、通常の待ち・土地の上限・被弾による待ち直しを適用する。旧テストも自己回復しない仕様を期待していたため修正した。
+2. 士気の分配: 物資分配と同じ対象・距離・経路・建物遮蔽を使う。`exercise2.supply.moraleGiveMax=0.8`、`moraleGiveCost=0.5`（ともに仮）。速度は既存の `give=2/秒` を共用。物資満タンや網からの補充中も士気を回復できる。物資と同時に渡せるが、残量不足では物資を先に渡し、残りで士気を回復する。8割以上を切り下げず、回復実量だけ消費。状態表示・受給線は士気だけの回復にも対応する。詳細は `docs/supply.md`。
+3. 架橋: `baikonur2.water.engineerBridgeMaxWidthKm` だけ0.3→0.5km（仮）。本流北半分・支流上流と0.5km境界で架橋でき、上限直後・本流下流・河口手前は拒否する。exercise2と広域検証場の0.3kmは維持する。
+
+今回の変更ファイルは `battle/ground-supply.js`、`data/terrain/exercise2.js`、`data/terrain/baikonur2.js`、`tests/ground-supply.cjs`、`tests/ground-transport.cjs`、`tests/ground-wide-fields.cjs`、`tools/ground-supply-followup-shots.cjs`、本書・`docs/supply.md`・`docs/PROJECT_STATUS.md`。NPC・宇宙・その他の調整値は変更しない。
+
+補給・架橋の追加ケースは既存の `tests/smoke.cjs` からも実行される。Chromium・全smoke・写真は未実行としてClaudeへ引き継ぐ。撮影台本は `tools/ground-supply-followup-shots.cjs`（1600×900、ページ例外は失敗、出力 `.shots/ground-supply-followup.png`）。コミットと試遊ページ更新は行わない。試遊ページへの反映は必要。
+
+今回の確認結果: `node tools/node-tests.cjs` は39/39ファイル成功（この入口が検出するNode用テスト全件）。補給90/90、輸送・工兵54/54、広域23/23。`npm run check-docs`、変更JS/CJSの構文確認、`git diff --check` も成功。Chromiumは起動していない。Node全件ログは `test-results/node-tests/`。

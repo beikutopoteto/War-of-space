@@ -9,6 +9,7 @@ function nodeChecks(){
    check(id+'は演習とは独立した正しい寸法・セル数',op.forces==='fixed'&&op.quick.some(f=>f.groundKind==='guidedRocket')&&d.meta.widthKm===W&&d.meta.heightKm===H&&d.terrain.cells.length===W/.4*(H/.4)&&WOS_TERRAIN.exercise2.meta.widthKm===48);
    const land=d.terrain.cells.filter(Boolean),swamp=land.filter(t=>t==='沼地').length;
    check(id+'の沼地は局在し畑は平地',swamp>0&&swamp/land.length<.15&&d.surface.filter(s=>s.type==='field').every(s=>s.as==='平地')&&d.terrain.cells.includes('砂漠'));
+   check(id+'の架橋上限は0.3kmを維持',d.water.engineerBridgeMaxWidthKm===.3);
    check(id+'の全拠点を道の結節へ設置',d.sites.every(s=>d.objects.roads.some(r=>groundDistance(s.x,s.y,r.points)<.001)&&groundPass(s.x,s.y,'vehicle')));
    check(id+'の橋と浅瀬が実河道に一致', [...d.objects.bridges,...d.objects.fords].every(p=>groundRiverAt(p.x,p.y,d.water.rivers.find(r=>r.id===p.river)).dist<.001));
    check(id+'の植生は指定帯と区画だけを持つ',d.objects.forest.bands.every(b=>d.water.rivers.some(r=>r.id===b.river))&&d.objects.shrubs.renderCount===(W===150?1300:2400)&&d.objects.reeds.coverIds.every(id=>d.surface.some(s=>s.id===id&&s.as==='沼地')));

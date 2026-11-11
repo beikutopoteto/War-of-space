@@ -9,7 +9,7 @@ function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMor
 function groundSupplyInitUnit(f){
   if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
   if(groundSupplyLand(f))f.groundMorale=groundSupplyRules().max;
-  f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
+  f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
 }
 function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
 function groundCircleAt(x,y){
@@ -190,15 +190,20 @@ function groundSupplyCommand(list,t){
 }
 function groundSupplyGive(dt,netGains){
   const r=groundSupplyRules(),used=new Set();
-  for(const f of fleets){f.groundSupplyGiving=false;const t=f.groundGiving;if(!groundSupplyCanGive(f,t)){f.groundGiving=null;continue;}
+  for(const f of fleets){f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;const t=f.groundGiving;if(!groundSupplyCanGive(f,t)){f.groundGiving=null;continue;}
     if(used.has(t)||f.order||f.groundSupply<=0||groundDistanceTo(f,t)>r.giveKm*GROUND_SCALE)continue;
     const path=groundPath(f.pos,t.pos,groundMoveKind(f),true);
     if(!path||path.L>r.giveKm*GROUND_SCALE||groundBuildingsBlock({x:f.pos.x,y:groundHeight(f.pos.x,f.pos.z)+.35,z:f.pos.z},{x:t.pos.x,y:groundHeight(t.pos.x,t.pos.z)+.35,z:t.pos.z}))continue;
     const prior=netGains.get(t)||0,gain=Math.min(r.give*dt,r.max-t.groundSupply+prior,f.groundSupply);
-    if((netGains.get(t)||0)>=gain)continue;
-    // ネットワークを既に受けた分を差し替える。実増加量だけを供給側から引く。
-    const extra=Math.min(gain-prior,r.max-t.groundSupply);if(extra<=0)continue;
-    t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};
+    // 網による補充を超えたときだけ、従来どおり物資を分配する。
+    const extra=Math.min(gain-prior,r.max-t.groundSupply);
+    if(extra>0){
+      t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;f.groundStockGiving=true;
+    }
+    // 物資分配と独立して士気も回復。残った補給で賄える実回復量だけ消費する。
+    const morale=Math.max(0,Math.min(r.give*dt,r.max*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
+    if(morale>0){t.groundMorale+=morale;f.groundSupply-=morale*r.moraleGiveCost;f.groundMoraleGiving=true;}
+    if(f.groundStockGiving||f.groundMoraleGiving){used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};}
   }
 }
 function groundAirStep(f,dt){
@@ -256,7 +261,7 @@ function groundSupplyAfter(dt){
     if(!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
     const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
     const moraleCap=groundMoraleCap(f,at);
-    if(f.groundKind!=='supply'&&f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
+    if(f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
     if(f.groundRout==='regroup'&&f.groundMorale>=r.rally)f.groundRout=null;
     if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
   }
@@ -266,7 +271,7 @@ function groundSupplyStatus(f){
   if(!groundSupplyActive())return '訓練前';
   if(f.groundAirState)return {out:'補給帰投中',base:'基地補給中',return:'戦場へ復帰中'}[f.groundAirState];
   if(f.groundRout)return f.groundRout==='routing'?'敗走中・操作不可':'再集結・移動と搭乗のみ';
-  if(f.groundSupplyGiving)return '補給を分配中';
+  if(f.groundSupplyGiving)return f.groundMoraleGiving?(f.groundStockGiving?'補給を分配・士気を回復中':'士気を回復中'):'補給を分配中';
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
   const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds(at.edge)*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
