@@ -2,7 +2,7 @@
    従来の5条件と守り方の4条件を順番に実行。JSONとbriefを.shots/npc/に保存。 */
 const fs=require('node:fs'),path=require('node:path'),{run,brief}=require('./npc-sim.cjs');
 const cases=[
- ...[['exercise2',1,600,false,false],['exercise2',2,600,false,false],['baikonur',1,300,true,false],['field150',1,900,false,false],['field150',1,900,false,true]]
+ ...[['exercise2',1,600,false,false],['exercise2',2,600,false,false],['baikonur',1,300,true,false],['baikonur',1,300,false,false],['baikonur',1,300,false,true],['field150',1,900,false,false],['field150',1,900,false,true]]
   .map(([terrain,seed,seconds,idle,profile])=>({terrain,doctrines:['mars','earth'],level:'standard',seed,seconds,idle,profile})),
  ...['firm','mobile','delay','depth'].map(style=>({terrain:'exercise2',doctrines:['earth','mars'],level:'standard',seed:1,seconds:600,idle:false,profile:false,
   intents:{0:{type:'seize'},1:{type:style==='delay'?'delay':'hold',style,zones:['F'],...(style==='delay'?{until:300}:{})}}})),

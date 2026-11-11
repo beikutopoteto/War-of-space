@@ -10,7 +10,7 @@ function createContext(){
   context.window=context;
   for(const key of ['grid','starField','skyObj','fieldRocks','debrisObj','cloudObj','farPlanet','rim'])context[key]=new THREE.Group();
   const run=s=>vm.runInContext(s,context);
-  for(const file of ['data/terrain/exercise2.js','data/terrain/wide-fields.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
+  for(const file of ['data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
   run(`function groundRules(){return groundData().bands;}
     function groundStrikeRange(f){return f.rangeOverride||{min:0,max:200};}
     function gun(x,z){return {alive:true,groundKind:'artillery',band:'ground',pos:new THREE.Vector3(x,groundHeight(x,z),z)};}`);
@@ -35,7 +35,7 @@ function nodeChecks(){
     run('var heightSource=groundSightHeights;var data=groundData();data.height={...data.height};groundSightHeight(0,0);');
     assert.equal(run('heightSource!==groundSightHeights'),true);
   });
-  for(const [id,W,H,step] of [['exercise2',48,36,1],['field150',150,100,2],['field300',300,200,4]]){
+  for(const [id,W,H,step] of [['exercise2',48,36,1],['baikonur2',96,72,1],['field150',150,100,2],['field300',300,200,4]]){
     check(`${id}: 寸法・盤外を含む座標往復・cap`,()=>{
       context.op={ground:id};run('groundTerrainId=null;');
       const d=run('groundDimensions()');assert.equal(d.widthKm,W);assert.equal(d.heightKm,H);
@@ -91,7 +91,7 @@ function nodeChecks(){
       assert.equal(run(`!!groundPath(groundPoint(${W*.7},${H*.7}),groundPoint(${W*.8},${H*.7}),'air')`),true);
     });
     check(`${id}: 旧盤より遠い実データの橋経路・沼地倍率`,()=>{
-      const [x,y]=id==='field150'?[75,72]:[177,120];
+      const [x,y]=id==='baikonur2'?[49,60]:id==='field150'?[75,72]:[177,120];
       run(`var start=groundPoint(${x-3},${y}),dest=groundPoint(${x+3},${y}),route=groundPath(start,dest,'vehicle');`);
       assert.equal(run(`!!route&&route.points.at(-1).distanceTo(dest)<1e-7&&route.points.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle'))`),true);
       const d=run('groundData()'),cell=d.terrain.cells.indexOf('沼地');assert.ok(cell>=0);

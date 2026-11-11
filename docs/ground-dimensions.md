@@ -1,6 +1,6 @@
 # 地上戦の寸法APIと描画格子（段階8）
 
-2026-11-10。対象は寸法・索敵高度・弾道の接続。地形の正本は `data/terrain/exercise2.js` と `data/terrain/wide-fields.js`、広域の設計は `docs/terrain/wide-fields.md`。この実装で演習の配置を拡大して広域地形の代用にはしない。
+2026-11-10。対象は寸法・索敵高度・弾道の接続。地形の正本は `data/terrain/exercise2.js` 、`data/terrain/baikonur2.js` と `data/terrain/wide-fields.js`、広域の設計は `docs/terrain/wide-fields.md`。この実装で演習の配置を拡大して広域地形の代用にはしない。
 
 ## API
 
@@ -17,6 +17,7 @@
 |地形|world寸法|mesh分割X×Z|step X/Z（world）|高度cache頂点数|地表texture|
 |---|---:|---:|---:|---:|---:|
 |exercise2|192×144|192×144|1 / 1|27,985|1152×864|
+|baikonur2（仮）|384×288|384×288|1 / 1|111,265|2048×1536|
 |field150|600×400|300×200|2 / 2|60,501|2048×1366|
 |field300|1200×800|300×200|4 / 4|60,501|2048×1366|
 

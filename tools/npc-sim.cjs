@@ -8,7 +8,22 @@ const {openGame}=require('./browser.cjs');
 function setupNpcSim(cfg){
   if(cfg.terrain==='charybdis')return setupSpaceNpcSim(cfg);
   let rng=cfg.seed>>>0||1;Math.random=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
-  const source=WOS_DATA.operations.find(o=>o.id===(['exercise2','baikonur'].includes(cfg.terrain)?'baikonur':'ground'+cfg.terrain));
+  const base=WOS_DATA.operations.find(o=>o.id===(['exercise2','baikonur'].includes(cfg.terrain)?'baikonur':'ground'+cfg.terrain));
+  // exercise2は過去の計測と同じ48kmの仮配備を維持。広域演習は作戦そのもの。
+  const fixtureNames={inf:'第1 強化歩兵中隊',tank:'第2 主力戦車中隊',heavy:'第3 重強化歩兵中隊',scout:'第4 斥候中隊',air:'第5 攻撃航空隊',aa:'第6 自走対空砲中隊',gun:'第7 自走砲中隊',apc:'第8 装甲兵員輸送車中隊',eng:'第9 工兵中隊',ship:'演習砲撃艦',landing:'演習揚陸艦',cargo:'第10 上陸歩兵中隊'};
+  const fixtureUnit=(name,groundKind,x,y,band='ground')=>({name,groundKind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,stance:'evade'});
+  const fixtureSea=(name,type,x,y)=>({...fixtureUnit(name,'sea',x,y,'sea'),type,team:0});
+  const source={...base,...(cfg.terrain==='exercise2'?{ground:'exercise2',
+    groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],
+    groundSites:[{site:'A',owner:0},{site:'B',owner:0},{site:'C',owner:null},{site:'D',owner:null},{site:'E',owner:1},{site:'F',owner:1}],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
+    // 案内なしの仮配置。チュートリアル2は groundTutorial.quick に従来配置を保持。
+    quick:[fixtureUnit(fixtureNames.inf,'infantry',7,27),fixtureUnit(fixtureNames.tank,'vehicle',11,25),fixtureUnit(fixtureNames.heavy,'heavyInfantry',17,25),fixtureUnit(fixtureNames.scout,'scout',22,29),fixtureUnit(fixtureNames.air,'attack',15,24,'high'),fixtureUnit(fixtureNames.aa,'mobileAA',20,27),fixtureUnit(fixtureNames.gun,'artillery',11,22),fixtureUnit(fixtureNames.apc,'apc',9,29),fixtureUnit(fixtureNames.eng,'engineer',12,27),fixtureUnit('第11 強化歩兵中隊','infantry',21,28)],
+    groundSea:[fixtureSea(fixtureNames.ship,'cl',17,4),{...fixtureSea(fixtureNames.landing,'dd',12,5),groundLanding:true,groundCargo:[fixtureUnit(fixtureNames.cargo,'infantry',12,5)]}],
+    // 演習専用の仮配備。案内付きの敵は groundTutorial 側で従来配備を上書きする。
+    enemies:[fixtureUnit('仮想敵 歩兵','infantry',34,22),fixtureUnit('仮想敵 戦車','vehicle',35.5,23),
+      fixtureUnit('仮想敵 第2歩兵','infantry',40,27),fixtureUnit('仮想敵 第3歩兵','infantry',42,28),fixtureUnit('仮想敵 第2戦車','vehicle',40,25.5),
+      fixtureUnit('仮想敵 自走砲','artillery',42,26),fixtureUnit('仮想敵 斥候','scout',26,21),fixtureUnit('仮想敵 航空','fighter',40,28,'low')].map(f=>({...f,stance:'engage'})),
+  }: {})};
   source.npc=cfg.idle?{1:{doctrine:cfg.doctrines[0],level:cfg.level}}:{0:{doctrine:cfg.doctrines[0],level:cfg.level},1:{doctrine:cfg.doctrines[1],level:cfg.level}};
   for(const [team,intent] of Object.entries(cfg.intents||{}))if(source.npc[team])source.npc[team].intent=intent;
   source.npcSeed=cfg.seed;source.groundStaticEnemies=false;
@@ -21,6 +36,7 @@ function setupNpcSim(cfg){
       pos:[(s.x+(i%4-1.5)*1.5-d.meta.widthKm/2)*GROUND_SCALE,(d.meta.heightKm/2-s.y-(Math.floor(i/4)-1)*1.5)*GROUND_SCALE],band:kind==='fighter'?'low':'ground',stance:'engage'}));};
     source.quick=force(0);source.enemies=force(1);source.groundSea=[];
   }
+  const index=WOS_DATA.operations.findIndex(o=>o.id===source.id);WOS_DATA.operations[index]=source;
   reset({op:source.id,fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();
   window.npcMeasure={cfg,start:gameSec,steps:0,stepMs:0,idle:[0,0],unitTime:[0,0],concentration:[0,0],assaultTime:[0,0],firstContact:null,changes:[0,0],last:[null,null],aborts:[0,0],
     logs:[],postures:[],lowSupplyMax:[0,0],events:[],initialOwners:groundSites.map(s=>({site:s.id,owner:s.owner})),owners:Object.fromEntries(groundSites.map(s=>[s.id,s.owner])),samples:[]};

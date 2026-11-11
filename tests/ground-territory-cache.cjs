@@ -82,7 +82,7 @@ function checks(){
   run('globalThis.__oldPixels=groundTerritoryPixels;groundTerritory={...groundTerritory};__writes=0;groundPaintTerritory()');
   ok('new territory surface repaints even with unchanged known key',run('groundTerritoryPixels!==__oldPixels&&__writes===1'));
   // Real map: test the first full-resolution build and thousands of legacy membership samples.
-  run(`WOS_TERRAIN.exercise2=__realTerrain;op={...WOS_DATA.operations.find(o=>o.id==='baikonur'),groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:0},{site:'F',owner:1}]};
+  run(`WOS_TERRAIN.exercise2=__realTerrain;op={...WOS_DATA.operations.find(o=>o.id==='baikonur'),ground:'exercise2',groundHQ:{0:'B',1:'F'},groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:0},{site:'F',owner:1}]};
     groundSites=op.groundSites.map(spec=>({...__realTerrain.sites.find(s=>s.id===spec.site),owner:spec.owner,knownOwner:spec.owner,knownContested:false,contested:false}));
     groundTerritory={key:null,texture:{},canvas:{width:480,height:360,getContext:()=>__canvas},sections:groundRoadSections(__realTerrain.objects.roads,groundSites)};
     groundSupplyBuild();for(const e of groundSupplyNet.edges){e.knownOwner=e.owner;e.knownContested=false;}
