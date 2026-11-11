@@ -1,5 +1,6 @@
 /* 実ゲームChromium。node tools/npc-sim.cjs exercise2 mars earth standard 1 600
    node tools/npc-sim.cjs baikonur mars earth standard 1 300 --idle
+   --intent0 seize --intent1 hold:firm:F,E / delay:delay:F:300 で軍ごとの作戦の意図。
    --brief は経過の要約のみ。--profile は関数別の包括／自己時間を足す（計測負荷あり）。
    seedはゲームの乱数と指揮官の乱数を固定。通常はJSONと表を出す。 */
 const {openGame}=require('./browser.cjs');
@@ -7,6 +8,7 @@ function setupNpcSim(cfg){
   let rng=cfg.seed>>>0||1;Math.random=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
   const source=WOS_DATA.operations.find(o=>o.id===(['exercise2','baikonur'].includes(cfg.terrain)?'baikonur':'ground'+cfg.terrain));
   source.npc=cfg.idle?{1:{doctrine:cfg.doctrines[0],level:cfg.level}}:{0:{doctrine:cfg.doctrines[0],level:cfg.level},1:{doctrine:cfg.doctrines[1],level:cfg.level}};
+  for(const [team,intent] of Object.entries(cfg.intents||{}))if(source.npc[team])source.npc[team].intent=intent;
   source.npcSeed=cfg.seed;source.groundStaticEnemies=false;
   // 検証場の中立全占領による早期終了を使わず、本営占領／全滅で両軍を測る（道具の実行中だけ）。
   source.win={type:'groundHQ',text:'検証: 敵本営占領または敵全滅'};
@@ -25,7 +27,7 @@ function setupNpcSim(cfg){
     const m=npcMeasure,entry={team:c.team,time:+(t-m.start).toFixed(2),what,zone:zone??null,why};
     if(what.endsWith(':abort'))m.aborts[c.team]++;
     if(what.startsWith('posture:'))m.postures.push(entry);
-    if(/^(posture:|task:seize$|seize:|fix:abort$)/.test(what))m.logs.push(entry);
+    if(/^(posture:|style:|task:seize$|seize:|fix:abort$)/.test(what))m.logs.push(entry);
     oldLog(c,t,what,zone,why);
   };
 }
@@ -117,9 +119,33 @@ async function run(cfg){
   if(errors.length)throw new Error(errors.join('\n'));return await page.evaluate(()=>npcSimResult());
  }finally{await browser.close();}
 }
-module.exports={setupNpcSim,advanceNpcSim,npcSimResult,installNpcProfile,brief,table,run};
+// 型・拠点・期限は省略可。期限は作戦開始からのゲーム秒。
+function parseIntent(value){
+ const parts=value.split(':'),[type,style,zones,until]=parts;
+ if(parts.length>4||!['seize','hold','delay','withdraw'].includes(type)||style&&!['firm','delay','mobile','depth'].includes(style))throw new Error('意図: seize|hold|delay|withdraw[:firm|delay|mobile|depth[:拠点ID,拠点ID[:期限秒]]]');
+ const goal={type};if(style)goal.style=style;
+ if(zones){goal.zones=zones.split(',');if(goal.zones.some(id=>!id.trim()||id!==id.trim()))throw new Error('意図の拠点IDが不正: '+zones);}
+ if(until!==undefined&&until!==''){goal.until=Number(until);if(!Number.isFinite(goal.until)||goal.until<0)throw new Error('意図の期限は0以上の秒数: '+until);}
+ return goal;
+}
+function parseArgs(args){
+ const positional=[],intents={};let idle=false,profile=false;
+ for(let i=0;i<args.length;i++){
+  const arg=args[i],match=/^--intent([01])(?:=(.*))?$/.exec(arg);
+  if(match){const value=match[2]??args[++i];if(!value||value.startsWith('--'))throw new Error(arg+' の意図がありません');intents[match[1]]=parseIntent(value);}
+  else if(arg==='--idle')idle=true;
+  else if(arg==='--profile')profile=true;
+  else if(arg==='--brief')continue;
+  else if(arg.startsWith('--'))throw new Error('不明な引数: '+arg);
+  else positional.push(arg);
+ }
+ const [terrain='exercise2',d0='mars',d1='earth',level='standard',seed='1',seconds='600']=positional;
+ const cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle,profile,intents};
+ if(positional.length>6||!['exercise2','baikonur','field150','field300'].includes(terrain)||![d0,d1].every(x=>['mars','earth'].includes(x))||!['easy','standard','hard'].includes(level)||!Number.isInteger(cfg.seed)||!Number.isFinite(cfg.seconds)||cfg.seconds<=0)throw new Error('引数: exercise2|baikonur|field150|field300 mars|earth mars|earth easy|standard|hard seed 秒 [--idle] [--brief] [--profile] [--intent0 意図] [--intent1 意図]');
+ return cfg;
+}
+module.exports={setupNpcSim,advanceNpcSim,npcSimResult,installNpcProfile,brief,table,run,parseIntent,parseArgs};
 if(require.main===module){
- const [terrain='exercise2',d0='mars',d1='earth',level='standard',seed='1',seconds='600']=process.argv.slice(2).filter(x=>!x.startsWith('--')),cfg={terrain,doctrines:[d0,d1],level,seed:Number(seed),seconds:Number(seconds),idle:process.argv.includes('--idle'),profile:process.argv.includes('--profile')};
- if(!['exercise2','baikonur','field150','field300'].includes(terrain)||![d0,d1].every(x=>['mars','earth'].includes(x))||!['easy','standard','hard'].includes(level)||!Number.isInteger(cfg.seed)||!Number.isFinite(cfg.seconds)||cfg.seconds<=0)throw new Error('引数: exercise2|baikonur|field150|field300 mars|earth mars|earth easy|standard|hard seed 秒 [--idle] [--brief] [--profile]');
- run(cfg).then(r=>{if(process.argv.includes('--brief'))console.log(brief(r));else{console.log(JSON.stringify(r,null,2));console.log(table(r));}}).catch(e=>{console.error(e.message);process.exitCode=1;});
+ const args=process.argv.slice(2),cfg=parseArgs(args);
+ run(cfg).then(r=>{if(args.includes('--brief'))console.log(brief(r));else{console.log(JSON.stringify(r,null,2));console.log(table(r));}}).catch(e=>{console.error(e.message);process.exitCode=1;});
 }

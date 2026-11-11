@@ -7,7 +7,7 @@ function npcHash(v){ const t=String(v); let h=2166136261; for(let i=0;i<t.length
 
 /* cfg: {team, side:'foe'|'ally', doctrine:{…}, level:{…}, seed} */
 function npcCommander(cfg){
-  return {team:cfg.team, side:cfg.side||'foe', D:cfg.doctrine, L:cfg.level, rng:npcRng(cfg.seed||1), seed:cfg.seed||1,
+  return {team:cfg.team, side:cfg.side||'foe', D:cfg.doctrine, L:cfg.level, styles:cfg.styles||null, rng:npcRng(cfg.seed||1), seed:cfg.seed||1, t0:null,
     posture:null, postureAt:-1e9, want:null, wantAt:0, probeFrom:null, wonAt:-1e9,
     zone:new Map(), unit:new Map(), tasks:new Map(), graph:null, plan:null, log:[], nextThink:0};
 }
@@ -80,9 +80,15 @@ function npcThink(c,sit){
 
   /* ② 姿勢。行ったり来たりしないよう、今の姿勢のときは境目を少しずらし、変えるまでに反応の遅れを置く。 */
   const atk=D.attack*(1-.4*(sit.urgency||0))*(c.posture==='attack'||c.posture==='probe'?1-D.band:1), brk=D.break_*(c.posture==='delay'?1+D.band:1);
+  /* 作戦の意図（sit.goal）: seize 取る（既定）／hold 守る／delay 時間を稼ぐ（until まで）／withdraw 逃がす。
+     守る・時間を稼ぐのあいだは、力の比が低くても姿勢は「守る」のまま。どこを捨てるかは守り方の型が決める。 */
+  const G=sit.goal||{}; if(c.t0===null)c.t0=t;
+  const keeping=G.type==='hold'||G.type==='delay'&&(G.until==null||t<G.until);
   let want;
-  if(ratio<brk)want='delay';
-  else if(sit.goal?.type==='hold'||ratio<atk||!others.length)want='defend';
+  if(G.type==='withdraw')want='delay';
+  else if(keeping)want='defend';
+  else if(ratio<brk)want='delay';
+  else if(ratio<atk||!others.length)want='defend';
   else if(c.posture==='attack')want='attack'; // 攻め始めたら偵察のために止まらない（偵察は並行して出す）
   else { if(info>=D.minInfo)c.probeFrom=null; else if(c.probeFrom==null||c.posture!=='probe'&&t-c.probeFrom>D.probeMax*3)c.probeFrom=t;
     want=c.probeFrom!=null&&t-c.probeFrom<D.probeMax?'probe':'attack'; }
@@ -94,14 +100,32 @@ function npcThink(c,sit){
   /* ③ 任務を立てる。pri が高い順に隊を取る。need は要る力、cap は取ってよい力の上限。 */
   const want2=[], push=o=>want2.push({from:null,cap:Infinity,max:Infinity,...o,key:o.type+':'+o.zone});
   const man=units.filter(u=>u.free!==false&&(u.role==='line'||u.role==='shock')).reduce((s,u)=>s+u.power,0);
+  /* 守り方の型（攻めていないときだけ）: firm 固守／delay 遅滞／mobile 機動防御／depth 縦深。表は規範のデータ（styles）。
+     型の表が無ければ、型なしの今までの守り。must は捨てない拠点（作戦が指定した拠点と本営）。 */
+  const defending=posture==='defend'||posture==='delay';
+  const styleName=!defending?null:G.type==='withdraw'||posture==='delay'&&!G.style?'delay':G.style||D.defense||null;
+  const S=styleName&&c.styles&&c.styles[styleName]||null, must=new Set([...(G.zones||[]),...(base?[base.id]:[])]);
+  if(styleName!==c.style){ c.style=styleName; if(S)npcLog(c,t,'style:'+styleName,null,G.type||'力の比'); }
+  // 線: 敵地から数えた深さ（1 が前線）
+  const depth=new Map(); { let layer=ownZ.filter(z=>front(z.id)).map(z=>z.id), d=1;
+    while(layer.length){ for(const id of layer)depth.set(id,d); layer=[...new Set(layer.flatMap(id=>g.next(id)))].filter(id=>isOwn(id)&&!depth.has(id)); d++; } }
+  const lines=Math.max(0,...depth.values());
+  // 時間を稼ぐとき、残り時間が少ないほど下がらない
+  const left=G.type==='delay'&&G.until!=null?Math.max(0,Math.min(1,(G.until-t)/Math.max(1e-6,G.until-c.t0))):1;
   // 守り
   let holdNeed=0;
   for(const z of ownZ){
-    const e=E.get(z.id), isBase=base&&z.id===base.id, f=front(z.id);
-    const eco=posture==='attack'?D.economy:1;
-    let need=isBase?Math.max(D.baseGuard*avg,e.threat*D.holdRatio*eco):e.threat>0||f?Math.max(D.garrison*avg*eco,e.threat*D.holdRatio*eco):0;
-    if(posture==='delay'&&!isBase&&e.own<e.threat*D.break_)need=0; // 守りきれない所は捨てて下がる
-    if(need>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:isBase?100:(posture==='attack'?45:65)+Math.min(20,e.threat/avg*5),need,cap:Math.max(need,avg),why:isBase?'本営を守る':e.threat>0?'脅威に備える':'前線を保つ'}); }
+    const e=E.get(z.id), isBase=base&&z.id===base.id, f=front(z.id), keep=isBase||must.has(z.id);
+    const eco=posture==='attack'?D.economy:1, gar=S?S.garrison:D.garrison, hr=S?S.holdRatio:D.holdRatio;
+    const thr=S&&S.reach<1?contacts.reduce((v,k)=>v+k.est*Math.max(0,1-g.dist(k.zone,z.id)/(horizon*S.reach))**2,0):e.threat; // 機動防御は近い脅威だけに反応する
+    let need=isBase?Math.max(D.baseGuard*avg,thr*hr*eco):thr>0||f?Math.max(gar*avg*eco,thr*hr*eco):S&&S.lines==='all'?gar*avg*.5:0;
+    if(S){
+      if(S.lines==='front'&&!f&&!keep)need=0;                                  // 遅滞: 前の線だけを持つ
+      if(!keep&&S.abandon>0&&e.threat>0&&e.own<e.threat*S.abandon*left)need=0;   // 守りきれない所は手放す（捨てない拠点は別）
+      if(G.type==='withdraw')need=f?avg:0;                                       // 逃がす: 前線に殿を1隊ずつ（脅威が強くても残す）
+    } else if(posture==='delay'&&!isBase&&e.own<e.threat*D.break_)need=0; // 守りきれない所は捨てて下がる
+    if(need>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:isBase?100:(posture==='attack'?45:65)+Math.min(20,thr/avg*5)+(keep?10:0),need,cap:Math.max(need,avg),
+      why:isBase?'本営を守る':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':thr>0?'脅威に備える':'前線を保つ'}); }
   }
   // 攻め
   const cutSet=new Set();
@@ -135,14 +159,16 @@ function npcThink(c,sit){
     if(keep)seize(keep,running.why0||'主攻を続ける',D.attack);
     else if(t-c.wonAt>=D.consolidate){ // 点数の高い順に、攻められる所が見つかるまで試す
       for(const best of [...cand].sort((a,b)=>score(b)-score(a)))if(seize(best,best.goal?'目標を取る':cutSet.has(best.id)?'補給線を切る':'前へ出る',D.attack)){ c.main=best.id; break; } }
-  } else if(posture==='defend'&&c.side!=='ally'){ // 取られた拠点を、余力があれば取り返す
-    const spare=Math.max(0,man-holdNeed), lost=cand.filter(z=>t-mem(z.id).lostAt<D.counterWindow&&E.get(z.id).foe*D.counter<=spare);
-    // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る
-    const easy=cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
+  } else if(posture==='defend'&&c.side!=='ally'&&G.type!=='withdraw'){ // 取られた拠点を、余力があれば取り返す
+    // 型ごとの取り返し: 固守は捨てない拠点だけ（何度でも）、遅滞はしない、機動防御は何でも、縦深は線が2本残っているあいだ
+    const rule=S?S.counter:'any', cr=S&&S.counterRatio||D.counter, spare=Math.max(0,man-holdNeed);
+    const lost=rule==='none'?[]:cand.filter(z=>(must.has(z.id)&&mem(z.id).lostAt>-1e9||t-mem(z.id).lostAt<D.counterWindow&&(rule==='any'||rule==='depth'&&lines>=2))&&E.get(z.id).foe*cr<=spare);
+    // 取り返しが先。なければ、隣の守りの薄い拠点（中立など）を余力で取る（型が許すとき）
+    const opp=!S||S.opportunism, easy=!opp?[]:cand.filter(z=>!lost.includes(z)&&g.next(z.id).some(isOwn)&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare&&t-c.wonAt>=D.consolidate);
     // 取りに出た所は、余力が少し減ったくらいでは変えない（出したり引っ込めたりしない）
-    const cur=running&&cand.find(z=>z.id===(running.goalZone||running.zone)&&(lost.includes(z)||Math.max(avg,E.get(z.id).foe*D.attack)<=spare*1.6+avg));
-    let done=!!cur&&seize(cur,running.why0||'空いた所を取る',lost.includes(cur)?D.counter:D.attack);
-    if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',D.counter)){ done=true; break; }
+    const cur=running&&cand.find(z=>z.id===(running.goalZone||running.zone)&&(lost.includes(z)||opp&&Math.max(avg,E.get(z.id).foe*D.attack)<=spare*1.6+avg)); // 型が禁じたら、出ていた隊も戻す
+    let done=!!cur&&seize(cur,running.why0||'空いた所を取る',lost.includes(cur)?cr:D.attack);
+    if(!done)for(const z of lost.sort((a,b)=>score(b)-score(a)))if(seize(z,'取り返す',cr)){ done=true; break; }
     if(!done)for(const z of easy.sort((a,b)=>score(b)-score(a)))if(seize(z,'空いた所を取る',D.attack))break;
   }
   if(posture==='attack'&&mainZone){
@@ -192,8 +218,10 @@ function npcThink(c,sit){
   }
   // 火力・打撃・護衛・支援は、いちばん大事な攻めの任務（なければ脅威のある守り）に付ける
   const anchor=[...tasksOut.values()].filter(k=>k.type==='seize'&&k.units.length)[0]||[...tasksOut.values()].filter(k=>k.type==='hold'&&k.units.length).sort((a,b)=>b.pri-a.pri)[0];
+  const exit=G.type==='withdraw'?(G.zones||[]).find(id=>zById.has(id))??home:null;
   for(const u of units){ if(assign.has(u.id))continue;
-    if(u.role==='line'||u.role==='shock'||u.role==='recon'||!anchor){ if(spot!=null)give({key:'reserve:'+spot,type:'reserve',zone:spot,from:null,pri:10,why:'予備'},u,'main'); else assign.set(u.id,null); }
+    if(exit!=null)give({key:'retire:'+exit,type:'retire',zone:exit,from:null,pri:10,why:'退く'},u,'main'); // 逃がす: 殿のほかは退避点へ
+    else if(u.role==='line'||u.role==='shock'||u.role==='recon'||!anchor){ if(spot!=null)give({key:'reserve:'+spot,type:'reserve',zone:spot,from:null,pri:10,why:'予備'},u,'main'); else assign.set(u.id,null); }
     else give(anchor,u,'support'); }
   if(mainZone&&!tasksOut.has('seize:'+mainZone))mainZone=null;
 

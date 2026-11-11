@@ -40,6 +40,19 @@
     sticky: 60, roleBias: 30,
     // 友軍の制限: プレイヤーの先頭の拠点より、この数の拠点ぶんまでしか先へ出ない
     allyLead: 0,
+    defense: 'firm',    // 守るときの型（作戦が指定しなければこれ）
+  };
+  /* 守り方の型（docs/npc-doctrine.md 9.7）。攻めていないときの守りの値を上書きする。
+     garrison: 前線の拠点に置く守備（平均的な1隊の何倍か）　holdRatio: 脅威に対して置く力の比
+     abandon: 捨ててよい拠点を手放す境目（その場の自軍 ÷ 脅威 がこれ未満。0 は手放さない）
+     counter: 取り返す対象（must=捨てない拠点だけ、any=何でも、depth=線が2本残るあいだ、none=しない）
+     lines: front=前の線だけ持つ、all=後ろの線にも置く、threat=前線と脅威のある所　reach: 脅威に反応する距離の倍率（小さいほど近くだけ）
+     opportunism: 隣の守りの薄い拠点を余力で取るか */
+  const styles = {
+    firm:   { name: '固守',     garrison: 1.5, holdRatio: 1.5, abandon: 0.45, counter: 'must',  counterRatio: 1.0, lines: 'threat', reach: 1,    opportunism: false },
+    delay:  { name: '遅滞',     garrison: 1,   holdRatio: 1,   abandon: 0.7,  counter: 'none',  counterRatio: 1.0, lines: 'front',  reach: 1,    opportunism: false },
+    mobile: { name: '機動防御', garrison: 0.3, holdRatio: 1.2, abandon: 1.0,  counter: 'any',   counterRatio: 1.0, lines: 'threat', reach: 0.35, opportunism: true },
+    depth:  { name: '縦深',     garrison: 0.8, holdRatio: 1,   abandon: 0.6,  counter: 'depth', counterRatio: 1.2, lines: 'all',    reach: 1,    opportunism: false },
   };
   const doctrines = {
     /* 地球連合: 火力と線。集めてから一方向を押す。予備を厚く持ち、補給線を守る。 */
@@ -47,7 +60,7 @@
     /* 惑星共和国: 機動と浸透。固い所を避けて回り込み、助攻で釣り、補給線を切る。予備は薄い。 */
     mars: { ...base, name: '惑星共和国', attack: 1.1, break_: 0.4, commit: 20, minInfo: 0.25, probeMax: 35, assume: 0.7,
       mass: 0.5, reserve: 0.1, garrison: 0.5, economy: 0.3, holdRatio: 0.8, massing: 0.6, assembleMax: 50, consolidate: 10,
-      abort: 0.4, retry: 110, feint: true, wCut: 1.2, avoid: 1.5, counter: 1.0, pull: 0.3 },
+      abort: 0.4, retry: 110, feint: true, wCut: 1.2, avoid: 1.5, counter: 1.0, pull: 0.3, defense: 'mobile' },
   };
   /* 強さの段階: 規範は同じで、判断の速さと読みの深さだけが違う。
      think: 考える間隔（秒）　react: 状況が変わってから姿勢を変えるまでの秒　memory: 見失った敵を覚えている秒
@@ -71,5 +84,5 @@
   const power = {ground:{infantry:1,heavyInfantry:1.5,commando:1,vehicle:2,was:2,mechanicalAssault:2,
     artillery:1.5,guidedRocket:1.5,mobileAA:1,scout:.4,droneHive:.4,fighter:1,attack:1.2,supportAircraft:1.2,
     apc:.2,engineer:.2,supply:.2,sea:2}};
-  window.WOS_DATA.npc = { doctrines, levels, roles, power };
+  window.WOS_DATA.npc = { doctrines, levels, roles, power, styles };
 })();

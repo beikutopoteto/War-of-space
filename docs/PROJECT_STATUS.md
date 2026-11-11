@@ -14,6 +14,7 @@
 
 |ブランチ|内容・扱い|
 |---|---|
+|claude/npc-intent|Codexがテスト・計測道具・資料を追加。頭・橋渡しの本体は未変更。Node全35ファイル中33成功（頭の新規2件と既存の領域キャッシュ画素比較が失敗）。次はClaudeが頭の修正・実ゲーム4条件の計測。試遊ページは更新しない|
 |claude/ground-integration|段階6〜9の最終版。対象確認と1600×900の写真を保存。全作戦CI成功後にsquashマージする。CI／マージ結果はPRを参照|
 |claude/ground-naval-types|段階6・PR #387。最新233e467のCI42786024421成功。内容は最終版へ統合済み。最終版がmainへ入ったら重複PRを閉じる|
 |claude/ground-air-flight|段階7の保存版e6f9a9e。最終版へ統合済み。単独で重複マージしない|
@@ -34,3 +35,12 @@
 4. worktreeの.shots/に実画面を保持。画像リンクを壊さないよう作業フォルダを残す。
 
 広域は `?ground=field150`／`?ground=field300` で開く隠し検証場。通常演習は48×36kmを維持。新たな第二章のステージ・報酬・物語として扱わない。共通戦闘値、宇宙艦種、確定SVGは今回変更しない。
+
+## NPC意図の作業票の確認（2026-11-11）
+
+- `tools/node-tests.cjs` でブラウザ不要の全35入口を順番に実行（Node v24.15.0）。33ファイル成功。頭は37/39、橋渡しは95/95、計測器は11/11。頭の2件は `docs/npc-doctrine.md` 9.7 に再現条件を記録し、失敗するテストを保持。
+- 既存の `tests/ground-territory-cache.cjs` は `road section identity pixel equivalence` で失敗。道路中心24.7km・幅1.5kmの境界で、旧座標23.95との差0.75に対し新座標23.950000000000003との差が0.7499999999999964になる。画素→地図座標の計算順による丸め差で、厳密な道路境界の内外が変わる。矩形盤面・道路2本の切り分けでも150画素の不一致を再現。タイムアウトや並列負荷の失敗ではない。今回の対象外として描画本体・既存テストは変更しない。
+- Node全件のログは `test-results/node-tests/`。`npm run check-docs` と変更したJS/CJSの構文確認は成功。
+- `npm test` はNode部分を実行後、Chromium起動の `bootstrap_check_in: Permission denied (1100)` で停止。ログは `test-results/npc-intent-smoke.log`。実ゲーム4条件の計測は未実行としてClaudeへ引き継ぐ（`node tools/npc-measure.cjs`）。試遊ページは未更新。
+- 元の資料には9.7節と指定された「決めてほしいこと」3項目が存在しなかったため、実装の9.7節を新設。既存の10節の未決事項は別内容なので保持。
+- Git管理領域への書き込みは禁止され、`git fetch origin` はFETCH_HEADへの書き込みで失敗。未コミットの差分を保持する。
