@@ -9,7 +9,7 @@ const {openGame}=require('./browser.cjs'),path=require('node:path'),fs=require('
     select(null);camAnim=null;
   });
   const out=path.resolve(__dirname,'../.shots');fs.mkdirSync(out,{recursive:true});
-  for(const [time,name,overview] of [[0,'npc-overview',true],[0,'npc-start',false],[120,'npc-120',false]]){
+  for(const [time,name,overview] of [[0,'npc-overview',true],[0,'npc-start',false],[120,'npc-120',false],[300,'npc-300-overview',true]]){
     await page.evaluate(({time,overview})=>{
       while(gameSec<time-1e-8&&!over)step(.05);
       camAnim=null;controls.target.copy(groundPoint(overview?48:20,overview?36:48));
