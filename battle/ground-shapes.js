@@ -157,11 +157,10 @@ const GROUND_SHAPES={
   apcM:()=>[...wheelsG([-.7,-.28,.16,.6]),
     loft([[-.98,.3,.13,.36],[-.72,.37,.15,.37],[.45,.37,.15,.37],[.85,.28,.1,.37],[1.1,.1,.03,.41]],CREASE), tone(at(box(.26,.03,.04),0,.5,.58,.3),GL),
     at(new THREE.CylinderGeometry(.15,.2,.08,6),0,.56,-.32), ...gunG([brl(.018,0,.85),at(box(.05,.05,.2),.06,0,.1)],.58,-.26)],
-  /* 自走砲（惑星共和国）: the common hull under a tall narrow gun house with capacitor banks on its sides; the gun is a railgun
-     — two long rails braced together, the longest gun on the field */
-  spgM:()=>[...hullM(), at(loft([[-.92,.2,.15],[-.5,.24,.19],[.18,.22,.17],[.46,.11,.09,-.04]],FACET),0,.56,-.05), ...pair(tone(at(box(.07,.2,.55),.27,.52,-.42),.55)),
-    tone(at(box(.07,.07,.07),.1,.775,-.4),DK),
-    ...piv([tone(at(box(.024,.085,1.75),.04,0,.95),DK),tone(at(box(.024,.085,1.75),-.04,0,.95),DK),at(box(.13,.13,.3),0,0,.17),...[.5,.95,1.4,1.8].map(z=>at(box(.12,.11,.045),0,0,z))],0,.6,.28,.2)],
+  /* 自走砲（惑星共和国）: the common hull under a tall narrow gun house with cut top edges; a long powder gun, the longest on the
+     field (user decision 2026-11-12: not a railgun, its range would not fit 30 km) */
+  spgM:()=>[...hullM(), at(loft([[-.92,.2,.15],[-.5,.24,.19],[.18,.22,.17],[.46,.11,.09,-.04]],FACET),0,.56,-.05), tone(at(box(.07,.07,.07),.1,.775,-.4),DK),
+    ...gunG([brl(.062,0,.26),brl(.038,.26,1.78),brl(.052,.9,1.06),brl(.055,1.64,1.78)],.6,.3,.22)],
   /* 自走対空砲（惑星共和国）: the common hull under a flat uncrewed turret with four cannon in a block, raised, and a tracker ball */
   aaM:()=>[...hullM(), at(new THREE.CylinderGeometry(.22,.27,.1,6),0,.42,-.2),
     ...piv([box(.2,.16,.36),...[[.05,.04],[-.05,.04],[.05,-.04],[-.05,-.04]].map(([x,y])=>tone(at(brl(.018,0,.8),x,y,.12),DK))],0,.55,-.2,.5), tone(at(new THREE.IcosahedronGeometry(.07,0),.2,.52,-.42),GL)],
