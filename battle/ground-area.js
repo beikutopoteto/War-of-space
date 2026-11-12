@@ -83,7 +83,7 @@ function groundAreaConfirm(area){
  const limit=groundAreaClampRadius(units,area.points,area.radius);if(!limit.valid){groundStrikeMessage='距離に必要な最小散布幅が指定上限を超えます';return false;}area.radius=limit.radius;area.minRadius=limit.minimum;area.key=JSON.stringify([area.points,area.radius]);
  const cap=groundAreaLimits(units);if(area.length>cap.length+1e-5){groundStrikeMessage='参加台数が減ったため中心線が長すぎます（Escで再指定）';return false;}
  for(const f of units)if(!groundAreaTarget(f,area)){groundStrikeMessage=f.name+'：指定範囲は射程外または攻撃不可（Escで再指定）';return false;}
- area.id=++groundAreaSerial;area.sent=new Map();const count=groundAreaCount();saveUndo(units);
+ area.id=++groundAreaSerial;area.sent=new Map();const count=groundAreaCount();npcAutoPlayer(units);saveUndo(units);
  for(const f of units){groundCancelWork(f);groundClearOrders(f);f.groundAreaSalvo={area,remaining:count,total:count};}
  groundClearAiming();groundStrikeMessage=units.length+'隊に各'+count+'回の斉射を指示';groundAreaSalvoStep();groundHud();return true;
 }

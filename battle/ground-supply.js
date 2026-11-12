@@ -186,7 +186,7 @@ function groundSupplyCanGive(f,t){
 }
 function groundSupplyCommand(list,t){
   const f=list.length===1?list[0]:null;if(!groundSupplyCanGive(f,t))return false;
-  groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundClearAiming();groundSupplyMessage='補給先：'+t.name;return true;
+  npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundClearAiming();groundSupplyMessage='補給先：'+t.name;return true;
 }
 function groundSupplyGive(dt,netGains){
   const r=groundSupplyRules(),used=new Set();

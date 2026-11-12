@@ -2,9 +2,16 @@
    仮の距離・秒数は docs/menu.md。固定物・艦載機は指揮官の隊にしない。 */
 let npcSpaceState=null;
 // window.WOS_NO_NPC: 台本どおりの要塞を確かめるテストだけが立てる（tests/smoke.cjs）
-function npcSpaceEnabled(team){return !!(!op.ground&&!tutorialActive()&&op.npc?.[team]&&!window.WOS_NO_NPC);}
+function npcSpaceEnabled(team){return !!(!op.ground&&!tutorialActive()&&(op.npc?.[team]||team===0&&op.npc&&autoMode)&&!window.WOS_NO_NPC);}
 function npcSpaceActive(team){
   return npcSpaceEnabled(team)&&!chase&&!over;
+}
+function npcSpaceControls(f){return npcSpaceActive(f.team)&&!npcAutoPlayerUnit(f);}
+function npcSpaceAutoSync(){
+  const N=WOS_DATA.npc;
+  npcAutoSync(npcSpaceState,cfg=>{
+    const c=npcCommander({team:0,doctrine:N.doctrines[cfg.doctrine],level:N.levels[cfg.level],styles:N.styles,seed:op.npcSeed??1});c.nextThink=gameSec;return c;
+  },f=>f.n*f.hp*f.dmg/(10*42*HP_K*4.2));
 }
 function npcSpaceFleet(f){return f.kind==='fleet'&&!f.fixed&&!f.ghost&&!f.left&&f.alive&&f.ships.length>0;}
 function npcSpaceFree(f){
@@ -29,6 +36,7 @@ function npcSpaceInit(){
   const by=new Map(zones.map(z=>[z.id,z]));
   const links=(op.npcLinks||[]).filter(([a,b])=>by.has(a)&&by.has(b)).map(([a,b])=>({a,b,len:Math.hypot(by.get(a).pos.x-by.get(b).pos.x,by.get(a).pos.z-by.get(b).pos.z),open:true}));
   npcSpaceState={op,fleets,zones,links,commanders,contacts:new Map(),timings:{count:0,total:0,max:0}};
+  npcSpaceAutoSync();
   npcSpaceOwners();
 }
 function npcSpacePointSeen(team,pos){
@@ -67,7 +75,7 @@ function npcSpaceSituation(c){
   const relative=owner=>owner===c.team?'own':owner==null?'none':'foe';
   const zones=npcSpaceState.zones.map(z=>{
     const seen=z.owner===c.team||npcSpacePointSeen(c.team,z.pos),base=z.base==null?null:z.base===c.team?'own':'foe';
-    return {id:z.id,x:z.pos.x,z:z.pos.z,alt:z.pos.y,r:z.r,seen,owner:seen?relative(z.owner):null,
+    return {id:z.id,name:z.name||z.id,x:z.pos.x,z:z.pos.z,alt:z.pos.y,r:z.r,seen,owner:seen?relative(z.owner):null,
       known:relative(z.initial),base,final:!!z.final,goal:base==='foe'};
   });
   const units=fleets.filter(f=>f.team===c.team&&f.kind==='fleet'&&f.alive&&!f.ghost&&!f.left&&f.ships.length>0).map(f=>({id:f.id,role:WOS_DATA.npc.roles.space[topClass(f)]||'line',
@@ -75,11 +83,11 @@ function npcSpaceSituation(c){
     canHold:true,free:npcSpaceFree(f),engaged:!!(f.order?.type==='attack'&&f.order.target?.alive&&f.order.target.seen)}));
   const contacts=[...(npcSpaceState.contacts.get(c.team)?.values()||[])].map(k=>({id:k.id,x:k.lastPos.x,z:k.lastPos.z,
     lastPos:{x:k.lastPos.x,y:k.lastPos.y,z:k.lastPos.z},lostAt:k.lostAt,age:k.lostAt===null?0:Math.max(0,gameSec-k.at),power:k.power,role:k.role}));
-  const sit={time:gameSec,zones,links:npcSpaceState.links,units,contacts,goal:{type:'seize',...(op.npc[c.team].intent||{})}};
-  if(c.side==='ally')sit.lead={front:op.npc[c.team].lead?.front??zones.filter(z=>z.owner==='own').sort((a,b)=>{
+  const sit={time:gameSec,zones,links:npcSpaceState.links,units,contacts,goal:{type:'seize',...(op.npc[c.team]?.intent||{})}};
+  if(c.side==='ally'&&!c.debugAuto)sit.lead={front:op.npc[c.team]?.lead?.front??zones.filter(z=>z.owner==='own').sort((a,b)=>{
     const home=zones.find(z=>z.base==='own')||{x:0,z:0};return Math.hypot(b.x-home.x,b.z-home.z)-Math.hypot(a.x-home.x,a.z-home.z);
   })[0]?.id};
-  return sit;
+  return npcAutoSituation(npcSpaceState,c,sit,p=>({x:p.x,z:p.z}));
 }
 function npcSpacePlacement(c,sit,k,x,index,count){
   const z=sit.zones.find(z=>z.id===k.zone),f=fleets.find(f=>f.id===x.id);if(!z||!f)return null;
@@ -101,14 +109,17 @@ function npcSpacePlacement(c,sit,k,x,index,count){
   else if(['seize','cut','recon'].includes(k.type)){
     ai=k.type==='recon'&&typeof scoutAI==='function'?'scout':'hunt';leash=1e9;watch=new THREE.Vector3(z.x,alt,z.z);
   }
+  // 友軍の支援攻撃は保有円へ入れない。従来の敵fixの持ち場は維持する。
+  if(c.side==='ally'&&k.type==='fix'){back=Math.max(back,z.r+f.range);leash=Math.min(leash,f.range);}
   const post=new THREE.Vector3(px+dx*back-dz*offset,Math.max(-ALT_MAX+2,Math.min(ALT_MAX-2,alt+up)),pz+dz*back+dx*offset);
   if(x.as==='support'&&f.launchR>0){const centre=new THREE.Vector3(z.x,z.alt||0,z.z),v=post.clone().sub(centre);if(v.length()>f.launchR*.9)post.copy(centre).add(v.setLength(f.launchR*.9));}
+  if(c.side==='ally'&&k.type==='fix')leash=Math.min(leash,Math.max(0,Math.hypot(post.x-z.x,post.z-z.z)-z.r));
   return {ai,post,leash,watch};
 }
 function npcSpaceApply(c,sit,plan){
   if(!npcSpaceActive(c.team))return;
   for(const k of plan.tasks)for(let i=0;i<k.units.length;i++){
-    const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||f.team!==c.team||!npcSpaceFree(f))continue;
+    const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||f.team!==c.team||(sit.units&&!sit.units.some(u=>u.id===f.id))||npcAutoPlayerUnit(f)||!npcSpaceFree(f))continue;
     const p=npcSpacePlacement(c,sit,k,x,i,k.units.length);if(!p)continue;
     const mode=[k.key,k.stage,x.as].join(':'),same=(a,b)=>a===b||!!(a&&b&&a.distanceToSquared(b)<1e-8);
     const changed=f.npcTask!==mode||f.ai!==p.ai||f.leash!==p.leash||!same(f.post,p.post)||!same(f.watchPos,p.watch);
@@ -129,7 +140,7 @@ function npcSpaceApply(c,sit,plan){
 function npcSpaceKeepPosts(){
   // 既存pickFoeは候補ゼロでも現目標を保持する場合がある。NPCの守備だけは毎ステップで境界を守る。
   for(const f of fleets){
-    if(!npcSpaceActive(f.team)||!f.npcTask||f.ai!=='guard'||f.order?.type!=='attack')continue;
+    if(!npcSpaceControls(f)||!f.npcTask||f.ai!=='guard'||f.order?.type!=='attack')continue;
     const t=f.order.target;
     if(!t?.alive||!t.seen||t.pos.distanceTo(f.post)>=f.leash){f.order=null;dropArrow(f.arrow);f.arrow=null;}
   }
@@ -138,12 +149,13 @@ function npcSpaceStep(){
   if(op.ground||tutorialActive()||!op.npc||chase||over)return;
   if(!npcSpaceState||npcSpaceState.op!==op||npcSpaceState.fleets!==fleets)npcSpaceInit();
   if(!npcSpaceState.zones.length)return;
+  npcSpaceAutoSync();
   npcSpaceOwners();
   npcSpaceKeepPosts();
   for(const c of npcSpaceState.commanders.values()){
     if(gameSec+1e-8<c.nextThink)continue;c.nextThink=gameSec+c.L.think;
     const sit=npcSpaceSituation(c),start=performance.now(),plan=npcThink(c,sit),ms=performance.now()-start,m=npcSpaceState.timings;
-    m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcSpaceApply(c,sit,plan);
+    m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcAllyCommunicate(npcSpaceState,c,sit,plan);npcIssuing=true;try{npcSpaceApply(c,sit,plan);}finally{npcIssuing=false;}
   }
 }
 // 地上の実装をそのまま使い、宇宙だけここでdebugを拡張する（npc-ground.jsの後に読む）。

@@ -78,7 +78,7 @@ function groundStrikeAI(f){
 function groundStrikeCommand(list,p){
   let fired=0;
   for(const f of list)if(f.groundKind==='supportAircraft'?groundStrikeInRange(f,p):groundStrikeCanLaunch(f,p)){
-    groundCancelWork(f);groundClearOrders(f);
+    npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);
     if(f.groundKind==='supportAircraft'?groundBombPrepare(f,{point:p}):groundVolleyStart(f,{point:p}))fired++;
   }
   groundStrikeMessage=fired?`${fired}隊に射撃・投下を指示（味方にも命中）`:'発射不可：射程・高度・再装填を確認';

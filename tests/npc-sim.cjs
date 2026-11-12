@@ -17,9 +17,15 @@ function nodeChecks(){
  });
  test('追加4条件は演習場・600秒・seed1、青攻撃／赤4型で保存名も重複しない',()=>{
   const {cases,caseName}=require('../tools/npc-measure.cjs'),extra=cases.filter(c=>c.intents);
-  assert.equal(cases.length,15);assert.deepEqual(extra.map(c=>c.intents[1].style),['firm','mobile','delay','depth']);
+  assert.equal(cases.length,17);assert.deepEqual(extra.map(c=>c.intents[1].style),['firm','mobile','delay','depth']);
   for(const c of extra){assert.equal(c.terrain,'exercise2');assert.equal(c.seconds,600);assert.equal(c.seed,1);assert.deepEqual(c.intents[0],{type:'seize'});assert.deepEqual(c.intents[1].zones,['F']);assert.equal(c.intents[1].type,c.intents[1].style==='delay'?'delay':'hold');assert.equal(c.intents[1].until,c.intents[1].style==='delay'?300:undefined);}
+  const ally=cases.filter(c=>c.ally!==undefined);assert.deepEqual(ally.map(c=>c.ally),[0,.5]);assert(ally.every(c=>c.terrain==='baikonur'&&c.seed===1&&c.seconds===600));
   assert.equal(new Set(cases.map(caseName)).size,cases.length);
+ });
+ test('--ally は割合を読み、地上以外・idle・範囲外・欠損を拒否',()=>{
+  assert.equal(sim.parseArgs(['baikonur','mars','earth','standard','1','600','--ally','0.5']).ally,.5);
+  assert.equal(sim.parseArgs(['--ally','0']).ally,0);assert.equal(sim.parseArgs(['--no-npc']).npc,false);
+  for(const args of [['--ally'],['--ally','NaN'],['--ally','1'],['--ally','-0.1'],['--ally','.5','--idle'],['charybdis','--ally','.5']])assert.throws(()=>sim.parseArgs(args));
  });
  const commanders=new Map([0,1].map(team=>[team,{team,plan:{tasks:[{type:team?'seize':'hold',units:[{id:team+1}]}]},unit:new Map([[team+1,{task:team?'seize:B':'hold:A'}]]),log:[]}]));
  const box={performance,console,gameSec:0,over:false,outcome:true,talking:false,
@@ -64,6 +70,34 @@ function nodeChecks(){
  });
  test('briefは要求された経過だけを出し、最終JSONにも補給を含める',()=>{
   const r=run('npcSimResult()'),text=sim.brief(r);assert.match(text,/占領 2秒 B → 0/);assert.match(text,/任務 30秒 0軍 hold:1 \/ 1軍 seize:1/);assert.match(text,/補給20%未満 最大: 0軍 1隊 \/ 1軍 0隊/);assert(!text.includes('"config"'));assert.equal(r.units[0].supply,80);assert.equal(r.units[0].morale,100);
+ });
+ test('友軍の占領割合・最終目標・先走り・引継ぎ秒・状態比を集計する（模型）',()=>{
+  const a={team:0,key:'0:ally',unitIds:new Set([3]),leadIds:new Set([1]),plan:{lead:{mode:'follow'},tasks:[{key:'hold:B',type:'hold',zone:'B',since:0,units:[{id:3}]}]}},leader=commanders.get(0);
+  leader.unitIds=new Set([1]);commanders.set('0:ally',a);
+  box.fleets.push({id:3,team:0,groundKind:'infantry',alive:true,hpPool:100,pos:{x:20,z:0}});
+  const zones=[{id:'A',x:0,z:0,r:1,owner:'own',base:'own'},{id:'B',x:10,z:0,r:1,owner:'own'},{id:'F',x:20,z:0,r:1,owner:'foe',base:'foe'}];
+  let leadX=10;box.npcGroundSituation=()=>({zones,links:[],lead:{units:[{id:1,x:leadX,z:0,power:1,to:'F'}]}});
+  box.npcGraph=()=>({dist:(a,b)=>Math.abs(zones.findIndex(z=>z.id===a)-zones.findIndex(z=>z.id===b))*10,next:id=>id==='A'?['B']:id==='B'?['A','F']:['B']});
+  run('globalThis.sampleNpcAlly='+sim.sampleNpcAlly.toString());box.gameSec=0;run('sampleNpcAlly(1)');
+  leadX=20;box.gameSec=3;run('sampleNpcAlly(1)');box.fleets[2].pos.x=10;box.gameSec=8;run('sampleNpcAlly(1)');assert.deepEqual(Array.from(box.npcMeasure.ally.relief),[5]);
+  // 先走りは任務につき1回。rescue中に始まった攻撃は数えない。
+  leadX=0;a.plan.tasks=[{key:'seize:F',type:'seize',zone:'F',since:8,units:[{id:3}]}];run('sampleNpcAlly(1);sampleNpcAlly(1)');assert.equal(box.npcMeasure.ally.aheadTasks,1);
+  a.plan.lead.mode='rescue';a.plan.tasks[0]={...a.plan.tasks[0],key:'cut:F',type:'cut'};run('sampleNpcAlly(1)');assert.equal(box.npcMeasure.ally.aheadTasks,1);
+  a.plan.lead.mode='quiet';run('sampleNpcAlly(1)');
+  box.npcMeasure.cfg.ally=.5;box.npcMeasure.cfg.seconds=60;box.gameSec=30;box.over=false;box.npcMeasure.owners.B=1;
+  box.groundCanCapture=f=>f.id===3;box.groundDistanceTo=(f,s)=>Math.abs(f.pos.x-10);box.groundSites[1].captureRadius=1;
+  run('advanceNpcSim(30.05)');let result=run('npcSimResult()');assert.equal(result.ally.captures,1);assert.equal(result.ally.captureShare,.5);assert.equal(result.ally.finalCaptures,1);assert.equal(result.ally.reliefMeanSec,5);assert.equal(result.ally.reliefCount,1);assert(result.ally.modeShare.follow>0&&result.ally.modeShare.rescue>0&&result.ally.modeShare.quiet>0);assert.match(sim.brief(result),/友軍: 占領1/);
+ });
+ test('先導の攻撃目標への支援fixは先走りに数えない',()=>{
+  const a=box.npcMeasure.ally,before=a.aheadTasks,c=commanders.get('0:ally');a.seenTasks=new Set();
+  c.plan={lead:{mode:'follow',main:'F'},tasks:[{key:'fix:F',type:'fix',zone:'F',since:0,units:[{id:3}]}]};run('sampleNpcAlly(1)');assert.equal(a.aheadTasks,before);
+  a.seenTasks=new Set();c.plan.tasks=[{key:'seize:F',type:'seize',zone:'F',since:0,units:[{id:3}]}];run('sampleNpcAlly(1)');assert.equal(a.aheadTasks,before+1);
+ });
+ test('頭の動作: followの支援fixは先導の攻撃目標（先頭の一つ先）へ向く（設計どおり）',()=>{
+  const {fixture,commander}=require('./npc-core.cjs'),{npcThink}=require('../battle/npc-core.js');const c=commander('mars','hard','ally'),s=fixture();
+  s.lead={units:[{id:'p1',x:10,z:0,power:3},{id:'p2',x:10,z:0,power:3}]};npcThink(c,s);s.lead.units.forEach(u=>u.to='C');
+  for(const time of [60,63]){s.time=time;npcThink(c,s);}
+  const fix=c.plan.tasks.find(k=>k.type==='fix');assert.equal(c.plan.lead.mode,'follow');assert.equal(fix.zone,'C');assert(c.graph.dist('A',fix.zone)>c.graph.dist('A','B'));
  });
  return rows;
 }

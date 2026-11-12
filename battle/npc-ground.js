@@ -1,9 +1,101 @@
 /* 地上と指揮官の橋渡し。km座標で状況を作り、通常の命令だけを発行する。 */
 let npcGroundState=null;
-function npcGroundActive(team){return !!(op.ground&&!op.groundDrill&&op.npc?.[team]);}
+function npcGroundActive(team){return !!(op.ground&&!op.groundDrill&&(op.npc?.[team]||team===0&&op.npc&&autoMode));}
 function npcGroundReset(){
   for(const f of npcGroundState?.synced||[])f.syncSpeed=null;
   npcGroundState=null;
+}
+// 以下の所有切替は演習のデバッグ用。本番の友軍の所属や保存形式には使わない。
+let npcAutoReturn=true;
+function npcAutoConfig(){return {doctrine:'earth',level:'standard',...op.npcAuto};}
+function npcAutoState(){return op.ground?npcGroundState:(typeof npcSpaceState==='undefined'?null:npcSpaceState);}
+function npcAutoPlayerUnit(f){return !!(typeof autoMode!=='undefined'&&autoMode&&f.team===0&&npcAutoState()?.auto?.players.has(f.id));}
+let npcIssuing=false; // 指揮官が命令を出しているあいだ。画面の入口を通っても、プレイヤーの隊にしない
+function npcAutoPlayer(list){
+  if(npcIssuing||typeof autoMode==='undefined'||!autoMode||!op.npc||op.groundDrill)return;
+  npcAutoToggle();const state=npcAutoState();if(!state?.commanders.get(0)?.debugAuto)return;
+  for(const f of list)if(f?.team===0&&f.alive){
+    state.auto.players.set(f.id,{idle:null});
+    f.syncSpeed=null;state.synced?.delete(f);state.holds?.delete(f.id);state.last?.delete(f.id);state.modes?.delete(f.id);
+    // 宇宙の持ち場維持・地上の守備追撃を即時解除。いまの命令そのものは残す。
+    delete f.npcTask;
+  }
+}
+function npcAutoBusy(f){
+  return !!(f.order||f.queue?.length||f.groundPlan||f.groundAreaSalvo||f.groundVolley||f.groundBombRun||
+    f.groundBuilding||f.groundUnloading||f.groundGiving||f.bandTo||f.pending||f.groundAirTask);
+}
+function npcAutoSync(state,create,fullPower){
+  const enabled=typeof autoMode!=='undefined'&&autoMode&&!op.groundDrill&&(op.ground||!tutorialActive())&&!window.WOS_NO_NPC;
+  const old=state.commanders.get(0);
+  if(enabled&&!old){const c=create(npcAutoConfig());c.debugAuto=true;state.commanders.set(0,c);}
+  if(!enabled&&old?.debugAuto){
+    state.commanders.delete(0);state.auto=null;
+    for(const f of fleets.filter(f=>f.team===0)){
+      f.syncSpeed=null;state.synced?.delete(f);state.holds?.delete(f.id);state.last?.delete(f.id);state.modes?.delete(f.id);delete f.npcTask;
+    }
+  }
+  if(!state.commanders.get(0)?.debugAuto)return;
+  if(!state.auto)state.auto={players:new Map(),full:new Map()};
+  for(const f of fleets.filter(f=>f.team===0&&f.alive))if(!state.auto.full.has(f.id))state.auto.full.set(f.id,fullPower(f));
+  for(const [id,p] of state.auto.players){
+    const f=fleets.find(f=>f.id===id);if(!f?.alive)continue; // 損失した先導の初期の力は、帰属が終わるまで保持する。
+    if(npcAutoBusy(f)){p.idle=null;continue;}
+    if(p.idle===null)p.idle=gameSec;
+    if(npcAutoReturn&&gameSec-p.idle>=(window.WOS_DATA.npc.auto.returnSec)-1e-8){
+      state.auto.players.delete(id);state.last?.delete(id);state.modes?.delete(id);
+    }
+  }
+}
+function npcAutoSituation(state,c,sit,point){
+  if(!c.debugAuto)return sit;
+  const players=state.auto.players,lead=sit.units.filter(u=>players.has(u.id));
+  c.side=players.size?'ally':'foe';
+  sit.units=sit.units.filter(u=>!players.has(u.id));
+  if(players.size){
+    sit.lead={full:[...players.keys()].reduce((v,id)=>v+(state.auto.full.get(id)||0),0),units:lead.map(u=>{
+      const f=fleets.find(f=>f.id===u.id),o=f.order||f.queue?.[0];
+      const dest=o?.dest||o?.target?.pos||o?.bridge?.pos||f.groundPlan?.dest||f.groundGiving?.pos||f.groundBombRun?.ledger?.shot?.aim||f.groundVolley?.ledger?.point;
+      const points=dest?[dest]:(f.groundAreaSalvo?.area?.points||[]);
+      const distance=z=>Math.min(...points.map(p=>{const v=point(p);return Math.hypot(v.x-z.x,v.z-z.z);}));
+      const to=sit.zones.filter(z=>distance(z)<=z.r*1.5).sort((a,b)=>distance(a)-distance(b))[0]?.id;
+      return {id:u.id,x:u.x,z:u.z,power:u.power,to:to??null};
+    })};
+  }else delete sit.lead;
+  return sit;
+}
+// 任務の開始・段取り／理由の変更だけ通知。同じ文の30秒抑制は指揮官の作り直しでも維持。
+function npcAllyCommunicate(state,c,sit,plan){
+  if(c.side!=='ally'){c.radioTasks=new Map();c.radioMode=null;return;}
+  if(!state.radio)state.radio=new Map();
+  const say=text=>{if(gameSec-(state.radio.get(text)??-Infinity)<30)return;state.radio.set(text,gameSec);logEvent(text,'');};
+  if(plan.lead?.mode!==c.radioMode){
+    if(plan.lead?.mode==='rescue')say('友軍: 支援に入る');
+    if(plan.lead?.mode==='quiet')say('友軍: 残敵は任せる');
+    c.radioMode=plan.lead?.mode;
+  }
+  const next=new Map();
+  for(const k of plan.tasks){
+    if(!k.units.length||!['hold','fix','seize'].includes(k.type))continue;
+    const signature=[k.stage,k.why].join(':');next.set(k.key,signature);
+    if(c.radioTasks?.get(k.key)===signature)continue;
+    const name=sit.zones.find(z=>z.id===k.zone)?.name||k.zone;
+    say('友軍: '+name+(k.type==='hold'?(k.why==='引き継いで守る'?'を引き継ぐ':'を保持する'):k.type==='fix'?'への攻撃を支援する':'を確保する'));
+  }
+  c.radioTasks=next;
+}
+function npcAutoToggle(){
+  if(!op.npc||op.groundDrill)return;
+  if(op.ground){if(!npcGroundState||npcGroundState.sites!==groundSites)npcGroundInit();else npcGroundAutoSync();}
+  else if(typeof npcSpaceAutoSync==='function'&&!tutorialActive()){
+    if(!npcSpaceState||npcSpaceState.op!==op||npcSpaceState.fleets!==fleets)npcSpaceInit();else npcSpaceAutoSync();
+  }
+}
+function npcGroundAutoSync(){
+  const N=window.WOS_DATA.npc;
+  npcAutoSync(npcGroundState,cfg=>{
+    const c=npcCommander({team:0,doctrine:N.doctrines[cfg.doctrine],level:N.levels[cfg.level],styles:N.styles,seed:op.npcSeed??1});c.nextThink=gameSec;return c;
+  },f=>N.power.ground[f.groundKind]??1);
 }
 function npcGroundPower(f){
   const hp=Math.max(0,Math.min(1,f.hpPool/Math.max(1,f.groundMaxHp||f.n*f.hp)));
@@ -26,6 +118,19 @@ function npcGroundInit(){
   }
   npcGroundState={sites:groundSites,commanders,initial:new Map(groundSites.map(s=>[s.id,s.owner])),last:new Map(),links:null,linkKey:null,
     holds:new Map(),modes:new Map(),synced:new Set(),timings:{count:0,total:0,max:0}};
+  npcGroundAutoSync();
+}
+// 道具専用の分割。軍番号は保ち、キャッシュの鍵と指揮する隊だけを分ける。
+function npcGroundSplit(ratio){
+  if(!npcGroundState)npcGroundInit();
+  const leader=npcGroundState.commanders.get(0);if(!leader)return;
+  const all=fleets.filter(f=>f.team===0&&f.alive),allyIds=new Set(all.filter((f,i)=>Math.floor((i+1)*ratio)>Math.floor(i*ratio)).map(f=>f.id));
+  leader.unitIds=new Set(all.filter(f=>!allyIds.has(f.id)).map(f=>f.id));leader.key=0;
+  const N=window.WOS_DATA.npc,cfg=op.npc[0];
+  const ally=npcCommander({team:0,side:'ally',doctrine:leader.D,level:leader.L,styles:N.styles,seed:(op.npcSeed??1)+97});
+  ally.key='0:ally';ally.cfg=cfg;ally.unitIds=allyIds;ally.leadIds=leader.unitIds;
+  ally.leadFull=all.filter(f=>ally.leadIds.has(f.id)).reduce((v,f)=>v+(N.power.ground[f.groundKind]??1),0);
+  ally.nextThink=gameSec;npcGroundState.commanders.set(ally.key,ally);
 }
 // 道路の結節から探索し、別の拠点に到着したらそこで止める。開通路を優先し、閉鎖路も記録する。
 function npcGroundLinks(){
@@ -55,7 +160,7 @@ function npcGroundSituation(c){
   const relative=owner=>owner===team?'own':owner==null?'none':'foe';
   const zones=groundSites.map(s=>{
     const seen=s.owner===team||groundPointSeenBy(team,s.pos),base=s.id===op.groundHQ?.[team]?'own':s.id===op.groundHQ?.[1-team]?'foe':null;
-    return {id:s.id,x:s.x,z:s.y,r:s.radiusKm,owner:seen?relative(s.owner):null,seen,known:relative(npcGroundState.initial.get(s.id)),
+    return {id:s.id,name:s.name||s.id,x:s.x,z:s.y,r:s.radiusKm,owner:seen?relative(s.owner):null,seen,known:relative(npcGroundState.initial.get(s.id)),
       base,goal:base==='foe',final:base==='foe',supply:s.owner===team?groundSupplyAt({pos:s.pos,team}).rate:0};
   });
   const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
@@ -67,13 +172,21 @@ function npcGroundSituation(c){
   for(const f of fleets){if(f.team===team||!f.alive)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
-  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...(op.npc[team].intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
-  if(c.side==='ally'){
+  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...((c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
+  if(c.side==='ally'&&!c.debugAuto){
     // 明示の先頭拠点を優先。未指定なら既知の自軍拠点まで（最終目標は頭でも除外する）。
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');
-    sit.lead={front:op.npc[team].lead?.front??own.sort((a,b)=>Math.hypot(b.x-(home?.x||0),b.z-(home?.z||0))-Math.hypot(a.x-(home?.x||0),a.z-(home?.z||0)))[0]?.id};
+    sit.lead={front:op.npc[team]?.lead?.front??own.sort((a,b)=>Math.hypot(b.x-(home?.x||0),b.z-(home?.z||0))-Math.hypot(a.x-(home?.x||0),a.z-(home?.z||0)))[0]?.id};
   }
-  return sit;
+  if(c.unitIds)sit.units=sit.units.filter(u=>c.unitIds.has(u.id));
+  if(c.leadIds){
+    const lead=fleets.filter(f=>c.leadIds.has(f.id)&&f.alive&&f.hpPool>0);
+    sit.lead={full:c.leadFull,units:lead.map(f=>{
+      const task=[...npcGroundState.commanders.values()].filter(a=>a!==c).flatMap(a=>a.plan?.tasks||[]).find(k=>k.units.some(u=>u.id===f.id));
+      return {id:f.id,x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),power:npcGroundPower(f),to:task?.goalZone??task?.zone??null};
+    })};
+  }
+  return npcAutoSituation(npcGroundState,c,sit,p=>({x:groundMapX(p.x),z:groundMapY(p.z)}));
 }
 // 隊形の位置が川・海・盤外なら、最も近い通行可能セルへ移す。高度段はそのまま。
 function npcGroundPassPoint(f,x,y,region=()=>true){
@@ -150,11 +263,11 @@ function npcGroundRoadPoint(f,e){
 function npcGroundRoadOrders(c,sit,plan){
   const state=npcGroundState,overrides=new Map(),net=groundSupplyNet;if(!net)return overrides;
   if(!state.roadWork)state.roadWork=new Map();
-  let work=state.roadWork.get(c.team);
+  let work=state.roadWork.get(c.key??c.team);
   const visible=sit.contacts.some(e=>e.age===0),byId=new Map(fleets.map(f=>[f.id,f]));
   const eligible=plan.tasks.filter(k=>k.type==='reserve'||k.type==='hold'&&k.stage==='wait');
   const candidates=eligible.flatMap(k=>k.units.map(x=>({k,f:byId.get(x.id)}))).filter(({f})=>f&&npcGroundRoadUnit(f));
-  if(work&&(visible||!candidates.some(({f})=>f.id===work.id))){state.last.delete(work.id);state.roadWork.delete(c.team);work=null;}
+  if(work&&(visible||!candidates.some(({f})=>f.id===work.id))){state.last.delete(work.id);state.roadWork.delete(c.key??c.team);work=null;}
   if(!visible){
     const home=groundSites.find(s=>s.id===op.groundHQ?.[c.team]&&s.owner===c.team),tree=home&&npcGroundRoadTree(home),edges=new Set();
     if(tree)for(const s of groundSites.filter(s=>s.owner===c.team)){
@@ -165,18 +278,18 @@ function npcGroundRoadOrders(c,sit,plan){
     }
     const ordered=[...edges].sort((a,b)=>Math.min(tree.dist.get(a.a),tree.dist.get(a.b))-Math.min(tree.dist.get(b.a),tree.dist.get(b.b)));
     if(!work&&ordered.length){const candidate=candidates.find(({f})=>npcGroundRoadPoint(f,ordered[0]));
-      if(candidate){work={id:candidate.f.id,origin:candidate.f.pos.clone()};state.roadWork.set(c.team,work);}}
+      if(candidate){work={id:candidate.f.id,origin:candidate.f.pos.clone()};state.roadWork.set(c.key??c.team,work);}}
     if(work){const f=byId.get(work.id),edge=ordered[0],dest=edge?npcGroundRoadPoint(f,edge):work.origin;
       if(dest){overrides.set(f.id,dest);work.edge=edge||null;
-        if(!edge&&f.pos.distanceTo(dest)<.01*GROUND_SCALE){state.roadWork.delete(c.team);state.last.delete(f.id);}}
-      else {state.roadWork.delete(c.team);state.last.delete(f.id);}
+        if(!edge&&f.pos.distanceTo(dest)<.01*GROUND_SCALE){state.roadWork.delete(c.key??c.team);state.last.delete(f.id);}}
+      else {state.roadWork.delete(c.key??c.team);state.last.delete(f.id);}
     }
   }
   // 前進する主攻の最後尾だけを道路で止める。先頭は通常の目的地を維持。
   if(!state.roadRear)state.roadRear=new Map();
   const active=new Set();
   for(const k of plan.tasks.filter(k=>k.type==='seize'&&k.stage==='advance'&&k.from)){
-    const key=c.team+':'+k.key;active.add(key);
+    const key=(c.key??c.team)+'|'+k.key;active.add(key);
     if(visible){const id=state.roadRear.get(key);state.last.delete(id);state.roadRear.delete(key);continue;}
     const from=groundSites.find(s=>s.id===k.from),to=groundSites.find(s=>s.id===k.zone),tree=from&&npcGroundRoadTree(from);
     const edge=tree&&tree.path(to).find(e=>!e.circle&&e.owner!==c.team&&e.open!==false);
@@ -187,10 +300,10 @@ function npcGroundRoadOrders(c,sit,plan){
     if(!f)f=pool.sort((a,b)=>groundDistanceTo(b,to)-groundDistanceTo(a,to))[0];
     if(f){state.roadRear.set(key,f.id);overrides.set(f.id,npcGroundRoadPoint(f,edge));}
   }
-  for(const [key,id] of state.roadRear)if(key.startsWith(c.team+':')&&!active.has(key)){state.roadRear.delete(key);state.last.delete(id);}
+  for(const [key,id] of state.roadRear)if(key.startsWith((c.key??c.team)+'|')&&!active.has(key)){state.roadRear.delete(key);state.last.delete(id);}
   if(!state.roadOverrides)state.roadOverrides=new Map();
-  for(const id of state.roadOverrides.get(c.team)||[])if(!overrides.has(id))state.last.delete(id);
-  state.roadOverrides.set(c.team,new Set(overrides.keys()));
+  for(const id of state.roadOverrides.get(c.key??c.team)||[])if(!overrides.has(id))state.last.delete(id);
+  state.roadOverrides.set(c.key??c.team,new Set(overrides.keys()));
   return overrides;
 }
 // 経路の各線分と補給円・道路帯の境界を交差させ、最初に補給率>0となる地点を取る。
@@ -239,7 +352,7 @@ function npcGroundSupportFire(c,k,z){
   const mains=k.units.filter(x=>x.as==='main').map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f?.alive&&!f.embarked);
   for(const x of k.units){
     const f=fleets.find(f=>f.id===x.id);
-    if(x.as!=='support'||!f||!npcGroundFires(f)||!npcGroundFree(f)||f.groundVolley||f.groundAreaSalvo)continue;
+    if(x.as!=='support'||!f||npcAutoPlayerUnit(f)||!npcGroundFires(f)||!npcGroundFree(f)||f.groundVolley||f.groundAreaSalvo)continue;
     const w=groundStrikeWeapon(f);if(!w||(f.groundStrikeCooldown||0)>0)continue;
     const targets=fleets.filter(t=>npcGroundVisibleEnemy(c.team,t)&&t.band==='ground'&&
       (npcGroundInZone(t,z)||mains.some(m=>groundDistanceTo(m,t)<=3*GROUND_SCALE))&&groundStrikeCanLaunch(f,t.pos)&&
@@ -264,9 +377,9 @@ function npcGroundHoldStep(){
   }
 }
 function npcGroundSync(c,plan){
-  for(const f of npcGroundState.synced)if(f.team===c.team){f.syncSpeed=null;npcGroundState.synced.delete(f);}
+  for(const f of npcGroundState.synced)if(f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))){f.syncSpeed=null;npcGroundState.synced.delete(f);}
   for(const k of plan.tasks.filter(k=>k.type==='seize'&&k.stage==='advance')){
-    const group=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f)));
+    const group=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&!npcAutoPlayerUnit(f)&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f)));
     if(!group.length)continue;
     // syncSpeed は補給による速度倍率の前の値。前回の同期値を使って減速を累積させない。
     const slow=Math.min(...group.map(f=>f.speed*groundSupplySpeedFactor(f)));
@@ -275,11 +388,11 @@ function npcGroundSync(c,plan){
 }
 function npcGroundApply(c,sit,plan){
   npcGroundSync(c,plan);
-  for(const [id] of npcGroundState.holds)if(fleets.find(f=>f.id===id)?.team===c.team)npcGroundState.holds.delete(id);
+  for(const [id] of npcGroundState.holds)if(fleets.find(f=>f.id===id)?.team===c.team&&(!c.unitIds||c.unitIds.has(id)))npcGroundState.holds.delete(id);
   const road=npcGroundRoadOrders(c,sit,plan);
   for(const k of plan.tasks){
     for(let i=0;i<k.units.length;i++){
-      const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||f.groundKind==='sea'||!npcGroundFree(f))continue;
+      const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||!sit.units.some(u=>u.id===f.id)||npcAutoPlayerUnit(f)||f.groundKind==='sea'||!npcGroundFree(f))continue;
       const z=sit.zones.find(z=>z.id===k.zone),special=road.has(f.id)||k.type==='refit';
       if(k.type!=='refit')npcGroundState.refit?.delete(f.id);
       const dest=road.get(f.id)||(k.type==='refit'?(z&&npcGroundRefitPoint(f,z)):npcGroundDestination(c,sit,k,x,i,k.units.length));if(!dest)continue;
@@ -312,13 +425,14 @@ function npcGroundApply(c,sit,plan){
 function npcGroundStep(){
   if(!op.ground||op.groundDrill||!op.npc)return;
   if(!npcGroundState||npcGroundState.sites!==groundSites)npcGroundInit();
+  npcGroundAutoSync();
   npcGroundHoldStep();
   for(const f of npcGroundState.synced)if(!npcGroundFree(f)||!npcGroundActive(f.team)){f.syncSpeed=null;npcGroundState.synced.delete(f);}
   for(const c of npcGroundState.commanders.values()){
     if(gameSec+1e-8<c.nextThink)continue;c.nextThink=gameSec+c.L.think;
-    for(const f of fleets)if(f.team===c.team)f.stance='engage';
+    for(const f of fleets)if(f.team===c.team&&!npcAutoPlayerUnit(f)&&(!c.unitIds||c.unitIds.has(f.id)))f.stance='engage';
     const sit=npcGroundSituation(c),start=performance.now(),plan=npcThink(c,sit),ms=performance.now()-start,m=npcGroundState.timings;
-    m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcGroundApply(c,sit,plan);
+    m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcAllyCommunicate(npcGroundState,c,sit,plan);npcIssuing=true;try{npcGroundApply(c,sit,plan);}finally{npcIssuing=false;}
   }
 }
 function npcDebug(){

@@ -185,6 +185,49 @@ function tacticsCases(){
 
  return rows;
 }
+// 同じ確認をNodeの実地上処理とブラウザで実行する。時計はゲーム秒で進める。
+function autoCases(){
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
+ const originalAuto=autoMode,originalReturn=npcAutoReturn;
+ autoMode=false;npcGroundInit();check('オート前には軍0の指揮官がいない',!npcGroundState.commanders.has(0));
+ autoMode=true;npcAutoToggle();const c=npcGroundState.commanders.get(0);
+ check('オート開始で連合・標準の軍0指揮官を作る',c?.debugAuto&&c.D===WOS_DATA.npc.doctrines.earth&&c.L===WOS_DATA.npc.levels.standard);
+ npcGroundStep();check('軍0へ任務と命令が出る',!!c.plan&&fleets.some(f=>f.team===0&&f.order));
+ const f=fleets.find(f=>f.team===0&&f.alive&&f.groundKind==='infantry'),z=groundSites[0];
+ select(f);groupOrder({type:'move',dest:z.pos.clone()});const commanded=f.order,full=WOS_DATA.npc.power.ground[f.groundKind];
+ let sit=npcGroundSituation(c);
+ check('画面の命令だけを先導へ渡し、自軍の命令対象から外す',npcAutoPlayerUnit(f)&&!sit.units.some(u=>u.id===f.id)&&sit.lead.units.some(u=>u.id===f.id&&u.to===z.id)&&c.side==='ally');
+ npcGroundApply(c,sit,{tasks:[{key:'hold:'+z.id,type:'hold',zone:z.id,stage:'wait',units:[{id:f.id,as:'main'}]}]});
+ check('古い任務を渡してもプレイヤーの命令を上書きしない',f.order===commanded);
+ f.hpPool*=.4;sit=npcGroundSituation(c);check('初期の力は損害前、先導の力は損害後',sit.lead.full===full&&Math.abs(sit.lead.units[0].power-full*.4)<1e-8);f.hpPool/=.4;
+ const other=fleets.find(x=>x.team===0&&x!==f&&x.alive&&!x.embarked);order(other,{type:'move',dest:other.pos.clone()});
+ check('低層orderの自動命令はプレイヤーの隊にならない',!npcAutoPlayerUnit(other));
+ f.order=null;f.queue=[{type:'move',dest:z.pos.clone()}];gameSec+=50;npcGroundAutoSync();check('予約がある間は戻らない',npcAutoPlayerUnit(f));
+ f.queue=[];npcGroundAutoSync();gameSec+=19.99;npcGroundAutoSync();check('無命令19.99秒では戻らない',npcAutoPlayerUnit(f));
+ gameSec+=.01;npcGroundAutoSync();sit=npcGroundSituation(c);check('無命令20秒で戻り制限なしへ切り替わる',!npcAutoPlayerUnit(f)&&sit.units.some(u=>u.id===f.id)&&c.side==='foe'&&!sit.lead);
+ npcAutoPlayer([f]);npcAutoReturn=false;f.order=null;f.queue=[];npcGroundAutoSync();gameSec+=60;npcGroundAutoSync();check('自動復帰オフでは20秒を超えても戻さない',npcAutoPlayerUnit(f));
+ f.groundPlan={dest:z.pos.clone()};npcAutoReturn=true;npcGroundAutoSync();gameSec+=30;npcGroundAutoSync();check('未実行の進撃計画も予約として扱う',npcAutoPlayerUnit(f));f.groundPlan=null;
+ const oldOrder={type:'move',dest:z.pos.clone()};f.order=oldOrder;autoMode=false;npcAutoToggle();check('オート解除は指揮官と所有だけを外し現在命令を保つ',!npcGroundState.commanders.has(0)&&!npcAutoPlayerUnit(f)&&f.order===oldOrder);
+ autoMode=true;npcAutoToggle();check('再度オンで指揮官を作り直す',npcGroundState.commanders.get(0)!==c&&npcGroundState.auto.players.size===0);
+ // 通信は任務開始と状態変更だけ。任務の継続や30秒未満の同文を出さない。
+ const savedLog=logEvent,messages=[];logEvent=text=>messages.push(text);const commander={side:'ally'},radio={};
+ const radioSit={zones:[{id:'T',name:'拠点T'}]},task=(type,why='')=>({key:type+':T',type,zone:'T',stage:'wait',why,units:[{id:f.id}]});
+ const plan={lead:{mode:'follow'},tasks:[task('hold','引き継いで守る'),task('fix'),task('seize'),task('reserve'),task('refit'),task('recon')]};
+ npcAllyCommunicate(radio,commander,radioSit,plan);npcAllyCommunicate(radio,commander,radioSit,plan);
+ check('友軍の任務の通信文（予備・再編・偵察は出さない）',messages.join('|')==='友軍: 拠点Tを引き継ぐ|友軍: 拠点Tへの攻撃を支援する|友軍: 拠点Tを確保する');
+ npcAllyCommunicate(radio,commander,radioSit,{lead:{mode:'rescue'},tasks:[task('hold')]});npcAllyCommunicate(radio,commander,radioSit,{lead:{mode:'quiet'},tasks:[]});
+ check('友軍の状態通信と通常の保持文',messages.includes('友軍: 支援に入る')&&messages.includes('友軍: 残敵は任せる')&&messages.includes('友軍: 拠点Tを保持する'));
+ npcAllyCommunicate(radio,commander,radioSit,{tasks:[]});npcAllyCommunicate(radio,commander,radioSit,plan);check('任務再開でも同文30秒未満は抑制',messages.length===6);
+ gameSec+=30;npcAllyCommunicate(radio,commander,radioSit,{tasks:[]});npcAllyCommunicate(radio,commander,radioSit,plan);check('30秒後の任務再開では再通知できる',messages.length===9);logEvent=savedLog;
+ autoMode=false;npcAutoToggle();npcGroundSplit(.5);const leader=npcGroundState.commanders.get(0);
+ // 分割道具は明示した通常指揮官を使うので、ここでは作戦へ軍0を付けて確認。
+ if(!leader){op={...op,npc:{...op.npc,0:{doctrine:'earth',level:'standard'}}};npcGroundInit();npcGroundSplit(.5);}
+ const lead=npcGroundState.commanders.get(0),ally=npcGroundState.commanders.get('0:ally'),leadId=[...lead.unitIds][0],target=groundSites.at(-1).id;
+ lead.plan={tasks:[{type:'seize',stage:'assemble',zone:target,from:groundSites[0].id,units:[{id:leadId}]}]};
+ sit=npcGroundSituation(ally);check('同じ軍の2指揮官は隊を重複させず、集結中も目標拠点を先導toに渡す',!sit.units.some(u=>lead.unitIds.has(u.id))&&sit.lead.units.find(u=>u.id===leadId).to===target&&ally.leadFull>0);
+ autoMode=false;npcGroundReset();op={...op,npc:{1:op.npc[1]},npcAuto:{doctrine:'mars',level:'hard'}};autoMode=true;npcAutoPlayer([f]);check('作戦のnpcAuto上書きと最初のステップ前の手動命令',npcGroundState.commanders.get(0).D===WOS_DATA.npc.doctrines.mars&&npcGroundState.commanders.get(0).L===WOS_DATA.npc.levels.hard&&npcAutoPlayerUnit(f));
+ autoMode=originalAuto;npcAutoReturn=originalReturn;npcGroundReset();return rows;
+}
 function nodeChecks(){
  const {run}=require('./ground-drill.cjs').createDrillContext(false);
  const movement=run(`(()=>{
@@ -194,6 +237,7 @@ function nodeChecks(){
    const moves=tasks.flatMap(k=>k.units.map(x=>({f:fleets.find(f=>f.id===x.id),k}))).filter(({f})=>f&&start.get(f.id).distanceTo(f.pos)>GROUND_SCALE);
    return {name:'通常演習で敵が動き出し任務の拠点へ近づく',ok:moves.some(({f,k})=>{const s=groundSites.find(s=>s.id===k.zone);return s.pos.distanceTo(f.pos)<s.pos.distanceTo(start.get(f.id));})};
  })()`);
+ const auto=require('./ground-drill.cjs').createDrillContext(false);auto.ctx.selGroup=null;
  const bridge=run('('+bridgeCases.toString()+')()');
  const retire=require('./ground-drill.cjs').createDrillContext(false).run('('+retireCases.toString()+')()');
  const logistics=require('./ground-drill.cjs').createDrillContext(false).run('('+logisticsCases.toString()+')()');
@@ -201,7 +245,7 @@ function nodeChecks(){
  // 実ゲームのspeedOfを読み、同期を無視する土台のstubから差し替える。
  const sim=require('node:fs').readFileSync(require('node:path').join(__dirname,'../battle/sim.js'),'utf8');
  tactics.run(sim.slice(sim.indexOf('function speedOf('),sim.indexOf('function speedOf(')+sim.slice(sim.indexOf('function speedOf(')).indexOf('\n')));
- return [movement,...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
+ return [movement,...auto.run('('+autoCases.toString()+')()'),...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
 }
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
@@ -213,11 +257,43 @@ async function checkNpcGround(page,check){
   return {moved:moves.length,heading:moves.some(({f,k})=>{const z=sit.zones.find(z=>z.id===k.zone);return groundPoint(z.x,z.z).distanceTo(f.pos)<groundPoint(z.x,z.z).distanceTo(start.get(f.id));}),debug:npcDebug()};
  });
  check(movement.moved>0&&movement.heading,'NPC演習: 敵が動き出し任務の拠点へ近づく',JSON.stringify(movement));
+ for(const r of await page.evaluate(autoCases))check(r.ok,'NPCオート: '+r.name);
+ await page.evaluate(()=>{reset({op:'baikonur',fleets:op.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
  for(const r of await page.evaluate(bridgeCases))check(r.ok,'NPC橋渡し: '+r.name);
  for(const id of ['groundExercise2','shinano']){
   const ok=await page.evaluate(id=>{reset({op:id});if(talking)endTalk();setSpeed(0);if(deploying)endDeploy();let calls=0;const original=npcThink;npcThink=(...args)=>{calls++;return original(...args);};for(let i=0;i<80&&!over;i++)step(.05);npcThink=original;return calls===0&&Object.keys(npcDebug()).length===0;},id);
   check(ok,'NPC無効: '+id+'で頭を呼ばずdebugが空');
  }
 }
-module.exports={nodeChecks,checkNpcGround,bridgeCases};
+// 実際のメニューボタン・方針ボタン・部隊一覧・デバッグ保存を確認する（Claude実行用）。
+async function checkNpcAuto(page,check){
+ // メニューのオート切替は保存値どおりに body の dbg-battle を付け直すので、デバッグのボタンを押す前に毎回付ける
+ const clickDbg=async sel=>{await page.evaluate(()=>document.body.classList.add('dbg-battle'));await page.click(sel);};
+ // 全体のテスト（tests/smoke.cjs）は台本どおりの要塞を確かめるため WOS_NO_NPC を立てている。この確認のあいだだけ外す。
+ const saved=await page.evaluate(()=>{const v={debug:localStorage.getItem('wos.debug'),auto:autoMode,ret:npcAutoReturn,battle:document.body.classList.contains('dbg-battle'),noNpc:window.WOS_NO_NPC};window.WOS_NO_NPC=false;return v;});
+ try{
+  for(const id of ['baikonur','charybdis']){
+   await page.evaluate(id=>{WOS_MENU.setAuto(false);WOS_MENU.setAutoReturn(true);WOS.start({op:id,tutorial:false});if(talking)endTalk();endDeploy();setSpeed(0);document.body.classList.add('dbg-battle');openPause();},id);
+   await clickDbg('#pause [data-pm="auto"]');
+   check(await page.evaluate(()=>npcAutoState().commanders.get(0)?.debugAuto&&JSON.parse(localStorage.getItem('wos.debug')).auto),'NPCオート '+id+': メニューから軍0を追加・保存');
+   await page.click('#pause [data-pm="resume"]');
+   const first=await page.evaluate(()=>{for(let i=0;i<12;i++)step(.05);const c=npcAutoState().commanders.get(0);return !!c.plan&&fleets.some(f=>f.team===0&&(f.order||f.npcTask));});
+   check(first,'NPCオート '+id+': 開始後に自軍が命令を受ける');
+   await page.evaluate(()=>{const f=fleets.find(f=>f.team===0&&f.alive&&!f.embarked&&(!op.ground||f.groundKind==='infantry'));select(f);groupOrder({type:'move',dest:f.pos.clone().add(new THREE.Vector3(2,0,2))});});
+   await page.click('#stance [data-st="evade"]');
+   check(await page.evaluate(()=>{const f=selected,state=npcAutoState(),c=state.commanders.get(0),sit=op.ground?npcGroundSituation(c):npcSpaceSituation(c),old=f.order;gameSec+=3;if(op.ground)npcGroundStep();else{npcSpaceStep();enemyAI();}updateRoster();return f.order===old&&f.stance==='evade'&&sit.lead.units.some(u=>u.id===f.id)&&!sit.units.some(u=>u.id===f.id)&&f.btn.querySelector('.no small').textContent.includes('手動');}),'NPCオート '+id+': 画面の移動・方針指定を保護し手動と表示');
+   await page.evaluate(()=>openPause());
+   await clickDbg('#pause [data-pm="autoReturn"]');
+   check(await page.evaluate(()=>{const f=selected;f.order=null;f.queue=[];npcAutoToggle();gameSec+=21;npcAutoToggle();return npcAutoPlayerUnit(f)&&!npcAutoReturn&&JSON.parse(localStorage.getItem('wos.debug')).autoReturn===false;}),'NPCオート '+id+': 復帰オフを保存し20秒後も所有を保つ');
+   await clickDbg('#pause [data-pm="autoReturn"]');
+   check(await page.evaluate(()=>{npcAutoToggle();return !npcAutoPlayerUnit(selected)&&npcAutoReturn;}),'NPCオート '+id+': 復帰オンで待機した隊を戻す');
+   await page.evaluate(()=>{window.npcAutoCheckOrder=selected.order={type:'move',dest:selected.pos.clone()};});await clickDbg('#pause [data-pm="auto"]');
+   check(await page.evaluate(()=>!npcAutoState().commanders.has(0)&&selected.order===window.npcAutoCheckOrder),'NPCオート '+id+': オフでも現在命令を継続');
+   await page.click('#pause [data-pm="resume"]');
+  }
+ }finally{
+  await page.evaluate(saved=>{window.WOS_NO_NPC=saved.noNpc;autoMode=saved.auto;npcAutoReturn=saved.ret;WOS_MENU.setAuto(saved.auto);WOS_MENU.setAutoReturn(saved.ret);document.body.classList.toggle('dbg-battle',saved.battle);if(saved.debug===null)localStorage.removeItem('wos.debug');else localStorage.setItem('wos.debug',saved.debug);delete window.npcAutoCheckOrder;npcAutoToggle();},saved);
+ }
+}
+module.exports={nodeChecks,checkNpcGround,bridgeCases,autoCases,checkNpcAuto};
 if(require.main===module){const rows=nodeChecks();for(const r of rows)console.log((r.ok?'✓ ':'✗ ')+r.name);assert(rows.every(r=>r.ok));}

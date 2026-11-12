@@ -94,5 +94,5 @@
   const power = {ground:{infantry:1,heavyInfantry:1.5,commando:1,vehicle:2,was:2,mechanicalAssault:2,
     artillery:1.5,guidedRocket:1.5,mobileAA:1,scout:.4,droneHive:.4,fighter:1,attack:1.2,supportAircraft:1.2,
     apc:.2,engineer:.2,supply:.2,sea:2}};
-  window.WOS_DATA.npc = { doctrines, levels, roles, power, styles };
+  window.WOS_DATA.npc = { doctrines, levels, roles, power, styles, auto:{returnSec:20} };
 })();

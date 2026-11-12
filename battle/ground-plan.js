@@ -31,7 +31,7 @@ function groundPlanTap(p){
   if(!list.length){groundClearAiming();groundHud();return;}
   const result=groundPlanSlots(list,a,b);
   if(result.error){groundPlanMessage=result.error;groundHud();return;}
-  saveUndo(list);
+  npcAutoPlayer(list);saveUndo(list);
   if(mode==='plan')for(const {f,dest} of result.slots)f.groundPlan={from:f.pos.clone(),dest,line:[a.clone(),b.clone()]};
   else for(const {f,dest,path} of result.slots) {groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path});}
   groundClearAiming();groundPlanMessage=mode==='plan'?list.length+'隊の進撃計画を準備（実行で開始）':list.length+'隊が布陣を開始';groundHud();
@@ -41,7 +41,7 @@ function groundPlanExecute(){
   const list=groundPlanUnits().filter(f=>f.groundPlan),slots=[];if(!list.length)return;
   // 計画作成後の移動や架橋・破壊を反映して、実行前に全隊の通路を確認。
   for(const f of list){const dest=f.groundPlan.dest.clone(),path=groundMovePath(f.pos,[dest],groundMoveKind(f));if(!path){groundPlanMessage=f.name+'：経路が変わったため実行できません';groundHud();return;}slots.push({f,dest,path});}
-  saveUndo(list);
+  npcAutoPlayer(list);saveUndo(list);
   for(const {f,dest,path} of slots){groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path});}
   groundClearAiming();groundPlanMessage=list.length+'隊が進撃を開始';groundHud();
 }
