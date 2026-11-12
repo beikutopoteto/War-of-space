@@ -136,8 +136,30 @@ const WAS_KIT=(()=>{ const dk=g=>tone(g,DK), J=(x,y,z,r,w=.08)=>tone(discG(x,y,z
     shield:(x,y,z,tilt)=>{ const SH=g=>at(g,x,y,z,tilt,0,Math.PI/2);
       return [SH(plate([[.5,-.13],[.5,.13],[.2,.17],[-.2,.12],[-.56,.025],[-.56,-.025],[-.2,-.12],[.2,-.17]],.05)), ...[.37,.22,.07,-.08].flatMap(u=>[-.07,.07].map(w=>tone(SH(at(box(.12,.035,.11),u,-.04,w)),.8))),
         dk(SH(at(box(.2,.06,.07),-.6,0,0))), tone(SH(at(box(.06,.03,.03),-.72,0,0)),GL)]; },
+    /* user 2026-11-12: the two rotary cannon are mounted ON the forearm, not the arm itself: a thin plate on the arm, slim
+       guns one above the other, and a two-tube rocket launcher on each side of them. x,y,z: the rear of the guns; arm: the
+       x of the forearm they hang on; back: where the belt goes */
+    guns2:(x,y,z,arm,back)=>{ const r2=(yy)=>[dk(at(tube(.034,.12,6),x,yy,z+.32)), ...[0,2.1,4.2].map(a=>dk(at(tube(.011,.8,5),x+Math.cos(a)*.02,yy+Math.sin(a)*.02,z+.76))), dk(at(tube(.03,.035,6),x,yy,z+.7)), dk(at(tube(.032,.05,6),x,yy,z+1.14))];
+      return [at(box(.03,.16,.3),(x+arm)/2+.03*Math.sign(arm-x),y,z+.12), ...[z+.02,z+.22].map(zz=>dk(at(box(Math.abs(arm-x)-.02,.04,.04),(x+arm)/2,y,zz))),
+        at(box(.07,.22,.3),x,y,z+.12), ...r2(y+.06), ...r2(y-.06),
+        ...[.08,-.08].flatMap(d=>[.03,-.03].flatMap(e=>[tone(at(tube(.024,.3,6),x+d,y+e,z+.15),.7), dk(at(tube(.026,.03,6),x+d,y+e,z+.31))])),
+        dk(segG([x,y+.03,z-.03],[(x+back[0])/2,Math.min(y,back[1])-.14,(z+back[2])/2],.022,.022,5)), dk(segG([(x+back[0])/2,Math.min(y,back[1])-.14,(z+back[2])/2],back,.022,.022,5))]; },
+    /* user 2026-11-12: the shield is thin and rounded, curved across and along. Tiles follow the curve; the dark tip throws plasma */
+    shield2:(x,y,z,tilt)=>{ const SH=g=>at(g,x,y,z,tilt,0,Math.PI/2), ca=.07, cl=.05, bul=(u,v,w)=>-(ca*(1-v*v)+cl*(1-(u/.52)**2));
+      return [SH(curvedSlab([[-.52,.03],[-.36,.09],[-.16,.135],[.1,.16],[.32,.15],[.5,.11]],ca,cl,.025)),
+        ...[.34,.2,.06,-.08].flatMap(u=>[-.5,.5].map(v=>tone(SH(at(box(.11,.018,.1),u,bul(u,v)-.02,v*.14)),.8))),
+        dk(SH(at(box(.14,.03,.05),-.56,bul(-.5,0)+.0,0))), tone(SH(at(box(.07,.02,.025),-.66,bul(-.52,0)+.0,0)),GL), SH(at(box(.1,.05,.1),.05,.02,0))]; },
     subArms:(y,r)=>[tone(at(new THREE.CylinderGeometry(r,r,.04,8),0,y,0),.6), tone(at(new THREE.CylinderGeometry(r*.9,r*.9,.03,8),0,y+.04,0),.6),
       ...[r*.8,-r*.8].flatMap(x=>[tone(at(box(.06,.06,.07),x,y+.015,r*.75),.6), ...[-.03,0,.03].map(d=>dk(segG([x+d,y,r*.75+.03],[x+d*2.2,y-.06,r*.75+.11],.012,.008,4)))])] }; })();
+/* a thin slab that is curved both across and along (the W.A.S. shield): stations [u, half width] along its length, bulging
+   toward -y by ca across and cl along, thickness t. Flat shaded like everything else */
+function curvedSlab(st,ca,cl,t,m=4){ const U0=st[0][0], U1=st[st.length-1][0], P=[], V=(x,y,z)=>new THREE.Vector3(x,y,z);
+  const pt=(i,j,side)=>{ const [u,w]=st[i], v=-1+2*j/m, uu=(u-(U0+U1)/2)/((U1-U0)/2); return V(u,-(ca*(1-v*v)+cl*(1-uu*uu))+side*t/2,v*w); };
+  const tri=(a,b,c,out)=>{ const n=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)); if(n.dot(out)<0) P.push(a,c,b); else P.push(a,b,c); };
+  for(let i=0;i<st.length-1;i++) for(let j=0;j<m;j++) for(const side of [1,-1]){ const a=pt(i,j,side), b=pt(i+1,j,side), c=pt(i+1,j+1,side), d=pt(i,j+1,side), o=V(0,side,0); tri(a,b,c,o); tri(a,c,d,o); }
+  const rim=(a,b)=>{ const A=pt(...a,1), B=pt(...b,1), C=pt(...b,-1), D=pt(...a,-1), o=V((A.x+B.x)/2-(U0+U1)/2,0,(A.z+B.z)/2); tri(A,B,C,o); tri(A,C,D,o); };
+  for(let i=0;i<st.length-1;i++){ rim([i,0],[i+1,0]); rim([i,m],[i+1,m]); } for(let j=0;j<m;j++){ rim([0,j],[0,j+1]); rim([st.length-1,j],[st.length-1,j+1]); }
+  const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; }
 /* 案1 骨組み型: the factory frame shows. The pilot sits in a small dark pod inside a roll cage; the limbs are bare struts with
    pistons and dark joints, the legs bend back at a hock and end in three toes; a high truss carries the arms; ammunition drums
    and belts on the back */
@@ -183,6 +205,31 @@ function wasSharp(){ const K=WAS_KIT, p=[];
     at(box(.26,.34,.16),0,1.06,-.2), ...pair(at(loft([[-.32,.03,.03],[-.1,.075,.075],[.1,.05,.05]],HEX),.2,1.1,-.26,.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.2,.95,-.52,1.1))),
     segG([-.5,.88,.03],[-.47,.8,.3],.07,.1,4), segG([.5,.88,.03],[.52,.64,.22],.07,.1,4),
     ...K.guns(-.47,.8,.46,[-.1,1.05,-.3]), ...K.shield(.64,.72,.17,-.5), ...K.cannon(.32,1.54,0,[.16,1.28,-.14]), ...K.subArms(.89,.12));
+  return p; }
+/* 案1+3 (user decision 2026-11-12): the sharp body carried on the bare frame. From the sharp one: every limb four-sided and
+   widening to its end, an angular chest, pointed pods on the shoulders, a small head with a fin, flared lower legs with vanes
+   and pointed feet. From the frame: pistons along the legs, a truss out to the shoulders, two-strut upper arms, the pilot's dark
+   pod showing in a cage under the chest armour, ammunition drums and belts on the back. Real forearms and hands: the guns
+   hang on the right forearm and the shield on the left. The knife is sheathed on the right thigh */
+function wasMix(){ const K=WAS_KIT, p=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9,5);
+  for(const sx of [1,-1]){ const hip=[sx*.15,.84,0], knee=[sx*.19,.5,.11], ank=[sx*.2,.14,-.03];
+    p.push(segG(hip,knee,.065,.08,4), K.dk(segG([hip[0],hip[1]-.03,hip[2]-.08],[knee[0],knee[1]+.06,knee[2]-.1],.016,.016,4)), K.J(hip[0],hip[1],hip[2],.075,.1), K.J(knee[0],knee[1],knee[2],.065,.1),
+      at(new THREE.ConeGeometry(.04,.13,4),knee[0],knee[1]+.04,knee[2]+.08,1.2), segG(knee,ank,.07,.13,4), K.dk(segG([knee[0],knee[1]-.05,knee[2]+.08],[ank[0],ank[1]+.12,ank[2]+.13],.014,.014,4)),
+      tone(at(box(.02,.3,.15),ank[0],.36,ank[2]-.17,.25),.75), K.dk(at(new THREE.CylinderGeometry(.04,.07,.1,6),ank[0],.16,ank[2]-.16,.9)),
+      at(loft([[-.14,.08,.05],[.1,.1,.06],[.34,.02,.02,-.03]],SLAB),ank[0],.06,ank[2]), at(box(.05,.05,.14),ank[0],.03,ank[2]-.2),
+      K.J(sx*.5,1.24,0,.08,.1), at(loft([[-.2,.11,.09],[.02,.14,.11],[.26,.04,.04]],HEX),sx*.52,1.34,-.02), tone(at(box(.02,.05,.2),sx*.665,1.34,-.04),GL),
+      th([sx*.5,1.22,.05],[sx*.5,.9,.06]), th([sx*.5,1.22,-.05],[sx*.5,.9,-.02]), K.J(sx*.5,.88,.03,.06,.1), th([sx*.16,.9,-.04],[sx*.44,1.26,-.04],.026),
+      th([sx*.13,.92,.11],[sx*.13,1.09,.13],.02), th([sx*.13,.92,-.1],[sx*.13,1.09,-.1],.02)); }
+  p.push(at(loft([[-.1,.12,.06],[.12,.08,.05]],HEX),0,.84,0), at(box(.96,.045,.08),0,1.27,-.04), th([0,.86,-.13],[0,1.26,-.13],.035),
+    tone(stand(loft([[.9,.09,.08],[1,.13,.11],[1.12,.14,.11]],HEX)),.35), tone(at(box(.14,.1,.03),0,1.02,.115),GL),
+    stand(loft([[1.08,.2,.13],[1.2,.26,.15],[1.28,.13,.09]],HEX)), at(loft([[0,.1,.05],[.14,0,0]],HEX),0,1.18,.13),
+    at(new THREE.IcosahedronGeometry(.06,0),0,1.34,.03), tone(at(box(.08,.02,.03),0,1.345,.085),GL), at(plate([[0,.05],[0,-.22],[.1,-.28],[.045,0]],.02),0,1.37,0,0,0,Math.PI/2),
+    ...[.11,-.11].map(x=>{ const g=new THREE.CylinderGeometry(.09,.09,.18,8); g.rotateZ(Math.PI/2); return tone(at(g,x,1.02,-.25),.6); }),
+    ...pair(at(loft([[-.32,.03,.03],[-.1,.07,.07],[.1,.05,.05]],HEX),.21,1.12,-.27,.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.21,.97,-.53,1.1))),
+    /* forearms and hands */
+    segG([-.5,.88,.03],[-.48,.74,.3],.06,.085,4), at(box(.08,.08,.1),-.48,.71,.36), segG([.5,.88,.03],[.52,.64,.22],.06,.085,4), at(box(.08,.08,.1),.52,.6,.27),
+    K.dk(at(box(.035,.2,.06),-.25,.66,.06)), K.dk(segG([.12,1.08,-.3],[.33,1.46,-.34],.022,.022,5)),
+    ...K.guns2(-.66,.78,.08,-.49,[-.12,1.04,-.32]), ...K.shield2(.63,.72,.17,-.5), ...K.cannon(.33,1.54,0,[.18,1.28,-.14]), ...K.subArms(.9,.13));
   return p; }
 /* the assault machine: step 1 or -1 says which foot is ahead */
 function mechParts(step){ const p=[], T=.4;
@@ -292,6 +339,8 @@ const GROUND_SHAPES={
   wasG:()=>{ const p=CRAFT_SHAPES.was(); p.forEach(g=>{ g.scale(4,4,4); g.translate(0,.78,0); }); return p; },
   /* W.A.S. の3案 (docs/models.md 11): 1 骨組み型, 2 重装型, 3 鋭角型 */
   was1:()=>wasFrame(), was2:()=>wasHeavy(), was3:()=>wasSharp(),
+  /* 案1+3: the sharp body on the bare frame, slim arm-mounted guns, a thin curved shield (user decision 2026-11-12) */
+  was4:()=>wasMix(),
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
