@@ -198,7 +198,17 @@ function groundInit(){
     for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
     groundSelectionInit(f);
     const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
-    if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
+    const spec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+    model.userData.groundShape=!!spec;
+    if(spec){
+      const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
+      const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
+      const geo=groundShapeGeo(spec.key),size=spec.size;
+      for(const [x,z] of spec.offsets){
+        const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
+      }
+    }
+    else if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
     else {
       const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];
       const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
@@ -256,7 +266,7 @@ function groundDraw(){
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
-    model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
+    model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
     model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
     f.el.style.opacity=String(k*(f.team===1&&!f.seen?.42:1)); // 表示を薄くしても選択と射撃の規則は変えない。
