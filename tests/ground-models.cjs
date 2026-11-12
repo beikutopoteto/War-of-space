@@ -19,6 +19,9 @@ function nodeChecks(){
   check('不明モデルは従来表示、不正な大きさと編隊は既定値',`groundModelFor('vehicle')===null&&groundModelFor('infantry').size===1&&groundModelFor('infantry').form==='one'&&groundModelFor('infantry').offsets===GROUND_FORMS.one`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:1:one,vehicle@mars:${ctx.testKey}:2:box4`);
   check('陣営指定が共通指定に優先する',`groundModelFor('vehicle','earth').size===1&&groundModelFor('vehicle','mars').size===2&&groundModelFor('vehicle','mars').offsets===GROUND_FORMS.box4`);
+  check('移動形なしはnull',`groundModelFor('vehicle','earth').move===null`);
+  ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:1:one:${ctx.testKey},infantry:${ctx.testKey}:1:one:missing-model`);
+  check('移動形を読み、不明な移動形はnull',`groundModelFor('vehicle').move===testKey&&groundModelFor('infantry').move===null`);
   ctx.location.search='';ctx.TEAM_COL=[0x4aa3ff,0xff5a4a].map(c=>new ctx.THREE.Color(c));
   Object.assign(ctx,{labelsEl:{appendChild(){}},proj:p=>({x:p.x,y:p.z,z:0}),SHIP_SIZE:Object.fromEntries(ctx.WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]))});
   run(`groundHud=groundCaptureInit=groundSightInit=()=>{};
@@ -38,15 +41,24 @@ function nodeChecks(){
   run(`fleets[0].side='mars';fleets[fleets.length-1].side='earth';groundInit();`);
   check('明示した陣営とチームの既定陣営を渡す',`fleets.filter(f=>f.groundKind==='vehicle').every(f=>{const s=groundModelFor('vehicle',f.side||(f.team===1?'mars':'earth'));return f.groundModel.children.length===s.offsets.length&&f.groundModel.children[0].scale.x===s.size;})`);
   check('編隊全体は部隊の地形高度を共有',`(()=>{groundDraw();return fleets.every(f=>f.groundModel.position.y===f.pos.y+(f.band==='ground'?.15:0));})()`);
+  ctx.location.search='?groundModels='+encodeURIComponent(`infantry:${ctx.testKey}:.5:squad6:${ctx.testKey}`);run('initModels();');
+  check('移動形は同じ位置・材質で最初は非表示',`(()=>{const m=fleets.find(f=>f.groundKind==='infantry').groundModel,p=m.userData.pose;return p.stand.length===6&&p.move.length===6&&p.stand.every((b,i)=>b.visible&&!p.move[i].visible&&b.position.equals(p.move[i].position)&&b.scale.equals(p.move[i].scale)&&b.material===p.move[i].material);})()`);
+  ctx.performance={now:()=>ctx.poseNow};ctx.poseNow=1000;
+  check('命令があっても移動していなければ立つ',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry');f.order={type:'move'};groundDraw();return f.groundModel.userData.pose.stand.every(b=>b.visible);})()`);
+  check('命令なしの実移動でも移動形へ切り替える',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry');f.order=null;f.pos.x+=.1;groundDraw();const p=f.groundModel.userData.pose;return p.move.every(b=>b.visible)&&p.stand.every(b=>!b.visible);})()`);
+  ctx.poseNow=1399;
+  check('停止後0.4秒未満は移動形を保つ',`(groundDraw(),fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose.move.every(b=>b.visible))`);
+  ctx.poseNow=1401;
+  check('停止後0.4秒で立つ形に戻る',`(groundDraw(),fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose.stand.every(b=>b.visible))`);
   const config=JSON.parse(fs.readFileSync(path.join(__dirname,'../docs/mockups/models/example.json'),'utf8')),html=build({...config,intro:'</script><img src=x>'});
   assert.equal((html.match(/<script src=/g)||[]).length,1);count++;
   const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];assert.equal(scripts.length,3);for(const s of scripts)new vm.Script(s[1]);count++;
   assert.ok(html.includes('\\u003c/script>')&&!html.includes('<img src=x>'));count++;
   // Run the built sheet with a DOM/renderer stub: exercise real formations, bounds and colour toggles without Chromium.
-  const groups=[],elements=[],THREE={...ctx.THREE};
+  const groups=[],elements=[],renders=[],THREE={...ctx.THREE};let drawFrame,intersect;
   THREE.Group=class extends ctx.THREE.Group{constructor(){super();groups.push(this);}};
-  THREE.WebGLRenderer=class{};
-  const element=tag=>{const e={tag,children:[],dataset:{},style:{},appendChild(c){this.children.push(c);},setAttribute(){},addEventListener(){}};elements.push(e);return e;};
+  THREE.WebGLRenderer=class{setPixelRatio(){}setSize(){}render(scene,camera){renders.push({scene,camera});}};
+  const element=tag=>{const e={tag,children:[],dataset:{},style:{},events:{},clientWidth:300,clientHeight:200,getContext:()=>({drawImage(){}}),setPointerCapture(){},appendChild(c){this.children.push(c);c.parentNode=this;},setAttribute(){},addEventListener(name,fn){this.events[name]=fn;}};elements.push(e);return e;};
   const nodes=Object.fromEntries(['groups','heading','intro'].map(id=>[id,element('div')]));
   const sheetConfig={title:'test',groups:[{title:'forms',items:[
     {label:'earth',table:'ground',key:ctx.testKey,form:'squad6',side:'earth'},
@@ -55,8 +67,8 @@ function nodeChecks(){
     {label:'default',table:'ground',key:ctx.testKey}
   ]}]};
   const sheetHtml=build(sheetConfig),sheetScripts=[...sheetHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  const sheet=vm.createContext({THREE,document:{getElementById:id=>nodes[id],createElement:element,querySelectorAll:()=>[],addEventListener(){}},window:{},requestAnimationFrame:()=>1,
-    IntersectionObserver:class{observe(){}},ResizeObserver:class{observe(){}}});
+  const sheet=vm.createContext({THREE,document:{getElementById:id=>nodes[id],createElement:element,querySelectorAll:()=>[],addEventListener(){}},window:{devicePixelRatio:1},requestAnimationFrame:fn=>{drawFrame=fn;return 1;},
+    IntersectionObserver:class{constructor(fn){intersect=fn;}observe(){}},ResizeObserver:class{observe(){}}});
   for(const script of sheetScripts)vm.runInContext(script[1],sheet);
   const formations=vm.runInContext('GROUND_FORMS',sheet);
   assert.equal(groups.length,4);
@@ -68,8 +80,48 @@ function nodeChecks(){
   sheet.window.MODEL_SHEET.setFaction(0);colours().forEach((c,i)=>assert.ok(c.equals(before[i])));count++;
   assert.deepEqual(elements.filter(e=>e.className==='side-tag').map(e=>e.textContent),['地球連合','惑星共和国']);count++;
   assert.throws(()=>build({...sheetConfig,groups:[{title:'bad',items:[{label:'bad',key:ctx.testKey,table:'ground',side:'invalid'}]}]}),/side/);count++;
+  sheet.window.MODEL_SHEET.freeze();
+  intersect(elements.filter(e=>e.tag==='article').map(target=>({target,isIntersecting:true})));drawFrame(1000);
+  for(const {scene,camera} of renders){
+    const box=new THREE.Box3().setFromObject(scene.children.find(o=>o.isGroup)),projected=new THREE.Box2();
+    for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new THREE.Vector3(x,y,z).project(camera);projected.expandByPoint(new THREE.Vector2(p.x,p.y));}
+    // Fixed-size strips deliberately use their requested pixel size instead of the 85% fit.
+    const size=projected.getSize(new THREE.Vector2());assert.ok(Math.max(size.x,size.y)<=1.700001);
+  }count++;
+  const canvas=elements.find(e=>e.className==='large'),reset=elements.find(e=>e.className==='reset-view');
+  const span=()=>{drawFrame(1000);const c=renders[renders.length-1].camera;return c.right-c.left;};
+  let prevented=false;const wheel=deltaY=>canvas.events.wheel({deltaY,deltaMode:0,preventDefault(){prevented=true;}});
+  wheel(-100);assert.equal(prevented,false);
+  canvas.events.pointerdown({pointerId:1,clientX:0,clientY:0});canvas.events.pointerup({pointerId:1});
+  // Make this the only visible card, so the most recent render is its large view.
+  intersect(elements.filter(e=>e.tag==='article').map((target,i)=>({target,isIntersecting:i===0})));drawFrame(1000);
+  reset.events.click();const initial=span();wheel(-1e6);assert.equal(prevented,true);assert.ok(Math.abs(span()/initial-.2)<1e-6);
+  wheel(1e6);assert.ok(Math.abs(span()/initial-2)<1e-6);reset.events.click();assert.ok(Math.abs(span()-initial)<1e-6);
+  canvas.events.pointerdown({pointerId:1,clientX:0,clientY:0});canvas.events.pointerdown({pointerId:2,clientX:100,clientY:0});
+  canvas.events.pointermove({pointerId:2,clientX:200,clientY:0});assert.ok(Math.abs(span()/initial-.5)<1e-6);count++;
   const {options}=require('../tools/ground-model-shots.cjs'),override=`vehicle@earth:${ctx.testKey}:.7:line4,vehicle@mars:${ctx.testKey}:.9:box4`;
-  assert.equal(options(['--models',override]).models,override);count++;
+  assert.equal(options(['--all','--models',override,'--out','.shots/all']).models,override);assert.equal(options(['--all']).all,true);count++;
+  // Execute the tool's actual pre-start setup and layout in the game's node context.
+  const shotSource=fs.readFileSync(path.join(__dirname,'../tools/ground-model-shots.cjs'),'utf8');
+  const setup=shotSource.slice(shotSource.indexOf('page.evaluate(all=>{')+'page.evaluate('.length,shotSource.indexOf(',!!opt.all);'));
+  ctx.WOS={start:cfg=>{ctx.shotConfig=cfg;}};ctx.setSpeed=()=>{};
+  run(`(${setup})(true)`);
+  const kinds=Object.keys(ctx.WOS_TERRAIN.exercise2.unitTypes),operation=ctx.WOS_DATA.operations.find(o=>o.id==='groundExercise2');
+  assert.deepEqual(Array.from(ctx.shotConfig.fleets,f=>f.groundKind),kinds);
+  assert.deepEqual(Array.from(operation.enemies,f=>f.groundKind),kinds);assert.equal(operation.groundSea.length,0);
+  assert.ok(operation.quick.some(f=>ctx.WOS_TERRAIN.exercise2.unitTypes[f.groundKind].permissionOnly));count++;
+  ctx.location.search='';run(`op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(s=>makeFleet(0,s)),...op.enemies.map(s=>makeFleet(1,s))];groundInitOrg(null);groundBoard=new THREE.Group();groundInit();`);
+  ctx.scene=new ctx.THREE.Scene();run('scene.add(groundBoard);');ctx.camera=new ctx.THREE.PerspectiveCamera(50,1600/900,.1,3000);
+  const layout=shotSource.slice(shotSource.indexOf('page.evaluate(line=>{')+'page.evaluate('.length,shotSource.indexOf('},line);')+1);
+  const framing=run(`(${layout})(true)`);
+  const teams=[0,1].map(team=>ctx.fleets.filter(f=>f.team===team));
+  for(const list of teams){
+    assert.equal(list.length,kinds.length);const rows=new Map();
+    for(const f of list){const row=rows.get(f.pos.z)||[];row.push(f.pos.x);rows.set(f.pos.z,row);assert.equal(f.el.querySelector('.nm').style.display,'block');}
+    assert.equal(rows.size,Math.ceil(kinds.length/6));for(const row of rows.values()){assert.ok(row.length<=6);row.sort((a,b)=>a-b);for(let i=1;i<row.length;i++)assert.ok(Math.abs(row[i]-row[i-1]-6.4)<1e-6);}
+  }
+  assert.ok(Math.min(...teams[0].map(f=>f.pos.z))>Math.max(...teams[1].map(f=>f.pos.z)));
+  assert.ok(Number.isFinite(framing.dist)&&framing.dist>0);count++;
   console.log(`| 地上模型・差し替え・見本（ブラウザ不要） | ${count}/${count} 成功 |`);
 }
 if(require.main===module)nodeChecks();

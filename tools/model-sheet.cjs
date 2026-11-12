@@ -46,15 +46,25 @@ function sheetPage(){
       group.position.sub(center);const radius=Math.max(.1,extent.length()/2);
       const plane=new THREE.Mesh(new THREE.PlaneGeometry(radius*100,radius*100),new THREE.MeshStandardMaterial({color:'#7f8758',roughness:1}));
       plane.rotation.x=-Math.PI/2;plane.position.y=bounds.min.y-center.y-.015;plane.visible=false;scene.add(plane);
-      const views=[addView(el,'斜め上・ドラッグで回転','large')],fixed=document.createElement('div');fixed.className='views';el.appendChild(fixed);
+      const views=[addView(el,'斜め上・ドラッグで回転・クリックしてからホイールで拡大','large')],fixed=document.createElement('div');fixed.className='views';el.appendChild(fixed);
       for(const [label,kind] of [['真横','side'],['真上','top'],['正面','front']])views.push(addView(fixed,label,kind));
       text('p','ゲームでの大きさ',el,'strip-title');const strip=document.createElement('div');strip.className='views';el.appendChild(strip);
       for(const px of [16,32,64])views.push({...addView(strip,px+' px','size'),px});
-      const card={el,scene,group,mat,plane,views,item,radius,extent,visible:false,dirty:true,yaw:0,pitch:0,dragged:false,angle:0};cards.push(card);
-      const canvas=views[0].canvas;let drag=null;
-      canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY];card.dragged=true;schedule();});
-      canvas.addEventListener('pointermove',e=>{if(!drag)return;card.yaw+=(e.clientX-drag[0])*.01;card.pitch=Math.max(-.7,Math.min(.7,card.pitch+(e.clientY-drag[1])*.01));drag=[e.clientX,e.clientY];card.mainDirty=true;schedule();});
-      const release=()=>{drag=null;};canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
+      const card={el,scene,group,mat,plane,views,item,radius,extent,visible:false,dirty:true,yaw:0,pitch:0,dragged:false,angle:0,zoom:1};cards.push(card);
+      const canvas=views[0].canvas,pointers=new Map();let pinch=0;
+      const zoomBy=factor=>{card.zoom=Math.max(.5,Math.min(5,card.zoom*factor));card.mainDirty=true;schedule();};
+      const distance=()=>{const [a,b]=[...pointers.values()];return Math.hypot(a[0]-b[0],a[1]-b[1]);};
+      canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,[e.clientX,e.clientY]);pinch=pointers.size===2?distance():0;card.dragged=true;schedule();});
+      canvas.addEventListener('pointermove',e=>{
+        const prev=pointers.get(e.pointerId);if(!prev)return;pointers.set(e.pointerId,[e.clientX,e.clientY]);
+        if(pointers.size===2){const next=distance();if(pinch>0)zoomBy(next/pinch);pinch=next;}
+        else if(pointers.size===1){card.yaw+=(e.clientX-prev[0])*.01;card.pitch=Math.max(-.7,Math.min(.7,card.pitch+(e.clientY-prev[1])*.01));card.mainDirty=true;schedule();}
+      });
+      const release=e=>{pointers.delete(e.pointerId);pinch=pointers.size===2?distance():0;};
+      for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,release);
+      canvas.addEventListener('wheel',e=>{if(!card.dragged)return;e.preventDefault();const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?canvas.clientHeight:1);zoomBy(Math.exp(-delta*.002));},{passive:false});
+      const reset=text('button','初期表示',canvas.parentNode,'reset-view');reset.type='button';
+      reset.addEventListener('click',()=>{card.angle=card.yaw=card.pitch=0;card.zoom=1;card.dragged=true;card.mainDirty=true;schedule();});
     });
   });
   function render(card,view){
@@ -77,8 +87,9 @@ function sheetPage(){
       }
       const size=bounds.getSize(new THREE.Vector2());
       if(view.kind==='size')span*=Math.max(size.x,size.y,.01)/view.px;
-      else span*=Math.max(size.x/w,size.y/h,.0001)/.7;
+      else span*=Math.max(size.x/w,size.y/h,.0001)/.85;
     }
+    if(view.kind==='large')span/=card.zoom;
     camera.left=-span*aspect/2;camera.right=span*aspect/2;camera.top=span/2;camera.bottom=-span/2;camera.updateProjectionMatrix();
     card.plane.visible=view.kind==='size';renderer.render(card.scene,camera);canvas.getContext('2d').drawImage(renderer.domElement,0,0,pw,ph);
   }
@@ -114,7 +125,7 @@ function build(config,configDir=ROOT){
 :root{color-scheme:light;--bg:#f4f5f2;--panel:#fff;--text:#222a31;--muted:#56616a;--border:#ccd2d3;--selected:#e1ebf4;--missing:#a52c27;--view:#172330;--blue:#4aa3ff;--red:#ff5a4a}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#11171b;--panel:#1b2329;--text:#e2e8ec;--muted:#aebac4;--border:#3c4851;--selected:#304654;--missing:#ff9b90}}
 :root[data-theme="dark"]{color-scheme:dark;--bg:#11171b;--panel:#1b2329;--text:#e2e8ec;--muted:#aebac4;--border:#3c4851;--selected:#304654;--missing:#ff9b90}
-*{box-sizing:border-box}body{background:var(--bg);color:var(--text);font:14px/1.6 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding-block:28px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}h1{font-size:24px;margin:0}h2{font-size:20px;margin:0}h3{font-size:16px;margin:0}.side-tag{font-size:11px;font-weight:400;color:var(--muted);margin-left:8px}.note,#intro{color:var(--muted);white-space:pre-wrap;margin:6px 0 14px;overflow-wrap:anywhere}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:20px 0 28px}button{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--border);padding:4px 10px;cursor:pointer}button[aria-pressed="true"]{background:var(--selected);outline:1px solid var(--text)}button[data-faction="0"]{border-left:4px solid var(--blue)}button[data-faction="1"]{border-left:4px solid var(--red)}section{margin-bottom:36px}.images{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,max(420px,calc(50% - 8px))),1fr));gap:16px;margin-bottom:16px}.images figure{min-width:0;margin:0}.images img{max-width:100%;height:auto;display:block;border:1px solid var(--border)}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}article{min-width:0;border:1px solid var(--border);background:var(--panel);padding:12px}canvas{display:block;width:100%;background:var(--view)}canvas.large{aspect-ratio:1.5;touch-action:none;cursor:grab}canvas.small{aspect-ratio:1.15}.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.caption{font-size:12px;color:var(--muted);margin:3px 0 0}.strip-title{font-size:12px;margin:14px 0 0}.missing{padding:40px 8px;color:var(--missing);border:1px solid var(--border);overflow-wrap:anywhere}
+*{box-sizing:border-box}body{background:var(--bg);color:var(--text);font:14px/1.6 system-ui,sans-serif}main{max-width:1440px;margin:auto;padding-block:28px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}h1{font-size:24px;margin:0}h2{font-size:20px;margin:0}h3{font-size:16px;margin:0}.side-tag{font-size:11px;font-weight:400;color:var(--muted);margin-left:8px}.note,#intro{color:var(--muted);white-space:pre-wrap;margin:6px 0 14px;overflow-wrap:anywhere}.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:20px 0 28px}button{font:inherit;font-size:13px;color:var(--text);background:var(--panel);border:1px solid var(--border);padding:4px 10px;cursor:pointer}button[aria-pressed="true"]{background:var(--selected);outline:1px solid var(--text)}button[data-faction="0"]{border-left:4px solid var(--blue)}button[data-faction="1"]{border-left:4px solid var(--red)}section{margin-bottom:36px}.images{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,max(420px,calc(50% - 8px))),1fr));gap:16px;margin-bottom:16px}.images figure{min-width:0;margin:0}.images img{max-width:100%;height:auto;display:block;border:1px solid var(--border)}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}article{min-width:0;border:1px solid var(--border);background:var(--panel);padding:12px}canvas{display:block;width:100%;background:var(--view)}canvas.large{aspect-ratio:1.5;touch-action:none;cursor:grab}canvas.small{aspect-ratio:1.15}.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.caption{font-size:12px;color:var(--muted);margin:3px 0 0}.reset-view{display:block;border:0;background:none;font-size:12px;padding:2px 0;color:var(--muted);text-decoration:underline}.strip-title{font-size:12px;margin:14px 0 0}.missing{padding:40px 8px;color:var(--missing);border:1px solid var(--border);overflow-wrap:anywhere}
 </style><main><h1 id="heading"></h1><p id="intro"></p><div class="controls"><span>陣営</span><button data-faction="0" aria-pressed="true">地球連合</button><button data-faction="1" aria-pressed="false">惑星共和国</button></div><div id="groups"></div></main>
 <script src="${CDN}"></script><script>${inline('battle/shapes.js')}</script><script>${inline('battle/ground-shapes.js')}</script>
 <script>const SHEET_CONFIG=${JSON.stringify(embedded).replace(/</g,'\\u003c')};(${sheetPage.toString()})();</script>\n`;

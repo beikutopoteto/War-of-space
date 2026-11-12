@@ -203,9 +203,14 @@ function groundInit(){
     if(spec){
       const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
       const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const geo=groundShapeGeo(spec.key),size=spec.size;
+      const geo=groundShapeGeo(spec.key),moveGeo=spec.move?groundShapeGeo(spec.move):null,size=spec.size;
+      if(moveGeo)model.userData.pose={stand:[],move:[],last:f.pos.clone(),movedAt:-Infinity};
       for(const [x,z] of spec.offsets){
         const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
+        if(moveGeo){
+          const moving=new THREE.Mesh(moveGeo,mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);
+          model.userData.pose.stand.push(body); model.userData.pose.move.push(moving);
+        }
       }
     }
     else if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
@@ -261,11 +266,19 @@ function groundSelectionDraw(f,picked){
 }
 function groundDraw(){
   if(!groundVisuals) return;
-  const picked=orderTargets();
+  const picked=orderTargets(),now=performance.now();
   groundRangesDraw(picked);
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
+    const pose=model.userData.pose;
+    if(pose){
+      // Orders can wait at obstacles; actual displacement also covers pursuit and aircraft.
+      if(pose.last.distanceToSquared(f.pos)>1e-10)pose.movedAt=now;
+      pose.last.copy(f.pos);
+      const moving=now-pose.movedAt<400;
+      pose.stand.forEach(body=>body.visible=!moving);pose.move.forEach(body=>body.visible=moving);
+    }
     model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
     model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
