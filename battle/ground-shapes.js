@@ -127,17 +127,17 @@ const GROUND_SHAPES={
   /* 主力戦車（地球連合）: the heavy western tank and the Russian tank of today grown into one (user decision 2026-11-12). From the
      western one: a long low slab turret wider than the hull with a broad flat face, a stowage rack behind it, two hatches with
      shielded guns, deep skirts with the road wheels showing under them, a fume extractor on a thick gun. From the Russian one:
-     the arrowhead of wedge armour blocks on the turret face, armour bags along the skirts and blocks on the glacis, net cages
-     round the turret rack and the tail, a remote gun on the sight, sleeves on the barrel */
+     flat armour blocks on the turret face (no wedges standing out: the user found them ugly, 2026-11-12), armour bags along the skirts and blocks on the glacis, net cages
+     round the turret rack and the tail, sleeves on the barrel */
   tankE:()=>[...hullE(), ...pair(at(box(.03,.15,1.84),.49,.235,-.02)), ...[.6,.36,.12,-.12].flatMap(z=>pair(tone(at(box(.05,.11,.2),.52,.25,z),.82))),
     tone(at(box(.5,.035,.3),0,.33,.72,.23),.82), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
     ...pair(tone(at(box(.022,.13,.4),.535,.25,-.8),DK)), tone(at(box(1.09,.13,.022),0,.25,-1.02),DK),
     at(loft([[-.8,.27,.085],[-.4,.37,.1],[.18,.37,.1],[.46,.3,.075,-.02]],SLAB),0,.475,-.02),
-    ...pair(tone(at(loft([[-.24,.13,.085],[.06,.11,.075],[.27,.015,.05,-.012]],SLAB),.2,.468,.43,0,.6,0),.82)), at(box(.16,.14,.2),0,.47,.5),
+    ...pair(tone(at(box(.17,.13,.035),.2,.462,.455),.82)), at(box(.16,.14,.2),0,.47,.5),
     tone(at(box(.56,.09,.14),0,.47,-.86),.55), tone(at(box(.72,.1,.02),0,.46,-.95),DK), ...pair(tone(at(box(.02,.1,.3),.36,.46,-.8),DK)),
     ...pair(tone(at(box(.04,.05,.12),.385,.51,.02),DK)),
     at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), at(box(.13,.09,.02),.15,.66,-.13), ...piv([tone(brl(.016,0,.3),DK)],.15,.66,-.14),
-    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.34), tone(at(box(.09,.1,.09),-.13,.625,.0),DK), ...piv([tone(brl(.013,0,.26),DK),tone(at(box(.04,.05,.07),0,0,0),DK)],-.13,.7,.0),
+    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.34), tone(at(box(.09,.07,.09),-.13,.61,.0),DK),
     ...gunG([brl(.05,0,1.08),brl(.062,.12,.4),brl(.071,.46,.66),brl(.062,.72,.94),brl(.058,1.02,1.08)],.475,.52)],
   /* 装甲兵員輸送車（地球連合）: eight wheels under a box that is a plain rectangle seen from above; the front is one long,
      gentle slope from the roof down to the nose, half the length of the vehicle (user decision 2026-11-12). The weapon
