@@ -106,20 +106,26 @@ const GROUND_SHAPES={
   stub:()=>[at(box(.7,.3,1.8),0,.15,0), tone(at(box(.4,.2,.6),0,.4,-.1),.6), tone(at(tube(.04,.9,6),0,.42,.6),.6)],
   /* --- 地球連合の車両 (docs/models.md 2.1): crewed, heavy, today's vehicles a century on. Big turrets with hatches, sights and
      weapon stations added on the roof, tracks showing under plate skirts, thick guns --- */
-  /* 主力戦車（地球連合）: a wide turret with wedge cheeks either side of the gun, a stowage basket behind, a thick gun */
-  tankE:()=>[...hullE(), tone(at(box(.5,.03,.36),0,.37,-.72),.6),
-    at(loft([[-.6,.25,.09],[-.34,.3,.105],[.1,.3,.105],[.5,.14,.08,-.01]],SLAB),0,.47,0),
-    ...pair(at(loft([[-.22,.1,.09],[.12,.08,.075],[.34,.01,.05,-.01]],SLAB),.2,.465,.33,0,.3,0)),
-    tone(at(box(.46,.1,.14),0,.46,-.69),.55), tone(at(box(.12,.09,.15),.14,.62,-.25),.6), ...piv([tone(brl(.014,0,.24),DK)],.14,.64,-.18),
-    tone(at(box(.08,.1,.08),-.14,.625,.0),DK), at(new THREE.CylinderGeometry(.07,.07,.03,6),-.13,.585,-.3),
-    ...gunG([brl(.047,0,1),brl(.066,.44,.62),brl(.058,.95,1.03)],.47,.5)],
-  /* 装甲兵員輸送車（地球連合）: eight wheels, a tall box with upright sides and a sloping nose; the weapon station sits off to one
-     side behind the commander's hatch, stowage boxes along the rear sides, a ramp door behind */
+  /* 主力戦車（地球連合）: the heavy western and the Russian tank of today grown into one (user decision 2026-11-12). A big low slab
+     turret wider than the hull, its flat front faces drawn in to the gun and hung with wedge armour blocks, a stowage rack
+     behind, two hatches with a gun each and a sight box on the roof; deep skirts over the tracks, a slat cage round the tail,
+     a thick gun with a fume extractor */
+  tankE:()=>[...hullE(), ...pair(at(box(.03,.17,1.84),.49,.225,-.02)), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
+    ...pair(tone(at(box(.022,.13,.4),.525,.25,-.8),DK)), tone(at(box(1.07,.13,.022),0,.25,-1.02),DK),
+    at(loft([[-.78,.3,.09],[-.3,.37,.1],[.14,.37,.1],[.5,.16,.075,-.015]],SLAB),0,.475,-.02),
+    ...pair(tone(at(loft([[-.2,.1,.085],[.1,.085,.075],[.3,.02,.05,-.01]],SLAB),.245,.47,.3,0,.52,0),.82)),
+    at(box(.22,.15,.12),0,.47,.47), tone(at(box(.62,.11,.17),0,.47,-.88),.55), ...pair(tone(at(box(.04,.05,.12),.385,.51,.02),DK)),
+    at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), ...piv([tone(brl(.016,0,.3),DK),tone(at(box(.05,.05,.08),0,0,-.02),DK)],.15,.66,-.18),
+    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.3), ...piv([tone(brl(.013,0,.24),DK)],-.16,.63,-.26), tone(at(box(.09,.1,.09),-.12,.625,.05),DK),
+    ...gunG([brl(.05,0,1.06),brl(.07,.42,.64),brl(.06,1,1.08)],.475,.5)],
+  /* 装甲兵員輸送車（地球連合）: eight wheels under a box that is a plain rectangle seen from above; the front is one long,
+     gentle slope from the roof down to the nose, half the length of the vehicle (user decision 2026-11-12). The weapon
+     station sits off to one side behind the commander's hatch, stowage boxes along the rear sides, a ramp door behind */
   apcE:()=>[...wheelsG([-.66,-.24,.22,.64]), tone(at(box(.5,.15,1.8),0,.2,0),.6),
-    loft([[-.96,.36,.15,.43],[.28,.36,.15,.43],[.72,.34,.09,.37],[.99,.3,.04,.31]],SLAB), tone(at(box(.42,.2,.02),0,.42,-.965),.6),
-    tone(at(box(.3,.035,.03),0,.49,.62,.42),GL), ...pair(at(box(.05,.12,.5),.385,.5,-.55)),
-    at(loft([[-.15,.11,.055],[.13,.09,.045]],SLAB),.14,.635,-.02), ...piv([tone(brl(.02,0,.5),DK),tone(at(box(.05,.05,.05),.07,.04,-.05),DK)],.14,.645,.08),
-    at(new THREE.CylinderGeometry(.075,.075,.035,6),-.15,.6,.28), tone(at(box(.03,.3,.03),-.3,.73,-.85),DK)],
+    loft([[-.96,.36,.15,.43],[.02,.36,.15,.43],[.99,.36,.04,.31]],SLAB), tone(at(box(.42,.2,.02),0,.42,-.965),.6),
+    tone(at(box(.46,.02,.1),0,.535,.3,.245),GL), ...pair(at(box(.05,.12,.5),.385,.5,-.6)),
+    at(loft([[-.15,.11,.055],[.13,.09,.045]],SLAB),.14,.635,-.34), ...piv([tone(brl(.02,0,.5),DK),tone(at(box(.05,.05,.05),.07,.04,-.05),DK)],.14,.645,-.24),
+    at(new THREE.CylinderGeometry(.075,.075,.035,6),-.15,.6,-.12), tone(at(box(.03,.3,.03),-.3,.73,-.85),DK)],
   /* 自走砲（地球連合）: the tank hull under a tall, wide gun house at the rear, a thick raised gun with a boxed muzzle brake */
   spgE:()=>[...hullE(), at(loft([[-.98,.3,.17],[-.2,.33,.2],[.1,.27,.17],[.26,.19,.12,-.02]],SLAB),0,.56,0), tone(at(box(.44,.12,.03),0,.56,-1),.6),
     tone(at(box(.1,.07,.12),-.16,.79,-.5),DK), at(new THREE.CylinderGeometry(.07,.07,.03,6),.15,.775,-.3),
