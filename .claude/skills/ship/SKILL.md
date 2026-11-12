@@ -11,6 +11,8 @@ description: War of Space の変更を出す手順。テスト、コミット、
 
 ## 1. 確かめる
 - `npm test` を走らせ、最後が「すべての確認に通りました。」であることを見る（`| tail -1` で足りる）。
+- 分野だけ走らせるときは `npm run test:ground`・`test:drill`・`test:npc`・`test:space`（`tests/smoke.cjs` に分野の名前を渡す）。PR の前には `npm test`（全部）か、変えた分野と CI の結果で確かめる。
+- マージは、4つの確認がすべて成功（SUCCESS）になってから。`gh pr checks <番号> --watch` の終わり方だけで決めず、`gh pr view <番号> --json statusCheckRollup` で全部の結論を見る（2026-11-12: 30分の制限で打ち切られた CI のままマージした）。
 - 画面が変わる変更は、スクリーンショットを1枚見て確かめる（`test-results/` か、スクラッチパッドの確認用スクリプト）。ユーザーは iPhone でも遊ぶので、文字や部品の大きさが変わるものはスマホの大きさ（390×780、`deviceScaleFactor:3`、`isMobile`）でも撮る（2026-11-06）。
 - 足した確かめは、その場合を本当に通るかを見る（2026-11-06: 新しく作った空の打撃群を解散して「支隊も消える」を確かめたつもりで、前提が空のまま落ちた）。
 - `npm test` と、ほかのブラウザを使う確かめ（早送り、スクリーンショット）を同時に走らせない。実時間に頼る確認が落ちることがある。
@@ -25,7 +27,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 
 ## 3. CI とマージ
 - ユーザーの Mac での CI の待ち方（2026-11-04）: PR を作った直後の `gh pr checks --watch` は「no checks reported」で終わる。20〜40秒おいてから、最新のコミットの `headSha` で `gh run list` から走りを選び、`gh run watch <id> --exit-status` を後ろで走らせる。`gh run watch` は CI の途中で抜けることがある（2026-11-05）。抜けたら `gh run view <id> --json status,conclusion,headSha` で `completed` と `success`、最新のコミットであることを見てからマージする。同じ PR へ間を空けずに push を重ねない（CI が同時に走り、どの結果か分かりにくく、実時間に頼る確認も落ちやすい）。直しはまとめて1回で push する。
-- CI（`smoke`）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。通知の `head_sha` が PR の最新のコミットか見る（前のコミットの CI の知らせも届く）。
+- CI（`smoke (ground)`・`smoke (drill)`・`smoke (npc)`・`smoke (space)` の4つ、2026-11-12 に分けた）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。通知の `head_sha` が PR の最新のコミットか見る（前のコミットの CI の知らせも届く）。
 - 成功なら `merge_pull_request`（`merge_method: squash`）。CI の結果を見てから、別のコマンドでマージする（2026-11-04: `gh pr checks` とマージを1行に続けて、落ちた CI のまま #289 をマージした。落ちたのは時々落ちる第6節の確認で、回し直すと通った）。失敗なら原因を直して push する（テストを消したり飛ばしたりしない）。
 - 先に別の PR をマージしたせいで食い違いが出たら、`git merge origin/main` で取り込み、テストしてから push する。
 - PR の CI は `main` と合わせた形で走る。`main` に別の PR が入ると、前に通った PR でも落ちることがある（2026-11-06 #334: #335 でデバッグの全作戦クリアが巡洋艦6隻も置くようになり、強襲母艦の確かめの「戦闘の規模 34隻」が40隻になった）。長く開いている PR は、マージの直前に最新のコミットの CI を見る。

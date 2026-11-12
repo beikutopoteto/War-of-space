@@ -48,6 +48,12 @@ const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'test-results');
 const THREE_DIR = path.dirname(require.resolve('three/package.json'));
 
+/* 分野ごとに分けて走らせる（docs/ground-structure.md 票1、2026-11-12）。node tests/smoke.cjs ground drill npc space のように
+   名前を並べる。何も渡さなければ全部を順に回す（npm test）。CI は4つを並べて走らせる。 */
+const PARTS = ['ground', 'drill', 'npc', 'space'];
+const asked = process.argv.slice(2).filter(a => !a.startsWith('-'));
+for (const a of asked) if (!PARTS.includes(a)) { console.error(`知らない分野: ${a}（${PARTS.join(' / ')}）`); process.exit(2); }
+const on = part => !asked.length || asked.includes(part);
 let failed = 0;
 function check(ok, label, detail = '') {
   console.log(`${ok ? '✓' : '✗'} ${label}${detail ? '　' + detail : ''}`);
@@ -56,6 +62,7 @@ function check(ok, label, detail = '') {
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  if (on('ground')) {
   for(const r of groundHintChecks())check(r.ok,'操作案内: '+r.name,r.error||'');
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
@@ -75,10 +82,13 @@ function check(ok, label, detail = '') {
   for(const r of groundNavalChecks())check(r.ok,'地上海軍: '+r.name);
   for(const r of groundNavalCombatChecks())check(r.ok,'海上実射: '+r.name);
   for(const r of groundAAChecks())check(r.ok,'地上自動対空: '+r.name);
+  }
+  if (on('npc')) {
   for(const r of npcSimChecks())check(r.ok,'NPC計測器: '+r.name);
   for(const r of npcCoreChecks())check(r.ok,'NPC頭: '+r.name,r.detail||'');
   for(const r of npcSpaceChecks())check(r.ok,'宇宙NPC: '+r.name);
   for(const r of npcGroundChecks())check(r.ok,'NPC橋渡し: '+r.name);
+  }
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.addInitScript(() => { window.WOS_UIS = 1; });   // the HUD's screen-size scale fixed at 1, as in tools/browser.cjs (Playwright and CSS zoom)
@@ -95,9 +105,11 @@ function check(ok, label, detail = '') {
   /* advance the battle simulation directly (headless rendering is too slow to wait in real time) */
   const advance = sec => page.evaluate(sec => { const end = gameSec + sec; while (gameSec < end && !over) step(.05); return gameSec; }, sec);
 
+  const groundPage = () => page.goto('file://' + path.join(ROOT, 'index.html') + '?ground=exercise2');
   try {
+    if (on('ground')) {
     /* 地上作戦のデバッグ入口、渡河と海・沼地の通行。 */
-    await page.goto('file://' + path.join(ROOT, 'index.html') + '?ground=exercise2');
+    await groundPage();
     const ground = await page.evaluate(() => {
       setSpeed(0);
       const f=fleets[0], start=groundPoint(14,22), dest=groundPoint(34,22);
@@ -201,12 +213,23 @@ function check(ok, label, detail = '') {
     await checkGroundSea(page, check);
     await checkGroundLanding(page, check);
     await checkGroundSupply(page, check);
+    }
+    if (on('npc')) {
+    await groundPage();
     await checkNpcGround(page, check);
     await checkNpcSpace(page, check);
+    // オートモードと友軍のつなぎ（宇宙の確認の前の要塞の台本とは関係しないので、ここで新しいページで確かめる）
+    await page.goto('file://' + path.join(ROOT, 'index.html'));
+    await checkNpcAuto(page,check);
+    }
+    if (on('drill')) {
+    await groundPage();
     await checkGroundDrill(page, check);
     await checkGroundFixes(page, check);
     await checkCommandIcons(page, check);
     await checkGroundHint(page, check);
+    }
+    if (on('space')) {
     /* title. ここから先の宇宙の確認は、要塞の台本（出撃・迎撃）を前提にするので、指揮官を切る（指揮官は checkNpcSpace で確認済み） */
     await page.addInitScript(() => { window.WOS_NO_NPC = true; });
     await page.goto('file://' + path.join(ROOT, 'index.html'));
@@ -2522,13 +2545,14 @@ function check(ok, label, detail = '') {
       for (let i = 0; i < 40; i++) step(.05); r.orders = fleets.filter(f => f.team === 0 && !f.ward && f.alive && f.order).length; return r; });
     check(au0.auto && au0.talking && au.left < au0.left && !au.deploying && au.orders > 0, 'デバッグ: オートモードでは会話が自動で進み、配置もそのまま始まり、自軍が自分で動く', JSON.stringify([au0, au]));
     await page.evaluate(() => openMenu()); await page.click('#dbgB [data-dbg="auto"]');
-    await checkNpcAuto(page,check);
+    }
   } catch (e) {
     check(false, '実行中に例外', e.message);
   }
 
   check(errors.length === 0, 'ページのエラーなし', errors.join(' / '));
   await browser.close();
-  console.log(failed ? `\n${failed}件の確認に失敗しました。` : '\nすべての確認に通りました。');
+  const scope = asked.length ? `（${asked.join('・')}）` : '';
+  console.log(failed ? `\n${failed}件の確認に失敗しました${scope}。` : `\nすべての確認に通りました${scope}。`);
   process.exit(failed ? 1 : 0);
 })();

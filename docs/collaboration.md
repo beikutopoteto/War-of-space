@@ -146,7 +146,7 @@ Claude はこれを読んでレビューとマージを行い、仮の数値と�
 - 後ろで `npm test` や早送りを回しているあいだは、同じ作業フォルダのファイルを直さない（2026-11-05、テストの途中で CSS を直し、どちらの版を確かめたか分からなくなった）。直したら、もう一度回すか CI で確かめる。
 - `npm test`: `tests/smoke.cjs`。ヘッドレス Chromium で画面と戦闘を一通り動かす（約20分。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても走る）。最後の行が「すべての確認に通りました。」なら成功。
 - `npm run check-docs`: 資料の確認（`CLAUDE.md` の大きさ、資料に書いたファイルがあるか、古い名前）。
-- PR ごとに GitHub Actions（`.github/workflows/check.yml`）が `npm run check-docs`（先に、すぐ終わる）と `npm test` を走らせる（check-docs は 2026-10-29、作業票 #229）。
+- PR ごとに GitHub Actions（`.github/workflows/check.yml`）が `npm run check-docs`（先に、すぐ終わる）と `npm test` を走らせる（2026-11-12 から、`npm test` は地上・地上の案内と修正・NPC・宇宙の4つの job に分けて並べて走らせる。手元では `npm run test:ground` などで分野だけ走らせられる）（check-docs は 2026-10-29、作業票 #229）。
 - テストを消したり飛ばしたりして通さない。
 
 ## ブランチと担当

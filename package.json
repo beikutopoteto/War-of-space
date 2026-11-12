@@ -4,6 +4,10 @@
   "description": "War of Space の試作。ゲーム自体はビルド不要で、ここにあるのは自動確認用の道具だけ。",
   "scripts": {
     "test": "node tests/smoke.cjs",
+    "test:ground": "node tests/smoke.cjs ground",
+    "test:drill": "node tests/smoke.cjs drill",
+    "test:npc": "node tests/smoke.cjs npc",
+    "test:space": "node tests/smoke.cjs space",
     "check-docs": "node tests/docs-check.cjs"
   },
   "devDependencies": {
