@@ -75,7 +75,8 @@ for(const k of ['walk','hwalk','cwalk']) EXO_POSE[k+'2']={...EXO_POSE[k],feet:[.
    second step (walk2) with the feet changed over; in the game each trooper steps on its own clock.
    kind true (heavy): armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
    multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun; armour sleeves on the arms.
-   kind 'c' (commando): no power unit but a hooded cape, a long rifle with a sight; it moves in a low crouch and fights kneeling */
+   kind 'c' (commando): no power unit but a ghillie suit — shaggy tufts in two tones over the head, shoulders, back and arms and
+   wrapped round the rifle (user 2026-11-12) — and a long rifle with a sight; it moves in a low crouch and fights kneeling */
 function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const M=new THREE.Matrix4().makeTranslation(0,HY,0).multiply(new THREE.Matrix4().makeRotationX(P.L)).multiply(new THREE.Matrix4().makeTranslation(0,-.82,0));
   const W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
@@ -89,7 +90,7 @@ function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16,
   /* upper body, built upright and then leaned as one: torso, neck, hip ring, spine, power unit, yoke */
   U.push(body(stand(loft([[.78,.13,.085],[.98,.12,.08],[1.2,.19,.11],[1.33,.2,.09],[1.4,.06,.05]],HEX))), body(segG([0,1.38,0],[0,1.46,0],.045,.04)),
     at(box(.44,.06,.2),0,.86,0), at(box(.07,.44,.06),0,1.08,-.13), at(box(.54,.05,.1),0,1.37,-.07),
-    ...(cmd?[tone(at(stand(loft([[.88,.19,.05],[1.36,.27,.09],[1.46,.13,.07]],HEX)),0,0,-.11),.7), tone(at(stand(loft([[1.4,.13,.12],[1.56,.12,.13],[1.64,.05,.06]],HEX)),0,0,-.02),.7)]:[at(box(.25,.27,.12),0,1.17,-.2)]));
+    ...(cmd?[[0,1.55,-.05,.15],[.25,1.37,-.04,.13],[-.25,1.37,-.04,.13],[0,1.22,-.17,.2],[.13,1.02,-.16,.15],[-.13,1.0,-.17,.15],[0,.85,-.14,.14],[.11,1.24,.1,.085],[-.12,1.2,.1,.085],[0,1.4,-.14,.13]].map(v=>tuftG(...v)):[at(box(.25,.27,.12),0,1.17,-.2)]));
   if(!heavy){ const head=new THREE.IcosahedronGeometry(.1,0); head.scale(1,1.15,1.05); U.push(at(head,0,1.5,0), tone(at(box(.13,.04,.04),0,1.51,.085),GL)); }
   else { const head=new THREE.IcosahedronGeometry(.118,1); head.scale(1,1.05,1.08);
     U.push(at(head,0,1.53,0), tone(at(box(.17,.065,.05),0,1.54,.095),GL), at(new THREE.CylinderGeometry(.15,.175,.13,8),0,1.43,-.005),
@@ -102,13 +103,80 @@ function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16,
   const G=P.gun, wr=heavy?[[G[0],G[1]+.01,G[2]],[G[0]+.06,G[1]+.14,G[2]+.2]]:P.wr;
   [[-.21,1.31,0],[.21,1.31,0]].forEach((s0,i)=>{ const sx=Math.sign(s0[0]), sh=W(s0), el=W(P.el[i]), o=v=>[v[0]+sx*.055,v[1]+.02,v[2]-.02];
     p.push(body(segG(sh,el,.055,.045)), body(segG(el,wr[i],.045,.035)), discG(sh[0]+sx*.07,sh[1]+.02,sh[2]-.02,.062), segG(o(sh),o(el),.024,.022,5), segG(o(el),o(wr[i]),.022,.02,5), discG(el[0]+sx*.055,el[1],el[2]-.02,.045,.04));
-    if(heavy) p.push(segG(mix(sh,el,.12),mix(sh,el,.86),.082,.072), segG(mix(el,wr[i],.16),mix(el,wr[i],.88),.07,.058)); });
+    if(heavy) p.push(segG(mix(sh,el,.12),mix(sh,el,.86),.082,.072), segG(mix(el,wr[i],.16),mix(el,wr[i],.88),.07,.058));
+    if(cmd) p.push(tuftG(...mix(sh,el,.45),.1), tuftG(...mix(el,wr[i],.4),.075)); });
   if(P.rifle) p.push(tone(barG(P.rifle[0],P.rifle[1],.05,.075),DK));
-  else if(cmd) p.push(tone(at(box(.045,.07,1),G[0],G[1]+.03,G[2]+.3),DK), tone(at(tube(.034,.22,5),G[0],G[1]+.03,G[2]+.9),DK), tone(at(box(.04,.12,.05),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.035,.05,.2),G[0],G[1]+.09,G[2]+.2),GL));
+  else if(cmd) p.push(tone(at(box(.045,.07,1),G[0],G[1]+.03,G[2]+.3),DK), tone(at(tube(.034,.22,5),G[0],G[1]+.03,G[2]+.9),DK), tone(at(box(.04,.12,.05),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.035,.05,.2),G[0],G[1]+.09,G[2]+.2),GL), tuftG(G[0],G[1]+.04,G[2]+.55,.07), tuftG(G[0],G[1]+.03,G[2]+.74,.055));
   else if(!heavy) p.push(tone(at(box(.05,.08,.8),G[0],G[1]+.03,G[2]+.22),DK), tone(at(box(.045,.13,.06),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.03,.04,.1),G[0],G[1]+.09,G[2]+.2),DK));
   else p.push(tone(at(box(.1,.13,.36),G[0],G[1],G[2]+.08),DK), tone(at(tube(.06,.3,6),G[0],G[1],G[2]+.4),.6), tone(at(tube(.04,.5,6),G[0],G[1],G[2]+.78),DK), tone(at(tube(.058,.1,6),G[0],G[1],G[2]+1.06),DK),
     tone(at(box(.03,.03,.24),G[0]+.05,G[1]+.13,G[2]+.18),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.08),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.28),DK),
     tone(segG(W([-.12,.97,-.22]),[G[0],G[1]+.02,G[2]-.06],.03,.03,5),DK));
+  return p; }
+/* a tuft of a ghillie suit: an uneven faceted lump, its shape and tone fixed by where it sits */
+function tuftG(x,y,z,r){ const g=new THREE.IcosahedronGeometry(r,0), q=g.attributes.position; let h=Math.abs(Math.sin(x*91.7+y*57.3+z*33.1+r*17))*1e4;
+  const rnd=()=>(h=(h*9301+49297)%233280)/233280, seen={};
+  for(let i=0;i<q.count;i++){ const k=[q.getX(i),q.getY(i),q.getZ(i)].map(v=>v.toFixed(3)).join(), f=seen[k]||(seen[k]=.6+rnd()*.85); q.setXYZ(i,q.getX(i)*f,q.getY(i)*f*1.15,q.getZ(i)*f); }
+  return tone(at(g,x,y,z),rnd()<.5?.55:.8); }
+/* W.A.S. (docs/models.md 9 D): one design for space and for the ground (user decision 2026-11-12).
+   wasParts: the space W.A.S. of battle/shapes.js (the shape the user approved on 2026-10-14) with its numbers opened up.
+   L: forward lean (.45 in flight); arm, leg: thickness of the arms and of the legs with their thruster pods; feet: pads to stand on */
+function wasParts(o){ const K=.1, P=([x,y])=>[(x-12)*K,(11.2-y)*K], V=(x,y,z=0)=>new THREE.Vector3(x,y,z), M=()=>new THREE.Matrix4(), L=o.L, A=o.arm, G=o.leg;
+  const rotAt=(axis,ang,p)=>M().makeTranslation(p.x,p.y,p.z).multiply(M().makeRotationAxis(axis,ang)).multiply(M().makeTranslation(-p.x,-p.y,-p.z));
+  const X=V(1,0,0), Z=V(0,0,1), up=g=>{ g.rotateX(-Math.PI/2); return g; };
+  const along=(g,a,b)=>{ g.applyMatrix4(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(Z,b.clone().sub(a).normalize()))); g.translate(a.x,a.y,a.z); return g; };
+  const head=new THREE.IcosahedronGeometry(.085,0); head.scale(1,1.08,1.05);
+  const parts=[at(head,0,.415,.01), tone(at(box(.1,.022,.03),0,.42,.085),GL), limb([0,.32,0],[0,.36,0],.025,.022),
+    up(loft([[-.05,.012,.012],[0,.055,.06],[.145,.095,.1],[.17,.135,.11],[.3,.17,.07],[.335,.14,.035]],HEX)),
+    at(box(.18,.16,.09),0,.2,-.14), ...pair(tone(at(new THREE.CylinderGeometry(.035,.025,.08,8),.06,.09,-.16),DK))], right=[];
+  const TOP=V(...P([8.2,2.8])), TIP=V(...P([7.32,15])), EL=TOP.clone().lerp(TIP,6.9/12.2), PV=TOP.clone().lerp(TIP,.59), dir=TIP.clone().sub(EL).normalize();
+  const armM=M().makeTranslation(PV.x,PV.y,PV.z).multiply(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(TIP.clone().sub(TOP).normalize(),V(0,Math.sin(L),Math.cos(L))))).multiply(M().makeTranslation(-PV.x,-PV.y,-PV.z));
+  right.push(along(loft([[0,.004,.004],[.27,.075*A,.075*A],[.5,.115*A,.115*A],[TOP.distanceTo(EL),.128*A,.128*A]],ROUND),TOP,EL),
+    along(loft([[0,.128*A,.128*A],[.26,.13*A,.13*A],[.42,.08*A,.08*A],[EL.distanceTo(TIP),.03*A,.03*A]],ROUND),EL,TIP));
+  for(const g of right) g.applyMatrix4(armM);
+  for(const [a,b] of [[[10.5,8.7],[8.6,7.6]],[[10.75,9.4],[8.4,9.3]]]) right.push(tone(limb([...P(a),0],V(...P(b)).applyMatrix4(armM).toArray(),.011,.011),DK));
+  const LX=-.105*(o.feet?1.15:1), HIP=V(LX,-.01), KN=V(LX,-.271), thM=rotAt(X,-.35,HIP), knee=KN.clone().applyMatrix4(thM);
+  const shM=M().makeTranslation(knee.x-KN.x,knee.y-KN.y,knee.z-KN.z).multiply(rotAt(X,.4,KN));
+  const thigh=up(loft([[KN.y,.063*G,.1*G],[-.17,.06*G,.075*G],[-.073,.057*G,.05*G],[HIP.y,.021,.03]],HEX)), shin=up(loft([[-.505,.078*G,.035*G],[-.39,.07*G,.075*G],[KN.y,.063*G,.1*G]],HEX));
+  thigh.translate(LX,0,0); shin.translate(LX,0,0); shin.applyMatrix4(shM);
+  const kneeCap=new THREE.ConeGeometry(.04,.05,4); kneeCap.rotateX(Math.PI/2); kneeCap.rotateZ(Math.PI/4);
+  const pod=up(loft([[-.33,.02,.02],[-.28,.042*G,.042*G],[-.1,.04*G,.04*G],[-.02,.035*G,.035*G],[0,.02,.02]],HEX)); pod.translate(P([9.62,11.8])[0]-(G-1)*.05,P([9.62,11.8])[1],0);
+  const noz=tone(new THREE.CylinderGeometry(.03*G,.045*G,.05,8),DK); noz.translate(P([9.62,15.35])[0]-(G-1)*.05,P([9.62,15.35])[1],0);
+  for(const g of [thigh,pod,noz]) g.applyMatrix4(thM);
+  right.push(thigh, shin, pod, noz, at(kneeCap,knee.x,knee.y,knee.z+.1*G));
+  if(o.feet){ const f=at(box(.13,.03,.2),LX,-.515,.03); f.applyMatrix4(shM); right.push(f); }
+  const on=t=>TIP.clone().addScaledVector(dir,t), rifle=[along(loft([[-.06,.055,.04],[.1,.055,.04]],RECT),on(0),on(1)),
+    along(loft([[.1,.018,.018],[.4,.018,.018]],ROUND),on(0),on(1)), along(loft([[.4,.024,.024],[.44,.018,.018]],ROUND),on(0),on(1))];
+  for(const g of rifle){ g.applyMatrix4(armM); tone(g,DK); }
+  for(let g of right){ const t=g.userData.tone; g=g.index?g.toNonIndexed():g; if(t!=null) g.userData.tone=t; parts.push(g,mirror(g)); }
+  parts.push(...rifle);
+  const cm=rotAt(X,Math.PI/2-L,V(.245,.38,-.07));
+  parts.push(limb([.15,.3,-.06],[.245,.38,-.07],.02,.018), ...[at(box(.11,.2,.1),.245,.48,-.07), tone(at(up(tube(.022,.52,10)),.245,.84,-.07),DK), tone(at(box(.1,.012,.03),.245,1.1,-.07),DK)].map(g=>g.applyMatrix4(cm)));
+  const out=parts.map(g=>{ if(!g.index) return g; const n=g.toNonIndexed(); n.userData.tone=g.userData.tone; return n; }); out.forEach(g=>{ g.rotateX(L); g.scale(1.52,1.68,1.68); });
+  return onGround(out); }
+/* lift parts so the lowest point stands on y = 0 */
+function onGround(parts){ let m=Infinity; for(const g of parts){ const q=g.attributes.position; for(let i=0;i<q.count;i++) m=Math.min(m,q.getY(i)); } parts.forEach(g=>g.translate(0,-m,0)); return parts; }
+/* W.A.S. as Claude would build it from the setting (docs/story.md 4): a work exoskeleton grown to 4–5 m and armed. The same
+   language as the infantry's frame, so the line shows: dark joints, a small faceted head and a dark chest hatch over the
+   pilot, a wide angular chest stepping in to a narrow waist. Long thick arms (a ship-class rifle in the right hand, a close-in
+   cannon on the left forearm), a ship-class cannon over the left shoulder; short thick legs, each calf a thruster nacelle with
+   its bell behind, splayed feet to stand on the Earth; a pack with two thruster bells and two tanks */
+function wasOwn(){ const p=[], dk=g=>tone(g,DK), J=(x,y,z,r,w=.07)=>tone(discG(x,y,z,r,w),.35);
+  for(const sx of [1,-1]){ const hip=[sx*.17,.62,0], knee=[sx*.21,.37,.11], ank=[sx*.21,.12,-.01];
+    p.push(segG(hip,knee,.115,.1), J(hip[0],hip[1],hip[2],.085,.1), J(knee[0],knee[1],knee[2],.075,.1),
+      at(stand(loft([[.07,.1,.1],[.3,.145,.155],[.44,.1,.1]],O8)),ank[0],0,ank[2]-.02), dk(at(new THREE.CylinderGeometry(.06,.095,.12,6),ank[0],.14,ank[2]-.2,.9)),
+      at(box(.17,.07,.34),ank[0],.035,ank[2]+.1), at(box(.1,.05,.14),ank[0],.03,ank[2]-.17),
+      /* arm */
+      J(sx*.44,1.19,0,.1,.1), at(loft([[-.15,.13,.1],[.13,.1,.075]],SLAB),sx*.45,1.27,0)); }
+  p.push(at(box(.36,.14,.24),0,.63,0), tone(segG([0,.68,0],[0,.8,0],.1,.09),.35),
+    stand(loft([[.76,.13,.11],[.9,.18,.14],[1.12,.36,.2],[1.26,.31,.16],[1.33,.15,.1]],HEX)), tone(at(box(.2,.09,.04),0,1.14,.19),GL),
+    at(new THREE.IcosahedronGeometry(.078,0),0,1.42,.03), tone(at(box(.1,.025,.03),0,1.425,.1),GL), tone(segG([0,1.32,0],[0,1.37,0],.05,.045),.35),
+    at(box(.38,.36,.18),0,1.04,-.27), ...pair(dk(at(new THREE.CylinderGeometry(.05,.085,.14,6),.11,.84,-.3,.5))), ...pair(tone(at(tube(.06,.3,6),.24,1.06,-.28,Math.PI/2),.7)));
+  /* right arm with the rifle, left arm with the close-in cannon */
+  const R=[[-.45,1.17,0],[-.5,.84,.02],[-.42,.76,.38]], Lf=[[.45,1.17,0],[.5,.82,.03],[.46,.56,.24]];
+  for(const [sh,el,wr] of [R,Lf]) p.push(segG(sh,el,.095,.085), J(el[0],el[1],el[2],.07,.1), segG(el,wr,.105,.09));
+  p.push(dk(at(box(.1,.15,.44),-.42,.76,.5)), dk(at(tube(.042,.85,6),-.42,.78,1.1)), dk(at(tube(.058,.12,6),-.42,.78,1.56)),
+    dk(at(tube(.03,.3,5),.5,.5,.4,-.75)), dk(at(tube(.03,.3,5),.42,.5,.4,-.75)),
+    at(box(.16,.18,.44),.3,1.44,-.1), at(box(.1,.14,.1),.3,1.33,-.14), dk(at(tube(.052,1.15,6),.3,1.45,.68)), dk(at(box(.14,.08,.14),.3,1.45,1.3)));
   return p; }
 /* the assault machine: step 1 or -1 says which foot is ahead */
 function mechParts(step){ const p=[], T=.4;
@@ -125,15 +193,16 @@ const GROUND_SHAPES={
   /* --- 地球連合の車両 (docs/models.md 2.1): crewed, heavy, today's vehicles a century on. Big turrets with hatches, sights and
      weapon stations added on the roof, tracks showing under plate skirts, thick guns --- */
   /* 主力戦車（地球連合）: the heavy western tank and the Russian tank of today grown into one (user decision 2026-11-12). From the
-     western one: a long low slab turret wider than the hull with a broad flat face, a stowage rack behind it, two hatches with
+     western one: a long low slab turret wider than the hull, a stowage rack behind it, two hatches with
      shielded guns, deep skirts with the road wheels showing under them, a fume extractor on a thick gun. From the Russian one:
-     flat armour blocks on the turret face (no wedges standing out: the user found them ugly, 2026-11-12), armour bags along the skirts and blocks on the glacis, net cages
+     the turret front drawn to a low point with armour slabs lying flat on its two faces (user 2026-11-12; nothing standing out
+     from it — the wedges that did were ugly), armour bags along the skirts and blocks on the glacis, net cages
      round the turret rack and the tail, sleeves on the barrel */
   tankE:()=>[...hullE(), ...pair(at(box(.03,.15,1.84),.49,.235,-.02)), ...[.6,.36,.12,-.12].flatMap(z=>pair(tone(at(box(.05,.11,.2),.52,.25,z),.82))),
     tone(at(box(.5,.035,.3),0,.33,.72,.23),.82), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
     ...pair(tone(at(box(.022,.13,.4),.535,.25,-.8),DK)), tone(at(box(1.09,.13,.022),0,.25,-1.02),DK),
-    at(loft([[-.8,.27,.085],[-.4,.37,.1],[.18,.37,.1],[.46,.3,.075,-.02]],SLAB),0,.475,-.02),
-    ...pair(tone(at(box(.17,.13,.035),.2,.462,.455),.82)), at(box(.16,.14,.2),0,.47,.5),
+    at(loft([[-.8,.27,.085],[-.4,.37,.1],[.1,.37,.1],[.5,.12,.065,-.025]],SLAB),0,.475,-.02),
+    ...pair(tone(at(box(.045,.125,.4),.268,.458,.285,.0,-.54,0),.82)), ...pair(tone(at(box(.05,.03,.36),.235,.55,.25,0,-.54,0),.82)), at(box(.15,.12,.14),0,.455,.5),
     tone(at(box(.56,.09,.14),0,.47,-.86),.55), tone(at(box(.72,.1,.02),0,.46,-.95),DK), ...pair(tone(at(box(.02,.1,.3),.36,.46,-.8),DK)),
     ...pair(tone(at(box(.04,.05,.12),.385,.51,.02),DK)),
     at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), at(box(.13,.09,.02),.15,.66,-.13), ...piv([tone(brl(.016,0,.3),DK)],.15,.66,-.14),
@@ -199,7 +268,7 @@ const GROUND_SHAPES={
   infW:()=>exoParts(false,'walk'), infW2:()=>exoParts(false,'walk2'), infF:()=>exoParts(false,'fight'),
   /* 重強化歩兵: the same frame a little bigger, armoured all over (user decision 2026-11-12) */
   hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)), hinf2:()=>exoParts(true,'walk2').map(g=>g.scale(1.12,1.12,1.12)),
-  /* 強化コマンド歩兵: the soldier who uses the ground. A hooded cape instead of the power unit, a long rifle; W: moving in a low
+  /* 強化コマンド歩兵: the soldier who uses the ground. A ghillie suit instead of the power unit, a long rifle; W: moving in a low
      crouch, F: kneeling to shoot */
   cmdW:()=>exoParts('c','walk'), cmdW2:()=>exoParts('c','walk2'), cmdF:()=>exoParts('c','fight'),
   /* 機械化突撃兵: the expendable machines that go first into a breach (only their platoon leader is human). No head and no
@@ -215,6 +284,12 @@ const GROUND_SHAPES={
   /* 陸戦型 W.A.S. (for now): the space W.A.S. as it is (CRAFT_SHAPES.was, a user-approved shape), four times the size and set
      on the ground. It is redesigned with the assault carrier later (docs/models.md 9 D) */
   wasG:()=>{ const p=CRAFT_SHAPES.was(); p.forEach(g=>{ g.scale(4,4,4); g.translate(0,.78,0); }); return p; },
+  /* W.A.S. 案A: today's W.A.S. changed a little to fit the setting — the legs and their thruster pods thicker (short thick legs
+     with ship-class thrusters), the arms a little thicker, feet to stand on the Earth, dark joints and weapons. Standing it
+     leans less; AF is the same thing leaning forward in flight */
+  wasA:()=>wasParts({L:.15,arm:1.15,leg:1.4,feet:true}), wasAF:()=>wasParts({L:.45,arm:1.15,leg:1.4,feet:true}),
+  /* W.A.S. 案B: Claude's own design from the setting */
+  wasB:()=>wasOwn(),
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
@@ -230,17 +305,16 @@ const GROUND_SHAPES={
     ...pair(tone(at(taper(.12,.105,.5,6),.27,.19,-.45),DK)), ...pair(at(box(.1,.05,.2),.18,.14,-.45)),
     ...pair(at(plate([[0,-.78],[.52,-.84],[.52,-1.04],[0,-1.02]],.04),0,.03,0)), ...pair(at(plate([[0,-.8],[0,-1.06],[.3,-1.1],[.3,-.9]],.035),.52,.03,0,0,0,Math.PI/2)),
     tone(at(loft([[.36,.07,.05],[.56,.085,.09,.02],[.84,0,0]]),0,.12,0),GL), tone(at(tube(.036,.42,6),.03,-.13,.98),DK)],
-  /* 広域戦略支援航空機（地球連合）: a big bomber crossed with an early-warning aircraft (user decision 2026-11-12; no radar in
-     this war, so no dish). A long tube body, long swept wings set high with four engine pods, a T tail; under its body a long
-     optical sensor beam on struts and a sensor ball under the nose, only a short sensor stub on its back (user 2026-11-12), the
-     bomb bay doors dark under the tail */
-  awE:()=>[loft([[-1.12,.06,.07],[-.72,.14,.15],[.6,.14,.15],[.96,.1,.11],[1.16,.02,.03,-.03]],O8),
-    ...pair(at(plate([[.1,.36],[1.38,-.26],[1.38,-.44],[.1,-.16]],.06),0,.11,0)),
-    ...[.46,.88].flatMap(x=>pair(tone(at(taper(.078,.066,.36,6),x,-.01,.14-x*.46),DK))),
-    at(plate([[0,-.7],[0,-1.1],[.44,-1.2],[.44,-.96]],.045),0,.12,0,0,0,Math.PI/2), ...pair(at(plate([[0,-.96],[.46,-1.12],[.46,-1.22],[0,-1.17]],.035),0,.55,0)),
-    at(box(.075,.075,.95),0,-.29,.2), tone(at(box(.085,.035,.85),0,-.29,.2),GL), ...[-.15,.55].map(z=>at(box(.04,.12,.08),0,-.2,z)),
-    at(box(.06,.05,.2),0,.3,-.1), tone(at(box(.068,.025,.16),0,.3,-.1),GL), at(box(.035,.1,.06),0,.22,-.1),
-    tone(at(new THREE.IcosahedronGeometry(.085,0),0,-.14,.86),GL), tone(at(box(.22,.03,.5),0,-.15,-.5),DK), tone(loft([[.88,.09,.07,.065],[1.02,.075,.06,.04],[1.12,.02,.02,0]],O8),GL)],
+  /* 広域戦略支援航空機（地球連合）: the two heavy bombers of today grown into one (user decision 2026-11-12). From the swing-wing
+     one: a long pointed body blended into the wing roots, the cockpit windows dark in the nose, a tall fin with the tailplane
+     half way up it. From the old eight-engined one: long narrow swept wings set high, four twin engine pods on pylons under
+     them, a pod near each tip. A small sensor ball under the nose, the bomb bay doors dark under the belly; no radar */
+  awE:()=>[loft([[-1.15,.05,.06],[-.7,.12,.12],[-.1,.2,.13],[.45,.14,.12],[.85,.08,.09],[1.25,0,0,-.02]]),
+    ...pair(at(plate([[.12,.55],[.46,-.02],[.3,-.34],[.12,-.4]],.06),0,.04,0)), ...pair(at(plate([[.3,.14],[1.5,-.5],[1.5,-.66],[.3,-.3]],.05),0,.07,0)),
+    ...[.56,.96].flatMap(x=>{ const z=.14-(x-.3)*.533; return [...pair(at(box(.03,.09,.2),x,-.0,z)), ...pair(tone(at(taper(.056,.05,.32,6),x-.05,-.07,z+.08),DK)), ...pair(tone(at(taper(.056,.05,.32,6),x+.05,-.07,z+.08),DK))]; }),
+    ...pair(at(loft([[-.16,.035,.035],[.1,.04,.04],[.2,0,0]]),1.36,.0,-.5)),
+    at(plate([[0,-.62],[0,-1.12],[.5,-1.24],[.5,-1.02]],.045),0,.1,0,0,0,Math.PI/2), ...pair(at(plate([[0,-.9],[.46,-1.1],[.46,-1.2],[0,-1.12]],.035),0,.32,0)),
+    tone(loft([[.74,.07,.045,.065],[.92,.055,.04,.05],[1.06,.015,.015,.025]],O8),GL), tone(at(new THREE.IcosahedronGeometry(.055,0),0,-.1,.8),GL), tone(at(box(.2,.03,.7),0,-.125,-.25),DK)],
   /* --- 惑星共和国の航空機 (docs/models.md 2.2): Mars has no tradition of flying on wings, so what it flies in the Earth's air
      comes from craft that fall from orbit: thick flat-bellied lifting bodies with a dark heat shield underneath, small fins, sealed
      with a sensor strip instead of a canopy --- */
