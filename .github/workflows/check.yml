@@ -1,4 +1,5 @@
-# 自動確認: PR と main への push のたびに、ヘッドレス Chromium でゲームを一通り動かす（tests/smoke.cjs）
+# 自動確認: PR と main への push のたびに、ヘッドレス Chromium でゲームを一通り動かす（tests/smoke.cjs）。
+# 分野ごとに4つの job を並べて走らせる（地上・地上の案内と修正・NPC・宇宙。docs/ground-structure.md 票1、2026-11-12）
 name: check
 on:
   push:
@@ -8,8 +9,13 @@ on:
   workflow_dispatch:
 jobs:
   smoke:
+    name: smoke (${{ matrix.part }})
     runs-on: ubuntu-24.04   # Playwright does not support ubuntu-latest (26.04) yet (2026-11-05)
-    timeout-minutes: 30   # テストが増えて10分を超えた（2026-10-14）。19分かかり20分で切れたので30に（2026-10-24）
+    timeout-minutes: 25   # 1本で30分を超えて切れた（2026-11-12）ので分野ごとに分けた。各分野はおよそ5〜10分
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [ground, drill, npc, space]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,12 +24,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check-docs
+        if: matrix.part == 'ground'
       - run: npx playwright install --with-deps chromium
-      - run: npm test
+      - run: node tests/smoke.cjs ${{ matrix.part }}
       - name: スクリーンショットを残す
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots
+          name: screenshots-${{ matrix.part }}
           path: test-results/
           retention-days: 14
