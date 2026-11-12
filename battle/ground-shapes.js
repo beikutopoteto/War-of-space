@@ -29,21 +29,48 @@ const trackG=(x,z0,z1,w=.1,h=.24)=>tone(at(loft([[z0,w,h*.22,h*.64],[z0+.14,w,h/
 const wheelG=(x,z,r=.15,w=.12)=>{ const g=new THREE.CylinderGeometry(r,r,w,8); g.rotateZ(Math.PI/2); return tone(at(g,x,r,z),DK); };
 const brl=(r,z0,z1,seg=6)=>at(tube(r,z1-z0,seg),0,0,(z0+z1)/2);
 const gunG=(pieces,y,z,el=0)=>pieces.map(g=>tone(at(g,0,y,z,-el),DK));
-/* the exoskeleton trooper; heavy adds the armour plates and the launcher on the back */
-function exoParts(heavy){ const BODY=.42, p=[];
-  for(const sx of [1,-1]){ const hip=[sx*.25,.72,-.02], knee=[sx*.26,.41,.05], ank=[sx*.2,.07,0];
-    p.push(at(box(.17,.06,.36),sx*.15,.03,.05), tone(at(box(.1,.62,.12),sx*.13,.37,0),BODY),
-      limb(hip,knee,.04,.036), limb(knee,ank,.036,.03), at(box(.085,.11,.13),knee[0],knee[1],knee[2]));
-    if(heavy) p.push(at(loft([[-.07,.085,.14,.56],[.09,.07,.1,.56]],HEX),sx*.14,0,.0)); }
-  p.push(at(box(.56,.085,.2),0,.73,0), tone(stand(loft([[.72,.13,.09],[1.05,.19,.11],[1.18,.14,.09]],RECT)),BODY),
-    at(box(.27,.38,.14),0,.99,-.17), at(box(.66,.07,.15),0,1.18,-.04), ...pair(at(box(.11,.13,.15),.34,1.13,-.03)),
-    at(box(.15,.17,.17),0,1.31,.02), tone(at(box(.13,.045,.03),0,1.32,.105),GL),
-    limb([.35,1.1,0],[.39,.84,.02],.036,.03), limb([.39,.84,.02],[.37,.62,.08],.03,.028),
-    limb([-.35,1.1,0],[-.37,.9,.1],.036,.03), limb([-.37,.9,.1],[-.3,.87,.34],.03,.028));
-  if(!heavy) p.push(tone(at(box(.05,.085,.72),-.3,.87,.5),DK), tone(at(box(.045,.15,.06),-.3,.78,.36),DK));
-  else p.push(at(loft([[-.06,.21,.2,1],[.1,.15,.13,.98]],HEX),0,0,.03), ...pair(at(loft([[-.1,.11,.07],[.1,.09,.05]],SLAB),.38,1.22,-.03)),
-    at(box(.46,.22,.32),0,1.36,-.3,-.3), tone(at(box(.4,.16,.02),0,1.41,-.145,-.3),DK), at(box(.1,.2,.1),0,1.2,-.24),
-    tone(at(box(.07,.1,.5),-.3,.87,.42),DK), tone(at(box(.11,.11,.14),-.3,.87,.28),DK));
+/* a straight faceted limb from a to b (n sides) */
+function segG(a,b,r0,r1,n=6){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...b).sub(A), l=d.length(), g=new THREE.CylinderGeometry(r1,r0,l,n);
+  g.translate(0,l/2,0); g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()))); g.translate(A.x,A.y,A.z); return g.toNonIndexed(); }
+/* a joint disc of the frame, its axis across the body */
+const discG=(x,y,z,r,w=.05)=>{ const g=new THREE.CylinderGeometry(r,r,w,6); g.rotateZ(Math.PI/2); return at(g,x,y,z); };
+/* the exoskeleton trooper (docs/models.md 3.2). The body is eight heads tall (1.6 units: chin 1.4, chest 1.2, navel 1, crotch .8,
+   knee .45; shoulders two heads wide; elbow at the navel, wrist at the crotch), drawn dark; the frame around it is in the team
+   colour: foot plates, struts down the outside of each leg with discs at hip and knee, a hip ring, a spine and power unit, a
+   yoke across the shoulders, struts down the arms, a helmet. Its right is -X.
+   heavy: armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
+   multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun */
+function exoParts(heavy){ const BODY=.16, p=[], body=g=>tone(g,BODY);
+  for(const sx of [1,-1]){ const hip=[sx*.1,.82,0], knee=[sx*.11,.45,.03], ank=[sx*.11,.08,-.01];
+    p.push(body(segG(hip,knee,.088,.06)), body(segG(knee,[sx*.11,.3,-.005],.06,.068)), body(segG([sx*.11,.3,-.005],ank,.068,.04)),
+      at(box(.13,.06,.3),sx*.11,.03,.05),
+      segG([sx*.215,.84,-.01],[sx*.205,.46,.03],.03,.028,5), segG([sx*.205,.46,.03],[sx*.17,.08,0],.028,.024,5),
+      discG(sx*.215,.84,-.01,.07), discG(sx*.205,.46,.03,.058), at(box(.07,.05,.12),sx*.15,.08,0),
+      at(box(.15,.035,.17),sx*.15,.64,.01), at(box(.14,.035,.16),sx*.15,.27,.0));
+    if(heavy) p.push(segG([sx*.02,.78,0],[sx*.035,.46,.03],.026,.024,5), segG([sx*.035,.46,.03],[sx*.05,.08,0],.024,.022,5), discG(sx*.03,.46,.03,.05,.04),
+      at(loft([[-.17,.075,.035],[.17,.085,.045]],HEX),sx*.11,.27,.075,Math.PI/2), at(loft([[-.16,.085,.04],[.16,.1,.05]],HEX),sx*.11,.64,.085,Math.PI/2)); }
+  /* torso, neck, hip ring, spine, power unit, yoke */
+  p.push(body(stand(loft([[.78,.13,.085],[.98,.12,.08],[1.2,.19,.11],[1.33,.2,.09],[1.4,.06,.05]],HEX))), body(segG([0,1.38,0],[0,1.46,0],.045,.04)),
+    at(box(.44,.06,.2),0,.86,0), at(box(.07,.44,.06),0,1.08,-.13), at(box(.25,.27,.12),0,1.17,-.2), at(box(.54,.05,.1),0,1.37,-.07));
+  /* arms: shoulder → elbow → wrist, with the frame strut outside. Standard: the rifle held across in both hands */
+  const arms=heavy?[[[-.21,1.31,0],[-.31,1.05,-.05],[-.25,.9,.13]],[[.21,1.31,0],[.2,1.07,.2],[-.13,.99,.34]]]
+                 :[[[-.21,1.31,0],[-.27,1.06,.04],[-.13,1.0,.26]],[[.21,1.31,0],[.24,1.05,.14],[-.02,1.0,.5]]];
+  for(const [sh,el,wr] of arms){ const sx=Math.sign(sh[0]), o=v=>[v[0]+sx*.055,v[1]+.02,v[2]-.02];
+    p.push(body(segG(sh,el,.055,.045)), body(segG(el,wr,.045,.035)), discG(sh[0]+sx*.07,sh[1]+.02,sh[2]-.02,.062), segG(o(sh),o(el),.024,.022,5), segG(o(el),o(wr),.022,.02,5), discG(el[0]+sx*.055,el[1],el[2]-.02,.045,.04)); }
+  if(!heavy){ const head=new THREE.IcosahedronGeometry(.1,0); head.scale(1,1.15,1.05);
+    p.push(at(head,0,1.5,0), tone(at(box(.13,.04,.04),0,1.51,.085),GL),
+      tone(at(box(.05,.08,.8),-.075,1.0,.42),DK), tone(at(box(.045,.14,.06),-.075,.91,.3),DK), tone(at(box(.03,.04,.1),-.075,1.06,.4),DK)); }
+  else { const head=new THREE.IcosahedronGeometry(.118,1); head.scale(1,1.05,1.08);
+    p.push(at(head,0,1.53,0), tone(at(box(.17,.065,.05),0,1.54,.095),GL), at(new THREE.CylinderGeometry(.15,.175,.13,8),0,1.43,-.005),
+      /* chest and back plate, belly, groin, shoulder, arm plates */
+      stand(loft([[1.08,.2,.13],[1.3,.25,.15],[1.4,.2,.11]],HEX)), at(box(.27,.14,.06),0,.99,.095), at(box(.26,.1,.07),0,.86,.09),
+      ...pair(at(loft([[-.11,.1,.07],[.11,.085,.05]],SLAB),.325,1.36,-.01)), ...pair(at(box(.075,.19,.1),.34,1.17,-.03)),
+      /* the launcher (tubes showing dark at the front) and the drum on the back, the feed to the gun */
+      at(box(.42,.2,.26),0,1.5,-.29,-.25), tone(at(box(.36,.14,.02),0,1.535,-.165,-.25),DK), at(box(.1,.18,.1),0,1.33,-.25),
+      tone(discG(0,1.0,-.27,.12,.24),.6), tone(segG([-.12,.97,-.22],[-.25,.87,.08],.03,.03,5),DK),
+      /* the cannon at the right hip: receiver, shroud, barrel, muzzle, the handle on top for the left hand */
+      tone(at(box(.1,.13,.36),-.25,.84,.2),DK), tone(at(tube(.06,.3,6),-.25,.84,.52),.6), tone(at(tube(.04,.5,6),-.25,.84,.9),DK), tone(at(tube(.058,.1,6),-.25,.84,1.18),DK),
+      tone(at(box(.03,.03,.24),-.2,.97,.3),DK), tone(at(box(.03,.08,.03),-.2,.93,.2),DK), tone(at(box(.03,.08,.03),-.2,.93,.4),DK)); }
   return p; }
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
