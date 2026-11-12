@@ -262,12 +262,19 @@ function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9
       ...[1,-1].flatMap(f=>[at(loft([[-.02,.05,.05],[.13,.045,.05,.03],[.24,.036,.038,.012]],SLAB),ank[0]+f*.06,.052,ank[2]+.04,0,f*.28,0), tone(at(loft([[.24,.036,.038,.012],[.33,.026,.028,-.004],[.42,.006,.01,-.04]],SLAB),ank[0]+f*.06,.052,ank[2]+.04,0,f*.28,0),.45)]));
     if(sx<0) p.push(K.dk(barG(add(mix(hip,knee,.14),[-.1,0,0]),add(mix(hip,knee,.78),[-.11,0,0]),.03,.06)), tone(barG(add(mix(hip,knee,.04),[-.1,0,0]),add(mix(hip,knee,.16),[-.1,0,0]),.025,.035),.6)); }
   /* the upper body, upright: pelvis, spine, shoulder beam, the pilot's pod and its glass in a cage, the chest drawn forward to a
-     point, head and fin, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
+     point, the head, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
   U.push(at(loft([[-.1,.1,.06],[.14,.07,.05]],HEX),0,.84,0), th([0,.86,-.1],[0,1.25,-.1],.035), at(box(.76,.045,.08),0,1.25,-.07),
     tone(at(loft([[-.1,.07,.08],[.02,.1,.105],[.17,.09,.09],[.27,.035,.04,-.02]],HEX),0,1,.02),.35), tone(at(loft([[.11,.097,.055],[.21,.075,.04,-.012]],HEX),0,1.05,.02),GL),
     ...pair(th([.085,.88,.09],[.1,1.09,.15],.02)), ...pair(th([.085,.88,-.07],[.11,1.1,-.1],.02)),
     at(loft([[-.17,.1,.075],[-.04,.18,.11],[.12,.16,.1],[.3,.07,.05,-.02],[.4,0,0,-.04]],HEX),0,1.17,0),
-    at(new THREE.IcosahedronGeometry(.06,0),0,1.325,-.03), tone(at(box(.08,.02,.03),0,1.33,.025),GL), at(plate([[0,.05],[0,-.22],[.1,-.28],[.045,0]],.02),0,1.355,-.06,0,0,Math.PI/2),
+    /* the head (user 2026-11-13: bigger, after a concept sheet of a long low helmet — looked at, not copied): a low wedge
+       pointing forward on a dark neck ring; a chin piece below, a dark sensor slit set back between chin and shell, the shell in
+       three plates that overlap and sweep back — a ridged middle one and one each side splaying out to a point behind —
+       a box with a dark vent on each cheek, an aerial on the right. Built small and then made 1.25 times the size from the neck */
+    ...[tone(at(new THREE.CylinderGeometry(.05,.055,.045,6),0,1.285,-.03),.35), tone(at(loft([[-.09,.06,.02],[.05,.055,.02],[.16,.028,.012,-.006]],SLAB),0,1.312,0),.6),
+    tone(at(box(.1,.026,.2),0,1.338,.015),GL), at(loft([[-.15,.034,.018,.014],[-.03,.052,.03],[.1,.042,.022,-.008],[.22,.012,.008,-.03]],FACET),0,1.372,0),
+    ...[1,-1].map(f=>at(loft([[-.19,.012,.008,.024],[-.1,.034,.018,.012],[.02,.04,.022],[.15,.014,.01,-.022]],FACET),f*.062,1.36,-.01,0,-f*.2,-f*.18)),
+    ...pair(tone(at(box(.05,.05,.1),.088,1.33,-.05),.8)), ...pair(tone(at(box(.03,.026,.035),.102,1.332,-.02),DK)), tone(at(box(.012,.14,.012),-.088,1.42,-.09,-.2),DK)].map(g=>{ g.translate(0,-1.275,.03); g.scale(1.25,1.25,1.25); g.translate(0,1.275,-.03); return g; }),
     ...[.1,-.1].map(x=>{ const g=new THREE.CylinderGeometry(.085,.085,.17,8); g.rotateZ(Math.PI/2); return tone(at(g,x,1.02,-.215),.6); }),
     ...pair(at(loft([[-.32,.03,.03],[-.1,.07,.07],[.1,.05,.05]],HEX),.17,1.1,-.27,-.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.17,.94,-.55,1.1))),
     ...K.subArms(.9,.115));
