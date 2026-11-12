@@ -56,12 +56,13 @@ function barG(a,b,w,t){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...
 /* poses of the trooper (h…: the heavy one). d: how far the hips drop, L: forward lean of the upper body (radians), feet: [half
    stance width, z, ankle height] for the left and the right foot (…2: the other step, feet changed over; c…: the commando), el: elbows in the upright body's coordinates
    (right, left), wr: wrists in the world (right, left; the heavy one's left hand is set from the gun), gun: where the right
-   hand holds the weapon, or rifle: the two ends of a rifle carried across the chest */
+   hand holds the weapon, or rifle: the two ends of a rifle carried across the chest (wrU, rifleU: the same given in the upright
+   body's coordinates, so they follow a deep lean) */
 const EXO_POSE={
   walk:{d:.03,L:.08,feet:[[.11,.17],[.11,-.15,.11]],el:[[-.31,1.05,.02],[.31,1.09,.05]],wr:[[-.11,.94,.2],[.1,1.11,.22]],rifle:[[-.23,.84,.23],[.23,1.26,.23]]},
   fight:{d:.08,L:.2,feet:[[.13,.22],[.13,-.2,.11]],el:[[-.34,1.157,.054],[.17,1.154,.238]],wr:[[-.11,1.2,.3],[-.02,1.19,.5]],gun:[-.11,1.2,.3]},
   hwalk:{d:.05,L:.12,feet:[[.14,.17],[.14,-.15,.11]],el:[[-.32,1.05,-.05],[.21,1.07,.19]],gun:[-.27,.81,.13]},
-  cwalk:{d:.12,L:.38,feet:[[.11,.2],[.11,-.18,.11]],el:[[-.31,1.05,-.02],[.24,1.06,.15]],wr:[[-.1,.74,.24],[0,.76,.47]],gun:[-.1,.74,.24]},
+  cwalk:{d:.12,L:.38,feet:[[.11,.2],[.11,-.18,.11]],el:[[-.31,1.05,.02],[.31,1.09,.05]],wrU:[[-.11,.96,.2],[.1,1.13,.21]],rifleU:[[-.3,.78,.22],[.3,1.34,.21]]},
   cfight:{d:.43,L:.15,feet:[[.12,.3],[.12,-.45,.08]],el:[[-.34,1.157,.054],[.17,1.154,.238]],wr:[[-.11,.86,.29],[-.02,.85,.5]],gun:[-.11,.86,.29]},
 };
 /* the other step of each walk: the feet change places */
@@ -76,7 +77,8 @@ for(const k of ['walk','hwalk','cwalk']) EXO_POSE[k+'2']={...EXO_POSE[k],feet:[.
    kind true (heavy): armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
    multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun; armour sleeves on the arms.
    kind 'c' (commando): no power unit but a ghillie suit — shaggy tufts in two tones over the head, shoulders, back and arms and
-   wrapped round the rifle (user 2026-11-12) — and a long rifle with a sight; it moves in a low crouch and fights kneeling */
+   wrapped round the rifle (user 2026-11-12) — and a long rifle with a sight; it moves in a low crouch, carrying the
+   rifle across the chest as the ordinary trooper does (user 2026-11-12), and fights kneeling */
 function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const M=new THREE.Matrix4().makeTranslation(0,HY,0).multiply(new THREE.Matrix4().makeRotationX(P.L)).multiply(new THREE.Matrix4().makeTranslation(0,-.82,0));
   const W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
@@ -100,12 +102,12 @@ function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16,
   for(const g of U) g.applyMatrix4(M);
   p.push(...U);
   /* arms and weapon, in the world: shoulder and elbow follow the lean, the hands hold the weapon */
-  const G=P.gun, wr=heavy?[[G[0],G[1]+.01,G[2]],[G[0]+.06,G[1]+.14,G[2]+.2]]:P.wr;
+  const G=P.gun, rifle=P.rifleU?P.rifleU.map(W):P.rifle, wr=heavy?[[G[0],G[1]+.01,G[2]],[G[0]+.06,G[1]+.14,G[2]+.2]]:P.wrU?P.wrU.map(W):P.wr;
   [[-.21,1.31,0],[.21,1.31,0]].forEach((s0,i)=>{ const sx=Math.sign(s0[0]), sh=W(s0), el=W(P.el[i]), o=v=>[v[0]+sx*.055,v[1]+.02,v[2]-.02];
     p.push(body(segG(sh,el,.055,.045)), body(segG(el,wr[i],.045,.035)), discG(sh[0]+sx*.07,sh[1]+.02,sh[2]-.02,.062), segG(o(sh),o(el),.024,.022,5), segG(o(el),o(wr[i]),.022,.02,5), discG(el[0]+sx*.055,el[1],el[2]-.02,.045,.04));
     if(heavy) p.push(segG(mix(sh,el,.12),mix(sh,el,.86),.082,.072), segG(mix(el,wr[i],.16),mix(el,wr[i],.88),.07,.058));
     if(cmd) p.push(tuftG(...mix(sh,el,.45),.1), tuftG(...mix(el,wr[i],.4),.075)); });
-  if(P.rifle) p.push(tone(barG(P.rifle[0],P.rifle[1],.05,.075),DK));
+  if(rifle) p.push(tone(barG(rifle[0],rifle[1],.05,.075),DK), ...(cmd?[tuftG(...mix(rifle[0],rifle[1],.62),.07), tuftG(...mix(rifle[0],rifle[1],.85),.055)]:[]));
   else if(cmd) p.push(tone(at(box(.045,.07,1),G[0],G[1]+.03,G[2]+.3),DK), tone(at(tube(.034,.22,5),G[0],G[1]+.03,G[2]+.9),DK), tone(at(box(.04,.12,.05),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.035,.05,.2),G[0],G[1]+.09,G[2]+.2),GL), tuftG(G[0],G[1]+.04,G[2]+.55,.07), tuftG(G[0],G[1]+.03,G[2]+.74,.055));
   else if(!heavy) p.push(tone(at(box(.05,.08,.8),G[0],G[1]+.03,G[2]+.22),DK), tone(at(box(.045,.13,.06),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.03,.04,.1),G[0],G[1]+.09,G[2]+.2),DK));
   else p.push(tone(at(box(.1,.13,.36),G[0],G[1],G[2]+.08),DK), tone(at(tube(.06,.3,6),G[0],G[1],G[2]+.4),.6), tone(at(tube(.04,.5,6),G[0],G[1],G[2]+.78),DK), tone(at(tube(.058,.1,6),G[0],G[1],G[2]+1.06),DK),
@@ -177,6 +179,41 @@ function wasOwn(){ const p=[], dk=g=>tone(g,DK), J=(x,y,z,r,w=.07)=>tone(discG(x
   p.push(dk(at(box(.1,.15,.44),-.42,.76,.5)), dk(at(tube(.042,.85,6),-.42,.78,1.1)), dk(at(tube(.058,.12,6),-.42,.78,1.56)),
     dk(at(tube(.03,.3,5),.5,.5,.4,-.75)), dk(at(tube(.03,.3,5),.42,.5,.4,-.75)),
     at(box(.16,.18,.44),.3,1.44,-.1), at(box(.1,.14,.1),.3,1.33,-.14), dk(at(tube(.052,1.15,6),.3,1.45,.68)), dk(at(box(.14,.08,.14),.3,1.45,1.3)));
+  return p; }
+/* W.A.S. 案C, to the user's own picture of it (2026-11-12): the infantry's and the factory's powered exoskeleton grown up. The
+   trunk is small — a size up from a person — and it is the limbs that are extended and big. Over the left shoulder a long
+   cannon held at its middle by an arm from the back, a cylinder with the case ejector at its rear. The right arm carries two
+   big three-barrelled rotary cannon one above the other (fewer barrels for a bigger shell) and a few anti-ship rockets; ammunition
+   and rockets come from the pack on the back. The left arm carries a reactive shield against lasers — a long slab with rows of
+   armour tiles, drawn to a point whose tip throws plasma to melt armour when it is thrust in. Round the waist two sub-arms lie
+   coiled, each ending in three fingers (they hand over the close-combat knife and reload the weapons); the knife is sheathed
+   on the right thigh. Short thick legs, each calf a thruster nacelle, feet to stand on the Earth */
+function wasUser(){ const p=[], dk=g=>tone(g,DK), J=(x,y,z,r,w=.08)=>tone(discG(x,y,z,r,w),.35), cyl=(r,l,x,y,z,n=8)=>{ const g=new THREE.CylinderGeometry(r,r,l,n); g.rotateZ(Math.PI/2); return at(g,x,y,z); };
+  for(const sx of [1,-1]){ const hip=[sx*.16,.8,0], knee=[sx*.2,.47,.1], ank=[sx*.2,.14,-.02];
+    p.push(segG(hip,knee,.1,.09), J(hip[0],hip[1],hip[2],.085,.1), J(knee[0],knee[1],knee[2],.075,.1),
+      at(stand(loft([[.08,.1,.1],[.3,.15,.16],[.47,.1,.11]],O8)),ank[0],0,ank[2]-.03), dk(at(new THREE.CylinderGeometry(.06,.1,.13,6),ank[0],.15,ank[2]-.21,.9)),
+      at(box(.17,.07,.34),ank[0],.035,ank[2]+.1), at(box(.1,.05,.14),ank[0],.03,ank[2]-.17),
+      J(sx*.44,1.18,0,.1,.1), at(loft([[-.15,.12,.09],[.13,.095,.07]],SLAB),sx*.46,1.27,0), segG([sx*.46,1.16,0],[sx*.5,.85,.03],.09,.085), J(sx*.5,.85,.03,.072,.1)); }
+  /* pelvis, waist with the coiled sub-arms and their three fingers, the small trunk, head, the yoke out to the arms */
+  p.push(at(box(.3,.1,.2),0,.8,0), tone(segG([0,.84,0],[0,.92,0],.085,.075),.35), tone(at(new THREE.CylinderGeometry(.165,.165,.04,8),0,.875,0),.6), tone(at(new THREE.CylinderGeometry(.15,.15,.03,8),0,.915,0),.6),
+    ...[[.13,.12],[-.13,.12]].flatMap(([x,z])=>[tone(at(box(.06,.06,.07),x,.89,z),.6), ...[-.03,0,.03].map(d=>dk(segG([x+d,.88,z+.03],[x+d*2.2,.82,z+.11],.012,.008,4)))]),
+    stand(loft([[.9,.11,.09],[1.0,.15,.11],[1.16,.2,.13],[1.24,.15,.1]],HEX)), tone(at(box(.14,.07,.03),0,1.12,.125),GL),
+    at(new THREE.IcosahedronGeometry(.065,0),0,1.31,.02), tone(at(box(.09,.022,.03),0,1.315,.08),GL), tone(segG([0,1.23,0],[0,1.27,0],.04,.035),.35), at(box(.84,.07,.14),0,1.2,-.05),
+    /* pack: thrusters, the ammunition drum, spare rockets */
+    at(box(.34,.36,.2),0,1.05,-.24), ...pair(dk(at(new THREE.CylinderGeometry(.05,.085,.14,6),.1,.84,-.28,.5))), tone(cyl(.1,.24,-.08,1.0,-.39),.6), ...[.08,.15].map(x=>tone(at(tube(.03,.3,6),x,1.08,-.38,Math.PI/2),.7)),
+    dk(at(box(.04,.2,.06),-.3,.62,.05)));
+  /* right arm: the two rotary cannon and the rockets, a feed from the pack */
+  const rot=y=>[dk(at(tube(.05,.16,6),-.47,y,.64)), ...[0,2.1,4.2].map(a=>dk(at(tube(.016,.7,5),-.47+Math.cos(a)*.03,y+Math.sin(a)*.03,1.03))), dk(at(tube(.045,.05,6),-.47,y,1.0)), dk(at(tube(.047,.07,6),-.47,y,1.36))];
+  p.push(segG([-.5,.85,.03],[-.47,.8,.3],.1,.09), at(box(.17,.32,.38),-.47,.8,.44), ...rot(.875), ...rot(.725),
+    ...[-.06,0,.06].map(d=>tone(at(tube(.028,.3,6),-.47+d,.995,.42),.7)), ...[-.06,0,.06].map(d=>dk(at(tube(.03,.04,6),-.47+d,.995,.59))), dk(segG([-.47,.86,.26],[-.14,1.0,-.3],.028,.028,5)));
+  /* left arm: the reactive shield, built flat and then stood on edge outside the forearm, its point forward and down */
+  const SH=g=>at(g,.64,.72,.17,-.5,0,Math.PI/2);
+  p.push(segG([.5,.85,.03],[.52,.62,.22],.1,.09), at(box(.1,.1,.12),.57,.68,.2),
+    SH(plate([[.5,-.13],[.5,.13],[.2,.17],[-.2,.12],[-.56,.025],[-.56,-.025],[-.2,-.12],[.2,-.17]],.05)),
+    ...[.37,.22,.07,-.08].flatMap(u=>[-.07,.07].map(z=>tone(SH(at(box(.12,.035,.11),u,-.04,z)),.8))), dk(SH(at(box(.2,.06,.07),-.6,0,0))), tone(SH(at(box(.06,.03,.03),-.72,0,0)),GL));
+  /* the cannon over the left shoulder: rear cylinder and ejector, receiver, long barrel, the arm that holds its middle */
+  p.push(at(tube(.085,.42,8),.34,1.5,-.4), dk(at(box(.07,.06,.14),.44,1.5,-.44)), dk(at(box(.05,.1,.05),.34,1.4,-.5)), at(box(.13,.14,.4),.34,1.5,0), dk(at(box(.04,.03,.5),.34,1.585,.05)),
+    dk(at(tube(.03,1.15,6),.34,1.5,.78)), dk(at(tube(.046,.08,6),.34,1.5,1.37)), dk(at(box(.03,.03,.7),.34,1.45,.6)), segG([.28,1.22,-.14],[.34,1.42,-.02],.045,.04), J(.34,1.42,-.02,.055,.09));
   return p; }
 /* the assault machine: step 1 or -1 says which foot is ahead */
 function mechParts(step){ const p=[], T=.4;
@@ -290,6 +327,8 @@ const GROUND_SHAPES={
   wasA:()=>wasParts({L:.15,arm:1.15,leg:1.4,feet:true}), wasAF:()=>wasParts({L:.45,arm:1.15,leg:1.4,feet:true}),
   /* W.A.S. 案B: Claude's own design from the setting */
   wasB:()=>wasOwn(),
+  /* W.A.S. 案C: to the user's own picture (small trunk, big limbs, shoulder cannon, twin rotary cannon, reactive shield, sub-arms) */
+  wasC:()=>wasUser(),
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
