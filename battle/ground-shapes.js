@@ -185,6 +185,8 @@ function curvedSlab(st,ca,cl,t,m=4,rng){ const U0=rng?rng[0]:st[0][0], U1=rng?rn
   const rim=(a,b)=>{ const A=pt(...a,1), B=pt(...b,1), C=pt(...b,-1), D=pt(...a,-1), o=V((A.x+B.x)/2-(U0+U1)/2,0,(A.z+B.z)/2); tri(A,B,C,o); tri(A,C,D,o); };
   for(let i=0;i<st.length-1;i++){ rim([i,0],[i+1,0]); rim([i,m],[i+1,m]); } for(let j=0;j<m;j++){ rim([0,j],[0,j+1]); rim([st.length-1,j],[st.length-1,j+1]); }
   const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; }
+/* the section of the W.A.S. chest: a flat deck on top, the sides cut in toward a narrower underside */
+const WAS_CHEST=[[.55,1],[1,.2],[.72,-1],[-.72,-1],[-1,.2],[-.55,1]];
 /* the section of the W.A.S. shoulder armour, a stub wing: x along the chord (-1 the leading edge), thickest a third of the way back */
 const WAS_WING=[[-1,0],[-.3,1],[.5,.75],[1,0],[.5,-.5],[-.3,-.6]];
 /* 案1 骨組み型: the factory frame shows. The pilot sits in a small dark pod inside a roll cage; the limbs are bare struts with
@@ -248,25 +250,33 @@ function wasSharp(){ const K=WAS_KIT, p=[];
    User 2026-11-13 (second note): two truss struts to each shoulder, one from the chest and one from the back, leaving the trunk
    high up (y 1.13, not the waist); the shoulder armour reaches a little further out and is a swept stub wing with an aerofoil
    section; each foot is two claws with dark tips and a spur behind; the thigh is a slim bone with two hydraulic cylinders in
-   plain sight (dark barrel, collar, bright rod) and only a narrow plate outside */
+   plain sight (dark barrel, collar, bright rod) and only a narrow plate outside.
+   User 2026-11-13 (third note, with a picture of a slim machine — looked at, not copied): the trunk a little toward it — the chest
+   a wedge with a flat deck sloping forward to a wide brow and a dark slit under it, a pointed skirt plate over each hip; below
+   the knee, a knee guard that is thick but streamlined, the shin, calf and foot slimmer, and the calf's thruster pod, nozzle
+   and fin made one with the shin */
 function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9,5), add=(a,d)=>a.map((v,i)=>v+d[i]), mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const HY=.69, HZ=-.02, M=new THREE.Matrix4().makeTranslation(0,HY,HZ).multiply(new THREE.Matrix4().makeRotationX(.12)).multiply(new THREE.Matrix4().makeTranslation(0,-.84,0)), W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
   /* a frame along a forearm: the elbow at the origin, +Z toward the wrist */
   const along=(el,wr)=>new THREE.Matrix4().compose(new THREE.Vector3(...el),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...wr).sub(new THREE.Vector3(...el)).normalize()),new THREE.Vector3(1,1,1));
-  for(const sx of [1,-1]){ const hip=[sx*.13,HY,HZ], knee=[sx*.2,.44,.17], ank=[sx*.23,.13,0];
+  for(const sx of [1,-1]){ const hip=[sx*.13,HY,HZ], knee=[sx*.2,.44,.17], ank=[sx*.23,.13,0], S=along(ank,knee), SL=new THREE.Vector3(...knee).distanceTo(new THREE.Vector3(...ank));
     p.push(tone(segG(hip,knee,.042,.042,4),.6), barG(add(mix(hip,knee,.06),[sx*.07,0,0]),add(mix(hip,knee,.8),[sx*.08,0,0]),.022,.075), K.J(...hip,.075,.1), K.J(...knee,.065,.1),
       ...[1,-1].flatMap(f=>{ const o=[0,f*.039,f*.052], a=add(mix(hip,knee,.08),o), b=add(mix(hip,knee,.92),o), m=mix(a,b,.56); return [tone(segG(a,m,.03,.03,6),.35), tone(segG(mix(a,b,.5),m,.037,.037,6),.6), segG(m,b,.014,.014,5)]; }),
-      at(new THREE.ConeGeometry(.04,.13,4),knee[0],knee[1]+.03,knee[2]+.08,1.2), segG(knee,ank,.07,.13,4), K.dk(segG(add(knee,[0,-.04,.06]),add(ank,[0,.1,.11]),.014,.014,4)),
-      tone(at(box(.02,.28,.15),...add(mix(knee,ank,.62),[0,.06,-.12]),.5),.75), K.dk(at(new THREE.CylinderGeometry(.04,.07,.1,6),ank[0],ank[1]+.04,ank[2]-.13,.9)),
-      at(box(.2,.09,.17),ank[0],.075,ank[2]-.01), at(loft([[-.2,.012,.015,-.03],[0,.045,.045]],SLAB),ank[0],.05,ank[2]-.08),
-      ...[1,-1].flatMap(f=>[at(loft([[-.02,.05,.05],[.13,.045,.05,.03],[.24,.036,.038,.012]],SLAB),ank[0]+f*.06,.052,ank[2]+.04,0,f*.28,0), tone(at(loft([[.24,.036,.038,.012],[.33,.026,.028,-.004],[.42,.006,.01,-.04]],SLAB),ank[0]+f*.06,.052,ank[2]+.04,0,f*.28,0),.45)]));
+      segG(knee,ank,.058,.08,4), K.dk(segG(add(mix(knee,ank,.5),[0,-.02,.06]),add(ank,[0,.05,.08]),.013,.013,4)),
+      /* in the shin's own frame (the ankle at the origin, +Z up to the knee, +y behind): the knee guard, thick but drawn out to
+         a point above and below; behind the calf a thruster pod faired into the shin, its nozzle below and a fin on its back */
+      ...[at(loft([[-.19,.022,.016],[-.06,.066,.05],[.05,.074,.06],[.21,.016,.012,.01]],HEX),0,-.062,SL), at(loft([[-.15,.036,.036],[-.04,.052,.05],[.16,.014,.014,-.02]],HEX),0,.068,SL*.5),
+        K.dk(at(taper(.05,.03,.08,6),0,.07,SL*.5-.18)), tone(at(box(.014,.075,.2),0,.13,SL*.5-.02),.75)].map(g=>{ g.applyMatrix4(S); return g; }),
+      at(box(.15,.08,.15),ank[0],.075,ank[2]-.01), at(loft([[-.19,.01,.013,-.03],[0,.038,.04]],SLAB),ank[0],.05,ank[2]-.07),
+      ...[1,-1].flatMap(f=>[at(loft([[-.02,.042,.046],[.13,.038,.045,.028],[.24,.03,.034,.012]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0), tone(at(loft([[.24,.03,.034,.012],[.33,.022,.025,-.004],[.42,.005,.009,-.036]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0),.45)]));
     if(sx<0) p.push(K.dk(barG(add(mix(hip,knee,.14),[-.1,0,0]),add(mix(hip,knee,.78),[-.11,0,0]),.03,.06)), tone(barG(add(mix(hip,knee,.04),[-.1,0,0]),add(mix(hip,knee,.16),[-.1,0,0]),.025,.035),.6)); }
   /* the upper body, upright: pelvis, spine, shoulder beam, the pilot's pod and its glass in a cage, the chest drawn forward to a
      point, the head, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
   U.push(at(loft([[-.1,.1,.06],[.14,.07,.05]],HEX),0,.84,0), th([0,.86,-.1],[0,1.25,-.1],.035), at(box(.76,.045,.08),0,1.25,-.07),
     tone(at(loft([[-.1,.07,.08],[.02,.1,.105],[.17,.09,.09],[.27,.035,.04,-.02]],HEX),0,1,.02),.35), tone(at(loft([[.11,.097,.055],[.21,.075,.04,-.012]],HEX),0,1.05,.02),GL),
     ...pair(th([.085,.88,.09],[.1,1.09,.15],.02)), ...pair(th([.085,.88,-.07],[.11,1.1,-.1],.02)),
-    at(loft([[-.17,.1,.075],[-.04,.18,.11],[.12,.16,.1],[.3,.07,.05,-.02],[.4,0,0,-.04]],HEX),0,1.17,0),
+    at(loft([[-.17,.11,.08],[-.04,.18,.11],[.14,.17,.085,-.012],[.31,.12,.035,-.05],[.39,.07,.012,-.066]],WAS_CHEST),0,1.17,0), tone(at(box(.17,.018,.05),0,1.083,.3,.3),GL),
+    ...[1,-1].map(f=>at(loft([[-.03,.062,.016],[.1,.055,.014],[.23,.008,.006,-.004]],SLAB),f*.085,.85,.1,.92,f*.16,0)),
     /* the head (user 2026-11-13: bigger, after a concept sheet of a long low helmet — looked at, not copied): a low wedge
        pointing forward on a dark neck ring; a chin piece below, a dark sensor slit set back between chin and shell, the shell in
        three plates that overlap and sweep back — a ridged middle one and one each side splaying out to a point behind —
