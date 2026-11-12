@@ -203,13 +203,22 @@ function groundInit(){
     if(spec){
       const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
       const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const geo=groundShapeGeo(spec.key),moveGeo=spec.move?groundShapeGeo(spec.move):null,size=spec.size;
-      if(moveGeo)model.userData.pose={stand:[],move:[],last:f.pos.clone(),movedAt:-Infinity};
-      for(const [x,z] of spec.offsets){
+      const geos=new Map([spec.key,...spec.move].map(key=>[key,null]));
+      for(const key of geos.keys())geos.set(key,groundShapeGeo(key));
+      const geo=geos.get(spec.key),size=spec.size;
+      if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
+      for(const [i,[x,z]] of spec.offsets.entries()){
         const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
-        if(moveGeo){
-          const moving=new THREE.Mesh(moveGeo,mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);
-          model.userData.pose.stand.push(body); model.userData.pose.move.push(moving);
+        if(spec.move.length){
+          // Stable body-local seed: drawing or rebuilding this fleet must not reshuffle its steps.
+          let seed=2166136261;
+          for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
+          const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+          const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)};
+          const moves=spec.move.map(key=>{
+            const moving=new THREE.Mesh(geos.get(key),mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);return moving;
+          });
+          model.userData.pose.stand.push(body); model.userData.pose.move.push(moves); model.userData.pose.clocks.push(clock);
         }
       }
     }
@@ -266,7 +275,7 @@ function groundSelectionDraw(f,picked){
 }
 function groundDraw(){
   if(!groundVisuals) return;
-  const picked=orderTargets(),now=performance.now();
+  const picked=orderTargets(),now=gameSec;
   groundRangesDraw(picked);
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f));
@@ -276,8 +285,12 @@ function groundDraw(){
       // Orders can wait at obstacles; actual displacement also covers pursuit and aircraft.
       if(pose.last.distanceToSquared(f.pos)>1e-10)pose.movedAt=now;
       pose.last.copy(f.pos);
-      const moving=now-pose.movedAt<400;
-      pose.stand.forEach(body=>body.visible=!moving);pose.move.forEach(body=>body.visible=moving);
+      const moving=now-pose.movedAt<.4;
+      pose.stand.forEach(body=>body.visible=!moving);
+      pose.move.forEach((moves,i)=>{
+        const clock=pose.clocks[i],at=(clock.start+Math.floor(now/clock.stepSec+clock.phase))%moves.length;
+        moves.forEach((body,j)=>body.visible=moving&&j===at);
+      });
     }
     model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;

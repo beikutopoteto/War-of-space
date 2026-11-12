@@ -19,9 +19,12 @@ function nodeChecks(){
   check('不明モデルは従来表示、不正な大きさと編隊は既定値',`groundModelFor('vehicle')===null&&groundModelFor('infantry').size===1&&groundModelFor('infantry').form==='one'&&groundModelFor('infantry').offsets===GROUND_FORMS.one`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:1:one,vehicle@mars:${ctx.testKey}:2:box4`);
   check('陣営指定が共通指定に優先する',`groundModelFor('vehicle','earth').size===1&&groundModelFor('vehicle','mars').size===2&&groundModelFor('vehicle','mars').offsets===GROUND_FORMS.box4`);
-  check('移動形なしはnull',`groundModelFor('vehicle','earth').move===null`);
+  check('移動形なしは空配列',`groundModelFor('vehicle','earth').move.length===0`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:1:one:${ctx.testKey},infantry:${ctx.testKey}:1:one:missing-model`);
-  check('移動形を読み、不明な移動形はnull',`groundModelFor('vehicle').move===testKey&&groundModelFor('infantry').move===null`);
+  check('移動形を読み、不明な移動形は空配列',`groundModelFor('vehicle').move.length===1&&groundModelFor('vehicle').move[0]===testKey&&groundModelFor('infantry').move.length===0`);
+  run(`globalThis.stepKeys=Object.keys(GROUND_SHAPES).slice(0,2);`);
+  ctx.location.search='?groundModels='+encodeURIComponent(`infantry:${ctx.testKey}:1:squad6:${ctx.stepKeys.join('+')}+missing-model`);
+  check('a+bの順序を保ち不明なキーだけを除く',`JSON.stringify(groundModelFor('infantry').move)===JSON.stringify(stepKeys)`);
   ctx.location.search='';ctx.TEAM_COL=[0x4aa3ff,0xff5a4a].map(c=>new ctx.THREE.Color(c));
   Object.assign(ctx,{labelsEl:{appendChild(){}},proj:p=>({x:p.x,y:p.z,z:0}),SHIP_SIZE:Object.fromEntries(ctx.WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]))});
   run(`groundHud=groundCaptureInit=groundSightInit=()=>{};
@@ -42,14 +45,25 @@ function nodeChecks(){
   check('明示した陣営とチームの既定陣営を渡す',`fleets.filter(f=>f.groundKind==='vehicle').every(f=>{const s=groundModelFor('vehicle',f.side||(f.team===1?'mars':'earth'));return f.groundModel.children.length===s.offsets.length&&f.groundModel.children[0].scale.x===s.size;})`);
   check('編隊全体は部隊の地形高度を共有',`(()=>{groundDraw();return fleets.every(f=>f.groundModel.position.y===f.pos.y+(f.band==='ground'?.15:0));})()`);
   ctx.location.search='?groundModels='+encodeURIComponent(`infantry:${ctx.testKey}:.5:squad6:${ctx.testKey}`);run('initModels();');
-  check('移動形は同じ位置・材質で最初は非表示',`(()=>{const m=fleets.find(f=>f.groundKind==='infantry').groundModel,p=m.userData.pose;return p.stand.length===6&&p.move.length===6&&p.stand.every((b,i)=>b.visible&&!p.move[i].visible&&b.position.equals(p.move[i].position)&&b.scale.equals(p.move[i].scale)&&b.material===p.move[i].material);})()`);
-  ctx.performance={now:()=>ctx.poseNow};ctx.poseNow=1000;
+  check('移動形は同じ位置・材質で最初は非表示',`(()=>{const m=fleets.find(f=>f.groundKind==='infantry').groundModel,p=m.userData.pose;return p.stand.length===6&&p.move.length===6&&p.stand.every((b,i)=>b.visible&&!p.move[i][0].visible&&b.position.equals(p.move[i][0].position)&&b.scale.equals(p.move[i][0].scale)&&b.material===p.move[i][0].material);})()`);
+  ctx.gameSec=1;
   check('命令があっても移動していなければ立つ',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry');f.order={type:'move'};groundDraw();return f.groundModel.userData.pose.stand.every(b=>b.visible);})()`);
-  check('命令なしの実移動でも移動形へ切り替える',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry');f.order=null;f.pos.x+=.1;groundDraw();const p=f.groundModel.userData.pose;return p.move.every(b=>b.visible)&&p.stand.every(b=>!b.visible);})()`);
-  ctx.poseNow=1399;
-  check('停止後0.4秒未満は移動形を保つ',`(groundDraw(),fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose.move.every(b=>b.visible))`);
-  ctx.poseNow=1401;
+  check('命令なしの実移動でも移動形へ切り替える',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry');f.order=null;f.pos.x+=.1;groundDraw();const p=f.groundModel.userData.pose;return p.move.every(m=>m.length===1&&m[0].visible)&&p.stand.every(b=>!b.visible);})()`);
+  ctx.gameSec=1.399;
+  check('停止後0.4秒未満は移動形を保つ',`(groundDraw(),fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose.move.every(m=>m[0].visible))`);
+  ctx.gameSec=1.401;
   check('停止後0.4秒で立つ形に戻る',`(groundDraw(),fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose.stand.every(b=>b.visible))`);
+  ctx.location.search='?groundModels='+encodeURIComponent(`infantry:${ctx.testKey}:.5:squad6:${ctx.stepKeys.join('+')}`);run('initModels();');
+  check('各歩行形は全員で形状と隊の材質を共有する',`(()=>{const p=fleets.find(f=>f.groundKind==='infantry').groundModel.userData.pose;return p.move.length===6&&p.move.every((moves,i)=>moves.length===2&&moves.every((b,j)=>!b.visible&&b.geometry===p.move[0][j].geometry&&b.material===p.stand[i].material&&b.position.equals(p.stand[i].position)));})()`);
+  check('6人は各時刻に一つの形だけを表示し全員同じ足を出し続けない',`(()=>{
+    const f=fleets.find(f=>f.groundKind==='infantry'),p=f.groundModel.userData.pose,patterns=[];
+    for(const t of [0,.1,.3,.6,1,1.5,2,3,5]){gameSec=t;f.pos.x+=.01;groundDraw();
+      if(!p.stand.every(b=>!b.visible)||!p.move.every(m=>m.filter(b=>b.visible).length===1))return false;
+      patterns.push(p.move.map(m=>m.findIndex(b=>b.visible)));
+    }
+    return patterns.some(a=>new Set(a).size===2)&&patterns[0].every((_,i)=>new Set(patterns.map(a=>a[i])).size===2)&&p.clocks.every(c=>c.stepSec>=.45*.8&&c.stepSec<=.45*1.25)&&new Set(p.clocks.map(c=>c.stepSec)).size===6;
+  })()`);
+  check('停止中の再描画で歩調が変わらず再初期化しても同じ時計',`(()=>{const f=fleets.find(f=>f.groundKind==='infantry'),p=f.groundModel.userData.pose,clocks=JSON.stringify(p.clocks),visible=()=>JSON.stringify(p.move.map(m=>m.map(b=>b.visible))),before=visible();groundDraw();if(visible()!==before)return false;groundInit();return clocks===JSON.stringify(f.groundModel.userData.pose.clocks);})()`);
   const config=JSON.parse(fs.readFileSync(path.join(__dirname,'../docs/mockups/models/example.json'),'utf8')),html=build({...config,intro:'</script><img src=x>'});
   assert.equal((html.match(/<script src=/g)||[]).length,1);count++;
   const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];assert.equal(scripts.length,3);for(const s of scripts)new vm.Script(s[1]);count++;
@@ -99,8 +113,8 @@ function nodeChecks(){
   wheel(1e6);assert.ok(Math.abs(span()/initial-2)<1e-6);reset.events.click();assert.ok(Math.abs(span()-initial)<1e-6);
   canvas.events.pointerdown({pointerId:1,clientX:0,clientY:0});canvas.events.pointerdown({pointerId:2,clientX:100,clientY:0});
   canvas.events.pointermove({pointerId:2,clientX:200,clientY:0});assert.ok(Math.abs(span()/initial-.5)<1e-6);count++;
-  const {options}=require('../tools/ground-model-shots.cjs'),override=`vehicle@earth:${ctx.testKey}:.7:line4,vehicle@mars:${ctx.testKey}:.9:box4`;
-  assert.equal(options(['--all','--models',override,'--out','.shots/all']).models,override);assert.equal(options(['--all']).all,true);count++;
+  const {options,movingShot,rowFrame}=require('../tools/ground-model-shots.cjs'),override=`vehicle@earth:${ctx.testKey}:.7:line4,vehicle@mars:${ctx.testKey}:.9:box4`;
+  assert.equal(options(['--all','--models',override,'--out','.shots/all']).models,override);assert.equal(options(['--all']).all,true);assert.equal(options(['--no-labels','--moving'])['no-labels'],true);assert.equal(options(['--moving']).moving,true);assert.throws(()=>options(['--unknown']),/Usage/);count++;
   // Execute the tool's actual pre-start setup and layout in the game's node context.
   const shotSource=fs.readFileSync(path.join(__dirname,'../tools/ground-model-shots.cjs'),'utf8');
   const setup=shotSource.slice(shotSource.indexOf('page.evaluate(all=>{')+'page.evaluate('.length,shotSource.indexOf(',!!opt.all);'));
@@ -122,6 +136,19 @@ function nodeChecks(){
   }
   assert.ok(Math.min(...teams[0].map(f=>f.pos.z))>Math.max(...teams[1].map(f=>f.pos.z)));
   assert.ok(Number.isFinite(framing.dist)&&framing.dist>0);count++;
+  for(const team of [0,1])for(let row=0;row<Math.ceil(kinds.length/6);row++){
+    const framing=run(`(${rowFrame.toString()})(${JSON.stringify({team,row})})`),shown=ctx.fleets.filter(f=>!ctx.window.modelShotAbsent(f)&&f.groundModel.visible);
+    assert.equal(shown.length,Math.min(6,kinds.length-row*6));assert.ok(shown.every(f=>f.team===team));
+    const direction=new ctx.THREE.Vector3().fromArray(framing.direction);assert.ok(Math.abs(Math.asin(direction.y)*180/Math.PI-40)<1e-6);assert.equal(Math.sign(direction.z),team?1:-1);
+    ctx.camera.position.fromArray(framing.target).addScaledVector(direction,framing.dist);ctx.camera.lookAt(new ctx.THREE.Vector3().fromArray(framing.target));ctx.camera.updateMatrixWorld(true);
+    for(const f of shown){const box=new ctx.THREE.Box3().setFromObject(f.groundModel);for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){const p=new ctx.THREE.Vector3(x,y,z).project(ctx.camera);assert.ok(Math.abs(p.x)<=.860001&&Math.abs(p.y)<=.860001);}}
+  }count++;
+  run('groundAbsent=window.modelShotAbsent;');
+  ctx.location.search='?groundModels='+encodeURIComponent(`infantry:${ctx.testKey}:.5:squad6:${ctx.stepKeys.join('+')}`);run('groundInit();');
+  const places=ctx.fleets.map(f=>f.pos.clone());let steps=0;
+  ctx.step=dt=>{steps++;ctx.gameSec+=dt;};run(`(${movingShot.toString()})()`);
+  assert.equal(steps,20);ctx.fleets.forEach((f,i)=>assert.ok(f.pos.equals(places[i])));
+  assert.ok(ctx.fleets.filter(f=>f.groundModel.userData.pose).every(f=>f.groundModel.userData.pose.move.every(m=>m.filter(b=>b.visible).length===1)));count++;
   console.log(`| 地上模型・差し替え・見本（ブラウザ不要） | ${count}/${count} 成功 |`);
 }
 if(require.main===module)nodeChecks();

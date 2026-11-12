@@ -24,21 +24,24 @@ const stand=g=>{ g.rotateX(-Math.PI/2); g.scale(1,1,-1); const p=g.attributes.po
 const O8=[...Array(8)].map((_,i)=>[Math.cos((i+.5)*Math.PI/4),Math.sin((i+.5)*Math.PI/4)]), LIFT=[[.55,1],[1,-.1],[.82,-1],[-.82,-1],[-1,-.1],[-.55,1]];
 /* a hull with a crease along its sides (the boat hull of the Republic's carrier), and a slab with its top edges cut */
 const CREASE=[[.7,1],[1,.1],[.8,-1],[-.8,-1],[-1,.1],[-.7,1]], FACET=[[.6,1],[1,.3],[1,-1],[-1,-1],[-1,.3],[-.6,1]];
-/* vehicle parts. trackG: a dark track block along one side, raised at both ends. wheelG: a dark road wheel on a side.
+/* a disc with its axis across the body (road wheels, joints of the frame) */
+const discG=(x,y,z,r,w=.05)=>{ const g=new THREE.CylinderGeometry(r,r,w,6); g.rotateZ(Math.PI/2); return at(g,x,y,z); };
+/* vehicle parts. trackG: a dark track block along one side, raised at both ends, with a row of road wheels showing on its outer face. wheelG: a dark road wheel on a side.
    brl: a piece of barrel from z0 to z1 along +Z from the trunnion at the origin. gunG: barrel pieces set at the trunnion and
    raised by el radians */
-const trackG=(x,z0,z1,w=.1,h=.24)=>tone(at(loft([[z0,w,h*.22,h*.64],[z0+.14,w,h/2,h/2],[z1-.17,w,h/2,h/2],[z1,w,h*.22,h*.68]],RECT),x,0,0),DK);
+const trackG=(x,z0,z1,w=.1,h=.24,n=6)=>[tone(at(loft([[z0,w,h*.22,h*.64],[z0+.14,w,h/2,h/2],[z1-.17,w,h/2,h/2],[z1,w,h*.22,h*.68]],RECT),x,0,0),DK),
+  ...[...Array(n)].map((_,i)=>tone(discG(x+Math.sign(x)*(w+.012),h*.4,z0+.2+(z1-z0-.42)*i/(n-1),h*.36,.03),.6))];
 const wheelG=(x,z,r=.15,w=.12)=>{ const g=new THREE.CylinderGeometry(r,r,w,8); g.rotateZ(Math.PI/2); return tone(at(g,x,r,z),DK); };
 const brl=(r,z0,z1,seg=6)=>at(tube(r,z1-z0,seg),0,0,(z0+z1)/2);
 const gunG=(pieces,y,z,el=0)=>pieces.map(g=>tone(at(g,0,y,z,-el),DK));
 /* shared running gear (docs/models.md 2). hullE: the Earth's tank hull — tracks showing under plate skirts, a flat deck, a
    sloping glacis (top of the deck at y .36). hullM: the Republic's common hull for tank, gun, air defence, rockets and
    engineers — long and low, skirts in one piece with the hull, a long shallow glacis over the crew capsule with a dark sensor
-   strip instead of hatches. wheelsG: road wheels at the given z on both sides. piv: parts built around a pivot at the
+   strip instead of hatches. wheelsG: road wheels at the given z on both sides, each pair on an axle with a suspension arm up to the hull (user 2026-11-12: wheels with nothing between them and the hull look wrong). piv: parts built around a pivot at the
    origin, raised by el and set at x,y,z */
-const hullE=()=>[trackG(.37,-.98,.98), trackG(-.37,-.98,.98), ...pair(at(box(.03,.13,1.66),.485,.22,-.03)), loft([[-.95,.34,.09,.27],[.5,.34,.09,.27],[.97,.31,.035,.215]],SLAB)];
-const hullM=()=>[trackG(.38,-1.02,1,.09,.22), trackG(-.38,-1.02,1,.09,.22), loft([[-1.05,.38,.07,.25],[-.85,.47,.11,.25],[.3,.47,.11,.25],[1.06,.2,.03,.17]],SKIRT), tone(at(box(.34,.03,.1),0,.345,.46),GL)];
-const wheelsG=(zs,x=.37,r=.15)=>zs.flatMap(z=>[wheelG(x,z,r),wheelG(-x,z,r)]);
+const hullE=()=>[...trackG(.37,-.98,.98), ...trackG(-.37,-.98,.98), ...pair(at(box(.03,.13,1.66),.485,.22,-.03)), loft([[-.95,.34,.09,.27],[.5,.34,.09,.27],[.97,.31,.035,.215]],SLAB)];
+const hullM=()=>[...trackG(.38,-1.02,1,.09,.22,7), ...trackG(-.38,-1.02,1,.09,.22,7), loft([[-1.05,.38,.07,.25],[-.85,.47,.11,.25],[.3,.47,.11,.25],[1.06,.2,.03,.17]],SKIRT), tone(at(box(.34,.03,.1),0,.345,.46),GL)];
+const wheelsG=(zs,x=.37,r=.15)=>zs.flatMap(z=>[wheelG(x,z,r),wheelG(-x,z,r), tone(at(box(2*x,.05,.05),0,r,z),.45), ...pair(tone(barG([x-.21,r+.1,z],[x-.07,r,z],.06,.05),.45))]);
 const piv=(parts,x,y,z,el=0)=>parts.map(g=>at(g,x,y,z,-el));
 /* the Earth's truck: four axles, a frame, a cab with a windscreen at the front; the bed is free from z -.95 to .4 at y .31 */
 const truckE=()=>[...wheelsG([-.7,-.3,.22,.64]), tone(at(box(.5,.1,1.9),0,.26,0),.6), loft([[.44,.34,.17,.48],[.84,.34,.17,.48],[.98,.32,.09,.41]],SLAB), tone(at(box(.56,.09,.03),0,.56,.9,.5),GL)];
@@ -47,29 +50,33 @@ const truckM=()=>[...wheelsG([-.66,-.2,.6]), tone(at(box(.48,.1,1.9),0,.26,0),.6
 /* a straight faceted limb from a to b (n sides) */
 function segG(a,b,r0,r1,n=6){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...b).sub(A), l=d.length(), g=new THREE.CylinderGeometry(r1,r0,l,n);
   g.translate(0,l/2,0); g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()))); g.translate(A.x,A.y,A.z); return g.toNonIndexed(); }
-/* a joint disc of the frame, its axis across the body */
-const discG=(x,y,z,r,w=.05)=>{ const g=new THREE.CylinderGeometry(r,r,w,6); g.rotateZ(Math.PI/2); return at(g,x,y,z); };
 /* a flat bar from a to b: width w across the body, thickness t */
 function barG(a,b,w,t){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...b).sub(A), l=d.length(), g=new THREE.BoxGeometry(w,l,t);
   g.translate(0,l/2,0); g.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize()))); g.translate(A.x,A.y,A.z); return g.toNonIndexed(); }
 /* poses of the trooper (h…: the heavy one). d: how far the hips drop, L: forward lean of the upper body (radians), feet: [half
-   stance width, z, ankle height] for the left (leading) and the right foot, el: elbows in the upright body's coordinates
+   stance width, z, ankle height] for the left and the right foot (…2: the other step, feet changed over; c…: the commando), el: elbows in the upright body's coordinates
    (right, left), wr: wrists in the world (right, left; the heavy one's left hand is set from the gun), gun: where the right
    hand holds the weapon, or rifle: the two ends of a rifle carried across the chest */
 const EXO_POSE={
   walk:{d:.03,L:.08,feet:[[.11,.17],[.11,-.15,.11]],el:[[-.31,1.05,.02],[.31,1.09,.05]],wr:[[-.11,.94,.2],[.1,1.11,.22]],rifle:[[-.23,.84,.23],[.23,1.26,.23]]},
   fight:{d:.08,L:.2,feet:[[.13,.22],[.13,-.2,.11]],el:[[-.34,1.157,.054],[.17,1.154,.238]],wr:[[-.11,1.2,.3],[-.02,1.19,.5]],gun:[-.11,1.2,.3]},
   hwalk:{d:.05,L:.12,feet:[[.14,.17],[.14,-.15,.11]],el:[[-.32,1.05,-.05],[.21,1.07,.19]],gun:[-.27,.81,.13]},
+  cwalk:{d:.12,L:.38,feet:[[.11,.2],[.11,-.18,.11]],el:[[-.31,1.05,-.02],[.24,1.06,.15]],wr:[[-.1,.74,.24],[0,.76,.47]],gun:[-.1,.74,.24]},
+  cfight:{d:.43,L:.15,feet:[[.12,.3],[.12,-.45,.08]],el:[[-.34,1.157,.054],[.17,1.154,.238]],wr:[[-.11,.86,.29],[-.02,.85,.5]],gun:[-.11,.86,.29]},
 };
+/* the other step of each walk: the feet change places */
+for(const k of ['walk','hwalk','cwalk']) EXO_POSE[k+'2']={...EXO_POSE[k],feet:[...EXO_POSE[k].feet].reverse()};
 /* the exoskeleton trooper (docs/models.md 3.2). The body is eight heads tall (1.6 units upright: chin 1.4, chest 1.2, navel 1,
    crotch .8, knee .45; shoulders two heads wide), drawn dark; the frame around it is in the team colour: foot plates, struts down
    the outside of each leg with discs at hip and knee, a hip ring, a spine and power unit, a yoke across the shoulders, struts
    down the arms, a helmet. Its right is -X. It never stands straight: the hips are dropped, the knees bent, the body leaning
    forward, one foot ahead (user decision 2026-11-12). pose walk: moving, the rifle carried across the chest; fight: lower, the
-   rifle levelled with its butt against the right shoulder (user decision 2026-11-12). The heavy one has the one pose.
-   heavy: armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
-   multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun */
-function exoParts(heavy,pose){ const BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d;
+   rifle levelled with its butt against the right shoulder (user decision 2026-11-12). The heavy one has the one pose. Each walk has a
+   second step (walk2) with the feet changed over; in the game each trooper steps on its own clock.
+   kind true (heavy): armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
+   multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun; armour sleeves on the arms.
+   kind 'c' (commando): no power unit but a hooded cape, a long rifle with a sight; it moves in a low crouch and fights kneeling */
+function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const M=new THREE.Matrix4().makeTranslation(0,HY,0).multiply(new THREE.Matrix4().makeRotationX(P.L)).multiply(new THREE.Matrix4().makeTranslation(0,-.82,0));
   const W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
   for(const sx of [1,-1]){ const f=P.feet[sx>0?0:1], hip=[sx*.1,HY,0], ank=[sx*f[0],f[2]||.08,f[1]], dy=ank[1]-hip[1], dz=ank[2]-hip[2], dd=Math.hypot(dy,dz), k=Math.sqrt(Math.max(0,T*T-dd*dd/4));
@@ -81,7 +88,8 @@ function exoParts(heavy,pose){ const BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':'')
       barG(o(hip,0,.08).map((v,i)=>v+(o(knee,0,.08)[i]-v)*.2),o(knee,0,.085),.19,.05), barG(o(knee,0,.075),o(ank,0,.06).map((v,i)=>v+(o(knee,0,.075)[i]-v)*.1),.15,.045)); }
   /* upper body, built upright and then leaned as one: torso, neck, hip ring, spine, power unit, yoke */
   U.push(body(stand(loft([[.78,.13,.085],[.98,.12,.08],[1.2,.19,.11],[1.33,.2,.09],[1.4,.06,.05]],HEX))), body(segG([0,1.38,0],[0,1.46,0],.045,.04)),
-    at(box(.44,.06,.2),0,.86,0), at(box(.07,.44,.06),0,1.08,-.13), at(box(.25,.27,.12),0,1.17,-.2), at(box(.54,.05,.1),0,1.37,-.07));
+    at(box(.44,.06,.2),0,.86,0), at(box(.07,.44,.06),0,1.08,-.13), at(box(.54,.05,.1),0,1.37,-.07),
+    ...(cmd?[tone(at(stand(loft([[.88,.19,.05],[1.36,.27,.09],[1.46,.13,.07]],HEX)),0,0,-.11),.7), tone(at(stand(loft([[1.4,.13,.12],[1.56,.12,.13],[1.64,.05,.06]],HEX)),0,0,-.02),.7)]:[at(box(.25,.27,.12),0,1.17,-.2)]));
   if(!heavy){ const head=new THREE.IcosahedronGeometry(.1,0); head.scale(1,1.15,1.05); U.push(at(head,0,1.5,0), tone(at(box(.13,.04,.04),0,1.51,.085),GL)); }
   else { const head=new THREE.IcosahedronGeometry(.118,1); head.scale(1,1.05,1.08);
     U.push(at(head,0,1.53,0), tone(at(box(.17,.065,.05),0,1.54,.095),GL), at(new THREE.CylinderGeometry(.15,.175,.13,8),0,1.43,-.005),
@@ -93,12 +101,22 @@ function exoParts(heavy,pose){ const BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':'')
   /* arms and weapon, in the world: shoulder and elbow follow the lean, the hands hold the weapon */
   const G=P.gun, wr=heavy?[[G[0],G[1]+.01,G[2]],[G[0]+.06,G[1]+.14,G[2]+.2]]:P.wr;
   [[-.21,1.31,0],[.21,1.31,0]].forEach((s0,i)=>{ const sx=Math.sign(s0[0]), sh=W(s0), el=W(P.el[i]), o=v=>[v[0]+sx*.055,v[1]+.02,v[2]-.02];
-    p.push(body(segG(sh,el,.055,.045)), body(segG(el,wr[i],.045,.035)), discG(sh[0]+sx*.07,sh[1]+.02,sh[2]-.02,.062), segG(o(sh),o(el),.024,.022,5), segG(o(el),o(wr[i]),.022,.02,5), discG(el[0]+sx*.055,el[1],el[2]-.02,.045,.04)); });
+    p.push(body(segG(sh,el,.055,.045)), body(segG(el,wr[i],.045,.035)), discG(sh[0]+sx*.07,sh[1]+.02,sh[2]-.02,.062), segG(o(sh),o(el),.024,.022,5), segG(o(el),o(wr[i]),.022,.02,5), discG(el[0]+sx*.055,el[1],el[2]-.02,.045,.04));
+    if(heavy) p.push(segG(mix(sh,el,.12),mix(sh,el,.86),.082,.072), segG(mix(el,wr[i],.16),mix(el,wr[i],.88),.07,.058)); });
   if(P.rifle) p.push(tone(barG(P.rifle[0],P.rifle[1],.05,.075),DK));
+  else if(cmd) p.push(tone(at(box(.045,.07,1),G[0],G[1]+.03,G[2]+.3),DK), tone(at(tube(.034,.22,5),G[0],G[1]+.03,G[2]+.9),DK), tone(at(box(.04,.12,.05),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.035,.05,.2),G[0],G[1]+.09,G[2]+.2),GL));
   else if(!heavy) p.push(tone(at(box(.05,.08,.8),G[0],G[1]+.03,G[2]+.22),DK), tone(at(box(.045,.13,.06),G[0],G[1]-.05,G[2]+.02),DK), tone(at(box(.03,.04,.1),G[0],G[1]+.09,G[2]+.2),DK));
   else p.push(tone(at(box(.1,.13,.36),G[0],G[1],G[2]+.08),DK), tone(at(tube(.06,.3,6),G[0],G[1],G[2]+.4),.6), tone(at(tube(.04,.5,6),G[0],G[1],G[2]+.78),DK), tone(at(tube(.058,.1,6),G[0],G[1],G[2]+1.06),DK),
     tone(at(box(.03,.03,.24),G[0]+.05,G[1]+.13,G[2]+.18),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.08),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.28),DK),
     tone(segG(W([-.12,.97,-.22]),[G[0],G[1]+.02,G[2]-.06],.03,.03,5),DK));
+  return p; }
+/* the assault machine: step 1 or -1 says which foot is ahead */
+function mechParts(step){ const p=[], T=.4;
+  for(const sx of [1,-1]){ const hip=[sx*.13,.82,-.05], ank=[sx*.13,.1,sx*step>0?.2:-.16], dy=ank[1]-hip[1], dz=ank[2]-hip[2], dd=Math.hypot(dy,dz), k=Math.sqrt(Math.max(0,T*T-dd*dd/4));
+    const knee=[hip[0],(hip[1]+ank[1])/2-k*dz/dd,(hip[2]+ank[2])/2+k*dy/dd];
+    p.push(segG(hip,knee,.06,.045), segG(knee,ank,.04,.03), tone(discG(hip[0],hip[1],hip[2],.07,.08),DK), tone(discG(knee[0],knee[1],knee[2],.05,.07),DK), at(box(.12,.05,.26),ank[0],ank[1]-.07,ank[2]+.05)); }
+  p.push(at(loft([[-.3,.13,.09],[.05,.19,.14],[.42,.1,.07,-.03]],HEX),0,.93,0), tone(at(box(.16,.03,.03),0,.93,.4),GL), tone(at(box(.1,.14,.2),0,1.05,-.18),.6),
+    ...pair(at(box(.07,.1,.24),.25,.93,.05)), ...pair(tone(at(tube(.028,.42,5),.25,.92,.38),DK)), tone(at(box(.3,.05,.08),0,.84,-.05),DK), tone(at(box(.02,.3,.02),.08,1.25,-.2),DK));
   return p; }
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
@@ -106,18 +124,21 @@ const GROUND_SHAPES={
   stub:()=>[at(box(.7,.3,1.8),0,.15,0), tone(at(box(.4,.2,.6),0,.4,-.1),.6), tone(at(tube(.04,.9,6),0,.42,.6),.6)],
   /* --- 地球連合の車両 (docs/models.md 2.1): crewed, heavy, today's vehicles a century on. Big turrets with hatches, sights and
      weapon stations added on the roof, tracks showing under plate skirts, thick guns --- */
-  /* 主力戦車（地球連合）: the heavy western and the Russian tank of today grown into one (user decision 2026-11-12). A big low slab
-     turret wider than the hull, its flat front faces drawn in to the gun and hung with wedge armour blocks, a stowage rack
-     behind, two hatches with a gun each and a sight box on the roof; deep skirts over the tracks, a slat cage round the tail,
-     a thick gun with a fume extractor */
-  tankE:()=>[...hullE(), ...pair(at(box(.03,.17,1.84),.49,.225,-.02)), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
-    ...pair(tone(at(box(.022,.13,.4),.525,.25,-.8),DK)), tone(at(box(1.07,.13,.022),0,.25,-1.02),DK),
-    at(loft([[-.78,.3,.09],[-.3,.37,.1],[.14,.37,.1],[.5,.16,.075,-.015]],SLAB),0,.475,-.02),
-    ...pair(tone(at(loft([[-.2,.1,.085],[.1,.085,.075],[.3,.02,.05,-.01]],SLAB),.245,.47,.3,0,.52,0),.82)),
-    at(box(.22,.15,.12),0,.47,.47), tone(at(box(.62,.11,.17),0,.47,-.88),.55), ...pair(tone(at(box(.04,.05,.12),.385,.51,.02),DK)),
-    at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), ...piv([tone(brl(.016,0,.3),DK),tone(at(box(.05,.05,.08),0,0,-.02),DK)],.15,.66,-.18),
-    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.3), ...piv([tone(brl(.013,0,.24),DK)],-.16,.63,-.26), tone(at(box(.09,.1,.09),-.12,.625,.05),DK),
-    ...gunG([brl(.05,0,1.06),brl(.07,.42,.64),brl(.06,1,1.08)],.475,.5)],
+  /* 主力戦車（地球連合）: the heavy western tank and the Russian tank of today grown into one (user decision 2026-11-12). From the
+     western one: a long low slab turret wider than the hull with a broad flat face, a stowage rack behind it, two hatches with
+     shielded guns, deep skirts with the road wheels showing under them, a fume extractor on a thick gun. From the Russian one:
+     the arrowhead of wedge armour blocks on the turret face, armour bags along the skirts and blocks on the glacis, net cages
+     round the turret rack and the tail, a remote gun on the sight, sleeves on the barrel */
+  tankE:()=>[...hullE(), ...pair(at(box(.03,.15,1.84),.49,.235,-.02)), ...[.6,.36,.12,-.12].flatMap(z=>pair(tone(at(box(.05,.11,.2),.52,.25,z),.82))),
+    tone(at(box(.5,.035,.3),0,.33,.72,.23),.82), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
+    ...pair(tone(at(box(.022,.13,.4),.535,.25,-.8),DK)), tone(at(box(1.09,.13,.022),0,.25,-1.02),DK),
+    at(loft([[-.8,.27,.085],[-.4,.37,.1],[.18,.37,.1],[.46,.3,.075,-.02]],SLAB),0,.475,-.02),
+    ...pair(tone(at(loft([[-.24,.13,.085],[.06,.11,.075],[.27,.015,.05,-.012]],SLAB),.2,.468,.43,0,.6,0),.82)), at(box(.16,.14,.2),0,.47,.5),
+    tone(at(box(.56,.09,.14),0,.47,-.86),.55), tone(at(box(.72,.1,.02),0,.46,-.95),DK), ...pair(tone(at(box(.02,.1,.3),.36,.46,-.8),DK)),
+    ...pair(tone(at(box(.04,.05,.12),.385,.51,.02),DK)),
+    at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), at(box(.13,.09,.02),.15,.66,-.13), ...piv([tone(brl(.016,0,.3),DK)],.15,.66,-.14),
+    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.34), tone(at(box(.09,.1,.09),-.13,.625,.0),DK), ...piv([tone(brl(.013,0,.26),DK),tone(at(box(.04,.05,.07),0,0,0),DK)],-.13,.7,.0),
+    ...gunG([brl(.05,0,1.08),brl(.062,.12,.4),brl(.071,.46,.66),brl(.062,.72,.94),brl(.058,1.02,1.08)],.475,.52)],
   /* 装甲兵員輸送車（地球連合）: eight wheels under a box that is a plain rectangle seen from above; the front is one long,
      gentle slope from the roof down to the nose, half the length of the vehicle (user decision 2026-11-12). The weapon
      station sits off to one side behind the commander's hatch, stowage boxes along the rear sides, a ramp door behind */
@@ -154,16 +175,17 @@ const GROUND_SHAPES={
     ...gunG([brl(.058,0,.24),at(taper(.04,.03,1.2,6),0,0,.84)],.45,.24)],
   /* 装甲兵員輸送車（惑星共和国）: eight wheels under a boat hull with a crease along its sides and an upswept prow, a flat
      uncrewed turret set well back with a long thin cannon */
-  apcM:()=>[...wheelsG([-.7,-.28,.16,.6]),
+  apcM:()=>[...wheelsG([-.7,-.28,.16,.6]), tone(at(box(.5,.13,1.72),0,.2,-.04),.6),
     loft([[-.98,.3,.13,.36],[-.72,.37,.15,.37],[.45,.37,.15,.37],[.85,.28,.1,.37],[1.1,.1,.03,.41]],CREASE), tone(at(box(.26,.03,.04),0,.5,.58,.3),GL),
     at(new THREE.CylinderGeometry(.15,.2,.08,6),0,.56,-.32), ...gunG([brl(.018,0,.85),at(box(.05,.05,.2),.06,0,.1)],.58,-.26)],
   /* 自走砲（惑星共和国）: the common hull under a tall narrow gun house with cut top edges; a long powder gun, the longest on the
      field (user decision 2026-11-12: not a railgun, its range would not fit 30 km) */
   spgM:()=>[...hullM(), at(loft([[-.92,.2,.15],[-.5,.24,.19],[.18,.22,.17],[.46,.11,.09,-.04]],FACET),0,.56,-.05), tone(at(box(.07,.07,.07),.1,.775,-.4),DK),
     ...gunG([brl(.062,0,.26),brl(.038,.26,1.78),brl(.052,.9,1.06),brl(.055,1.64,1.78)],.6,.3,.22)],
-  /* 自走対空砲（惑星共和国）: the common hull under a flat uncrewed turret with four cannon in a block, raised, and a tracker ball */
+  /* 自走対空砲（惑星共和国）: the common hull under a flat uncrewed turret with four short cannon in a block, raised a little, and
+     a tracker ball; low and compact (user 2026-11-12) */
   aaM:()=>[...hullM(), at(new THREE.CylinderGeometry(.22,.27,.1,6),0,.42,-.2),
-    ...piv([box(.2,.16,.36),...[[.05,.04],[-.05,.04],[.05,-.04],[-.05,-.04]].map(([x,y])=>tone(at(brl(.018,0,.8),x,y,.12),DK))],0,.55,-.2,.5), tone(at(new THREE.IcosahedronGeometry(.07,0),.2,.52,-.42),GL)],
+    ...piv([box(.22,.13,.3),...[[.05,.035],[-.05,.035],[.05,-.035],[-.05,-.035]].map(([x,y])=>tone(at(brl(.018,0,.5),x,y,.12),DK))],0,.52,-.2,.3), tone(at(new THREE.IcosahedronGeometry(.07,0),.2,.5,-.42),GL)],
   /* ロケット車両（惑星共和国）: the common hull with two rows of launch tubes lying low on the deck */
   mlrsM:()=>[...hullM(), ...piv([...[-.17,0,.17].flatMap(x=>[.06,.2].map(y=>{ const g=tube(.068,1.15,6); return at(g,x,y,.5); })),tone(at(box(.5,.3,.02),0,.13,1.08),DK),at(box(.56,.06,.3),0,-.02,.2)],0,.4,-.9,.16)],
   /* 補給（惑星共和国）: the sealed truck with two tanks on the bed */
@@ -171,12 +193,28 @@ const GROUND_SHAPES={
   /* 工兵（惑星共和国）: the common hull with a folded bridge on top and a narrow blade */
   engM:()=>[...hullM(), at(box(.8,.18,.04),0,.14,1.12,-.3), tone(at(box(.46,.05,1.5),0,.42,-.3),.75), tone(at(box(.46,.05,1.5),0,.5,-.3),.75), ...[-.9,.3].map(z=>tone(at(box(.5,.15,.04),0,.45,z),DK))],
   /* 斥候（惑星共和国）: a small low four-wheeled boat hull with a tiny uncrewed turret */
-  scoutM:()=>[...wheelsG([-.42,.42],.33,.16), loft([[-.72,.26,.11,.34],[-.5,.32,.13,.35],[.35,.32,.13,.35],[.82,.1,.03,.37]],CREASE), tone(at(box(.22,.03,.04),0,.46,.45,.3),GL),
+  scoutM:()=>[...wheelsG([-.42,.42],.33,.16), tone(at(box(.44,.12,1.2),0,.22,0),.6), loft([[-.72,.26,.11,.34],[-.5,.32,.13,.35],[.35,.32,.13,.35],[.82,.1,.03,.37]],CREASE), tone(at(box(.22,.03,.04),0,.46,.45,.3),GL),
     at(new THREE.CylinderGeometry(.1,.14,.07,6),0,.51,-.22), ...gunG([brl(.015,0,.5)],.53,-.18), tone(at(box(.05,.07,.05),.0,.58,-.3),GL)],
   /* 強化歩兵: about 2 m tall. W: moving, F: standing or fighting */
-  infW:()=>exoParts(false,'walk'), infF:()=>exoParts(false,'fight'),
+  infW:()=>exoParts(false,'walk'), infW2:()=>exoParts(false,'walk2'), infF:()=>exoParts(false,'fight'),
   /* 重強化歩兵: the same frame a little bigger, armoured all over (user decision 2026-11-12) */
-  hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)),
+  hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)), hinf2:()=>exoParts(true,'walk2').map(g=>g.scale(1.12,1.12,1.12)),
+  /* 強化コマンド歩兵: the soldier who uses the ground. A hooded cape instead of the power unit, a long rifle; W: moving in a low
+     crouch, F: kneeling to shoot */
+  cmdW:()=>exoParts('c','walk'), cmdW2:()=>exoParts('c','walk2'), cmdF:()=>exoParts('c','fight'),
+  /* 機械化突撃兵: the expendable machines that go first into a breach (only their platoon leader is human). No head and no
+     body inside: a wedge-shaped trunk slung forward on legs with the knee to the rear, a sensor slit, a gun on each side.
+     A and B are the two steps of its walk */
+  mechA:()=>mechParts(1), mechB:()=>mechParts(-1),
+  /* ドローンハイブ: an uncrewed carrier that flies low — a flat six-sided body on four ducted fans with its cells dark on top, a
+     sensor ball underneath, and five of its small drones around it */
+  hive:()=>{ const dr=(x,y,z,r)=>[at(plate([[0,.15],[.13,-.1],[0,-.04],[-.13,-.1]],.03),x,y,z,0,r,0), tone(at(box(.03,.035,.12),x,y+.02,z),DK)];
+    return [at(new THREE.CylinderGeometry(.4,.48,.14,6),0,0,0), tone(at(new THREE.CylinderGeometry(.3,.3,.03,6),0,.08,0),DK), tone(at(new THREE.IcosahedronGeometry(.07,0),0,-.1,.3),GL),
+      ...[[.5,.5],[-.5,.5],[.5,-.5],[-.5,-.5]].flatMap(([x,z])=>[at(new THREE.CylinderGeometry(.22,.22,.07,8),x,0,z), tone(at(new THREE.CylinderGeometry(.16,.16,.08,8),x,0,z),DK), at(box(.12,.04,.12),x*.62,0,z*.62)]),
+      ...dr(.98,.25,.45,.3), ...dr(-1.02,.15,.1,-.4), ...dr(.68,.3,-.88,.2), ...dr(-.58,.35,-.98,0), ...dr(.05,.2,1.08,0)]; },
+  /* 陸戦型 W.A.S. (for now): the space W.A.S. as it is (CRAFT_SHAPES.was, a user-approved shape), four times the size and set
+     on the ground. It is redesigned with the assault carrier later (docs/models.md 9 D) */
+  wasG:()=>{ const p=CRAFT_SHAPES.was(); p.forEach(g=>{ g.scale(4,4,4); g.translate(0,.78,0); }); return p; },
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
@@ -193,14 +231,16 @@ const GROUND_SHAPES={
     ...pair(at(plate([[0,-.78],[.52,-.84],[.52,-1.04],[0,-1.02]],.04),0,.03,0)), ...pair(at(plate([[0,-.8],[0,-1.06],[.3,-1.1],[.3,-.9]],.035),.52,.03,0,0,0,Math.PI/2)),
     tone(at(loft([[.36,.07,.05],[.56,.085,.09,.02],[.84,0,0]]),0,.12,0),GL), tone(at(tube(.036,.42,6),.03,-.13,.98),DK)],
   /* 広域戦略支援航空機（地球連合）: a big bomber crossed with an early-warning aircraft (user decision 2026-11-12; no radar in
-     this war, so no dish). A long tube body, long swept wings set high with four engine pods, a T tail; on its back a long
-     optical sensor beam on struts, a sensor ball under the nose, the bomb bay doors dark under the belly */
+     this war, so no dish). A long tube body, long swept wings set high with four engine pods, a T tail; under its body a long
+     optical sensor beam on struts and a sensor ball under the nose, only a short sensor stub on its back (user 2026-11-12), the
+     bomb bay doors dark under the tail */
   awE:()=>[loft([[-1.12,.06,.07],[-.72,.14,.15],[.6,.14,.15],[.96,.1,.11],[1.16,.02,.03,-.03]],O8),
     ...pair(at(plate([[.1,.36],[1.38,-.26],[1.38,-.44],[.1,-.16]],.06),0,.11,0)),
     ...[.46,.88].flatMap(x=>pair(tone(at(taper(.078,.066,.36,6),x,-.01,.14-x*.46),DK))),
     at(plate([[0,-.7],[0,-1.1],[.44,-1.2],[.44,-.96]],.045),0,.12,0,0,0,Math.PI/2), ...pair(at(plate([[0,-.96],[.46,-1.12],[.46,-1.22],[0,-1.17]],.035),0,.55,0)),
-    at(box(.075,.075,1.05),0,.37,-.05), tone(at(box(.085,.035,.95),0,.37,-.05),GL), ...[-.4,.3].map(z=>at(box(.04,.12,.08),0,.27,z)),
-    tone(at(new THREE.IcosahedronGeometry(.085,0),0,-.14,.86),GL), tone(at(box(.2,.03,.75),0,-.15,-.1),DK), tone(at(box(.2,.05,.05),0,.12,1.0,.5),GL)],
+    at(box(.075,.075,.95),0,-.29,.2), tone(at(box(.085,.035,.85),0,-.29,.2),GL), ...[-.15,.55].map(z=>at(box(.04,.12,.08),0,-.2,z)),
+    at(box(.06,.05,.2),0,.3,-.1), tone(at(box(.068,.025,.16),0,.3,-.1),GL), at(box(.035,.1,.06),0,.22,-.1),
+    tone(at(new THREE.IcosahedronGeometry(.085,0),0,-.14,.86),GL), tone(at(box(.22,.03,.5),0,-.15,-.5),DK), tone(loft([[.88,.09,.07,.065],[1.02,.075,.06,.04],[1.12,.02,.02,0]],O8),GL)],
   /* --- 惑星共和国の航空機 (docs/models.md 2.2): Mars has no tradition of flying on wings, so what it flies in the Earth's air
      comes from craft that fall from orbit: thick flat-bellied lifting bodies with a dark heat shield underneath, small fins, sealed
      with a sensor strip instead of a canopy --- */
@@ -237,15 +277,17 @@ const GROUND_FORMS={
   flight4:[[0,1.2],[-1.9,-.4],[1.9,-.4],[3.7,-2]],
 };
 /* ground unit kind (f.groundKind, or sea:<naval model> for ships) → the model the game draws. A value is one spec
-   {key, size, form, move}, or {earth:spec, mars:spec} when the two sides have their own shapes. key: in GROUND_SHAPES; size: scale of
+   {key, size, form, move:[keys]}, or {earth:spec, mars:spec} when the two sides have their own shapes. key: in GROUND_SHAPES; size: scale of
    the model in the ground board's units (4 units = 1 km); form: a name in GROUND_FORMS (default one). A kind that is not listed
    keeps the old drawing. Empty until the user approves the samples (CLAUDE.md: looks go in after a sample is approved) */
 const GROUND_MODELS={};
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
-   only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. move: the key of the
-   shape shown while the unit is moving (null: the same shape always); key is the shape when it stands or fights */
+   only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the
+   shape when the unit stands or fights. move: the keys of the shapes shown while it is moving (in the table an array, in the
+   address joined with +; empty: the same shape always). With two or more, each body of the unit steps through them on its
+   own clock (the steps of a walk), starting at a random one, so the bodies are out of step with each other */
 function groundModelFor(kind,side='earth'){
-  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:m.move&&has(GROUND_SHAPES,m.move)?m.move:null,size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one']}:null;
+  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:(Array.isArray(m.move)?m.move:String(m.move||'').split('+')).filter(k=>has(GROUND_SHAPES,k)),size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one']}:null;
   const q=typeof location!=='undefined'&&new URLSearchParams(location.search).get('groundModels');
   if(q) for(const who of [kind+'@'+side,kind]) for(const s of q.split(',')){
     if(!s.startsWith(who+':')) continue;

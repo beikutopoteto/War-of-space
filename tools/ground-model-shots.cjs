@@ -1,11 +1,41 @@
-/* 実行: node tools/ground-model-shots.cjs [--models "kind[@side]:key:size:form,..."] [--all] [--out .shots/models]
+/* 実行: node tools/ground-model-shots.cjs [--models "kind[@side]:key:size:form,..."] [--all] [--no-labels] [--moving] [--out .shots/models]
    1600×900。停止した初期配置と、兵科ごとに両軍を1.6km間隔・各列6隊までで並べた見本を撮る。 */
 const fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('node:url');
 const {openGame,ROOT}=require('./browser.cjs');
 function options(args){
   const opt={out:path.join(ROOT,'.shots/models')};
-  for(let i=0;i<args.length;i++){if(args[i]==='--all'){opt.all=true;continue;}if(!['--models','--out'].includes(args[i])||!args[i+1]||args[i+1].startsWith('--'))throw new Error('Usage: node tools/ground-model-shots.cjs [--models "kind[@side]:key:size:form,..."] [--all] [--out <dir>]');opt[args[i].slice(2)]=args[++i];}
+  for(let i=0;i<args.length;i++){if(['--all','--no-labels','--moving'].includes(args[i])){opt[args[i].slice(2)]=true;continue;}if(!['--models','--out'].includes(args[i])||!args[i+1]||args[i+1].startsWith('--'))throw new Error('Usage: node tools/ground-model-shots.cjs [--models "kind[@side]:key:size:form,..."] [--all] [--no-labels] [--moving] [--out <dir>]');opt[args[i].slice(2)]=args[++i];}
   opt.out=path.resolve(opt.out);return opt;
+}
+// These callbacks also run in the node-only checks, with the real game objects.
+function movingShot(){
+  const units=fleets.filter(f=>f.alive&&!f.embarked&&!groundAbsent(f)),places=units.map(f=>({pos:f.pos.clone(),heading:f.heading.clone()}));
+  units.forEach(f=>{f.order={type:'move',dest:f.pos.clone().addScaledVector(f.heading,80)};f.queue=[];});
+  for(let i=0;i<20;i++){step(.05);groundDraw();}
+  // Keep the comparison spacing and facing even if pathfinding turns or blocks a unit.
+  // Prime the same displacement signal as normal movement, then freeze at this battle time.
+  units.forEach((f,i)=>{f.pos.copy(places[i].pos);f.heading.copy(places[i].heading);const pose=f.groundModel.userData.pose;if(pose)pose.last.copy(f.pos).addScaledVector(f.heading,-.001);});
+  groundDraw();
+}
+function rowFrame({team,row}){
+  if(!window.modelShotAbsent)window.modelShotAbsent=groundAbsent;
+  groundAbsent=window.modelShotAbsent;
+  const units=fleets.filter(f=>f.team===team&&f.alive&&!f.embarked&&!groundAbsent(f)).slice(row*6,row*6+6);
+  if(!units.length)throw new Error('撮影する行がない');
+  groundAbsent=f=>window.modelShotAbsent(f)||!units.includes(f);
+  groundUpdateSight();
+  for(const f of units){f.groundVisible[0]=true;f.seen=true;f.everSeen=true;f.el.querySelector('.nm').style.display='block';}
+  groundDraw();groundFogDraw(true);scene.updateMatrixWorld(true);
+  const box=new THREE.Box3();units.forEach(f=>box.union(new THREE.Box3().setFromObject(f.groundModel)));
+  const angle=THREE.MathUtils.degToRad(40),front=team===1?1:-1;
+  const direction=new THREE.Vector3(front*.65,0,front).normalize().multiplyScalar(Math.cos(angle));direction.y=Math.sin(angle);
+  const right=new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0),direction).normalize(),up=new THREE.Vector3().crossVectors(direction,right);
+  const target=box.getCenter(new THREE.Vector3()),tanY=Math.tan(THREE.MathUtils.degToRad(camera.fov/2)),tanX=tanY*camera.aspect;let dist=1;
+  for(const x of [box.min.x,box.max.x])for(const y of [box.min.y,box.max.y])for(const z of [box.min.z,box.max.z]){
+    const p=new THREE.Vector3(x,y,z).sub(target),depth=p.dot(direction);
+    dist=Math.max(dist,Math.abs(p.dot(right))/(tanX*.86)+depth,Math.abs(p.dot(up))/(tanY*.86)+depth);
+  }
+  return {target:target.toArray(),dist,direction:direction.toArray()};
 }
 async function main(){
   const opt=options(process.argv.slice(2)),{browser,page,errors}=await openGame({width:1600,height:900});
@@ -32,7 +62,8 @@ async function main(){
     const settle=()=>page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
     fs.mkdirSync(opt.out,{recursive:true});
     const shoot=async name=>{await settle();if(errors.length)throw new Error(errors.join('\n'));const file=path.join(opt.out,name+'.png');await page.screenshot({path:file});console.log(file);};
-    await shoot('far');
+    if(opt['no-labels'])await page.addStyleTag({content:'.nm,.ground-site{display:none!important}'});
+    if(!opt.all){if(opt.moving)await page.evaluate(movingShot);await shoot('far');}
     // Work out the closest 45-degree perspective view that fits the actual model bounds.
     const frame=async(line=false)=>page.evaluate(line=>{
       const players=fleets.filter(f=>f.team===0&&f.alive&&!f.embarked&&!groundAbsent(f));let shownUnits=players;
@@ -70,17 +101,26 @@ async function main(){
       return {target:target.toArray(),dist};
     },line);
     const cameraAt=async(framing,factor)=>{
-      await page.evaluate(({target,dist,factor})=>{camAnim=null;controls.autoRotate=false;controls.enableDamping=false;controls.minDistance=.5;controls.maxDistance=3000;controls.target.fromArray(target);camera.position.copy(controls.target).add(new THREE.Vector3(0,1,1).normalize().multiplyScalar(dist*factor));camera.lookAt(controls.target);controls.update();groundDraw();},{...framing,factor});await settle();
+      await page.evaluate(({target,dist,factor,direction})=>{camAnim=null;controls.autoRotate=false;controls.enableDamping=false;controls.minDistance=.5;controls.maxDistance=3000;controls.target.fromArray(target);camera.position.copy(controls.target).add(new THREE.Vector3().fromArray(direction||[0,1,1]).normalize().multiplyScalar(dist*factor));camera.lookAt(controls.target);controls.update();groundDraw();},{...framing,factor});await settle();
     };
+    if(opt.all){
+      await frame(true);
+      if(opt.moving)await page.evaluate(movingShot);
+      for(const [team,side] of ['earth','mars'].entries())for(let row=0;row<Math.ceil((team?placed.enemy:placed.player).length/6);row++){
+        const framing=await page.evaluate(rowFrame,{team,row});await cameraAt(framing,1);await shoot(`all-${side}-${row+1}`);
+      }
+      if(errors.length)throw new Error(errors.join('\n'));
+      return;
+    }
     const start=await frame();await cameraAt(start,2);await shoot('mid');await cameraAt(start,1);await shoot('near');
     // Reset with missing enemy kinds added through the normal fleet/model initialization.
     await page.evaluate(()=>{
       for(const f of op.quick)if(!op.enemies.some(e=>e.groundKind===f.groundKind))op.enemies.push({...f,side:'mars'});
       reset();setSpeed(0);
     });await page.waitForFunction(()=>!camAnim);
-    const row=await frame(true);await page.waitForTimeout(450);await cameraAt(row,1);await shoot('line-near');await cameraAt(row,2);await shoot('line-mid');
+    const row=await frame(true);if(opt.moving)await page.evaluate(movingShot);await page.waitForTimeout(450);await cameraAt(row,1);await shoot('line-near');await cameraAt(row,2);await shoot('line-mid');
     if(errors.length)throw new Error(errors.join('\n'));
   }finally{await browser.close();}
 }
 if(require.main===module)main().catch(e=>{console.error(e);process.exitCode=1;});
-module.exports={options};
+module.exports={options,movingShot,rowFrame};
