@@ -58,16 +58,15 @@ function barG(a,b,w,t){ const A=new THREE.Vector3(...a), d=new THREE.Vector3(...
    hand holds the weapon, or rifle: the two ends of a rifle carried across the chest */
 const EXO_POSE={
   walk:{d:.03,L:.08,feet:[[.11,.17],[.11,-.15,.11]],el:[[-.31,1.05,.02],[.31,1.09,.05]],wr:[[-.11,.94,.2],[.1,1.11,.22]],rifle:[[-.23,.84,.23],[.23,1.26,.23]]},
-  fight:{d:.1,L:.3,feet:[[.13,.23],[.13,-.2,.11]],el:[[-.3,1.05,-.05],[.21,1.08,.2]],wr:[[-.15,.86,.2],[-.05,.89,.44]],gun:[-.15,.86,.2]},
+  fight:{d:.08,L:.2,feet:[[.13,.22],[.13,-.2,.11]],el:[[-.34,1.157,.054],[.17,1.154,.238]],wr:[[-.11,1.2,.3],[-.02,1.19,.5]],gun:[-.11,1.2,.3]},
   hwalk:{d:.05,L:.12,feet:[[.14,.17],[.14,-.15,.11]],el:[[-.32,1.05,-.05],[.21,1.07,.19]],gun:[-.27,.81,.13]},
-  hfight:{d:.11,L:.25,feet:[[.16,.23],[.16,-.2,.11]],el:[[-.32,1.05,-.06],[.21,1.07,.2]],gun:[-.27,.75,.17]},
 };
 /* the exoskeleton trooper (docs/models.md 3.2). The body is eight heads tall (1.6 units upright: chin 1.4, chest 1.2, navel 1,
    crotch .8, knee .45; shoulders two heads wide), drawn dark; the frame around it is in the team colour: foot plates, struts down
    the outside of each leg with discs at hip and knee, a hip ring, a spine and power unit, a yoke across the shoulders, struts
    down the arms, a helmet. Its right is -X. It never stands straight: the hips are dropped, the knees bent, the body leaning
    forward, one foot ahead (user decision 2026-11-12). pose walk: moving, the rifle carried across the chest; fight: lower, the
-   weapon levelled at the hip.
+   rifle levelled with its butt against the right shoulder (user decision 2026-11-12). The heavy one has the one pose.
    heavy: armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
    multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun */
 function exoParts(heavy,pose){ const BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d;
@@ -172,7 +171,7 @@ const GROUND_SHAPES={
   /* 強化歩兵: about 2 m tall. W: moving, F: standing or fighting */
   infW:()=>exoParts(false,'walk'), infF:()=>exoParts(false,'fight'),
   /* 重強化歩兵: the same frame a little bigger, armoured all over (user decision 2026-11-12) */
-  hinfW:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)), hinfF:()=>exoParts(true,'fight').map(g=>g.scale(1.12,1.12,1.12)),
+  hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)),
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
