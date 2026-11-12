@@ -119,101 +119,70 @@ function tuftG(x,y,z,r){ const g=new THREE.IcosahedronGeometry(r,0), q=g.attribu
   const rnd=()=>(h=(h*9301+49297)%233280)/233280, seen={};
   for(let i=0;i<q.count;i++){ const k=[q.getX(i),q.getY(i),q.getZ(i)].map(v=>v.toFixed(3)).join(), f=seen[k]||(seen[k]=.6+rnd()*.85); q.setXYZ(i,q.getX(i)*f,q.getY(i)*f*1.15,q.getZ(i)*f); }
   return tone(at(g,x,y,z),rnd()<.5?.55:.8); }
-/* W.A.S. (docs/models.md 9 D): one design for space and for the ground (user decision 2026-11-12).
-   wasParts: the space W.A.S. of battle/shapes.js (the shape the user approved on 2026-10-14) with its numbers opened up.
-   L: forward lean (.45 in flight); arm, leg: thickness of the arms and of the legs with their thruster pods; feet: pads to stand on */
-function wasParts(o){ const K=.1, P=([x,y])=>[(x-12)*K,(11.2-y)*K], V=(x,y,z=0)=>new THREE.Vector3(x,y,z), M=()=>new THREE.Matrix4(), L=o.L, A=o.arm, G=o.leg;
-  const rotAt=(axis,ang,p)=>M().makeTranslation(p.x,p.y,p.z).multiply(M().makeRotationAxis(axis,ang)).multiply(M().makeTranslation(-p.x,-p.y,-p.z));
-  const X=V(1,0,0), Z=V(0,0,1), up=g=>{ g.rotateX(-Math.PI/2); return g; };
-  const along=(g,a,b)=>{ g.applyMatrix4(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(Z,b.clone().sub(a).normalize()))); g.translate(a.x,a.y,a.z); return g; };
-  const head=new THREE.IcosahedronGeometry(.085,0); head.scale(1,1.08,1.05);
-  const parts=[at(head,0,.415,.01), tone(at(box(.1,.022,.03),0,.42,.085),GL), limb([0,.32,0],[0,.36,0],.025,.022),
-    up(loft([[-.05,.012,.012],[0,.055,.06],[.145,.095,.1],[.17,.135,.11],[.3,.17,.07],[.335,.14,.035]],HEX)),
-    at(box(.18,.16,.09),0,.2,-.14), ...pair(tone(at(new THREE.CylinderGeometry(.035,.025,.08,8),.06,.09,-.16),DK))], right=[];
-  const TOP=V(...P([8.2,2.8])), TIP=V(...P([7.32,15])), EL=TOP.clone().lerp(TIP,6.9/12.2), PV=TOP.clone().lerp(TIP,.59), dir=TIP.clone().sub(EL).normalize();
-  const armM=M().makeTranslation(PV.x,PV.y,PV.z).multiply(M().makeRotationFromQuaternion(new THREE.Quaternion().setFromUnitVectors(TIP.clone().sub(TOP).normalize(),V(0,Math.sin(L),Math.cos(L))))).multiply(M().makeTranslation(-PV.x,-PV.y,-PV.z));
-  right.push(along(loft([[0,.004,.004],[.27,.075*A,.075*A],[.5,.115*A,.115*A],[TOP.distanceTo(EL),.128*A,.128*A]],ROUND),TOP,EL),
-    along(loft([[0,.128*A,.128*A],[.26,.13*A,.13*A],[.42,.08*A,.08*A],[EL.distanceTo(TIP),.03*A,.03*A]],ROUND),EL,TIP));
-  for(const g of right) g.applyMatrix4(armM);
-  for(const [a,b] of [[[10.5,8.7],[8.6,7.6]],[[10.75,9.4],[8.4,9.3]]]) right.push(tone(limb([...P(a),0],V(...P(b)).applyMatrix4(armM).toArray(),.011,.011),DK));
-  const LX=-.105*(o.feet?1.15:1), HIP=V(LX,-.01), KN=V(LX,-.271), thM=rotAt(X,-.35,HIP), knee=KN.clone().applyMatrix4(thM);
-  const shM=M().makeTranslation(knee.x-KN.x,knee.y-KN.y,knee.z-KN.z).multiply(rotAt(X,.4,KN));
-  const thigh=up(loft([[KN.y,.063*G,.1*G],[-.17,.06*G,.075*G],[-.073,.057*G,.05*G],[HIP.y,.021,.03]],HEX)), shin=up(loft([[-.505,.078*G,.035*G],[-.39,.07*G,.075*G],[KN.y,.063*G,.1*G]],HEX));
-  thigh.translate(LX,0,0); shin.translate(LX,0,0); shin.applyMatrix4(shM);
-  const kneeCap=new THREE.ConeGeometry(.04,.05,4); kneeCap.rotateX(Math.PI/2); kneeCap.rotateZ(Math.PI/4);
-  const pod=up(loft([[-.33,.02,.02],[-.28,.042*G,.042*G],[-.1,.04*G,.04*G],[-.02,.035*G,.035*G],[0,.02,.02]],HEX)); pod.translate(P([9.62,11.8])[0]-(G-1)*.05,P([9.62,11.8])[1],0);
-  const noz=tone(new THREE.CylinderGeometry(.03*G,.045*G,.05,8),DK); noz.translate(P([9.62,15.35])[0]-(G-1)*.05,P([9.62,15.35])[1],0);
-  for(const g of [thigh,pod,noz]) g.applyMatrix4(thM);
-  right.push(thigh, shin, pod, noz, at(kneeCap,knee.x,knee.y,knee.z+.1*G));
-  if(o.feet){ const f=at(box(.13,.03,.2),LX,-.515,.03); f.applyMatrix4(shM); right.push(f); }
-  const on=t=>TIP.clone().addScaledVector(dir,t), rifle=[along(loft([[-.06,.055,.04],[.1,.055,.04]],RECT),on(0),on(1)),
-    along(loft([[.1,.018,.018],[.4,.018,.018]],ROUND),on(0),on(1)), along(loft([[.4,.024,.024],[.44,.018,.018]],ROUND),on(0),on(1))];
-  for(const g of rifle){ g.applyMatrix4(armM); tone(g,DK); }
-  for(let g of right){ const t=g.userData.tone; g=g.index?g.toNonIndexed():g; if(t!=null) g.userData.tone=t; parts.push(g,mirror(g)); }
-  parts.push(...rifle);
-  const cm=rotAt(X,Math.PI/2-L,V(.245,.38,-.07));
-  parts.push(limb([.15,.3,-.06],[.245,.38,-.07],.02,.018), ...[at(box(.11,.2,.1),.245,.48,-.07), tone(at(up(tube(.022,.52,10)),.245,.84,-.07),DK), tone(at(box(.1,.012,.03),.245,1.1,-.07),DK)].map(g=>g.applyMatrix4(cm)));
-  const out=parts.map(g=>{ if(!g.index) return g; const n=g.toNonIndexed(); n.userData.tone=g.userData.tone; return n; }); out.forEach(g=>{ g.rotateX(L); g.scale(1.52,1.68,1.68); });
-  return onGround(out); }
-/* lift parts so the lowest point stands on y = 0 */
-function onGround(parts){ let m=Infinity; for(const g of parts){ const q=g.attributes.position; for(let i=0;i<q.count;i++) m=Math.min(m,q.getY(i)); } parts.forEach(g=>g.translate(0,-m,0)); return parts; }
-/* W.A.S. as Claude would build it from the setting (docs/story.md 4): a work exoskeleton grown to 4–5 m and armed. The same
-   language as the infantry's frame, so the line shows: dark joints, a small faceted head and a dark chest hatch over the
-   pilot, a wide angular chest stepping in to a narrow waist. Long thick arms (a ship-class rifle in the right hand, a close-in
-   cannon on the left forearm), a ship-class cannon over the left shoulder; short thick legs, each calf a thruster nacelle with
-   its bell behind, splayed feet to stand on the Earth; a pack with two thruster bells and two tanks */
-function wasOwn(){ const p=[], dk=g=>tone(g,DK), J=(x,y,z,r,w=.07)=>tone(discG(x,y,z,r,w),.35);
-  for(const sx of [1,-1]){ const hip=[sx*.17,.62,0], knee=[sx*.21,.37,.11], ank=[sx*.21,.12,-.01];
-    p.push(segG(hip,knee,.115,.1), J(hip[0],hip[1],hip[2],.085,.1), J(knee[0],knee[1],knee[2],.075,.1),
-      at(stand(loft([[.07,.1,.1],[.3,.145,.155],[.44,.1,.1]],O8)),ank[0],0,ank[2]-.02), dk(at(new THREE.CylinderGeometry(.06,.095,.12,6),ank[0],.14,ank[2]-.2,.9)),
-      at(box(.17,.07,.34),ank[0],.035,ank[2]+.1), at(box(.1,.05,.14),ank[0],.03,ank[2]-.17),
-      /* arm */
-      J(sx*.44,1.19,0,.1,.1), at(loft([[-.15,.13,.1],[.13,.1,.075]],SLAB),sx*.45,1.27,0)); }
-  p.push(at(box(.36,.14,.24),0,.63,0), tone(segG([0,.68,0],[0,.8,0],.1,.09),.35),
-    stand(loft([[.76,.13,.11],[.9,.18,.14],[1.12,.36,.2],[1.26,.31,.16],[1.33,.15,.1]],HEX)), tone(at(box(.2,.09,.04),0,1.14,.19),GL),
-    at(new THREE.IcosahedronGeometry(.078,0),0,1.42,.03), tone(at(box(.1,.025,.03),0,1.425,.1),GL), tone(segG([0,1.32,0],[0,1.37,0],.05,.045),.35),
-    at(box(.38,.36,.18),0,1.04,-.27), ...pair(dk(at(new THREE.CylinderGeometry(.05,.085,.14,6),.11,.84,-.3,.5))), ...pair(tone(at(tube(.06,.3,6),.24,1.06,-.28,Math.PI/2),.7)));
-  /* right arm with the rifle, left arm with the close-in cannon */
-  const R=[[-.45,1.17,0],[-.5,.84,.02],[-.42,.76,.38]], Lf=[[.45,1.17,0],[.5,.82,.03],[.46,.56,.24]];
-  for(const [sh,el,wr] of [R,Lf]) p.push(segG(sh,el,.095,.085), J(el[0],el[1],el[2],.07,.1), segG(el,wr,.105,.09));
-  p.push(dk(at(box(.1,.15,.44),-.42,.76,.5)), dk(at(tube(.042,.85,6),-.42,.78,1.1)), dk(at(tube(.058,.12,6),-.42,.78,1.56)),
-    dk(at(tube(.03,.3,5),.5,.5,.4,-.75)), dk(at(tube(.03,.3,5),.42,.5,.4,-.75)),
-    at(box(.16,.18,.44),.3,1.44,-.1), at(box(.1,.14,.1),.3,1.33,-.14), dk(at(tube(.052,1.15,6),.3,1.45,.68)), dk(at(box(.14,.08,.14),.3,1.45,1.3)));
+/* W.A.S. (docs/models.md 11): one design for space and for the ground. The infantry's and the factory's powered exoskeleton
+   grown to 4–5 m: the trunk is small (a size up from a person), the limbs are extended and big. What every proposal carries
+   (user decision 2026-11-12): over the left shoulder a long cannon held at its middle by an arm from the back, a cylinder with
+   the case ejector at its rear; on the right arm two big three-barrelled rotary cannon one above the other and a few anti-ship
+   rockets, fed from the pack; on the left arm a reactive shield against lasers, a long tiled slab drawn to a point whose tip
+   throws plasma; round the waist two coiled sub-arms with three fingers; thrusters in the legs and the pack. Its right is -X.
+   WAS_KIT builds those parts at the places a body gives */
+const WAS_KIT=(()=>{ const dk=g=>tone(g,DK), J=(x,y,z,r,w=.08)=>tone(discG(x,y,z,r,w),.35);
+  const rot=(x,y,z)=>[dk(at(tube(.05,.16,6),x,y,z+.2)), ...[0,2.1,4.2].map(a=>dk(at(tube(.016,.7,5),x+Math.cos(a)*.03,y+Math.sin(a)*.03,z+.59))), dk(at(tube(.045,.05,6),x,y,z+.56)), dk(at(tube(.047,.07,6),x,y,z+.92))];
+  return { dk, J,
+    cannon:(x,y,z,from)=>[at(tube(.085,.42,8),x,y,z-.4), dk(at(box(.07,.06,.14),x+.1,y,z-.44)), dk(at(box(.05,.1,.05),x,y-.1,z-.5)), at(box(.13,.14,.4),x,y,z), dk(at(box(.04,.03,.5),x,y+.085,z+.05)),
+      dk(at(tube(.03,1.15,6),x,y,z+.78)), dk(at(tube(.046,.08,6),x,y,z+1.37)), dk(at(box(.03,.03,.7),x,y-.05,z+.6)), segG(from,[x,y-.08,z-.02],.045,.04), J(x,y-.08,z-.02,.055,.09)],
+    guns:(x,y,z,back)=>[at(box(.17,.32,.38),x,y,z), ...rot(x,y+.075,z), ...rot(x,y-.075,z), ...[-.06,0,.06].map(d=>tone(at(tube(.028,.3,6),x+d,y+.195,z-.02),.7)), ...[-.06,0,.06].map(d=>dk(at(tube(.03,.04,6),x+d,y+.195,z+.15))),
+      dk(segG([x,y+.04,z-.18],[(x+back[0])/2,Math.min(y,back[1])-.16,(z+back[2])/2],.028,.028,5)), dk(segG([(x+back[0])/2,Math.min(y,back[1])-.16,(z+back[2])/2],back,.028,.028,5))],
+    shield:(x,y,z,tilt)=>{ const SH=g=>at(g,x,y,z,tilt,0,Math.PI/2);
+      return [SH(plate([[.5,-.13],[.5,.13],[.2,.17],[-.2,.12],[-.56,.025],[-.56,-.025],[-.2,-.12],[.2,-.17]],.05)), ...[.37,.22,.07,-.08].flatMap(u=>[-.07,.07].map(w=>tone(SH(at(box(.12,.035,.11),u,-.04,w)),.8))),
+        dk(SH(at(box(.2,.06,.07),-.6,0,0))), tone(SH(at(box(.06,.03,.03),-.72,0,0)),GL)]; },
+    subArms:(y,r)=>[tone(at(new THREE.CylinderGeometry(r,r,.04,8),0,y,0),.6), tone(at(new THREE.CylinderGeometry(r*.9,r*.9,.03,8),0,y+.04,0),.6),
+      ...[r*.8,-r*.8].flatMap(x=>[tone(at(box(.06,.06,.07),x,y+.015,r*.75),.6), ...[-.03,0,.03].map(d=>dk(segG([x+d,y,r*.75+.03],[x+d*2.2,y-.06,r*.75+.11],.012,.008,4)))])] }; })();
+/* 案1 骨組み型: the factory frame shows. The pilot sits in a small dark pod inside a roll cage; the limbs are bare struts with
+   pistons and dark joints, the legs bend back at a hock and end in three toes; a high truss carries the arms; ammunition drums
+   and belts on the back */
+function wasFrame(){ const K=WAS_KIT, p=[], th=(a,b,r=.04)=>segG(a,b,r,r*.9,5);
+  for(const sx of [1,-1]){ const hip=[sx*.2,.84,-.02], knee=[sx*.23,.55,.16], hock=[sx*.23,.3,-.1], foot=[sx*.23,.07,.03];
+    p.push(th(hip,knee,.055), th(knee,hock,.05), th(hock,foot,.045), K.dk(segG([hip[0],hip[1]-.05,hip[2]-.07],[hock[0],hock[1]+.05,hock[2]-.02],.018,.018,4)), K.dk(segG([knee[0],knee[1]-.04,knee[2]+.03],[foot[0],foot[1]+.06,foot[2]+.08],.016,.016,4)),
+      K.J(hip[0],hip[1],hip[2],.08,.1), K.J(knee[0],knee[1],knee[2],.07,.09), K.J(hock[0],hock[1],hock[2],.06,.09), K.dk(at(new THREE.CylinderGeometry(.045,.075,.12,6),hock[0],hock[1]+.03,hock[2]-.1,.9)),
+      at(box(.06,.05,.28),foot[0]+.07,.025,foot[2]+.12,0,.3,0), at(box(.06,.05,.28),foot[0]-.07,.025,foot[2]+.12,0,-.3,0), at(box(.05,.05,.18),foot[0],.025,foot[2]-.12),
+      th([sx*.2,.88,-.02],[sx*.44,1.26,-.04],.028), K.J(sx*.5,1.24,0,.085,.1), th([sx*.5,1.22,.05],[sx*.52,.92,.06],.03), th([sx*.5,1.22,-.05],[sx*.52,.92,-.02],.03), K.J(sx*.52,.92,.02,.065,.11),
+      th([sx*.14,.9,.12],[sx*.14,1.3,.08],.022), th([sx*.14,.9,-.12],[sx*.14,1.3,-.1],.022), th([sx*.14,1.3,.08],[sx*.14,1.3,-.1],.022)); }
+  p.push(at(box(.36,.08,.16),0,.84,-.02), at(box(1,.05,.08),0,1.27,-.04), th([-.14,1.3,.08],[.14,1.3,.08],.022), th([0,.86,-.14],[0,1.26,-.14],.04),
+    tone(stand(loft([[.92,.1,.09],[1.02,.14,.12],[1.18,.15,.12],[1.26,.1,.09]],HEX)),.35), tone(at(box(.16,.12,.03),0,1.12,.125),GL), at(box(.1,.07,.1),0,1.36,.05), tone(at(box(.08,.025,.03),0,1.365,.1),GL),
+    ...[.12,-.12].map(x=>{ const g=new THREE.CylinderGeometry(.1,.1,.2,8); g.rotateZ(Math.PI/2); return tone(at(g,x,1.02,-.27),.6); }), ...pair(K.dk(at(new THREE.CylinderGeometry(.045,.075,.12,6),.1,.82,-.22,.5))),
+    th([-.52,.92,.02],[-.5,.82,.28],.05), th([.52,.92,.02],[.54,.66,.2],.05), K.dk(segG([.14,1.08,-.32],[.34,1.44,-.34],.025,.025,5)),
+    ...K.guns(-.5,.8,.44,[-.14,1.05,-.34]), ...K.shield(.66,.74,.17,-.5), ...K.cannon(.34,1.52,0,[.2,1.28,-.12]), ...K.subArms(.9,.15));
   return p; }
-/* W.A.S. 案C, to the user's own picture of it (2026-11-12): the infantry's and the factory's powered exoskeleton grown up. The
-   trunk is small — a size up from a person — and it is the limbs that are extended and big. Over the left shoulder a long
-   cannon held at its middle by an arm from the back, a cylinder with the case ejector at its rear. The right arm carries two
-   big three-barrelled rotary cannon one above the other (fewer barrels for a bigger shell) and a few anti-ship rockets; ammunition
-   and rockets come from the pack on the back. The left arm carries a reactive shield against lasers — a long slab with rows of
-   armour tiles, drawn to a point whose tip throws plasma to melt armour when it is thrust in. Round the waist two sub-arms lie
-   coiled, each ending in three fingers (they hand over the close-combat knife and reload the weapons); the knife is sheathed
-   on the right thigh. Short thick legs, each calf a thruster nacelle, feet to stand on the Earth */
-function wasUser(){ const p=[], dk=g=>tone(g,DK), J=(x,y,z,r,w=.08)=>tone(discG(x,y,z,r,w),.35), cyl=(r,l,x,y,z,n=8)=>{ const g=new THREE.CylinderGeometry(r,r,l,n); g.rotateZ(Math.PI/2); return at(g,x,y,z); };
-  for(const sx of [1,-1]){ const hip=[sx*.16,.8,0], knee=[sx*.2,.47,.1], ank=[sx*.2,.14,-.02];
-    p.push(segG(hip,knee,.1,.09), J(hip[0],hip[1],hip[2],.085,.1), J(knee[0],knee[1],knee[2],.075,.1),
-      at(stand(loft([[.08,.1,.1],[.3,.15,.16],[.47,.1,.11]],O8)),ank[0],0,ank[2]-.03), dk(at(new THREE.CylinderGeometry(.06,.1,.13,6),ank[0],.15,ank[2]-.21,.9)),
-      at(box(.17,.07,.34),ank[0],.035,ank[2]+.1), at(box(.1,.05,.14),ank[0],.03,ank[2]-.17),
-      J(sx*.44,1.18,0,.1,.1), at(loft([[-.15,.12,.09],[.13,.095,.07]],SLAB),sx*.46,1.27,0), segG([sx*.46,1.16,0],[sx*.5,.85,.03],.09,.085), J(sx*.5,.85,.03,.072,.1)); }
-  /* pelvis, waist with the coiled sub-arms and their three fingers, the small trunk, head, the yoke out to the arms */
-  p.push(at(box(.3,.1,.2),0,.8,0), tone(segG([0,.84,0],[0,.92,0],.085,.075),.35), tone(at(new THREE.CylinderGeometry(.165,.165,.04,8),0,.875,0),.6), tone(at(new THREE.CylinderGeometry(.15,.15,.03,8),0,.915,0),.6),
-    ...[[.13,.12],[-.13,.12]].flatMap(([x,z])=>[tone(at(box(.06,.06,.07),x,.89,z),.6), ...[-.03,0,.03].map(d=>dk(segG([x+d,.88,z+.03],[x+d*2.2,.82,z+.11],.012,.008,4)))]),
-    stand(loft([[.9,.11,.09],[1.0,.15,.11],[1.16,.2,.13],[1.24,.15,.1]],HEX)), tone(at(box(.14,.07,.03),0,1.12,.125),GL),
-    at(new THREE.IcosahedronGeometry(.065,0),0,1.31,.02), tone(at(box(.09,.022,.03),0,1.315,.08),GL), tone(segG([0,1.23,0],[0,1.27,0],.04,.035),.35), at(box(.84,.07,.14),0,1.2,-.05),
-    /* pack: thrusters, the ammunition drum, spare rockets */
-    at(box(.34,.36,.2),0,1.05,-.24), ...pair(dk(at(new THREE.CylinderGeometry(.05,.085,.14,6),.1,.84,-.28,.5))), tone(cyl(.1,.24,-.08,1.0,-.39),.6), ...[.08,.15].map(x=>tone(at(tube(.03,.3,6),x,1.08,-.38,Math.PI/2),.7)),
-    dk(at(box(.04,.2,.06),-.3,.62,.05)));
-  /* right arm: the two rotary cannon and the rockets, a feed from the pack */
-  const rot=y=>[dk(at(tube(.05,.16,6),-.47,y,.64)), ...[0,2.1,4.2].map(a=>dk(at(tube(.016,.7,5),-.47+Math.cos(a)*.03,y+Math.sin(a)*.03,1.03))), dk(at(tube(.045,.05,6),-.47,y,1.0)), dk(at(tube(.047,.07,6),-.47,y,1.36))];
-  p.push(segG([-.5,.85,.03],[-.47,.8,.3],.1,.09), at(box(.17,.32,.38),-.47,.8,.44), ...rot(.875), ...rot(.725),
-    ...[-.06,0,.06].map(d=>tone(at(tube(.028,.3,6),-.47+d,.995,.42),.7)), ...[-.06,0,.06].map(d=>dk(at(tube(.03,.04,6),-.47+d,.995,.59))), dk(segG([-.47,.86,.26],[-.14,1.0,-.3],.028,.028,5)));
-  /* left arm: the reactive shield, built flat and then stood on edge outside the forearm, its point forward and down */
-  const SH=g=>at(g,.64,.72,.17,-.5,0,Math.PI/2);
-  p.push(segG([.5,.85,.03],[.52,.62,.22],.1,.09), at(box(.1,.1,.12),.57,.68,.2),
-    SH(plate([[.5,-.13],[.5,.13],[.2,.17],[-.2,.12],[-.56,.025],[-.56,-.025],[-.2,-.12],[.2,-.17]],.05)),
-    ...[.37,.22,.07,-.08].flatMap(u=>[-.07,.07].map(z=>tone(SH(at(box(.12,.035,.11),u,-.04,z)),.8))), dk(SH(at(box(.2,.06,.07),-.6,0,0))), tone(SH(at(box(.06,.03,.03),-.72,0,0)),GL));
-  /* the cannon over the left shoulder: rear cylinder and ejector, receiver, long barrel, the arm that holds its middle */
-  p.push(at(tube(.085,.42,8),.34,1.5,-.4), dk(at(box(.07,.06,.14),.44,1.5,-.44)), dk(at(box(.05,.1,.05),.34,1.4,-.5)), at(box(.13,.14,.4),.34,1.5,0), dk(at(box(.04,.03,.5),.34,1.585,.05)),
-    dk(at(tube(.03,1.15,6),.34,1.5,.78)), dk(at(tube(.046,.08,6),.34,1.5,1.37)), dk(at(box(.03,.03,.7),.34,1.45,.6)), segG([.28,1.22,-.14],[.34,1.42,-.02],.045,.04), J(.34,1.42,-.02,.055,.09));
+/* 案2 重装型: the frame buried in armour. Great shoulder blocks with the small trunk and a tiny head sunk between them, thick
+   forearms, shins that widen down to square feet with thruster vents behind, skirt plates over the hips, a big pack with two
+   boosters */
+function wasHeavy(){ const K=WAS_KIT, p=[];
+  for(const sx of [1,-1]){ const hip=[sx*.17,.8,0], knee=[sx*.21,.48,.08], ank=[sx*.21,.16,-.02];
+    p.push(segG(hip,knee,.12,.11), K.J(hip[0],hip[1],hip[2],.09,.1), at(box(.18,.15,.16),knee[0],knee[1],knee[2]+.05),
+      at(stand(loft([[.07,.17,.19],[.3,.15,.16],[.5,.11,.11]],SLAB)),ank[0],0,ank[2]), K.dk(at(box(.22,.12,.04),ank[0],.2,ank[2]-.2)), at(box(.23,.08,.42),ank[0],.04,ank[2]+.08),
+      at(loft([[-.18,.15,.13],[.16,.13,.11]],SLAB),sx*.5,1.23,0), K.J(sx*.41,1.2,0,.09,.06), segG([sx*.5,1.12,0],[sx*.53,.86,.03],.1,.1), at(box(.04,.2,.2),sx*.27,.74,0), at(box(.15,.17,.04),sx*.09,.73,.15,-.2)); }
+  p.push(at(box(.34,.12,.24),0,.8,0), tone(segG([0,.85,0],[0,.92,0],.09,.08),.35), stand(loft([[.9,.13,.11],[1.02,.2,.15],[1.2,.24,.16],[1.28,.16,.11]],HEX)), tone(at(box(.16,.07,.03),0,1.13,.155),GL),
+    at(box(.3,.06,.2),0,1.29,-.02), at(box(.1,.08,.11),0,1.345,.03), tone(at(box(.08,.025,.03),0,1.35,.085),GL),
+    at(box(.44,.4,.24),0,1.05,-.28), ...pair(K.dk(at(new THREE.CylinderGeometry(.07,.11,.2,6),.13,.8,-.32,.4))), ...pair(tone(at(tube(.06,.3,6),.27,1.08,-.3,Math.PI/2),.7)),
+    at(box(.2,.2,.3),-.53,.8,.14), at(box(.2,.2,.3),.53,.74,.12),
+    ...K.guns(-.53,.8,.5,[-.16,1.02,-.4]), ...K.shield(.7,.74,.16,-.45), ...K.cannon(.36,1.56,0,[.22,1.3,-.16]), ...K.subArms(.9,.17));
+  return p; }
+/* 案3 鋭角型: slim and sharp, every limb four-sided and widening toward its end. A wide angular chest over a narrow waist, a
+   small head with a fin swept back, pointed pods on the shoulders, big gauntlets, lower legs that flare to pointed feet with
+   thruster vanes behind, blades at the hips */
+function wasSharp(){ const K=WAS_KIT, p=[];
+  for(const sx of [1,-1]){ const hip=[sx*.14,.84,0], knee=[sx*.18,.5,.1], ank=[sx*.19,.14,-.03];
+    p.push(segG(hip,knee,.07,.085,4), K.J(hip[0],hip[1],hip[2],.07,.09), at(new THREE.ConeGeometry(.05,.18,4),knee[0],knee[1]+.05,knee[2]+.08,1.2), segG(knee,ank,.075,.135,4),
+      tone(at(box(.02,.3,.15),ank[0],.36,ank[2]-.17,.25),.75), K.dk(at(new THREE.CylinderGeometry(.04,.07,.1,6),ank[0],.16,ank[2]-.16,.9)), at(loft([[-.14,.08,.05],[.1,.1,.06],[.34,.02,.02,-.03]],SLAB),ank[0],.06,ank[2]),
+      tone(at(box(.03,.3,.16),sx*.27,.7,-.06,.35,0,sx*.2),.8),
+      at(loft([[-.2,.12,.1],[.02,.15,.12],[.26,.04,.04]],HEX),sx*.5,1.3,-.02), tone(at(box(.02,.06,.22),sx*.655,1.3,-.04),GL), K.J(sx*.42,1.2,0,.07,.07), segG([sx*.46,1.18,0],[sx*.5,.88,.03],.055,.06,4), K.J(sx*.5,.88,.03,.055,.09)); }
+  p.push(at(loft([[-.1,.12,.06],[.12,.08,.05]],HEX),0,.84,0), tone(segG([0,.87,0],[0,.93,0],.06,.055),.35), stand(loft([[.9,.07,.07],[1,.1,.1],[1.18,.26,.15],[1.27,.14,.09]],HEX)),
+    at(loft([[0,.11,.06],[.15,0,0]],HEX),0,1.16,.12), tone(at(box(.12,.06,.03),0,1.06,.105),GL),
+    at(new THREE.IcosahedronGeometry(.06,0),0,1.33,.03), tone(at(box(.08,.02,.03),0,1.335,.085),GL), at(plate([[0,.05],[0,-.22],[.1,-.28],[.045,0]],.02),0,1.36,0,0,0,Math.PI/2),
+    at(box(.26,.34,.16),0,1.06,-.2), ...pair(at(loft([[-.32,.03,.03],[-.1,.075,.075],[.1,.05,.05]],HEX),.2,1.1,-.26,.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.2,.95,-.52,1.1))),
+    segG([-.5,.88,.03],[-.47,.8,.3],.07,.1,4), segG([.5,.88,.03],[.52,.64,.22],.07,.1,4),
+    ...K.guns(-.47,.8,.46,[-.1,1.05,-.3]), ...K.shield(.64,.72,.17,-.5), ...K.cannon(.32,1.54,0,[.16,1.28,-.14]), ...K.subArms(.89,.12));
   return p; }
 /* the assault machine: step 1 or -1 says which foot is ahead */
 function mechParts(step){ const p=[], T=.4;
@@ -321,14 +290,8 @@ const GROUND_SHAPES={
   /* 陸戦型 W.A.S. (for now): the space W.A.S. as it is (CRAFT_SHAPES.was, a user-approved shape), four times the size and set
      on the ground. It is redesigned with the assault carrier later (docs/models.md 9 D) */
   wasG:()=>{ const p=CRAFT_SHAPES.was(); p.forEach(g=>{ g.scale(4,4,4); g.translate(0,.78,0); }); return p; },
-  /* W.A.S. 案A: today's W.A.S. changed a little to fit the setting — the legs and their thruster pods thicker (short thick legs
-     with ship-class thrusters), the arms a little thicker, feet to stand on the Earth, dark joints and weapons. Standing it
-     leans less; AF is the same thing leaning forward in flight */
-  wasA:()=>wasParts({L:.15,arm:1.15,leg:1.4,feet:true}), wasAF:()=>wasParts({L:.45,arm:1.15,leg:1.4,feet:true}),
-  /* W.A.S. 案B: Claude's own design from the setting */
-  wasB:()=>wasOwn(),
-  /* W.A.S. 案C: to the user's own picture (small trunk, big limbs, shoulder cannon, twin rotary cannon, reactive shield, sub-arms) */
-  wasC:()=>wasUser(),
+  /* W.A.S. の3案 (docs/models.md 11): 1 骨組み型, 2 重装型, 3 鋭角型 */
+  was1:()=>wasFrame(), was2:()=>wasHeavy(), was3:()=>wasSharp(),
   /* --- 地球連合の航空機 (docs/models.md 2.1): a century more of flying on wings. Crewed, so each has a dark canopy --- */
   /* 戦闘機（地球連合）: kin to the carrier fighter. A chined body blended into a swept wing with a sawtooth trailing edge, dark
      intakes beside the canopy, canted twin tails; thick enough to read from the side */
