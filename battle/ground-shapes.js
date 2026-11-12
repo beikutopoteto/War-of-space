@@ -35,12 +35,15 @@ const wheelG=(x,z,r=.15,w=.12)=>{ const g=new THREE.CylinderGeometry(r,r,w,8); g
 const brl=(r,z0,z1,seg=6)=>at(tube(r,z1-z0,seg),0,0,(z0+z1)/2);
 const gunG=(pieces,y,z,el=0)=>pieces.map(g=>tone(at(g,0,y,z,-el),DK));
 /* shared running gear (docs/models.md 2). hullE: the Earth's tank hull — tracks showing under plate skirts, a flat deck, a
-   sloping glacis (top of the deck at y .36). hullM: the Republic's common hull for tank, gun, air defence, rockets and
+   sloping glacis (top of the deck at y .36), a fender over each track from the hull side out to the skirt, turned down at both
+   ends (user 2026-11-13: no open space above the tracks). hullM: the Republic's common hull for tank, gun, air defence, rockets and
    engineers — long and low, skirts in one piece with the hull, a long shallow glacis over the crew capsule with a dark sensor
-   strip instead of hatches. wheelsG: road wheels at the given z on both sides, each pair on an axle with a suspension arm up to the hull (user 2026-11-12: wheels with nothing between them and the hull look wrong). piv: parts built around a pivot at the
+   strip instead of hatches; where the hull draws in at the nose and the tail, a guard covers each track end. wheelsG: road wheels at the given z on both sides, each pair on an axle with a suspension arm up to the hull (user 2026-11-12: wheels with nothing between them and the hull look wrong). piv: parts built around a pivot at the
    origin, raised by el and set at x,y,z */
-const hullE=()=>[...trackG(.37,-.98,.98), ...trackG(-.37,-.98,.98), ...pair(at(box(.03,.13,1.66),.485,.22,-.03)), loft([[-.95,.34,.09,.27],[.5,.34,.09,.27],[.97,.31,.035,.215]],SLAB)];
-const hullM=()=>[...trackG(.38,-1.02,1,.09,.22,7), ...trackG(-.38,-1.02,1,.09,.22,7), loft([[-1.05,.38,.07,.25],[-.85,.47,.11,.25],[.3,.47,.11,.25],[1.06,.2,.03,.17]],SKIRT), tone(at(box(.34,.03,.1),0,.345,.46),GL)];
+const hullE=()=>[...trackG(.37,-.98,.98), ...trackG(-.37,-.98,.98), ...pair(at(box(.03,.13,1.66),.485,.22,-.03)), loft([[-.95,.34,.09,.27],[.5,.34,.09,.27],[.97,.31,.035,.215]],SLAB),
+  ...pair(tone(at(loft([[-1.01,.11,.012,.2],[-.9,.11,.014,.262],[.84,.11,.014,.262],[1.01,.11,.012,.2]],RECT),.39,0,0),.9))];
+const hullM=()=>[...trackG(.38,-1.02,1,.09,.22,7), ...trackG(-.38,-1.02,1,.09,.22,7), loft([[-1.05,.38,.07,.25],[-.85,.47,.11,.25],[.3,.47,.11,.25],[1.06,.2,.03,.17]],SKIRT), tone(at(box(.34,.03,.1),0,.345,.46),GL),
+  ...pair(tone(at(loft([[.2,.1,.012,.27],[.84,.1,.012,.24],[1.03,.1,.012,.18]],RECT),.385,0,0),.8)), ...pair(tone(at(loft([[-1.05,.1,.012,.18],[-.93,.1,.012,.24],[-.78,.1,.012,.26]],RECT),.385,0,0),.8))];
 const wheelsG=(zs,x=.37,r=.15)=>zs.flatMap(z=>[wheelG(x,z,r),wheelG(-x,z,r), tone(at(box(2*x,.05,.05),0,r,z),.45), ...pair(tone(barG([x-.21,r+.1,z],[x-.07,r,z],.06,.05),.45))]);
 const piv=(parts,x,y,z,el=0)=>parts.map(g=>at(g,x,y,z,-el));
 /* the Earth's truck: four axles, a frame, a cab with a windscreen at the front; the bed is free from z -.95 to .4 at y .31 */
@@ -76,8 +79,9 @@ for(const k of ['walk','hwalk','cwalk']) EXO_POSE[k+'2']={...EXO_POSE[k],feet:[.
    second step (walk2) with the feet changed over; in the game each trooper steps on its own clock.
    kind true (heavy): armour over the whole body, a big round helmet in a high collar, frame struts on the inside of the legs too, a
    multi-launcher and an ammunition drum on the back, and a large rapid-fire cannon held at the right hip like a minigun; armour sleeves on the arms.
+   The ordinary trooper and the commando wear an armour vest over the body (user 2026-11-13).
    kind 'c' (commando): no power unit but a ghillie suit — shaggy tufts in two tones over the head, shoulders, back and arms and
-   wrapped round the rifle (user 2026-11-12) — and a long rifle with a sight; it moves in a low crouch, carrying the
+   wrapped round the rifle (user 2026-11-12), none on the chest front, where the vest shows (user 2026-11-13) — and a long rifle with a sight; it moves in a low crouch, carrying the
    rifle across the chest as the ordinary trooper does (user 2026-11-12), and fights kneeling */
 function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const M=new THREE.Matrix4().makeTranslation(0,HY,0).multiply(new THREE.Matrix4().makeRotationX(P.L)).multiply(new THREE.Matrix4().makeTranslation(0,-.82,0));
@@ -92,7 +96,10 @@ function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16,
   /* upper body, built upright and then leaned as one: torso, neck, hip ring, spine, power unit, yoke */
   U.push(body(stand(loft([[.78,.13,.085],[.98,.12,.08],[1.2,.19,.11],[1.33,.2,.09],[1.4,.06,.05]],HEX))), body(segG([0,1.38,0],[0,1.46,0],.045,.04)),
     at(box(.44,.06,.2),0,.86,0), at(box(.07,.44,.06),0,1.08,-.13), at(box(.54,.05,.1),0,1.37,-.07),
-    ...(cmd?[[0,1.55,-.05,.15],[.25,1.37,-.04,.13],[-.25,1.37,-.04,.13],[0,1.22,-.17,.2],[.13,1.02,-.16,.15],[-.13,1.0,-.17,.15],[0,.85,-.14,.14],[.11,1.24,.1,.085],[-.12,1.2,.1,.085],[0,1.4,-.14,.13]].map(v=>tuftG(...v)):[at(box(.25,.27,.12),0,1.17,-.2)]));
+    ...(cmd?[[0,1.55,-.05,.15],[.25,1.37,-.04,.13],[-.25,1.37,-.04,.13],[0,1.22,-.17,.2],[.13,1.02,-.16,.15],[-.13,1.0,-.17,.15],[0,.85,-.14,.14],[0,1.4,-.14,.13]].map(v=>tuftG(...v)):[at(box(.25,.27,.12),0,1.17,-.2)]));
+  /* the armour vest (user 2026-11-13): a plate carrier over chest and back in a mid tone, a row of pouches under the front plate, straps over the shoulders */
+  if(!heavy) U.push(tone(stand(loft([[.99,.135,.1],[1.06,.15,.11],[1.22,.205,.13],[1.33,.2,.105]],HEX)),.62), ...[-.09,0,.09].map(x=>tone(at(box(.075,.085,.045),x,1.045,.105-Math.abs(x)*.25),.4)),
+    ...pair(tone(at(box(.07,.035,.2),.13,1.345,0),.62)));
   if(!heavy){ const head=new THREE.IcosahedronGeometry(.1,0); head.scale(1,1.15,1.05); U.push(at(head,0,1.5,0), tone(at(box(.13,.04,.04),0,1.51,.085),GL)); }
   else { const head=new THREE.IcosahedronGeometry(.118,1); head.scale(1,1.05,1.08);
     U.push(at(head,0,1.53,0), tone(at(box(.17,.065,.05),0,1.54,.095),GL), at(new THREE.CylinderGeometry(.15,.175,.13,8),0,1.43,-.005),
