@@ -8,6 +8,13 @@ function nodeChecks(){
   run(`globalThis.testKey=Object.keys(GROUND_SHAPES)[0];`);
   check('採用表の全陣営のキーと編隊が存在する',`Object.values(GROUND_MODELS).every(m=>['earth','mars'].every(side=>{const s=m.earth||m.mars?m[side]:m;return !!s&&Object.prototype.hasOwnProperty.call(GROUND_SHAPES,s.key)&&Object.prototype.hasOwnProperty.call(GROUND_FORMS,s.form||'one');}))`);
   check('未採用の兵科は従来表示',`groundModelFor('missing-kind')===null`);
+  /* the table the user approved (sample round 14, 2026-11-13): the same entries as the sample's override, and every land and air
+     kind of the ground battle has a model; ships keep the old drawing until theirs are made */
+  const approved=fs.readFileSync(path.join(__dirname,'../docs/mockups/models/pilot-override.txt'),'utf8').trim();
+  check('採用表は見本の差し替えと同じ',`(o=>o.split(',').every(e=>{const [who,key,size,form,move]=e.split(':'),[kind,side]=who.split('@');return (side?[side]:['earth','mars']).every(sd=>{const m=groundModelFor(kind,sd);return !!m&&m.key===key&&Math.abs(m.size-+size)<1e-9&&m.form===form&&m.move.join('+')===(move||'');});}))(${JSON.stringify(approved)})`);
+  check('地上戦の全兵科に採用の形があり海艦は従来表示',`Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&groundModelFor('sea:cl')===null`);
+  /* the checks below test the address override and the old drawing, so they run on an empty table; it is put back at the end */
+  run(`globalThis.APPROVED_MODELS={...GROUND_MODELS};for(const k of Object.keys(GROUND_MODELS))delete GROUND_MODELS[k];`);
   check('未知・継承されたキーは見つからない',`groundShapeGeo('missing-model')===null&&groundShapeGeo('toString')===null`);
   check('全モデルの座標・法線・頂点色が有限',`Object.keys(GROUND_SHAPES).every(key=>{const g=groundShapeGeo(key);return ['position','normal','color'].every(k=>g.attributes[k].count===g.attributes.position.count&&[...g.attributes[k].array].every(Number.isFinite));})`);
   check('仮の形は二つの濃淡を保つ',`!Object.prototype.hasOwnProperty.call(GROUND_SHAPES,'stub')||new Set(groundShapeGeo('stub').attributes.color.array).size===2`);
@@ -149,6 +156,8 @@ function nodeChecks(){
   ctx.step=dt=>{steps++;ctx.gameSec+=dt;};run(`(${movingShot.toString()})()`);
   assert.equal(steps,20);ctx.fleets.forEach((f,i)=>assert.ok(f.pos.equals(places[i])));
   assert.ok(ctx.fleets.filter(f=>f.groundModel.userData.pose).every(f=>f.groundModel.userData.pose.move.every(m=>m.filter(b=>b.visible).length===1)));count++;
+  ctx.location.search='';run('Object.assign(GROUND_MODELS,APPROVED_MODELS);initModels();');
+  check('差し替えなしで陸と空の全部隊が採用の形、海艦は従来表示',`fleets.every(f=>f.groundModel.userData.groundShape===(f.groundKind!=='sea'))&&fleets.filter(f=>f.groundKind==='was').every(f=>f.groundModel.children[0].scale.x===.75)`);
   console.log(`| 地上模型・差し替え・見本（ブラウザ不要） | ${count}/${count} 成功 |`);
 }
 if(require.main===module)nodeChecks();

@@ -187,7 +187,7 @@ function check(ok, label, detail = '') {
       order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)tick(.05);
       const arrivedAt=plane.pos.clone(),flight=!plane.order&&groundDistanceTo(plane,{pos:groundPoint(12,3)})<=GROUND_AIR_CONTROL.waypoint+speedOf(plane)*.05;tick(.1);const continued=plane.pos.distanceTo(arrivedAt)>0;
       groundWas.pos.copy(plane.pos);groundWas.band='high';const noSeaLanding=!groundSetBand([groundWas],'ground');
-      const rendered=plane.groundModel.children.filter(o=>o.isMesh).length;
+      const rendered=plane.groundModel.children.filter(o=>o.isMesh).length, formSize=(groundModelFor(plane.groundKind,plane.side||(plane.team===1?'mars':'earth'))?.offsets.length)||3;
       const logical=plane.band;select(null);
       document.querySelector('#groundView [data-band="low"]').click();
       const viewLow=groundView==='low'&&+plane.el.style.opacity===groundRules().dimOpacity&&groundGrids.low.material.opacity>groundGrids.high.material.opacity;
@@ -196,9 +196,9 @@ function check(ok, label, detail = '') {
       document.querySelector('#groundView [data-band="all"]').click();const viewAll=+plane.el.style.opacity===1&&plane.band===logical&&!document.getElementById('alt').hidden;
       const details=document.getElementById('groundAlt');details.open=false;const fold=!details.open;details.open=true;
       reset({op:'charybdis'});const space=!document.getElementById('alt').classList.contains('ground-alt')&&document.getElementById('groundAlt').hidden&&!groundVisuals;
-      return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight:flight&&continued,noSeaLanding,rendered,viewLow,viewHigh,viewGround,viewAll,fold,space};
+      return {composition,initial,groundButtons,airButtons,wasButtons,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,highWas,cases,bad,blockedDamage,allowedDamage,flight:flight&&continued,noSeaLanding,rendered,formSize,viewLow,viewHigh,viewGround,viewAll,fold,space};
     });
-    check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===3&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、3機編隊と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
+    check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===bands.formSize&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、編隊（採用の形は4機、従来は3機）と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,formSize:bands.formSize,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
     check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasButtons.every(x=>!x)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.join(',')==='true,false,false'&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.highWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
     check(bands.cases===39&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表39通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));

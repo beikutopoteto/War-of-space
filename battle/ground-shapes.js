@@ -492,8 +492,28 @@ const GROUND_FORMS={
 /* ground unit kind (f.groundKind, or sea:<naval model> for ships) → the model the game draws. A value is one spec
    {key, size, form, move:[keys]}, or {earth:spec, mars:spec} when the two sides have their own shapes. key: in GROUND_SHAPES; size: scale of
    the model in the ground board's units (4 units = 1 km); form: a name in GROUND_FORMS (default one). A kind that is not listed
-   keeps the old drawing. Empty until the user approves the samples (CLAUDE.md: looks go in after a sample is approved) */
-const GROUND_MODELS={};
+   keeps the old drawing (the ships on the sea, until their models are made). The user approved sample round 14 (version 20) on
+   2026-11-13 (docs/models.md 12); the entries are the ones that sample used (docs/mockups/models/pilot-override.txt). Sizes: a trooper
+   .32 × 1.57 units is about 2 m, the W.A.S. .75 × 1.45 about 4.3 m */
+const GROUND_MODELS={
+  vehicle:{earth:{key:'tankE',size:.5,form:'wedge4'},mars:{key:'tankM',size:.45,form:'wedge4'}},
+  apc:{earth:{key:'apcE',size:.5,form:'box4'},mars:{key:'apcM',size:.5,form:'box4'}},
+  artillery:{earth:{key:'spgE',size:.5,form:'line3'},mars:{key:'spgM',size:.48,form:'line3'}},
+  guidedRocket:{earth:{key:'mlrsE',size:.5,form:'line3'},mars:{key:'mlrsM',size:.48,form:'line3'}},
+  mobileAA:{earth:{key:'aaE',size:.5,form:'line3'},mars:{key:'aaM',size:.48,form:'line3'}},
+  scout:{earth:{key:'scoutE',size:.45,form:'wedge3'},mars:{key:'scoutM',size:.45,form:'wedge3'}},
+  engineer:{earth:{key:'engE',size:.5,form:'line3'},mars:{key:'engM',size:.48,form:'line3'}},
+  supply:{earth:{key:'supE',size:.5,form:'box4'},mars:{key:'supM',size:.5,form:'box4'}},
+  infantry:{key:'infF',size:.32,form:'squad6',move:['infW','infW2']},
+  commando:{key:'cmdF',size:.32,form:'squad6',move:['cmdW','cmdW2']},
+  heavyInfantry:{key:'hinf',size:.32,form:'squad6',move:['hinf','hinf2']},
+  mechanicalAssault:{key:'mechA',size:.32,form:'squad6',move:['mechA','mechB']},
+  droneHive:{key:'hive',size:.7,form:'one'},
+  was:{key:'was4',size:.75,form:'wedge3'},
+  fighter:{earth:{key:'ftrE',size:.6,form:'flight4'},mars:{key:'ftrM',size:.6,form:'flight4'}},
+  attack:{earth:{key:'atkE',size:.6,form:'flight4'},mars:{key:'atkM',size:.6,form:'flight4'}},
+  supportAircraft:{earth:{key:'awE',size:1,form:'one'},mars:{key:'awM',size:1,form:'one'}},
+};
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
    only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the
    shape when the unit stands or fights. move: the keys of the shapes shown while it is moving (in the table an array, in the
