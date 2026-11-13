@@ -26,12 +26,12 @@ description: War of Space の変更を出す手順。テスト、コミット、
 - `subscribe_pr_activity` で PR を見張る。
 
 ## 3. CI とマージ
-- ユーザーの Mac での CI の待ち方（2026-11-04）: PR を作った直後の `gh pr checks --watch` は「no checks reported」で終わる。20〜40秒おいてから、最新のコミットの `headSha` で `gh run list` から走りを選び、`gh run watch <id> --exit-status` を後ろで走らせる。`gh run watch` は CI の途中で抜けることがある（2026-11-05）。抜けたら `gh run view <id> --json status,conclusion,headSha` で `completed` と `success`、最新のコミットであることを見てからマージする。同じ PR へ間を空けずに push を重ねない（CI が同時に走り、どの結果か分かりにくく、実時間に頼る確認も落ちやすい）。直しはまとめて1回で push する。
+- ユーザーの Mac での CI の待ち方（2026-11-04）: PR を作った直後の `gh pr checks --watch` は「no checks reported」で終わる。20〜40秒おいてから（前に置く `sleep` はハーネスに止められる。2026-11-13 は PR を作った直後の `gh run list` にもう走りが出ていたので、まずそのまま呼ぶ）、最新のコミットの `headSha` で `gh run list` から走りを選び、`gh run watch <id> --exit-status` を後ろで走らせる。`gh run watch` は CI の途中で抜けることがある（2026-11-05）。抜けたら `gh run view <id> --json status,conclusion,headSha` で `completed` と `success`、最新のコミットであることを見てからマージする。同じ PR へ間を空けずに push を重ねない（CI が同時に走り、どの結果か分かりにくく、実時間に頼る確認も落ちやすい）。直しはまとめて1回で push する。
 - CI（`smoke (ground)`・`smoke (drill)`・`smoke (npc)`・`smoke (space)` の4つ、2026-11-12 に分けた）の結果は、GitHub の通知で届くのを待つ。通知が来たら `pull_request_read` の `get_check_runs` で確かめる。通知の `head_sha` が PR の最新のコミットか見る（前のコミットの CI の知らせも届く）。
 - 成功なら `merge_pull_request`（`merge_method: squash`）。CI の結果を見てから、別のコマンドでマージする（2026-11-04: `gh pr checks` とマージを1行に続けて、落ちた CI のまま #289 をマージした。落ちたのは時々落ちる第6節の確認で、回し直すと通った）。失敗なら原因を直して push する（テストを消したり飛ばしたりしない）。
 - 先に別の PR をマージしたせいで食い違いが出たら、`git merge origin/main` で取り込み、テストしてから push する。
 - PR の CI は `main` と合わせた形で走る。`main` に別の PR が入ると、前に通った PR でも落ちることがある（2026-11-06 #334: #335 でデバッグの全作戦クリアが巡洋艦6隻も置くようになり、強襲母艦の確かめの「戦闘の規模 34隻」が40隻になった）。長く開いている PR は、マージの直前に最新のコミットの CI を見る。
-- マージ後: `git fetch origin main -q && git checkout -q main && git reset -q --hard origin/main`。`gh pr merge --delete-branch` で、そのブランチの作業フォルダ（ワークツリー）も消えていることがある（2026-11-06）。`git worktree prune` で表を片付ける。
+- マージ後: 作業フォルダ（`~/dev/wos-*`）は `git fetch origin main -q && git checkout -q main && git reset -q --hard origin/main` でよい。本体（`~/dev/War-of-space`）にはユーザーの手元だけの版（`docs/PROJECT_STATUS.md` など）があるので、`git fetch -q origin && git merge --ff-only origin/main` にする（`reset --hard` は手元の版を消す。2026-11-13）。止まったら手元の版を別の場所へ写してから取り込み、戻す。`gh pr merge --delete-branch` で、そのブランチの作業フォルダ（ワークツリー）も消えていることがある（2026-11-06）。`git worktree prune` で表を片付ける。
 
 ## 4. 試遊ページを載せ直す（ゲームの中身が変わったときだけ）
 資料だけ、テストだけの変更なら載せ直さない。Artifact ツールで次のとおり呼ぶ。

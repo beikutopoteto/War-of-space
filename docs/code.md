@@ -19,9 +19,9 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   1.5 `terrain.js` 地上演習の盤と地表高度・マス経路・通行（`?ground=exercise2`、宇宙では無効）
   2. `effects.js` 粒子・曳光弾・矢印
   2.5 `base.js` 第5節の総基地のゲート（八角形のふた、状態の帯、塞いだ瓦礫）と強化歩兵の点・撃つ見た目（2026-10-16。共和国の強化歩兵の赤い点 `drawTroops` は 2026-10-18。描くだけ。シールド・塞ぐ・守備隊の仕組みは `sim.js`）。地表の砲台の案I（`pitBuild`・`pitDraw`: 竪穴をステンシルで岩に見せる、向きと仰角、砲台の強化歩兵。2026-10-17。仰角の制限 `pitCan` と砲台の歩兵の射撃は `sim.js`。後処理の描画先にステンシルを持たせたのは `scene.js`）
-  3. `shapes.js` 艦と小型機と地表の砲台・推進器の形
-  3.1 `ground-shapes.js` 地上・航空・海上の模型、編隊 `GROUND_FORMS`、陣営別の `groundModelFor(kind, side)` と見本用の `kind[@side]:key:size:form` 差し替え。採用表が空の間は従来の形を使う。
-  4. `units.js` 名札・メッシュ・軌跡
+  3. `shapes.js` 艦と小型機と地表の砲台・推進器の形（艦の古い形は、地上の画面の海の戦闘母艦・突撃揚陸艦と準備画面のドックがまだ使う）
+  3.1 `ground-shapes.js` 地上・航空・海上・宇宙の艦の模型、編隊 `GROUND_FORMS`、陣営別の `groundModelFor(kind, side)` と見本用の `kind[@side]:key:size:form` 差し替え。採用表 `GROUND_MODELS`（地上）と `SPACE_MODELS`（宇宙の艦。地球 `sp*`、共和国 `sp*M`）。表にない兵科は従来の形を使う。
+  4. `units.js` 名札・メッシュ・軌跡。宇宙の艦の `shipMeshes` は平らな面と頂点の色、共和国の形は `<艦種>@mars` の鍵で、`shipMeshKey(f,type)` が選ぶ
   5. `state.js` 状態・艦隊生成・ロスター・`reset()`・戻す
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
   7. `sim.js` 索敵・戦闘・小型機・出来事・敵 AI・`step()`。天体の陰と回り込み（`bodyBlocks` / `detour`、`makePath` が経由点を足す）、敵の目標選び（`pickFoe`）と立つ位置（`slotOf`）、挟撃（`pincers`）、デバッグのオートモード（`autoAI`）、小型機と母艦をつなぐ（`tetherCarriers`。`step()` で艦が動いたあと、出ている隊を発艦の距離の外に残さないよう母艦を止める。2026-10-22）、艦種別の動き（2026-10-22。作戦の `roleAI` だけ。`roleOf` で隊の役目（いちばん上位の艦種と陣営、表は `data/ships.js` の `WOS_DATA.roles`）を出し、`pickFoe` の係数 `aimK`、撃つ相手 `roleFoe`（`fireTargetOf`）、小型機の `roleCraftFoe`（`craftTarget`）、立つ距離 `roleStand`（`standOff`）、下がるか `backsOff`（`stepFight`・`fallBack`）、AI の `roleFirst`（退き際・逃げる）と `rolePlace`（盾・母体・目・傘の位置）、`roleClamp`（戦艦と傘の持ち場）。自軍の隊は `roleMove` が null で狙いだけ）、ドクトリンの型（2026-10-22。作戦の `packs` だけ、共和国だけ。`initPacks`（`reset()` から）で組を作り、`enemyAI` の中で `stepPacks` が組・目標・守るもの・合図・退き際・そろって着く速さを決め、`packAI` が隊ごとの動き（approach・charge・hold・hide・back）を出す。作戦の `ai` の分岐のあと、艦種別の動きの前。立つ点は `f.packSpot`（`step()` の `stepFight`））
