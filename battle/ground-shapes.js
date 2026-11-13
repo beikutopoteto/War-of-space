@@ -600,7 +600,7 @@ const GROUND_FORMS={
 /* ground unit kind (f.groundKind, or sea:<naval model> for ships) → the model the game draws. A value is one spec
    {key, size, form, move:[keys]}, or {earth:spec, mars:spec} when the two sides have their own shapes. key: in GROUND_SHAPES; size: scale of
    the model in the ground board's units (4 units = 1 km); form: a name in GROUND_FORMS (default one). A kind that is not listed
-   keeps the old drawing (the ships on the sea, until their models are made). The user approved sample round 14 (version 20) on
+   keeps the old drawing (the carrier and the assault ship on the sea). The user approved sample round 14 (version 20) on
    2026-11-13 (docs/models.md 12); the entries are the ones that sample used (docs/mockups/models/pilot-override.txt). Sizes: a trooper
    .32 × 1.57 units is about 2 m, the W.A.S. .75 × 1.45 about 4.3 m */
 const GROUND_MODELS={
@@ -621,6 +621,13 @@ const GROUND_MODELS={
   fighter:{earth:{key:'ftrE',size:.6,form:'flight4'},mars:{key:'ftrM',size:.6,form:'flight4'}},
   attack:{earth:{key:'atkE',size:.6,form:'flight4'},mars:{key:'atkM',size:.6,form:'flight4'}},
   supportAircraft:{earth:{key:'awE',size:1,form:'one'},mars:{key:'awM',size:1,form:'one'}},
+  /* sea ships and the assault carrier (docs/models.md 13・14, approved 2026-11-13): one shape for both sides, at today's size
+     (SHIP_SIZE), one ship per unit. The carrier and the assault ship on the sea (sea:cvb, sea:mas) keep the old drawing */
+  'sea:bb':{key:'seaBB',size:2.04,form:'one'},
+  'sea:cl':{key:'seaCL',size:1.44,form:'one'},
+  'sea:ff':{key:'seaFF',size:.84,form:'one'},
+  'sea:dd':{key:'seaDD',size:1.02,form:'one'},
+  'sea:masc':{key:'masc2',size:1.92,form:'one'},
 };
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
    only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the
