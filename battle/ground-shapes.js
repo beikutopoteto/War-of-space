@@ -577,11 +577,15 @@ const GROUND_SHAPES={
     ...pair(tone(at(box(.03,.008,1),.09,.191,.25),DK)), tone(at(box(.14,.008,.2),-.22,.191,-.3),DK), tone(at(box(.5,.008,.36),0,.191,-.9),.7),
     tone(at(box(.06,.03,.07),.33,.36,-.1),GL), at(box(.02,.12,.02),.33,.47,-.22), tone(at(box(.05,.025,.035),.33,.54,-.22),GL),
     ...laserT(-.26,.19,.3,.6), ...laserT(-.26,.19,-.1,.6), ...pdG(.3,.19,-1,.8), ...pdG(-.3,.19,-1,.8), ...pdG(.24,.19,.62,.8), ...pdG(-.2,.19,.75,.8)],
-  spMAS:()=>{ const pod=x=>[at(loft([[-.82,.06,.06],[-.7,.1,.1],[.35,.1,.1],[.55,.05,.06]],O8),x,-.02,0), ...spBells([x],-.02,-.86,.05),
-      ...[-.55,-.33,-.11,.11,.33].map(z=>tone(at(box(.014,.07,.15),x+Math.sign(x)*.092,-.02,z),DK)), ...[-.35,.2].map(z=>at(box(.16,.05,.1),x-Math.sign(x)*.1,-.01,z))];
-    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pod(.44), ...pod(-.44),
+  /* 突撃揚陸艦 (docs/models.md 15.5): the W.A.S. drop from under the body — a flat-bottomed launch bay under the hull, its sides
+     drawn in toward the bottom, and two rows of five pods (one W.A.S. each) half out of its floor, each with a dark lid. The slim
+     side pods of today's ship stay (thrusters, no hatches) */
+  spMAS:()=>{ const BAY=[[1,1],[.8,-1],[-.8,-1],[-1,1]];
+    const pods=[.11,-.11].flatMap(x=>[-.5,-.3,-.1,.1,.3].flatMap(z=>[tone(at(loft([[-.08,.04,.035],[.06,.05,.04],[.08,.035,.03]],O8),x,-.22,z),.8), tone(at(box(.06,.01,.1),x,-.258,z),DK)]));
+    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pair(at(loft([[-.75,.06,.06],[.3,.07,.07],[.6,0,0]]),.32,-.05,0)),
+      loft([[-.75,.2,.06,-.13],[-.6,.26,.075,-.145],[.4,.25,.075,-.145],[.6,.18,.05,-.12]],BAY), ...pods,
       at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
-      ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.44,.055,.42,.8), ...pdG(-.44,.055,.42,.8), ...pdG(0,.28,-.55,.8)]; },
+      ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.32,.012,.15,.8), ...pdG(-.32,.012,.15,.8), ...pdG(0,.28,-.55,.8)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
