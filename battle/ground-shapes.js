@@ -714,9 +714,10 @@ const GROUND_SHAPES={
      of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
      W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
   spMASM:()=>{ const M=mA([[-1.2,.19,.075],[-1,.28,.095],[-.3,.31,.1],[.45,.29,.1],[.85,.22,.085],[1.15,.1,.05]]), m=-.025, wy=M.top(0);
-    const wz=[...Array(17)].map((_,i)=>-1.12+i*1.94/16), wh=z=>z<-.6?.02+.11*Math.sin(Math.PI/2*(z+1.12)/.52):.13-.03*Math.max(0,(z-.2)/.62), yc=z=>.1*M.at(z).h-.004, walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.006),z,wy-.012+wh(z)-yc(z),yc(z)]),wy-.012));
+    const wz=[...Array(18)].map((_,i)=>-1.12+i*2.04/17), wh=z=>z<-.6?.02+.11*Math.sin(Math.PI/2*(z+1.12)/.52):.13-.03*Math.min(1,Math.max(0,(z-.2)/.62)), yc=z=>.1*M.at(z).h-.004, walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.006),z,wy-.012+wh(z)-yc(z),yc(z)]),wy-.012));
     const floor=tone(loft([[-.64,.27,.003,wy+.003],[.35,.27,.003,wy+.003],[.8,.19,.003,wy+.003]],RECT),.55);
-    const ramp=[at(box(.4,.2,.035),0,0,0), ...[-.065,-.022,.022,.065].map(y=>tone(at(box(.34,.016,.012),0,y,.022),DK))].map(g=>{ g.rotateX(-.6); g.translate(0,wy+.06,.86); return g; });
+    const RA=.6, rb=M.top(.93)-.006, rt=wy-.012+.1, RL=(rt-rb)/Math.cos(RA)+.01;
+    const ramp=[at(box(.36,RL,.035),0,0,0), ...[-.3,-.1,.1,.3].map(k=>tone(at(box(.3,.016,.012),0,k*RL,.022),DK))].map(g=>{ g.rotateX(-RA); g.translate(0,(rb+rt)/2,.93-RL/2*Math.sin(RA)); return g; });
     const pods=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
     const lids=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
     const house=[at(loft([[-1.12,.07,.015,.015],[-1.02,.14,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.025,0), ...mHump(-.98,-.8,.1,.045,wy+.065), at(box(.015,.14,.015),-.06,wy+.155,-.98)];
