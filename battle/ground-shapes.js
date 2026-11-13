@@ -686,9 +686,9 @@ const GROUND_SHAPES={
   /* 戦闘母艦（共和国, 15.16）: a slim heavy aviation cruiser — a long narrow hull with a fine bow, the fore deck armed (two twin
      turrets, two pairs of raised twin launch tubes), a big two-level island to starboard amidships with an optical mast and dome, and
      an angled flight deck on the after half whose fore end swings out past the port side on a support */
-  spCVBM:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.8,.17,.1],[1.2,.03,.05]]), m=0, A=-.14, dy=M.top(-.5)+.013;
-    const deck=[at(box(.3,.025,1.15),-.13,dy,-.55,0,A,0), at(box(.1,.05,.42),-.25,dy-.035,-.12,0,A,0),
-      ...[at(box(.01,.006,1.05),-.13,dy+.015,-.55,0,A,0), ...[-.25,-.6,-.95].map(z=>at(box(.07,.006,.07),-.13-(z+.55)*Math.sin(A),dy+.015,z,0,A,0))].map(g=>tone(g,DK))];
+  spCVBM:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.8,.17,.1],[1.2,.03,.05]]), m=0, A=-.2, dy=M.top(-.5)+.013;
+    const deck=[at(box(.34,.025,1.15),-.15,dy,-.55,0,A,0), at(box(.14,.05,.45),-.3,dy-.035,-.12,0,A,0),
+      ...[at(box(.01,.006,1.05),-.15,dy+.015,-.55,0,A,0), ...[-.25,-.6,-.95].map(z=>at(box(.07,.006,.07),-.15+(z+.55)*Math.sin(A),dy+.015,z,0,A,0))].map(g=>tone(g,DK))];
     const yI=M.top(-.1)-.02, isl=[at(loft([[-.42,.06,.055,.055],[-.3,.08,.065,.065],[.12,.08,.065,.065],[.2,.05,.05,.05]],TRAP),.16,yI,0),
       at(loft([[-.3,.045,.05,.05],[-.2,.06,.06,.06],[.04,.055,.055,.055],[.1,.035,.04,.04]],TRAP),.16,yI+.12,0), tone(at(box(.13,.03,.16),.16,yI+.18,-.07),GL),
       at(box(.025,.16,.025),.16,yI+.3,-.12), tone(at(new THREE.IcosahedronGeometry(.035,0),.16,yI+.4,-.12),GL)];
