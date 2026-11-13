@@ -683,26 +683,32 @@ const GROUND_SHAPES={
       ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
       ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
       ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
-  /* 戦闘母艦（共和国, 15.14）: a heavy aviation cruiser — a long cruiser hull, the fore half a cruiser (two twin turrets, rows of
-     launcher lids), the after half an angled flight deck set off to port (dark launch line, landing square, hangar mouth in the stern)
-     and a tall island on the starboard side with an optical band and mast */
-  spCVBM:()=>{ const M=mA([[-1.2,.28,.12],[-.8,.36,.15],[.3,.36,.16],[.9,.24,.12],[1.2,.1,.07]]), m=0, W=z=>M.at(z).w, A=-.12, dy=M.top(-.5)+.012;
-    const deck=[at(box(.34,.03,1.3),-.1,dy,-.5,0,A,0), ...[at(box(.012,.006,1.15),-.1,dy+.016,-.45,0,A,0), at(box(.2,.006,.2),-.04,dy+.016,-.98,0,A,0)].map(g=>tone(g,DK))];
-    const isl=[at(loft([[-.5,.05,.05,.05],[-.38,.07,.11,.11],[-.05,.06,.1,.1],[.08,.035,.06,.06]],TRAP),.25,M.top(-.25)-.01,0), tone(at(box(.15,.03,.14),.25,M.top(-.25)+.17,-.2),GL),
-      at(box(.02,.12,.02),.25,M.top(-.25)+.25,-.3), tone(at(box(.05,.03,.04),.25,M.top(-.25)+.32,-.3),GL)];
-    return [...M.hull(), ...deck, ...isl, ...M.eyes(1.08,.6), ...mEng([.2,-.2],-1.2,.065), tone(at(box(.22,.06,.02),-.05,.09,-1.203),DK),
-      ...mGun(0,M.top(.95),.95,.85,2), ...mGun(0,M.top(.6),.6,.85,2), ...[.12,-.12].flatMap(x=>lidsG(x,M.top(.3)+.004,.18,.42,4,.07)),
-      ...mPair(mPD,W(.2)*.6,M.top(.2),.2,.85), ...mPair(mPD,W(-1.05)*.62,M.top(-1.05),-1.05,.85),
-      ...M.under(mGun(0,0,m,.65),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.9),m+dz,sg*.22)))]; },
-  /* 突撃揚陸艦（共和国, 15.14）: built on a transport — a slim creased spine from the engines to a low bow cab, three rows of cargo
-     modules on its top and sides, two round tanks at the stern, and under the middle the W.A.S. module with two rows of four dark
-     launch lids. The flat twin secondaries lie on the side modules' walls at the middle */
-  spMASM:()=>{ const S=mA([[-.95,.07,.05],[.72,.07,.05]]), C=mA([[.68,.13,.065],[.8,.15,.075],[.95,.1,.05]]), m=-.05;
-    const mods=[-.62,-.1,.42].flatMap(z=>[...mBox(0,.11,z,.42,.13,.06), ...mBox(.19,0,z,.42,.12,.07), ...mBox(-.19,0,z,.42,.12,.07)]);
-    const hang=mBox(0,-.12,-.05,.9,.17,.07), lids=[.08,-.08].flatMap(x=>[-.44,-.18,.08,.34].map(z=>tone(at(box(.09,.008,.15),x,-.193,z),DK)));
-    return [...S.hull(), ...C.hull(), ...mods, ...hang, ...lids, ...mHump(.7,.92,.09,.035,C.top(.8)-.005), ...C.eyes(.9,.6),
-      at(tube(.07,.25,8),.12,0,-.83), at(tube(.07,.25,8),-.12,0,-.83), ...mEng([.1,-.1],-1.05,.055),
-      ...mGun(0,.17,.42,.75), ...mPair(mPD,.07,.17,-.72,.8), ...sideAt(()=>flatM(0,0,m,.6),.304,0)]; },
+  /* 戦闘母艦（共和国, 15.16）: a slim heavy aviation cruiser — a long narrow hull with a fine bow, the fore deck armed (two twin
+     turrets, two pairs of raised twin launch tubes), a big two-level island to starboard amidships with an optical mast and dome, and
+     an angled flight deck on the after half whose fore end swings out past the port side on a support */
+  spCVBM:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.8,.17,.1],[1.2,.03,.05]]), m=0, A=-.14, dy=M.top(-.5)+.013;
+    const deck=[at(box(.3,.025,1.15),-.13,dy,-.55,0,A,0), at(box(.1,.05,.42),-.25,dy-.035,-.12,0,A,0),
+      ...[at(box(.01,.006,1.05),-.13,dy+.015,-.55,0,A,0), ...[-.25,-.6,-.95].map(z=>at(box(.07,.006,.07),-.13-(z+.55)*Math.sin(A),dy+.015,z,0,A,0))].map(g=>tone(g,DK))];
+    const yI=M.top(-.1)-.02, isl=[at(loft([[-.42,.06,.055,.055],[-.3,.08,.065,.065],[.12,.08,.065,.065],[.2,.05,.05,.05]],TRAP),.16,yI,0),
+      at(loft([[-.3,.045,.05,.05],[-.2,.06,.06,.06],[.04,.055,.055,.055],[.1,.035,.04,.04]],TRAP),.16,yI+.12,0), tone(at(box(.13,.03,.16),.16,yI+.18,-.07),GL),
+      at(box(.025,.16,.025),.16,yI+.3,-.12), tone(at(new THREE.IcosahedronGeometry(.035,0),.16,yI+.4,-.12),GL)];
+    const tubes=[.09,-.09].flatMap(x=>[.06,-.03].flatMap(dx=>[at(box(.035,.035,.22),x+dx,M.top(.35)+.035,.35,-.25,0,0), tone(at(box(.03,.03,.012),x+dx,M.top(.35)+.062,.455,-.25,0,0),DK)])).concat([.09,-.09].map(x=>at(box(.12,.03,.1),x,M.top(.32)+.012,.32)));
+    return [...M.hull(), ...deck, ...isl, ...tubes, ...M.eyes(1.02,.5), ...mEng([.12,-.12],-1.2,.06),
+      ...mGun(0,M.top(.95),.95,.75,2), ...mGun(0,M.top(.66),.66,.8,2),
+      ...mPair(mPD,.12,M.top(.12),.12,.8), ...mPD(.17,M.top(-.98),-.98,.8), ...mPD(-.17,dy+.012,-1.02,.8),
+      ...M.under(mGun(0,0,m,.6),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.85),m+dz,sg*.15)))]; },
+  /* 突撃揚陸艦（共和国, 15.16）: a landing craft — a flat-bottomed boxy hull; from the middle forward an open well deck between high
+     side walls, closed at the bow by a big ramp leaning forward with dark grating bars; a low deckhouse aft with its optical band and a
+     post; dark fenders on the sides. The eight W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
+  spMASM:()=>{ const M=mA([[-1.05,.26,.09],[-.95,.3,.1],[.72,.3,.1],[.95,.27,.085]]), m=-.05, wy=M.top(0);
+    const walls=pair(at(box(.05,.15,1.5),.275,wy+.07,-.02)), floor=tone(at(box(.5,.006,1.42),0,wy+.003,-.02),.55);
+    const ramp=[at(box(.52,.2,.035),0,wy+.09,.8,-.3,0,0), ...[0,1,2,3].map(i=>tone(at(box(.42,.016,.012),0,wy+.035+i*.042,.835-i*.013,-.3,0,0),DK))];
+    const pods=[.11,-.11].flatMap(x=>[-.45,-.17,.11,.39].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
+    const lids=[.11,-.11].flatMap(x=>[-.45,-.17,.11,.39].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
+    const house=[...mBox(0,wy+.03,-.86,.22,.17,.07), ...mHump(-.93,-.78,.11,.05,wy+.1), at(box(.015,.14,.015),-.06,wy+.2,-.93)];
+    const fend=[.3,-.4].flatMap(z=>pair(tone(at(tube(.028,.1,8),.305,.02,z),DK)));
+    return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.14,-.14],-1.05,.055),
+      ...mGun(0,wy+.146,-.87,.7), ...mPair(mPD,.275,wy+.145,-.62,.75), ...sideAt(()=>flatM(0,0,m,.6),.294,.02)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
