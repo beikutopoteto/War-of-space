@@ -336,7 +336,7 @@
 
 ### 13.4 どこまで済んだか
 
-- [x] 方針（13.1）　[x] 設計（13.2）　[x] 4隻の形の第1版（13.3）　[x] 見本ページ（`sea.json`）
+- [x] 方針（13.1）　[x] 設計（13.2）　[x] 4隻の形の第1版（13.3）　[x] 見本ページ（`docs/mockups/models/sea.json`）
 - [ ] ユーザーの許可（見本を見せて直す）。戦艦の射程（40km、仮）を延ばすかも聞く。
 - [ ] 実際の海の画面の写真: `node tools/ground-model-shots.cjs --models "sea:bb:seaBB:2.04:one,sea:cl:seaCL:1.44:one,sea:ff:seaFF:.84:one,sea:dd:seaDD:1.02:one"`（喫水線が水面に合うか、水の下がどう見えるかを確かめる。未実施）
 - [ ] 許可のあと: `GROUND_MODELS` に上の4行を入れ、`docs/mockups/models/pilot-override.txt` と `tests/ground-models.cjs` を合わせ、`npm test` → PR（つなぎとテストは Codex へ）。
@@ -366,7 +366,7 @@
 
 ### 14.3 どこまで済んだか
 
-- [x] 方針　[x] 設計　[x] 形 `masc2`（`battle/ground-shapes.js`。浮いた部品なし）　[x] 見本（`sea.json` の5番、第2回。13.4 と同じページ）
+- [x] 方針　[x] 設計　[x] 形 `masc2`（`battle/ground-shapes.js`。浮いた部品なし）　[x] 見本（`docs/mockups/models/sea.json` の5番、第2回。13.4 と同じページ）
 - [ ] ユーザーの許可（海に浮くだけでよいかも聞く）　[ ] 採用: 海は `GROUND_MODELS['sea:masc']`（大きさ 1.92、`one`）、宇宙は `SHAPES.masc` を同じ部品に（つなぎとテストは Codex）
 
 ### 14.4 許可と残り（ユーザー決定 2026-11-13）
