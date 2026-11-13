@@ -327,3 +327,17 @@
 | `seaCL` | イージス艦 | `cl` | 幅の広い船体、傾いた艦橋、前の砲塔1つ | 砲は小さな単装砲。艦橋の前と後ろの甲板に垂直発射のふた。翼の板を取り、後ろはヘリ甲板 |
 | `seaFF` | 高速艇 | `ff` | 細い矢の船体、背びれ | 背びれを低い艦橋と細い柱に。前に小さな砲、後ろに斜めの誘導弾の箱2つ。翼の板は取る。船首を高く上げる（滑走する艇） |
 | `seaDD` | 揚陸艦 | `dd` | 細長い船体、左右の筒（→ 舷側の揚陸艇） | 艦橋を前へ寄せ、後ろの半分は平らで広い甲板（暗い色の区切り）。船尾に門。左右の筒は舷側につるした小さな艇に。砲なし |
+
+### 13.3 実装（見本 第1回、2026-11-13）
+
+- 形: `battle/ground-shapes.js` の `seaBB`・`seaCL`・`seaFF`・`seaDD`。共通の部品は `SEA`（船体の断面）、`seaMast`、`railTurret`、`gunTurret`、`cellsG`。
+- 設計から変えた所: 戦艦の砲塔を1.25倍にした（主砲が目立つように）。
+- 見本: `node tools/model-sheet.cjs --config docs/mockups/models/sea.json --out .shots/sea-sheet.html --shots .shots/sea-sheet`。`node tools/model-floaters.cjs seaBB seaCL seaFF seaDD` は浮いた部品なし、`node tests/ground-models.cjs` は 47/47。
+
+### 13.4 どこまで済んだか
+
+- [x] 方針（13.1）　[x] 設計（13.2）　[x] 4隻の形の第1版（13.3）　[x] 見本ページ（`sea.json`）
+- [ ] ユーザーの許可（見本を見せて直す）。戦艦の射程（40km、仮）を延ばすかも聞く。
+- [ ] 実際の海の画面の写真: `node tools/ground-model-shots.cjs --models "sea:bb:seaBB:2.04:one,sea:cl:seaCL:1.44:one,sea:ff:seaFF:.84:one,sea:dd:seaDD:1.02:one"`（喫水線が水面に合うか、水の下がどう見えるかを確かめる。未実施）
+- [ ] 許可のあと: `GROUND_MODELS` に上の4行を入れ、`docs/mockups/models/pilot-override.txt` と `tests/ground-models.cjs` を合わせ、`npm test` → PR（つなぎとテストは Codex へ）。
+- PR はまだ作っていない（この Mac のシェルに `gh` が見つからなかった）。ブランチ `claude/sea-models` は push 済み。

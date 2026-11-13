@@ -494,7 +494,7 @@ const GROUND_SHAPES={
     at(loft([[-.7,.2,.06],[.14,.2,.06],[.3,.1,.06]],TRAP),0,.19,0), at(loft([[-.3,.14,.09],[.08,.14,.09],[.2,.08,.07,-.02]],TRAP),0,.34,0),
     tone(at(loft([[-.02,.105,.018],[.085,.105,.018],[.21,.062,.018]],RECT),0,.385,0),GL), ...seaMast(-.08,.42,.2,.24),
     at(loft([[-.62,.07,.07],[-.44,.07,.07]],TRAP),0,.31,0), tone(at(box(.07,.012,.13),0,.382,-.53),DK),
-    ...railTurret(.125,.85), at(new THREE.CylinderGeometry(.1,.11,.08,6),0,.165,.5), ...railTurret(.2,.5), ...railTurret(.125,-.88,1,true),
+    ...railTurret(.125,.9,1.25), at(new THREE.CylinderGeometry(.125,.135,.08,6),0,.165,.5), ...railTurret(.2,.5,1.25), ...railTurret(.125,-.82,1.25,true),
     ...[-.2,-.5].flatMap(z=>pair(tone(at(box(.05,.045,.09),.27,.15,z),DK)))],
   /* イージス艦（海）: the space cruiser's broad hull and raked bridge. One small gun forward, launch cells before the bridge
      and aft of the funnel, a faceted deckhouse, a landing pad on the stern */
