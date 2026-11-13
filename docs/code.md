@@ -34,6 +34,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   7.8 `tutorial.js` 演習の段の進行と、下のセリフの板の案内・光る枠・地図の目標地点。段の文と対象は `charybdis.tutorial`、作戦時計は `opClock()` と停止秒 `clockHeld`
   8. `loop.js` 描画ループと起動。挟撃の矢じり（`pinchMarks`）
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
+- `tools/terrain-check.cjs`・`tests/terrain-check.cjs`: 地形検査。`node tools/terrain-check.cjs <地形id|all> [--json] [--perf]` で拠点・本営道路網・橋・6兵科の経路・架橋区間・浜・盤と海の塗りを調べる。不合格があれば終了コード1。ブラウザ不要の検査と壊した写しのテストは ground 組、`--perf` の Chromium 計測は手元だけ。性能の仮上限と基準値は `docs/ground-structure.md` 票5。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
 - `tools/`: 確認用の道具（ゲームは使わない）。`tools/body-shots.cjs` は天体の見本の画像、`tools/retreat-sim.cjs` は第2節、`tools/denali-sim.cjs` は第4節、`tools/februaria-sim.cjs` は第5節の早送り（`q` はデバッグのオートモード `autoAI` をそのまま使う。2026-10-19）、`tools/op-sim.cjs` はどの作戦でも早送りして勝ち負け・長さ・沈んだ隻数を出す（2026-10-20）、`tools/length-sim.cjs` は第1〜6節の長さの表（2026-10-30）、`tools/feint-sim.cjs` は第6節の止まっている隊・陽動・方角守備隊・オートモードの分岐の記録（2026-10-30）。`tools/ch1-check.cjs` は1つの作戦を最後まで早送りして、例外・console.error・任務欄と名札の NaN／undefined を集める（第一章の通しのバグ取り、2026-11-05）。`STAGE=1` を付けると自分の艦隊をその作戦の技術の段階まで研究した値にする（`tools/browser.cjs` の `toStage`）、`tools/ally-targets.cjs` は友軍の狙う相手の表。`tools/model-sheet.cjs`（地上モデルの見本ページ）・`tools/ground-model-shots.cjs`（ゲーム画面の写真）・`tools/model-floaters.cjs`（体から浮いた部品の一覧）は `docs/models.md` 4。`tools/tutorial-check.cjs`（演習のチュートリアル）・`tools/prep-tutorial-check.cjs`（準備画面のチュートリアル）・`tools/masc-check.cjs`（強襲母艦の配備と別枠）は `tests/smoke.cjs` から呼ぶ確かめで、1つだけでも走る。使い方は `docs/maps.md`。
 

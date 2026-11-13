@@ -38,6 +38,7 @@ const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
 const {nodeChecks:groundRuleChecks}=require('./ground-rules.cjs');
+const {nodeChecks:terrainCheckChecks}=require('./terrain-check.cjs');
 const {nodeChecks:baikonurMapChecks}=require('./baikonur-map.cjs');
 const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
@@ -65,6 +66,7 @@ function check(ok, label, detail = '') {
   fs.mkdirSync(OUT, { recursive: true });
   if (on('ground')) {
   for(const r of groundRuleChecks())check(r.ok,'地上規則: '+r.name,r.error||'');
+  for(const r of terrainCheckChecks())check(r.ok,'地形検査: '+r.name,r.error||'');
   for(const r of groundHintChecks())check(r.ok,'操作案内: '+r.name,r.error||'');
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
