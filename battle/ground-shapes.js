@@ -327,6 +327,19 @@ function mechParts(step){ const p=[], T=.4;
   p.push(at(loft([[-.3,.13,.09],[.05,.19,.14],[.42,.1,.07,-.03]],HEX),0,.93,0), tone(at(box(.16,.03,.03),0,.93,.4),GL), tone(at(box(.1,.14,.2),0,1.05,-.18),.6),
     ...pair(at(box(.07,.1,.24),.22,.93,.05)), ...pair(tone(at(tube(.028,.42,5),.22,.92,.38),DK)), tone(at(box(.3,.05,.08),0,.84,-.05),DK), tone(at(box(.02,.3,.02),.035,1.25,-.2),DK));
   return p; }
+/* sea ships (docs/models.md 13): the space ships changed a little for the sea. SEA: the hull's cross-section — a flat deck,
+   sides that lean in above a knuckle and flare below it, a flat bottom; lofted with half-height .1 and y offset .03 the deck
+   is at y .13 and the bottom at y -.07 (waterline y 0). A half-width of 0 ends the hull in an upright stem.
+   seaMast: an optical mast (no radar: a post, a yard and a sensor box). railTurret: a low faceted gun house with a railgun —
+   two flat rails one above the other with a gap, a breech box and two clamps — standing on y at z, s: scale, rear: facing aft.
+   gunTurret: a small house with one slim barrel. cellsG: the dark lids of vertical launch cells let into the deck */
+const SEA=[[.9,1],[1,.3],[.7,-1],[-.7,-1],[-1,.3],[-.9,1]];
+const seaMast=(z,y0,h,w=.2)=>[at(box(.03,h,.03),0,y0+h/2,z), at(box(w,.012,.02),0,y0+h*.65,z), at(box(.07,.035,.05),0,y0+h,z)];
+const seaSet=(p,y,z,s,rear)=>p.map(g=>{ g.scale(s,s,s); if(rear) g.rotateY(Math.PI); g.translate(0,y,z); return g; });
+const railTurret=(y,z,s=1,rear=false,el=.12)=>seaSet([loft([[-.13,.1,.045,.045],[.04,.11,.045,.045],[.16,.05,.04,.04]],TRAP),
+  ...[at(box(.07,.05,.12),0,0,.08), at(box(.045,.012,.46),0,.016,.3), at(box(.045,.012,.46),0,-.016,.3), at(box(.056,.05,.025),0,0,.34), at(box(.056,.05,.025),0,0,.52)].map(g=>tone(at(g,0,.05,.04,-el),DK))],y,z,s,rear);
+const gunTurret=(y,z,s=1)=>seaSet([loft([[-.07,.06,.035,.035],[.03,.065,.035,.035],[.1,.03,.03,.03]],TRAP), tone(at(tube(.012,.3,5),0,.04,.2,-.1),DK)],y,z,s,false);
+const cellsG=(z,w,l,y=.134)=>[z-l*.27,z+l*.27].flatMap(c=>pair(tone(at(box(w*.46,.012,l*.46),w*.27,y,c),DK)));
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -474,6 +487,34 @@ const GROUND_SHAPES={
     loft([[-.8,.3,.12],[-.2,.37,.18],[.5,.24,.13],[1.02,.05,.04,-.02]],LIFT), tone(at(plate([[0,.9],[.2,.5],[.3,-.2],[.26,-.74],[-.26,-.74],[-.3,-.2],[-.2,.5]],.02),0,-.17,0),DK),
     ...[-.5,-.2,.1,.4].map(z=>tone(at(new THREE.IcosahedronGeometry(.07,0),0,.17,z),GL)),
     ...pair(at(plate([[0,-.42],[0,-.72],[.26,-.78],[.26,-.56]],.035),1.36,.02,0,0,0,Math.PI/2-.3)), ...[-.2,0,.2].map(x=>tone(at(box(.16,.1,.12),x,.02,-.82),DK))],
+  /* 戦艦（海）: the space battleship's long hull and stepped house, afloat. Three railgun turrets (two forward, the second
+     raised on a barbette to fire over the first, one aft), a bridge tower with a window band and an optical mast, a funnel, small guns
+     along the sides. No keel fin, no engine bells */
+  seaBB:()=>[loft([[-1.35,.3,.1,.03],[-.6,.41,.1,.03],[.6,.31,.1,.03],[1.1,.15,.105,.035],[1.45,0,.12,.05]],SEA),
+    at(loft([[-.7,.2,.06],[.14,.2,.06],[.3,.1,.06]],TRAP),0,.19,0), at(loft([[-.3,.14,.09],[.08,.14,.09],[.2,.08,.07,-.02]],TRAP),0,.34,0),
+    tone(at(loft([[-.02,.105,.018],[.085,.105,.018],[.21,.062,.018]],RECT),0,.385,0),GL), ...seaMast(-.08,.42,.2,.24),
+    at(loft([[-.62,.07,.07],[-.44,.07,.07]],TRAP),0,.31,0), tone(at(box(.07,.012,.13),0,.382,-.53),DK),
+    ...railTurret(.125,.85), at(new THREE.CylinderGeometry(.1,.11,.08,6),0,.165,.5), ...railTurret(.2,.5), ...railTurret(.125,-.88,1,true),
+    ...[-.2,-.5].flatMap(z=>pair(tone(at(box(.05,.045,.09),.27,.15,z),DK)))],
+  /* イージス艦（海）: the space cruiser's broad hull and raked bridge. One small gun forward, launch cells before the bridge
+     and aft of the funnel, a faceted deckhouse, a landing pad on the stern */
+  seaCL:()=>[loft([[-1.1,.3,.1,.03],[-.45,.38,.1,.03],[.45,.29,.1,.03],[.9,.13,.105,.035],[1.2,0,.12,.05]],SEA),
+    at(loft([[-.35,.24,.1],[.1,.24,.1],[.28,.13,.1]],TRAP),0,.23,0), at(loft([[-.2,.13,.05],[.08,.13,.05],[.18,.07,.045,-.005]],TRAP),0,.38,0),
+    tone(at(loft([[0,.105,.014],[.085,.105,.014],[.19,.058,.014]],RECT),0,.385,0),GL), ...seaMast(-.1,.41,.18),
+    at(loft([[-.52,.09,.09],[-.34,.09,.09]],TRAP),0,.22,0), tone(at(box(.08,.012,.12),0,.312,-.43),DK),
+    ...gunTurret(.125,.62), ...cellsG(.42,.2,.14), ...cellsG(-.66,.3,.16), tone(at(box(.36,.008,.24),0,.132,-.93),.7)],
+  /* 高速艇（海）: the space frigate's slim arrow hull, its bow lifted to plane. A low cabin with a window band and a slim
+     mast (the frigate's fin), a small gun forward, two raised missile boxes aft */
+  seaFF:()=>[loft([[-1,.2,.075,.02],[-.35,.25,.075,.02],[.45,.18,.08,.03],[1.05,0,.1,.07]],SEA),
+    at(loft([[-.4,.13,.055],[-.02,.13,.055],[.18,.07,.045,-.01]],TRAP),0,.15,0), tone(at(loft([[-.1,.1,.014],[-.02,.1,.014],[.185,.054,.014]],RECT),0,.165,0),GL),
+    at(box(.02,.15,.02),0,.265,-.25), at(box(.14,.01,.015),0,.3,-.25), ...gunTurret(.1,.42,.8),
+    ...pair(tone(at(box(.07,.06,.26),.09,.14,-.68,-.3),DK))],
+  /* 揚陸艦（海）: the space destroyer's long narrow hull. The bridge stands forward, the after half is one flat vehicle deck
+     with a gate in the stern; the destroyer's side pods are landing boats carried on the sides. No guns */
+  seaDD:()=>[loft([[-1.1,.2,.1,.03],[-.4,.22,.1,.03],[.7,.15,.1,.03],[1,.08,.105,.04],[1.25,0,.115,.05]],SEA),
+    at(loft([[.2,.15,.09],[.55,.14,.09],[.7,.08,.08,-.01]],TRAP),0,.22,0), tone(at(loft([[.45,.105,.014],[.555,.1,.014],[.705,.056,.014]],RECT),0,.27,0),GL),
+    ...seaMast(.35,.3,.16,.16), tone(at(box(.3,.008,1.1),0,.132,-.45),.7), tone(at(box(.26,.12,.02),0,.06,-1.1),DK),
+    ...pair(tone(at(loft([[-.6,.04,.035],[-.2,.04,.035],[-.1,.02,.03,.005]],RECT),.225,.1,0),.8))],
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
