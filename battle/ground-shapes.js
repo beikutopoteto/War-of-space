@@ -365,6 +365,8 @@ const belly=(x,y,z,s=1,n=1,rear=false)=>[at(new THREE.CylinderGeometry(.11*s,.11
 const gatB=(x,y,z,s=1)=>flipY(gatG(-x,-(y+.01),z,s));
 /* flatT: a flattened laser turret (height k of laserT) standing on y — the assault ship's flat twin secondary guns */
 const flatT=(x,y,z,s=1,n=2,k=.6)=>laserT(x,0,z,s,n).map(g=>{ g.scale(1,k,1); g.translate(0,y,0); return g; });
+/* sideT: a flat turret laid on its side on a side wall at x (its top facing out, barrels forward, one above the other) */
+const sideT=(x,y,z,s=1,n=2,k=.6)=>flatT(0,0,z,s,n,k).map(g=>{ g.rotateZ(x>0?-Math.PI/2:Math.PI/2); g.translate(x,y,0); return g; });
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -594,10 +596,10 @@ const GROUND_SHAPES={
     ...belly(0,-.13,.05,.6), ...gatB(.1,-.082,.3,.8), ...gatB(-.1,-.082,.3,.8), ...gatB(.12,-.094,-.7,.8), ...gatB(-.12,-.094,-.7,.8), ...gatB(.3,.13,-.3,.8), ...gatB(-.3,.13,-.3,.8)],
   /* 突撃揚陸艦 (docs/models.md 15.5): the W.A.S. drop from under the body — a flat-bottomed launch bay under the hull, its sides
      drawn in toward the bottom, and two rows of five pods (one W.A.S. each) half out of its floor, each with a dark lid. No side pods:
-     a flat twin secondary gun on a sponson on each side (15.7) */
+     a flat twin secondary gun laid on each side wall (15.7) */
   spMAS:()=>{ const BAY=[[1,1],[.8,-1],[-.8,-1],[-1,1]];
     const pods=[.11,-.11].flatMap(x=>[-.5,-.3,-.1,.1,.3].flatMap(z=>[tone(at(loft([[-.08,.04,.035],[.06,.05,.04],[.08,.035,.03]],O8),x,-.22,z),.8), tone(at(box(.06,.01,.1),x,-.258,z),DK)]));
-    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pair(at(box(.14,.04,.24),.32,.03,.05)), ...flatT(.34,.05,.05,.6), ...flatT(-.34,.05,.05,.6),
+    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...sideT(.27,0,.05,.6), ...sideT(-.27,0,.05,.6),
       loft([[-.75,.2,.06,-.13],[-.6,.26,.075,-.145],[.4,.25,.075,-.145],[.6,.18,.05,-.12]],BAY), ...pods,
       at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
       ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.2,.1,-.5,.8), ...pdG(-.2,.1,-.5,.8), ...pdG(0,.28,-.55,.8)]; },
