@@ -399,4 +399,7 @@
 
 ### 15.3 どこまで済んだか
 
-- [x] 方針　[x] 設計　[ ] 形7つ　[ ] 見本（`space.json`）　[ ] ユーザーの許可　[ ] 採用（`SHAPES` と描き方のつなぎ、Codex）
+- [x] 方針　[x] 設計　[x] 形7つ（`battle/ground-shapes.js` の `sp*`、部品 `spBells`・`spTurret`。浮いた部品なし、`tests/ground-models.cjs` 47/47）
+- [x] 見本 第1回: `node tools/model-sheet.cjs --config docs/mockups/models/space.json --out .shots/space-sheet.html --shots .shots/space-sheet`、非公開ページ https://claude.ai/artifact/G7Soio8zHRpNadczBr4mNw （同じファイルで載せ直す）
+- [ ] ユーザーの許可。輪郭は今のまま、足したのは暗い部品と窓と甲板の印だけなので、違いは控えめ。もっと作り込むか（海の艦ほど変えるか）も聞く。
+- [ ] 採用（`SHAPES` の差し替えと、`shipMeshes` を平らな面・頂点の色にするつなぎ。強襲母艦 `masc2` は宇宙では y を −.09 ずらす。Codex）
