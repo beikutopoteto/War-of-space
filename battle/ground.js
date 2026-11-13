@@ -226,7 +226,9 @@ function groundInit(){
     else {
       const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];
       const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const mesh=new THREE.Mesh(src.geometry.clone(),mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.groundKind==='sea'?(groundNavalModel(f)||f.type):f.type]||f.scale); model.add(mesh);
+      const geo=f.groundKind==='was'?src.geometry.clone():shapeGeo(f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv');
+      if(mat.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));
+      const mesh=new THREE.Mesh(geo,mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.groundKind==='sea'?(groundNavalModel(f)||f.type):f.type]||f.scale); model.add(mesh);
     }
   }
   // 見本と同じ薄い格子。地表の起伏と同じ高さを足し、盤の輪郭内だけに置く。

@@ -25,9 +25,31 @@ const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
    assault ship there was 0.55 of it */
 SHIP_SIZE.lc=SHIP_SIZE.mas*.55;
 function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
+/* ship shapes (docs/models.md 15.23): the classes in SPACE_MODELS use the approved shapes in GROUND_SHAPES (flat faces, part tones as
+   vertex colours), the Republic's under the key <class>@mars; the other shapes (landing craft, transports, guns, thrusters) keep their
+   look with every vertex colour 1. One geometry per shape, shared by the four teams */
+function whiteShipGeo(type){
+  const geo=shapeGeo(type), colors=new Float32Array(geo.attributes.position.count*3).fill(1);
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3)); return geo;
+}
+const shipGeos=Object.fromEntries(Object.keys(SHAPES).map(type=>{
+  const spec=SPACE_MODELS[type], geo=spec?groundShapeGeo(spec.earth):whiteShipGeo(type);
+  if(spec&&spec.y)geo.translate(0,spec.y,0);
+  return [type,geo];
+}));
+for(const [type,spec] of Object.entries(SPACE_MODELS)) if(spec.mars!==spec.earth){
+  const geo=groundShapeGeo(spec.mars); if(spec.y)geo.translate(0,spec.y,0); shipGeos[type+'@mars']=geo;
+}
 const shipMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t];
-  const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5});
-  return Object.fromEntries(Object.keys(SHAPES).map(k=>[k,instanced(shapeGeo(k),mat,SHIP_MAX)])); });
+  const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
+  return Object.fromEntries(Object.entries(shipGeos).map(([k,geo])=>[k,instanced(geo,mat,SHIP_MAX)])); });
+/* the mesh key for a ship of this class in fleet f: the Republic's shape only for a Republic fleet and a class in its tables
+   (WOS_DATA.sides.mars.ships); a class it has no table for is a captured Earth ship (state.js techFleet), drawn Earth-type, as is
+   every ship of a side:'earth' fleet */
+function shipMeshKey(f,type){
+  const side=f.side||(f.team===1?'mars':'earth'), key=type+'@mars', meshes=shipMeshes[colOf(f)];
+  return side==='mars'&&WOS_DATA.sides.mars.ships[type]&&meshes[key]?key:type;
+}
 /* small craft (fighters and W.A.S.) launched from carriers */
 const craftMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});

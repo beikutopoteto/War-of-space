@@ -617,8 +617,7 @@ const GROUND_SHAPES={
       at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
       ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
   /* space ships worked out (docs/models.md 15, round 2 in 15.4): today's hulls with their numbers kept, outlines added where
-     the role shows, laser turrets worked out (laserT), point defence on every ship (pdG). Centred on y 0. sp…: shown on the
-     sample sheet; the game still draws SHAPES */
+     the role shows, laser turrets worked out (laserT), point defence on every ship (pdG). Centred on y 0. sp…: used for space ships; SHAPES remains for legacy ground and sea drawings */
   spCV:()=>[loft([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]]), ...pair(at(plate([[.08,-.2],[.5,-.65],[.5,-.8],[.08,-.62]]),0,0,0)),
     at(plate([[0,-.35],[0,-.85],[.03,-.85],[.03,-.5]],.02),0,.05,0,0,0,Math.PI/2), ...pair(at(plate([[.08,.58],[.21,.44],[.21,.4],[.08,.42]],.02),0,0,0)),
     ...pair(at(loft([[-.98,.05,.045],[-.75,.055,.05],[-.55,.035,.03]]),.17,0,0)), ...spBells([0],0,-1.08,.09), ...spBells([.17,-.17],0,-1.03,.045),
@@ -771,6 +770,11 @@ const GROUND_MODELS={
   'sea:dd':{key:'seaDD',size:1.02,form:'one'},
   'sea:masc':{key:'masc2',size:1.92,form:'one'},
 };
+/* space ship class → the shape each side draws (docs/models.md 15.23; battle/units.js shipMeshes and shipMeshKey). y: moved up or down
+   to centre the shape in space */
+const SPACE_MODELS={cv:{earth:'spCV',mars:'spCVM'}, ff:{earth:'spFF',mars:'spFFM'}, dd:{earth:'spDD',mars:'spDDM'},
+  cl:{earth:'spCL',mars:'spCLM'}, bb:{earth:'spBB',mars:'spBBM'}, cvb:{earth:'spCVB',mars:'spCVBM'},
+  mas:{earth:'spMAS',mars:'spMASM'}, masc:{earth:'masc2',mars:'masc2',y:-.09}};
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
    only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the
    shape when the unit stands or fights. move: the keys of the shapes shown while it is moving (in the table an array, in the
