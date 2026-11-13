@@ -515,6 +515,19 @@ const GROUND_SHAPES={
     at(loft([[.2,.15,.09],[.55,.14,.09],[.7,.08,.08,-.01]],TRAP),0,.22,0), tone(at(loft([[.45,.105,.014],[.555,.1,.014],[.705,.056,.014]],RECT),0,.27,0),GL),
     ...seaMast(.35,.3,.16,.16), tone(at(box(.3,.008,1.1),0,.132,-.45),.7), tone(at(box(.26,.12,.02),0,.06,-1.1),DK),
     ...pair(tone(at(loft([[-.6,.04,.035],[-.2,.04,.035],[-.1,.02,.03,.005]],RECT),.225,.1,0),.8))],
+  /* 強襲母艦 (docs/models.md 14): one design for space and sea — the space carrier's two slim hulls joined by a broad deck,
+     worked out. Twin flat-bottomed hulls with an engine bell in each stern, a hangar body between them under the deck with a
+     dark launch mouth at its front, a flight deck with two launch tracks, two W.A.S. lifts on the port side and a landing area
+     aft, an island on the starboard hull, two small guns. Waterline y 0 */
+  masc2:()=>{ const CAT=[[.6,1],[1,.2],[.6,-1],[-.6,-1],[-1,.2],[-.6,1]], sx=(p,x)=>p.map(g=>{ g.translate(x,0,0); return g; });
+    return [...pair(at(loft([[-1.2,.12,.12,.06],[-.4,.16,.13,.06],[.6,.13,.125,.06],[1.25,0,.07,.11]],CAT),.36,0,0)),
+      loft([[-.95,.21,.09,.11],[.5,.21,.09,.11],[.78,.15,.07,.13]],RECT), tone(at(box(.26,.1,.02),0,.125,.782),DK),
+      at(loft([[-1.05,.5,.025],[.3,.5,.025],[.82,.3,.025]],RECT),0,.215,0),
+      ...engines([.36,-.36],.07,-1.26,.085).map(g=>tone(g,DK)), ...engines([.1,-.1],.11,-1,.055).map(g=>tone(g,DK)),
+      ...pair(tone(at(box(.03,.008,.95),.1,.241,.3),DK)), ...[-.25,.12].map(z=>tone(at(box(.17,.008,.22),-.3,.241,z),DK)), tone(at(box(.6,.008,.4),0,.241,-.75),.7),
+      at(loft([[-.5,.075,.07],[-.12,.075,.07],[.02,.04,.06,-.01]],TRAP),.38,.31,0), tone(at(loft([[-.2,.062,.014],[-.12,.062,.014],[.025,.034,.014]],RECT),.38,.335,0),GL),
+      at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
+      ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
