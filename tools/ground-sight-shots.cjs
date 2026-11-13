@@ -20,7 +20,7 @@ const {openGame,ROOT}=require('./browser.cjs');
     const shoot=async letter=>page.screenshot({path:path.join(ROOT,'.shots',`⑤-${letter}.png`)});
     const reset=async kind=>page.evaluate(kind=>{
       const source=OPS.find(o=>o.id==='groundExercise2').quick[0];
-      reset({op:'groundExercise2',fleets:[{...source,groundKind:kind,name:WOS_TERRAIN.exercise2.unitTypes[kind].name,band:kind==='supportAircraft'?'high':'ground'}]});
+      reset({op:'groundExercise2',fleets:[{...source,groundKind:kind,name:groundRuleSet().unitTypes[kind].name,band:kind==='supportAircraft'?'high':'ground'}]});
       setSpeed(0);fleets.forEach(f=>{f.stance='evade';f.order=null;});
       const blue=fleets.find(f=>f.team===0);blue.pos.copy(groundPoint(9,27));blue.pos.y=groundUnitHeight(blue);select(blue);
       // 守備隊も最後まで生存。固定位置で射撃・進行を止めて撮る。

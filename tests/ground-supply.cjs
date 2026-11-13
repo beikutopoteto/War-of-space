@@ -92,7 +92,7 @@ function supplyCases(){
     check('分配中も補給部隊自身の士気は休息回復する',near(truck.groundMorale,52)&&truck.groundSupplyGiving);
     truck.groundGiving=null;
     f.groundMorale=3;const hp=f.hpPool,src=unit(1,'infantry',15,27);fleets.push(src);damage(f,8,src,{source:src,resolving:true,impact:f.pos.clone(),radius:4});
-    check('実damageで士気3を先に削り損害倍率を掛けた超過分だけ耐久へ',f.groundMorale===0&&near(f.hpPool,hp-(8*d.combat.damageScale-3))&&f.groundRout==='routing');
+    check('実damageで士気3を先に削り損害倍率を掛けた超過分だけ耐久へ',f.groundMorale===0&&near(f.hpPool,hp-(8*groundRuleSet().combat.damageScale-3))&&f.groundRout==='routing');
     const original=f.order;order(f,{type:'move',dest:groundPoint(10,29)});check('敗走中は命令を拒否',f.order===original&&!groundCanCapture(f)&&!groundStrikeWeapon(f)&&!groundCanBoardAny(f));
     f.groundSupply=100;f.groundHitLeft=2;check('敗走中は被弾減速なし',near(groundSupplySpeedFactor(f),1)&&near(speedOf(f),f.speed));f.groundRout=null;f.groundMorale=100;check('通常時は被弾で0.65倍',near(groundSupplySpeedFactor(f),.65)&&near(speedOf(f),f.speed*.65));
     f.groundMorale=0;groundRoutStart(f);groundRoutStep(f,.05);check('最寄りの味方へ実経路で自動撤退',f.groundRoutTarget===truck&&f.order?.path&&f.groundRout==='routing');

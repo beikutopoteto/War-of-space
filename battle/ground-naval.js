@@ -20,7 +20,7 @@ function groundNavalClass(f){
   const profile=GROUND_NAVAL_PROFILES[id];let rangesKm;
   if(id==='landing'){
     // 揚陸艦を旧type:ddだけでイージス艦とみなさない。射程は現在の作戦表をそのまま保持。
-    const data=typeof op!=='undefined'&&op.ground&&typeof WOS_TERRAIN!=='undefined'?WOS_TERRAIN[op.ground]:null;
+    const data=typeof op!=='undefined'&&op.ground&&typeof groundRuleSet==='function'?groundRuleSet():null;
     const legacy=data?.navalFireRangesKm?.[f.type];
     if(!legacy||![legacy.direct,legacy.indirect?.min,legacy.indirect?.max,legacy.aa].every(Number.isFinite)||
       legacy.direct<0||legacy.indirect.min<0||legacy.indirect.max<legacy.indirect.min||legacy.aa<0)return null;

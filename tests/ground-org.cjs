@@ -7,7 +7,7 @@ function nodeChecks(){
   const ctx=vm.createContext({console,THREE,window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}});
   const run=s=>vm.runInContext(s,ctx),load=p=>run(read(p));
   ctx.WOS_DATA=ctx.window.WOS_DATA={};load('data/ships.js');
-  load('data/operations.js');load('data/terrain/exercise2.js');ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
+  load('data/operations.js');load('data/ground-rules.js');load('data/terrain/exercise2.js');ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   load('data/ground-org.js');ctx.G=ctx.window.WOS_GROUND_ORG;
   // 実際の defaults/load/migrate/persist を準備画面の DOM 初期化の直前まで読み込む。
   run(read('prep.js').split('/* ---------- debug switches')[0]+ '\nwindow.saveTest={defaults,migrate,load,persist,get:()=>save,set:s=>save=s};})();');
@@ -64,7 +64,7 @@ async function checkGroundOrg(page,check){
       for(let i=0;i<20;i++)step(.05);
       const moved=t.every(f=>f.pos.distanceTo(before[fleets.indexOf(f)])>.1);
       const company=fleets.find(f=>f.companyId==='gc1');
-      const custom=company.name==='保存確認中隊'&&company.groundKind==='scout'&&company.hp===WOS_TERRAIN.exercise2.unitTypes.scout.hp;
+      const custom=company.name==='保存確認中隊'&&company.groundKind==='scout'&&company.hp===groundRuleSet().unitTypes.scout.hp;
       const parent=document.querySelector('[data-level="brigades"] .ground-fold');parent.click();const folded=!document.querySelector('[data-level="battalions"]');parent.click();
       return {ordered,other,moved,custom,folded,selected:t.length===3};
     });

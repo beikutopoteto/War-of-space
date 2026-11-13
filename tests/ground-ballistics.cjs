@@ -4,13 +4,13 @@ function createContext(){
   const root=path.join(__dirname,'..'),context=vm.createContext({THREE:require('three'),console});
   context.window=context;
   const run=code=>vm.runInContext(code,context);
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js'])run(fs.readFileSync(path.join(root,file),'utf8'));
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js'])run(fs.readFileSync(path.join(root,file),'utf8'));
   run(`var op={ground:'exercise2'};
-    function groundStrikeRules(){return WOS_TERRAIN[op.ground].strike;}
-    function groundRules(){return WOS_TERRAIN[op.ground].bands;}
+    function groundStrikeRules(){return groundRuleSet().strike;}
+    function groundRules(){return groundRuleSet().bands;}
     function groundStrikeRange(f){
       if(f.rangeOverride)return f.rangeOverride;
-      const r=WOS_TERRAIN[op.ground].unitTypes[f.groundKind]?.fireRangesKm;
+      const r=groundRuleSet().unitTypes[f.groundKind]?.fireRangesKm;
       return f.groundKind==='vehicle'?{min:0,max:r.direct*GROUND_SCALE,direct:true}:
         f.groundKind==='supportAircraft'?{min:0,max:r.ground*GROUND_SCALE}:r?.indirect?{min:r.indirect.min*GROUND_SCALE,max:r.indirect.max*GROUND_SCALE}:null;
     }

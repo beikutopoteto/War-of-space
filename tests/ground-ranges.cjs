@@ -33,7 +33,7 @@ function rangeCases(){
   const unseenHP=target.hpPool;ship.groundAATimer=0;groundStep(.05);
   check('対空射程150kmでも未発見の航空目標へ自動対空の損害0',!groundSeenBy(0,target)&&target.hpPool===unseenHP&&!ship.groundAATarget);
   const sight=groundSightRange(tank);tank.range=99999;check('旧rangeを書換えても武器・索敵射程を拡大しない',groundTargetRange(tank,{band:'ground'})===12&&groundSightRange(tank)===sight);
-  check('全兵科の操作枠は最大2つ',Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(kind=>{const f=unit(kind),r=groundFireRanges(f);return [r.direct,r.indirect?.max,r.ground,r.air].filter(n=>n>0).length<=2;}));
+  check('全兵科の操作枠は最大2つ',Object.keys(groundRuleSet().unitTypes).every(kind=>{const f=unit(kind),r=groundFireRanges(f);return [r.direct,r.indirect?.max,r.ground,r.air].filter(n=>n>0).length<=2;}));
   check('自走砲の表示は直射と間接、補給部隊は武器射程なし',groundRangeInfo(gun).entries.map(e=>e.id).join(',')==='direct,indirect'&&!groundRangeInfo(unit('supply')));
   // 射程は狙点へ適用。散布で境界を越えた実弾を発射取消にしない。
   gun.pos.copy(groundPoint(4,24));gun.order=null;gun.groundStrikeCooldown=0;fleets=[gun];groundStrikes=[];

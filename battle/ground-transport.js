@@ -1,8 +1,8 @@
 /* 地上専用の乗降・工兵の仮設橋。宇宙の揚陸艇・carrier は使わない。 */
 let groundBridges=[], groundBridgeRevision=0, groundWorkAiming=null, groundTransportMessage='';
-function groundTransportRules(){return WOS_TERRAIN[op.ground].transport;}
-function groundEngineeringRules(){return WOS_TERRAIN[op.ground].engineering;}
-function groundLandingRules(){return WOS_TERRAIN[op.ground].landing;}
+function groundTransportRules(){return groundRuleSet().transport;}
+function groundEngineeringRules(){return groundRuleSet().engineering;}
+function groundLandingRules(){return groundRuleSet().landing;}
 function groundLandingShip(f){return !!f&&f.groundKind==='sea'&&f.groundLanding===true;}
 function groundShipBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'board')&&f.band==='ground'&&!f.bandTo&&!f.groundPassenger&&f.groundKind!=='sea';}
 function groundCanBoardAny(f){return groundBoardable(f)||groundShipBoardable(f);}

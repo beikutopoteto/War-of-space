@@ -46,8 +46,8 @@ async function main(){
     const placed=await page.evaluate(all=>{
       const operation=WOS_DATA.operations.find(o=>o.id==='groundExercise2');
       if(all){
-        const kinds=Object.keys(WOS_TERRAIN.exercise2.unitTypes);
-        const lineup=team=>kinds.map((kind,i)=>({name:(team?'共和国 ':'連合 ')+WOS_TERRAIN.exercise2.unitTypes[kind].name,groundKind:kind,
+        const kinds=Object.keys(groundRuleSet().unitTypes);
+        const lineup=team=>kinds.map((kind,i)=>({name:(team?'共和国 ':'連合 ')+groundRuleSet().unitTypes[kind].name,groundKind:kind,
           band:['fighter','supportAircraft'].includes(kind)?'high':['attack','droneHive'].includes(kind)?'low':'ground',
           type:'cv',n:1,scale:.3,pos:[-64+(i%6)*6.4,-28+Math.floor(i/6)*6.4+team*24],alt:0,side:team?'mars':'earth',stance:'evade'}));
         operation.quick=lineup(0);operation.enemies=lineup(1);operation.groundSea=[];

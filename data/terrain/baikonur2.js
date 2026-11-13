@@ -1,11 +1,10 @@
 /* 広域バイコヌール演習。地形→植生・集落の局在→道路→拠点は docs/terrain/baikonur2.md。
-   exercise2から共有するのは戦闘規則だけ。地形は独立配置、初回参照時に生成。 */
+   地形は独立配置、初回参照時に生成。戦闘規則は data/ground-rules.js。 */
 (function(){
  let cached;
  Object.defineProperty(window.WOS_TERRAIN,'baikonur2',{enumerable:true,get(){return cached||(cached=create());}});
  function create(){
-  const d={},source=window.WOS_TERRAIN.exercise2;
-  for(const k of ['bands','sight','strike','transport','landing','engineering','unitTypes','navalFireRangesKm','combat','capture','movement','supply'])d[k]=JSON.parse(JSON.stringify(source[k]));
+  const d={};
   const rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
   d.meta={id:'baikonur2',name:'カスピ海沿岸演習場（広域）',location:'アティラウ南方・ウラル川デルタと北カスピ海の氾濫原',latitude:46.85,longitude:51.85,widthKm:96,heightKm:72,cellKm:.4,elevationExaggeration:18,seed:28111,seaLevelM:-28,terrainTypes:['河川デルタ','氾濫原'],note:'寸法・密度・配置は演習用の仮値。実測GISではなく、港湾水路は創作。'};
   const coast=[[0,17],[12,18],[23,17],[34,16.5],[43,15.5],[47,16],[60,15],[69,14.5],[76,18],[86,17],[96,16]];

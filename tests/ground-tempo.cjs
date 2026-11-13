@@ -8,10 +8,10 @@ function tempoCases(){
  check('セル境界・折れ点で切らず、道路は3kmごと',groundSupplyNet.edges.length===4&&groundSupplyNet.edges.every(e=>near(length(e),3))&&groundSupplyNet.edges[0].path.length===4,groundSupplyNet.edges.map(e=>({path:e.path,length:length(e)})));
  groundSites=[{id:'Q',x:21.5,y:29,radiusKm:1,owner:0,contested:false}];d.objects.roads=[{points:[[21,29],[26,29]]}];groundTerritory={sections:[{site:{owner:1},path:[[24,29],[26,29]]}]};groundSupplyBuild();
  check('拠点円・橋の通行範囲の両端・帯の端で区切る',[22.5,22.6,24,24.4].every(x=>groundSupplyNet.nodes.some(n=>near(n.x,x)&&near(n.y,29))));
- check('恒久橋上も道路加速',near(groundFactor(groundWorldX(23.5),groundWorldZ(29),'vehicle'),d.movement.roadFactor));
+ check('恒久橋上も道路加速',near(groundFactor(groundWorldX(23.5),groundWorldZ(29),'vehicle'),groundRuleSet().movement.roadFactor));
  groundSites=[];
  d.objects.roads=[{points:[[7,29],[17,29]]},{points:[[11,27],[11,31]]}];groundTerritory={sections:[{site:{owner:0},path:[[7,29],[12,29]]}]};groundSupplyBuild();
- check('実交点と帯の端で切って接続',groundSupplyNet.nodes.some(n=>near(n.x,11)&&near(n.y,29)&&n.edges.length===4)&&groundSupplyNet.nodes.some(n=>near(n.x,12)&&near(n.y,29))&&groundSupplyNet.edges.every(e=>length(e)<=d.capture.roadSegmentKm+1e-7));
+ check('実交点と帯の端で切って接続',groundSupplyNet.nodes.some(n=>near(n.x,11)&&near(n.y,29)&&n.edges.length===4)&&groundSupplyNet.nodes.some(n=>near(n.x,12)&&near(n.y,29))&&groundSupplyNet.edges.every(e=>length(e)<=groundRuleSet().capture.roadSegmentKm+1e-7));
  const unit=(team=0,kind='infantry',x=15,y=29)=>{const p=groundPoint(x,y),f=makeFleet(team,{name:'tempo',groundKind:kind,type:kind==='sea'?'cl':'cv',n:1,scale:.3,pos:[p.x,p.z],stance:'evade'});f.band=groundBands(f)[0];f.groundMaxHp=f.hpPool;return f;};
  check('折れ線の道路長は弦ではなく道沿い',near(groundSupplyEdgeLength({path:[[7,29],[8,29],[8,30]]}),2));
  const f=unit(),e=groundRoadAt(15,29);fleets=[f];e.owner=null;e.progress=[0,0];
@@ -22,11 +22,11 @@ function tempoCases(){
  groundSupplyRoadCapture(.01);check('中立道路は0.5秒で占領',e.owner===0&&e.progress.every(p=>p===0));
  e.owner=1;groundSupplyRoadCapture(4.99);check('敵道路は5秒直前も敵',e.owner===1);groundSupplyRoadCapture(.01);check('敵道路は従来の5秒',e.owner===0);
  const cell=Math.floor(29/d.meta.cellKm)*d.terrain.cols+Math.floor(15/d.meta.cellKm);d.terrain.cells[cell]='沼地';
- check('道路帯内は沼地減速なし',near(groundFactor(groundWorldX(15),groundWorldZ(29),'vehicle'),d.movement.roadFactor));
+ check('道路帯内は沼地減速なし',near(groundFactor(groundWorldX(15),groundWorldZ(29),'vehicle'),groundRuleSet().movement.roadFactor));
  const offCell=Math.floor(28/d.meta.cellKm)*d.terrain.cols+Math.floor(15/d.meta.cellKm);d.terrain.cells[offCell]='沼地';
- check('道路帯の外では沼地減速',near(groundFactor(groundWorldX(15),groundWorldZ(28),'vehicle'),d.movement.marsh.vehicle));
+ check('道路帯の外では沼地減速',near(groundFactor(groundWorldX(15),groundWorldZ(28),'vehicle'),groundRuleSet().movement.marsh.vehicle));
  const advance=(kind,band,y)=>{const u=unit(0,kind,15,y);u.band=band;u.order={path:{points:[u.pos.clone(),u.pos.clone().add(new THREE.Vector3(.1,0,0))],atIndex:1,s:0}};const x=u.pos.x;groundFollow(u,.001);return (u.pos.x-x)/u.speed/.001;};
- check('実移動も道路1.75倍、航空・海・浮いたW.A.S.は等速',near(advance('vehicle','ground',29),d.movement.roadFactor)&&near(advance('was','ground',29),d.movement.roadFactor)&&near(advance('was','low',29),1)&&near(advance('fighter','low',29),1)&&near(groundFactor(groundWorldX(15),groundWorldZ(29),'sea'),1));
+ check('実移動も道路1.75倍、航空・海・浮いたW.A.S.は等速',near(advance('vehicle','ground',29),groundRuleSet().movement.roadFactor)&&near(advance('was','ground',29),groundRuleSet().movement.roadFactor)&&near(advance('was','low',29),1)&&near(advance('fighter','low',29),1)&&near(groundFactor(groundWorldX(15),groundWorldZ(29),'sea'),1));
  d.objects.roads=[{points:[[8,28],[8,30],[18,30],[18,28]]}];d.terrain.cells.fill('平地');
  const p=groundPath(groundPoint(8,28),groundPoint(18,28),'vehicle');
  check('経路は速い道路へ寄り道し、直接10kmより短い時間で着く',p&&p.points.some(p=>groundMapY(p.z)>29.3)&&p.cost<10/d.meta.cellKm,{cost:p?.cost,points:p?.points.length});
@@ -34,16 +34,16 @@ function tempoCases(){
  for(const team of [0,1])for(const kind of ['vehicle','artillery','guidedRocket','supportAircraft','sea']){
   const src=unit(team,kind,15,29),t=unit(1-team,'vehicle',15,29);fleets=[src,t];groundUpdateSight();
   const before=t.hpPool,impact={source:src,resolving:true,impact:t.pos.clone(),radius:1};damage(t,10,src,impact);
-  check('共通の着弾損害倍率 '+kind+' 軍'+team,near(before-t.hpPool,10*d.combat.damageScale));
+  check('共通の着弾損害倍率 '+kind+' 軍'+team,near(before-t.hpPool,10*groundRuleSet().combat.damageScale));
  }
  const machine=unit(0,'mechanicalAssault'),hp=machine.hpPool;groundMechanicalWear(machine,10);
- check('機械の消耗には損害倍率を掛けない',near(hp-machine.hpPool,machine.groundMaxHp*d.combat.mechanicalWearPerSec*10));
+ check('機械の消耗には損害倍率を掛けない',near(hp-machine.hpPool,machine.groundMaxHp*groundRuleSet().combat.mechanicalWearPerSec*10));
  return rows;
 }
 function supplyAdvanceCases(id,planned=false){
  const rows=[],check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail});
  op={...WOS_DATA.operations.find(o=>o.id===(id==='baikonur2'?'baikonur':'groundExercise2')),ground:id,groundDrill:false};groundTerrainId=null;over=false;end=()=>{};
- const d=groundData();groundSites=op.groundSites.map(spec=>{const s=d.sites.find(p=>p.id===spec.site);return {...s,owner:spec.owner,contested:false,captureSec:d.capture.seconds,captureRadius:d.capture.radiusKm*GROUND_SCALE,progress:[0,0],pos:groundPoint(s.x,s.y)};});
+ const d=groundData();groundSites=op.groundSites.map(spec=>{const s=d.sites.find(p=>p.id===spec.site);return {...s,owner:spec.owner,contested:false,captureSec:groundRuleSet().capture.seconds,captureRadius:groundRuleSet().capture.radiusKm*GROUND_SCALE,progress:[0,0],pos:groundPoint(s.x,s.y)};});
  groundTerritory={sections:groundRoadSections(d.objects.roads,groundSites)};groundSupplyBuild();
  check(id+' 全拠点が道路網に載る',groundSupplyNet.sites.size===groundSites.length);
  check(id+' 開始時の味方拠点は本営接続',groundSites.filter(s=>s.owner===0).every(s=>groundSupplyAt({team:0,pos:s.pos}).rate===1));
@@ -52,7 +52,7 @@ function supplyAdvanceCases(id,planned=false){
  const pathPoints=[start];for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/.05);for(let j=1;j<=n;j++)pathPoints.push(groundPoint(a[0]+(b[0]-a[0])*j/n,a[1]+(b[1]-a[1])*j/n));}
  f.order={type:'move',path:planned?groundPath(start,pathPoints.at(-1),'infantry'):{points:pathPoints,atIndex:1,s:0}};
  let done=false;for(let i=0;i<10000&&!done;i++){done=groundFollow(f,.05);groundCaptureStep(.05);groundSupplyAfter(.05);}
- groundCaptureStep(d.capture.neutralSeconds);groundSupplyRoadCapture(d.capture.neutralSeconds);groundSupplyRefresh();
+ groundCaptureStep(groundRuleSet().capture.neutralSeconds);groundSupplyRoadCapture(groundRuleSet().capture.neutralSeconds);groundSupplyRefresh();
  const at=groundSupplyAt(f);check(id+(planned?' 経路探索で':' 道路上を')+'前進・中立拠点を占領した前線に本営の補給が届く',done&&f.pos.distanceTo(pathPoints.at(-1))<1e-5&&at.rate===1,{rate:at.rate,neutral:groundSupplyNet.edges.filter(e=>e.owner===null).length,pos:[groundMapX(f.pos.x),groundMapY(f.pos.z)]});
  // 敵が道を占領すれば同じ前線が切れ、奪還で復旧する。
  const edge=groundSupplyNet.edges.find(e=>!e.circle&&e.owner===0&&e.rates[0]===1&&groundDistance(e.x,e.y,points)<1e-6);
@@ -69,7 +69,7 @@ function pathCacheCases(){
  check('同じ配列内の道路座標の編集で古い加速を捨てる',offRoad&&offRoad.cost>first.cost+1);
  for(let y=28;y<30;y+=d.meta.cellKm)for(let x=11;x<15;x+=d.meta.cellKm)d.terrain.cells[Math.floor(y/d.meta.cellKm)*d.terrain.cols+Math.floor(x/d.meta.cellKm)]='沼地';
  const marsh=route();check('同じセル配列内の沼地追加を次の探索で反映',marsh&&marsh.cost>offRoad.cost*1.5);
- d.movement.marsh.vehicle=.5;const faster=route();check('規則データの速度変更も次の探索で反映',faster&&faster.cost<marsh.cost-1);
+ groundRuleSet().movement.marsh.vehicle=.5;const faster=route();check('規則データの速度変更も次の探索で反映',faster&&faster.cost<marsh.cost-1);
  return rows;
 }
 function nodeChecks(){

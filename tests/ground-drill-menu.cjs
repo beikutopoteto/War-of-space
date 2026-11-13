@@ -19,7 +19,7 @@ function runMenuChecks(){
   const ctx=vm.createContext({window:{WOS:{start:cfg=>calls.push(cfg)}},document:{body:{classList:{toggle(){}}},getElementById:node},localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)},WOS_BG:{focus:(o,list,choose)=>{mapChoose=choose;}},scaleText:()=>'',show(){}});
   const run=s=>vm.runInContext(s,ctx);
   run('var WOS_DATA=window.WOS_DATA={}');
-  for(const file of ['data/ships.js','data/bonuses.js','data/operations.js','data/tech.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/ground-org.js'])run(read(file));
+  for(const file of ['data/ships.js','data/bonuses.js','data/operations.js','data/tech.js','data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/ground-org.js'])run(read(file));
   const prep=read('prep.js');
   run(prep.slice(prep.indexOf("'use strict';"),prep.indexOf('const esc=')));
   run("let sortieOp='tutorial2',sortieInitialized=false,sortieGroups=[];const esc=s=>String(s);");
