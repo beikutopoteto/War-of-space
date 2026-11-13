@@ -379,6 +379,33 @@ const bellyR=(y,z,s=1,len=1)=>[at(new THREE.CylinderGeometry(.21*s,.21*s,.12*s,8
 const flatT=(x,y,z,s=1,n=2,k=.6)=>laserT(x,0,z,s,n).map(g=>{ g.scale(1,k,1); g.translate(0,y,0); return g; });
 /* sideT: a flat turret laid on its side on a side wall at x (its top facing out, barrels forward, one above the other) */
 const sideT=(x,y,z,s=1,n=2,k=.6)=>flatT(0,0,z,s,n,k).map(g=>{ g.rotateZ(x>0?-Math.PI/2:Math.PI/2); g.translate(x,y,0); return g; });
+/* 惑星共和国の宇宙の艦 (docs/models.md 15.12, from the Codex study docs/reports/2026-11-13-mars-space-ships.md): a low sealed hull of
+   the CREASE section in two parts (above the crease in the team colour, below it a step darker), a cut bow, no wings or outboard
+   pods, a low command hump with a dark optical band, dark optical faces on the bow shoulders, a squared engine block with dark
+   octagonal nozzles. mShip turns the study's sections (normalised to length 2) into the length z0..z1 (widths and heights times k)
+   and gives the hull's half width and height at any z; under hangs parts under the flat bottom, side lays them on the crease of
+   both sides. Everything off the top sits at the middle of the length (the user's rule, 15.8) */
+const MUP=[[.7,1],[1,.1],[-1,.1],[-.7,1]], MLO=[[1,.1],[.8,-1],[-.8,-1],[-1,.1]];
+function mShip(sec,z0,z1,k){ const mid=(z0+z1)/2, half=(z1-z0)/2, S=sec.map(([z,w,h])=>[mid+z*half,w*half*k,h*half*k]);
+  const sz=z=>{ if(z<=S[0][0]) return {w:S[0][1],h:S[0][2]}; for(let i=0;i<S.length-1;i++){ const a=S[i], b=S[i+1]; if(z<=b[0]){ const t=(z-a[0])/(b[0]-a[0]); return {w:a[1]+(b[1]-a[1])*t,h:a[2]+(b[2]-a[2])*t}; } } const e=S[S.length-1]; return {w:e[1],h:e[2]}; };
+  const top=z=>sz(z).h, bot=z=>-sz(z).h;
+  return {S,mid,z0:S[0][0],z1:S[S.length-1][0],at:sz,top,bot,
+    hull:()=>[loft(S,MUP),tone(loft(S,MLO),.72)],
+    hump:(za,zb,w,h)=>{ const y=top((za+zb)/2)-.005; return [at(loft([[za,w*.75,h*.5,h*.5],[za+(zb-za)*.35,w,h*.5,h*.5],[zb,w*.55,h*.4,h*.4]],CREASE),0,y,0), tone(at(box(w*2,h*.28,(zb-za)*.32),0,y+h*.55,za+(zb-za)*.62),GL)]; },
+    eyes:(z,dx=.62)=>pair(tone(at(box(.05,.012,.09),sz(z).w*dx,top(z)+.002,z),GL)),
+    under:(p,z,x=0)=>flipY(p).map(g=>{ g.translate(x,bot(z)+.006,0); return g; }),
+    side:(mk,z)=>{ const {w,h}=sz(z); return [...mk().map(g=>{ g.rotateZ(-Math.PI/2); g.translate(w-.006,.1*h,0); return g; }), ...mk().map(g=>{ g.rotateZ(Math.PI/2); g.translate(-(w-.006),.1*h,0); return g; })]; } }; }
+/* the Republic's parts. mGun: a low unmanned laser turret — a flat creased house, square barrels (n), dark optics at the muzzle;
+   flatM: the same, twin and flattened (side secondaries); mPD: a flat point-defence box with two short dark emitters; mGat: a gatling
+   behind an angular shield; mEng: squared engine housings at the stern z, each with a dark octagonal nozzle. All stand on y */
+const mGun=(x,y,z,s=1,n=1,rear=false)=>{ const p=[at(new THREE.CylinderGeometry(.075,.085,.02,6),0,.01,0), loft([[-.11,.085,.028,.045],[.05,.09,.03,.048],[.13,.04,.02,.04]],CREASE)];
+  for(const dx of n>1?[-.03,.03]:[0]) p.push(tone(at(box(.024,.022,.3),dx,.05,.26),.6), tone(at(box(.03,.028,.04),dx,.05,.42),DK));
+  return atX(seaSet(p,y,z,s,rear),x); };
+const flatM=(x,y,z,s=1)=>mGun(x,0,z,s,2).map(g=>{ g.scale(1,.6,1); g.translate(0,y,0); return g; });
+const mPD=(x,y,z,s=1)=>atX(seaSet([at(box(.07,.026,.06),0,.013,0), ...[-.014,.014].map(dx=>tone(at(box(.008,.008,.05),dx,.018,.05),DK))],y,z,s,false),x);
+const mGat=(x,y,z,s=1)=>atX(seaSet([at(box(.06,.03,.05),0,.015,0), at(box(.07,.045,.015),0,.028,.03), ...[0,1,2,3].map(i=>tone(at(tube(.005,.07,4),(i%2-.5)*.016,.028+((i>>1)-.5)*.016,.07),DK))],y,z,s,false),x);
+const mEng=(xs,z,r)=>xs.flatMap(x=>[at(box(r*2.5,r*2.3,.14),x,0,z+.05), tone(at(new THREE.CylinderGeometry(r,r*.85,.05,8).rotateX(Math.PI/2),x,0,z-.035),DK)]);
+const mPair=(f,x,y,z,s)=>[...f(x,y,z,s), ...f(-x,y,z,s)];
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -615,6 +642,37 @@ const GROUND_SHAPES={
       loft([[-.75,.2,.06,-.13],[-.6,.26,.075,-.145],[.4,.25,.075,-.145],[.6,.18,.05,-.12]],BAY), ...pods,
       at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
       ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.2,.1,-.5,.8), ...pdG(-.2,.1,-.5,.8), ...pdG(0,.28,-.55,.8)]; },
+  /* 惑星共和国の宇宙の艦 (docs/models.md 15.12): sections from the Codex study, stretched to the Earth ship's length */
+  spCVM:()=>{ const M=mShip([[-1,.12,.06],[-.5,.24,.09],[0,.22,.08],[.65,.13,.055],[1,.04,.02]],-1,1.05,.9), m=M.mid;
+    return [...M.hull(), ...M.hump(m-.25,m+.2,.07,.035), ...M.eyes(.75), ...mEng([0],M.z0,.06), ...mEng([.13,-.13],M.z0,.025),
+      ...mGun(0,M.top(.45),.45,.55), ...mPD(0,M.top(-.5),-.5,.8), ...M.under(mGat(0,0,m,.9),m)]; },
+  spFFM:()=>{ const M=mShip([[-1,.17,.08],[-.5,.25,.10],[0,.34,.12],[.4,.36,.12],[1,.12,.055]],-1,1.05,.85), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(m-.45,m-.05,.09,.04), ...M.eyes(.85), ...mEng([.09,-.09],M.z0,.05), ...mGun(0,M.top(.62),.62,.65),
+      ...[[.38,.55],[-.6,.5]].flatMap(([z,dx])=>mPair(mPD,W(z)*dx,M.top(z),z,.8)),
+      ...M.under(mGun(0,0,m,.55),m), ...M.side(()=>mGat(0,0,m,.9),m)]; },
+  spDDM:()=>{ const M=mShip([[-1,.16,.08],[-.5,.26,.11],[0,.27,.11],[.55,.20,.08],[1,.035,.025]],-1.1,1.25,.85), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(m-.55,m-.1,.08,.04), ...M.eyes(.95), ...mEng([.12,-.12],M.z0,.055), ...mGun(0,M.top(.62),.62,.7,2),
+      ...mPair(mPD,W(-.5)*.5,M.top(-.5),-.5,.75), ...M.under(mGun(0,0,m,.7,2),m), ...M.side(()=>mGat(0,0,m,.85),m)]; },
+  spCLM:()=>{ const M=mShip([[-1,.22,.10],[-.45,.43,.15],[0,.40,.15],[.55,.23,.10],[1,.06,.035]],-1.1,1.2,.85), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(m-.4,m+.05,.12,.05), ...M.eyes(1), ...mEng([.16,0,-.16],M.z0,.065),
+      ...mPair((x,y,z,s)=>mGun(x,y,z,s,2),W(.45)*.4,M.top(.45),.45,.9), ...[-.15,-.6].flatMap(z=>mPair(mPD,W(z)*.6,M.top(z),z,.85)),
+      ...pair(tone(at(box(.13,.012,.32),W(-.85)*.42,M.top(-.85),-.85),DK)),
+      ...M.under(mGun(0,0,m,.6),m), ...M.side(()=>flatM(0,0,m,.6),m), ...[1,-1].flatMap(sg=>M.under(mGat(0,0,m,.9),m,sg*W(m)*.5))]; },
+  spBBM:()=>{ const M=mShip([[-1,.27,.13],[-.5,.44,.18],[0,.46,.19],[.55,.34,.15],[1,.12,.065]],-1.35,1.45,.72), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(m-.45,m+.3,.17,.065), ...M.eyes(1.2), ...mEng([.22,0,-.22],M.z0,.08),
+      ...mGun(0,M.top(.75),.75,1.25,2), ...mGun(0,M.top(-.8),-.8,1.25,2,true), ...[.3,-.45].flatMap(z=>mPair(mPD,W(z)*.62,M.top(z),z,.95)),
+      ...M.under(mGun(0,0,m,1.25,2),m), ...M.side(()=>mGun(0,0,m,.65),m),
+      ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
+  spCVBM:()=>{ const M=mShip([[-1,.30,.12],[-.55,.39,.16],[0,.39,.17],[.65,.34,.15],[1,.18,.09]],-1.2,1.2,.85), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(-.65,.55,.15,.04), ...M.eyes(.95,.5), ...mEng([.2,-.2],M.z0,.07),
+      ...pair(tone(at(box(.09,.07,.02),.11,0,M.z1+.003),DK)), ...pair(tone(at(box(.06,.008,.28),.17,M.top(.7)+.001,.7),DK)),
+      ...mPair(mGun,W(-.6)*.55,M.top(-.6),-.6,.65), ...[.85,-.95].flatMap(z=>mPair(mPD,W(z)*.6,M.top(z),z,.85)),
+      ...M.under(mGun(0,0,m,.65),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.9),m+dz,sg*W(m)*.55)))]; },
+  spMASM:()=>{ const M=mShip([[-1,.22,.11],[-.55,.30,.15],[0,.32,.15],[.6,.30,.14],[1,.18,.08]],-1.05,.95,.95), m=M.mid, W=z=>M.at(z).w, BAY=[[1,1],[.8,-1],[-.8,-1],[-1,1]];
+    const bay=loft([-.66,-.56,.36,.46].map((z,i)=>[z,W(z)*(i%3?.62:.5),.03,M.bot(z)-.026]),BAY), yb=M.bot(m)-.056;
+    const pods=[.1,-.1].flatMap(x=>[-.39,-.13,.13,.39].flatMap(dz=>[tone(at(box(.11,.035,.17),x,yb+.004,m+dz),.8), tone(at(box(.08,.008,.13),x,yb-.016,m+dz),DK)]));
+    return [...M.hull(), bay, ...pods, ...M.hump(-.75,-.35,.12,.045), ...M.eyes(.8), ...mEng([.12,-.12],M.z0,.06),
+      ...mGun(0,M.top(.45),.45,.7), ...mPair(mPD,W(-.6)*.6,M.top(-.6),-.6,.8), ...M.side(()=>flatM(0,0,m,.6),m)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
