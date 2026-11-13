@@ -49,6 +49,7 @@
 ## ファイルと動かし方（詳しくは `docs/code.md`）
 - ビルド不要。`file://` でも動くよう ES モジュールでなく普通の `<script>` で読む。Three.js r128（新しい API はない）、CDN は cdnjs と jsdelivr の `three@0.128.0`。
 - `index.html` は骨組みだけ。`data/` はゲームのデータ（`window.WOS_DATA`、数値や作戦はここだけ直す）。`battle/` は戦闘画面（外側の名前をファイル間で共有）。`prep.js` / `prep.css` はタイトル〜出撃〜艦隊編集〜技術ツリー。
+- 規則: `data/ground-rules.js`
 - 保存は localStorage の `wos.save.v1`。形式を変えたら `migrate()` で古いデータを直す。
 - 確認: `npm install` のあと `npm test`（ヘッドレス Chromium）と `npm run check-docs`。PR ごとに GitHub Actions でも走る。
 - 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（非公開。GitHub Pages は公開になるので使わない）。

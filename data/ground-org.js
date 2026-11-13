@@ -1,10 +1,9 @@
 /* 地上編成。宇宙編成から独立した保存データと、出撃時の中隊への変換。 */
 window.WOS_GROUND_ORG=(()=>{
   const MAX_COMPANIES=4, MAX_BATTALIONS=3;
-  const exercise=()=>window.WOS_DATA.operations.find(o=>o.id==='groundExercise2');
-  const types=()=>window.WOS_TERRAIN.exercise2.unitTypes;
+  const types=()=>window.WOS_GROUND_RULES.unitTypes;
   function defaults(){
-    const companies=exercise().quick.map((f,i)=>({id:'gc'+(i+1),name:f.name,kind:f.groundKind}));
+    const companies=window.WOS_GROUND_DEFAULT_COMPANIES.map((f,i)=>({id:'gc'+(i+1),name:f.name,kind:f.groundKind}));
     return {companies,battalions:[{id:'gb1',name:'第1 大隊',companies:companies.slice(0,3).map(c=>c.id)},
       {id:'gb2',name:'第2 大隊',companies:companies.slice(3).map(c=>c.id)}],brigades:[{id:'gr1',name:'第1 旅団',battalions:['gb1','gb2']}]};
   }
@@ -39,7 +38,7 @@ window.WOS_GROUND_ORG=(()=>{
   }
   function sortie(value){
     let org=normalize(value); if(!org.companies.length) org=defaults();
-    const quick=exercise().quick;
+    const quick=window.WOS_GROUND_DEFAULT_COMPANIES;
     const fleets=org.companies.map((c,i)=>{
       const base=quick[i%quick.length], extra=Math.floor(i/quick.length);
       // 7個目以降は初期位置の横へ2.4戦闘単位ずつずらす（仮）。

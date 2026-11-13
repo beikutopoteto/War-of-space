@@ -37,6 +37,7 @@ const {nodeChecks:groundBallisticChecks}=require('./ground-ballistics.cjs');
 const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
+const {nodeChecks:groundRuleChecks}=require('./ground-rules.cjs');
 const {nodeChecks:baikonurMapChecks}=require('./baikonur-map.cjs');
 const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
@@ -63,6 +64,7 @@ function check(ok, label, detail = '') {
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   if (on('ground')) {
+  for(const r of groundRuleChecks())check(r.ok,'地上規則: '+r.name,r.error||'');
   for(const r of groundHintChecks())check(r.ok,'操作案内: '+r.name,r.error||'');
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
@@ -116,7 +118,7 @@ function check(ok, label, detail = '') {
       f.pos.copy(start); order(f,{type:'move',dest});
       let safe=true, bridge=false, height=true, steps=0;
       while(f.order && steps++<5000){ followPath(f,.05); const x=f.pos.x/4+24,y=18-f.pos.z/4; safe=safe&&groundPass(x,y); height=height&&Math.abs(f.pos.y-groundHeight(f.pos.x,f.pos.z))<1e-6; if(WOS_TERRAIN.exercise2.objects.bridges.some(b=>Math.hypot(x-b.x,y-b.y)<.8)) bridge=true; if(f.order.path.atIndex>=f.order.path.points.length) f.order=null; }
-      const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex((t,i)=>{const x=(i%d.terrain.cols+.5)*d.meta.cellKm,y=(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm;return t==='沼地'&&groundRiverFactor(x,y,'vehicle')===1&&!d.objects.roads.some(r=>groundDistance(x,y,r.points)<=d.capture.roadWidthKm/2);}), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
+      const d=WOS_TERRAIN.exercise2, i=d.terrain.cells.findIndex((t,i)=>{const x=(i%d.terrain.cols+.5)*d.meta.cellKm,y=(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm;return t==='沼地'&&groundRiverFactor(x,y,'vehicle')===1&&!d.objects.roads.some(r=>groundDistance(x,y,r.points)<=groundRuleSet().capture.roadWidthKm/2);}), p=groundPoint((i%d.terrain.cols+.5)*d.meta.cellKm,(Math.floor(i/d.terrain.cols)+.5)*d.meta.cellKm);
       const travel=kind=>{ const start=p.clone(), target=p.clone().add(new THREE.Vector3(.5,0,0)), unit={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:kind,speed:1,order:{path:{points:[start,target],atIndex:1,s:0}}}; groundFollow(unit,.1); return unit.pos.x-start.x; };
       const vehicleTravel=travel('vehicle'), infantryTravel=travel('infantry');
       return {vehicleTravel,infantryTravel,entry:op.ground==='exercise2'&&!menuOpen&&!!groundBoard,counts:[fleets.filter(x=>x.team===0&&groundBands(x).length===1).length,fleets.filter(x=>x.team===1&&groundBands(x).length===1).length],safe,bridge,height,arrived:!f.order&&f.pos.distanceTo(dest)<.001,sea:groundPath(start,groundPoint(12,3))===null,vehicle:groundFactor(p.x,p.z,'vehicle'),infantry:groundFactor(p.x,p.z,'infantry')};
@@ -125,7 +127,7 @@ function check(ok, label, detail = '') {
     for(const c of await page.evaluate(crossingCases))check(c.ok,'地上演習: '+c.name,JSON.stringify(c.detail));
     /* 3段: 命令・到着までの射撃・表の全組み合わせ・表示。場面を固定し、打撃で数える。 */
     const bands = await page.evaluate(() => {
-      const tick=dt=>step(dt/WOS_TERRAIN[op.ground].movement.timeScale);
+      const tick=dt=>step(dt/groundRuleSet().movement.timeScale);
       reset({op:'groundExercise2'}); setSpeed(0);
       // 高度専用の固定場面。演習の守備隊には航空を置かない。
       for(const kind of ['fighter','attack']){const spec=op.quick.find(f=>f.groundKind===kind),f=makeFleet(1,spec);f.band=spec.band;f.bandLeft=0;fleets.push(f);}
@@ -170,7 +172,7 @@ function check(ok, label, detail = '') {
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;f.groundAATimer=0;f.groundAATarget=null;
           let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
           groundStep(.05);damage=original;
-          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i]*WOS_TERRAIN[op.ground].combat.damageScale)>1e-6)bad++;
+          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i]*groundRuleSet().combat.damageScale)>1e-6)bad++;
           if(expected[i])allowedDamage+=delta;else blockedDamage+=delta;
           const autoAA=!['fighter','attack','supportAircraft'].includes(kind)&&targetBand!=='ground';
           if(expected[i]&&(autoAA?(f.groundAATarget!==t||!!f.fireTarget):(f.fireTarget!==t||!!f.groundAATarget)))bad++;

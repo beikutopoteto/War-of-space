@@ -73,7 +73,7 @@ function techFleet(team,o){
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
-  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type,!!o.groundLanding):WOS_TERRAIN[op.ground].unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
+  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type,!!o.groundLanding):groundRuleSet().unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
   if(o.hp==null){ const derived=techFleet(team,o); if(o.dmg!=null) delete derived.byType; o={...o,...derived}; }
   if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
   if(!o.groundKind&&o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};

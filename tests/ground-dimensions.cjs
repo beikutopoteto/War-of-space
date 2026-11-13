@@ -10,8 +10,8 @@ function createContext(){
   context.window=context;
   for(const key of ['grid','starField','skyObj','fieldRocks','debrisObj','cloudObj','farPlanet','rim'])context[key]=new THREE.Group();
   const run=s=>vm.runInContext(s,context);
-  for(const file of ['data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
-  run(`function groundRules(){return groundData().bands;}
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
+  run(`function groundRules(){return groundRuleSet().bands;}
     function groundStrikeRange(f){return f.rangeOverride||{min:0,max:200};}
     function gun(x,z){return {alive:true,groundKind:'artillery',band:'ground',pos:new THREE.Vector3(x,groundHeight(x,z),z)};}`);
   return {context,run,canvases};
@@ -96,7 +96,7 @@ function nodeChecks(){
       assert.equal(run(`!!route&&route.points.at(-1).distanceTo(dest)<1e-7&&route.points.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle'))`),true);
       const d=run('groundData()'),cell=d.terrain.cells.indexOf('沼地');assert.ok(cell>=0);
       const gx=(cell%d.terrain.cols+.5)*d.meta.cellKm,gy=(Math.floor(cell/d.terrain.cols)+.5)*d.meta.cellKm;
-      close(run(`groundFactor(groundWorldX(${gx}),groundWorldZ(${gy}),'infantry')`),d.movement.marsh.infantry*run(`groundRiverFactor(${gx},${gy},'infantry')`));
+      close(run(`groundFactor(groundWorldX(${gx}),groundWorldZ(${gy}),'infantry')`),run('groundRuleSet().movement.marsh.infantry')*run(`groundRiverFactor(${gx},${gy},'infantry')`));
     });
   }
   check('setupでopより明示IDを選び、同じIDの再setupでもcache破棄',()=>{
@@ -133,7 +133,7 @@ function nodeChecks(){
     const {run:r}=createContext();
     r(`op={ground:'field300'};groundHeight=(x,z)=>x===4&&z===0?2*(1+1e-6):0;groundSightReset();
       var a={x:.2,y:1,z:.2},b={x:3.8,y:1,z:3.8};
-      groundEye=()=>a;groundStrikeRange=()=>({min:0,max:10,direct:true});groundSightRules=()=>({...groundData().sight,eyeHeight:1-groundSightHeight(b.x,b.z)});
+      groundEye=()=>a;groundStrikeRange=()=>({min:0,max:10,direct:true});groundSightRules=()=>({...groundRuleSet().sight,eyeHeight:1-groundSightHeight(b.x,b.z)});
       var shooter=gun(a.x,a.z);var solution=groundBallisticSolution(shooter,new THREE.Vector3(b.x,0,b.z));`);
     assert.equal(r('groundClearLine(a,b)'),true); // 旧rayStep=.5では尖点を通り越す固定場面。
     assert.equal(r('!solution.clear&&solution.reason===\'terrain\''),true);close(r('solution.impact.x'),2,.00001);

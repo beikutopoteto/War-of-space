@@ -1,6 +1,6 @@
 /* 地上専用。道路の所有と本営からの流量、補給、士気、航空の基地帰投。 */
 let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='';
-function groundSupplyRules(){return WOS_TERRAIN[op.ground].supply;}
+function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
 function groundSupplyLand(f){return !!f&&!['sea','was','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].includes(f.groundKind);}
@@ -59,7 +59,7 @@ function groundSupplyBuild(){
     const mandatory=road.cuts.sort((a,b)=>a-b).filter((v,i,all)=>!i||v-all[i-1]>1e-7),cuts=[mandatory[0]];
     for(let i=1;i<mandatory.length;i++){
       const from=mandatory[i-1],to=mandatory[i];
-      for(let t=from+d.capture.roadSegmentKm;t<to-1e-7;t+=d.capture.roadSegmentKm)cuts.push(t);
+      for(let t=from+groundRuleSet().capture.roadSegmentKm;t<to-1e-7;t+=groundRuleSet().capture.roadSegmentKm)cuts.push(t);
       cuts.push(to);
     }
     for(let i=1;i<cuts.length;i++){
@@ -78,15 +78,15 @@ function groundSupplyEdgeLength(e){
   const a=groundSupplyNet.nodes[e.a],b=groundSupplyNet.nodes[e.b];return Math.hypot(a.x-b.x,a.y-b.y);
 }
 function groundRoadAt(x,y){
-  if(!groundSupplyNet)return null;let found=null,best=WOS_TERRAIN[op.ground].capture.roadWidthKm/2+1e-8;
+  if(!groundSupplyNet)return null;let found=null,best=groundRuleSet().capture.roadWidthKm/2+1e-8;
   for(const e of groundSupplyNet.edges){const dist=groundDistance(x,y,e.path);if(dist<best){best=dist;found=e;}}
   return found;
 }
 function groundCanCaptureRoad(f){return f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
-function groundRoadCaptureSeconds(e,owner=e?.owner){const r=WOS_TERRAIN[op.ground].capture;return owner===null?r.neutralSeconds:r.roadSeconds;}
+function groundRoadCaptureSeconds(e,owner=e?.owner){const r=groundRuleSet().capture;return owner===null?r.neutralSeconds:r.roadSeconds;}
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
-  const troops=fleets.filter(groundCanCaptureRoad),width=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const troops=fleets.filter(groundCanCaptureRoad),width=groundRuleSet().capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
     const present=[false,false];for(const f of troops)if(groundDistance(groundMapX(f.pos.x),groundMapY(f.pos.z),e.path)<=width+1e-8)present[f.team]=true;
@@ -149,8 +149,8 @@ function groundSupplyMoved(f,a,b){
   if(!groundSupplyLand(f))return;f.groundMoved=true;
   const km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;groundSupplySpend(f,km*groundSupplyRules().move);
   if(!Number.isFinite(f.groundMorale)||f.groundRout)return;
-  const d=WOS_TERRAIN[op.ground],r=d.supply,n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
-  for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=groundMapX(x),gy=groundMapY(z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=d.capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
+  const d=WOS_TERRAIN[op.ground],r=groundSupplyRules(),n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
+  for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=groundMapX(x),gy=groundMapY(z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=groundRuleSet().capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
   f.groundMorale=Math.max(0,f.groundMorale-spent);f.groundMoved=true;
 }
 function groundSupplyHit(f,amount){

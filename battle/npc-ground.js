@@ -308,7 +308,7 @@ function npcGroundRoadOrders(c,sit,plan){
 }
 // 経路の各線分と補給円・道路帯の境界を交差させ、最初に補給率>0となる地点を取る。
 function npcGroundRefitEntry(f,points){
-  const net=groundSupplyNet,team=f.team,r=WOS_TERRAIN[op.ground].capture.roadWidthKm/2;
+  const net=groundSupplyNet,team=f.team,r=groundRuleSet().capture.roadWidthKm/2;
   const circles=groundSites.filter(s=>s.owner===team&&groundSupplyAt({team,pos:s.pos}).rate>0);
   const roads=(net?.edges||[]).filter(e=>e.owner===team&&e.open!==false&&e.rates[team]>0&&!e.circle);
   if(groundSupplyAt(f).rate>0)return f.pos.clone();

@@ -6,7 +6,7 @@ function nodeChecks(){
   const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok}),d=groundData(),original=WOS_TERRAIN.exercise2;
   check('演習は96×72km・240×180セル、チュートリアルは48×36km',op.ground==='baikonur2'&&d.meta.widthKm===96&&d.meta.heightKm===72&&d.terrain.cols===240&&d.terrain.rows===180&&original.meta.widthKm===48&&original.meta.heightKm===36);
   check('地形は旧演習の座標倍率コピーでない',JSON.stringify(d.water.rivers[0].points)!==JSON.stringify(original.water.rivers[0].points.map(p=>p.map(v=>v*2))));
-  check('兵科性能・規範は従来の戦闘表を維持',JSON.stringify(d.unitTypes)===JSON.stringify(original.unitTypes)&&JSON.stringify(d.supply)===JSON.stringify(original.supply)&&JSON.stringify(op.npc)==='{"1":{"doctrine":"mars","level":"standard"}}');
+  check('兵科性能・規範は従来の戦闘表を維持',JSON.stringify(groundRuleSet().unitTypes)===JSON.stringify(window.WOS_GROUND_RULES.unitTypes)&&JSON.stringify(groundRuleSet().supply)===JSON.stringify(window.WOS_GROUND_RULES.supply)&&JSON.stringify(op.npc)==='{"1":{"doctrine":"mars","level":"standard"}}');
   check('9拠点・中立3・西本営A／東本営F',groundSites.length===9&&groundSites.filter(s=>s.owner===null).length===3&&op.groundHQ[0]==='A'&&op.groundHQ[1]==='F');
   check('全拠点は道路の結節で車両が通れる',d.sites.every(s=>d.objects.roads.some(r=>groundDistance(s.x,s.y,r.points)<1e-6)&&groundPass(s.x,s.y,'vehicle')));
   check('地上11隊に補給1・歩兵2、敵は指定の10隊',op.quick.length===11&&op.quick.filter(f=>f.groundKind==='infantry').length===2&&op.quick.filter(f=>f.groundKind==='supply').length===1&&op.enemies.length===10&&['infantry','vehicle','artillery','mobileAA','scout','fighter'].every((k,i)=>op.enemies.filter(f=>f.groundKind===k).length===[4,2,1,1,1,1][i]));
@@ -43,7 +43,7 @@ function nodeChecks(){
   rows.push({name:'実配置モデル数',ok:true,detail:JSON.stringify({forest:actual('forest'),forestZones:Object.fromEntries(['bank','windbreak','island'].map(z=>[z,groundForests.filter(p=>p.zone===z).length])),shrubs:actual('shrubs'),shrubLobes:actual('shrubLobes'),reeds:actual('reeds'),buildings:actual('buildings')})});
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),site=id=>groundSites.find(s=>s.id===id);
   check('中間点で30km自走砲・50kmロケットの距離帯を使える',distance(site('D'),site('E'))<=30&&distance(site('C'),site('H'))>30&&distance(site('C'),site('H'))<=50&&distance(site('A'),site('F'))>50);
-  check('港と河口橋に海上から24km艦砲が届く',[['G',23,14],['H',46,12],['I',76,15]].every(([id,x,y])=>groundPass(x,y,'sea')&&distance(site(id),{x,y})<=d.navalFireRangesKm.cl.indirect.max));
+  check('港と河口橋に海上から24km艦砲が届く',[['G',23,14],['H',46,12],['I',76,15]].every(([id,x,y])=>groundPass(x,y,'sea')&&distance(site(id),{x,y})<=groundRuleSet().navalFireRangesKm.cl.indirect.max));
   const net=groundSupplyNet,start=net.sites.get(site('A')),end=net.sites.get(site('F'));
   const lengths=Array(net.nodes.length).fill(Infinity),done=new Set();lengths[start]=0;
   while(true){let at=-1;for(let i=0;i<lengths.length;i++)if(!done.has(i)&&(at<0||lengths[i]<lengths[at]))at=i;if(at<0||!Number.isFinite(lengths[at])||at===end)break;done.add(at);for(const i of net.nodes[at].edges){const e=net.edges[i],next=e.a===at?e.b:e.a;if(e.open)lengths[next]=Math.min(lengths[next],lengths[at]+e.path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-e.path[i][0],p[1]-e.path[i][1]),0));}}

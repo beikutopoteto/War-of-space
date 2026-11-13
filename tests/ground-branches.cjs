@@ -6,7 +6,7 @@ function branchCases(){
   const saved={op,fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,team=0,x=8,y=27)=>{
-    const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y),n=kind==='guidedRocket'?1:4;
+    const type=groundRuleSet().unitTypes[kind],pos=groundPoint(x,y),n=kind==='guidedRocket'?1:4;
     return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:groundBands({groundKind:kind})[0],alive:true,groundAATimer:0,groundAATarget:null,n,hpPool:type.hp*n,groundMaxHp:type.hp*n,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:n},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
   };
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
@@ -25,7 +25,7 @@ function branchCases(){
     // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
     op={...op,groundHQ:null,groundStaticEnemies:false};
     Math.random=()=>0;groundSites=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=unselect=logEvent=groundHud=()=>{};
-    check('17兵科をデータに収録',Object.keys(WOS_TERRAIN.exercise2.unitTypes).length===17);
+    check('17兵科をデータに収録',Object.keys(groundRuleSet().unitTypes).length===17);
     for(const kind of ['guidedRocket','droneHive','mechanicalAssault']){
       const f=unit(kind),target=unit('vehicle',1,9,27),other=unit('infantry',1,7,27);fleets=[f,target,other];
       f.stance='engage';f.fireTarget=other;f.strike=other;groundUpdateSight();const hp=other.hpPool;
@@ -58,25 +58,25 @@ function branchCases(){
     for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-        check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*WOS_TERRAIN[op.ground].combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
+        check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*groundRuleSet().combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
       }
     }
     for(const band of ['low','high','ground']){
       const f=unit('mobileAA'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;tick(.05);
-      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,(band==='ground'?2:8)*WOS_TERRAIN[op.ground].combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
+      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,(band==='ground'?2:8)*groundRuleSet().combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
     }
     for(const band of ['ground','low','high']){
       const f=unit('guidedRocket'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-      check('ロケット：間接の対戦車倍率を維持、航空には撃たない '+band,near(hp-t.hpPool,(band==='ground'?12:0)*WOS_TERRAIN[op.ground].combat.damageScale));
+      check('ロケット：間接の対戦車倍率を維持、航空には撃たない '+band,near(hp-t.hpPool,(band==='ground'?12:0)*groundRuleSet().combat.damageScale));
     }
     const command=unit('commando'),normal=unit('infantry'),heavy=unit('heavyInfantry',1,9,27);fleets=[command,normal,heavy];groundUpdateSight();
     const hit=f=>{const hp=f.hpPool;damage(f,10,heavy);return hp-f.hpPool;};
-    check('開けた場所はコマンドも歩兵も被弾10×損害倍率',near(hit(command),10*WOS_TERRAIN[op.ground].combat.damageScale)&&near(hit(normal),10*WOS_TERRAIN[op.ground].combat.damageScale));
+    check('開けた場所はコマンドも歩兵も被弾10×損害倍率',near(hit(command),10*groundRuleSet().combat.damageScale)&&near(hit(normal),10*groundRuleSet().combat.damageScale));
     groundForests=[{x:command.pos.x,z:command.pos.z,r:2}];
-    check('森：通常8×損害倍率、コマンド7×損害倍率の実被弾（軽減1.5倍）',near(hit(normal),8*WOS_TERRAIN[op.ground].combat.damageScale)&&near(hit(command),7*WOS_TERRAIN[op.ground].combat.damageScale));
+    check('森：通常8×損害倍率、コマンド7×損害倍率の実被弾（軽減1.5倍）',near(hit(normal),8*groundRuleSet().combat.damageScale)&&near(hit(command),7*groundRuleSet().combat.damageScale));
     groundBuildings=[{minX:command.pos.x-.5,maxX:command.pos.x-.2,minZ:command.pos.z-.2,maxZ:command.pos.z+.2,bottom:0,top:2}];
-    check('森と市街地が重なっても軽減は重複しない',near(hit(command),7*WOS_TERRAIN[op.ground].combat.damageScale));groundForests=[];
-    check('市街地：通常8×損害倍率、コマンド7×損害倍率の実被弾',near(hit(normal),8*WOS_TERRAIN[op.ground].combat.damageScale)&&near(hit(command),7*WOS_TERRAIN[op.ground].combat.damageScale));groundBuildings=[];
+    check('森と市街地が重なっても軽減は重複しない',near(hit(command),7*groundRuleSet().combat.damageScale));groundForests=[];
+    check('市街地：通常8×損害倍率、コマンド7×損害倍率の実被弾',near(hit(normal),8*groundRuleSet().combat.damageScale)&&near(hit(command),7*groundRuleSet().combat.damageScale));groundBuildings=[];
     check('コマンドは占拠しない',!groundCanCapture(command));
     const drone=unit('droneHive'),scout=unit('scout');check('ドローンは低空専用・斥候と同視界',groundBands(drone).join()==='low'&&groundMoveKind(drone)==='air'&&groundSightRange(drone)===groundSightRange(scout));
     const machine=unit('mechanicalAssault');fleets=[machine];const hp=machine.hpPool;tick(10);
@@ -148,7 +148,7 @@ async function checkGroundBranches(page,check){
 function nodeChecks(){
   const element={style:{},remove(){},classList:{toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},groundHud:()=>{}});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);

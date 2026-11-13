@@ -41,15 +41,15 @@ async function checkGroundCapture(page, check) {
   const integration=await page.evaluate(()=>{
     reset({op:'groundExercise2'});setSpeed(0);endDeploy();
     const units=fleets.filter(f=>f.team===0), d=WOS_TERRAIN[op.ground];
-    const stats=units.filter(f=>f.groundKind!=='sea').every(f=>f.hp===d.unitTypes[f.groundKind].hp&&f.speed===d.unitTypes[f.groundKind].speed&&f.range===d.unitTypes[f.groundKind].range);
+    const stats=units.filter(f=>f.groundKind!=='sea').every(f=>f.hp===groundRuleSet().unitTypes[f.groundKind].hp&&f.speed===groundRuleSet().unitTypes[f.groundKind].speed&&f.range===groundRuleSet().unitTypes[f.groundKind].range);
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};
-    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=Math.abs(hp-target.hpPool-target.groundMorale-heavy.dmg*d.combat.heavyTank*d.combat.damageScale)<1e-7;
+    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=Math.abs(hp-target.hpPool-target.groundMorale-heavy.dmg*groundRuleSet().combat.heavyTank*groundRuleSet().combat.damageScale)<1e-7;
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
     // 兵科相性の確認にも、その場所の歩兵の遮蔽軽減を含める。
-    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*d.combat.tankInfantry*d.combat.damageScale*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
+    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*groundRuleSet().combat.tankInfantry*groundRuleSet().combat.damageScale*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();
@@ -83,6 +83,7 @@ async function checkGroundCapture(page, check) {
 module.exports={checkGroundCapture};
 if(require.main===module){
   const context=vm.createContext({window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},over:false,end:()=>{}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/ground-rules.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/terrain/exercise2.js'),'utf8'),context);
   context.WOS_TERRAIN=context.window.WOS_TERRAIN;
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground-supply.js'),'utf8'),context);

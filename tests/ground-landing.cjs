@@ -98,11 +98,11 @@ async function checkGroundLanding(page,check){
   await page.evaluate(()=>{selected.pos.copy(groundPoint(12.2,7.4));groundTransportSync();});
   await page.click('#groundLand');
   const gauge=await page.evaluate(()=>{
-    for(let i=0;i<100;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();
+    for(let i=0;i<100;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();
     const c=selected,el=c.groundLandingVisual;
     return c.groundUnloading&&el?.textContent.includes('1.3倍')&&Math.abs(parseFloat(el.querySelector('i').style.width)-50)<1e-6;
   });check(gauge,'上陸の実画面: ボタンで開始し5秒で50%ゲージ');
-  await page.evaluate(()=>{for(let i=0;i<100;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();});
+  await page.evaluate(()=>{for(let i=0;i<100;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();});
   check(await page.evaluate(()=>!selected.groundUnloading&&!selected.groundLandingVisual&&fleets.filter(f=>f.groundFixed).every(f=>!f.embarked&&f.groundModel.visible)),'上陸の実画面: 浜へ降りて表示が戻る');
   // 再乗艦を本物のクリックで確認。出発点を離し、速度2で数秒の行程に20秒を取る。
   await page.evaluate(()=>{
@@ -128,7 +128,7 @@ function createGroundContext(){
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{getElementById:id=>['groundMove','groundHold','groundCommandExpand','groundDeploy','groundPlan','groundExecute'].includes(id)?{addEventListener(){}}:null,querySelectorAll:()=>[],createElement:label},performance:require('node:perf_hooks').performance,op:{ground:'exercise2'},fleets:[],gameSec:0,over:false,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),TEAM_NAME:['連合','共和国'],fid:1,HP_K:7,CARRIERS:new Set(),makeHangars:()=>[],mkUnitLabel:label,dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,orderTargets:()=>[],end:()=>{},shoot:()=>{},burst:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
   ctx.WOS_DATA=ctx.window.WOS_DATA={};
   const read=f=>fs.readFileSync(path.join(__dirname,'..',f),'utf8'),run=s=>vm.runInContext(s,ctx);
-  for(const file of ['data/npc-doctrines.js','data/ships.js','data/operations.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/shapes.js','battle/ground-shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/npc-core.js','battle/npc-ground.js','battle/ground-volley.js','battle/ground-plan.js','battle/ground-area.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/npc-doctrines.js','data/ships.js','data/operations.js','data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/shapes.js','battle/ground-shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/npc-core.js','battle/npc-ground.js','battle/ground-volley.js','battle/ground-plan.js','battle/ground-area.js']){run(read(file));ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const state=read('battle/state.js'),hud=read('battle/hud.js'),sim=read('battle/sim.js');
   run(state.slice(state.indexOf('function makeFleet('),state.indexOf('/* carriers: craft sortie')));
   run(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')));

@@ -1,7 +1,7 @@
 /* node tests/ground-sight.cjs: ブラウザ不要。npm test では同じ固定場面と実画面を確認。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
 function sightCases(){
-  const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow,sight:WOS_TERRAIN[op.ground].sight,sightBasic:WOS_TERRAIN[op.ground].sight.basic};
+  const saved={op,fleets,groundHeight,groundForests,groundBuildings,groundSites,over,end,damage,shoot,groundFog,groundFollow,sight:groundRuleSet().sight,sightBasic:groundRuleSet().sight.basic};
   const results=[],check=(name,ok)=>results.push({name,ok});
   const unit=(team,kind,x,z=0,band='ground')=>({team,groundKind:kind,band,alive:true,hpPool:1000,pos:new THREE.Vector3(x,0,z),heading:new THREE.Vector3(),ships:[],stance:'evade',range:20,dmg:2,queue:[],order:null});
   const terrain=height=>{groundHeight=height;groundHeightCacheReset();groundForests=[];groundBuildings=[];};
@@ -109,7 +109,7 @@ function nodeSceneChecks(ctx){
 }
 if(require.main===module){
   const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},damage:()=>{},shoot:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false});
-  for(const file of ['data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
   const cases=vm.runInContext(`(${sightCases.toString()})()`,ctx),scene=nodeSceneChecks(ctx);cases.push(...scene.results);const failed=cases.filter(c=>!c.ok);

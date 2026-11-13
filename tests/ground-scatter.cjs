@@ -3,6 +3,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 function createContext(){
   const root=path.join(__dirname,'..'),context=vm.createContext({THREE:require('three'),console});context.window=context;
   const run=code=>vm.runInContext(code,context);
+  run(fs.readFileSync(path.join(root,'data/ground-rules.js'),'utf8'));
   run(fs.readFileSync(path.join(root,'data/terrain/exercise2.js'),'utf8'));
   // 作戦・部隊globalsがなくてもロードできることも確かめる。
   run(fs.readFileSync(path.join(root,'battle/ground-scatter.js'),'utf8'));
@@ -36,8 +37,8 @@ function nodeChecks(){
   check('面積内の各点の精度下限が領域下限以下',`(()=>{const f=unit('guidedRocket',-12,4),points=[point(12),point(20,3),point(16,5)],radius=8,bound=groundAreaRequiredRadius([f],points,radius);for(let i=0;i<points.length-1;i++)for(let j=0;j<=10;j++)for(let k=0;k<12;k++){const p=points[i].clone().lerp(points[i+1],j/10).add(new THREE.Vector3(Math.cos(k*Math.PI/6)*radius,0,Math.sin(k*Math.PI/6)*radius));if(groundScatterRadius(f,p)>bound+1e-10)return false;}return true;})()`);
   check('領域下限は単一評価で入力半径そのものには引き上げない',`close(groundAreaRequiredRadius([unit()],[point(10)],40),.1)`);
   check('従来兵科だけの領域には下限なし',`groundAreaRequiredRadius([unit('vehicle'),unit('was')],[point(50)],7)===0`);
-  check('未観測倍率や旧spreadを変えても物理精度は変わらない',`(()=>{const data=WOS_TERRAIN.exercise2.strike,a=groundScatterRadius(unit(),point(20));data.unseenSpread=99;data.artillery.spread=999;const b=groundScatterRadius(unit(),point(20));data.unseenSpread=2;data.artillery.spread=2;return close(a,b);})()`);
-  check('基準直径・爆風を維持しロケットは連射後30秒装填',`(()=>{const s=WOS_TERRAIN.exercise2.strike;return s.artillery.minScatterDiameter10KmM===25&&s.guidedRocket.minScatterDiameter10KmM===30&&s.artillery.reload===8&&s.guidedRocket.reload===30&&s.guidedRocket.rocketsPerVolley===6&&s.guidedRocket.burstInterval===.25&&['artillery','guidedRocket'].every(k=>s[k].delay===5&&s[k].radius===7&&s[k].spread===2);})()`);
+  check('未観測倍率や旧spreadを変えても物理精度は変わらない',`(()=>{const data=groundRuleSet().strike,a=groundScatterRadius(unit(),point(20));data.unseenSpread=99;data.artillery.spread=999;const b=groundScatterRadius(unit(),point(20));data.unseenSpread=2;data.artillery.spread=2;return close(a,b);})()`);
+  check('基準直径・爆風を維持しロケットは連射後30秒装填',`(()=>{const s=groundRuleSet().strike;return s.artillery.minScatterDiameter10KmM===25&&s.guidedRocket.minScatterDiameter10KmM===30&&s.artillery.reload===8&&s.guidedRocket.reload===30&&s.guidedRocket.rocketsPerVolley===6&&s.guidedRocket.burstInterval===.25&&['artillery','guidedRocket'].every(k=>s[k].delay===5&&s[k].radius===7&&s[k].spread===2);})()`);
   check('面積一様な円盤はsqrt乱数で半径を選ぶ',`(()=>{const save=Math.random,values=[.25,.25];try{Math.random=()=>values.shift();const p=groundScatterOffset(4);return close(p.x,0)&&close(p.z,2)&&p.y===0&&values.length===0;}finally{Math.random=save;}})()`);
   check('円盤の4方位と半径の境界を保持',`(()=>{const save=Math.random;try{for(let i=0;i<4;i++){const values=[i/4,1];Math.random=()=>values.shift();const p=groundScatterOffset(3);if(!close(p.length(),3)||!close(p.x,Math.cos(i*Math.PI/2)*3)||!close(p.z,Math.sin(i*Math.PI/2)*3)||p.y!==0)return false;}return true;}finally{Math.random=save;}})()`);
   check('面積一様性を決定的な半径二乗の分位点で確認',`(()=>{const save=Math.random;try{for(let i=0;i<100;i++){const u=(i+.5)/100,values=[.123,u];Math.random=()=>values.shift();const p=groundScatterOffset(5);if(!close(p.lengthSq()/25,u))return false;}return true;}finally{Math.random=save;}})()`);

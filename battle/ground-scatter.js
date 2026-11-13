@@ -4,7 +4,7 @@
    この2兵科の物理精度へ未観測倍率を掛けない。従来兵科の倍率は呼出し側の責務。 */
 function groundScatterBase(f){
   if(!f||!['artillery','guidedRocket'].includes(f.groundKind)||typeof op==='undefined'||!op.ground||typeof WOS_TERRAIN==='undefined')return 0;
-  const base=WOS_TERRAIN[op.ground]?.strike?.[f.groundKind]?.minScatterDiameter10KmM;
+  const base=groundRuleSet()?.strike?.[f.groundKind]?.minScatterDiameter10KmM;
   return Number.isFinite(base)&&base>0?base:0;
 }
 function groundScatterAtDistance(f,distanceWorld){

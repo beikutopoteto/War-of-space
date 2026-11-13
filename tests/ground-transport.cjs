@@ -5,7 +5,7 @@ function transportCases(){
   const saved={op,fleets,groundSites,groundBridges,groundBridgeRevision,groundWorkAiming,groundTransportMessage,groundStrikes,groundImpacts,groundHeight,groundForests,groundBuildings,groundFog,over,end,shoot,burst,groundHud,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
   const unit=(kind,x,y,team=0)=>{
-    const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
+    const type=groundRuleSet().unitTypes[kind],pos=groundPoint(x,y);
     return {...type,id:id++,name:type.name,kind:'fleet',groundKind:kind,team,band:'ground',alive:true,hpPool:type.hp*4,groundMaxHp:type.hp*4,n:4,pos,post:pos.clone(),home:pos.clone(),heading:new THREE.Vector3(1,0,0),march:new THREE.Vector3(1,0,0),ships:Array.from({length:4},()=>({pos:pos.clone()})),queue:[],order:null,stance:'evade',el:{remove(){}}};
   };
   const tick=seconds=>{let left=seconds;while(left>1e-8){const dt=Math.min(.05,left);groundStep(dt);left-=dt;}};
@@ -14,7 +14,7 @@ function transportCases(){
     op={...op,groundHQ:null};
     fleets=[];groundSites=[];groundBridges=[];groundBridgeRevision=0;groundStrikes=[];groundImpacts=[];groundForests=[];groundBuildings=[];groundFog=null;over=false;end=()=>{};shoot=burst=groundHud=()=>{};groundHeight=()=>0;groundHeightCacheReset();Math.random=()=>0;
     const carrier=unit('apc',10,27),infantry=unit('infantry',8,27),heavy=unit('heavyInfantry',8,28),tank=unit('vehicle',10,28),enemy=unit('infantry',10,27,1);fleets=[carrier,infantry,heavy,tank,enemy];
-    check('輸送車と工兵は独立した兵科データ',carrier.speed===4&&carrier.range===8&&WOS_TERRAIN.exercise2.unitTypes.engineer.hp===40);
+    check('輸送車と工兵は独立した兵科データ',carrier.speed===4&&carrier.range===8&&groundRuleSet().unitTypes.engineer.hp===40);
     check('乗車命令で離れた歩兵が輸送車へ向かう',groundBoardCommand([infantry],carrier)&&!infantry.embarked&&infantry.order.type==='board');
     check('輸送車1中隊に2中隊は予約できない',!groundBoardCommand([heavy],carrier));
     check('戦車と敵部隊は乗車不可',!groundBoardCommand([tank],carrier)&&!groundBoardCommand([enemy],carrier));
@@ -36,7 +36,7 @@ function transportCases(){
     check('損傷した搭載中隊は撃破の損害で全滅する場合がある',!hurt.alive&&!hurt.embarked);
     const c3=unit('apc',9,27),p3=unit('infantry',8,27);fleets=[c3,p3];groundBoardCommand([p3],c3);order(p3,{type:'move',dest:groundPoint(7,27)});
     check('別の移動命令で乗車予約を解放',!c3.groundBoarder&&p3.order.type==='move');
-    check('工兵・輸送車は川で0.5倍',groundMoveKind(unit('engineer',9,27))==='engineer'&&WOS_TERRAIN.exercise2.movement.river.apc===.5&&WOS_TERRAIN.exercise2.movement.river.engineer===.5);
+    check('工兵・輸送車は川で0.5倍',groundMoveKind(unit('engineer',9,27))==='engineer'&&groundRuleSet().movement.river.apc===.5&&groundRuleSet().movement.river.engineer===.5);
     const engineer=unit('engineer',23.8,12),vehicle=unit('vehicle',23.8,12.5);fleets=[engineer,vehicle];
     // 分流 east の第3区間の中点。川の形を変えず、データから狭い地点と両岸を求める。
     const river=WOS_TERRAIN.exercise2.water.rivers.find(r=>r.id==='east'),i=2,a=river.points[i],b=river.points[i+1],center=groundPoint((a[0]+b[0])/2,(a[1]+b[1])/2),plan=groundBridgePlan(center);
@@ -50,7 +50,7 @@ function transportCases(){
     tick(10);check('架橋10秒で半分、未完成の橋は通行不可',Math.abs(bridge.progress-10)<1e-7&&!groundBuiltBridgeAt(bridge.x,bridge.y,bridge.river)&&!groundPass(bridge.x,bridge.y,'vehicle'));
     const red=unit('infantry',bridge.x,bridge.y,1);fleets.push(red);tick(1);check('建設位置に敵が来ると進捗が停止',Math.abs(bridge.progress-10)<1e-7);red.pos.copy(groundPoint(40,27));
     tick(10);check('作業20秒で完成し経路の版を更新',bridge.complete&&groundBridgeRevision===1&&!engineer.order);
-    check('完成した橋は地上の全兵科が使える',Object.keys(WOS_TERRAIN.exercise2.movement.river).every(kind=>groundPass(bridge.x,bridge.y,kind)));
+    check('完成した橋は地上の全兵科が使える',Object.keys(groundRuleSet().movement.river).every(kind=>groundPass(bridge.x,bridge.y,kind)));
     const after=groundPath(vehicle.pos,dest,'vehicle');check('完成後は時間の短い仮設橋を選ぶ',after&&after.cost<before.cost&&after.L<before.L);
     vehicle.order={type:'move',dest:dest.clone(),path:before};let crossed=false,safe=true;
     for(let n=0;n<1000&&vehicle.order;n++){groundStep(.05);crossed ||= groundBuiltBridgeAt(vehicle.pos.x/4+24,18-vehicle.pos.z/4,bridge.river);safe &&= groundPass(vehicle.pos.x/4+24,18-vehicle.pos.z/4,'vehicle');}
@@ -90,7 +90,7 @@ async function checkGroundTransport(page,check){
   for(const c of await page.evaluate(transportCases))check(c.ok,'輸送・工兵: '+c.name);
   await page.evaluate(()=>{
     const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
-    reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:WOS_TERRAIN.exercise2.unitTypes[kind].name,groundKind:kind}))});setSpeed(0);endDeploy();
+    reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:groundRuleSet().unitTypes[kind].name,groundKind:kind}))});setSpeed(0);endDeploy();
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(f.team?44:9,27));});
     const infantry=fleets.find(f=>f.groundKind==='infantry'&&f.team===0),carrier=fleets.find(f=>f.groundKind==='apc');
     infantry.pos.copy(groundPoint(5,27));carrier.pos.copy(groundPoint(10,27));fleets.filter(f=>f.team===0&&f!==infantry&&f!==carrier).forEach((f,i)=>f.pos.copy(groundPoint(6+3*i,33)));select(infantry);
@@ -129,10 +129,10 @@ async function checkGroundTransport(page,check){
   await page.locator('#groundBridge').click();await page.mouse.click(point.x,point.y);
   const drawn=await page.evaluate(()=>{
     const bridge=groundBridges[0];if(!bridge)return false;
-    for(let i=0;i<201;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();
+    for(let i=0;i<201;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();
     return !groundWorkAiming&&bridge.visual.el.textContent.includes('架橋中')&&Math.abs(parseFloat(bridge.visual.el.querySelector('i').style.width)-50)<1e-6&&!bridge.visual.deck.visible;
   });check(drawn,'架橋の実画面: 川のクリックで作業中のゲージ');
-  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05/WOS_TERRAIN[op.ground].movement.timeScale);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge');reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
+  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge');reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
   for(const [key,ok] of Object.entries(resetState))check(ok,'輸送・架橋の実画面: '+key);
 }
 function nodeTransportScene(ctx){
@@ -147,7 +147,7 @@ function nodeTransportScene(ctx){
     groundSetup('exercise2');groundVisuals=new THREE.Group();groundBoard.add(groundVisuals);groundHud=()=>{};
     const results=[],check=(name,ok)=>results.push({name,ok});
     const make=(kind,x,y)=>{
-      const type=WOS_TERRAIN.exercise2.unitTypes[kind],pos=groundPoint(x,y);
+      const type=groundRuleSet().unitTypes[kind],pos=groundPoint(x,y);
       return {...type,id:1,kind:'fleet',el:{remove(){}},name:type.name,groundKind:kind,team:0,band:'ground',alive:true,pos,n:4,hpPool:type.hp*4,groundMaxHp:type.hp*4,ships:Array.from({length:4},()=>({pos:pos.clone()})),heading:new THREE.Vector3(),march:new THREE.Vector3(),stance:'evade',queue:[]};
     };
     const infantry=make('infantry',8,27),apc=make('apc',10,27),engineer=make('engineer',4,30),vehicle=make('vehicle',4,30);fleets=[infantry,apc,engineer,vehicle];
@@ -183,7 +183,7 @@ module.exports={transportCases,checkGroundTransport};
 if(require.main===module){
   const element={style:{},remove(){},classList:{add(){},remove(){},toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
   const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
-  for(const file of ['data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);
   vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('let outcome=')),ctx);

@@ -3,11 +3,12 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 function createContext(){
   const context=vm.createContext({THREE:require('three'),console});context.window=context;
   const run=code=>vm.runInContext(code,context),root=path.join(__dirname,'..');
+  run(fs.readFileSync(path.join(root,'data/ground-rules.js'),'utf8'));
   run(fs.readFileSync(path.join(root,'data/terrain/exercise2.js'),'utf8'));
   run(fs.readFileSync(path.join(root,'battle/ground-volley.js'),'utf8'));
   run(`var op={ground:'exercise2'},projectiles=[],now=0,attempts=0;
     function groundCommandAllowed(f){return !f.denied&&!f.groundRout&&f.groundMorale!==0;}
-    function groundStrikeWeapon(f){if(!f.alive||f.embarked||f.locked||f.training||!groundCommandAllowed(f))return null;return WOS_TERRAIN.exercise2.strike[f.groundKind]||(f.groundKind==='was'?WOS_TERRAIN.exercise2.strike.artillery:null);}
+    function groundStrikeWeapon(f){if(!f.alive||f.embarked||f.locked||f.training||!groundCommandAllowed(f))return null;return groundRuleSet().strike[f.groundKind]||(f.groundKind==='was'?groundRuleSet().strike.artillery:null);}
     function groundAreaShot(f,area){if(area.blocked)return null;area.samples=(area.samples||0)+1;return {aim:area.points[0].clone(),impact:area.points[0].clone().add(new THREE.Vector3(area.samples/100,0,0))};}
     function groundStrikeLaunch(f,aim,impact,area,token){
       if(f.groundVolley!==token)throw Error('invalid primitive token');

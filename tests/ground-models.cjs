@@ -24,7 +24,7 @@ function nodeChecks(){
      kind of the ground battle and the sea ships (docs/models.md 13・14) have a model; sea:cvb and sea:mas keep the old drawing */
   const approved=fs.readFileSync(path.join(__dirname,'../docs/mockups/models/pilot-override.txt'),'utf8').trim();
   check('採用表は見本の差し替えと同じ',`(o=>o.split(',').every(e=>{const q=e.split(':'),n=q[0]==='sea'?2:1,who=q.slice(0,n).join(':'),[key,size,form,move]=q.slice(n),[kind,side]=who.split('@');return (side?[side]:['earth','mars']).every(sd=>{const m=groundModelFor(kind,sd);return !!m&&m.key===key&&Math.abs(m.size-+size)<1e-9&&m.form===form&&m.move.join('+')===(move||'');});}))(${JSON.stringify(approved)})`);
-  check('地上戦の全兵科と海の艦に採用の形があり、海の戦闘母艦・突撃揚陸艦は従来表示',`Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&['sea:bb','sea:cl','sea:ff','sea:dd','sea:masc'].every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&groundModelFor('sea:cvb')===null&&groundModelFor('sea:mas')===null`);
+  check('地上戦の全兵科と海の艦に採用の形があり、海の戦闘母艦・突撃揚陸艦は従来表示',`Object.keys(groundRuleSet().unitTypes).every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&['sea:bb','sea:cl','sea:ff','sea:dd','sea:masc'].every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&groundModelFor('sea:cvb')===null&&groundModelFor('sea:mas')===null`);
   /* the checks below test the address override and the old drawing, so they run on an empty table; it is put back at the end */
   run(`globalThis.APPROVED_MODELS={...GROUND_MODELS};for(const k of Object.keys(GROUND_MODELS))delete GROUND_MODELS[k];`);
   check('未知・継承されたキーは見つからない',`groundShapeGeo('missing-model')===null&&groundShapeGeo('toString')===null`);
@@ -139,10 +139,10 @@ function nodeChecks(){
   const setup=shotSource.slice(shotSource.indexOf('page.evaluate(all=>{')+'page.evaluate('.length,shotSource.indexOf(',!!opt.all);'));
   ctx.WOS={start:cfg=>{ctx.shotConfig=cfg;}};ctx.setSpeed=()=>{};
   run(`(${setup})(true)`);
-  const kinds=Object.keys(ctx.WOS_TERRAIN.exercise2.unitTypes),operation=ctx.WOS_DATA.operations.find(o=>o.id==='groundExercise2');
+  const kinds=Object.keys(ctx.groundRuleSet().unitTypes),operation=ctx.WOS_DATA.operations.find(o=>o.id==='groundExercise2');
   assert.deepEqual(Array.from(ctx.shotConfig.fleets,f=>f.groundKind),kinds);
   assert.deepEqual(Array.from(operation.enemies,f=>f.groundKind),kinds);assert.equal(operation.groundSea.length,0);
-  assert.ok(operation.quick.some(f=>ctx.WOS_TERRAIN.exercise2.unitTypes[f.groundKind].permissionOnly));count++;
+  assert.ok(operation.quick.some(f=>ctx.groundRuleSet().unitTypes[f.groundKind].permissionOnly));count++;
   ctx.location.search='';run(`op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(s=>makeFleet(0,s)),...op.enemies.map(s=>makeFleet(1,s))];groundInitOrg(null);groundBoard=new THREE.Group();groundInit();`);
   ctx.scene=new ctx.THREE.Scene();run('scene.add(groundBoard);');ctx.camera=new ctx.THREE.PerspectiveCamera(50,1600/900,.1,3000);
   const layout=shotSource.slice(shotSource.indexOf('page.evaluate(line=>{')+'page.evaluate('.length,shotSource.indexOf('},line);')+1);

@@ -50,7 +50,7 @@ function groundOpenSelected(list){
 function groundUpdateRoster(targets){
   for(const {level,item,pick,meters} of groundRosterNodes){const m=groundMembers(level,item.id);groundSupplyUpdateMeters(meters,m);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
 }
-function groundRules(){ return WOS_TERRAIN[op.ground].bands; }
+function groundRules(){ return groundRuleSet().bands; }
 // 元の艦種の完成値を通常の換算式で読む。研究・陣営差・編成ボーナス・共通倍率は掛けない。
 function groundSeaStats(type,landing=false){
   const model=groundNavalModel({groundKind:'sea',type,groundLanding:landing})||type,s=WOS_DATA.ships.find(s=>s.id===model);
@@ -60,7 +60,7 @@ function groundSeaStats(type,landing=false){
 // 作戦専用の武器射程（km）を戦闘単位へ変換。索敵・宇宙のrangeとは独立。
 function groundFireRanges(f){
   if(!op.ground||!f?.groundKind)return {};
-  const data=WOS_TERRAIN[op.ground],spec=f.groundKind==='sea'?(groundNavalClass(f)?.rangesKm||data.navalFireRangesKm?.[f.type]):data.unitTypes[f.groundKind]?.fireRangesKm;
+  const data=groundRuleSet(),spec=f.groundKind==='sea'?(groundNavalClass(f)?.rangesKm||data.navalFireRangesKm?.[f.type]):data.unitTypes[f.groundKind]?.fireRangesKm;
   if(!spec)return {};
   const air=f.groundKind==='was'&&['low','high'].includes(f.band),r=air?spec.airborne||{}:spec;
   return {direct:(r.direct||0)*GROUND_SCALE,ground:(r.ground||0)*GROUND_SCALE,air:(r.air||0)*GROUND_SCALE,aa:(r.aa||0)*GROUND_SCALE,
@@ -100,7 +100,7 @@ function groundEngagementRange(f,t){
 }
 function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':['artillery','guidedRocket','mobileAA','supply'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
-function groundPermissionOnly(f){ return !!WOS_TERRAIN[op.ground].unitTypes[f.groundKind]?.permissionOnly; }
+function groundPermissionOnly(f){ return !!groundRuleSet().unitTypes[f.groundKind]?.permissionOnly; }
 function groundUnitHeight(f){
   if(f.groundKind==='sea')return 0; // 海面は固定。地表高や高度切り替えから独立。
   const h=groundRules().heights, from=h[f.band||'ground'];
@@ -232,9 +232,9 @@ function groundInit(){
     }
   }
   // 見本と同じ薄い格子。地表の起伏と同じ高さを足し、盤の輪郭内だけに置く。
-  const d=WOS_TERRAIN[op.ground],dims=groundDimensions(),span=Math.max(dims.widthWorld,dims.heightWorld),gap=Math.max(d.bands.gridStep,span/48),segment=Math.max(1.6,span/192);
+  const dims=groundDimensions(),span=Math.max(dims.widthWorld,dims.heightWorld),gap=Math.max(groundRules().gridStep,span/48),segment=Math.max(1.6,span/192);
   for(const band of ['ground','low','high']){
-    const points=[], height=d.bands.heights[band]+.12;
+    const points=[], height=groundRules().heights[band]+.12;
     const add=(x,z,xx,zz)=>{
       if(!groundPass(groundMapX(x),groundMapY(z),'air')||!groundPass(groundMapX(xx),groundMapY(zz),'air'))return;
       points.push(new THREE.Vector3(x,groundHeight(x,z)+height,z),new THREE.Vector3(xx,groundHeight(xx,zz)+height,zz));
@@ -332,7 +332,7 @@ function groundStep(dt){
         }
       }
     }
-    if(f.groundKind==='was') f.speed= WOS_TERRAIN[op.ground].unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
+    if(f.groundKind==='was') f.speed= groundRuleSet().unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
     if(!groundFlyingAircraft(f)||groundTrainingEnemy(f)||groundStaticTarget(f))f.pos.y=groundUnitHeight(f);
     if(groundFlyingAircraft(f)){
       if(f.order?.type==='attack'&&(!f.order.target.alive||!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
@@ -378,7 +378,7 @@ function groundStep(dt){
 }
 
 function groundMatchup(f,t){
-  const c=WOS_TERRAIN[op.ground].combat;
+  const c=groundRuleSet().combat;
   return f.groundKind==='guidedRocket'?(t.groundKind==='vehicle'?c.rocketTank:['low','high'].includes(t.band)?c.rocketAir:1):
     f.groundKind==='mobileAA'&&['low','high'].includes(t.band)?c.mobileAAAir:
     f.groundKind==='vehicle'&&['infantry','commando'].includes(t.groundKind)?c.tankInfantry:
@@ -387,12 +387,12 @@ function groundMatchup(f,t){
 function groundDamageFactor(t){
   if(t.groundUnloading)return groundLandingRules().damageFactor;
   if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return 1;
-  const c=WOS_TERRAIN[op.ground].combat,m=c.urbanMargin;
+  const c=groundRuleSet().combat,m=c.urbanMargin;
   const cover=groundInForest(t.pos.x,t.pos.z)||groundBuildings.some(b=>t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
   return cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1;
 }
 function groundMechanicalWear(f,dt){
-  f.hpPool=Math.max(0,f.hpPool-(f.groundMaxHp||f.n*f.hp)*WOS_TERRAIN[op.ground].combat.mechanicalWearPerSec*dt);
+  f.hpPool=Math.max(0,f.hpPool-(f.groundMaxHp||f.n*f.hp)*groundRuleSet().combat.mechanicalWearPerSec*dt);
   const want=Math.max(0,Math.ceil(f.hpPool/f.hp));
   while(f.ships.length>want)f.ships.pop();
   if(!want){
@@ -404,7 +404,7 @@ function groundMechanicalWear(f,dt){
 // 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
 let groundSites=[], groundTerritory=null;
 function groundCanCapture(f){ return f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
-function groundCaptureSeconds(s,owner=s.owner){return owner===null?WOS_TERRAIN[op.ground].capture.neutralSeconds:s.captureSec;}
+function groundCaptureSeconds(s,owner=s.owner){return owner===null?groundRuleSet().capture.neutralSeconds:s.captureSec;}
 function groundCaptureStep(dt){
   if(over) return;
   for(const s of groundSites){
@@ -425,7 +425,7 @@ function groundCaptureStep(dt){
 function groundCaptureInit(){
   for(const s of groundSites){s.el?.remove();if(s.ring){groundVisuals.remove(s.ring);s.ring.geometry.dispose();s.ring.material.dispose();}}
   if(groundTerritory?.mesh){groundBoard.remove(groundTerritory.mesh);groundTerritory.mesh.geometry.dispose();groundTerritory.texture.dispose();groundTerritory.mesh.material.dispose();}
-  const d=WOS_TERRAIN[op.ground], rules=d.capture;
+  const d=WOS_TERRAIN[op.ground], rules=groundRuleSet().capture;
   groundSites=(op.groundSites||[]).map(spec=>{
     const site=d.sites.find(s=>s.id===spec.site), el=document.createElement('div');
     el.className='ground-site'; el.dataset.site=site.id;
@@ -480,11 +480,11 @@ function groundInfluenceAt(x,y,cache=null){
       sections=groundTerritory?.sections,sources=active&&net?net.edges:sections||[],c=groundInfluenceCache;
     if(!c||c.terrain!==d||c.grid!==grid||c.cells!==grid.cells||c.cols!==grid.cols||c.rows!==grid.rows||c.cellKm!==d.meta.cellKm||
       c.board!==d.display.board||c.sea!==d.water.sea||c.sites!==groundSites||c.net!==net||c.active!==active||
-      c.sections!==sections||c.sources!==sources||c.roadWidth!==d.capture.roadWidthKm||
+      c.sections!==sections||c.sources!==sources||c.roadWidth!==groundRuleSet().capture.roadWidthKm||
       c.siteGeometry.length!==groundSites.length||c.siteGeometry.some((v,i)=>v.ref!==groundSites[i]||v.x!==v.ref.x||v.y!==v.ref.y||v.r!==v.ref.radiusKm)||
       c.sourceRefs.length!==sources.length||c.sourceRefs.some((v,i)=>v.ref!==sources[i]||v.path!==v.ref.path)){
       const floor=Math.floor,min=Math.min,max=Math.max,siteBins=new Map(),roadBins=new Map(),
-        roadLimit=d.capture.roadWidthKm/2+(active&&net?1e-8:0);
+        roadLimit=groundRuleSet().capture.roadWidthKm/2+(active&&net?1e-8:0);
       // One-km bins contain candidates in original order, including equal-distance ties.
       const add=(bins,ref,x0,y0,x1,y1)=>{
         for(let bx=floor(x0);bx<=floor(x1);bx++)for(let by=floor(y0);by<=floor(y1);by++){
@@ -498,7 +498,7 @@ function groundInfluenceAt(x,y,cache=null){
         add(roadBins,source,min(a[0],b[0])-r,min(a[1],b[1])-r,max(a[0],b[0])+r,max(a[1],b[1])+r);
       }
       groundInfluenceCache={terrain:d,grid,cells:grid.cells,cols:grid.cols,rows:grid.rows,cellKm:d.meta.cellKm,
-        board:d.display.board,sea:d.water.sea,sites:groundSites,net,active,sections,sources,roadWidth:d.capture.roadWidthKm,
+        board:d.display.board,sea:d.water.sea,sites:groundSites,net,active,sections,sources,roadWidth:groundRuleSet().capture.roadWidthKm,
         siteGeometry:groundSites.map(ref=>({ref,x:ref.x,y:ref.y,r:ref.radiusKm})),sourceRefs:sources.map(ref=>({ref,path:ref.path})),
         siteBins,roadBins,roadLimit,supply:!!(active&&net)};
     }

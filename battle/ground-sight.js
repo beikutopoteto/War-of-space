@@ -2,7 +2,7 @@
 let groundTerritorySight=null;
 let groundSightHeightSource=null;
 let groundSightHeights=null, groundFog=null, groundSightBuildingSource=null, groundSightBuildingBins=new Map();
-function groundSightRules(){ return groundData().sight; }
+function groundSightRules(){ return groundRuleSet().sight; }
 function groundHeightCacheReset(){ groundSightHeights=null;groundSightHeightSource=null;groundTerritorySight=null; }
 function groundSightReset(){ groundHeightCacheReset(); groundFog=null; groundSightBuildingSource=null; }
 // 描画と同じ格子原点・間隔・対角線（三角形 a,b,d / b,c,d）。
@@ -138,7 +138,7 @@ function groundUpdateSight(){
   groundRememberTerritory();
 }
 function groundSightInit(){
-  const d=groundData(),r=d.sight,canvas=document.createElement('canvas');
+  const d=groundData(),r=groundRuleSet().sight,canvas=document.createElement('canvas');
   canvas.width=Math.ceil(d.meta.widthKm*GROUND_SCALE/r.fogStep);canvas.height=Math.ceil(d.meta.heightKm*GROUND_SCALE/r.fogStep);
   const texture=new THREE.CanvasTexture(canvas),geo=new THREE.PlaneGeometry(d.meta.widthKm,d.meta.heightKm,groundDimensions().mesh.segmentsX,groundDimensions().mesh.segmentsZ);
   geo.rotateX(-Math.PI/2);const p=geo.attributes.position;
@@ -150,7 +150,7 @@ function groundSightInit(){
 }
 function groundFogDraw(force=false){
   const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
-  const d=groundData(),r=d.sight,{width,height}=fog.canvas,raw=fog.pixels.data;
+  const d=groundData(),r=groundRuleSet().sight,{width,height}=fog.canvas,raw=fog.pixels.data;
   const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
     const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=groundWorldX(gx),z=groundWorldZ(gy);

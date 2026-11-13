@@ -3,7 +3,7 @@ function readoutCases(){
  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
  op={ground:'exercise2',groundHQ:{0:'B',1:'F'}};groundSites=[];groundForests=[];groundBuildings=[];
  const make=(kind,team=0)=>{const p=groundPoint(15,29);return makeFleet(team,{name:kind,type:'cv',groundKind:kind,n:1,scale:.3,pos:[p.x,p.z],band:groundBands({groundKind:kind})[0]});};
- for(const kind of Object.keys(WOS_TERRAIN.exercise2.unitTypes)){
+ for(const kind of Object.keys(groundRuleSet().unitTypes)){
   const f=make(kind),ground=groundBands(f).includes('ground');f.band=ground?'ground':groundBands(f)[0];
   check(kind+'の道路占領は地上対応だけ',groundCanCaptureRoad(f)===ground);
  }
@@ -26,7 +26,7 @@ function readoutCases(){
  const gun=make('artillery'),info=groundRangeInfo(gun);check('自走砲は間接砲撃を主表示',info.text==='間接砲撃');
  check('自走砲は直射2kmと間接2〜30kmを別枠で表示',info.entries.length===2&&info.entries.some(e=>e.id==='direct'&&e.range===2*GROUND_SCALE)&&info.entries.some(e=>e.id==='indirect'&&e.min===2*GROUND_SCALE&&e.range===30*GROUND_SCALE));
  check('補給部隊に射程は出さない',groundRangeInfo(make('supply'))===null);
- check('拠点占領時間は30秒を維持',WOS_TERRAIN.exercise2.capture.seconds===30);
+ check('拠点占領時間は30秒を維持',groundRuleSet().capture.seconds===30);
  return rows;
 }
 function nodeChecks(){const {run}=require('./ground-landing.cjs').createGroundContext();return run(`(${readoutCases.toString()})()`);}

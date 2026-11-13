@@ -1,6 +1,6 @@
 /* 地上の地点攻撃。発射時に狙点・散布・威力を確定し、直接射撃の視界・遮蔽から切り離す。 */
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='', groundFlightPreview=null;
-function groundStrikeRules(){ return WOS_TERRAIN[op.ground].strike; }
+function groundStrikeRules(){ return groundRuleSet().strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
@@ -137,7 +137,7 @@ function groundStrikeDraw(){
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     const visible=s.team===0||groundPointSeenBy(0,p);ring.visible=visible;el.hidden=!visible||at.z>1;
     if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
-    el.textContent=pending?`${s.kind==='sea'?'艦砲':WOS_TERRAIN[op.ground].unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
+    el.textContent=pending?`${s.kind==='sea'?'艦砲':groundRuleSet().unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
   }

@@ -9,6 +9,8 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   - `bonuses.js` 編成ボーナス
   - `operations.js` 作戦。並びは 1. 演習「要塞カリュブディス攻略戦」（出撃画面のクイック出撃もこれ）、2. 第一章第1節「ネオ信濃奇襲」、3. 第2節「後退」、4. 第3節「ナイル防衛線」、5. 第4節「デナリの盾」、6. 第5節「フェブルアーリア防衛戦」、7. 第6節「デナリ破砕」（2026-10-24、作りかけ。`hidden:true` で出撃画面に出さず、`WOS.start({op:'denaliBreak'})` でだけ開く。第4節のデナリを使うので配列のあとに push で足す）
   - `tech.js` 解放・報酬・技術ツリー
+  - `ground-rules.js` 地上・海上の12個の基本規則（`WOS_GROUND_RULES`）と既定の6中隊。地形より前に読む。入口 `groundRuleSet()` は基本 → 地形の `overrides` → 作戦の `groundRuleOverrides` → 試合中の変化を重ねた同じ結果を返す。開始・やり直しは `groundSetup()` から `rebuildGroundRuleSet()`、天候等の変化時は `rebuildGroundRuleSet(changes)` で変更一式を渡す。地形に残す `water.engineerBridgeMaxWidthKm` は川幅の判定用。
+  - `ground-org.js` 規則の兵科表と既定の中隊一覧から地上編成を作る。隠し作戦には依存しない。
   - `earth.js` Natural Earth の地球の陸地マスク（`tools/earth-mask.cjs` で生成）
   - `WOS_DATA.balance`（`operations.js`）: 全体の釣り合い。耐久の倍率 `hp` と艦の速さの倍率 `speed` は全部の作戦で同じで、戦闘の生成のときに掛ける（`battle/state.js` の `HP_K`・`SPEED_K`）。データと準備画面の表示は元の値
   - `WOS_DATA.roles`（`ships.js`）: 艦種別の動きの表（2026-10-22、ユーザー決定。陣営ごとの役目・狙い・距離・退き際。作戦の `roleAI:true` だけで使う。`docs/menu.md`「艦種別の動き」）
@@ -25,7 +27,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   5. `state.js` 状態・艦隊生成・ロスター・`reset()`・戻す
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
   7. `sim.js` 索敵・戦闘・小型機・出来事・敵 AI・`step()`。天体の陰と回り込み（`bodyBlocks` / `detour`、`makePath` が経由点を足す）、敵の目標選び（`pickFoe`）と立つ位置（`slotOf`）、挟撃（`pincers`）、デバッグのオートモード（`autoAI`）、小型機と母艦をつなぐ（`tetherCarriers`。`step()` で艦が動いたあと、出ている隊を発艦の距離の外に残さないよう母艦を止める。2026-10-22）、艦種別の動き（2026-10-22。作戦の `roleAI` だけ。`roleOf` で隊の役目（いちばん上位の艦種と陣営、表は `data/ships.js` の `WOS_DATA.roles`）を出し、`pickFoe` の係数 `aimK`、撃つ相手 `roleFoe`（`fireTargetOf`）、小型機の `roleCraftFoe`（`craftTarget`）、立つ距離 `roleStand`（`standOff`）、下がるか `backsOff`（`stepFight`・`fallBack`）、AI の `roleFirst`（退き際・逃げる）と `rolePlace`（盾・母体・目・傘の位置）、`roleClamp`（戦艦と傘の持ち場）。自軍の隊は `roleMove` が null で狙いだけ）、ドクトリンの型（2026-10-22。作戦の `packs` だけ、共和国だけ。`initPacks`（`reset()` から）で組を作り、`enemyAI` の中で `stepPacks` が組・目標・守るもの・合図・退き際・そろって着く速さを決め、`packAI` が隊ごとの動き（approach・charge・hold・hide・back）を出す。作戦の `ai` の分岐のあと、艦種別の動きの前。立つ点は `f.packSpot`（`step()` の `stepFight`））
-  7.2 `ground.js` 地上作戦だけの3段（`band`・遷移先・残り秒）、水平距離の段別射撃、航空の3機編隊と層の格子。切り替え中は元の段で射撃し、描画高度だけ補間する。航空は低・高、陸戦型 W.A.S. は3段、地上部隊は地上のみ。左下の命令は複数選択の共通段だけ有効、表示は射撃に影響しない。仮値は `data/terrain/exercise2.js` の `bands`。航空の1隊は既存耐久100の1部隊を3機の形で表す。
+  7.2 `ground.js` 地上作戦だけの3段（`band`・遷移先・残り秒）、水平距離の段別射撃、航空の3機編隊と層の格子。切り替え中は元の段で射撃し、描画高度だけ補間する。航空は低・高、陸戦型 W.A.S. は3段、地上部隊は地上のみ。左下の命令は複数選択の共通段だけ有効、表示は射撃に影響しない。仮値は `data/ground-rules.js` の `bands`。航空の1隊は既存耐久100の1部隊を3機の形で表す。
   7.2.1 `ground-plan.js` 地上作戦だけの線指定による布陣・進撃計画・実行。`ground.js`の直後に読み込み、計画は作戦中の部隊だけに保持する。
   7.2.2 `ground-area.js` 地上専用の円形・曲線帯状砲撃、1〜30回の予約、範囲描画と未発射分の取消・復元。`ground-plan.js` の直後に読み込む。仕様と仮値は `docs/ground-area.md`。
   7.5 `cut.js` 会話の後ろに出す絵（第6節のかすめる場面。2026-10-28）。会話の行の4つ目の要素で `showCut`、出ているあいだは `loop.js` が戦場の代わりに描く

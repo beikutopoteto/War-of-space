@@ -1,8 +1,6 @@
 /* 広域検証の地形。設計図 docs/terrain/wide-fields.md。演習場の引伸ばしではなく別の配置。
    戦闘規則だけ共用し、地形・密度・道路は独立。必要なmapの初回アクセス時に生成する。 */
 (function(){
- const source=window.WOS_TERRAIN.exercise2,keys=['bands','sight','strike','transport','landing','unitTypes','navalFireRangesKm','combat','capture','movement','supply'];
- const common={};for(const k of keys)common[k]=JSON.parse(JSON.stringify(source[k]));
  function inside(x,y,poly){let hit=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])hit=!hit;}return hit;}
  const definitions={
   field150:{width:150,height:100,seed:28150,coast:[[0,20],[18,22],[34,19],[50,24],[66,21],[82,23],[100,19],[120,22],[137,18],[150,21]],
@@ -21,8 +19,8 @@
    fields:[[[77,102],[108,100],[112,118],[84,120]],[[216,112],[243,109],[247,126],[220,129]]],forest:2500,shrubs:2400,reeds:600}
  };
  function create(id){
-  const b=definitions[id],W=b.width,H=b.height,d=JSON.parse(JSON.stringify(common)),rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
-  d.sight.fogStep=Math.max(d.sight.fogStep,Math.max(W,H)*4/192);
+  const b=definitions[id],W=b.width,H=b.height,d={},rect=(x0,y0,x1,y1)=>[[x0,y0],[x1,y0],[x1,y1],[x0,y1]];
+  d.overrides={sight:{fogStep:Math.max(W,H)*4/192}};
   d.meta={id,location:'ウラル川下流・北カスピ海を型にした架空の広域検証場',widthKm:W,heightKm:H,cellKm:.4,elevationExaggeration:18,seed:b.seed,seaLevelM:-28,terrainTypes:['河川デルタ','氾濫原'],note:'実測GISではない。設計図に基づく創作配置。新しい章の作戦ではない。'};
   // 地形: 海岸・本流・分流・低窪地を先に固定する。
   const rivers=[{id:'main',points:b.main,widths:b.main.map((_,i)=>.32+i*.065)},{id:'west',points:b.west,widths:b.west.map((_,i)=>.28+i*.12)},{id:'east',points:b.east,widths:b.east.map((_,i)=>.3+i*.12)}];

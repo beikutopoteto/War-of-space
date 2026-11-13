@@ -90,7 +90,7 @@ function logisticsCases(){
  let p=npcGroundRefitEntry(red,[red.pos,groundPoint(7,29)]);
  check('再編は本営の中心でなく補給円の手前の縁に止まる',p&&Math.abs(groundMapX(p.x)-8)<.001&&groundSupplyAt({team:1,pos:p}).rate>0);
  edges[3].rates[1]=.5;red.pos.copy(groundPoint(14,26));p=npcGroundRefitEntry(red,[red.pos,groundPoint(14,32),groundPoint(7,29)]);
- check('再編経路が最初に交差する補給道路帯を選ぶ',p&&Math.abs(groundMapY(p.z)-(29-WOS_TERRAIN[op.ground].capture.roadWidthKm/2))<.001&&groundSupplyAt({team:1,pos:p}).rate>0);
+ check('再編経路が最初に交差する補給道路帯を選ぶ',p&&Math.abs(groundMapY(p.z)-(29-groundRuleSet().capture.roadWidthKm/2))<.001&&groundSupplyAt({team:1,pos:p}).rate>0);
  edges[3].rates[1]=0;p=npcGroundRefitEntry(red,[red.pos,groundPoint(14,32),groundPoint(7,29)]);
  check('未補給の自軍道路は再編先にしない',p&&groundMapX(p.x)<8.1);
  red.pos.copy(groundPoint(7.5,29));p=npcGroundRefitEntry(red,[red.pos,groundPoint(7,29)]);
