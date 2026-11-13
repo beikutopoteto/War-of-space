@@ -25,7 +25,7 @@ function nodeChecks(){
   check('分類objectは共通の6フィールドを返す',`Object.keys(groundNavalClass(ship())).sort().join(',')==='gunHeightM,id,model,name,rangesKm,targetHeightM'`);
   check('非海軍・未知・母艦を勝手に統合しない',`[null,{},ship('unknown'),ship('cvb'),ship('mas'),ship('masc'),{type:'dd'},ship('dd',{groundKind:'vehicle'})].every(f=>groundNavalClass(f)===null&&groundNavalModel(f)===null)`);
   check('揚陸艦フラグがddのイージス分類に優先',`(()=>{const f=ship('dd',{groundLanding:true}),c=groundNavalClass(f);return c.id==='landing'&&c.model==='dd'&&c.name==='揚陸艦'&&f.type==='dd'&&f.groundLanding;})()`);
-  for(const [type,direct,aa] of [['cv',8,3],['ff',8,3],['dd',24,150],['cl',24,150],['bb',40,6]])
+  for(const [type,direct,aa] of [['cv',8,3],['ff',8,3],['dd',24,150],['cl',24,150],['bb',70,6]])
     check(type+'の海上専用射程km',`(()=>{const r=groundNavalClass(ship('${type}')).rangesKm;return r.direct===${direct}&&r.indirect.min===0&&r.indirect.max===${direct}&&r.aa===${aa};})()`);
   check('揚陸艦は現行dd射程24/24/150を保持し旧range4.5kmと区別',`(()=>{const c=groundNavalClass(ship('dd',{groundLanding:true})),old=WOS_DATA.ships.find(s=>s.id==='dd');return c.rangesKm.direct===24&&c.rangesKm.indirect.max===24&&c.rangesKm.aa===150&&close((10+old.rng*1.6)/4,4.5);})()`);
   check('揚陸艦は作戦ごとの旧射程表をコピーし未知値は拒否',`(()=>{const d=WOS_TERRAIN.exercise2,old=op;WOS_TERRAIN.navalFixture={navalFireRangesKm:{dd:{direct:3,indirect:{min:1,max:7},aa:2}}};op={ground:'navalFixture'};try{const c=groundNavalClass(ship('dd',{groundLanding:true}));return c.rangesKm.direct===3&&c.rangesKm.indirect.min===1&&c.rangesKm.indirect.max===7&&c.rangesKm.aa===2&&groundNavalClass(ship('bad',{groundLanding:true}))===null;}finally{op=old;delete WOS_TERRAIN.navalFixture;}})()`);

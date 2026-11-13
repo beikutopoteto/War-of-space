@@ -17,7 +17,11 @@ function nodeChecks(){
   const hp=target.hpPool;damage(target,10,cl);check('通常damageで地平線を迂回しない',target.hpPool===hp);
   check('近距離海上目標は従来どおり直接射撃',groundFireMode(cl,{...target,pos:cl.pos.clone().add(new THREE.Vector3(4,0,0))})==='direct');
   target.pos.copy(groundPoint(40,5));fleets=[bb,target];groundStrikeReset();
-  check('戦艦は大型砲の40km射程・海面間接照準を持つ',bb.sub==='海の戦艦'&&bb.dmg>cl.dmg&&groundNavalModel(bb)==='bb'&&groundStrikeRange(bb).max===160&&groundFireMode(bb,target)==='indirect');
+  check('戦艦はレールガンの70km射程・海面間接照準を持つ',bb.sub==='海の戦艦'&&bb.dmg>cl.dmg&&groundNavalModel(bb)==='bb'&&groundStrikeRange(bb).max===280&&groundFireMode(bb,target)==='indirect');
+  { // 70km（射程いっぱい）は弾道の初速上限の内で届き、その先は射程の外
+    const far=km=>bb.pos.clone().add(new THREE.Vector3(km*GROUND_SCALE,0,0)),edge=groundBallisticSolution(bb,far(70)),over=groundBallisticSolution(bb,far(71));
+    check('戦艦の70km先へ弾道が届く',edge.clear&&edge.duration>0&&over.reason==='range');
+  }
   const random=Math.random;let shot;try{Math.random=()=>0;shot=groundStrikeLaunch(bb,target.pos);}finally{Math.random=random;}
   check('戦艦が海面へ弾道弾を発射し着弾前は無傷',shot&&shot.flight&&shot.left>0&&target.hpPool===hp);
   if(shot)groundStrikeStep(shot.left);

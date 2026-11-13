@@ -1,10 +1,11 @@
 /* 地上作戦の海軍専用。classic script: globalsは関数の呼出し時にだけ参照。
    旧type・宇宙艦表・編成保存を変更しない。性能の換算と射撃への接続は呼出し側。
-   射程・砲口高・目標高はゲーム用の仮値。砲口高はマスト高ではない。 */
+   射程・砲口高・目標高はゲーム用の仮値。砲口高はマスト高ではない。
+   戦艦はレールガンで70km（ユーザー決定 2026-11-14「適切なものに」。弾道の初速上限900m/sで届く約82.6kmより内、ロケット砲50kmより外）。 */
 const GROUND_NAVAL_PROFILES=Object.freeze({
   fastboat:Object.freeze({id:'fastboat',name:'高速艇',model:'ff',direct:8,indirect:8,aa:3,gunHeightM:4,targetHeightM:4}),
   aegis:Object.freeze({id:'aegis',name:'イージス艦',model:'cl',direct:24,indirect:24,aa:150,gunHeightM:8,targetHeightM:8}),
-  battleship:Object.freeze({id:'battleship',name:'戦艦',model:'bb',direct:40,indirect:40,aa:6,gunHeightM:12,targetHeightM:12}),
+  battleship:Object.freeze({id:'battleship',name:'戦艦',model:'bb',direct:70,indirect:70,aa:6,gunHeightM:12,targetHeightM:12}),
   landing:Object.freeze({id:'landing',name:'揚陸艦',model:'dd',gunHeightM:4,targetHeightM:4})
 });
 const GROUND_NAVAL_EARTH_RADIUS_KM=6371,GROUND_NAVAL_GROUND_TARGET_HEIGHT_M=2; // 目標の代表高2mは仮。
