@@ -413,6 +413,10 @@ function mHump(za,zb,w,h,y){ return [at(loft([[za,w*.75,h*.5,h*.5],[za+(zb-za)*.
 const mA=S=>mShip(S,-1,1,1);
 const onTop=(M,sec)=>{ const T=mA(sec), S2=T.S.map(([z,w,h])=>[z,w,h,M.top(z)+h*.9]); return {parts:[loft(S2,MUP),tone(loft(S2,MLO),.72)], top:z=>M.top(z)+T.top(z)*1.9}; };
 const ySh=(p,y)=>p.map(g=>{ g.translate(0,y,0); return g; });
+/* mBox: a Republic cargo module (a short creased body with cut corners) of length l centred at x, y, z. sideAt: parts made by mk
+   laid on both side walls at x (their top facing out) and height y */
+const mBox=(x,y,z,l,w,h)=>{ const B=mA([[z-l/2,w*.85,h*.85],[z-l/2+.03,w,h],[z+l/2-.03,w,h],[z+l/2,w*.85,h*.85]]); return B.hull().map(g=>{ g.translate(x,y,0); return g; }); };
+const sideAt=(mk,x,y)=>[...mk().map(g=>{ g.rotateZ(-Math.PI/2); g.translate(x,y,0); return g; }), ...mk().map(g=>{ g.rotateZ(Math.PI/2); g.translate(-x,y,0); return g; })];
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -673,18 +677,26 @@ const GROUND_SHAPES={
       ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
       ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
       ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
-  spCVBM:()=>{ const M=mA([[-1.2,.34,.14],[-1.05,.4,.17],[1,.4,.17],[1.2,.32,.13]]), m=0;
-    const spine=at(loft([[-.95,.06,.035,M.top(0)+.03],[.95,.06,.035,M.top(0)+.03]],TRAP),0,0,0);
-    return [...M.hull(), spine, ...mHump(-.55,.25,.12,.045,M.top(0)+.055), ...mEng([.22,-.22],-1.2,.07),
-      ...pair(tone(at(box(.2,.13,.02),.17,-.01,1.203),DK)), ...pair(tone(at(box(.11,.008,.5),.22,M.top(.62)+.001,.62),DK)), ...M.eyes(1.12,.75),
-      ...mPair(mGun,.25,M.top(-.75),-.75,.7), ...mPair(mPD,.3,M.top(.95),.95,.85), ...mPair(mPD,.3,M.top(-1),-1,.85),
+  /* 戦闘母艦（共和国, 15.14）: a heavy aviation cruiser — a long cruiser hull, the fore half a cruiser (two twin turrets, rows of
+     launcher lids), the after half an angled flight deck set off to port (dark launch line, landing square, hangar mouth in the stern)
+     and a tall island on the starboard side with an optical band and mast */
+  spCVBM:()=>{ const M=mA([[-1.2,.28,.12],[-.8,.36,.15],[.3,.36,.16],[.9,.24,.12],[1.2,.1,.07]]), m=0, W=z=>M.at(z).w, A=-.12, dy=M.top(-.5)+.012;
+    const deck=[at(box(.34,.03,1.3),-.1,dy,-.5,0,A,0), ...[at(box(.012,.006,1.15),-.1,dy+.016,-.45,0,A,0), at(box(.2,.006,.2),-.04,dy+.016,-.98,0,A,0)].map(g=>tone(g,DK))];
+    const isl=[at(loft([[-.5,.05,.05,.05],[-.38,.07,.11,.11],[-.05,.06,.1,.1],[.08,.035,.06,.06]],TRAP),.25,M.top(-.25)-.01,0), tone(at(box(.15,.03,.14),.25,M.top(-.25)+.17,-.2),GL),
+      at(box(.02,.12,.02),.25,M.top(-.25)+.25,-.3), tone(at(box(.05,.03,.04),.25,M.top(-.25)+.32,-.3),GL)];
+    return [...M.hull(), ...deck, ...isl, ...M.eyes(1.08,.6), ...mEng([.2,-.2],-1.2,.065), tone(at(box(.22,.06,.02),-.05,.09,-1.203),DK),
+      ...mGun(0,M.top(.95),.95,.85,2), ...mGun(0,M.top(.6),.6,.85,2), ...[.12,-.12].flatMap(x=>lidsG(x,M.top(.3)+.004,.18,.42,4,.07)),
+      ...mPair(mPD,W(.2)*.6,M.top(.2),.2,.85), ...mPair(mPD,W(-1.05)*.62,M.top(-1.05),-1.05,.85),
       ...M.under(mGun(0,0,m,.65),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.9),m+dz,sg*.22)))]; },
-  spMASM:()=>{ const M=mA([[-1.05,.18,.12],[-.7,.38,.18],[.35,.38,.18],[.95,.15,.1]]), m=-.05, W=z=>M.at(z).w, BAY=[[1,1],[.8,-1],[-.8,-1],[-1,1]];
-    const spine=at(loft([[-.85,.07,.04,M.top(0)+.03],[.5,.07,.04,M.top(0)+.03],[.72,.04,.03,M.top(.72)+.025]],TRAP),0,0,0);
-    const bay=loft([-.66,-.56,.36,.46].map((z,i)=>[z,W(z)*(i%3?.62:.5),.03,M.bot(z)-.026]),BAY), yb=M.bot(m)-.056;
-    const pods=[.1,-.1].flatMap(x=>[-.39,-.13,.13,.39].flatMap(dz=>[tone(at(box(.11,.035,.17),x,yb+.004,m+dz),.8), tone(at(box(.08,.008,.13),x,yb-.016,m+dz),DK)]));
-    return [...M.hull(), spine, bay, ...pods, ...mHump(-.8,-.4,.12,.045,M.top(0)+.06), ...M.eyes(.85,.62), ...mEng([.15,-.15],-1.05,.06),
-      ...mGun(0,M.top(.62),.62,.85), ...mPair(mPD,W(-.6)*.6,M.top(-.6),-.6,.8), ...M.side(()=>flatM(0,0,m,.6),m)]; },
+  /* 突撃揚陸艦（共和国, 15.14）: built on a transport — a slim creased spine from the engines to a low bow cab, three rows of cargo
+     modules on its top and sides, two round tanks at the stern, and under the middle the W.A.S. module with two rows of four dark
+     launch lids. The flat twin secondaries lie on the side modules' walls at the middle */
+  spMASM:()=>{ const S=mA([[-.95,.07,.05],[.72,.07,.05]]), C=mA([[.68,.13,.065],[.8,.15,.075],[.95,.1,.05]]), m=-.05;
+    const mods=[-.62,-.1,.42].flatMap(z=>[...mBox(0,.11,z,.42,.13,.06), ...mBox(.19,0,z,.42,.12,.07), ...mBox(-.19,0,z,.42,.12,.07)]);
+    const hang=mBox(0,-.12,-.05,.9,.17,.07), lids=[.08,-.08].flatMap(x=>[-.44,-.18,.08,.34].map(z=>tone(at(box(.09,.008,.15),x,-.193,z),DK)));
+    return [...S.hull(), ...C.hull(), ...mods, ...hang, ...lids, ...mHump(.7,.92,.09,.035,C.top(.8)-.005), ...C.eyes(.9,.6),
+      at(tube(.07,.25,8),.12,0,-.83), at(tube(.07,.25,8),-.12,0,-.83), ...mEng([.1,-.1],-1.05,.055),
+      ...mGun(0,.17,.42,.75), ...mPair(mPD,.07,.17,-.72,.8), ...sideAt(()=>flatM(0,0,m,.6),.304,0)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
