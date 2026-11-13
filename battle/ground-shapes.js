@@ -665,18 +665,14 @@ const GROUND_SHAPES={
       at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
       ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.2,.1,-.5,.8), ...pdG(-.2,.1,-.5,.8), ...pdG(0,.28,-.55,.8)]; },
   /* 惑星共和国の宇宙の艦 (docs/models.md 15.12, outlines per class 15.13). m: the middle of the ship's length */
-  /* コルベット（共和国, 15.15, Codex 案 A「片肩の観測艇」): a symmetric core with a long observation shoulder laid over its port
-     side only (the starboard side stays nearly straight); dark optical faces on the shoulder's front and outer wall */
-  spCVM:()=>{ const M=mA([[-1,.15,.06],[-.55,.17,.07],[.3,.15,.07],[.8,.1,.055],[1.05,.07,.04]]), L=mA([[-.6,.05,.05],[-.2,.15,.072],[.3,.17,.075],[.7,.13,.062],[1,.06,.042]]), m=.025, xs=-.16;
-    return [...M.hull(), ...atX(L.hull(),xs), tone(at(box(.08,.028,.014),xs,0,1.002),GL), tone(at(box(.014,.028,.34),xs-.17,.006,.3),GL), ...M.hump(-.3,-.05,.075,.03),
-      ...mEng([0],-1,.055), ...mEng([.12,-.12],-1,.022), ...mGun(-.08,.064,.52,.7), ...mPD(0,M.top(-.62),-.62,.8), ...M.under(mGat(0,0,m,.9),m)]; },
-  /* フリゲート（共和国, 15.15, Codex 案 A「H形の双胴護衛艦」): two long armoured hulls at x ±.29 joined by a broad central block,
-     deep notches fore and aft; the command hump on the block, engines at the hulls' sterns, optics on their bows */
-  spFFM:()=>{ const H=mA([[-1,.11,.095],[-.65,.13,.115],[.65,.13,.115],[1.05,.1,.08]]), C=mA([[-.28,.36,.08],[-.22,.4,.09],[.29,.4,.09],[.35,.36,.08]]), m=.025, X=.29;
-    return [...atX(H.hull(),X), ...atX(H.hull(),-X), ...C.hull(), ...C.hump(-.24,.02,.1,.035), ...mEng([X,-X],-1,.06),
-      ...mPair((x,y,z,s)=>[tone(at(box(.08,.012,.1),x,y,z),GL)],X,H.top(.92)+.002,.92,1),
-      ...mGun(0,C.top(.18),.18,.85), ...[.62,-.62].flatMap(z=>mPair(mPD,X,H.top(z),z,.8)),
-      ...C.under(mGun(0,0,m,.6),m), ...sideAt(()=>mGat(0,0,m,.85),X+H.at(m).w-.006,.1*H.at(m).h)]; },
+  /* コルベット・フリゲート（共和国）: the first version (sample round 10, 15.12), brought back by the user (15.21) */
+  spCVM:()=>{ const M=mShip([[-1,.12,.06],[-.5,.24,.09],[0,.22,.08],[.65,.13,.055],[1,.04,.02]],-1,1.05,.9), m=M.mid;
+    return [...M.hull(), ...M.hump(m-.25,m+.2,.07,.035), ...M.eyes(.75), ...mEng([0],M.z0,.06), ...mEng([.13,-.13],M.z0,.025),
+      ...mGun(0,M.top(.45),.45,.7), ...mPD(0,M.top(-.5),-.5,.8), ...M.under(mGat(0,0,m,.9),m)]; },
+  spFFM:()=>{ const M=mShip([[-1,.17,.08],[-.5,.25,.10],[0,.34,.12],[.4,.36,.12],[1,.12,.055]],-1,1.05,.85), m=M.mid, W=z=>M.at(z).w;
+    return [...M.hull(), ...M.hump(m-.45,m-.05,.09,.04), ...M.eyes(.85), ...mEng([.09,-.09],M.z0,.05), ...mGun(0,M.top(.62),.62,.85),
+      ...[[.38,.55],[-.6,.5]].flatMap(([z,dx])=>mPair(mPD,W(z)*dx,M.top(z),z,.8)),
+      ...M.under(mGun(0,0,m,.55),m), ...M.side(()=>mGat(0,0,m,.9),m)]; },
   spDDM:()=>{ const B=mA([[-1.1,.17,.07],[-.6,.21,.08],[.2,.19,.075],[.55,.15,.065]]), P=mA([[.4,.07,.055],[1,.06,.045],[1.25,.03,.03]]), m=.075;
     return [...B.hull(), ...atX(P.hull(),.09), ...atX(P.hull(),-.09), ...pair(tone(at(box(.04,.01,.09),.09,P.top(1.08)+.002,1.08),GL)), ...B.hump(-.7,-.25,.08,.04),
       ...pair(at(loft([[-1.12,.05,.05],[-.85,.065,.06],[-.5,.03,.035]],O8),.2,0,0)), ...pair(tone(at(new THREE.CylinderGeometry(.04,.034,.04,8).rotateX(Math.PI/2),.2,0,-1.13),DK)), ...mGun(0,B.top(.3),.3,.85,2), ...mPair(mPD,B.at(-.45).w*.5,B.top(-.45),-.45,.75),
