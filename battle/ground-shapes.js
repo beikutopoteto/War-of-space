@@ -645,13 +645,13 @@ const GROUND_SHAPES={
   /* 惑星共和国の宇宙の艦 (docs/models.md 15.12): sections from the Codex study, stretched to the Earth ship's length */
   spCVM:()=>{ const M=mShip([[-1,.12,.06],[-.5,.24,.09],[0,.22,.08],[.65,.13,.055],[1,.04,.02]],-1,1.05,.9), m=M.mid;
     return [...M.hull(), ...M.hump(m-.25,m+.2,.07,.035), ...M.eyes(.75), ...mEng([0],M.z0,.06), ...mEng([.13,-.13],M.z0,.025),
-      ...mGun(0,M.top(.45),.45,.55), ...mPD(0,M.top(-.5),-.5,.8), ...M.under(mGat(0,0,m,.9),m)]; },
+      ...mGun(0,M.top(.45),.45,.7), ...mPD(0,M.top(-.5),-.5,.8), ...M.under(mGat(0,0,m,.9),m)]; },
   spFFM:()=>{ const M=mShip([[-1,.17,.08],[-.5,.25,.10],[0,.34,.12],[.4,.36,.12],[1,.12,.055]],-1,1.05,.85), m=M.mid, W=z=>M.at(z).w;
-    return [...M.hull(), ...M.hump(m-.45,m-.05,.09,.04), ...M.eyes(.85), ...mEng([.09,-.09],M.z0,.05), ...mGun(0,M.top(.62),.62,.65),
+    return [...M.hull(), ...M.hump(m-.45,m-.05,.09,.04), ...M.eyes(.85), ...mEng([.09,-.09],M.z0,.05), ...mGun(0,M.top(.62),.62,.85),
       ...[[.38,.55],[-.6,.5]].flatMap(([z,dx])=>mPair(mPD,W(z)*dx,M.top(z),z,.8)),
       ...M.under(mGun(0,0,m,.55),m), ...M.side(()=>mGat(0,0,m,.9),m)]; },
   spDDM:()=>{ const M=mShip([[-1,.16,.08],[-.5,.26,.11],[0,.27,.11],[.55,.20,.08],[1,.035,.025]],-1.1,1.25,.85), m=M.mid, W=z=>M.at(z).w;
-    return [...M.hull(), ...M.hump(m-.55,m-.1,.08,.04), ...M.eyes(.95), ...mEng([.12,-.12],M.z0,.055), ...mGun(0,M.top(.62),.62,.7,2),
+    return [...M.hull(), ...M.hump(m-.55,m-.1,.08,.04), ...M.eyes(.95), ...mEng([.12,-.12],M.z0,.055), ...mGun(0,M.top(.62),.62,.85,2),
       ...mPair(mPD,W(-.5)*.5,M.top(-.5),-.5,.75), ...M.under(mGun(0,0,m,.7,2),m), ...M.side(()=>mGat(0,0,m,.85),m)]; },
   spCLM:()=>{ const M=mShip([[-1,.22,.10],[-.45,.43,.15],[0,.40,.15],[.55,.23,.10],[1,.06,.035]],-1.1,1.2,.85), m=M.mid, W=z=>M.at(z).w;
     return [...M.hull(), ...M.hump(m-.4,m+.05,.12,.05), ...M.eyes(1), ...mEng([.16,0,-.16],M.z0,.065),
@@ -672,7 +672,7 @@ const GROUND_SHAPES={
     const bay=loft([-.66,-.56,.36,.46].map((z,i)=>[z,W(z)*(i%3?.62:.5),.03,M.bot(z)-.026]),BAY), yb=M.bot(m)-.056;
     const pods=[.1,-.1].flatMap(x=>[-.39,-.13,.13,.39].flatMap(dz=>[tone(at(box(.11,.035,.17),x,yb+.004,m+dz),.8), tone(at(box(.08,.008,.13),x,yb-.016,m+dz),DK)]));
     return [...M.hull(), bay, ...pods, ...M.hump(-.75,-.35,.12,.045), ...M.eyes(.8), ...mEng([.12,-.12],M.z0,.06),
-      ...mGun(0,M.top(.45),.45,.7), ...mPair(mPD,W(-.6)*.6,M.top(-.6),-.6,.8), ...M.side(()=>flatM(0,0,m,.6),m)]; },
+      ...mGun(0,M.top(.45),.45,.85), ...mPair(mPD,W(-.6)*.6,M.top(-.6),-.6,.8), ...M.side(()=>flatM(0,0,m,.6),m)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
