@@ -31,8 +31,8 @@
 | `docs/campaign.md` | キャンペーンの作戦の表、各節の実装メモ |
 | `docs/chapter1.md` | 第一章の物語の正本 |
 | `docs/chapter2.md` | 第二章の物語の正本（叩き台） |
-| `docs/ground-redesign-plan.md` | 地上・海上戦の再設計作業表（確定事項・射程仮案・未着手） |
-| `docs/terrain.md` | 地上戦のマップの地形作成方針書（地形・オブジェクト・地表、作る順、設計図の形）。作戦ごとの設計図は `docs/terrain/` |
+| `docs/ground-redesign-plan.md` | 地上・海上戦の再設計（確定・仮案・未着手） |
+| `docs/terrain.md` | 地上戦のマップの地形の方針（作る順、設計図の形）。作戦ごとは `docs/terrain/` |
 | `docs/supply.md` | 地上戦の補給と士気（仕様と仮の数値） |
 | `docs/npc-doctrine.md` | NPC の規範行動（宇宙と地上で共通の指揮官の層、陣営の性格、強さの段階、確かめ方） |
 | `docs/ground-structure.md` | 地上のコードの作りの見直し（第二章の前の整理） |
@@ -40,7 +40,8 @@
 | `docs/riko.md` | リコ軍曹の話し方と考え方（台詞を書く前に読む） |
 | `docs/story.md` | 世界設定（年表、D-RAMS、居住区の重さ、W.A.S.、拠点と資源衛星、火星、勢力、戦争の暦） |
 | `docs/tutorial.md` | チュートリアル（カリュブディス）の計画 |
-| `docs/maps.md` | 天体とマップの作り方（衛星の形、岩くずの雲、民間区画、地表の砲台、段階のある作戦の部品、`tools/` の確かめ方、ユーザーの好み） |
+| `docs/maps.md` | 天体とマップの作り方（衛星、岩くず、民間区画、砲台、作戦の部品、確かめ方、好み） |
+| `docs/models.md` | 地上戦の3Dモデル（決定、見本の作り方、残り: 海の艦・強襲母艦） |
 | `docs/code.md` | コードの構成（ファイルの役割、`battle/` の読み込み順、保存、画面のつながり、艦隊の仕様の形式、確認） |
 | `docs/reports/` | Codex の評価・価格の見積もり、監査の報告 |
 | `docs/plans/` | 作戦の布陣とブリーフィングの図（`.png` と `.py`） |
