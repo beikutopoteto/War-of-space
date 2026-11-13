@@ -327,6 +327,58 @@ function mechParts(step){ const p=[], T=.4;
   p.push(at(loft([[-.3,.13,.09],[.05,.19,.14],[.42,.1,.07,-.03]],HEX),0,.93,0), tone(at(box(.16,.03,.03),0,.93,.4),GL), tone(at(box(.1,.14,.2),0,1.05,-.18),.6),
     ...pair(at(box(.07,.1,.24),.22,.93,.05)), ...pair(tone(at(tube(.028,.42,5),.22,.92,.38),DK)), tone(at(box(.3,.05,.08),0,.84,-.05),DK), tone(at(box(.02,.3,.02),.035,1.25,-.2),DK));
   return p; }
+/* sea ships (docs/models.md 13): the space ships changed a little for the sea. SEA: the hull's cross-section — a flat deck,
+   sides that lean in above a knuckle and flare below it, a flat bottom; lofted with half-height .1 and y offset .03 the deck
+   is at y .13 and the bottom at y -.07 (waterline y 0). A half-width of 0 ends the hull in an upright stem.
+   seaMast: an optical mast (no radar: a post, a yard and a sensor box). railTurret: a low faceted gun house with a railgun —
+   two flat rails one above the other with a gap, a breech box and two clamps — standing on y at z, s: scale, rear: facing aft.
+   gunTurret: a small house with one slim barrel. cellsG: the dark lids of vertical launch cells let into the deck */
+const SEA=[[.9,1],[1,.3],[.7,-1],[-.7,-1],[-1,.3],[-.9,1]];
+const seaMast=(z,y0,h,w=.2)=>[at(box(.03,h,.03),0,y0+h/2,z), at(box(w,.012,.02),0,y0+h*.65,z), at(box(.07,.035,.05),0,y0+h,z)];
+const seaSet=(p,y,z,s,rear)=>p.map(g=>{ g.scale(s,s,s); if(rear) g.rotateY(Math.PI); g.translate(0,y,z); return g; });
+const railTurret=(y,z,s=1,rear=false,el=.12)=>seaSet([loft([[-.13,.1,.045,.045],[.04,.11,.045,.045],[.16,.05,.04,.04]],TRAP),
+  ...[at(box(.07,.05,.12),0,0,.08), at(box(.045,.012,.46),0,.016,.3), at(box(.045,.012,.46),0,-.016,.3), at(box(.056,.05,.025),0,0,.34), at(box(.056,.05,.025),0,0,.52)].map(g=>tone(at(g,0,.05,.04,-el),DK))],y,z,s,rear);
+const gunTurret=(y,z,s=1)=>seaSet([loft([[-.07,.06,.035,.035],[.03,.065,.035,.035],[.1,.03,.03,.03]],TRAP), tone(at(tube(.012,.3,5),0,.04,.2,-.1),DK)],y,z,s,false);
+const cellsG=(z,w,l,y=.134)=>[z-l*.27,z+l*.27].flatMap(c=>pair(tone(at(box(w*.46,.012,l*.46),w*.27,y,c),DK)));
+/* space ship parts with tones: engine bells and the laser turret of battle/shapes.js, bell and barrel dark */
+const spBells=(xs,y,z,r)=>engines(xs,y,z,r).map(g=>tone(g,DK));
+const spTurret=(x,y,z,r)=>{ const [b,g]=turret(x,y,z,r); return [b,tone(g,DK)]; };
+/* space ship parts, round 2 (docs/models.md 15.4). atX: move parts sideways. laserT: a laser turret worked out — an octagonal
+   ring, a faceted house pointed at the front with two radiator fins at its back, one or two dark emitter barrels each with a collar
+   and a wider lens housing at the muzzle; x,y,z: where it stands, s: scale (1: house .2 wide), n: barrels, rear: facing aft.
+   pdG: point defence against craft and missiles — a low neck, a faceted half dome, two short dark emitters raised forward.
+   lidsG: a row of n dark launcher lids along z on a top at y */
+const atX=(p,x)=>p.map(g=>{ g.translate(x,0,0); return g; });
+const laserT=(x,y,z,s=1,n=1,rear=false,el=.06)=>{ const p=[at(new THREE.CylinderGeometry(.1,.11,.03,8),0,.015,0), loft([[-.12,.09,.04,.06],[.03,.1,.045,.065],[.13,.05,.035,.06]],TRAP), ...pair(at(box(.012,.1,.07),.062,.09,-.08))];
+  for(const dx of n>1?[-.035,.035]:[0]) p.push(...[at(tube(.013,.32,6),dx,0,.26), at(tube(.02,.03,6),dx,0,.14), at(tube(.025,.06,6),dx,0,.42)].map(g=>tone(at(g,0,.07,0,-el),DK)));
+  return atX(seaSet(p,y,z,s,rear),x); };
+const pdG=(x,y,z,s=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.028,.034,.04,6),0,.02,0), at(new THREE.SphereGeometry(.036,6,3,0,Math.PI*2,0,Math.PI/2),0,.035,0),
+  ...[-.013,.013].map(dx=>tone(at(tube(.007,.08,4),dx,.05,.045,-.35),DK))],y,z,s,false),x);
+const lidsG=(x,y,z0,z1,n,w=.04)=>[...Array(n)].map((_,i)=>tone(at(box(w,.012,(z1-z0)/n*.7),x,y,z0+(z1-z0)*(i+.5)/n),DK));
+/* underside weapons (docs/models.md 15.6). flipY: turn parts upside down (x and y change sign). gatG: an interceptor gatling
+   standing on y — a low ring, a box, a bundle of six thin dark barrels with a ring at the front. belly: a laser turret hung under
+   the keel at y (the keel's height, negative) on a low barbette; gatB: a gatling hung under a surface at y */
+const flipY=p=>p.map(g=>{ g.rotateZ(Math.PI); return g; });
+const gatG=(x,y,z,s=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.034,.038,.03,8),0,.015,0), at(box(.056,.045,.07),0,.05,0),
+  ...[...Array(6)].map((_,i)=>tone(at(tube(.0055,.12,4),Math.cos(i*Math.PI/3)*.014,.05+Math.sin(i*Math.PI/3)*.014,.09),DK)), tone(at(tube(.022,.014,6),0,.05,.125),DK)],y,z,s,false),x);
+const belly=(x,y,z,s=1,n=1,rear=false)=>[at(new THREE.CylinderGeometry(.11*s,.11*s,.1*s,8),x,y+.03*s,z), ...flipY(laserT(-x,-(y-.02*s),z,s,n,rear))];
+const gatB=(x,y,z,s=1)=>flipY(gatG(-x,-(y+.01),z,s));
+/* longT: a big turret with one long gun (the battleship's underside heavy gun, docs/models.md 15.8) standing on y — a broad ring,
+   a long faceted house, radiator fins, a long dark barrel of length len with rings at its root, middle and muzzle. bellyL hangs it
+   under the keel at y on a barbette */
+const longT=(x,y,z,s=1,len=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.12,.13,.035,8),0,.017,0), loft([[-.16,.11,.05,.07],[.06,.12,.055,.075],[.18,.06,.04,.07]],TRAP),
+  ...pair(at(box(.012,.11,.09),.075,.1,-.1)), ...[at(tube(.022,len,6),0,0,.15+len/2), at(tube(.032,.08,6),0,0,.2), at(tube(.028,.05,6),0,0,.15+len*.5), at(tube(.036,.1,6),0,0,.12+len)].map(g=>tone(at(g,0,.085,0),DK))],y,z,s,false),x);
+const bellyL=(y,z,s=1,len=1)=>[at(new THREE.CylinderGeometry(.13*s,.13*s,.1*s,8),0,y+.03*s,z), ...flipY(longT(0,-(y-.02*s),z,s,len))];
+/* railL: the battleship's big railgun (docs/models.md 15.9) standing on y — a broad low octagonal platform, a low flat house, a dark
+   breech box, two flat rails one above the other running len forward, four clamps and a muzzle box. bellyR hangs it under the keel
+   at y on a low barbette sunk into the hull */
+const railL=(x,y,z,s=1,len=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.2,.21,.03,8),0,.015,0), loft([[-.17,.12,.025,.055],[.08,.13,.03,.06],[.2,.07,.022,.055]],TRAP),
+  ...[at(box(.09,.05,.14),0,.06,.2), at(box(.06,.016,len),0,.082,.2+len/2), at(box(.06,.016,len),0,.038,.2+len/2), ...[0,1,2,3].map(i=>at(box(.075,.075,.03),0,.06,.32+i*(len-.16)/3)), at(box(.08,.08,.045),0,.06,.2+len)].map(g=>tone(g,DK))],y,z,s,false),x);
+const bellyR=(y,z,s=1,len=1)=>[at(new THREE.CylinderGeometry(.21*s,.21*s,.12*s,8),0,y+.04*s,z), ...flipY(railL(0,-(y-.02*s),z,s,len))];
+/* flatT: a flattened laser turret (height k of laserT) standing on y — the assault ship's flat twin secondary guns */
+const flatT=(x,y,z,s=1,n=2,k=.6)=>laserT(x,0,z,s,n).map(g=>{ g.scale(1,k,1); g.translate(0,y,0); return g; });
+/* sideT: a flat turret laid on its side on a side wall at x (its top facing out, barrels forward, one above the other) */
+const sideT=(x,y,z,s=1,n=2,k=.6)=>flatT(0,0,z,s,n,k).map(g=>{ g.rotateZ(x>0?-Math.PI/2:Math.PI/2); g.translate(x,y,0); return g; });
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -474,6 +526,95 @@ const GROUND_SHAPES={
     loft([[-.8,.3,.12],[-.2,.37,.18],[.5,.24,.13],[1.02,.05,.04,-.02]],LIFT), tone(at(plate([[0,.9],[.2,.5],[.3,-.2],[.26,-.74],[-.26,-.74],[-.3,-.2],[-.2,.5]],.02),0,-.17,0),DK),
     ...[-.5,-.2,.1,.4].map(z=>tone(at(new THREE.IcosahedronGeometry(.07,0),0,.17,z),GL)),
     ...pair(at(plate([[0,-.42],[0,-.72],[.26,-.78],[.26,-.56]],.035),1.36,.02,0,0,0,Math.PI/2-.3)), ...[-.2,0,.2].map(x=>tone(at(box(.16,.1,.12),x,.02,-.82),DK))],
+  /* 戦艦（海）: the space battleship's long hull and stepped house, afloat. Three railgun turrets (two forward, the second
+     raised on a barbette to fire over the first, one aft), a bridge tower with a window band and an optical mast, a funnel, small guns
+     along the sides. No keel fin, no engine bells */
+  seaBB:()=>[loft([[-1.35,.3,.1,.03],[-.6,.41,.1,.03],[.6,.31,.1,.03],[1.1,.15,.105,.035],[1.45,0,.12,.05]],SEA),
+    at(loft([[-.7,.2,.06],[.14,.2,.06],[.3,.1,.06]],TRAP),0,.19,0), at(loft([[-.3,.14,.09],[.08,.14,.09],[.2,.08,.07,-.02]],TRAP),0,.34,0),
+    tone(at(loft([[-.02,.105,.018],[.085,.105,.018],[.21,.062,.018]],RECT),0,.385,0),GL), ...seaMast(-.08,.42,.2,.24),
+    at(loft([[-.62,.07,.07],[-.44,.07,.07]],TRAP),0,.31,0), tone(at(box(.07,.012,.13),0,.382,-.53),DK),
+    ...railTurret(.125,.9,1.25), at(new THREE.CylinderGeometry(.125,.135,.08,6),0,.165,.5), ...railTurret(.2,.5,1.25), ...railTurret(.125,-.82,1.25,true),
+    ...[-.2,-.5].flatMap(z=>pair(tone(at(box(.05,.045,.09),.27,.15,z),DK)))],
+  /* イージス艦（海）: the space cruiser's broad hull and raked bridge. One small gun forward, launch cells before the bridge
+     and aft of the funnel, a faceted deckhouse, a landing pad on the stern */
+  seaCL:()=>[loft([[-1.1,.3,.1,.03],[-.45,.38,.1,.03],[.45,.29,.1,.03],[.9,.13,.105,.035],[1.2,0,.12,.05]],SEA),
+    at(loft([[-.35,.24,.1],[.1,.24,.1],[.28,.13,.1]],TRAP),0,.23,0), at(loft([[-.2,.13,.05],[.08,.13,.05],[.18,.07,.045,-.005]],TRAP),0,.38,0),
+    tone(at(loft([[0,.105,.014],[.085,.105,.014],[.19,.058,.014]],RECT),0,.385,0),GL), ...seaMast(-.1,.41,.18),
+    at(loft([[-.52,.09,.09],[-.34,.09,.09]],TRAP),0,.22,0), tone(at(box(.08,.012,.12),0,.312,-.43),DK),
+    ...gunTurret(.125,.62), ...cellsG(.42,.2,.14), ...cellsG(-.66,.3,.16), tone(at(box(.36,.008,.24),0,.132,-.93),.7)],
+  /* 高速艇（海）: the space frigate's slim arrow hull, its bow lifted to plane. A low cabin with a window band and a slim
+     mast (the frigate's fin), a small gun forward, two raised missile boxes aft */
+  seaFF:()=>[loft([[-1,.2,.075,.02],[-.35,.25,.075,.02],[.45,.18,.08,.03],[1.05,0,.1,.07]],SEA),
+    at(loft([[-.4,.13,.055],[-.02,.13,.055],[.18,.07,.045,-.01]],TRAP),0,.15,0), tone(at(loft([[-.1,.1,.014],[-.02,.1,.014],[.185,.054,.014]],RECT),0,.165,0),GL),
+    at(box(.02,.15,.02),0,.265,-.25), at(box(.14,.01,.015),0,.3,-.25), ...gunTurret(.1,.42,.8),
+    ...pair(tone(at(box(.07,.06,.26),.09,.14,-.68,-.3),DK))],
+  /* 揚陸艦（海）: the space destroyer's long narrow hull. The bridge stands forward, the after half is one flat vehicle deck
+     with a gate in the stern; the destroyer's side pods are landing boats carried on the sides. No guns */
+  seaDD:()=>[loft([[-1.1,.2,.1,.03],[-.4,.22,.1,.03],[.7,.15,.1,.03],[1,.08,.105,.04],[1.25,0,.115,.05]],SEA),
+    at(loft([[.2,.15,.09],[.55,.14,.09],[.7,.08,.08,-.01]],TRAP),0,.22,0), tone(at(loft([[.45,.105,.014],[.555,.1,.014],[.705,.056,.014]],RECT),0,.27,0),GL),
+    ...seaMast(.35,.3,.16,.16), tone(at(box(.3,.008,1.1),0,.132,-.45),.7), tone(at(box(.26,.12,.02),0,.06,-1.1),DK),
+    ...pair(tone(at(loft([[-.6,.04,.035],[-.2,.04,.035],[-.1,.02,.03,.005]],RECT),.225,.1,0),.8))],
+  /* 強襲母艦 (docs/models.md 14): one design for space and sea — the space carrier's two slim hulls joined by a broad deck,
+     worked out. Twin flat-bottomed hulls with an engine bell in each stern, a hangar body between them under the deck with a
+     dark launch mouth at its front, a flight deck with two launch tracks, two W.A.S. lifts on the port side and a landing area
+     aft, an island on the starboard hull, two small guns. Waterline y 0 */
+  masc2:()=>{ const CAT=[[.6,1],[1,.2],[.6,-1],[-.6,-1],[-1,.2],[-.6,1]], sx=(p,x)=>p.map(g=>{ g.translate(x,0,0); return g; });
+    return [...pair(at(loft([[-1.2,.12,.12,.06],[-.4,.16,.13,.06],[.6,.13,.125,.06],[1.25,0,.07,.11]],CAT),.36,0,0)),
+      loft([[-.95,.21,.09,.11],[.5,.21,.09,.11],[.78,.15,.07,.13]],RECT), tone(at(box(.26,.1,.02),0,.125,.782),DK),
+      at(loft([[-1.05,.5,.025],[.3,.5,.025],[.82,.3,.025]],RECT),0,.215,0),
+      ...engines([.36,-.36],.07,-1.26,.085).map(g=>tone(g,DK)), ...engines([.1,-.1],.11,-1,.055).map(g=>tone(g,DK)),
+      ...pair(tone(at(box(.03,.008,.95),.1,.241,.3),DK)), ...[-.25,.12].map(z=>tone(at(box(.17,.008,.22),-.3,.241,z),DK)), tone(at(box(.6,.008,.4),0,.241,-.75),.7),
+      at(loft([[-.5,.075,.07],[-.12,.075,.07],[.02,.04,.06,-.01]],TRAP),.38,.31,0), tone(at(loft([[-.2,.062,.014],[-.12,.062,.014],[.025,.034,.014]],RECT),.38,.335,0),GL),
+      at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
+      ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
+  /* space ships worked out (docs/models.md 15, round 2 in 15.4): today's hulls with their numbers kept, outlines added where
+     the role shows, laser turrets worked out (laserT), point defence on every ship (pdG). Centred on y 0. sp…: shown on the
+     sample sheet; the game still draws SHAPES */
+  spCV:()=>[loft([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]]), ...pair(at(plate([[.08,-.2],[.5,-.65],[.5,-.8],[.08,-.62]]),0,0,0)),
+    at(plate([[0,-.35],[0,-.85],[.03,-.85],[.03,-.5]],.02),0,.05,0,0,0,Math.PI/2), ...pair(at(plate([[.08,.58],[.21,.44],[.21,.4],[.08,.42]],.02),0,0,0)),
+    ...pair(at(loft([[-.98,.05,.045],[-.75,.055,.05],[-.55,.035,.03]]),.17,0,0)), ...spBells([0],0,-1.08,.09), ...spBells([.17,-.17],0,-1.03,.045),
+    at(tube(.006,.28,4),0,0,1.17), tone(at(box(.018,.018,.04),0,0,1.3),GL), tone(at(box(.08,.03,.16),0,.075,.2),GL), ...belly(0,-.081,.03,.45),
+    ...pair(at(loft([[-.86,.03,.03],[-.62,.035,.035],[-.45,0,0]]),.5,0,0)), ...pair(tone(at(tube(.012,.06,5),.5,0,-.89),DK)), ...pdG(0,.08,-.2,.8), ...gatB(0,-.092,-.3,.8)],
+  spFF:()=>[loft([[-1,.2,.13],[-.35,.25,.16],[.45,.18,.12],[1.05,0,.01]]), at(loft([[-.55,.06,.05],[-.1,.07,.09,.04],[.25,0,0,.02]]),0,.14,0),
+    ...pair(at(plate([[.2,-.5],[.42,-.85],[.42,-.95],[.2,-.85]]),0,-.02,0)), ...spBells([.1,-.1],0,-1.05,.08),
+    ...pair(at(loft([[-.6,.05,.045],[-.5,.065,.055],[.05,.065,.055],[.15,.05,.045]],RECT),.25,.03,0)), ...[.25,-.25].flatMap(x=>lidsG(x,.088,-.48,0,5,.08)),
+    ...laserT(0,.098,.55,.8), tone(at(box(.06,.025,.1),0,.2,.05),GL), ...pdG(0,.245,-.2,.8), ...pdG(.25,.083,.1,.7), ...pdG(-.25,.083,.1,.7),
+    ...belly(0,-.141,.03,.7), ...gatB(.12,-.11,-.4,.8), ...gatB(-.12,-.11,-.4,.8)],
+  spDD:()=>[loft([[-1.1,.18,.12],[-.4,.21,.14],[.7,.13,.09],[1.25,0,0]]), at(loft([[-.5,.07,.06],[-.15,.08,.1,.04],[.2,0,0,.02]]),0,.13,0),
+    tone(loft([[-.55,.218,.055],[-.4,.222,.06],[.4,.163,.06],[.5,.15,.05]],SLAB),.8),
+    ...pair(tone(at(loft([[-.75,.06,.06],[-.6,.07,.07],[.3,.07,.07],[.45,.055,.055]]),.29,-.03,0),.85)), ...pair(at(plate([[.15,-.2],[.29,-.25],[.29,.05],[.15,.15]],.02),0,-.03,0)),
+    ...[.29,-.29].flatMap(x=>[[-.022,-.012],[.022,-.012],[0,.022]].map(([dx,dy])=>tone(at(tube(.015,.03,6),x+dx,-.03+dy,.455),DK))), ...spBells([.08,-.08],0,-1.15,.07),
+    ...laserT(0,.088,.62,.8), tone(at(box(.07,.025,.1),0,.2,-.02),GL), ...pdG(.29,.035,-.35,.7), ...pdG(-.29,.035,-.35,.7), ...pdG(0,.205,-.42,.7),
+    ...belly(0,-.118,.08,.7), ...gatB(.1,-.089,-.2,.8), ...gatB(-.1,-.089,-.2,.8)],
+  spCL:()=>[loft([[-1.1,.32,.19],[-.45,.38,.23],[.45,.29,.17],[1.2,0,.01,-.02]]), at(loft([[-.6,.15,.09],[-.25,.17,.16,.06],[.05,.1,.08,.03],[.25,0,0]]),0,.2,0),
+    ...laserT(0,.142,.55,1,2), ...laserT(0,.2,-.82,1,2,true),
+    ...pair(at(plate([[.3,-.45],[.55,-.75],[.55,-.95],[.3,-.9]]),0,-.04,0)), ...spBells([.17,-.17,0],0,-1.15,.09), tone(at(box(.14,.03,.08),0,.3,.02),GL),
+    ...pdG(.2,.11,.1,.8), ...pdG(-.2,.11,.1,.8), ...pdG(.22,.14,-.45,.8), ...pdG(-.22,.14,-.45,.8),
+    ...belly(0,-.197,.05,.6), ...sideT(.322,0,.05,.6), ...sideT(-.322,0,.05,.6), ...gatB(.15,-.171,-.5,.9), ...gatB(-.15,-.171,-.5,.9)],
+  spBB:()=>[loft([[-1.35,.34,.2],[-.6,.41,.25],[.6,.31,.19],[1.45,0,.01,-.03]]), at(loft([[-.85,.18,.09],[-.35,.2,.17,.06],[.05,.13,.1,.04],[.3,0,0,.02]]),0,.22,0),
+    at(loft([[-.6,.08,.07],[-.4,.08,.12,.05],[-.2,0,0,.03]]),0,.44,0),
+    ...laserT(0,.118,.88,1.3,2), at(new THREE.CylinderGeometry(.13,.14,.08,8),0,.22,.52), ...laserT(0,.26,.52,1.3,2), ...laserT(0,.215,-1.02,1.25,2,true),
+    ...laserT(.27,.11,.12,.55), ...laserT(-.27,.11,.12,.55), ...laserT(.27,.13,-.3,.55), ...laserT(-.27,.13,-.3,.55),
+    at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1), ...pair(at(plate([[.26,-1.05],[.46,-1.2],[.46,-1.32],[.26,-1.3]],.02),0,0,0)),
+    ...pdG(.15,.33,-.5,.9), ...pdG(-.15,.33,-.5,.9), ...pdG(.3,.12,-.72,.9), ...pdG(-.3,.12,-.72,.9),
+    tone(at(box(.16,.03,.08),0,.33,0),GL), at(box(.025,.14,.025),0,.6,-.45), at(box(.12,.012,.02),0,.62,-.45), tone(at(box(.05,.03,.04),0,.68,-.45),GL),
+    ...bellyR(-.24,-.4,1.1,1.25), ...gatB(.2,-.139,.1,1), ...gatB(-.2,-.139,.1,1), ...gatB(.25,-.137,-.9,1), ...gatB(-.25,-.137,-.9,1)],
+  spCVB:()=>[at(loft([[-1.2,.3,.03],[-.8,.38,.03],[.55,.34,.03],[1.2,.06,.03]],RECT),0,.16,0), loft([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]]),
+    loft([[-.85,.17,.035,.095],[.7,.17,.035,.095],[.8,.12,.03,.095]],RECT), tone(at(box(.2,.05,.01),0,.095,.802),DK),
+    at(loft([[-.4,.05,.05],[-.22,.06,.18,.09],[0,.035,.09,.05],[.1,0,0]]),.33,.2,0), ...spBells([.1,-.1],-.02,-1.2,.08),
+    ...pair(tone(at(box(.03,.008,1),.09,.191,.25),DK)), tone(at(box(.14,.008,.2),-.22,.191,-.3),DK), tone(at(box(.5,.008,.36),0,.191,-.9),.7),
+    tone(at(box(.06,.03,.07),.33,.36,-.1),GL), at(box(.02,.12,.02),.33,.47,-.22), tone(at(box(.05,.025,.035),.33,.54,-.22),GL),
+    ...laserT(-.26,.19,.3,.6), ...laserT(-.26,.19,-.1,.6), ...pdG(.3,.19,-1,.8), ...pdG(-.3,.19,-1,.8), ...pdG(.24,.19,.62,.8), ...pdG(-.2,.19,.75,.8),
+    ...belly(0,-.134,0,.6), ...gatB(.1,-.082,.3,.8), ...gatB(-.1,-.082,.3,.8), ...gatB(.12,-.094,-.7,.8), ...gatB(-.12,-.094,-.7,.8), ...gatB(.3,.13,-.3,.8), ...gatB(-.3,.13,-.3,.8)],
+  /* 突撃揚陸艦 (docs/models.md 15.5): the W.A.S. drop from under the body — a flat-bottomed launch bay under the hull, its sides
+     drawn in toward the bottom, and two rows of five pods (one W.A.S. each) half out of its floor, each with a dark lid. No side pods:
+     a flat twin secondary gun laid on each side wall (15.7) */
+  spMAS:()=>{ const BAY=[[1,1],[.8,-1],[-.8,-1],[-1,1]];
+    const pods=[.11,-.11].flatMap(x=>[-.5,-.3,-.1,.1,.3].flatMap(z=>[tone(at(loft([[-.08,.04,.035],[.06,.05,.04],[.08,.035,.03]],O8),x,-.22,z),.8), tone(at(box(.06,.01,.1),x,-.258,z),DK)]));
+    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...sideT(.272,0,-.05,.6), ...sideT(-.272,0,-.05,.6),
+      loft([[-.75,.2,.06,-.13],[-.6,.26,.075,-.145],[.4,.25,.075,-.145],[.6,.18,.05,-.12]],BAY), ...pods,
+      at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
+      ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.2,.1,-.5,.8), ...pdG(-.2,.1,-.5,.8), ...pdG(0,.28,-.55,.8)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
@@ -492,7 +633,7 @@ const GROUND_FORMS={
 /* ground unit kind (f.groundKind, or sea:<naval model> for ships) → the model the game draws. A value is one spec
    {key, size, form, move:[keys]}, or {earth:spec, mars:spec} when the two sides have their own shapes. key: in GROUND_SHAPES; size: scale of
    the model in the ground board's units (4 units = 1 km); form: a name in GROUND_FORMS (default one). A kind that is not listed
-   keeps the old drawing (the ships on the sea, until their models are made). The user approved sample round 14 (version 20) on
+   keeps the old drawing (the carrier and the assault ship on the sea). The user approved sample round 14 (version 20) on
    2026-11-13 (docs/models.md 12); the entries are the ones that sample used (docs/mockups/models/pilot-override.txt). Sizes: a trooper
    .32 × 1.57 units is about 2 m, the W.A.S. .75 × 1.45 about 4.3 m */
 const GROUND_MODELS={
@@ -513,6 +654,13 @@ const GROUND_MODELS={
   fighter:{earth:{key:'ftrE',size:.6,form:'flight4'},mars:{key:'ftrM',size:.6,form:'flight4'}},
   attack:{earth:{key:'atkE',size:.6,form:'flight4'},mars:{key:'atkM',size:.6,form:'flight4'}},
   supportAircraft:{earth:{key:'awE',size:1,form:'one'},mars:{key:'awM',size:1,form:'one'}},
+  /* sea ships and the assault carrier (docs/models.md 13・14, approved 2026-11-13): one shape for both sides, at today's size
+     (SHIP_SIZE), one ship per unit. The carrier and the assault ship on the sea (sea:cvb, sea:mas) keep the old drawing */
+  'sea:bb':{key:'seaBB',size:2.04,form:'one'},
+  'sea:cl':{key:'seaCL',size:1.44,form:'one'},
+  'sea:ff':{key:'seaFF',size:.84,form:'one'},
+  'sea:dd':{key:'seaDD',size:1.02,form:'one'},
+  'sea:masc':{key:'masc2',size:1.92,form:'one'},
 };
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
    only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the

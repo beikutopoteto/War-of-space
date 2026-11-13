@@ -9,10 +9,10 @@ function nodeChecks(){
   check('採用表の全陣営のキーと編隊が存在する',`Object.values(GROUND_MODELS).every(m=>['earth','mars'].every(side=>{const s=m.earth||m.mars?m[side]:m;return !!s&&Object.prototype.hasOwnProperty.call(GROUND_SHAPES,s.key)&&Object.prototype.hasOwnProperty.call(GROUND_FORMS,s.form||'one');}))`);
   check('未採用の兵科は従来表示',`groundModelFor('missing-kind')===null`);
   /* the table the user approved (sample round 14, 2026-11-13): the same entries as the sample's override, and every land and air
-     kind of the ground battle has a model; ships keep the old drawing until theirs are made */
+     kind of the ground battle and the sea ships (docs/models.md 13・14) have a model; sea:cvb and sea:mas keep the old drawing */
   const approved=fs.readFileSync(path.join(__dirname,'../docs/mockups/models/pilot-override.txt'),'utf8').trim();
-  check('採用表は見本の差し替えと同じ',`(o=>o.split(',').every(e=>{const [who,key,size,form,move]=e.split(':'),[kind,side]=who.split('@');return (side?[side]:['earth','mars']).every(sd=>{const m=groundModelFor(kind,sd);return !!m&&m.key===key&&Math.abs(m.size-+size)<1e-9&&m.form===form&&m.move.join('+')===(move||'');});}))(${JSON.stringify(approved)})`);
-  check('地上戦の全兵科に採用の形があり海艦は従来表示',`Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&groundModelFor('sea:cl')===null`);
+  check('採用表は見本の差し替えと同じ',`(o=>o.split(',').every(e=>{const q=e.split(':'),n=q[0]==='sea'?2:1,who=q.slice(0,n).join(':'),[key,size,form,move]=q.slice(n),[kind,side]=who.split('@');return (side?[side]:['earth','mars']).every(sd=>{const m=groundModelFor(kind,sd);return !!m&&m.key===key&&Math.abs(m.size-+size)<1e-9&&m.form===form&&m.move.join('+')===(move||'');});}))(${JSON.stringify(approved)})`);
+  check('地上戦の全兵科と海の艦に採用の形があり、海の戦闘母艦・突撃揚陸艦は従来表示',`Object.keys(WOS_TERRAIN.exercise2.unitTypes).every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&['sea:bb','sea:cl','sea:ff','sea:dd','sea:masc'].every(k=>['earth','mars'].every(sd=>!!groundModelFor(k,sd)))&&groundModelFor('sea:cvb')===null&&groundModelFor('sea:mas')===null`);
   /* the checks below test the address override and the old drawing, so they run on an empty table; it is put back at the end */
   run(`globalThis.APPROVED_MODELS={...GROUND_MODELS};for(const k of Object.keys(GROUND_MODELS))delete GROUND_MODELS[k];`);
   check('未知・継承されたキーは見つからない',`groundShapeGeo('missing-model')===null&&groundShapeGeo('toString')===null`);

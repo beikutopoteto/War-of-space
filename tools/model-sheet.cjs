@@ -8,6 +8,7 @@ function options(args){
 function validate(config){
   if(!config||typeof config.title!=='string'||!Array.isArray(config.groups))throw new Error('config needs title and groups');
   if(config.pageTitle!=null&&typeof config.pageTitle!=='string')throw new Error('pageTitle must be a string');
+  if(config.bottomView!=null&&typeof config.bottomView!=='boolean')throw new Error('bottomView must be true or false');
   for(const g of config.groups){if(typeof g.title!=='string'||(g.items!=null&&!Array.isArray(g.items))||(g.images!=null&&!Array.isArray(g.images))||(!Array.isArray(g.items)&&!Array.isArray(g.images)))throw new Error('group needs title and items or images');
     for(const image of g.images||[])if(!image||typeof image.src!=='string'||typeof image.caption!=='string')throw new Error('image needs src and caption strings');
     for(const i of g.items||[])if(!i||typeof i.key!=='string'||typeof i.label!=='string'||!['ground','ship','craft'].includes(i.table)||(i.form!=null&&typeof i.form!=='string')||(i.side!=null&&!['earth','mars'].includes(i.side)))throw new Error('item needs label, key, table (ground/ship/craft), form name and optional side (earth/mars)');}
@@ -37,7 +38,7 @@ function sheetPage(){
       if(!Object.prototype.hasOwnProperty.call(table,item.key)){text('p','missing: '+item.key,el,'missing');return;}
       const geo=item.table==='ground'?groundShapeGeo(item.key,!!item.mono):item.table==='ship'?shapeGeo(item.key):craftGeo(item.key);
       const scene=new THREE.Scene();scene.background=new THREE.Color('#172330');scene.add(new THREE.AmbientLight(0x3a4a66,.9));
-      const sun=new THREE.DirectionalLight(0xffe2c0,1.6);sun.position.set(120,80,40);scene.add(sun);const rim=new THREE.DirectionalLight(0x6fa8ff,.7);rim.position.set(-100,30,-120);scene.add(rim);
+      const sun=new THREE.DirectionalLight(0xffe2c0,1.6);sun.position.set(120,80,40);scene.add(sun);const rim=new THREE.DirectionalLight(0x6fa8ff,.7);rim.position.set(-100,30,-120);scene.add(rim);const under=new THREE.DirectionalLight(0xffe2c0,1.4);under.position.set(60,-120,40);under.visible=false;scene.add(under);scene.userData.under=under;
       const group=new THREE.Group(),mat=material(item.table,item.side);scene.add(group);
       const form=item.form??'one';
       if(!Object.prototype.hasOwnProperty.call(GROUND_FORMS,form))throw new Error('Unknown form: '+form);
@@ -47,7 +48,7 @@ function sheetPage(){
       const plane=new THREE.Mesh(new THREE.PlaneGeometry(radius*100,radius*100),new THREE.MeshStandardMaterial({color:'#7f8758',roughness:1}));
       plane.rotation.x=-Math.PI/2;plane.position.y=bounds.min.y-center.y-.015;plane.visible=false;scene.add(plane);
       const views=[addView(el,'斜め上・ドラッグで回転・クリックしてからホイールで拡大','large')],fixed=document.createElement('div');fixed.className='views';el.appendChild(fixed);
-      for(const [label,kind] of [['真横','side'],['真上','top'],['正面','front']])views.push(addView(fixed,label,kind));
+      for(const [label,kind] of [['真横','side'],['真上','top'],['正面','front'],...(config.bottomView?[['真下','bottom']]:[])])views.push(addView(fixed,label,kind));if(config.bottomView)fixed.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
       text('p','ゲームでの大きさ',el,'strip-title');const strip=document.createElement('div');strip.className='views';el.appendChild(strip);
       for(const px of [16,32,64])views.push({...addView(strip,px+' px','size'),px});
       const card={el,scene,group,mat,plane,views,item,radius,extent,visible:false,dirty:true,yaw:0,pitch:0,dragged:false,angle:0,zoom:1};cards.push(card);
@@ -77,7 +78,7 @@ function sheetPage(){
     if(view.kind==='large'){
       const pitch=Math.max(.1,Math.min(1.5,.65+card.pitch)),yaw=.65+card.yaw+card.angle;
       direction.set(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));
-    }else if(view.kind==='side')direction.set(1,0,0);else if(view.kind==='top'){direction.set(0,1,0);camera.up.set(0,0,-1);}else if(view.kind==='front')direction.set(0,0,1);
+    }else if(view.kind==='side')direction.set(1,0,0);else if(view.kind==='top'){direction.set(0,1,0);camera.up.set(0,0,-1);}else if(view.kind==='front')direction.set(0,0,1);else if(view.kind==='bottom'){direction.set(0,-1,0);camera.up.set(0,0,-1);}
     camera.position.copy(direction.normalize().multiplyScalar(r*10));camera.lookAt(0,0,0);camera.updateMatrixWorld();
     {
       // Project the centred geometry bounds, including every body in a formation.
@@ -91,7 +92,7 @@ function sheetPage(){
     }
     if(view.kind==='large')span/=card.zoom;
     camera.left=-span*aspect/2;camera.right=span*aspect/2;camera.top=span/2;camera.bottom=-span/2;camera.updateProjectionMatrix();
-    card.plane.visible=view.kind==='size';renderer.render(card.scene,camera);canvas.getContext('2d').drawImage(renderer.domElement,0,0,pw,ph);
+    card.plane.visible=view.kind==='size';card.scene.userData.under.visible=view.kind==='bottom';renderer.render(card.scene,camera);canvas.getContext('2d').drawImage(renderer.domElement,0,0,pw,ph);
   }
   function draw(now){
     raf=0;const dt=Math.min(.1,(now-(last||now))/1000);last=now;let active=false;
