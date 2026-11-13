@@ -340,6 +340,9 @@ const railTurret=(y,z,s=1,rear=false,el=.12)=>seaSet([loft([[-.13,.1,.045,.045],
   ...[at(box(.07,.05,.12),0,0,.08), at(box(.045,.012,.46),0,.016,.3), at(box(.045,.012,.46),0,-.016,.3), at(box(.056,.05,.025),0,0,.34), at(box(.056,.05,.025),0,0,.52)].map(g=>tone(at(g,0,.05,.04,-el),DK))],y,z,s,rear);
 const gunTurret=(y,z,s=1)=>seaSet([loft([[-.07,.06,.035,.035],[.03,.065,.035,.035],[.1,.03,.03,.03]],TRAP), tone(at(tube(.012,.3,5),0,.04,.2,-.1),DK)],y,z,s,false);
 const cellsG=(z,w,l,y=.134)=>[z-l*.27,z+l*.27].flatMap(c=>pair(tone(at(box(w*.46,.012,l*.46),w*.27,y,c),DK)));
+/* space ship parts with tones: engine bells and the laser turret of battle/shapes.js, bell and barrel dark */
+const spBells=(xs,y,z,r)=>engines(xs,y,z,r).map(g=>tone(g,DK));
+const spTurret=(x,y,z,r)=>{ const [b,g]=turret(x,y,z,r); return [b,tone(g,DK)]; };
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -528,6 +531,33 @@ const GROUND_SHAPES={
       at(loft([[-.5,.075,.07],[-.12,.075,.07],[.02,.04,.06,-.01]],TRAP),.38,.31,0), tone(at(loft([[-.2,.062,.014],[-.12,.062,.014],[.025,.034,.014]],RECT),.38,.335,0),GL),
       at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
       ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
+  /* space ships worked out in the same manner as the sea ships (docs/models.md 15): today's hulls, bridges, wings and engines
+     with their numbers unchanged (battle/shapes.js SHAPES), flat shaded, engines, barrels, launchers and doors dark, bridge glass.
+     Centred on y 0. sp…: shown on the sample sheet; the game still draws SHAPES */
+  spCV:()=>[loft([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]]), ...pair(at(plate([[.08,-.2],[.5,-.65],[.5,-.8],[.08,-.62]]),0,0,0)),
+    at(plate([[0,-.35],[0,-.85],[.03,-.85],[.03,-.5]],.02),0,.05,0,0,0,Math.PI/2), ...spBells([0],0,-1.08,.09),
+    tone(at(box(.08,.03,.16),0,.075,.2),GL), tone(at(tube(.012,.3,5),0,-.045,.6),DK), ...pair(tone(at(loft([[-.86,.03,.03],[-.62,.035,.035],[-.45,0,0]]),.5,0,0),DK))],
+  spFF:()=>[loft([[-1,.2,.13],[-.35,.25,.16],[.45,.18,.12],[1.05,0,.01]]), at(loft([[-.55,.06,.05],[-.1,.07,.09,.04],[.25,0,0,.02]]),0,.14,0),
+    ...pair(at(plate([[.2,-.5],[.42,-.85],[.42,-.95],[.2,-.85]]),0,-.02,0)), ...spBells([.1,-.1],0,-1.05,.08),
+    ...pair(tone(at(box(.06,.07,.3),.21,.05,-.1),DK)), ...spTurret(0,.115,.4,.07), tone(at(box(.07,.025,.12),0,.095,.62),GL)],
+  spDD:()=>[loft([[-1.1,.18,.12],[-.4,.21,.14],[.7,.13,.09],[1.25,0,0]]), at(loft([[-.5,.07,.06],[-.15,.08,.1,.04],[.2,0,0,.02]]),0,.13,0),
+    ...pair(tone(at(loft([[-.7,.05,.05],[.3,.05,.05],[.6,0,0]]),.27,-.03,0),.8)), ...pair(at(plate([[.15,-.2],[.27,-.25],[.27,.05],[.15,.15]],.02),0,-.03,0)), ...spBells([.08,-.08],0,-1.15,.07),
+    ...pair(tone(at(tube(.034,.07,6),.27,-.03,.42),DK)), ...spTurret(0,.1,.55,.07), tone(at(box(.07,.025,.1),0,.2,-.02),GL)],
+  spCL:()=>[loft([[-1.1,.32,.19],[-.45,.38,.23],[.45,.29,.17],[1.2,0,.01,-.02]]), at(loft([[-.6,.15,.09],[-.25,.17,.16,.06],[.05,.1,.08,.03],[.25,0,0]]),0,.2,0),
+    ...spTurret(0,.2,.45,.11), ...spTurret(0,.2,-.85,.09), ...pair(at(plate([[.3,-.45],[.55,-.75],[.55,-.95],[.3,-.9]]),0,-.04,0)), ...spBells([.17,-.17,0],0,-1.15,.09),
+    tone(at(box(.14,.03,.08),0,.3,.02),GL)],
+  spBB:()=>[loft([[-1.35,.34,.2],[-.6,.41,.25],[.6,.31,.19],[1.45,0,.01,-.03]]), at(loft([[-.85,.18,.09],[-.35,.2,.17,.06],[.05,.13,.1,.04],[.3,0,0,.02]]),0,.22,0),
+    at(loft([[-.6,.08,.07],[-.4,.08,.12,.05],[-.2,0,0,.03]]),0,.44,0),
+    ...spTurret(0,.22,.8,.12), ...spTurret(0,.25,.48,.12), ...spTurret(0,.22,-1.0,.11),
+    at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1),
+    ...[-.25,.2].flatMap(z=>pair(tone(at(box(.05,.05,.14),.34,.1,z),DK))), tone(at(box(.16,.03,.08),0,.33,0),GL)],
+  spCVB:()=>[at(loft([[-1.2,.3,.03],[-.8,.38,.03],[.55,.34,.03],[1.2,.06,.03]],RECT),0,.16,0), loft([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]]),
+    at(loft([[-.4,.05,.05],[-.22,.06,.18,.09],[0,.035,.09,.05],[.1,0,0]]),.33,.2,0), ...spBells([.1,-.1],-.02,-1.2,.08),
+    ...pair(tone(at(box(.03,.008,1),.09,.191,.25),DK)), tone(at(box(.14,.008,.2),-.22,.191,-.3),DK), tone(at(box(.5,.008,.36),0,.191,-.9),.7),
+    tone(at(box(.06,.03,.07),.33,.36,-.1),GL)],
+  spMAS:()=>[loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pair(tone(at(loft([[-.75,.06,.06],[.3,.07,.07],[.6,0,0]]),.32,-.05,0),.8)),
+    at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
+    tone(at(box(.2,.12,.02),0,0,.955),DK), ...pair(tone(at(box(.03,.1,.3),.27,.09,.3),DK)), ...spTurret(0,.185,.3,.06), tone(at(box(.09,.03,.08),0,.3,-.3),GL)],
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
