@@ -341,7 +341,7 @@
 - [ ] 実際の海の画面の写真: `node tools/ground-model-shots.cjs --models "sea:bb:seaBB:2.04:one,sea:cl:seaCL:1.44:one,sea:ff:seaFF:.84:one,sea:dd:seaDD:1.02:one"`（喫水線が水面に合うか、水の下がどう見えるかを確かめる。未実施）
 - [ ] 許可のあと: `GROUND_MODELS` に上の4行を入れ、`docs/mockups/models/pilot-override.txt` と `tests/ground-models.cjs` を合わせ、`npm test` → PR（つなぎとテストは Codex へ）。
 - PR はまだ作っていない（この Mac のシェルに `gh` が見つからなかった）。ブランチ `claude/sea-models` は push 済み。
-- 見本ページ（非公開）: https://claude.ai/artifact/VxvzYnDBNnC2zLk5vbyEDg （第1回。同じファイル `.shots/sea-sheet.html` で載せ直す）
+- 見本ページ（非公開）: https://claude.ai/artifact/VxvzYnDBNnC2zLk5vbyEDg （第1回。13.3 の見本の作り方で作ったファイルで載せ直す）
 
 ## 14. 強襲母艦（9章 D の11番。2026-11-13 着手。同じブランチ `claude/sea-models`）
 
