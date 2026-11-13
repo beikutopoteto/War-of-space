@@ -718,12 +718,12 @@ const GROUND_SHAPES={
      of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
      W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
   spMASM:()=>{ const M=mA([[-1.2,.19,.075],[-1,.28,.095],[-.3,.31,.1],[.45,.29,.1],[.85,.22,.085],[1.15,.1,.05]]), m=-.025, wy=M.top(0);
-    const wz=[...Array(13)].map((_,i)=>-.66+i*1.48/12), walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.018),z,.13-.03*Math.max(0,(z-.2)/.62)]),wy-.012));
+    const wz=[...Array(17)].map((_,i)=>-1.12+i*1.94/16), wh=z=>z<-.6?.02+.11*Math.sin(Math.PI/2*(z+1.12)/.52):.13-.03*Math.max(0,(z-.2)/.62), walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.018),z,wh(z)]),wy-.012));
     const floor=tone(loft([[-.64,.27,.003,wy+.003],[.35,.27,.003,wy+.003],[.8,.19,.003,wy+.003]],RECT),.55);
     const ramp=[at(box(.4,.2,.035),0,0,0), ...[-.065,-.022,.022,.065].map(y=>tone(at(box(.34,.016,.012),0,y,.022),DK))].map(g=>{ g.rotateX(-.6); g.translate(0,wy+.06,.86); return g; });
     const pods=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
     const lids=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
-    const house=[at(loft([[-1.04,.13,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.01,0), ...mHump(-.98,-.8,.1,.045,wy+.08), at(box(.015,.14,.015),-.06,wy+.17,-.98)];
+    const house=[at(loft([[-1.12,.07,.015,.015],[-1.02,.14,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.01,0), ...mHump(-.98,-.8,.1,.045,wy+.08), at(box(.015,.14,.015),-.06,wy+.17,-.98)];
     const fend=[.25,-.45].flatMap(z=>pair(tone(at(tube(.028,.1,8),M.at(z).w+.003,.02,z),DK)));
     return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.1,-.1],-1.2,.055),
       ...mGun(0,wy+.122,-.9,.7), ...mPair(mPD,.285,wy+.12,-.55,.75), ...sideAt(()=>flatM(0,0,m,.6),M.at(m).w-.006,.02)]; },
