@@ -285,6 +285,9 @@ function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9
     return [g,e].map(q=>{ q.rotateY(a); q.translate(0,0,ZF); return q; }); };
   U.push(th([0,.86,-.1],[0,1.25,-.1],.035), at(box(2*SX+.02,.045,.08),0,1.25,-.07), ...blade(Math.atan(TA)), ...blade(-Math.atan(TA)),
     tone(at(plate([[0,ZF-.03],[.135,-.16],[-.135,-.16]],.03),0,1.262,0),.35),
+    /* the back of the body closed by a bulkhead between the plates' rear edges (user 2026-11-13: the back was open), raked
+       forward a little like the edges, with two dark vents */
+    at(box(.31,.32,.03),0,1.15,-.15,.13), ...pair(tone(at(box(.07,.05,.02),.065,1.21,-.168,.13),DK)),
     tone(at(loft([[-.1,.06,.08],[.02,.07,.105],[.17,.062,.09],[.27,.03,.04,-.02]],HEX),0,1,.02),.35), tone(at(loft([[.11,.068,.055],[.21,.052,.04,-.012]],HEX),0,1.05,.02),GL),
     ...pair(th([.075,.88,.09],[.075,1.07,.15],.02)), ...pair(th([.085,.88,-.07],[.12,1.1,-.1],.02)),
     /* the head (user 2026-11-13: bigger, after a concept sheet of a long low helmet — looked at, not copied): a low wedge
