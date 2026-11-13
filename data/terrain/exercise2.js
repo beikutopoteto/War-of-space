@@ -45,7 +45,7 @@ window.WOS_TERRAIN.exercise2 = {
     ff:{direct:8,indirect:{min:0,max:8},aa:3},
     dd:{direct:24,indirect:{min:0,max:24},aa:150}, // イージス艦。150kmは発見・追尾を保証しない。
     cl:{direct:24,indirect:{min:0,max:24},aa:150},
-    bb:{direct:40,indirect:{min:0,max:40},aa:6},
+    bb:{direct:70,indirect:{min:0,max:70},aa:6}, // レールガン（2026-11-14）。実際の値は battle/ground-naval.js の戦艦
     // 母艦・揚陸艦は未再設計。旧到達距離 (10 + ships.rng * 1.6) / 4 km を直接・間接・対空に仮置き。
     cvb:{direct:4.1,indirect:{min:0,max:4.1},aa:4.1},
     mas:{direct:3.3,indirect:{min:0,max:3.3},aa:3.3},
