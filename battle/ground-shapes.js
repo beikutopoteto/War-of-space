@@ -185,8 +185,6 @@ function curvedSlab(st,ca,cl,t,m=4,rng){ const U0=rng?rng[0]:st[0][0], U1=rng?rn
   const rim=(a,b)=>{ const A=pt(...a,1), B=pt(...b,1), C=pt(...b,-1), D=pt(...a,-1), o=V((A.x+B.x)/2-(U0+U1)/2,0,(A.z+B.z)/2); tri(A,B,C,o); tri(A,C,D,o); };
   for(let i=0;i<st.length-1;i++){ rim([i,0],[i+1,0]); rim([i,m],[i+1,m]); } for(let j=0;j<m;j++){ rim([0,j],[0,j+1]); rim([st.length-1,j],[st.length-1,j+1]); }
   const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; }
-/* the section of the W.A.S. chest: a flat deck on top, the sides cut in toward a narrower underside */
-const WAS_CHEST=[[.55,1],[1,.2],[.72,-1],[-.72,-1],[-1,.2],[-.55,1]];
 /* the section of the W.A.S. shoulder armour, a stub wing: x along the chord (-1 the leading edge), thickest a third of the way back */
 const WAS_WING=[[-1,0],[-.3,1],[.5,.75],[1,0],[.5,-.5],[-.3,-.6]];
 /* 案1 骨組み型: the factory frame shows. The pilot sits in a small dark pod inside a roll cage; the limbs are bare struts with
@@ -257,9 +255,11 @@ function wasSharp(){ const K=WAS_KIT, p=[];
    and fin made one with the shin.
    User 2026-11-13 (fourth note): the head .7 of its size; the lower body as it is, the upper body leaning further forward
    (.12 → .3 radians). The pelvis and the hip skirts keep the old lean (M0), so nothing below the waist moves; the cannon sits a
-   little higher so that it clears the left shoulder */
+   little higher so that it clears the left shoulder.
+   User 2026-11-13 (fifth note): the joint between trunk and shoulder shorter (the shoulders at x .28, SX, not .37); the body
+   itself two plates put together, sharp at the front, upright seen from the front (it replaces the wedge chest) */
 function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9,5), add=(a,d)=>a.map((v,i)=>v+d[i]), mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
-  const HY=.69, HZ=-.02, lean=a=>new THREE.Matrix4().makeTranslation(0,HY,HZ).multiply(new THREE.Matrix4().makeRotationX(a)).multiply(new THREE.Matrix4().makeTranslation(0,-.84,0)), M=lean(.3), M0=lean(.12), W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
+  const HY=.69, HZ=-.02, lean=a=>new THREE.Matrix4().makeTranslation(0,HY,HZ).multiply(new THREE.Matrix4().makeRotationX(a)).multiply(new THREE.Matrix4().makeTranslation(0,-.84,0)), M=lean(.3), M0=lean(.12), SX=.28, W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
   /* a frame along a forearm: the elbow at the origin, +Z toward the wrist */
   const along=(el,wr)=>new THREE.Matrix4().compose(new THREE.Vector3(...el),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...wr).sub(new THREE.Vector3(...el)).normalize()),new THREE.Vector3(1,1,1));
   for(const sx of [1,-1]){ const hip=[sx*.13,HY,HZ], knee=[sx*.2,.44,.17], ank=[sx*.23,.13,0], S=along(ank,knee), SL=new THREE.Vector3(...knee).distanceTo(new THREE.Vector3(...ank));
@@ -273,13 +273,18 @@ function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9
       at(box(.15,.08,.15),ank[0],.075,ank[2]-.01), at(loft([[-.19,.01,.013,-.03],[0,.038,.04]],SLAB),ank[0],.05,ank[2]-.07),
       ...[1,-1].flatMap(f=>[at(loft([[-.02,.042,.046],[.13,.038,.045,.028],[.24,.03,.034,.012]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0), tone(at(loft([[.24,.03,.034,.012],[.33,.022,.025,-.004],[.42,.005,.009,-.036]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0),.45)]));
     if(sx<0) p.push(K.dk(barG(add(mix(hip,knee,.14),[-.1,0,0]),add(mix(hip,knee,.78),[-.11,0,0]),.03,.06)), tone(barG(add(mix(hip,knee,.04),[-.1,0,0]),add(mix(hip,knee,.16),[-.1,0,0]),.025,.035),.6)); }
-  /* the pelvis and the hip skirts (lower body, M0); then the upper body, upright: spine, shoulder beam, the pilot's pod and its glass in a cage, the chest drawn forward to a
-     point, the head, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
+  /* the pelvis and the hip skirts (lower body, M0); then the upper body, upright: spine, shoulder beam, the body of two plates, the pilot's pod and its glass in a cage,
+     the head, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
   p.push(...[at(loft([[-.1,.1,.06],[.14,.07,.05]],HEX),0,.84,0), ...[1,-1].map(f=>at(loft([[-.03,.062,.016],[.1,.055,.014],[.23,.008,.006,-.004]],SLAB),f*.085,.85,.1,.92,f*.16,0))].map(g=>{ g.applyMatrix4(M0); return g; }));
-  U.push(th([0,.86,-.1],[0,1.25,-.1],.035), at(box(.76,.045,.08),0,1.25,-.07),
-    tone(at(loft([[-.1,.07,.08],[.02,.1,.105],[.17,.09,.09],[.27,.035,.04,-.02]],HEX),0,1,.02),.35), tone(at(loft([[.11,.097,.055],[.21,.075,.04,-.012]],HEX),0,1.05,.02),GL),
-    ...pair(th([.085,.88,.09],[.1,1.09,.15],.02)), ...pair(th([.085,.88,-.07],[.11,1.1,-.1],.02)),
-    at(loft([[-.17,.11,.08],[-.04,.18,.11],[.14,.17,.085,-.012],[.31,.12,.035,-.05],[.39,.07,.012,-.066]],WAS_CHEST),0,1.17,0), tone(at(box(.17,.018,.05),0,1.083,.3,.3),GL),
+  /* the body (user 2026-11-13, fifth note): two plates standing on edge, meeting in a sharp upright edge at the front and
+     opening to the rear like a ship's bow — from the front it is one upright line; a dark deck sunk between them, the pilot's
+     dark pod and its cage below. blade(a): one plate, its outline [y, z back from the edge], turned by a about the edge */
+  const ZF=.42, TA=.242, blade=a=>{ let g=plate([[1.2,0],[1.04,-.05],[1,-.36],[1.08,-.6],[1.3,-.56],[1.31,-.3]],.03); g=g.index?g.toNonIndexed():g; const e=tone(box(.012,.02,.1).toNonIndexed(),GL); g.rotateZ(Math.PI/2); e.translate(-Math.sign(a)*.018,1.17,-.12);
+    return [g,e].map(q=>{ q.rotateY(a); q.translate(0,0,ZF); return q; }); };
+  U.push(th([0,.86,-.1],[0,1.25,-.1],.035), at(box(2*SX+.02,.045,.08),0,1.25,-.07), ...blade(Math.atan(TA)), ...blade(-Math.atan(TA)),
+    tone(at(plate([[0,ZF-.03],[.135,-.16],[-.135,-.16]],.03),0,1.262,0),.35),
+    tone(at(loft([[-.1,.06,.08],[.02,.07,.105],[.17,.062,.09],[.27,.03,.04,-.02]],HEX),0,1,.02),.35), tone(at(loft([[.11,.068,.055],[.21,.052,.04,-.012]],HEX),0,1.05,.02),GL),
+    ...pair(th([.075,.88,.09],[.075,1.07,.15],.02)), ...pair(th([.085,.88,-.07],[.12,1.1,-.1],.02)),
     /* the head (user 2026-11-13: bigger, after a concept sheet of a long low helmet — looked at, not copied): a low wedge
        pointing forward on a dark neck ring; a chin piece below, a dark sensor slit set back between chin and shell, the shell in
        three plates that overlap and sweep back — a ridged middle one and one each side splaying out to a point behind —
@@ -292,21 +297,21 @@ function wasMix(){ const K=WAS_KIT, p=[], U=[], th=(a,b,r=.028)=>segG(a,b,r,r*.9
     ...pair(at(loft([[-.32,.03,.03],[-.1,.07,.07],[.1,.05,.05]],HEX),.17,1.1,-.27,-.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.17,.94,-.55,1.1))),
     ...K.subArms(.9,.115));
   const wing=()=>{ const g=loft([[0,.21,.075],[.12,.2,.068,-.004],[.26,.12,.032,-.028],[.35,.05,.011,-.05]],WAS_WING); g.rotateY(Math.PI/2); g.applyMatrix4(new THREE.Matrix4().set(1,0,0,0, 0,1,0,0, -.45,0,1,0, 0,0,0,1)); return g; };
-  for(const sx of [1,-1]){ const w=at(sx>0?wing():mirror(wing()),sx*.29,1.31,-.02);
-    U.push(K.J(sx*.37,1.22,-.02,.08,.1), w, at(box(.03,.17,.18),sx*.455,1.2,-.02,0,0,-sx*.15),
-      th([sx*.13,1.13,.12],[sx*.33,1.21,.02],.024), th([sx*.09,1.13,-.15],[sx*.33,1.21,-.06],.024), K.J(sx*.14,1.13,.12,.035,.05), K.J(sx*.1,1.13,-.15,.035,.05)); }
+  for(const sx of [1,-1]){ const w=at(sx>0?wing():mirror(wing()),sx*(SX-.08),1.31,-.02);
+    U.push(K.J(sx*SX,1.22,-.02,.08,.1), w, at(box(.03,.17,.18),sx*(SX+.085),1.2,-.02,0,0,-sx*.15),
+      th([sx*.085,1.13,.12],[sx*(SX-.04),1.21,.02],.024), th([sx*.14,1.13,-.15],[sx*(SX-.04),1.21,-.06],.024), K.J(sx*.095,1.13,.12,.035,.05), K.J(sx*.15,1.13,-.15,.035,.05)); }
   for(const g of U) g.applyMatrix4(M);
   p.push(...U);
   /* arms */
-  const shR=W([-.37,1.22,-.02]), elR=add(shR,[-.025,-.13,-.02]), wrR=add(elR,[0,0,.36]), shL=W([.37,1.22,-.02]), elL=add(shL,[.025,-.13,-.02]), wrL=add(elL,[.03,-.2,.27]);
+  const shR=W([-SX,1.22,-.02]), elR=add(shR,[-.025,-.13,-.02]), wrR=add(elR,[0,0,.36]), shL=W([SX,1.22,-.02]), elL=add(shL,[.025,-.13,-.02]), wrL=add(elL,[.03,-.2,.27]);
   for(const [sh,el,wr] of [[shR,elR,wrR],[shL,elL,wrL]]){ const A=along(el,wr), hand=box(.09,.09,.1).toNonIndexed(); hand.translate(0,0,new THREE.Vector3(...wr).distanceTo(new THREE.Vector3(...el))+.035); hand.applyMatrix4(A);
     p.push(segG(sh,el,.07,.08,4), K.J(...el,.06,.11), segG(el,wr,.06,.085,4), hand); }
   /* right forearm: the guns, parallel to it; the belt sags from the receiver to the drum on the back */
   const AR=along(elR,wrR), b0=new THREE.Vector3(-.125,-.06,-.19).applyMatrix4(AR).toArray(), b3=W([-.1,.99,-.29]), b1=add(b0,[.03,-.15,-.07]), b2=[(b0[0]+b3[0])/2+.04,Math.min(b0[1],b3[1])-.17,(b0[2]+b3[2])/2-.05];
   p.push(...K.guns2(-1).map(g=>{ g.applyMatrix4(AR); return g; }), K.dk(segG(b0,b1,.02,.02,5)), K.dk(segG(b1,b2,.02,.02,5)), K.dk(segG(b2,b3,.02,.02,5)));
   /* left forearm: the shield, held by two brackets; over the left shoulder the cannon on its arm, with a brace from the drum */
-  const mid=mix(elL,wrL,.5), C=W([.3,1.58,0]);
-  p.push(...K.shield2(add(mid,[.1,-.176,.096]),-.5,[mix(elL,wrL,.2),mix(elL,wrL,.85)]), ...K.cannon(...C,W([.2,1.25,-.07])), K.dk(segG(W([.12,1.08,-.27]),[C[0],C[1]-.075,C[2]-.42],.022,.022,5)));
+  const mid=mix(elL,wrL,.5), C=W([SX+.02,1.58,0]);
+  p.push(...K.shield2(add(mid,[.1,-.176,.096]),-.5,[mix(elL,wrL,.2),mix(elL,wrL,.85)]), ...K.cannon(...C,W([SX-.1,1.25,-.07])), K.dk(segG(W([.12,1.08,-.27]),[C[0],C[1]-.075,C[2]-.42],.022,.022,5)));
   return p; }
 /* the assault machine: step 1 or -1 says which foot is ahead */
 function mechParts(step){ const p=[], T=.4;
