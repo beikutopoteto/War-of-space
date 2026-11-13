@@ -369,6 +369,12 @@ const gatB=(x,y,z,s=1)=>flipY(gatG(-x,-(y+.01),z,s));
 const longT=(x,y,z,s=1,len=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.12,.13,.035,8),0,.017,0), loft([[-.16,.11,.05,.07],[.06,.12,.055,.075],[.18,.06,.04,.07]],TRAP),
   ...pair(at(box(.012,.11,.09),.075,.1,-.1)), ...[at(tube(.022,len,6),0,0,.15+len/2), at(tube(.032,.08,6),0,0,.2), at(tube(.028,.05,6),0,0,.15+len*.5), at(tube(.036,.1,6),0,0,.12+len)].map(g=>tone(at(g,0,.085,0),DK))],y,z,s,false),x);
 const bellyL=(y,z,s=1,len=1)=>[at(new THREE.CylinderGeometry(.13*s,.13*s,.1*s,8),0,y+.03*s,z), ...flipY(longT(0,-(y-.02*s),z,s,len))];
+/* railL: the battleship's big railgun (docs/models.md 15.9) standing on y — a broad low octagonal platform, a low flat house, a dark
+   breech box, two flat rails one above the other running len forward, four clamps and a muzzle box. bellyR hangs it under the keel
+   at y on a low barbette sunk into the hull */
+const railL=(x,y,z,s=1,len=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.2,.21,.03,8),0,.015,0), loft([[-.17,.12,.025,.055],[.08,.13,.03,.06],[.2,.07,.022,.055]],TRAP),
+  ...[at(box(.09,.05,.14),0,.06,.2), at(box(.06,.016,len),0,.082,.2+len/2), at(box(.06,.016,len),0,.038,.2+len/2), ...[0,1,2,3].map(i=>at(box(.075,.075,.03),0,.06,.32+i*(len-.16)/3)), at(box(.08,.08,.045),0,.06,.2+len)].map(g=>tone(g,DK))],y,z,s,false),x);
+const bellyR=(y,z,s=1,len=1)=>[at(new THREE.CylinderGeometry(.21*s,.21*s,.12*s,8),0,y+.04*s,z), ...flipY(railL(0,-(y-.02*s),z,s,len))];
 /* flatT: a flattened laser turret (height k of laserT) standing on y — the assault ship's flat twin secondary guns */
 const flatT=(x,y,z,s=1,n=2,k=.6)=>laserT(x,0,z,s,n).map(g=>{ g.scale(1,k,1); g.translate(0,y,0); return g; });
 /* sideT: a flat turret laid on its side on a side wall at x (its top facing out, barrels forward, one above the other) */
@@ -592,7 +598,7 @@ const GROUND_SHAPES={
     at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1), ...pair(at(plate([[.26,-1.05],[.46,-1.2],[.46,-1.32],[.26,-1.3]],.02),0,0,0)),
     ...pdG(.15,.33,-.5,.9), ...pdG(-.15,.33,-.5,.9), ...pdG(.3,.12,-.72,.9), ...pdG(-.3,.12,-.72,.9),
     tone(at(box(.16,.03,.08),0,.33,0),GL), at(box(.025,.14,.025),0,.6,-.45), at(box(.12,.012,.02),0,.62,-.45), tone(at(box(.05,.03,.04),0,.68,-.45),GL),
-    ...bellyL(-.2175,.05,1.2,1), ...gatB(.22,-.154,-.35,1), ...gatB(-.22,-.154,-.35,1), ...gatB(.25,-.137,-.9,1), ...gatB(-.25,-.137,-.9,1)],
+    ...bellyR(-.24,-.4,1.1,1.25), ...gatB(.2,-.139,.1,1), ...gatB(-.2,-.139,.1,1), ...gatB(.25,-.137,-.9,1), ...gatB(-.25,-.137,-.9,1)],
   spCVB:()=>[at(loft([[-1.2,.3,.03],[-.8,.38,.03],[.55,.34,.03],[1.2,.06,.03]],RECT),0,.16,0), loft([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]]),
     loft([[-.85,.17,.035,.095],[.7,.17,.035,.095],[.8,.12,.03,.095]],RECT), tone(at(box(.2,.05,.01),0,.095,.802),DK),
     at(loft([[-.4,.05,.05],[-.22,.06,.18,.09],[0,.035,.09,.05],[.1,0,0]]),.33,.2,0), ...spBells([.1,-.1],-.02,-1.2,.08),
