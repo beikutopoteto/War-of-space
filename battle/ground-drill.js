@@ -70,7 +70,7 @@ function groundSupplyDrillSetup(skipped=false){
   if(skipped)return;
   const add=(team,name,kind,x,y)=>{
     const p=groundPoint(x,y),f=makeFleet(team,{name,groundKind:kind,type:'cv',n:1,scale:.3,pos:[p.x,p.z],stance:'evade'});fleets.push(f);f.band='ground';f.groundMaxHp=f.hpPool;f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);
-    const src=shipMeshes[team].cv,mat=src.material.clone();mat.transparent=true;mat.userData.baseOpacity=1;f.groundModel=new THREE.Group();f.groundModel.add(new THREE.Mesh(src.geometry.clone(),mat));f.groundModel.children[0].scale.setScalar(SHIP_SIZE.cv);groundVisuals.add(f.groundModel);
+    const src=shipMeshes[team].cv,mat=src.material.clone();mat.transparent=true;mat.userData.baseOpacity=1;f.groundModel=new THREE.Group();const geo=shapeGeo('cv');if(mat.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));f.groundModel.add(new THREE.Mesh(geo,mat));f.groundModel.children[0].scale.setScalar(SHIP_SIZE.cv);groundVisuals.add(f.groundModel);
     if(team===0&&groundOrg){f.companyId='supplyDrill'+f.id;groundOrg.companies.push({id:f.companyId,name,kind});}
     return f;
   };

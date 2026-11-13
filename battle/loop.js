@@ -81,11 +81,11 @@ function frame(now){
   for(const f of fleets){ if(op.ground||!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
     for(const s of f.ships){
-      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][f.shape||s.type]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
+      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][shipMeshKey(f,f.shape||s.type)]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
       _w.copy(s.off).applyQuaternion(_oq).add(f.pos); if(op.ground) _w.y=groundHeight(_w.x,_w.z)+.15; else _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
       s.pos.lerp(_w,dt>0?k:0);
       if(hide) continue;
-      const m=shipMeshes[colOf(f)][s.type]; if(m.count>=SHIP_MAX) continue;
+      const m=shipMeshes[colOf(f)][shipMeshKey(f,s.type)]; if(m.count>=SHIP_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); if(lk>0) o3.quaternion.slerp(surfQ(f.land.up,f.heading),lk);
       o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
