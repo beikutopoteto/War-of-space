@@ -678,8 +678,13 @@ const GROUND_SHAPES={
       ...M.under(mGun(0,0,m,.6),m), ...M.side(()=>flatM(0,0,m,.6),m), ...[1,-1].flatMap(sg=>M.under(mGat(0,0,m,.9),m,sg*W(m)*.5))]; },
   spBBM:()=>{ const M=mA([[-1.35,.25,.12],[-.6,.36,.17],[.3,.34,.17],[1,.2,.12],[1.45,.08,.06]]), G=mA([[-1.15,.4,.03],[-.75,.66,.04],[-.1,.66,.04],[.45,.42,.035],[.8,.3,.03]]), m=.05, W=z=>M.at(z).w;
     const T=onTop(M,[[-.95,.22,.045],[-.2,.25,.05],[.55,.2,.045],[.75,.12,.035]]);
+    /* the hull-integrated railgun (15.17): a low creased fairing on the centre line from the upper deck's front to the bow, two flat
+       rails side by side on it with a dark slot between, three clamp bands, a dark capacitor box at the root and a dark muzzle */
+    const rz=[.62,.9,1.2,1.47], fair=loft(rz.map(z=>[z,z>1.4?.075:.1,.03,M.top(Math.min(z,1.45))+.022]),FACET), ry=z=>M.top(Math.min(z,1.45))+.052;
+    const rail=[fair, ...[.045,-.045].map(x=>tone(at(box(.035,.03,.86),x,ry(1.05)+.004,1.04,Math.atan2(ry(.62)-ry(1.47),.85),0,0),.55)), tone(at(box(.04,.006,.84),0,ry(1.05)-.006,1.04,Math.atan2(ry(.62)-ry(1.47),.85),0,0),DK),
+      ...[.85,1.1,1.33].map(z=>at(box(.16,.022,.04),0,ry(z)+.012,z)), tone(at(box(.17,.06,.08),0,T.top(.7)-.005,.7),DK), tone(at(box(.12,.05,.012),0,ry(1.47)-.01,1.478),DK)];
     return [...M.hull(), ...ySh(G.hull(),-.01), ...T.parts, ...mHump(-.55,.15,.16,.06,T.top(-.2)-.005), ...M.eyes(1.25), ...mEng([.18,0,-.18],-1.35,.075),
-      ...mGun(0,M.top(1),1,1.25,2), ...mGun(0,M.top(-1.1),-1.1,1.25,2,true), ...[-.4,.2].flatMap(z=>mPair(mPD,.38,G.top(z)-.01,z,.95)),
+      ...mGun(0,T.top(.42),.42,1.1,2), ...mGun(0,M.top(-1.1),-1.1,1.25,2,true), ...rail, ...[-.4,.2].flatMap(z=>mPair(mPD,.38,G.top(z)-.01,z,.95)),
       ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
       ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
       ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
