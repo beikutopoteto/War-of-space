@@ -343,6 +343,18 @@ const cellsG=(z,w,l,y=.134)=>[z-l*.27,z+l*.27].flatMap(c=>pair(tone(at(box(w*.46
 /* space ship parts with tones: engine bells and the laser turret of battle/shapes.js, bell and barrel dark */
 const spBells=(xs,y,z,r)=>engines(xs,y,z,r).map(g=>tone(g,DK));
 const spTurret=(x,y,z,r)=>{ const [b,g]=turret(x,y,z,r); return [b,tone(g,DK)]; };
+/* space ship parts, round 2 (docs/models.md 15.4). atX: move parts sideways. laserT: a laser turret worked out — an octagonal
+   ring, a faceted house pointed at the front with two radiator fins at its back, one or two dark emitter barrels each with a collar
+   and a wider lens housing at the muzzle; x,y,z: where it stands, s: scale (1: house .2 wide), n: barrels, rear: facing aft.
+   pdG: point defence against craft and missiles — a low neck, a faceted half dome, two short dark emitters raised forward.
+   lidsG: a row of n dark launcher lids along z on a top at y */
+const atX=(p,x)=>p.map(g=>{ g.translate(x,0,0); return g; });
+const laserT=(x,y,z,s=1,n=1,rear=false,el=.06)=>{ const p=[at(new THREE.CylinderGeometry(.1,.11,.03,8),0,.015,0), loft([[-.12,.09,.04,.06],[.03,.1,.045,.065],[.13,.05,.035,.06]],TRAP), ...pair(at(box(.012,.1,.07),.062,.09,-.08))];
+  for(const dx of n>1?[-.035,.035]:[0]) p.push(...[at(tube(.013,.32,6),dx,0,.26), at(tube(.02,.03,6),dx,0,.14), at(tube(.025,.06,6),dx,0,.42)].map(g=>tone(at(g,0,.07,0,-el),DK)));
+  return atX(seaSet(p,y,z,s,rear),x); };
+const pdG=(x,y,z,s=1)=>atX(seaSet([at(new THREE.CylinderGeometry(.028,.034,.04,6),0,.02,0), at(new THREE.SphereGeometry(.036,6,3,0,Math.PI*2,0,Math.PI/2),0,.035,0),
+  ...[-.013,.013].map(dx=>tone(at(tube(.007,.08,4),dx,.05,.045,-.35),DK))],y,z,s,false),x);
+const lidsG=(x,y,z0,z1,n,w=.04)=>[...Array(n)].map((_,i)=>tone(at(box(w,.012,(z1-z0)/n*.7),x,y,z0+(z1-z0)*(i+.5)/n),DK));
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
@@ -531,33 +543,45 @@ const GROUND_SHAPES={
       at(loft([[-.5,.075,.07],[-.12,.075,.07],[.02,.04,.06,-.01]],TRAP),.38,.31,0), tone(at(loft([[-.2,.062,.014],[-.12,.062,.014],[.025,.034,.014]],RECT),.38,.335,0),GL),
       at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
       ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
-  /* space ships worked out in the same manner as the sea ships (docs/models.md 15): today's hulls, bridges, wings and engines
-     with their numbers unchanged (battle/shapes.js SHAPES), flat shaded, engines, barrels, launchers and doors dark, bridge glass.
-     Centred on y 0. sp…: shown on the sample sheet; the game still draws SHAPES */
+  /* space ships worked out (docs/models.md 15, round 2 in 15.4): today's hulls with their numbers kept, outlines added where
+     the role shows, laser turrets worked out (laserT), point defence on every ship (pdG). Centred on y 0. sp…: shown on the
+     sample sheet; the game still draws SHAPES */
   spCV:()=>[loft([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]]), ...pair(at(plate([[.08,-.2],[.5,-.65],[.5,-.8],[.08,-.62]]),0,0,0)),
-    at(plate([[0,-.35],[0,-.85],[.03,-.85],[.03,-.5]],.02),0,.05,0,0,0,Math.PI/2), ...spBells([0],0,-1.08,.09),
-    tone(at(box(.08,.03,.16),0,.075,.2),GL), tone(at(tube(.012,.3,5),0,-.045,.6),DK), ...pair(tone(at(loft([[-.86,.03,.03],[-.62,.035,.035],[-.45,0,0]]),.5,0,0),DK))],
+    at(plate([[0,-.35],[0,-.85],[.03,-.85],[.03,-.5]],.02),0,.05,0,0,0,Math.PI/2), ...pair(at(plate([[.08,.58],[.21,.44],[.21,.4],[.08,.42]],.02),0,0,0)),
+    ...pair(at(loft([[-.98,.05,.045],[-.75,.055,.05],[-.55,.035,.03]]),.17,0,0)), ...spBells([0],0,-1.08,.09), ...spBells([.17,-.17],0,-1.03,.045),
+    at(tube(.006,.28,4),0,0,1.17), tone(at(box(.018,.018,.04),0,0,1.3),GL), tone(at(box(.08,.03,.16),0,.075,.2),GL), tone(at(tube(.012,.3,5),0,-.045,.6),DK),
+    ...pair(at(loft([[-.86,.03,.03],[-.62,.035,.035],[-.45,0,0]]),.5,0,0)), ...pair(tone(at(tube(.012,.06,5),.5,0,-.89),DK)), ...pdG(0,.08,-.2,.8)],
   spFF:()=>[loft([[-1,.2,.13],[-.35,.25,.16],[.45,.18,.12],[1.05,0,.01]]), at(loft([[-.55,.06,.05],[-.1,.07,.09,.04],[.25,0,0,.02]]),0,.14,0),
     ...pair(at(plate([[.2,-.5],[.42,-.85],[.42,-.95],[.2,-.85]]),0,-.02,0)), ...spBells([.1,-.1],0,-1.05,.08),
-    ...pair(tone(at(box(.06,.07,.3),.21,.05,-.1),DK)), ...spTurret(0,.115,.4,.07), tone(at(box(.07,.025,.12),0,.095,.62),GL)],
+    ...pair(at(loft([[-.6,.05,.045],[-.5,.065,.055],[.05,.065,.055],[.15,.05,.045]],RECT),.25,.03,0)), ...[.25,-.25].flatMap(x=>lidsG(x,.088,-.48,0,5,.08)),
+    ...laserT(0,.098,.55,.8), tone(at(box(.06,.025,.1),0,.2,.05),GL), ...pdG(0,.245,-.2,.8), ...pdG(.25,.083,.1,.7), ...pdG(-.25,.083,.1,.7)],
   spDD:()=>[loft([[-1.1,.18,.12],[-.4,.21,.14],[.7,.13,.09],[1.25,0,0]]), at(loft([[-.5,.07,.06],[-.15,.08,.1,.04],[.2,0,0,.02]]),0,.13,0),
-    ...pair(tone(at(loft([[-.7,.05,.05],[.3,.05,.05],[.6,0,0]]),.27,-.03,0),.8)), ...pair(at(plate([[.15,-.2],[.27,-.25],[.27,.05],[.15,.15]],.02),0,-.03,0)), ...spBells([.08,-.08],0,-1.15,.07),
-    ...pair(tone(at(tube(.034,.07,6),.27,-.03,.42),DK)), ...spTurret(0,.1,.55,.07), tone(at(box(.07,.025,.1),0,.2,-.02),GL)],
+    tone(loft([[-.55,.218,.055],[-.4,.222,.06],[.4,.163,.06],[.5,.15,.05]],SLAB),.8),
+    ...pair(tone(at(loft([[-.75,.06,.06],[-.6,.07,.07],[.3,.07,.07],[.45,.055,.055]]),.29,-.03,0),.85)), ...pair(at(plate([[.15,-.2],[.29,-.25],[.29,.05],[.15,.15]],.02),0,-.03,0)),
+    ...[.29,-.29].flatMap(x=>[[-.022,-.012],[.022,-.012],[0,.022]].map(([dx,dy])=>tone(at(tube(.015,.03,6),x+dx,-.03+dy,.455),DK))), ...spBells([.08,-.08],0,-1.15,.07),
+    ...laserT(0,.088,.62,.8), tone(at(box(.07,.025,.1),0,.2,-.02),GL), ...pdG(.29,.035,-.35,.7), ...pdG(-.29,.035,-.35,.7), ...pdG(0,.205,-.42,.7)],
   spCL:()=>[loft([[-1.1,.32,.19],[-.45,.38,.23],[.45,.29,.17],[1.2,0,.01,-.02]]), at(loft([[-.6,.15,.09],[-.25,.17,.16,.06],[.05,.1,.08,.03],[.25,0,0]]),0,.2,0),
-    ...spTurret(0,.2,.45,.11), ...spTurret(0,.2,-.85,.09), ...pair(at(plate([[.3,-.45],[.55,-.75],[.55,-.95],[.3,-.9]]),0,-.04,0)), ...spBells([.17,-.17,0],0,-1.15,.09),
-    tone(at(box(.14,.03,.08),0,.3,.02),GL)],
+    ...laserT(0,.112,.68,1,2), at(new THREE.CylinderGeometry(.1,.11,.07,8),0,.2,.4), ...laserT(0,.235,.4,1,2), ...laserT(0,.2,-.82,1,2,true),
+    ...pair(at(plate([[.3,-.45],[.55,-.75],[.55,-.95],[.3,-.9]]),0,-.04,0)), ...spBells([.17,-.17,0],0,-1.15,.09), tone(at(box(.14,.03,.08),0,.3,.02),GL),
+    ...pdG(.2,.11,.1,.8), ...pdG(-.2,.11,.1,.8), ...pdG(.22,.14,-.45,.8), ...pdG(-.22,.14,-.45,.8)],
   spBB:()=>[loft([[-1.35,.34,.2],[-.6,.41,.25],[.6,.31,.19],[1.45,0,.01,-.03]]), at(loft([[-.85,.18,.09],[-.35,.2,.17,.06],[.05,.13,.1,.04],[.3,0,0,.02]]),0,.22,0),
     at(loft([[-.6,.08,.07],[-.4,.08,.12,.05],[-.2,0,0,.03]]),0,.44,0),
-    ...spTurret(0,.22,.8,.12), ...spTurret(0,.25,.48,.12), ...spTurret(0,.22,-1.0,.11),
-    at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1),
-    ...[-.25,.2].flatMap(z=>pair(tone(at(box(.05,.05,.14),.34,.1,z),DK))), tone(at(box(.16,.03,.08),0,.33,0),GL)],
+    ...laserT(0,.118,.88,1.3,2), at(new THREE.CylinderGeometry(.13,.14,.08,8),0,.22,.52), ...laserT(0,.26,.52,1.3,2), ...laserT(0,.215,-1.02,1.25,2,true),
+    ...laserT(.27,.11,.12,.55), ...laserT(-.27,.11,.12,.55), ...laserT(.27,.13,-.3,.55), ...laserT(-.27,.13,-.3,.55),
+    at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1), ...pair(at(plate([[.26,-1.05],[.46,-1.2],[.46,-1.32],[.26,-1.3]],.02),0,0,0)),
+    ...pdG(.15,.33,-.5,.9), ...pdG(-.15,.33,-.5,.9), ...pdG(.3,.12,-.72,.9), ...pdG(-.3,.12,-.72,.9),
+    tone(at(box(.16,.03,.08),0,.33,0),GL), at(box(.025,.14,.025),0,.6,-.45), at(box(.12,.012,.02),0,.62,-.45), tone(at(box(.05,.03,.04),0,.68,-.45),GL)],
   spCVB:()=>[at(loft([[-1.2,.3,.03],[-.8,.38,.03],[.55,.34,.03],[1.2,.06,.03]],RECT),0,.16,0), loft([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]]),
+    loft([[-.85,.17,.035,.095],[.7,.17,.035,.095],[.8,.12,.03,.095]],RECT), tone(at(box(.2,.05,.01),0,.095,.802),DK),
     at(loft([[-.4,.05,.05],[-.22,.06,.18,.09],[0,.035,.09,.05],[.1,0,0]]),.33,.2,0), ...spBells([.1,-.1],-.02,-1.2,.08),
     ...pair(tone(at(box(.03,.008,1),.09,.191,.25),DK)), tone(at(box(.14,.008,.2),-.22,.191,-.3),DK), tone(at(box(.5,.008,.36),0,.191,-.9),.7),
-    tone(at(box(.06,.03,.07),.33,.36,-.1),GL)],
-  spMAS:()=>[loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pair(tone(at(loft([[-.75,.06,.06],[.3,.07,.07],[.6,0,0]]),.32,-.05,0),.8)),
-    at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
-    tone(at(box(.2,.12,.02),0,0,.955),DK), ...pair(tone(at(box(.03,.1,.3),.27,.09,.3),DK)), ...spTurret(0,.185,.3,.06), tone(at(box(.09,.03,.08),0,.3,-.3),GL)],
+    tone(at(box(.06,.03,.07),.33,.36,-.1),GL), at(box(.02,.12,.02),.33,.47,-.22), tone(at(box(.05,.025,.035),.33,.54,-.22),GL),
+    ...laserT(-.26,.19,.3,.6), ...laserT(-.26,.19,-.1,.6), ...pdG(.3,.19,-1,.8), ...pdG(-.3,.19,-1,.8), ...pdG(.24,.19,.62,.8), ...pdG(-.2,.19,.75,.8)],
+  spMAS:()=>{ const pod=x=>[at(loft([[-.82,.06,.06],[-.7,.1,.1],[.35,.1,.1],[.55,.05,.06]],O8),x,-.02,0), ...spBells([x],-.02,-.86,.05),
+      ...[-.55,-.33,-.11,.11,.33].map(z=>tone(at(box(.014,.07,.15),x+Math.sign(x)*.092,-.02,z),DK)), ...[-.35,.2].map(z=>at(box(.16,.05,.1),x-Math.sign(x)*.1,-.01,z))];
+    return [loft([[-1.05,.22,.16],[-.3,.29,.21],[.6,.26,.18],[.95,.18,.12]]), ...pod(.44), ...pod(-.44),
+      at(loft([[-.65,.1,.06],[-.35,.11,.12,.05],[-.05,0,0,.02]]),0,.19,0), ...spBells([.12,-.12],0,-1.1,.08),
+      ...laserT(0,.18,.48,.65), tone(at(box(.09,.03,.08),0,.3,-.3),GL), ...pdG(.44,.055,.42,.8), ...pdG(-.44,.055,.42,.8), ...pdG(0,.28,-.55,.8)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
