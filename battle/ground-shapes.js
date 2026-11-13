@@ -702,18 +702,21 @@ const GROUND_SHAPES={
       ...mGun(0,M.top(.95),.95,.75,2), ...mGun(0,M.top(.66),.66,.8,2),
       ...mPair(mPD,.12,M.top(.12),.12,.8), ...mPD(.17,M.top(-.98),-.98,.8), ...mPD(-.17,dy+.012,-1.02,.8),
       ...M.under(mGun(0,0,m,.6),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.85),m+dz,sg*.15)))]; },
-  /* 突撃揚陸艦（共和国, 15.16）: a landing craft — a flat-bottomed boxy hull; from the middle forward an open well deck between high
-     side walls, closed at the bow by a big ramp leaning forward with dark grating bars; a low deckhouse aft with its optical band and a
-     post; dark fenders on the sides. The eight W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
-  spMASM:()=>{ const M=mA([[-1.05,.26,.09],[-.95,.3,.1],[.72,.3,.1],[.95,.27,.085]]), m=-.05, wy=M.top(0);
-    const walls=pair(at(box(.05,.15,1.5),.275,wy+.07,-.02)), floor=tone(at(box(.5,.006,1.42),0,wy+.003,-.02),.55);
-    const ramp=[at(box(.52,.2,.035),0,wy+.09,.8,-.3,0,0), ...[0,1,2,3].map(i=>tone(at(box(.42,.016,.012),0,wy+.035+i*.042,.835-i*.013,-.3,0,0),DK))];
-    const pods=[.11,-.11].flatMap(x=>[-.45,-.17,.11,.39].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
-    const lids=[.11,-.11].flatMap(x=>[-.45,-.17,.11,.39].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
-    const house=[...mBox(0,wy+.03,-.86,.22,.17,.07), ...mHump(-.93,-.78,.11,.05,wy+.1), at(box(.015,.14,.015),-.06,wy+.2,-.93)];
-    const fend=[.3,-.4].flatMap(z=>pair(tone(at(tube(.028,.1,8),.305,.02,z),DK)));
-    return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.14,-.14],-1.05,.055),
-      ...mGun(0,wy+.146,-.87,.7), ...mPair(mPD,.275,wy+.145,-.62,.75), ...sideAt(()=>flatM(0,0,m,.6),.294,.02)]; },
+  /* 突撃揚陸艦（共和国, 15.16, longer and streamlined 15.18）: a landing craft — a flat-bottomed hull drawn in at both ends; an open
+     well deck between side walls that follow the hull and turn in over the fore third; a raked wedge ramp with dark grating bars ahead
+     of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
+     W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
+  spMASM:()=>{ const M=mA([[-1.2,.19,.075],[-1,.28,.095],[-.3,.31,.1],[.45,.29,.1],[.85,.22,.085],[1.15,.1,.05]]), m=-.025, wy=M.top(0);
+    const seg=(x0,z0,x1,z1,h)=>at(box(.04,h,Math.hypot(x1-x0,z1-z0)+.02),(x0+x1)/2,wy+h/2-.01,(z0+z1)/2,0,Math.atan2(x1-x0,z1-z0),0);
+    const walls=[1,-1].flatMap(sg=>[seg(sg*.285,-.65,sg*.285,.35,.13), seg(sg*.285,.35,sg*.2,.82,.11)]);
+    const floor=tone(loft([[-.64,.27,.003,wy+.003],[.35,.27,.003,wy+.003],[.8,.19,.003,wy+.003]],RECT),.55);
+    const ramp=[at(box(.4,.2,.035),0,0,0), ...[-.065,-.022,.022,.065].map(y=>tone(at(box(.34,.016,.012),0,y,.022),DK))].map(g=>{ g.rotateX(-.6); g.translate(0,wy+.06,.86); return g; });
+    const pods=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
+    const lids=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
+    const house=[at(loft([[-1.04,.13,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.01,0), ...mHump(-.98,-.8,.1,.045,wy+.08), at(box(.015,.14,.015),-.06,wy+.17,-.98)];
+    const fend=[.25,-.45].flatMap(z=>pair(tone(at(tube(.028,.1,8),M.at(z).w+.003,.02,z),DK)));
+    return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.1,-.1],-1.2,.055),
+      ...mGun(0,wy+.122,-.9,.7), ...mPair(mPD,.285,wy+.12,-.55,.75), ...sideAt(()=>flatM(0,0,m,.6),M.at(m).w-.006,.02)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
