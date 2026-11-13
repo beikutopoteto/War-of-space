@@ -416,6 +416,17 @@ const ySh=(p,y)=>p.map(g=>{ g.translate(0,y,0); return g; });
 /* mBox: a Republic cargo module (a short creased body with cut corners) of length l centred at x, y, z. sideAt: parts made by mk
    laid on both side walls at x (their top facing out) and height y */
 const mBox=(x,y,z,l,w,h)=>{ const B=mA([[z-l/2,w*.85,h*.85],[z-l/2+.03,w,h],[z+l/2-.03,w,h],[z+l/2,w*.85,h*.85]]); return B.hull().map(g=>{ g.translate(x,y,0); return g; }); };
+/* wallStrip: a continuous wall along points [x, z, height] standing on y0 (thickness t), its outer face leaning in — a smooth
+   bulwark that follows a hull's edge. Faces are turned outward from the strip's centre line */
+function wallStrip(pts,y0,t=.035){ const V=(x,y,z)=>new THREE.Vector3(x,y,z), P=[];
+  const S=pts.map(([x,z,h])=>{ const s=Math.sign(x)||1; return [V(x+.005*s,y0,z),V(x-.012*s,y0+h,z),V(x-(t-.01)*s,y0+h,z),V(x-t*s,y0,z)]; });
+  const C=S.map(r=>r.reduce((a,b)=>a.clone().add(b),V(0,0,0)).multiplyScalar(.25));
+  const tri=(a,b,c,o)=>{ const n=V(0,0,0).subVectors(b,a).cross(V(0,0,0).subVectors(c,a)); if(n.dot(o)<0) P.push(a,c,b); else P.push(a,b,c); };
+  for(let i=0;i<S.length-1;i++){ const m=C[i].clone().add(C[i+1]).multiplyScalar(.5);
+    for(let j=0;j<4;j++){ const k=(j+1)%4, a=S[i][j], b=S[i+1][j], c=S[i+1][k], d=S[i][k], o=a.clone().add(c).multiplyScalar(.5).sub(m); tri(a,b,c,o); tri(a,c,d,o); } }
+  const cap=(r,o)=>{ tri(r[0],r[1],r[2],o); tri(r[0],r[2],r[3],o); }, n=S.length-1;
+  cap(S[0],C[0].clone().sub(C[1])); cap(S[n],C[n].clone().sub(C[n-1]));
+  const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; }
 const sideAt=(mk,x,y)=>[...mk().map(g=>{ g.rotateZ(-Math.PI/2); g.translate(x,y,0); return g; }), ...mk().map(g=>{ g.rotateZ(Math.PI/2); g.translate(-x,y,0); return g; })];
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
 const GROUND_SHAPES={
@@ -707,8 +718,7 @@ const GROUND_SHAPES={
      of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
      W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
   spMASM:()=>{ const M=mA([[-1.2,.19,.075],[-1,.28,.095],[-.3,.31,.1],[.45,.29,.1],[.85,.22,.085],[1.15,.1,.05]]), m=-.025, wy=M.top(0);
-    const seg=(x0,z0,x1,z1,h)=>at(box(.04,h,Math.hypot(x1-x0,z1-z0)+.02),(x0+x1)/2,wy+h/2-.01,(z0+z1)/2,0,Math.atan2(x1-x0,z1-z0),0);
-    const walls=[1,-1].flatMap(sg=>[seg(sg*.285,-.65,sg*.285,.35,.13), seg(sg*.285,.35,sg*.2,.82,.11)]);
+    const wz=[...Array(13)].map((_,i)=>-.66+i*1.48/12), walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.018),z,.13-.03*Math.max(0,(z-.2)/.62)]),wy-.012));
     const floor=tone(loft([[-.64,.27,.003,wy+.003],[.35,.27,.003,wy+.003],[.8,.19,.003,wy+.003]],RECT),.55);
     const ramp=[at(box(.4,.2,.035),0,0,0), ...[-.065,-.022,.022,.065].map(y=>tone(at(box(.34,.016,.012),0,y,.022),DK))].map(g=>{ g.rotateX(-.6); g.translate(0,wy+.06,.86); return g; });
     const pods=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
