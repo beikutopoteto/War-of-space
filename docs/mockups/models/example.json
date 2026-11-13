@@ -1,0 +1,16 @@
+{
+  "title": "地上模型の見本",
+  "intro": "仮の形と宇宙艦を比べる見本です。採用前のため、ゲームの標準表示は変わりません。",
+  "groups": [
+    {
+      "title": "仮の地上模型とコルベット",
+      "note": "濃淡のある単体、三体の編隊、単色、従来の艦を比較します。",
+      "items": [
+        {"label": "A", "key": "stub", "table": "ground", "note": "仮の車体と暗い砲塔。", "form": "one", "side": "earth"},
+        {"label": "B", "key": "stub", "table": "ground", "note": "三体の編隊。", "form": "v3", "side": "mars"},
+        {"label": "C", "key": "stub", "table": "ground", "note": "部品の濃淡を使わない単色。", "mono": true},
+        {"label": "D", "key": "cv", "table": "ship", "note": "従来のコルベット。単色の材質。"}
+      ]
+    }
+  ]
+}

@@ -30,7 +30,7 @@ function nodeChecks(){
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));
   run(hud.slice(hud.indexOf('function order(f,o)'),hud.indexOf('\nconst ray=')));
-  Object.assign(ctx,{op:{ground:'exercise2'},selGroup:null,selMulti:[],fleets:[],dropArrow:()=>{},makeArrow:()=>null,TEAM_COL:['blue','red'],saveUndo:()=>{},tutorialOrder:()=>{},speedOf:f=>f.speed});
+  Object.assign(ctx,{op:{ground:'exercise2'},selGroup:null,selMulti:[],fleets:[],dropArrow:()=>{},makeArrow:()=>null,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),saveUndo:()=>{},tutorialOrder:()=>{},speedOf:f=>f.speed});
   ctx.setSel=list=>{ctx.selMulti=list;};
   run(`const spec=G.sortie(G.defaults());fleets=spec.fleets.map((f,i)=>({...f,id:i,team:0,alive:true,speed:2,pos:groundPoint(8+i*.5,27),heading:new THREE.Vector3(),march:new THREE.Vector3(),queue:[],order:null}));groundInitOrg(spec.org);`);
   check(`(()=>{groundSelectUnit('battalions','gb1');groupOrder({type:'move',dest:groundPoint(10,29)});return orderTargets().length===3&&fleets.slice(0,3).every(f=>f.order?.type==='move'&&f.order.path.points.length>1)&&fleets.slice(3).every(f=>!f.order);})()`);

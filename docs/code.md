@@ -20,6 +20,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   2. `effects.js` 粒子・曳光弾・矢印
   2.5 `base.js` 第5節の総基地のゲート（八角形のふた、状態の帯、塞いだ瓦礫）と強化歩兵の点・撃つ見た目（2026-10-16。共和国の強化歩兵の赤い点 `drawTroops` は 2026-10-18。描くだけ。シールド・塞ぐ・守備隊の仕組みは `sim.js`）。地表の砲台の案I（`pitBuild`・`pitDraw`: 竪穴をステンシルで岩に見せる、向きと仰角、砲台の強化歩兵。2026-10-17。仰角の制限 `pitCan` と砲台の歩兵の射撃は `sim.js`。後処理の描画先にステンシルを持たせたのは `scene.js`）
   3. `shapes.js` 艦と小型機と地表の砲台・推進器の形
+  3.1 `ground-shapes.js` 地上・航空・海上の模型、編隊 `GROUND_FORMS`、陣営別の `groundModelFor(kind, side)` と見本用の `kind[@side]:key:size:form` 差し替え。採用表が空の間は従来の形を使う。
   4. `units.js` 名札・メッシュ・軌跡
   5. `state.js` 状態・艦隊生成・ロスター・`reset()`・戻す
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
@@ -32,7 +33,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   8. `loop.js` 描画ループと起動。挟撃の矢じり（`pinchMarks`）
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
-- `tools/`: 確認用の道具（ゲームは使わない）。`tools/body-shots.cjs` は天体の見本の画像、`tools/retreat-sim.cjs` は第2節、`tools/denali-sim.cjs` は第4節、`tools/februaria-sim.cjs` は第5節の早送り（`q` はデバッグのオートモード `autoAI` をそのまま使う。2026-10-19）、`tools/op-sim.cjs` はどの作戦でも早送りして勝ち負け・長さ・沈んだ隻数を出す（2026-10-20）、`tools/length-sim.cjs` は第1〜6節の長さの表（2026-10-30）、`tools/feint-sim.cjs` は第6節の止まっている隊・陽動・方角守備隊・オートモードの分岐の記録（2026-10-30）。`tools/ch1-check.cjs` は1つの作戦を最後まで早送りして、例外・console.error・任務欄と名札の NaN／undefined を集める（第一章の通しのバグ取り、2026-11-05）。`STAGE=1` を付けると自分の艦隊をその作戦の技術の段階まで研究した値にする（`tools/browser.cjs` の `toStage`）、`tools/ally-targets.cjs` は友軍の狙う相手の表。`tools/tutorial-check.cjs`（演習のチュートリアル）・`tools/prep-tutorial-check.cjs`（準備画面のチュートリアル）・`tools/masc-check.cjs`（強襲母艦の配備と別枠）は `tests/smoke.cjs` から呼ぶ確かめで、1つだけでも走る。使い方は `docs/maps.md`。
+- `tools/`: 確認用の道具（ゲームは使わない）。`tools/body-shots.cjs` は天体の見本の画像、`tools/retreat-sim.cjs` は第2節、`tools/denali-sim.cjs` は第4節、`tools/februaria-sim.cjs` は第5節の早送り（`q` はデバッグのオートモード `autoAI` をそのまま使う。2026-10-19）、`tools/op-sim.cjs` はどの作戦でも早送りして勝ち負け・長さ・沈んだ隻数を出す（2026-10-20）、`tools/length-sim.cjs` は第1〜6節の長さの表（2026-10-30）、`tools/feint-sim.cjs` は第6節の止まっている隊・陽動・方角守備隊・オートモードの分岐の記録（2026-10-30）。`tools/ch1-check.cjs` は1つの作戦を最後まで早送りして、例外・console.error・任務欄と名札の NaN／undefined を集める（第一章の通しのバグ取り、2026-11-05）。`STAGE=1` を付けると自分の艦隊をその作戦の技術の段階まで研究した値にする（`tools/browser.cjs` の `toStage`）、`tools/ally-targets.cjs` は友軍の狙う相手の表。`tools/model-sheet.cjs`（地上モデルの見本ページ）・`tools/ground-model-shots.cjs`（ゲーム画面の写真）・`tools/model-floaters.cjs`（体から浮いた部品の一覧）は `docs/models.md` 4。`tools/tutorial-check.cjs`（演習のチュートリアル）・`tools/prep-tutorial-check.cjs`（準備画面のチュートリアル）・`tools/masc-check.cjs`（強襲母艦の配備と別枠）は `tests/smoke.cjs` から呼ぶ確かめで、1つだけでも走る。使い方は `docs/maps.md`。
 
 ## ライブラリ
 Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdelivr の `three@0.128.0/examples/js`）。r128 なので新しい API（`BufferGeometry.applyQuaternion` など）はない。
