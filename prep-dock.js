@@ -77,7 +77,11 @@ window.WOS_DOCK = (() => {
     cam.position.set(...CP); cam.lookAt(...CL); cam.rotateZ(THREE.MathUtils.degToRad(-67.2));
     renderer = r; scene = sc;
     let moving = null;
-    const c = new THREE.Color(0x7fc8ff), ship = new THREE.MeshStandardMaterial({ color: 0x9aa7b8, emissive: c, emissiveIntensity: .05, metalness: .5, roughness: .42 });
+    const c = new THREE.Color(0x7fc8ff), ship = new THREE.MeshStandardMaterial({ color: 0x9aa7b8, emissive: c, emissiveIntensity: .05, metalness: .5, roughness: .42, vertexColors: true });
+    /* 止まっている艦は宇宙の画面と同じ新しい形（自軍なので地球側。battle/ground-shapes.js の SPACE_MODELS、ユーザー決定 2026-11-14）。
+       表にない艦種だけ前の形を白い頂点色で。groundShapeGeo は呼ぶたびに新しい形を作るので、ずらしても捨ててもよい */
+    const dockShipGeo = t => { const spec = SPACE_MODELS[t]; if (!spec) return whiteShipGeo(t);
+      const g = groundShapeGeo(spec.earth); if (spec.y) g.translate(0, spec.y, 0); return g; };
     const tubeM = new THREE.MeshStandardMaterial({ color: 0xb8bec8, metalness: .4, roughness: .5 }), hingeM = GM.hinge;
     const glowM = new THREE.PointsMaterial({ color: 0xffd08a, size: 4, sizeAttenuation: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
     return function update(ships) {
@@ -102,7 +106,7 @@ window.WOS_DOCK = (() => {
         if (i < n - 1) hinge(ux * (A + (i + 1) * sl), y - 1, uz * (A + (i + 1) * sl), w * .42, w + 3.6, 'v'); }
       return A + len; };
     // 艦を止める: 位置 c（中心）、艦首の向き face、乗り込みの橋は from（桟橋側の点の列）から
-    const putShip = (t, c, face, bridges) => { t = queues[levelIndex].shift(); const S = SZ[levelType], m = new THREE.Mesh(shapeGeo(t), ship); m.scale.setScalar(S); m.position.set(...c); m.rotation.y = Math.atan2(face[0], face[1]);
+    const putShip = (t, c, face, bridges) => { t = queues[levelIndex].shift(); const S = SZ[levelType], m = new THREE.Mesh(dockShipGeo(t), ship); m.scale.setScalar(S); m.position.set(...c); m.rotation.y = Math.atan2(face[0], face[1]);
       m.castShadow = m.receiveShadow = true; target.add(m); counts[levelIndex]++; bridges.forEach(([A, B]) => { beam(A, B, Math.max(2, S * .16), tubeM); glow.push([A[0], A[1] + 1.8, A[2]]); }); };
     // 畳んだ桟橋: 柱の付け根のヒンジから、節を折り重ねて柱に沿わせる（アコーディオンのように）
     const F0 = 6.2, folded = (ux, uz, y, len, w) => { foldedCount++; const n = Math.max(1, Math.round(len / 20)); hinge(ux * (F0 - .5), y, uz * (F0 - .5), w * .7, w * 2.2, 'h').rotation.y = Math.atan2(ux, uz);
