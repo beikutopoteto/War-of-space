@@ -416,10 +416,10 @@ const ySh=(p,y)=>p.map(g=>{ g.translate(0,y,0); return g; });
 /* mBox: a Republic cargo module (a short creased body with cut corners) of length l centred at x, y, z. sideAt: parts made by mk
    laid on both side walls at x (their top facing out) and height y */
 const mBox=(x,y,z,l,w,h)=>{ const B=mA([[z-l/2,w*.85,h*.85],[z-l/2+.03,w,h],[z+l/2-.03,w,h],[z+l/2,w*.85,h*.85]]); return B.hull().map(g=>{ g.translate(x,y,0); return g; }); };
-/* wallStrip: a continuous wall along points [x, z, height] standing on y0 (thickness t), its outer face leaning in — a smooth
+/* wallStrip: a continuous wall along points [x, z, height, base?] standing on y0 or each point's own base (thickness t), its outer face leaning in — a smooth
    bulwark that follows a hull's edge. Faces are turned outward from the strip's centre line */
 function wallStrip(pts,y0,t=.035){ const V=(x,y,z)=>new THREE.Vector3(x,y,z), P=[];
-  const S=pts.map(([x,z,h])=>{ const s=Math.sign(x)||1; return [V(x+.005*s,y0,z),V(x-.012*s,y0+h,z),V(x-(t-.01)*s,y0+h,z),V(x-t*s,y0,z)]; });
+  const S=pts.map(([x,z,h,yb=y0])=>{ const s=Math.sign(x)||1; return [V(x+.005*s,yb,z),V(x-.012*s,yb+h,z),V(x-(t-.01)*s,yb+h,z),V(x-t*s,yb,z)]; });
   const C=S.map(r=>r.reduce((a,b)=>a.clone().add(b),V(0,0,0)).multiplyScalar(.25));
   const tri=(a,b,c,o)=>{ const n=V(0,0,0).subVectors(b,a).cross(V(0,0,0).subVectors(c,a)); if(n.dot(o)<0) P.push(a,c,b); else P.push(a,b,c); };
   for(let i=0;i<S.length-1;i++){ const m=C[i].clone().add(C[i+1]).multiplyScalar(.5);
@@ -714,15 +714,15 @@ const GROUND_SHAPES={
      of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
      W.A.S. sit in the well in pods (two rows of four) and drop through lids in the floor */
   spMASM:()=>{ const M=mA([[-1.2,.19,.075],[-1,.28,.095],[-.3,.31,.1],[.45,.29,.1],[.85,.22,.085],[1.15,.1,.05]]), m=-.025, wy=M.top(0);
-    const wz=[...Array(17)].map((_,i)=>-1.12+i*1.94/16), wh=z=>z<-.6?.02+.11*Math.sin(Math.PI/2*(z+1.12)/.52):.13-.03*Math.max(0,(z-.2)/.62), walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.018),z,wh(z)]),wy-.012));
+    const wz=[...Array(17)].map((_,i)=>-1.12+i*1.94/16), wh=z=>z<-.6?.02+.11*Math.sin(Math.PI/2*(z+1.12)/.52):.13-.03*Math.max(0,(z-.2)/.62), yc=z=>.1*M.at(z).h-.004, walls=[1,-1].map(sg=>wallStrip(wz.map(z=>[sg*(M.at(z).w-.006),z,wy-.012+wh(z)-yc(z),yc(z)]),wy-.012));
     const floor=tone(loft([[-.64,.27,.003,wy+.003],[.35,.27,.003,wy+.003],[.8,.19,.003,wy+.003]],RECT),.55);
     const ramp=[at(box(.4,.2,.035),0,0,0), ...[-.065,-.022,.022,.065].map(y=>tone(at(box(.34,.016,.012),0,y,.022),DK))].map(g=>{ g.rotateX(-.6); g.translate(0,wy+.06,.86); return g; });
     const pods=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.15,.07,.2),x,wy+.04,z),.85)));
     const lids=[.11,-.11].flatMap(x=>[-.47,-.19,.09,.37].map(z=>tone(at(box(.11,.008,.15),x,M.bot(z)-.002,z),DK)));
-    const house=[at(loft([[-1.12,.07,.015,.015],[-1.02,.14,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.01,0), ...mHump(-.98,-.8,.1,.045,wy+.08), at(box(.015,.14,.015),-.06,wy+.17,-.98)];
+    const house=[at(loft([[-1.12,.07,.015,.015],[-1.02,.14,.04,.04],[-.92,.16,.05,.05],[-.76,.14,.045,.045],[-.68,.08,.025,.025]],FACET),0,wy-.025,0), ...mHump(-.98,-.8,.1,.045,wy+.065), at(box(.015,.14,.015),-.06,wy+.155,-.98)];
     const fend=[.25,-.45].flatMap(z=>pair(tone(at(tube(.028,.1,8),M.at(z).w+.003,.02,z),DK)));
     return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.1,-.1],-1.2,.055),
-      ...mGun(0,wy+.122,-.9,.7), ...mPair(mPD,.285,wy+.12,-.55,.75), ...sideAt(()=>flatM(0,0,m,.6),M.at(m).w-.006,.02)]; },
+      ...mGun(0,wy+.107,-.9,.7), ...mPair(mPD,.285,wy+.12,-.55,.75), ...sideAt(()=>flatM(0,0,m,.6),M.at(m).w-.006,.02)]; },
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
