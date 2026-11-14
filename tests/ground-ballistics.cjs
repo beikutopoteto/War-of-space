@@ -44,6 +44,13 @@ function nodeChecks(){
   check('描画の弧の高さは18倍せず実クリアランス',`(()=>{const s=groundBallisticSolution(unit(),point()),p=groundBallisticAt(s,s.duration/2),m=groundFreeFall(s.originMeters,s.velocityMeters,s.physicalDuration/2);return close(p.y,m.y*4/1000)&&p.y<3;})()`);
   check('既存眼高なら低い壁越しの戦車直射を維持',`(()=>{groundBuildings=[box(0,.2,0,50)];const f=unit('vehicle'),p=point(),s=groundBallisticSolution(f,p);return s.clear&&close(s.origin.y,groundEye(f).y)&&close(s.target.y,groundSightRules().eyeHeight)&&close(s.physicalDuration,2000/1500)&&groundClearLine(s.origin,s.target);})()`);
   check('高い壁は戦車直射を拒否・間接弾は上を通過',`(()=>{groundBuildings=[box(0,.2,0,150)];const direct=groundBallisticSolution(unit('vehicle'),point()),arc=groundBallisticSolution(unit(),point());return !direct.clear&&direct.collision&&direct.impact.x<.2&&arc.clear;})()`);
+  // 立てこもる（ユーザー決定 2026-11-14）: 撃つ隊・狙う点が立っている建物は遮らない。間の建物は今どおり遮る。
+  check('建物の中の戦車は外へ直射でき、外も見える',`(()=>{groundBuildings=[box(-4,.6,0,150)];groundSightReset();groundBallisticReset();const f=unit('vehicle'),s=groundBallisticSolution(f,point());return s.clear&&groundClearLine(groundEye(f),{x:4,z:0,y:groundSightRules().eyeHeight});})()`);
+  check('建物の中の点は外から見え、直射も届く',`(()=>{groundBuildings=[box(4,.6,0,150)];groundSightReset();groundBallisticReset();const f=unit('vehicle'),s=groundBallisticSolution(f,point());return s.clear&&groundClearLine(groundEye(f),{x:4,z:0,y:groundSightRules().eyeHeight});})()`);
+  check('建物の中の自走砲は外へ曲射できる',`(()=>{groundBuildings=[box(-4,.6,0,150)];groundSightReset();groundBallisticReset();return groundBallisticSolution(unit(),point()).clear;})()`);
+  check('曲射は狙う点の建物の屋根に当たる',`(()=>{groundBuildings=[box(4,.6,0,150)];groundSightReset();groundBallisticReset();const s=groundBallisticSolution(unit(),point());return !s.clear&&s.reason==='building'&&s.impact.x>3.6;})()`);
+  check('間の建物は建物の中からでも遮る',`(()=>{groundBuildings=[box(-4,.6,0,150),box(0,.2,0,150)];groundSightReset();groundBallisticReset();const f=unit('vehicle'),s=groundBallisticSolution(f,point());return !s.clear&&!groundClearLine(groundEye(f),{x:4,z:0,y:groundSightRules().eyeHeight});})()`);
+  run('flat();');
   check('45度弾道を塞ぐ山は勝手に高く飛ばず拒否',`(()=>{relief((x,z)=>x===0?1000:0);const s=groundBallisticSolution(unit(),point());return !s.clear&&s.reason==='terrain'&&s.hitTime<s.duration&&s.collision.point.equals(s.impact);})()`);
   check('三角形境界で幅の狭い尾根も検出',`(()=>{relief((x,z)=>x===1&&z===0?2000:0);const s=groundBallisticSolution(unit(),point());return !s.clear&&s.reason==='terrain'&&s.impact.x<1;})()`);
   run('flat();');

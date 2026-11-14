@@ -105,6 +105,15 @@ function controlsCases(){
     groundStep(.125);check('失敗した追撃経路は0.5秒後に再探索',searches===2);
     for(let i=0;i<4;i++)groundStep(.125);check('失敗が続いても0.5秒ごとの再探索',searches===3);
   }finally{groundPath=realPath;groundUpdateSight=realSight;groundSeenBy=realSeen;}
+  // 射程の内側でも、射線が通らず撃てないあいだは近づく。撃てるようになれば止まる（ユーザー決定 2026-11-14「撃てるまで近づく」）。
+  const closer=unit('infantry',8,27),screened=unit('infantry',8.3,27,1);fleets=[closer,screened];groundSites=[];
+  order(closer,{type:'attack',target:screened});
+  const realMode=groundFireMode;let chases=0;
+  groundPath=()=>{chases++;return null;};groundUpdateSight=()=>{};groundSeenBy=()=>true;
+  try{
+    groundFireMode=()=>null;groundStep(.125);check('射程の内側でも射線がなければ追う',chases===1&&closer.order?.type==='attack');
+    closer.groundChaseT=0;groundFireMode=()=>'direct';groundStep(.125);check('撃てる位置では追わない',chases===1);
+  }finally{groundPath=realPath;groundUpdateSight=realSight;groundSeenBy=realSeen;groundFireMode=realMode;}
   // 手動の対空指定を拒否しても、移動・予約経路・undo履歴と自動迎撃は独立。
   const guard=unit('vehicle',8,27),air=unit('fighter',8.2,27,1);fleets=[guard,air];groundSites=[];groundForests=[];groundBuildings=[];
   guard.stance=air.stance='evade';select(guard);groupOrder({type:'move',dest:groundPoint(9,27)});groupOrder({type:'move',dest:groundPoint(9,29),queue:true});

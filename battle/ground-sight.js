@@ -64,6 +64,8 @@ function groundBuildingBlocks(a,b,box){
   }
   return hi>0&&lo<1;
 }
+// 立っている建物の中（平面で箱の内側）。中の隊は外が見え、外からも見える（立てこもる。ユーザー決定 2026-11-14）。
+function groundInsideBuilding(p,box){ return p.x>=box.minX&&p.x<=box.maxX&&p.z>=box.minZ&&p.z<=box.maxZ; }
 function groundBuildingsBlock(a,b){
   // 建物を4戦闘単位の区画に分け、線分の範囲外の町を調べない。
   if(groundSightBuildingSource!==groundBuildings){
@@ -76,7 +78,7 @@ function groundBuildingsBlock(a,b){
   const minX=Math.floor(Math.min(a.x,b.x)/4),maxX=Math.floor(Math.max(a.x,b.x)/4),minZ=Math.floor(Math.min(a.z,b.z)/4),maxZ=Math.floor(Math.max(a.z,b.z)/4);
   for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
     const boxes=groundSightBuildingBins.get(x+','+z);
-    if(boxes)for(const box of boxes)if(groundBuildingBlocks(a,b,box))return true;
+    if(boxes)for(const box of boxes)if(!groundInsideBuilding(a,box)&&!groundInsideBuilding(b,box)&&groundBuildingBlocks(a,b,box))return true;
   }
   return false;
 }

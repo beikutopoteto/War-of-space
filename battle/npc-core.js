@@ -94,7 +94,7 @@ function npcThink(c,sit){
   for(const z of zones){ const m=mem(z.id), e=E.get(z.id); // 見ていない敵地には守備がいると仮定する
     if(m.owner!=='own'&&m.owner!=='none'&&t-m.seenAt>L.memory){ const a=D.assume*avg*(z.base==='foe'?2:1); if(e.foe<a){ foe+=a-e.foe; e.foe=a; } } }
   foe=Math.max(foe,known,sit.intel||0);
-  const ratio=(own+leadP)/Math.max(foe,avg*.25), horizon=L.horizon*g.span;
+  const ratio=(own+leadP+(sit.friendPower||0))/Math.max(foe,avg*.25), horizon=L.horizon*g.span; // friendPower: この指揮官が動かさない味方の力（力の比にだけ数える）
   c.foe0=Math.max(c.foe0||0,known); const quiet=led&&c.foe0>0&&known<A.finish*c.foe0; // 敵が残りわずか: とどめは先導に残す
   for(const z of zones){ if(!isOwn(z.id))continue; const e=E.get(z.id);
     for(const k of contacts)e.threat+=k.est*Math.max(0,1-g.dist(k.zone,z.id)/horizon)**2; }

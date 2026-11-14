@@ -179,7 +179,11 @@ function npcGroundSituation(c){
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');
     sit.lead={front:op.npc[team]?.lead?.front??own.sort((a,b)=>Math.hypot(b.x-(home?.x||0),b.z-(home?.z||0))-Math.hypot(a.x-(home?.x||0),a.z-(home?.z||0)))[0]?.id};
   }
-  if(c.unitIds)sit.units=sit.units.filter(u=>c.unitIds.has(u.id));
+  if(c.unitIds){
+    // 同じ軍を分けて動かすとき（npcGroundSplit）、先導の指揮官は友軍の力も力の比に数える。友軍は先導の力を sit.lead で数える。
+    if(c.side!=='ally')sit.friendPower=sit.units.filter(u=>!c.unitIds.has(u.id)).reduce((s,u)=>s+u.power,0);
+    sit.units=sit.units.filter(u=>c.unitIds.has(u.id));
+  }
   if(c.leadIds){
     const lead=fleets.filter(f=>c.leadIds.has(f.id)&&f.alive&&f.hpPool>0);
     sit.lead={full:c.leadFull,units:lead.map(f=>{

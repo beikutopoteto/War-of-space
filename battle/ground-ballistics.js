@@ -124,8 +124,12 @@ function groundBallisticTrace(s){
     const u=i? (bins[i-1]+bins[i])/2:0,wx=x+dx*u,wz=z+dz*u,ix=Math.floor(wx/4),iz=Math.floor(wz/4);
     for(let zz=iz-1;zz<=iz+1;zz++)for(let xx=ix-1;xx<=ix+1;xx++)for(const box of index.bins.get(xx+','+zz)||[])candidates.add(box);
   }
+  const inside=(px,pz,box)=>px>=box.minX&&px<=box.maxX&&pz>=box.minZ&&pz<=box.maxZ;
   for(const item of candidates){
     const box=item.box,interval=[lo,first===null?hi:Math.min(hi,first)];
+    // 立てこもる（ユーザー決定 2026-11-14）: 撃つ隊が中にいる建物（屋根より低い）と、直射で狙う点が中にある建物は遮らない。
+    // 曲射・爆弾は今どおり狙う点の屋根に当たる。上空の機体は自分の真下の建物を無視しない。
+    if(inside(x,z,box)&&c<(physical?item.topM:box.top)||!physical&&inside(s.target.x,s.target.z,box))continue;
     if(!groundBallisticSlab(x,dx,box.minX,box.maxX,interval)||!groundBallisticSlab(z,dz,box.minZ,box.maxZ,interval))continue;
     accept(groundBallisticBand(a,b,c,interval[0],interval[1],physical?item.bottomM:box.bottom,physical?item.topM:box.top),'building');
   }
