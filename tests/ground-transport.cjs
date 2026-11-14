@@ -106,6 +106,18 @@ function transportCases(){
     const atWidth=t=>groundPoint(48-t,46-7*t);
     check('baikonur2の川幅0.5kmちょうどは架橋可能',!groundBridgePlan(atWidth(2/3)).reason);
     for(const [name,p] of [['上限直後',atWidth(2/3+.001)],['本流下流',groundPoint(46,32)],['本流河口手前',groundPoint(46.5,19.5)]])check('baikonur2の'+name+'は幅上限で拒否',groundBridgePlan(p).reason?.includes('上限 0.5 km'));
+    /* 戦車が工兵の橋の脇で止まる不具合（2026-11-14）: 斜めから渡ると、区切り直した経路が橋の端の角で川に少しかかり、
+       速さ0の所に乗って動けなくなっていた。直す前は下の4つとも止まった（ブラウザの再現 154回中4回） */
+    for(const [river,px,py,side,far] of [['main',50.5,69,-1,1.5],['main',49.5,56.5,-1,3],['west',42.5,22,-1,3],['east',54,21,1,1.5]]){
+      const plan=groundBridgePlan(groundPoint(px,py)),b={...plan,builder:null,team:0,progress:1,complete:true,hp:groundEngineeringRules().hp,visual:null};
+      groundBridges.push(b);groundBridgeRevision++;
+      const nx=-plan.ty,ny=plan.tx,s=[plan.x+side*nx*far-plan.tx*1.5,plan.y+side*ny*far-plan.ty*1.5],e=[plan.x-side*nx*far+plan.tx*.75,plan.y-side*ny*far+plan.ty*.75];
+      const tankB=unit('vehicle',...s),dest=groundPoint(...e);fleets=[tankB];order(tankB,{type:'move',dest});
+      const path=tankB.order?.path;let crossed=false,dry=true;
+      for(let n=0;n<4000&&tankB.order;n++){groundStep(.05);const x=groundMapX(tankB.pos.x),y=groundMapY(tankB.pos.z);crossed ||= groundBuiltBridgeAt(x,y,plan.river);dry &&= groundFactor(tankB.pos.x,tankB.pos.z,'vehicle')>0;}
+      check(`baikonur2の${river}の工兵の橋を斜めから渡り、川の上で止まらない`,plan.river===river&&!!path&&Number.isFinite(path.cost)&&crossed&&dry&&!tankB.order&&groundDistanceTo(tankB,{pos:dest})<1e-6);
+      groundBridges.pop();groundBridgeRevision++;
+    }
 
   }finally{op=saved.op;
     groundBridges.forEach(groundBridgeDropVisual);groundStrikes.forEach(groundStrikeDropVisual);groundImpacts.forEach(groundStrikeDropVisual);

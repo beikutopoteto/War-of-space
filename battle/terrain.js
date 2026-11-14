@@ -453,14 +453,22 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   }
   if(simple.length>1)rounded.push(simple[simple.length-1]);
   // 地形の起伏も拾い、経路の線が地面へ潜らないようにする。
-  const points=[rounded[0]];
-  for(let i=1;i<rounded.length;i++){
-    const p=rounded[i-1],q=rounded[i],n=Math.max(1,Math.ceil(p.distanceTo(q)/(cell*GROUND_SCALE/2)));
-    for(let k=1;k<=n;k++){const v=p.clone().lerp(q,k/n);v.y=kind==='sea'?0:groundHeight(v.x,v.z);points.push(v);}
+  function polyline(list){
+    const points=[list[0]];
+    for(let i=1;i<list.length;i++){
+      const p=list[i-1],q=list[i],n=Math.max(1,Math.ceil(p.distanceTo(q)/(cell*GROUND_SCALE/2)));
+      for(let k=1;k<=n;k++){const v=p.clone().lerp(q,k/n);v.y=kind==='sea'?0:groundHeight(v.x,v.z);points.push(v);}
+    }
+    if(points.length===1)points.push(points[0].clone());
+    let cost=0;for(let i=1;i<points.length;i++)cost+=leg(points[i-1],points[i]);
+    return {points,cost};
   }
-  if(points.length===1)points.push(points[0].clone());
-  const curve=new THREE.CurvePath();let cost=0;
-  for(let i=1;i<points.length;i++){curve.add(new THREE.LineCurve3(points[i-1],points[i]));cost+=leg(points[i-1],points[i]);}
+  /* 検査点の位置は区切り方で変わる。角丸・近道のあとに区切り直すと、橋の端の角などで水へかかる区間が出ることがある。
+     その線は渡さず、角丸なし → 格子のままの順に戻す（2026-11-14、戦車が工兵の橋の脇で止まる不具合） */
+  let line=polyline(rounded);
+  for(const list of [simple,raw]){if(Number.isFinite(line.cost))break;const other=polyline(list);if(Number.isFinite(other.cost))line=other;}
+  const {points,cost}=line,curve=new THREE.CurvePath();
+  for(let i=1;i<points.length;i++)curve.add(new THREE.LineCurve3(points[i-1],points[i]));
   const L=curve.getLength();
   // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
   // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
@@ -483,4 +491,14 @@ function groundMovePath(from,waypoints,kind){
   }
   return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L:curve.getLength(),s:0,pts,at};
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz),factor=groundFactor(f.pos.x,f.pos.z,groundMoveKind(f)),amount=Math.min(dist,remaining*factor);if(factor<=0)return false;if(groundMoveKind(f)==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){const before=f.pos.clone();f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);groundSupplyMoved(f,before,f.pos);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
+    /* 経路は検査点（セルの1/8ごと）で確かめるので、検査点のあいだに細い水際が残ることがある（橋の端の角など）。
+       そこで止まったままにしない: 今いる所が通れなければ次の点の速さで抜け、進んだ先が細い水際なら、その先の通れる所まで（検査点の間隔の2倍まで）進める。
+       それより広い水は今までどおり手前で止まる（2026-11-14、戦車が橋の上で止まる不具合） */
+    if(factor<=0&&kind!=='sea')factor=groundFactor(target.x,target.z,kind);
+    if(factor<=0)return false;
+    let amount=Math.min(dist,remaining*factor);
+    if(kind!=='sea'&&dist>1e-8&&amount<dist){const wet=a=>groundFactor(f.pos.x+dx/dist*a,f.pos.z+dz/dist*a,kind)<=0;
+      if(wet(amount)){let through=amount;while(through<dist&&through<amount+gap&&wet(through))through=Math.min(dist,through+gap/8);
+        if(!wet(through))amount=through;else{let back=amount;while(back>0&&wet(back))back=Math.max(0,back-gap/8);amount=back;if(amount<=1e-8)return false;}}}
+    if(kind==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){const before=f.pos.clone();f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);groundSupplyMoved(f,before,f.pos);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
