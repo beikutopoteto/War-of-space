@@ -66,7 +66,7 @@
   };
   const doctrines = {
     /* 地球連合: 火力と線。集めてから一方向を押す。予備を厚く持ち、補給線を守る。 */
-    earth: { ...base, name: '地球連合', attack: 1.5, mass: 0.7, reserve: 0.25, massing: 0.8, assembleMax: 90, consolidate: 30, feint: false, wCut: 0, avoid: 0, counter: 1.2 },
+    earth: { ...base, name: '地球連合', attack: 1.5, band: 0.3, mass: 0.7, reserve: 0.25, massing: 0.8, assembleMax: 90, consolidate: 30, feint: false, wCut: 0, avoid: 0, counter: 1.2 },
     /* 惑星共和国: 機動と浸透。固い所を避けて回り込み、助攻で釣り、補給線を切る。予備は薄い。 */
     mars: { ...base, name: '惑星共和国', attack: 1.1, break_: 0.4, commit: 20, minInfo: 0.25, probeMax: 35, assume: 0.7,
       mass: 0.5, reserve: 0.1, garrison: 0.5, economy: 0.3, holdRatio: 0.8, massing: 0.6, assembleMax: 50, consolidate: 10,
