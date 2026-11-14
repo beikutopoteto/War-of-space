@@ -264,11 +264,14 @@ function groundSelectionInit(f){
   const ring=f.groundSelection=new THREE.Mesh(new THREE.RingGeometry(1,1.12,64).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.95,depthWrite:false,side:THREE.DoubleSide}));
   ring.renderOrder=6;ring.userData.flat=ring.geometry.attributes.position.array.slice();ring.visible=false;groundVisuals.add(ring);return ring;
 }
-function groundSelectionDraw(f,picked){
-  const ring=f.groundSelection||(picked&&groundVisuals?groundSelectionInit(f):null);if(!ring)return;
-  ring.visible=picked&&f.alive&&!f.embarked&&!groundAbsent(f);
+// target: 搭乗ボタンを押したあと、選んだ中隊が乗れる相手。緑の輪を明滅させ、名札の印も光らせる（仮の色）。
+function groundSelectionDraw(f,picked,target=false){
+  const glow=target&&!picked;f.el?.classList.toggle('board-target',glow);
+  const ring=f.groundSelection||((picked||target)&&groundVisuals?groundSelectionInit(f):null);if(!ring)return;
+  ring.visible=(picked||target)&&f.alive&&!f.embarked&&!groundAbsent(f);
   if(!ring.visible)return;
-  const radius=Math.sqrt(f.ships.length)*1.35*(Number.isFinite(f.scale)?f.scale:.3)+2.5,flat=ring.userData.flat,position=ring.geometry.attributes.position;
+  ring.material.color.set(glow?0x7dffb0:0xffffff);ring.material.opacity=glow?.6+.35*Math.sin(performance.now()/1000*Math.PI*2):.95;
+  const radius=Math.sqrt(f.ships.length)*1.35*(Number.isFinite(f.scale)?f.scale:.3)+2.5+(glow?.8:0),flat=ring.userData.flat,position=ring.geometry.attributes.position;
   ring.position.set(f.pos.x,0,f.pos.z);
   for(let i=0;i<position.count;i++){
     const x=flat[i*3]*radius,z=flat[i*3+2]*radius;
@@ -281,8 +284,9 @@ function groundDraw(){
   const picked=orderTargets(),now=gameSec;
   groundRangesDraw(picked);
   if(groundBridgeNoGo){groundBridgeNoGo.visible=groundBridgeNoGo.visible&&!over;groundBridgeNoGo.children.forEach(m=>m.material.opacity=.45+.15*Math.sin(performance.now()/1600*Math.PI*2));}
+  const boardTargets=groundWorkAiming==='board'&&picked.length===1?groundBoardTargets(picked[0]):[];
   for(const f of fleets){
-    groundSelectionDraw(f,picked.includes(f));
+    groundSelectionDraw(f,picked.includes(f),boardTargets.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
     const pose=model.userData.pose;
     if(pose){
@@ -545,9 +549,13 @@ function groundCaptureDraw(){
   for(const s of groundSites){
     const color=s.knownOwner===0?'#8bdfff':s.knownOwner===1?'#ff998b':'#cad1c5',p=proj(s.pos.clone().add(new THREE.Vector3(0,1,0)));
     s.ring.material.color.set(color); s.el.style.color=color;
-    s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${p.y}px) translate(-50%,-100%)`;
+    /* 札は占拠の円の画面でいちばん上の点より上に置き、円の中の部隊を隠さない（ユーザー 2026-11-14「拠点のラベルが大きく、場所が低い」） */
+    const ringPos=s.ring.geometry.attributes.position;let top=p.y;
+    for(let i=0;i<ringPos.count;i+=6){const q=proj(new THREE.Vector3(ringPos.getX(i),ringPos.getY(i),ringPos.getZ(i)));if(q.z<=1)top=Math.min(top,q.y);}
+    s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${top-6}px) translate(-50%,-100%)`;
     const owner=s.knownOwner===0?'地球連合':s.knownOwner===1?'惑星共和国':'中立',progress=(s.knownProgress||[0,0]).map(n=>Math.floor(n/groundCaptureSeconds(s,s.knownOwner)*100));
-    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,groundCaptureSeconds(s,s.knownOwner))}　青${progress[0]}% 赤${progress[1]}%${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
+    // 青と赤の進み具合は札のゲージで見せ、文字には出さない（札を小さくするため）。
+    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,groundCaptureSeconds(s,s.knownOwner))}${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
     s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${progress[i]}%`);
   }
 }
@@ -565,7 +573,8 @@ function groundCommandBarHud(list){
   document.getElementById('groundMove').setAttribute('aria-pressed',String(groundWorkAiming==='move'));
   document.getElementById('groundHold').disabled=!canMove||over;
   const kinds=list.map(f=>f.groundKind), carries=list.some(f=>f.embarked||f.groundPassenger||groundLandingShip(f));
-  const visible={board:list.some(f=>f.groundKind!=='sea'&&groundBands(f).includes('ground')),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
+  // 搭乗は、今乗れる相手がいる中隊だけ（戦車は岸の揚陸艦がいるときだけ。groundBoardTargets）。
+  const visible={board:list.some(f=>groundBoardTargets(f).length>0),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
   groundBridgeNoGoHud(list);
   const buttons=[...document.querySelectorAll('#groundUniqueCommands button')];
   buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);

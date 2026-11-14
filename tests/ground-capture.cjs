@@ -61,11 +61,15 @@ async function checkGroundCapture(page, check) {
     for(const s of groundSites){infantry.pos.copy(s.pos);for(let i=0;i<600&&!over;i++)step(.05);}
     const victory=over&&outcome===true&&document.getElementById('rh').textContent==='勝利'&&groundSites.every(s=>s.owner===0);
     groundDraw();const gauge=document.querySelectorAll('.ground-site .capture-track').length===op.groundSites.length;
+    // 札は占拠の円より上に置き、円の中の部隊を隠さない。進み具合の％は文字に出さずゲージだけ（2026-11-14）
+    const labelAbove=groundSites.every(s=>{const ring=s.ring.geometry.attributes.position;let top=Infinity;
+      for(let i=0;i<ring.count;i++){const q=proj(new THREE.Vector3(ring.getX(i),ring.getY(i),ring.getZ(i)));if(q.z<=1)top=Math.min(top,q.y);}
+      return s.el.style.visibility==='hidden'||s.el.getBoundingClientRect().bottom<=top+1;})&&!groundSites.some(s=>/青\d+%/.test(s.el.textContent));
     const road=groundTerritory.sections.length>0, alpha=new Set();
     const pixels=groundTerritory.canvas.getContext('2d').getImageData(0,0,480,360).data;
     for(let i=3;i<pixels.length;i+=4)if(pixels[i])alpha.add(pixels[i]);
     const union=alpha.size===1&&alpha.has(102);
-    return {stats,matchup,hatch,noWipeWin,victory,gauge,road,union};
+    return {stats,matchup,hatch,noWipeWin,victory,gauge,labelAbove,road,union};
   });
   // 結果表示の既存タイマーを待ってから次の作戦へ。後続の宇宙テストに残さない。
   await page.waitForSelector('#result:not([hidden])');
