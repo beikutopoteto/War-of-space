@@ -183,6 +183,61 @@ function groundConfigure(active){
 document.querySelectorAll('#groundCommand button').forEach(b=>b.addEventListener('click',()=>groundSetBand(orderTargets(),b.dataset.band)));
 document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('click',()=>groundSetView(b.dataset.band)));
 document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
+// Drawing-only state: the clock and last displacement live on the model, never on the path.
+function groundFormationState(f,now=gameSec){
+  if(now-(f.groundModel?.userData.movedAt??-Infinity)<.4)return f.order?.groundAdvance?'advance':'move';
+  return f.groundDeployed?'defend':'idle';
+}
+function groundFormationOrder(f,o){
+  if(['move','attack'].includes(o.type)&&!o.groundDeploy&&!o.groundAdvance)f.groundDeployed=false;
+}
+function groundFormationArrive(f){if(f.order?.groundDeploy||f.order?.groundAdvance)f.groundDeployed=true;}
+function groundBodyRandom(f,i){
+  let seed=2166136261;
+  for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
+  return ()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+}
+function groundFormationLayout(f,spec,state){
+  const base=spec.offsets.map(([x,z])=>({x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0})),n=base.length;
+  if(n<2)return base;
+  const vehicles=['vehicle','apc','artillery','guidedRocket','mobileAA','scout','engineer','supply'],foot=['infantry','heavyInfantry','commando','mechanicalAssault','was'];
+  if(!vehicles.includes(f.groundKind)&&!foot.includes(f.groundKind))return base;
+  let gap=Infinity;
+  for(let i=0;i<n;i++)for(let j=0;j<i;j++)gap=Math.min(gap,Math.hypot(base[i].x-base[j].x,base[i].z-base[j].z));
+  gap=Math.max(1.2,gap);
+  if(state==='move')return base.map((p,i)=>({...p,x:vehicles.includes(f.groundKind)?0:(i%2?1:-1)*(f.groundKind==='was'?.9:.45),z:vehicles.includes(f.groundKind)?((n-1)/2-i)*gap:((Math.ceil(n/2)-1)/2-Math.floor(i/2))*gap}));
+  if(state==='idle'){
+    const radius=Math.max(...base.map(p=>Math.hypot(p.x,p.z)))*1.3;
+    return base.map((p,i)=>{const random=groundBodyRandom(f,i),a=random()*Math.PI*2,r=Math.sqrt(random())*radius;return {...p,x:Math.cos(a)*r,z:Math.sin(a)*r,yaw:(random()*2-1)*Math.PI/3};});
+  }
+  return base;
+}
+function groundAircraftCombat(f){
+  const target=f.order?.type==='attack'?f.order.target:null;
+  return !!(f.fireTarget||target?.alive&&groundDistanceTo(f,target)<=groundTargetRange(f,target)*1.5);
+}
+function groundFormationDraw(f,now){
+  const model=f.groundModel,data=model.userData,form=data.formation;
+  // Legacy drawing/capture helpers can build a model without groundInitUnit.
+  if(!data.last){data.last=f.pos.clone();data.movedAt=-Infinity;data.drawnAt=now;}
+  const dt=Math.max(0,now-data.drawnAt);data.drawnAt=now;
+  if(data.last.distanceToSquared(f.pos)>1e-10)data.movedAt=now;
+  data.last.copy(f.pos);
+  if(!form)return;
+  const state=groundFormationState(f,now),air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
+  const combat=air&&groundAircraftCombat(f),targets=form.layouts[air?'defend':state],k=1-Math.exp(-4*dt);
+  form.bodies.forEach((body,i)=>{
+    let target=targets[i];
+    if(combat){
+      const flight=form.flights[i],a=flight.phase+now*flight.omega;
+      target={x:Math.cos(a)*flight.radius,z:Math.sin(a)*flight.radius,y:.5*Math.sin(now*flight.sway+flight.phase),yaw:Math.atan2(-Math.sin(a)*flight.omega,Math.cos(a)*flight.omega),bank:Math.sign(flight.omega)*.28};
+    }
+    body.position.x+=(target.x-body.position.x)*k;body.position.y+=(target.y-body.position.y)*k;body.position.z+=(target.z-body.position.z)*k;
+    body.rotation.y+=Math.atan2(Math.sin(target.yaw-body.rotation.y),Math.cos(target.yaw-body.rotation.y))*k;
+    body.rotation.z+=(target.bank-body.rotation.z)*k;
+    for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
+  });
+}
 function groundInitUnit(f){
   f.groundMaxHp=f.hpPool;
   f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
@@ -198,6 +253,7 @@ function groundInitUnit(f){
   for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
   groundSelectionInit(f);
   const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
+  Object.assign(model.userData,{last:f.pos.clone(),movedAt:-Infinity,drawnAt:gameSec});
   const spec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
   model.userData.groundShape=!!spec;
   if(spec){
@@ -206,14 +262,18 @@ function groundInitUnit(f){
     const geos=new Map([spec.key,...spec.move].map(key=>[key,null]));
     for(const key of geos.keys())geos.set(key,groundShapeGeo(key));
     const geo=geos.get(spec.key),size=spec.size;
+    const form=model.userData.formation={spec,bodies:[],layouts:{},flights:[]};
+    for(const state of ['idle','defend','advance','move'])form.layouts[state]=groundFormationLayout(f,spec,state);
+    const radius=Math.max(...spec.offsets.map(([x,z])=>Math.hypot(x,z)))*size;
     if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
     for(const [i,[x,z]] of spec.offsets.entries()){
       const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
+      form.bodies.push(body);
+      const flightRandom=groundBodyRandom(f,i);
+      form.flights.push({phase:flightRandom()*Math.PI*2,radius:radius*(1+flightRandom()),omega:Math.PI*2/(4+flightRandom()*3)*(flightRandom()<.5?-1:1),sway:1+flightRandom()});
       if(spec.move.length){
         // Stable body-local seed: drawing or rebuilding this fleet must not reshuffle its steps.
-        let seed=2166136261;
-        for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
-        const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+        const random=groundBodyRandom(f,i);
         const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)};
         const moves=spec.move.map(key=>{
           const moving=new THREE.Mesh(geos.get(key),mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);return moving;
@@ -291,6 +351,7 @@ function groundDraw(){
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f),boardTargets.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
+    groundFormationDraw(f,now);
     const pose=model.userData.pose;
     if(pose){
       // Orders can wait at obstacles; actual displacement also covers pursuit and aircraft.
@@ -349,7 +410,7 @@ function groundStep(dt){
     }
     // 進撃（共有命令の実行）の途中で撃てる敵がいれば、自動交戦の隊は止まって撃ち合う。命令優先の隊は進む（ユーザー決定 2026-11-14）。fireTarget は前のステップの値
     const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive;
-    if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+    if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){ groundFormationArrive(f);f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
       const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
       if(allowed)order(f,{type:'attack',target:allowed});
@@ -595,7 +656,7 @@ document.getElementById('groundHold').addEventListener('click',()=>{
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
   npcAutoPlayer(list);saveUndo(list);
-  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
+  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.groundDeployed=true;f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
   groundClearAiming();groundHud();updateRoster();
 });
 document.getElementById('groundCommandExpand').addEventListener('click',e=>{

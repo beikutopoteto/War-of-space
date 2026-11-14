@@ -44,7 +44,7 @@ function groundPlanTap(p){
   if(result.error){groundPlanMessage=result.error;groundHud();return;}
   npcAutoPlayer(list);saveUndo(list);
   if(mode==='plan')for(const {f,dest} of result.slots)f.groundPlan={from:f.pos.clone(),dest,line:[a.clone(),b.clone()]};
-  else for(const {f,dest,path} of result.slots) {groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path});}
+  else for(const {f,dest,path} of result.slots) {groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundDeploy:true});}
   groundClearAiming();groundPlanMessage=mode==='plan'?list.length+'隊の進撃計画を準備（実行で開始）':list.length+'隊が布陣を開始';groundHud();
 }
 function groundPlanExecute(){

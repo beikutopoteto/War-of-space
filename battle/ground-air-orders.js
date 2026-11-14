@@ -63,13 +63,13 @@ function groundAirMotion(f,dt){
  const o=f.order;
  if(o?.type==='move'&&o.path){
   const p=o.path,target=p.points[p.atIndex];
-  if(!target){f.order=null;dropArrow(f.arrow);f.arrow=null;f.groundLoiterCenter=o.dest?.clone()||f.pos.clone();if(!f.groundAirState)nextOrder(f);return true;}
+  if(!target){groundFormationArrive(f);f.order=null;dropArrow(f.arrow);f.arrow=null;f.groundLoiterCenter=o.dest?.clone()||f.pos.clone();if(!f.groundAirState)nextOrder(f);return true;}
   const before=groundDistanceTo(f,{pos:target});groundAirTurnMove(f,target,dt);const after=groundDistanceTo(f,{pos:target});
   p.s=Math.min(p.L||Infinity,(p.s||0)+Math.max(0,speedOf(f)*dt));
   o.airClosest=Math.min(o.airClosest??Infinity,after);
   const radius=Math.max(GROUND_AIR_CONTROL.waypoint,speedOf(f)*dt);
   if(after<=radius||(after>before&&o.airClosest<Math.max(radius,speedOf(f)/GROUND_AIR_CONTROL.turnRate*.4))){p.atIndex++;o.airClosest=Infinity;}
-  if(p.atIndex>=p.points.length){f.order=null;dropArrow(f.arrow);f.arrow=null;f.groundLoiterCenter=o.dest?.clone()||f.pos.clone();if(!f.groundAirState)nextOrder(f);}
+  if(p.atIndex>=p.points.length){groundFormationArrive(f);f.order=null;dropArrow(f.arrow);f.arrow=null;f.groundLoiterCenter=o.dest?.clone()||f.pos.clone();if(!f.groundAirState)nextOrder(f);}
   return true;
  }
  if(o?.type==='attack'&&o.target?.alive&&groundSeenBy(f.team,o.target)){

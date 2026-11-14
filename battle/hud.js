@@ -88,7 +88,7 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   if(op.ground&&o.type==='attack'&&!groundManualTargetAllowed(f,o.target))return;
-  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundCancelWork(f);f.groundPlan=null;f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
+  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundFormationOrder(f,o);groundCancelWork(f);f.groundPlan=null;f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?(o.groundPreparedPath?.bridgeRevision===groundBridgeRevision&&o.groundPreparedPath.s===0&&Math.hypot(o.groundPreparedPath.points[0].x-f.pos.x,o.groundPreparedPath.points[0].z-f.pos.z)<1e-6?o.groundPreparedPath:groundMovePath(f.pos,[...(o.via||[]),o.dest],groundMoveKind(f))):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(op.ground)delete o.groundPreparedPath;
