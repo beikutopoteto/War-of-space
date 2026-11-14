@@ -267,16 +267,31 @@ function npcThink(c,sit){
     if(tasksOut.get(w.key)?.units.some(x=>x.as==='work'))continue;
     const e=engineers.filter(u=>!assign.has(u.id)).sort((a,b)=>eta(a,w.zone)-eta(b,w.zone))[0]; if(e)give(w,e,'work'); }
   const targetOf=w=>w.from&&(!stage(w.key)||stage(w.key).stage==='assemble')?w.from:w.zone, pre=new Map();
-  for(const w of want2){ if(w.type!=='seize'&&w.type!=='cut')continue; // 拠点を取れる隊は少ないので、守りに取られる前に攻めへ1つずつ確保する
+  for(const w of want2){ if(w.type!=='seize'&&w.type!=='cut')continue; // 拠点を取れる隊を、守りに取られる前に攻めへ確保する
+    const mains=(tasksOut.get(w.key)?.units||[]).filter(x=>x.as==='main').map(x=>byId.get(x.id));
+    if(sit.captureGroup&&mains.some(u=>u.canHold))continue;
     const h=units.filter(u=>!assign.has(u.id)&&u.canHold).map(u=>({u,cost:eta(u,targetOf(w))-(c.unit.get(u.id).task===w.key?D.sticky:0)+(u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost)[0];
-    if(h){ give(w,h.u,'main'); pre.set(w.key,h.u.power); } }
+    if(h){ give(w,h.u,'main'); pre.set(w.key,{got:h.u.power,n:1}); }
+    else if(sit.captureGroup){
+      const need=Math.max(0,sit.captureGroup-mains.filter(u=>u.canPair).length);
+      const pair=units.filter(u=>!assign.has(u.id)&&u.canPair)
+        .map(u=>({u,cost:eta(u,targetOf(w))-(c.unit.get(u.id).task===w.key?D.sticky:0)+(u.worn?1e6:0)}))
+        .sort((a,b)=>(a.u.role==='support')-(b.u.role==='support')||a.cost-b.cost).slice(0,need);
+      if(pair.length===need){ for(const {u} of pair)give(w,u,'main'); pre.set(w.key,{got:pair.reduce((s,x)=>s+x.u.power,0),n:pair.length}); }
+    } }
   for(const w of want2){
-    const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=(pre.get(w.key)||0)+(kept.get(w.key)?.got||0), n=(pre.has(w.key)?1:0)+(kept.get(w.key)?.n||0);
+    const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=(pre.get(w.key)?.got||0)+(kept.get(w.key)?.got||0), n=(pre.get(w.key)?.n||0)+(kept.get(w.key)?.n||0);
     const attackTask=w.type==='seize'||w.type==='fix'||w.type==='cut';
     const pool=units.filter(u=>!assign.has(u.id)&&fit[u.role]>0) // 傷んだ隊は攻めでは最後に回す（元気な隊が足りないときだけ使う）
       .map(u=>({u,cost:eta(u,target)-(c.unit.get(u.id).task===w.key?D.sticky:0)-fit[u.role]*D.roleBias+(attackTask&&u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost);
     for(const {u} of pool){ if(n>=w.max||n>0&&got>=w.need||got+u.power>w.cap&&n>0)break; give(w,u,'main'); got+=u.power; n++; }
     if(tasksOut.has(w.key))tasksOut.get(w.key).got=got; // 隊を1つも取れなかった任務は立てない
+  }
+  if(sit.captureGroup)for(const k of tasksOut.values()){
+    if(k.type!=='seize'&&k.type!=='cut')continue;
+    const mains=k.units.filter(x=>x.as==='main').map(x=>byId.get(x.id));
+    if(mains.some(u=>u.canHold)||mains.filter(u=>u.canPair).length>=sit.captureGroup)continue;
+    tasksOut.delete(k.key);for(const x of k.units)assign.delete(x.id);
   }
   for(const k of tasksOut.values()){ if(k.via!=='sea'||!k.units.some(x=>x.as==='main'))continue; // 海から行く任務に揚陸艦を付ける
     for(const u of ferries)if(!assign.has(u.id))give(k,u,'lift'); }

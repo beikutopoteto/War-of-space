@@ -478,12 +478,21 @@ function groundMechanicalWear(f,dt){
 // 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
 let groundSites=[], groundTerritory=null;
 function groundCanCapture(f){ return !groundAbsent(f)&&!groundScriptDescending(f)&&f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
+function groundCaptureCounts(f){ return !groundAbsent(f)&&!groundScriptDescending(f)&&f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&f.groundKind!=='sea'&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
+function groundCapturePresent(s,team){
+  let count=0;
+  for(const f of fleets){
+    if(f.team!==team||groundDistanceTo(f,s)>s.captureRadius)continue;
+    if(groundCanCapture(f))return true;
+    if(groundCaptureCounts(f)&&++count>=groundRuleSet().capture.group)return true;
+  }
+  return false;
+}
 function groundCaptureSeconds(s,owner=s.owner){return owner===null?groundRuleSet().capture.neutralSeconds:s.captureSec;}
 function groundCaptureStep(dt){
   if(over) return;
   for(const s of groundSites){
-    const present=[false,false];
-    for(const f of fleets) if(groundCanCapture(f)&&groundDistanceTo(f,s)<=s.captureRadius) present[f.team]=true;
+    const present=[groundCapturePresent(s,0),groundCapturePresent(s,1)];
     s.contested=present[0]&&present[1];s.capturingTeam=s.contested?null:present[0]?0:present[1]?1:null;
     if(s.contested) continue;
     const team=present[0]?0:present[1]?1:null;

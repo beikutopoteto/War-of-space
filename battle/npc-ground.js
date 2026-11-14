@@ -165,7 +165,7 @@ function npcGroundSituation(c){
   });
   const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
     x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),speed:speedOf(f)/GROUND_SCALE,health:Math.max(0,f.hpPool/(f.groundMaxHp||f.n*f.hp)),
-    canHold:groundCanCapture(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&(f.groundKind!=='sea'||npcGroundLiftActive()&&groundLandingShip(f)),
+    canHold:groundCanCapture(f),canPair:groundCaptureCounts(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&(f.groundKind!=='sea'||npcGroundLiftActive()&&groundLandingShip(f)),
     ...(npcGroundLiftActive()?npcGroundLiftUnit(f):{}),
     engaged:!!(f.fireTarget||f.order?.type==='attack'||f.groundHitLeft>0)}));
   // 死亡・現在の耐久・現在位置を視界外から読まない。最後に見たときの記録だけ。
@@ -173,7 +173,7 @@ function npcGroundSituation(c){
   for(const f of fleets){if(f.team===team||!f.alive||f.groundExited)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
-  const sit={time:gameSec,zones,links:[...npcGroundLinks(),...(npcGroundLiftActive()?npcGroundLiftLinks():[])],units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
+  const sit={time:gameSec,captureGroup:groundRuleSet().capture.group,zones,links:[...npcGroundLinks(),...(npcGroundLiftActive()?npcGroundLiftLinks():[])],units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
   if(c.side==='ally'&&!c.debugAuto){
     // 明示の先頭拠点を優先。未指定なら既知の自軍拠点まで（最終目標は頭でも除外する）。
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');
@@ -227,6 +227,10 @@ function npcGroundDestination(c,sit,k,x,index,count){
       const holders=k.units.filter(x=>sit.units.find(u=>u.id===x.id)?.canHold),at=holders.findIndex(h=>h.id===x.id);
       offset=(at-(holders.length-1)/2)*Math.min(1.5,capture*1.6/Math.max(1,holders.length-1));
     }else {back=.6;offset=(index-(count-1)/2)*Math.min(1.5,1.6/Math.max(1,count-1));}
+  }
+  else if((k.type==='seize'||k.type==='cut')&&k.stage==='assault'&&x.as==='main'&&u.canPair&&!k.units.some(x=>x.as==='main'&&sit.units.find(u=>u.id===x.id)?.canHold)){
+    region=(a,b)=>Math.hypot(a-z.x,b-z.z)<=capture;
+    offset=(index-(count-1)/2)*Math.min(1.5,capture*1.6/Math.max(1,count-1));
   }
   else if(k.type==='seize'&&(k.stage==='advance'&&x.as==='main'||k.stage==='assault'&&!npcGroundArmed(f))){back=z.r+1;region=(a,b)=>Math.hypot(a-z.x,b-z.z)>z.r;}
   else if(k.type==='seize'&&k.stage==='assault'&&!(x.as==='support'&&u.role==='fires')){

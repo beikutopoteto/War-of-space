@@ -26,7 +26,30 @@ function captureCases() {
     fleets=[unit(0,'was',0,'low')];groundCaptureStep(40);check('低空 W.A.S. は占拠しない',s.owner===null);
     fleets[0].band='ground';fleets[0].bandTo='low';groundCaptureStep(30);check('地上 W.A.S. は遷移中も元の段で占領',s.owner===0);
     s.owner=null;s.progress=[0,0];fleets=[unit(0),unit(1,'vehicle')];groundCaptureStep(30);check('敵戦車は歩兵の占拠を止めない',s.owner===0&&!s.contested);
-    s.owner=null;s.progress=[0,0];fleets=[unit(0,'infantry',8.01)];groundCaptureStep(40);check('円の外は進まない',s.progress[0]===0);
+    const capture=(group,seconds=30)=>{over=false;s.owner=1;s.progress=[0,0];fleets=group;groundCaptureStep(seconds);};
+    capture([unit(0,'vehicle')]);check('戦車1隊では進まない',s.owner===1&&s.progress[0]===0);
+    capture([unit(0,'vehicle'),unit(0,'vehicle')],12);check('戦車2隊でも敵拠点は12秒だけ進む',s.owner===1&&s.progress[0]===12);
+    groundCaptureStep(18);check('戦車2隊で30秒かけて占領する',s.owner===0);
+    capture([unit(0,'vehicle'),unit(0,'artillery')]);check('戦車1隊と自走砲1隊で占領する',s.owner===0);
+    capture([unit(0,'vehicle'),unit(0)]);check('戦車1隊と強化歩兵1隊は今までどおり占領する',s.owner===0);
+    capture([unit(0),unit(1,'vehicle'),unit(1,'vehicle')]);check('敵戦車2隊なら競合して歩兵の占領を止める',s.owner===1&&s.contested&&s.progress.every(x=>x===0));
+    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle')]);check('敵戦車1隊は混成2隊の占領も止めない',s.owner===0&&!s.contested);
+    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle'),unit(1,'heavyInfantry')]);check('両軍の混成2隊なら競合する',s.contested&&s.progress.every(x=>x===0));
+    for(const kind of Object.keys(groundRuleSet().unitTypes).filter(k=>!['infantry','was'].includes(k))){
+      capture([unit(0,kind),unit(0,kind)]);
+      const counts=groundBands(fleets[0]).includes('ground')&&kind!=='sea';
+      check(kind+' 2隊の地上占領資格',s.owner===(counts?0:1));
+    }
+    for(const band of ['low','high']){
+      capture([unit(0,'fighter',0,band),unit(0,'fighter',0,band)]);check(band+'の戦闘機2隊では占領しない',s.owner===1);
+      capture([unit(0,'was',0,band),unit(0,'was',0,band)]);check(band+'の W.A.S. 2隊では占領しない',s.owner===1);
+    }
+    capture([unit(0,'vehicle'),unit(0,'artillery',8.01)]);check('2隊目が円外なら占領しない',s.owner===1);
+    for(const flags of [{embarked:true},{alive:false},{hpPool:0},{groundRout:'routing'},{groundExited:true},{groundAirState:'base'},{groundDescentUntil:1e12}]){
+      capture([Object.assign(unit(0,'vehicle'),flags),Object.assign(unit(0,'artillery'),flags)]);
+      check(JSON.stringify(flags)+' の2隊は数えない',s.owner===1&&s.progress[0]===0);
+    }
+    over=false;s.owner=null;s.progress=[0,0];fleets=[unit(0,'infantry',8.01)];groundCaptureStep(40);check('円の外は進まない',s.progress[0]===0);
     fleets[0].pos.x=8;groundCaptureStep(30);check('円周上は占拠できる',s.owner===0);
     groundSites[1].owner=0;groundCaptureStep(.05);check('3拠点に限らず全拠点で勝利',over&&outcome===true);
     over=false;outcome=null;fleets[0].alive=false;groundCaptureStep(.05);check('全滅で敗北（全占領と同時なら敗北）',over&&outcome===false);
