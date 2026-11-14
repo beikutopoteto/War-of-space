@@ -54,7 +54,9 @@ function groundPlanExecute(){
   for(const f of list){const dest=f.groundPlan.dest.clone(),path=groundMovePath(f.pos,[dest],groundMoveKind(f));if(!path){groundPlanMessage=f.name+'：経路が変わったため実行できません';groundHud();return;}slots.push({f,dest,path});}
   npcAutoPlayer(list);saveUndo(list);
   // 進撃（groundAdvance）: 途中で敵が射程に入ったら、自動交戦の隊は止まって撃ち合い、命令優先の隊は撃ちながら進む（ユーザー決定 2026-11-14。ground.js の groundStep）
-  for(const {f,dest,path} of slots){groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundAdvance:true});}
+  // 同じ実行で動き出した隊を1つの組にし、速さはいちばん遅い隊に合わせる（ユーザー決定 2026-11-14「速さはやっぱ最低速度で」。terrain.js の groundAdvanceSpeed）
+  const group={units:slots.map(s=>s.f)};
+  for(const {f,dest,path} of slots){groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundAdvance:group});}
   groundClearAiming();groundPlanMessage=list.length+'隊が進撃を開始';groundHud();
 }
 function groundPlanHud(list){
