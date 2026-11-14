@@ -183,17 +183,44 @@ function groundTransportSync(){
 function groundBuiltBridgeAt(x,y,river){
   return groundBridges.some(b=>b.complete&&b.hp>0&&b.river===river&&Math.abs((x-b.x)*b.tx+(y-b.y)*b.ty)<=b.laneHalfKm&&Math.abs(-(x-b.x)*b.ty+(y-b.y)*b.tx)<=b.halfSpanKm);
 }
-function groundBridgePlan(p){
-  const d=WOS_TERRAIN[op.ground],x=groundMapX(p.x),y=groundMapY(p.z);
-  if(!Number.isFinite(x)||!Number.isFinite(y)||!groundPass(x,y,'air'))return {reason:'盤の外には架けられない'};
+// includeBuilt は命令の従来の足場判定専用。表示は地形だけ（既定値）で作る。
+function groundBridgeTerrain(x,y,includeBuilt=false){
+  const d=WOS_TERRAIN[op.ground];
+  if(!Number.isFinite(x)||!Number.isFinite(y)||!groundPass(x,y,'air'))return {reason:'盤の外には架けられない',kind:'outside'};
   const rivers=d.water.rivers.map(r=>groundRiverAt(x,y,r)).filter(r=>r.dist<=r.width/2+.12).sort((a,b)=>a.dist-b.dist),r=rivers[0];
-  if(!r)return {reason:'川の地点を指定'};
-  if(r.width>d.water.engineerBridgeMaxWidthKm+1e-8)return {reason:`川幅 ${r.width.toFixed(2)} km：上限 ${d.water.engineerBridgeMaxWidthKm} km を超えるため架橋不可`};
-  if(d.objects.bridges.some(b=>b.river===r.river&&Math.hypot(r.x-b.x,r.y-b.y)<.9)||groundBridges.some(b=>b.river===r.river&&Math.hypot(r.x-b.x,r.y-b.y)<b.laneHalfKm*2))return {reason:'この地点には橋があるか架橋中'};
+  if(!r)return {reason:'川の地点を指定',kind:'none'};
+  if(r.width>d.water.engineerBridgeMaxWidthKm+1e-8)return {reason:`川幅 ${r.width.toFixed(2)} km：上限 ${d.water.engineerBridgeMaxWidthKm} km を超えるため架橋不可`,kind:'width'};
   const rules=groundEngineeringRules(),halfSpanKm=r.width/2+rules.bankMarginKm+d.meta.cellKm;
   const banks=[-1,1].map(side=>groundPoint(r.x-side*r.ty*halfSpanKm,r.y+side*r.tx*halfSpanKm));
-  if(!banks.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle')))return {reason:'両岸に車両が通れる足場がない'};
-  return {...r,pos:groundPoint(r.x,r.y),banks,halfSpanKm,laneHalfKm:rules.laneHalfKm};
+  const plan={...r,pos:groundPoint(r.x,r.y),banks,halfSpanKm,laneHalfKm:rules.laneHalfKm};
+  if(!banks.every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'vehicle',includeBuilt)))return {...plan,reason:'両岸に車両が通れる足場がない',kind:'banks'};
+  return plan;
+}
+function groundBridgePlan(p){
+  const d=WOS_TERRAIN[op.ground],plan=groundBridgeTerrain(groundMapX(p.x),groundMapY(p.z),true);
+  if(plan.reason&&plan.kind!=='banks')return plan;
+  if(d.objects.bridges.some(b=>b.river===plan.river&&Math.hypot(plan.x-b.x,plan.y-b.y)<.9)||groundBridges.some(b=>b.river===plan.river&&Math.hypot(plan.x-b.x,plan.y-b.y)<b.laneHalfKm*2))return {reason:'この地点には橋があるか架橋中'};
+  return plan;
+}
+// terrain-check と同じ累積距離で中心線をたどり、連続する拒否点をまとめる。
+function groundBridgeNoGoSections(){
+  const d=groundData(),step=Math.min(d.meta.cellKm,.25),sections=[];
+  for(const river of d.water.rivers){
+    const lengths=[0];for(let i=1;i<river.points.length;i++)lengths.push(lengths[i-1]+Math.hypot(river.points[i][0]-river.points[i-1][0],river.points[i][1]-river.points[i-1][1]));
+    const total=lengths[lengths.length-1];let segment=1,section=null;
+    const at=along=>{
+      while(segment<river.points.length-1&&lengths[segment]<along)segment++;
+      const a=river.points[segment-1],b=river.points[segment],len=lengths[segment]-lengths[segment-1],t=len?(along-lengths[segment-1])/len:0;
+      const x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t,r=groundRiverAt(x,y,river),plan=groundBridgeTerrain(x,y);
+      const crossing=[...d.objects.bridges,...d.objects.fords].some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9);
+      if(!crossing&&['width','banks'].includes(plan.kind)){
+        if(!section){section={river:river.id,points:[]};sections.push(section);}
+        section.points.push({...r,x,y,alongKm:along});
+      }else section=null;
+    };
+    for(let i=0;i*step<total;i++)at(i*step);at(total);
+  }
+  return sections;
 }
 function groundEngineer(f){return f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'bridge')&&f.groundKind==='engineer'&&f.band==='ground';}
 function groundBridgeEnemy(b){return fleets.some(f=>f.alive&&!f.embarked&&f.band==='ground'&&f.team!==b.team&&groundDistanceTo(f,b)<=groundEngineeringRules().workRange);}

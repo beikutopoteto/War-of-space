@@ -69,6 +69,34 @@ function transportCases(){
     // 工兵撃破は直接同地点から行う。
     enemyTank.pos.copy(engineer.pos);groundUpdateSight();damage(engineer,engineer.hpPool,enemyTank);
     check('工兵の撃破で未完成の架橋を片付ける',!engineer.alive&&!groundBridges.length);
+    for(const id of ['exercise2','baikonur2']){
+      op={ground:id};groundTerrainId=null;
+      const sections=groundBridgeNoGoSections();
+      for(const r of WOS_TERRAIN[id].water.rivers){
+        const red=sections.filter(s=>s.river===r.id).flatMap(s=>s.points);
+        const nonRed=r.points.some(([x,y])=>!groundBridgeTerrain(x,y).reason);
+        if(id==='exercise2'&&['main','west'].includes(r.id)){
+          // 別の細かい走査で、橋・浅瀬と盤外を除く中心線が帯の点列に覆われることを確認。
+          let covered=true;
+          for(let i=1;i<r.points.length;i++){
+            const a=r.points[i-1],b=r.points[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+            for(let j=0;j<=Math.ceil(length/.1);j++){
+              const t=j/Math.ceil(length/.1),x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
+              if(['outside','none'].includes(groundBridgeTerrain(x,y).kind)||[...WOS_TERRAIN[id].objects.bridges,...WOS_TERRAIN[id].objects.fords].some(b=>b.river===r.id&&Math.hypot(x-b.x,y-b.y)<1.15))continue;
+              covered &&= red.some(p=>Math.hypot(p.x-x,p.y-y)<=.251);
+            }
+          }
+          check(id+' '+r.id+' の中心線を漏らさず赤くする',covered);
+        }
+
+        if(id==='exercise2'&&['main','west'].includes(r.id)){
+          check(id+' '+r.id+' の描く点はすべて幅か足場で拒否',red.length>0&&red.every(p=>['width','banks'].includes(groundBridgeTerrain(p.x,p.y).kind))&&!nonRed);
+        }else check(id+' '+r.id+' に赤でない架橋可能区間',nonRed);
+      }
+      check(id+' の帯は橋・浅瀬の0.9kmを除外',sections.every(s=>s.points.every(p=>![...WOS_TERRAIN[id].objects.bridges,...WOS_TERRAIN[id].objects.fords].some(b=>b.river===s.river&&Math.hypot(p.x-b.x,p.y-b.y)<.9))));
+      const before=JSON.stringify(sections);groundBridges.push({river:'main',x:25,y:25,complete:true,hp:40,laneHalfKm:100,halfSpanKm:100,tx:1,ty:0});
+      check(id+' の帯は仮設橋に依存しない',before===JSON.stringify(groundBridgeNoGoSections()));groundBridges.pop();
+    }
     op={ground:'baikonur2'};groundTerrainId=null;
     check('baikonur2だけ架橋上限0.5km、exercise2は0.3kmを維持',WOS_TERRAIN.baikonur2.water.engineerBridgeMaxWidthKm===.5&&WOS_TERRAIN.exercise2.water.engineerBridgeMaxWidthKm===.3);
     for(const [name,x,y] of [['本流北半分',50,53],['西支流上流',39,21],['東支流上流',52,22]]){
@@ -119,7 +147,19 @@ async function checkGroundTransport(page,check){
   check(boarded,'輸送の実画面: 輸送車クリックで乗車し搭載名札・歩兵モデル非表示');
   if(!boarded)throw new Error('乗車命令後40秒で搭載・名札・モデル非表示が揃わなかった');
   await page.locator('#groundUnload').click();check(await page.evaluate(()=>!fleets.find(f=>f.groundKind==='apc').groundPassenger),'輸送の操作: 降車ボタン');
-  await page.evaluate(()=>select(fleets.find(f=>f.groundKind==='engineer')));await page.locator('#groundBridge').click();
+  const noGo=await page.evaluate(()=>{
+    const engineer=fleets.find(f=>f.team===0&&f.groundKind==='engineer'),tank=fleets.find(f=>f.team===0&&f.groundKind==='vehicle');
+    select(engineer);groundCommandBarHud(orderTargets());const cached=groundBridgeNoGo;
+    const shown=!!cached&&cached.visible&&cached.children.length>0&&cached.children.every(m=>m.isMesh);
+    select(tank);groundCommandBarHud(orderTargets());const hidden=!cached.visible;
+    groundCommandBarHud([engineer,tank]);const mixed=cached.visible&&cached===groundBridgeNoGo;
+    groundCommandBarHud([{...engineer,team:1}]);const enemy=!cached.visible;
+    groundCommandBarHud([{...engineer,alive:false}]);const dead=!cached.visible;
+    over=true;groundCommandBarHud([engineer]);const ended=!cached.visible;over=false;
+    select(engineer);groundCommandBarHud(orderTargets());return {shown,hidden,mixed,enemy,dead,ended};
+  });
+  for(const [key,ok] of Object.entries(noGo))check(ok,'架橋不可帯: '+key);
+  await page.locator('#groundBridge').click();
   check(await page.evaluate(()=>groundWorkAiming==='bridge'),'架橋の操作: 架橋ボタン');
   await page.keyboard.press('Escape');
   const point=await page.evaluate(()=>{
@@ -132,7 +172,7 @@ async function checkGroundTransport(page,check){
     for(let i=0;i<201;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();
     return !groundWorkAiming&&bridge.visual.el.textContent.includes('架橋中')&&Math.abs(parseFloat(bridge.visual.el.querySelector('i').style.width)-50)<1e-6&&!bridge.visual.deck.visible;
   });check(drawn,'架橋の実画面: 川のクリックで作業中のゲージ');
-  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge');reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
+  const resetState=await page.evaluate(()=>{for(let i=0;i<200;i++)step(.05/groundRuleSet().movement.timeScale);groundDraw();const done=groundBridges[0].visual.deck.visible;reset({op:'groundExercise2'});const clean=!groundBridges.length&&!document.querySelector('.ground-bridge')&&groundBridgeNoGo===null;reset({op:'charybdis'});return {done,clean,space:!groundWorkAiming&&document.getElementById('groundAlt').hidden};});
   for(const [key,ok] of Object.entries(resetState))check(ok,'輸送・架橋の実画面: '+key);
 }
 function nodeTransportScene(ctx){
@@ -182,7 +222,7 @@ function nodeTransportScene(ctx){
 module.exports={transportCases,checkGroundTransport};
 if(require.main===module){
   const element={style:{},remove(){},classList:{add(){},remove(){},toggle(){}},querySelector:()=>({}),querySelectorAll:()=>[],setAttribute(){},addEventListener(){}};
-  const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
+  const ctx=vm.createContext({THREE:require('three'),window:{},document:{querySelectorAll:()=>[],getElementById:()=>element},fleets:[],op:{ground:'exercise2',wipeLose:false},over:false,gameSec:0,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),npcAutoPlayer:()=>{},dropArrow:()=>{},makeArrow:()=>null,speedOf:f=>f.speed,shoot:()=>{},burst:()=>{},end:()=>{},tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},unselect:()=>{},colOf:f=>f.team,portCarrier:null,opCarrier:null,updateRoster:()=>{},rescue:null});
   for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-volley.js']){vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;}
   const hud=fs.readFileSync(path.join(__dirname,'../battle/hud.js'),'utf8'),sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');
   vm.runInContext(hud.slice(hud.indexOf('function order('),hud.indexOf('const ray=')),ctx);

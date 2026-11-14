@@ -165,6 +165,7 @@ function groundConfigure(active){
   if(typeof camera!=='undefined'&&camera){camera.far=active?Math.max(3000,Math.max(groundDimensions().widthWorld,groundDimensions().heightWorld)*5):3000;camera.updateProjectionMatrix?.();}
   if(typeof groundPlanReset==='function')groundPlanReset();
   groundRangesClear();
+  groundBridgeNoGoClear();
   document.getElementById('groundCommandBar').hidden=!active;
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
@@ -279,6 +280,7 @@ function groundDraw(){
   if(!groundVisuals) return;
   const picked=orderTargets(),now=gameSec;
   groundRangesDraw(picked);
+  if(groundBridgeNoGo){groundBridgeNoGo.visible=groundBridgeNoGo.visible&&!over;groundBridgeNoGo.children.forEach(m=>m.material.opacity=.45+.15*Math.sin(performance.now()/1600*Math.PI*2));}
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f));
     const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
@@ -564,6 +566,7 @@ function groundCommandBarHud(list){
   document.getElementById('groundHold').disabled=!canMove||over;
   const kinds=list.map(f=>f.groundKind), carries=list.some(f=>f.embarked||f.groundPassenger||groundLandingShip(f));
   const visible={board:list.some(f=>f.groundKind!=='sea'&&groundBands(f).includes('ground')),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
+  groundBridgeNoGoHud(list);
   const buttons=[...document.querySelectorAll('#groundUniqueCommands button')];
   buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);
   const expand=document.getElementById('groundCommandExpand');
@@ -678,4 +681,32 @@ function groundCaptureReadout(s,seconds){
   if(team===null)return prefix+(s.knownOwner==null?'未占領':'占領済み');
   const remaining=Math.max(0,Math.ceil(seconds-p[team]));
   return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+' あと'+remaining+'秒';
+}
+
+// 工兵選択時の架橋不可帯。地形ごとに初回選択で生成し、groundSetup から破棄する。
+let groundBridgeNoGo=null;
+function groundBridgeNoGoClear(){
+  if(!groundBridgeNoGo)return;
+  groundBridgeNoGo.parent?.remove(groundBridgeNoGo);
+  for(const mesh of groundBridgeNoGo.children){mesh.geometry.dispose();mesh.material.dispose();}
+  groundBridgeNoGo=null;
+}
+function groundBridgeNoGoHud(list){
+  const show=!over&&list.some(f=>fleets.includes(f)&&f.alive&&f.team===0&&f.groundKind==='engineer');
+  if(show&&!groundBridgeNoGo&&groundVisuals){
+    groundBridgeNoGo=new THREE.Group();groundVisuals.add(groundBridgeNoGo);
+    for(const section of groundBridgeNoGoSections()){
+      if(section.points.length<2)continue;
+      const vertices=[],indices=[];
+      for(const p of section.points)for(const side of [-1,1]){
+        const half=(p.width+.1)/2,x=p.x-side*p.ty*half,y=p.y+side*p.tx*half;
+        vertices.push(groundWorldX(x),groundElevation(x,y)+.03*GROUND_SCALE,groundWorldZ(y));
+      }
+      for(let i=1;i<section.points.length;i++){const a=(i-1)*2;indices.push(a,a+1,a+2,a+1,a+3,a+2);}
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geometry.setIndex(indices);
+      const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:0xff3b30,transparent:true,opacity:.45,depthWrite:false,side:THREE.DoubleSide}));
+      mesh.renderOrder=4;mesh.userData.river=section.river;groundBridgeNoGo.add(mesh);
+    }
+  }
+  if(groundBridgeNoGo)groundBridgeNoGo.visible=show;
 }
