@@ -291,7 +291,7 @@ function npcThink(c,sit){
     if(k.type!=='seize'&&k.type!=='cut')continue;
     const mains=k.units.filter(x=>x.as==='main').map(x=>byId.get(x.id));
     if(mains.some(u=>u.canHold)||mains.filter(u=>u.canPair).length>=sit.captureGroup)continue;
-    tasksOut.delete(k.key);for(const x of k.units)assign.delete(x.id);
+    tasksOut.delete(k.key);for(const x of k.units)if(byId.get(x.id)?.free===false)assign.set(x.id,null);else assign.delete(x.id); // 手順の途中の隊は、ほかの任務へ回さない
   }
   for(const k of tasksOut.values()){ if(k.via!=='sea'||!k.units.some(x=>x.as==='main'))continue; // 海から行く任務に揚陸艦を付ける
     for(const u of ferries)if(!assign.has(u.id))give(k,u,'lift'); }
