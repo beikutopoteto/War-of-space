@@ -56,18 +56,18 @@ function groundRiverAt(x,y,river){
   }
   return best;
 }
-function groundRiverFactor(x,y,kind){
+function groundRiverFactor(x,y,kind,includeBuilt=true){
   const d=groundData(); let factor=1;
   for(const river of d.water.rivers){
     const r=groundRiverAt(x,y,river);
     if(r.dist>=r.width/2+.12)continue;
-    const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
+    const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||(includeBuilt&&groundBuiltBridgeAt(x,y,river.id));
     const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+d.meta.cellKm)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+d.meta.cellKm);
     if(!bridge&&!ford)factor=Math.min(factor,groundRuleSet().movement.river[kind]??0);
   }
   return factor;
 }
-function groundPass(x,y,kind='vehicle'){ const d=groundData(),sea=groundInside(x,y,d.water.sea); return x>=0&&x<d.meta.widthKm&&y>=0&&y<d.meta.heightKm&&groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind)>0)); }
+function groundPass(x,y,kind='vehicle',includeBuilt=true){ const d=groundData(),sea=groundInside(x,y,d.water.sea); return x>=0&&x<d.meta.widthKm&&y>=0&&y<d.meta.heightKm&&groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind,includeBuilt)>0)); }
 // 道路帯は所有・補給の状態から独立した幾何。探索中の各サンプルで全道路を走査しない。
 const groundRoadGeometry=new WeakMap();
 function groundRoadQuery(d=groundData()){
