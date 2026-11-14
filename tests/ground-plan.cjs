@@ -42,6 +42,12 @@ function planCases(){
   check('進撃は groundAdvance を付け、敵がいると自動交戦の隊は止まり命令優先の隊は進む',units[0].order?.groundAdvance&&!moved.has(units[0])&&moved.has(units[2])&&Math.hypot(units[0].pos.x-before[0].x,units[0].pos.z-before[0].z)<1e-9);
   units[0].fireTarget=null;moved=new Set();followPath=(f,dt)=>{moved.add(f);return realFollow(f,dt);};groundStep(.05);followPath=realFollow;
   check('敵がいなくなれば自動交戦の隊も進撃を続ける',moved.has(units[0]));
+  // 速さはいちばん遅い隊に合わせる（ユーザー決定 2026-11-14「速さはやっぱ最低速度で」）
+  const slowTank=kindUnit('vehicle',13),slowGun=kindUnit('artillery',14);for(const f of [slowTank,slowGun]){f.speed=4;}slowGun.speed=1.5;
+  setSel([slowTank,slowGun]);groundPlanToggle('plan');groundPlanTap(groundPoint(13,31));groundPlanTap(groundPoint(15,31));groundPlanExecute();
+  check('進撃の組は同じ組を持ち、速さはいちばん遅い隊',slowTank.order?.groundAdvance===slowGun.order?.groundAdvance&&groundAdvanceSpeed(slowTank)===speedOf(slowGun)&&speedOf(slowTank)>speedOf(slowGun));
+  slowGun.alive=false;check('遅い隊が倒れたら残りの隊は自分の速さに戻る',groundAdvanceSpeed(slowTank)===speedOf(slowTank));slowGun.alive=true;
+  setSel([slowTank]);groundPlanToggle('deploy');groundPlanTap(groundPoint(13,30));groundPlanTap(groundPoint(14,30));check('布陣や通常の移動は自分の速さ',!slowTank.order?.groundAdvance&&groundAdvanceSpeed(slowTank)===speedOf(slowTank));
  }
  op={};groundPlanToggle('plan');check('宇宙では起動しない',!groundWorkAiming);
  return rows;
