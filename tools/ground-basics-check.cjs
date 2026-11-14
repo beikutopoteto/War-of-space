@@ -6,7 +6,7 @@ const {execFileSync}=require('child_process');
  const {browser,page,errors}=await openGame({width:1600,height:900});
  try{
   await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');
-  await page.waitForFunction(()=>window.WOS&&typeof groundSupplyNet!=='undefined',{timeout:60000});
+  await page.waitForFunction(()=>window.WOS&&typeof groundSupplyNet!=='undefined'&&typeof groundScriptEval==='function',{timeout:60000});
   await page.evaluate(()=>{window.requestAnimationFrame=()=>0;reset({op:'baikonur',fleets:OPS.find(o=>o.id==='baikonur').quick});if(talking)endTalk();endDeploy();setSpeed(0);});
   const baselineTerrain=execFileSync('git',['show','6f22ed5:battle/terrain.js'],{cwd:ROOT,encoding:'utf8'});
   const baselineGround=execFileSync('git',['show','6f22ed5:battle/ground.js'],{cwd:ROOT,encoding:'utf8'});

@@ -4,8 +4,8 @@ function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
 function groundSupplyLand(f){return !!f&&!['sea','was','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].includes(f.groundKind);}
-function groundAbsent(f){return f.groundAirState==='base';}
-function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
+function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
+function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
 function groundSupplyInitUnit(f){
   if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
   if(groundSupplyLand(f))f.groundMorale=groundSupplyRules().max;
@@ -82,7 +82,7 @@ function groundRoadAt(x,y){
   for(const e of groundSupplyNet.edges){const dist=groundDistance(x,y,e.path);if(dist<best){best=dist;found=e;}}
   return found;
 }
-function groundCanCaptureRoad(f){return f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
+function groundCanCaptureRoad(f){return !f.groundExited&&f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
 function groundRoadCaptureSeconds(e,owner=e?.owner){const r=groundRuleSet().capture;return owner===null?r.neutralSeconds:r.roadSeconds;}
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
@@ -175,13 +175,13 @@ function groundRoutStep(f,dt){
   const target=f.groundRoutTarget,valid=target&&target.alive!==false&&(target.team===f.team&&!target.embarked&&!target.groundRout||target.owner===f.team);
   if(valid&&groundDistanceTo(f,target)<=r.routArrivalKm*GROUND_SCALE){groundClearOrders(f);f.groundRout='regroup';return;}
   if(f.groundRoutRepath>0&&f.order?.path&&f.order.path.blockedRevision!==groundBridgeRevision&&valid)return;
-  let best=groundNearestRoute(f,fleets.filter(t=>t!==f&&t.team===f.team&&t.alive&&!t.embarked&&groundSupplyLand(t)&&!t.groundRout));
+  let best=groundNearestRoute(f,fleets.filter(t=>t!==f&&t.team===f.team&&t.alive&&!t.groundExited&&!t.embarked&&groundSupplyLand(t)&&!t.groundRout));
   if(!best)best=groundNearestRoute(f,groundSites.filter(s=>s.owner===f.team));
   if(!best){groundClearOrders(f);f.groundRout='regroup';f.groundRoutTarget=null;return;}
   f.groundRoutTarget=best.target;f.groundRoutRepath=r.routRepath;groundSupplyInternalMove(f,best.target.pos,best.path);
 }
 function groundSupplyCanGive(f,t){
-  if(!groundSupplyActive()||!f||!t||f===t||f.groundKind!=='supply'||!f.alive||f.embarked||f.groundRout||!t.alive||t.embarked||t.team!==f.team||!groundSupplyLand(t)||t.groundKind==='supply')return false;
+  if(!groundSupplyActive()||!f||!t||f===t||f.groundExited||t.groundExited||f.groundKind!=='supply'||!f.alive||f.embarked||f.groundRout||!t.alive||t.embarked||t.team!==f.team||!groundSupplyLand(t)||t.groundKind==='supply')return false;
   return true;
 }
 function groundSupplyCommand(list,t){
@@ -236,7 +236,7 @@ function groundSupplyBefore(dt){
   if(!groundSupplyActive())return;
   if(op.groundDrill&&!groundSites.some(s=>s.id==='B'))groundSupplyDrillSetup(!!tutorial?.skipped);
   if(!groundSupplyNet)groundSupplyBuild();
-  for(const f of fleets){if(!f.alive||f.embarked||groundStaticTarget(f))continue;
+  for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||groundStaticTarget(f)||(typeof groundScriptDescending==='function'&&groundScriptDescending(f)))continue;
     if((groundSupplyLand(f)||groundSupplyAir(f))&&!Number.isFinite(f.groundSupply))groundSupplyInitUnit(f);
     f.groundHitLeft=Math.max(0,(f.groundHitLeft||0)-dt);f.groundMoved=false;f.groundSupplyAITimer=Math.max(0,(f.groundSupplyAITimer||0)-dt);
     if(groundSupplyAir(f))groundAirStep(f,dt);
@@ -249,7 +249,7 @@ function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
   groundSupplyRoadCapture(dt);groundSupplyRefresh();const r=groundSupplyRules(),netGains=new Map(),d=WOS_TERRAIN[op.ground];
-  for(const f of fleets){if(!f.alive||f.embarked||!groundSupplyLand(f))continue;
+  for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||!groundSupplyLand(f))continue;
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
     const gain=Math.min(r.max-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));

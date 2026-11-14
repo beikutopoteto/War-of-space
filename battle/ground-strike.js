@@ -39,7 +39,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){
 }
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。
 function groundStrikeHits(s,t,src){
-  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&groundDistanceTo(t,{pos:s.impact})<=s.radius;
+  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&groundDistanceTo(t,{pos:s.impact})<=s.radius;
 }
 function groundStrikeStep(dt){
   for(const f of fleets)f.groundStrikeCooldown=Math.max(0,(f.groundStrikeCooldown||0)-dt);
