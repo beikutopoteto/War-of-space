@@ -165,14 +165,15 @@ function npcGroundSituation(c){
   });
   const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
     x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),speed:speedOf(f)/GROUND_SCALE,health:Math.max(0,f.hpPool/(f.groundMaxHp||f.n*f.hp)),
-    canHold:groundCanCapture(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&f.groundKind!=='sea',
+    canHold:groundCanCapture(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&(f.groundKind!=='sea'||npcGroundLiftActive()&&groundLandingShip(f)),
+    ...(npcGroundLiftActive()?npcGroundLiftUnit(f):{}),
     engaged:!!(f.fireTarget||f.order?.type==='attack'||f.groundHitLeft>0)}));
   // 死亡・現在の耐久・現在位置を視界外から読まない。最後に見たときの記録だけ。
   const contacts=[];
   for(const f of fleets){if(f.team===team||!f.alive||f.groundExited)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
-  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
+  const sit={time:gameSec,zones,links:[...npcGroundLinks(),...(npcGroundLiftActive()?npcGroundLiftLinks():[])],units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
   if(c.side==='ally'&&!c.debugAuto){
     // 明示の先頭拠点を優先。未指定なら既知の自軍拠点まで（最終目標は頭でも除外する）。
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');
@@ -379,7 +380,7 @@ function npcGroundHoldStep(){
 function npcGroundSync(c,plan){
   for(const f of npcGroundState.synced)if(f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))){f.syncSpeed=null;npcGroundState.synced.delete(f);}
   for(const k of plan.tasks.filter(k=>k.type==='seize'&&k.stage==='advance')){
-    const group=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&!npcAutoPlayerUnit(f)&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f)));
+    const group=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&!npcAutoPlayerUnit(f)&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f))&&!(npcGroundLiftActive()&&['apc','supply','engineer'].includes(f.groundKind)));
     if(!group.length)continue;
     // syncSpeed は補給による速度倍率の前の値。前回の同期値を使って減速を累積させない。
     const slow=Math.min(...group.map(f=>f.speed*groundSupplySpeedFactor(f)));
@@ -389,10 +390,11 @@ function npcGroundSync(c,plan){
 function npcGroundApply(c,sit,plan){
   npcGroundSync(c,plan);
   for(const [id] of npcGroundState.holds)if(fleets.find(f=>f.id===id)?.team===c.team&&(!c.unitIds||c.unitIds.has(id)))npcGroundState.holds.delete(id);
+  const lift=npcGroundLiftActive()?npcGroundLiftOrders(c,sit,plan):new Set();
   const road=npcGroundRoadOrders(c,sit,plan);
   for(const k of plan.tasks){
     for(let i=0;i<k.units.length;i++){
-      const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||!sit.units.some(u=>u.id===f.id)||npcAutoPlayerUnit(f)||f.groundKind==='sea'||!npcGroundFree(f))continue;
+      const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||lift.has(f.id)||!sit.units.some(u=>u.id===f.id)||npcAutoPlayerUnit(f)||f.groundKind==='sea'||!npcGroundFree(f))continue;
       const z=sit.zones.find(z=>z.id===k.zone),special=road.has(f.id)||k.type==='refit';
       if(k.type!=='refit')npcGroundState.refit?.delete(f.id);
       const dest=road.get(f.id)||(k.type==='refit'?(z&&npcGroundRefitPoint(f,z)):npcGroundDestination(c,sit,k,x,i,k.units.length));if(!dest)continue;
@@ -426,6 +428,7 @@ function npcGroundStep(){
   if(!op.ground||op.groundDrill||!op.npc)return;
   if(!npcGroundState||npcGroundState.sites!==groundSites)npcGroundInit();
   npcGroundAutoSync();
+  if(npcGroundLiftActive()){npcIssuing=true;try{npcGroundLiftWatch();}finally{npcIssuing=false;}}
   npcGroundHoldStep();
   for(const f of npcGroundState.synced)if(!npcGroundFree(f)||!npcGroundActive(f.team)){f.syncSpeed=null;npcGroundState.synced.delete(f);}
   for(const c of npcGroundState.commanders.values()){
@@ -438,4 +441,276 @@ function npcGroundStep(){
 function npcDebug(){
   if(!op.ground||op.groundDrill||!op.npc||!npcGroundState||npcGroundState.sites!==groundSites)return {};
   return Object.fromEntries([...npcGroundState.commanders].map(([team,c])=>[team,{posture:c.posture,ratio:c.plan?.ratio??null,plan:c.plan,log:c.log.slice()}]));
+}
+
+// 明示した演習だけで使う。既存作戦の入力・命令・規範には影響させない。
+function npcGroundLiftActive(){return op.npcLift===true;}
+function npcGroundLiftState(){
+  const s=npcGroundState;
+  if(!s.lift)s.lift={terrain:null,coasts:[],ports:new Map(),gaps:[],sea:[],boats:new Map(),trucks:new Map(),crossing:new Map(),works:new Map(),cooldown:new Map(),portOrder:new Map(),routes:new Map(),offshore:[]};
+  return s.lift;
+}
+function npcGroundLiftUnit(f){
+  const boats=npcGroundLiftState().boats,trip=boats.get(f.id);
+  const waiting=[...boats.values()].some(t=>t.crew?.includes(f.id)&&['land','done'].includes(t.phase)&&[...npcGroundState.commanders.values()].some(c=>c.plan?.tasks.some(k=>k.key===t.key&&k.stage==='assemble')));
+  const busy=!!(waiting||trip&&['sail','land'].includes(trip.phase)||f.embarked||f.groundBuilding||f.groundUnloading||['board','bridge'].includes(f.order?.type)||npcGroundLiftState().crossing.has(f.id));
+  return {can:f.groundKind==='engineer'?'bridge':groundLandingShip(f)?'ferry':f.groundKind==='supply'?'supply':null,
+    ...(groundLandingShip(f)?{lift:groundLandingRules().capacity}:{}),busy,
+    ...(busy?{free:false}:{})};
+}
+function npcGroundSegmentDistance(x,y,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy||1)));
+  return Math.hypot(x-a.x-dx*t,y-a.y-dy*t);
+}
+function npcGroundSegmentsCross(a,b,p,q){
+  const cross=(u,v,w)=>(v.x-u.x)*(w.y-u.y)-(v.y-u.y)*(w.x-u.x);
+  return cross(a,b,p)*cross(a,b,q)<=0&&cross(p,q,a)*cross(p,q,b)<=0&&
+    Math.max(a.x,b.x)>=Math.min(p.x,q.x)&&Math.max(p.x,q.x)>=Math.min(a.x,b.x)&&Math.max(a.y,b.y)>=Math.min(p.y,q.y)&&Math.max(p.y,q.y)>=Math.min(a.y,b.y);
+}
+function npcGroundLiftLinks(){
+  const s=npcGroundLiftState(),d=groundData(),cell=d.meta.cellKm;
+  if(s.terrain!==d||s.sites!==groundSites){
+    s.terrain=d;s.sites=groundSites;s.coasts=[];s.offshore=[];s.ports=new Map();s.portOrder=new Map();s.gaps=[];s.sea=[];
+    for(let row=0;row<d.terrain.rows;row++)for(let col=0;col<d.terrain.cols;col++){
+      const x=(col+.5)*cell,y=(row+.5)*cell,water=groundPoint(x,y),land=groundCoastCells({pos:water},'vehicle');
+      if(land.length)s.coasts.push({water,land});else if(groundPass(x,y,'sea'))s.offshore.push(water);
+    }
+    for(const z of groundSites){
+      const ports=s.coasts.map(p=>({...p,distance:Math.min(...p.land.map(q=>groundDistanceTo({pos:q},z)/GROUND_SCALE))})).filter(p=>p.distance<=6+1e-8).sort((a,b)=>a.distance-b.distance);
+      if(ports.length)s.ports.set(z.id,ports);
+    }
+    const candidates=new Map();
+    for(const r of d.water.rivers){
+      const points=[];
+      for(let i=1;i<r.points.length;i++){
+        const a=r.points[i-1],b=r.points[i],n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/Math.min(cell,.1));
+        for(let j=0;j<=n;j++){
+          const p=groundBridgeTerrain(a[0]+(b[0]-a[0])*j/n,a[1]+(b[1]-a[1])*j/n);
+          if(!p.reason&&p.river===r.id&&![...d.objects.bridges,...d.objects.fords].some(v=>v.river===r.id&&Math.hypot(p.x-v.x,p.y-v.y)<.9))points.push(p);
+        }
+      }
+      candidates.set(r.id,points);
+    }
+    for(let i=0;i<groundSites.length;i++)for(let j=i+1;j<groundSites.length;j++){
+      const a=groundSites[i],b=groundSites[j];
+      if(s.ports.has(a.id)&&s.ports.has(b.id)){
+        const pa=s.ports.get(a.id)[0],pb=s.ports.get(b.id)[0],path=groundPath(pa.water,pb.water,'sea');
+        if(path)s.sea.push({a:a.id,b:b.id,way:'sea',open:true,len:Math.hypot(a.x-b.x,a.y-b.y)});
+      }
+      let best=null,distance=Infinity;
+      for(const r of d.water.rivers){
+        if(!r.points.slice(1).some((p,k)=>npcGroundSegmentsCross(a,b,{x:r.points[k][0],y:r.points[k][1]},{x:p[0],y:p[1]})))continue;
+        for(const p of candidates.get(r.id)){
+          const v=npcGroundSegmentDistance(p.x,p.y,a,b);if(v<distance){distance=v;best=p;}
+        }
+      }
+      if(best){
+        // 頭へは拠点間の距離を渡す。既存の浅瀬を通る現在の迂回長を、未開通の橋の長さにしない。
+        s.gaps.push({a:a.id,b:b.id,way:'gap',open:false,len:Math.hypot(a.x-b.x,a.y-b.y),bridge:best});
+      }
+    }
+  }
+  for(const l of s.gaps){
+    l.open=groundBuiltBridgeAt(l.bridge.x,l.bridge.y,l.bridge.river);
+    if(l.open&&l.revision!==groundBridgeRevision){const a=groundSites.find(z=>z.id===l.a),b=groundSites.find(z=>z.id===l.b),path=groundPath(a.pos,b.pos,'vehicle');l.openLength=path?path.L/GROUND_SCALE:Infinity;l.revision=groundBridgeRevision;}
+    l.len=l.open?l.openLength:Math.hypot(groundSites.find(z=>z.id===l.a).x-groundSites.find(z=>z.id===l.b).x,groundSites.find(z=>z.id===l.a).y-groundSites.find(z=>z.id===l.b).y);
+  }
+  return [...s.gaps,...s.sea];
+}
+function npcGroundLiftLink(k){return npcGroundLiftLinks().find(l=>l.way===(k.type==='bridge'?'gap':k.via)&&k.link?.includes(l.a)&&k.link?.includes(l.b));}
+function npcGroundLiftMove(f,dest,via){
+  if(!dest||!f?.alive||f.embarked||npcAutoPlayerUnit(f))return false;
+  const last=npcGroundState.last.get(f.id),routes=npcGroundLiftState().routes,route=via===undefined?null:via.map(p=>p.x.toFixed(3)+','+p.z.toFixed(3)).join(';');
+  if(route!==null&&routes.get(f.id)!==route||!last||last.distanceTo(dest)>.05*GROUND_SCALE||!f.order&&f.pos.distanceTo(dest)>.05*GROUND_SCALE||f.order&&f.order.type!=='move'){
+    order(f,{type:'move',dest:dest.clone(),...(via?.length?{via:via.map(p=>p.clone())}:{})});
+    npcGroundState.last.set(f.id,dest.clone());if(route!==null)routes.set(f.id,route);
+  }
+  return !!f.order||f.pos.distanceTo(dest)<=.05*GROUND_SCALE;
+}
+// 見えている接触だけから危険円を作る。視界外の現在位置・兵科・射程を読まない。
+function npcGroundLiftThreats(team){
+  return fleets.filter(f=>npcGroundVisibleEnemy(team,f)).map(f=>({f,pos:f.pos.clone(),range:Math.max(groundFireRanges(f).direct||0,groundFireRanges(f).ground||0)}));
+}
+function npcGroundLiftDanger(pos,threats,beach=false){
+  return threats.some(t=>groundDistanceTo({pos},t)<=t.range||(beach&&groundDistanceTo({pos},t)<=groundData().meta.cellKm*GROUND_SCALE));
+}
+function npcGroundLiftSafePath(ship,dest,threats){
+  const safe=p=>threats.every(t=>groundDistanceTo({pos:p},t)>t.range||groundDistanceTo(ship,t)<=t.range&&groundDistanceTo({pos:p},t)>groundDistanceTo(ship,t)+1e-6),path=groundPath(ship.pos,dest,'sea');
+  if(!path)return null;
+  const line=(a,b)=>{const n=Math.max(1,Math.ceil(a.distanceTo(b)/(groundData().meta.cellKm*GROUND_SCALE/2)));for(let i=1;i<=n;i++)if(!safe(a.clone().lerp(b,i/n)))return false;return true;};
+  if(path.points.slice(1).every((p,i)=>line(path.points[i],p)))return path.points.slice(1,-1);
+  // 海のセルを安全円の外だけで探索し、全経由点を通常の移動へ渡す。
+  const d=groundData(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows;
+  const index=p=>Math.floor(groundMapY(p.z)/cell)*cols+Math.floor(groundMapX(p.x)/cell),point=i=>groundPoint((i%cols+.5)*cell,(Math.floor(i/cols)+.5)*cell);
+  const start=index(ship.pos),end=index(dest),queue=[start],prev=new Map([[start,null]]);
+  for(let at=0;at<queue.length&&!prev.has(end);at++){
+    const i=queue[at],x=i%cols,y=Math.floor(i/cols);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const xx=x+dx,yy=y+dy,j=yy*cols+xx;if(xx<0||xx>=cols||yy<0||yy>=rows||prev.has(j))continue;
+      const p=point(j);if(!groundPass((xx+.5)*cell,(yy+.5)*cell,'sea')||!safe(p)||!line(i===start?ship.pos:point(i),p))continue;
+      prev.set(j,i);queue.push(j);
+    }
+  }
+  if(!prev.has(end))return null;
+  const via=[];for(let i=end;i!==start;i=prev.get(i))via.unshift(point(i));
+  return via;
+}
+function npcGroundLiftPort(ship,zone,threats){
+  const s=npcGroundLiftState(),z=groundSites.find(z=>z.id===zone);if(!z)return null;
+  // 遠回りの浜も地上経路で同じ目標へ到達できるものだけを使う。
+  if(!s.portOrder.has(zone))s.portOrder.set(zone,s.coasts.map(p=>({...p,distance:Math.min(...p.land.map(q=>groundDistanceTo({pos:q},z)))})).sort((a,b)=>a.distance-b.distance));
+  const ports=s.portOrder.get(zone);
+  for(const p of ports){
+    if(p.land.some(q=>npcGroundLiftDanger(q,threats,true))||npcGroundLiftDanger(p.water,threats))continue;
+    if(p.pathRevision!==groundBridgeRevision){p.reachable=p.land.some(q=>groundPath(q,z.pos,'vehicle'));p.pathRevision=groundBridgeRevision;}
+    if(!p.reachable)continue;
+    const via=npcGroundLiftSafePath(ship,p.water,threats);if(via)return {...p,via};
+  }
+  return null;
+}
+function npcGroundLiftOffshore(ship,threats){
+  const s=npcGroundLiftState(),points=s.offshore.filter(pos=>!npcGroundLiftDanger(pos,threats));
+  if(ship.order?.type==='move'&&!npcGroundLiftDanger(ship.order.dest,threats)&&!groundCoastCells({pos:ship.order.dest}).length)return true;
+  points.sort((a,b)=>ship.pos.distanceToSquared(a)-ship.pos.distanceToSquared(b));
+  for(const p of points){const via=npcGroundLiftSafePath(ship,p,threats);if(via)return npcGroundLiftMove(ship,p,via);}
+  return false;
+}
+function npcGroundLiftWatch(){
+  const s=npcGroundLiftState();npcGroundLiftLinks();
+  for(const [id,work] of s.works){
+    const f=fleets.find(f=>f.id===id);
+    if(work.bridge.complete){
+      for(const member of work.members){const u=fleets.find(f=>f.id===member);if(u?.alive&&!u.embarked){s.crossing.set(u.id,work.far.clone());npcGroundLiftMove(u,work.far);}}
+      s.works.delete(id);
+    }else if(!f?.alive||f.order?.bridge!==work.bridge)s.works.delete(id);
+  }
+  for(const [id,p] of s.crossing){const f=fleets.find(f=>f.id===id);if(!f?.alive||f.embarked||f.pos.distanceTo(p)<.1*GROUND_SCALE||f.groundRout){s.crossing.delete(id);npcGroundState.last.delete(id);}}
+  for(const ship of fleets.filter(f=>f.alive&&groundLandingShip(f)&&npcGroundActive(f.team)&&!npcAutoPlayerUnit(f))){
+    const trip=s.boats.get(ship.id),threats=npcGroundLiftThreats(ship.team);
+    if(ship.groundUnloading&&groundCoastCells(ship,'vehicle').some(p=>npcGroundLiftDanger(p,threats,true))){order(ship,{type:'move',dest:ship.pos.clone()});npcGroundLiftOffshore(ship,threats);if(trip){trip.phase='sail';trip.port=null;}}
+    // 危険な浜からの退避は通常の移動を継続。経由点の全探索は判断時に行う。
+  }
+}
+function npcGroundLiftOrders(c,sit,plan){
+  const s=npcGroundLiftState(),handled=new Set(),tasks=new Map();npcGroundLiftLinks();
+  for(const k of plan.tasks)for(const x of k.units)tasks.set(x.id,k);
+  const ours=f=>f?.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))&&!npcAutoPlayerUnit(f),threats=npcGroundLiftThreats(c.team);
+  for(const [id,p] of s.crossing){const f=fleets.find(f=>f.id===id);if(ours(f)){handled.add(id);npcGroundLiftMove(f,p);}}
+  // 任務が消えたら建設を中止する。搭載した隊は安全な味方の浜へ戻して降ろす。
+  for(const f of fleets.filter(ours)){
+    const k=tasks.get(f.id);
+    if(f.order?.type==='bridge'&&k?.type!=='bridge'){order(f,{type:'move',dest:f.pos.clone()});s.works.delete(f.id);}
+    if(f.order?.type==='board'&&(!k||tasks.get(f.order.target.id)!==k)){order(f,{type:'move',dest:f.pos.clone()});}
+  }
+  for(const k of plan.tasks.filter(k=>k.type==='bridge')){
+    const link=npcGroundLiftLink(k);if(!link||link.open)continue;
+    const units=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>ours(f)&&f.alive),worker=units.find(f=>f.groundKind==='engineer');if(!worker)continue;
+    const banks=link.bridge.banks.map(p=>({p,path:groundPath(worker.pos,p,groundMoveKind(worker))})).filter(b=>b.path).sort((a,b)=>a.path.L-b.path.L),near=banks[0]?.p;if(!near)continue;
+    const far=link.bridge.banks.find(p=>p!==near),guard=units.filter(f=>f!==worker);
+    for(const f of guard){handled.add(f.id);npcGroundLiftMove(f,near);}
+    handled.add(worker.id);
+    const enemy=threats.some(t=>groundDistanceTo(t,{pos:link.bridge.pos})<=groundEngineeringRules().workRange);
+    const ready=guard.length>0&&guard.some(f=>groundDistanceTo(f,{pos:near})<=groundEngineeringRules().workRange);
+    if(!enemy&&ready&&npcGroundFree(worker)){
+      const bridge=groundBridgeCommand([worker],link.bridge.pos);
+      if(bridge){s.works.set(worker.id,{bridge,far,members:[worker.id,...guard.map(f=>f.id)]});if(groundScriptState?.op===op)groundScriptState.flags.npcBridgeStarted=true;}
+    }
+  }
+  for(const k of plan.tasks.filter(k=>k.via==='gap'&&k.blocked)){
+    const link=npcGroundLiftLink(k),work=[...s.works.values()].find(w=>w.bridge.river===link?.bridge.river);
+    if(!link)continue;
+    for(const x of k.units){const f=fleets.find(f=>f.id===x.id);if(!ours(f)||!npcGroundFree(f))continue;
+      const near=work?link.bridge.banks.find(p=>!p.equals(work.far)):link.bridge.banks.slice().sort((a,b)=>f.pos.distanceTo(a)-f.pos.distanceTo(b))[0];
+      handled.add(f.id);npcGroundLiftMove(f,near);
+    }
+  }
+  for(const ship of fleets.filter(f=>ours(f)&&f.alive&&groundLandingShip(f))){
+    const previous=s.boats.get(ship.id);
+    const k=tasks.get(ship.id),loadedSupport=groundPassengers(ship).length&&['seize','cut'].includes(k?.type)&&npcGroundLiftLinks().some(l=>l.way==='sea'&&[l.a,l.b].includes(k.from)&&[l.a,l.b].includes(k.zone)),sea=k?.via==='sea'||!!loadedSupport||previous?.key===k?.key&&['sail','land','done'].includes(previous.phase),mains=sea?k.units.filter(x=>x.as==='main').map(x=>fleets.find(f=>f.id===x.id)).filter(f=>ours(f)&&f.alive):[];
+    if(!sea&&!s.boats.has(ship.id))continue;
+    // 初期搭載の支援艦も、割り当てられた主攻の同じ目標へ海から運ぶ。
+    const existing=s.boats.get(ship.id);if(existing?.key===k?.key&&existing.phase==='done'){handled.add(ship.id);if(k.stage==='assemble')for(const id of existing.delivered||[]){const f=fleets.find(f=>f.id===id);if(f?.alive&&tasks.get(id)===k){handled.add(id);}}continue;}
+    handled.add(ship.id);
+    const from=sea?k.from:groundSites.filter(z=>z.owner===c.team&&s.ports.has(z.id)).sort((a,b)=>ship.pos.distanceTo(a.pos)-ship.pos.distanceTo(b.pos))[0]?.id;
+    if(!from)continue;
+    let trip=s.boats.get(ship.id);
+    const key=sea?k.key:'return:'+from;
+    if(!trip||trip.key!==key){trip={key,phase:'assemble',from,to:sea?k.zone:from,port:null};s.boats.set(ship.id,trip);npcGroundState.last.delete(ship.id);}
+    const aboard=groundPassengers(ship);
+    // 初期搭載も、この艦の上陸任務に所属させる。free:false / busy:true のまま次の判断に渡す。
+    if(sea&&aboard.length){trip.crew=aboard.map(f=>f.id);for(const f of aboard){const m=c.unit.get(f.id);if(m){m.task=k.key;m.as='main';}if(!k.units.some(x=>x.id===f.id))k.units.push({id:f.id,as:'main'});handled.add(f.id);}if(trip.phase==='assemble'&&!(ship.groundBoarders||[]).length)trip.phase='sail';}
+    if(trip.phase==='assemble'){
+      if(!trip.port)trip.port=npcGroundLiftPort(ship,from,threats);if(!trip.port)continue;
+      npcGroundLiftMove(ship,trip.port.water,trip.port.via);
+      for(const f of mains)if(!f.embarked&&!s.crossing.has(f.id)){handled.add(f.id);if(npcGroundFree(f))npcGroundLiftMove(f,trip.port.land[0]);}
+      if(ship.pos.distanceTo(trip.port.water)>.1*GROUND_SCALE)continue;
+      if(!sea){if(aboard.length&&!ship.groundUnloading)groundLandCommand([ship]);if(!aboard.length)s.boats.delete(ship.id);continue;}
+      if(k.stage==='assemble')continue;
+      for(const f of mains){if(s.crossing.has(f.id))continue;handled.add(f.id);if(!f.embarked&&npcGroundFree(f))groundBoardCommand([f],ship);}
+      if(mains.length&&mains.every(f=>f.embarked===ship)){trip.phase='sail';trip.port=null;}
+    }
+    if(trip.phase==='sail'){
+      const threatKey=threats.map(t=>[t.f.id,t.pos.x.toFixed(1),t.pos.z.toFixed(1),t.range].join(':')).join('|');
+      if(trip.threatKey!==threatKey){if(trip.port){const via=npcGroundLiftSafePath(ship,trip.port.water,threats);if(via)trip.port.via=via;else trip.port=null;}s.routes.delete(ship.id);trip.threatKey=threatKey;}
+      if(trip.port&&trip.port.zone!==trip.to)trip.port=null;
+      if(trip.port&&(trip.port.land.some(p=>npcGroundLiftDanger(p,threats,true))||npcGroundLiftDanger(trip.port.water,threats)))trip.port=null;
+      if(!trip.port){const port=npcGroundLiftPort(ship,trip.to,threats);if(port)trip.port={...port,zone:trip.to};}
+      if(!trip.port){npcGroundLiftOffshore(ship,threats);continue;}
+      npcGroundLiftMove(ship,trip.port.water,trip.port.via);
+      if(ship.pos.distanceTo(trip.port.water)<=.1*GROUND_SCALE&&groundPassengers(ship).length&&!ship.groundUnloading){if(groundLandCommand([ship]))trip.phase='land';}
+    }
+    if(trip.phase==='land'){
+      for(const f of mains)if(f.embarked)handled.add(f.id);
+      if(!groundPassengers(ship).length){trip.phase='done';trip.delivered=trip.crew||[];}
+    }
+    if(sea&&['land','done'].includes(trip.phase)&&k.stage==='assemble')for(const id of trip.crew||[])handled.add(id);
+    // 同じ任務で降りた隊を出発の浜へ呼び戻さない。任務が変わるまで完了を保持。
+    if(trip.phase==='done'&&!sea)s.boats.delete(ship.id);
+  }
+  // 同じ任務の歩兵を空いた輸送車へ。既存の搭乗・降車コマンドで予約と中止も処理する。
+  for(const [id,ride] of s.trucks){
+    const truck=fleets.find(f=>f.id===id),f=fleets.find(f=>f.id===ride.passenger);if(!ours(truck))continue;
+    if(!truck.alive||!f?.alive){s.trucks.delete(id);continue;}
+    handled.add(truck.id);handled.add(f.id);
+    if(!tasks.has(f.id)||tasks.get(f.id)!==tasks.get(truck.id)){
+      if(truck.groundPassenger){if(groundUnloadCommand([truck]))s.cooldown.set(f.id,gameSec+30);}else if(f.order?.type==='board')order(f,{type:'move',dest:f.pos.clone()});
+      s.trucks.delete(id);continue;
+    }
+    if(f.embarked===truck){
+      if(npcGroundLiftDanger(truck.pos,threats)||truck.pos.distanceTo(ride.dest)<=.2*GROUND_SCALE){if(groundUnloadCommand([truck])){s.trucks.delete(id);s.cooldown.set(f.id,gameSec+30);}}
+      else npcGroundLiftMove(truck,ride.dest);
+    }
+  }
+  for(const k of plan.tasks){
+    const group=k.units.map(x=>({x,f:fleets.find(f=>f.id===x.id)})).filter(({f})=>ours(f)&&f.alive);
+    if(k.via!=='sea'&&!k.blocked&&k.type!=='bridge')for(const {f,x} of group){
+      if(handled.has(f.id)||gameSec<(s.cooldown.get(f.id)||0)||!groundBoardable(f)||!npcGroundFree(f))continue;
+      const dest=npcGroundDestination(c,sit,k,x,k.units.indexOf(x),k.units.length);if(!dest||f.pos.distanceTo(dest)<6*GROUND_SCALE)continue;
+      const truck=group.map(a=>a.f).filter(t=>t.groundKind==='apc'&&npcGroundFree(t)&&!handled.has(t.id)&&!groundPassengers(t).length&&!t.groundBoarder).sort((a,b)=>f.pos.distanceTo(a.pos)-f.pos.distanceTo(b.pos))[0];
+      if(!truck)continue;
+      const path=groundPath(truck.pos,dest,groundMoveKind(truck));if(!path||path.L<6*GROUND_SCALE)continue;
+      // 危険円に入る直前の経路点で降ろす。全経路が安全なら通常の集結地点まで。
+      let stop=truck.pos.clone(),blocked=false;for(let i=1;i<path.points.length&&!blocked;i++){const a=path.points[i-1],b=path.points[i],n=Math.max(1,Math.ceil(a.distanceTo(b)/(groundData().meta.cellKm*GROUND_SCALE/2)));for(let j=1;j<=n;j++){const p=a.clone().lerp(b,j/n);if(npcGroundLiftDanger(p,threats)){blocked=true;break;}stop=p;}}
+      const remaining=groundPath(truck.pos,stop,groundMoveKind(truck));if(!remaining||remaining.L<6*GROUND_SCALE)continue;
+      if(groundBoardCommand([f],truck)){handled.add(f.id);handled.add(truck.id);s.trucks.set(truck.id,{passenger:f.id,dest:stop.clone()});}
+    }
+    for(const {f,x} of group)if(f.groundKind==='supply'&&(x.as==='supply'||x.as==='support')&&!handled.has(f.id)&&npcGroundFree(f)){
+      const candidates=group.filter(a=>a.x.as==='main'&&!a.f.embarked&&groundSupplyCanGive(f,a.f)).sort((a,b)=>(a.f.groundSupply??100)-(b.f.groundSupply??100)).map(a=>a.f);if(!candidates.length)continue;
+      let main=null,dest=null;
+      for(const candidate of candidates){main=candidate;
+      const z=sit.zones.find(z=>z.id===k.zone),home=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own');
+      const dx=(z?.x??groundMapX(main.pos.x))-(home?.x??groundMapX(f.pos.x)),dy=(z?.z??groundMapY(main.pos.z))-(home?.z??groundMapY(f.pos.z)),len=Math.hypot(dx,dy)||1;
+
+      for(const side of [0,1,-1,2,-2]){
+        const p=npcGroundPassPoint(f,groundMapX(main.pos.x)-dx/len*.6-dy/len*side*.2,groundMapY(main.pos.z)-dy/len*.6+dx/len*side*.2);
+        if(p&&p.distanceTo(main.pos)<=groundSupplyRules().giveKm*GROUND_SCALE&&!npcGroundLiftDanger(p,threats)){dest=p;break;}
+      }
+      if(dest)break;
+      }
+      handled.add(f.id);
+      if(dest){if(f.pos.distanceTo(dest)>.1*GROUND_SCALE)npcGroundLiftMove(f,dest);else if(f.groundGiving!==main)groundSupplyCommand([f],main);}
+      else if(f.order||f.groundGiving)order(f,{type:'move',dest:f.pos.clone()});
+    }
+  }
+  return handled;
 }
