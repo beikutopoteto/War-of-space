@@ -38,13 +38,8 @@ window.WOS_GROUND_ORG=(()=>{
   }
   function sortie(value){
     let org=normalize(value); if(!org.companies.length) org=defaults();
-    const quick=window.WOS_GROUND_DEFAULT_COMPANIES;
-    const fleets=org.companies.map((c,i)=>{
-      const base=quick[i%quick.length], extra=Math.floor(i/quick.length);
-      // 7個目以降は初期位置の横へ2.4戦闘単位ずつずらす（仮）。
-      return {...base,name:c.name,groundKind:c.kind,companyId:c.id,band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground',
-        pos:[base.pos[0]+extra*2.4,base.pos[1]],alt:0};
-    });
+    const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,companyId:c.id,vis:9,stl:0,
+      band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground'}));
     return {org,fleets};
   }
   return {MAX_COMPANIES,MAX_BATTALIONS,types,defaults,normalize,assign,remove,sortie};

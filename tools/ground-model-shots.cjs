@@ -54,7 +54,7 @@ async function main(){
       }
       // Explicit fleets bypass the saved ground organization, just like a quick sortie.
       WOS.start({op:operation.id,fleets:operation.quick});setSpeed(0);
-      return {player:operation.quick.map(f=>f.groundKind),enemy:operation.enemies.map(f=>f.groundKind)};
+      return {player:operation.quick.map(groundUnitSpec).map(f=>f.groundKind),enemy:operation.enemies.map(groundUnitSpec).map(f=>f.groundKind)};
     },!!opt.all);
     console.log('Placed kinds: '+JSON.stringify(placed));
     await page.waitForFunction(()=>window.WOS&&typeof groundVisuals!=='undefined'&&groundVisuals&&fleets.some(f=>f.team===0));
@@ -115,7 +115,7 @@ async function main(){
     const start=await frame();await cameraAt(start,2);await shoot('mid');await cameraAt(start,1);await shoot('near');
     // Reset with missing enemy kinds added through the normal fleet/model initialization.
     await page.evaluate(()=>{
-      for(const f of op.quick)if(!op.enemies.some(e=>e.groundKind===f.groundKind))op.enemies.push({...f,side:'mars'});
+      for(const f of op.quick.map(groundUnitSpec))if(!op.enemies.map(groundUnitSpec).some(e=>e.groundKind===f.groundKind))op.enemies.push({...f,side:'mars'});
       reset();setSpeed(0);
     });await page.waitForFunction(()=>!camAnim);
     const row=await frame(true);if(opt.moving)await page.evaluate(movingShot);await page.waitForTimeout(450);await cameraAt(row,1);await shoot('line-near');await cameraAt(row,2);await shoot('line-mid');

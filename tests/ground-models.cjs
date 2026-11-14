@@ -49,7 +49,7 @@ function nodeChecks(){
   run(`groundHud=groundCaptureInit=groundSightInit=()=>{};
     globalThis.shipMeshes=[0,1].map(()=>Object.fromEntries(Object.keys(SHAPES).map(k=>[k,new THREE.Mesh(shapeGeo(k),new THREE.MeshStandardMaterial())])));
     globalThis.craftMeshes=[0,1].map(()=>Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,new THREE.Mesh(craftGeo(k),new THREE.MeshStandardMaterial())])));
-    globalThis.initModels=()=>{op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(s=>makeFleet(0,s)),makeFleet(1,op.quick[0])];groundSeaDeploy();groundInitOrg(null);groundBoard=new THREE.Group();groundInit();};initModels();`);
+    globalThis.initModels=()=>{op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(groundUnitSpec).map(s=>makeFleet(0,s)),makeFleet(1,groundUnitSpec(op.quick[0]))];groundSeaDeploy();groundInitOrg(null);groundBoard=new THREE.Group();groundInit();};initModels();`);
   check('差し替えなしはコルベット・旧航空・WAS・海艦を維持',`fleets.every(f=>{const m=f.groundModel;if(['fighter','attack','supportAircraft'].includes(f.groundKind))return m.children.filter(o=>o.isMesh).length===3&&m.children.filter(o=>o.isLine).length===3&&m.rotation.y===Math.atan2(f.heading.x,f.heading.z)+Math.PI;const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];return m.children.length===1&&m.children[0].geometry!==src.geometry&&[...m.children[0].geometry.attributes.position.array].every((v,i)=>v===src.geometry.attributes.position.array[i]);})`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:0.7:one,infantry:${ctx.testKey}:0.5:squad6,fighter:${ctx.testKey}:0.8:v3,sea:cl:${ctx.testKey}:1.1:line3`);run('initModels();');
   check('兵科と統合した海艦のキーだけを差し替える',`fleets.every(f=>f.groundModel.userData.groundShape===!!groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind))`);
@@ -143,7 +143,7 @@ function nodeChecks(){
   assert.deepEqual(Array.from(ctx.shotConfig.fleets,f=>f.groundKind),kinds);
   assert.deepEqual(Array.from(operation.enemies,f=>f.groundKind),kinds);assert.equal(operation.groundSea.length,0);
   assert.ok(operation.quick.some(f=>ctx.groundRuleSet().unitTypes[f.groundKind].permissionOnly));count++;
-  ctx.location.search='';run(`op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(s=>makeFleet(0,s)),...op.enemies.map(s=>makeFleet(1,s))];groundInitOrg(null);groundBoard=new THREE.Group();groundInit();`);
+  ctx.location.search='';run(`op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[...op.quick.map(groundUnitSpec).map(s=>makeFleet(0,s)),...op.enemies.map(groundUnitSpec).map(s=>makeFleet(1,s))];groundInitOrg(null);groundBoard=new THREE.Group();groundInit();`);
   ctx.scene=new ctx.THREE.Scene();run('scene.add(groundBoard);');ctx.camera=new ctx.THREE.PerspectiveCamera(50,1600/900,.1,3000);
   const layout=shotSource.slice(shotSource.indexOf('page.evaluate(line=>{')+'page.evaluate('.length,shotSource.indexOf('},line);')+1);
   const framing=run(`(${layout})(true)`);

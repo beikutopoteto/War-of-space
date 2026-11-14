@@ -1,0 +1,2005 @@
+{
+  "exercise-org": {
+    "units": [
+      {
+        "name": "第1 戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          29
+        ],
+        "alt": 0.16
+      },
+      {
+        "name": "第2 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.9,
+          29
+        ],
+        "alt": 0.31
+      },
+      {
+        "name": "第3 重強化歩兵中隊",
+        "kind": "heavyInfantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          29.4
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "第4 戦闘航空隊",
+        "kind": "fighter",
+        "band": "high",
+        "team": 0,
+        "at": [
+          19,
+          26
+        ],
+        "alt": 19.32
+      },
+      {
+        "name": "第5 攻撃航空隊",
+        "kind": "attack",
+        "band": "low",
+        "team": 0,
+        "at": [
+          15,
+          18
+        ],
+        "alt": 12.36
+      },
+      {
+        "name": "第6 陸戦型 W.A.S. 試験隊",
+        "kind": "was",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          28.6
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第1 守備戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          24,
+          21
+        ],
+        "alt": 0.11
+      },
+      {
+        "name": "第2 守備歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          22.5,
+          21
+        ],
+        "alt": 0.1
+      },
+      {
+        "name": "第3 守備歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          41,
+          27
+        ],
+        "alt": 0.35
+      },
+      {
+        "name": "第7 上陸歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "embarked": "連合 揚陸艦（仮）"
+      },
+      {
+        "name": "第8 上陸戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "embarked": "連合 揚陸艦（仮）"
+      },
+      {
+        "name": "連合 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          12,
+          5
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": []
+      },
+      {
+        "name": "連合 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          17,
+          4
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "共和国 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 1,
+        "at": [
+          28,
+          5
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": []
+      },
+      {
+        "name": "共和国 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 1,
+        "at": [
+          33,
+          4
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "連合 揚陸艦（仮）",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": [
+          "第7 上陸歩兵中隊",
+          "第8 上陸戦車中隊"
+        ]
+      }
+    ],
+    "marks": [],
+    "view": {
+      "at": [
+        24,
+        18
+      ],
+      "dist": 230,
+      "dir": [
+        0,
+        1,
+        1
+      ],
+      "max": 350
+    },
+    "opening": {
+      "target": [
+        24,
+        18
+      ],
+      "alt": 0,
+      "position": [
+        24,
+        -22.66
+      ],
+      "height": 162.63
+    }
+  },
+  "exercise-quick": {
+    "units": [
+      {
+        "name": "第1 戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          29
+        ],
+        "alt": 0.16
+      },
+      {
+        "name": "第2 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.9,
+          29
+        ],
+        "alt": 0.31
+      },
+      {
+        "name": "第3 重強化歩兵中隊",
+        "kind": "heavyInfantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          29.4
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "第4 戦闘航空隊",
+        "kind": "fighter",
+        "band": "high",
+        "team": 0,
+        "at": [
+          19,
+          26
+        ],
+        "alt": 19.32
+      },
+      {
+        "name": "第5 攻撃航空隊",
+        "kind": "attack",
+        "band": "low",
+        "team": 0,
+        "at": [
+          15,
+          18
+        ],
+        "alt": 12.36
+      },
+      {
+        "name": "第6 陸戦型 W.A.S. 試験隊",
+        "kind": "was",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23.5,
+          28.6
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第1 守備戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          24,
+          21
+        ],
+        "alt": 0.11
+      },
+      {
+        "name": "第2 守備歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          22.5,
+          21
+        ],
+        "alt": 0.1
+      },
+      {
+        "name": "第3 守備歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          41,
+          27
+        ],
+        "alt": 0.35
+      },
+      {
+        "name": "第7 上陸歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "embarked": "連合 揚陸艦（仮）"
+      },
+      {
+        "name": "第8 上陸戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "embarked": "連合 揚陸艦（仮）"
+      },
+      {
+        "name": "連合 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          12,
+          5
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": []
+      },
+      {
+        "name": "連合 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          17,
+          4
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "共和国 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 1,
+        "at": [
+          28,
+          5
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": []
+      },
+      {
+        "name": "共和国 イージス艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 1,
+        "at": [
+          33,
+          4
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "連合 揚陸艦（仮）",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          10,
+          4
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": [
+          "第7 上陸歩兵中隊",
+          "第8 上陸戦車中隊"
+        ]
+      }
+    ],
+    "marks": [],
+    "view": {
+      "at": [
+        24,
+        18
+      ],
+      "dist": 230,
+      "dir": [
+        0,
+        1,
+        1
+      ],
+      "max": 350
+    },
+    "opening": {
+      "target": [
+        24,
+        18
+      ],
+      "alt": 0,
+      "position": [
+        24,
+        -22.66
+      ],
+      "height": 162.63
+    }
+  },
+  "baikonur-quick": {
+    "units": [
+      {
+        "name": "第1 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第2 主力戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          56.4
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第3 重強化歩兵中隊",
+        "kind": "heavyInfantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          9.6,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第4 斥候中隊",
+        "kind": "scout",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10.4,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第5 攻撃航空隊",
+        "kind": "attack",
+        "band": "high",
+        "team": 0,
+        "at": [
+          10,
+          54
+        ],
+        "alt": 19.39
+      },
+      {
+        "name": "第6 自走対空砲中隊",
+        "kind": "mobileAA",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          55.6
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第7 自走砲中隊",
+        "kind": "artillery",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          9.6,
+          56.4
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第8 装甲兵員輸送車中隊",
+        "kind": "apc",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10.4,
+          56.4
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第9 工兵中隊",
+        "kind": "engineer",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          9.6,
+          55.6
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第11 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10.4,
+          55.6
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第12 補給中隊",
+        "kind": "supply",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          56.8
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "仮想敵 歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          68,
+          43
+        ],
+        "alt": 0.16
+      },
+      {
+        "name": "仮想敵 戦車",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          70,
+          45
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "仮想敵 第2歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          84,
+          55
+        ],
+        "alt": 0.21
+      },
+      {
+        "name": "仮想敵 第3歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          86,
+          57
+        ],
+        "alt": 0.23
+      },
+      {
+        "name": "仮想敵 第4歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          75,
+          21
+        ],
+        "alt": 0.1
+      },
+      {
+        "name": "仮想敵 第2戦車",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          87,
+          54
+        ],
+        "alt": 0.21
+      },
+      {
+        "name": "仮想敵 自走砲",
+        "kind": "artillery",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          88,
+          56
+        ],
+        "alt": 0.22
+      },
+      {
+        "name": "仮想敵 対空",
+        "kind": "mobileAA",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          85,
+          56
+        ],
+        "alt": 0.22
+      },
+      {
+        "name": "仮想敵 斥候",
+        "kind": "scout",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          68,
+          46
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "仮想敵 航空",
+        "kind": "fighter",
+        "band": "low",
+        "team": 1,
+        "at": [
+          84,
+          57
+        ],
+        "alt": 12.51
+      },
+      {
+        "name": "第10 上陸歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23,
+          14
+        ],
+        "alt": 0,
+        "embarked": "演習揚陸艦"
+      },
+      {
+        "name": "演習砲撃艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          23,
+          12
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "演習揚陸艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          23,
+          14
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": [
+          "第10 上陸歩兵中隊"
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "name": "① 部隊を選ぶ",
+        "marks": []
+      },
+      {
+        "name": "① 地上を移動",
+        "marks": [
+          {
+            "label": "移動",
+            "at": [
+              31,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "② 地形と視界",
+        "marks": [
+          {
+            "label": "地形",
+            "at": [
+              33,
+              40.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "③ 強化歩兵で占拠",
+        "marks": [
+          {
+            "label": "占拠",
+            "at": [
+              31,
+              47
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 戦車と歩兵",
+        "marks": [
+          {
+            "label": "歩兵",
+            "at": [
+              38,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 重強化歩兵と戦車",
+        "marks": [
+          {
+            "label": "戦車",
+            "at": [
+              44,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑤ 斥候の視界",
+        "marks": [
+          {
+            "label": "偵察",
+            "at": [
+              62,
+              45
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑥ 低高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 高高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 自動対空",
+        "marks": [
+          {
+            "label": "対空",
+            "at": [
+              57,
+              35
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑦ 地点攻撃",
+        "marks": [
+          {
+            "label": "砲撃",
+            "at": [
+              41,
+              35
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車へ搭乗",
+        "marks": []
+      },
+      {
+        "name": "⑧ 輸送して移動",
+        "marks": [
+          {
+            "label": "輸送",
+            "at": [
+              37,
+              47
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車から降車",
+        "marks": []
+      },
+      {
+        "name": "⑧ 工兵で架橋",
+        "marks": [
+          {
+            "label": "架橋",
+            "at": [
+              47.6,
+              28.95
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 海の艦を動かす",
+        "marks": [
+          {
+            "label": "航行",
+            "at": [
+              41,
+              24
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 艦砲の地点攻撃",
+        "marks": [
+          {
+            "label": "艦砲",
+            "at": [
+              41,
+              28
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 揚陸艦を海岸へ",
+        "marks": [
+          {
+            "label": "海岸",
+            "at": [
+              36.2,
+              25.4
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 歩兵を上陸",
+        "marks": []
+      },
+      {
+        "name": "⑩ 本営から配置",
+        "marks": []
+      },
+      {
+        "name": "⑩ 道路で補充",
+        "marks": [
+          {
+            "label": "補充",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 道路を奪還",
+        "marks": [
+          {
+            "label": "奪還",
+            "at": [
+              40,
+              47.86
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 競合の先も半速",
+        "marks": [
+          {
+            "label": "競合",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 補給部隊から分配",
+        "marks": []
+      },
+      {
+        "name": "⑩ 士気と敗走",
+        "marks": [
+          {
+            "label": "敗走",
+            "at": [
+              39,
+              44
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 味方の道で再集結",
+        "marks": [
+          {
+            "label": "回復",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      }
+    ],
+    "view": {
+      "at": [
+        12,
+        54
+      ],
+      "dist": 145,
+      "dir": [
+        0,
+        1,
+        0.65
+      ],
+      "max": 650
+    },
+    "opening": {
+      "target": [
+        12,
+        54
+      ],
+      "alt": 0,
+      "position": [
+        12,
+        34.24
+      ],
+      "height": 121.57
+    }
+  },
+  "baikonur-org": {
+    "units": [
+      {
+        "name": "第1 戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第2 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10,
+          56.4
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第3 重強化歩兵中隊",
+        "kind": "heavyInfantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          9.6,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "第4 戦闘航空隊",
+        "kind": "fighter",
+        "band": "high",
+        "team": 0,
+        "at": [
+          43,
+          44
+        ],
+        "alt": 19.36
+      },
+      {
+        "name": "第5 攻撃航空隊",
+        "kind": "attack",
+        "band": "low",
+        "team": 0,
+        "at": [
+          39,
+          36
+        ],
+        "alt": 12.38
+      },
+      {
+        "name": "第6 陸戦型 W.A.S. 試験隊",
+        "kind": "was",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          10.4,
+          56
+        ],
+        "alt": 0.19
+      },
+      {
+        "name": "仮想敵 歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          68,
+          43
+        ],
+        "alt": 0.16
+      },
+      {
+        "name": "仮想敵 戦車",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          70,
+          45
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "仮想敵 第2歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          84,
+          55
+        ],
+        "alt": 0.21
+      },
+      {
+        "name": "仮想敵 第3歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          86,
+          57
+        ],
+        "alt": 0.23
+      },
+      {
+        "name": "仮想敵 第4歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          75,
+          21
+        ],
+        "alt": 0.1
+      },
+      {
+        "name": "仮想敵 第2戦車",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          87,
+          54
+        ],
+        "alt": 0.21
+      },
+      {
+        "name": "仮想敵 自走砲",
+        "kind": "artillery",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          88,
+          56
+        ],
+        "alt": 0.22
+      },
+      {
+        "name": "仮想敵 対空",
+        "kind": "mobileAA",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          85,
+          56
+        ],
+        "alt": 0.22
+      },
+      {
+        "name": "仮想敵 斥候",
+        "kind": "scout",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          68,
+          46
+        ],
+        "alt": 0.17
+      },
+      {
+        "name": "仮想敵 航空",
+        "kind": "fighter",
+        "band": "low",
+        "team": 1,
+        "at": [
+          84,
+          57
+        ],
+        "alt": 12.51
+      },
+      {
+        "name": "第10 上陸歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          23,
+          14
+        ],
+        "alt": 0,
+        "embarked": "演習揚陸艦"
+      },
+      {
+        "name": "演習砲撃艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          23,
+          12
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "演習揚陸艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          23,
+          14
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": [
+          "第10 上陸歩兵中隊"
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "name": "① 部隊を選ぶ",
+        "marks": []
+      },
+      {
+        "name": "① 地上を移動",
+        "marks": [
+          {
+            "label": "移動",
+            "at": [
+              31,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "② 地形と視界",
+        "marks": [
+          {
+            "label": "地形",
+            "at": [
+              33,
+              40.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "③ 強化歩兵で占拠",
+        "marks": [
+          {
+            "label": "占拠",
+            "at": [
+              31,
+              47
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 戦車と歩兵",
+        "marks": [
+          {
+            "label": "歩兵",
+            "at": [
+              38,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 重強化歩兵と戦車",
+        "marks": [
+          {
+            "label": "戦車",
+            "at": [
+              44,
+              43
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑤ 斥候の視界",
+        "marks": [
+          {
+            "label": "偵察",
+            "at": [
+              62,
+              45
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑥ 低高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 高高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 自動対空",
+        "marks": [
+          {
+            "label": "対空",
+            "at": [
+              57,
+              35
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑦ 地点攻撃",
+        "marks": [
+          {
+            "label": "砲撃",
+            "at": [
+              41,
+              35
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車へ搭乗",
+        "marks": []
+      },
+      {
+        "name": "⑧ 輸送して移動",
+        "marks": [
+          {
+            "label": "輸送",
+            "at": [
+              37,
+              47
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車から降車",
+        "marks": []
+      },
+      {
+        "name": "⑧ 工兵で架橋",
+        "marks": [
+          {
+            "label": "架橋",
+            "at": [
+              47.6,
+              28.95
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 海の艦を動かす",
+        "marks": [
+          {
+            "label": "航行",
+            "at": [
+              41,
+              24
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 艦砲の地点攻撃",
+        "marks": [
+          {
+            "label": "艦砲",
+            "at": [
+              41,
+              28
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 揚陸艦を海岸へ",
+        "marks": [
+          {
+            "label": "海岸",
+            "at": [
+              36.2,
+              25.4
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 歩兵を上陸",
+        "marks": []
+      },
+      {
+        "name": "⑩ 本営から配置",
+        "marks": []
+      },
+      {
+        "name": "⑩ 道路で補充",
+        "marks": [
+          {
+            "label": "補充",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 道路を奪還",
+        "marks": [
+          {
+            "label": "奪還",
+            "at": [
+              40,
+              47.86
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 競合の先も半速",
+        "marks": [
+          {
+            "label": "競合",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 補給部隊から分配",
+        "marks": []
+      },
+      {
+        "name": "⑩ 士気と敗走",
+        "marks": [
+          {
+            "label": "敗走",
+            "at": [
+              39,
+              44
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 味方の道で再集結",
+        "marks": [
+          {
+            "label": "回復",
+            "at": [
+              42.5,
+              47.5
+            ],
+            "alt": 0
+          }
+        ]
+      }
+    ],
+    "view": {
+      "at": [
+        12,
+        54
+      ],
+      "dist": 145,
+      "dir": [
+        0,
+        1,
+        0.65
+      ],
+      "max": 650
+    },
+    "opening": {
+      "target": [
+        12,
+        54
+      ],
+      "alt": 0,
+      "position": [
+        12,
+        34.24
+      ],
+      "height": 121.57
+    }
+  },
+  "tutorial2": {
+    "units": [
+      {
+        "name": "第1 強化歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          7,
+          27
+        ],
+        "alt": 0.12
+      },
+      {
+        "name": "第2 主力戦車中隊",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          11,
+          25
+        ],
+        "alt": 0.12
+      },
+      {
+        "name": "第3 重強化歩兵中隊",
+        "kind": "heavyInfantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          17,
+          25
+        ],
+        "alt": 0.12
+      },
+      {
+        "name": "第4 斥候中隊",
+        "kind": "scout",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          24.5,
+          29
+        ],
+        "alt": 0.2
+      },
+      {
+        "name": "第5 攻撃航空隊",
+        "kind": "attack",
+        "band": "high",
+        "team": 0,
+        "at": [
+          29,
+          20
+        ],
+        "alt": 19.3
+      },
+      {
+        "name": "第6 自走対空砲中隊",
+        "kind": "mobileAA",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          33,
+          18
+        ],
+        "alt": 0.1
+      },
+      {
+        "name": "第7 自走砲中隊",
+        "kind": "artillery",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          13,
+          19
+        ],
+        "alt": 0.08
+      },
+      {
+        "name": "第8 装甲兵員輸送車中隊",
+        "kind": "apc",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          9,
+          29
+        ],
+        "alt": 0.15
+      },
+      {
+        "name": "第9 工兵中隊",
+        "kind": "engineer",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          24,
+          12
+        ],
+        "alt": 0.07
+      },
+      {
+        "name": "仮想敵 歩兵",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          14,
+          25
+        ],
+        "alt": 0.12
+      },
+      {
+        "name": "仮想敵 戦車",
+        "kind": "vehicle",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          20,
+          25
+        ],
+        "alt": 0.12
+      },
+      {
+        "name": "仮想敵 斥候",
+        "kind": "scout",
+        "band": "ground",
+        "team": 1,
+        "at": [
+          41,
+          27
+        ],
+        "alt": 0.35
+      },
+      {
+        "name": "仮想敵 航空",
+        "kind": "fighter",
+        "band": "low",
+        "team": 1,
+        "at": [
+          33,
+          17
+        ],
+        "alt": 12.37
+      },
+      {
+        "name": "第10 上陸歩兵中隊",
+        "kind": "infantry",
+        "band": "ground",
+        "team": 0,
+        "at": [
+          12,
+          5
+        ],
+        "alt": 0,
+        "embarked": "演習揚陸艦"
+      },
+      {
+        "name": "演習砲撃艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          17,
+          4
+        ],
+        "alt": 0,
+        "type": "cl",
+        "cargo": []
+      },
+      {
+        "name": "演習揚陸艦",
+        "kind": "sea",
+        "band": "sea",
+        "team": 0,
+        "at": [
+          12,
+          5
+        ],
+        "alt": 0,
+        "type": "dd",
+        "cargo": [
+          "第10 上陸歩兵中隊"
+        ]
+      }
+    ],
+    "marks": [
+      {
+        "name": "① 部隊を選ぶ",
+        "marks": []
+      },
+      {
+        "name": "① 地上を移動",
+        "marks": [
+          {
+            "label": "移動",
+            "at": [
+              7,
+              25
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "② 地形と視界",
+        "marks": [
+          {
+            "label": "地形",
+            "at": [
+              9,
+              22.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "③ 強化歩兵で占拠",
+        "marks": [
+          {
+            "label": "占拠",
+            "at": [
+              7,
+              29
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 戦車と歩兵",
+        "marks": [
+          {
+            "label": "歩兵",
+            "at": [
+              14,
+              25
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "④ 重強化歩兵と戦車",
+        "marks": [
+          {
+            "label": "戦車",
+            "at": [
+              20,
+              25
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑤ 斥候の視界",
+        "marks": [
+          {
+            "label": "偵察",
+            "at": [
+              38,
+              27
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑥ 低高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 高高度へ",
+        "marks": []
+      },
+      {
+        "name": "⑥ 自動対空",
+        "marks": [
+          {
+            "label": "対空",
+            "at": [
+              33,
+              17
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑦ 地点攻撃",
+        "marks": [
+          {
+            "label": "砲撃",
+            "at": [
+              17,
+              17
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車へ搭乗",
+        "marks": []
+      },
+      {
+        "name": "⑧ 輸送して移動",
+        "marks": [
+          {
+            "label": "輸送",
+            "at": [
+              13,
+              29
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑧ 輸送車から降車",
+        "marks": []
+      },
+      {
+        "name": "⑧ 工兵で架橋",
+        "marks": [
+          {
+            "label": "架橋",
+            "at": [
+              23.6,
+              10.95
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 海の艦を動かす",
+        "marks": [
+          {
+            "label": "航行",
+            "at": [
+              17,
+              6
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 艦砲の地点攻撃",
+        "marks": [
+          {
+            "label": "艦砲",
+            "at": [
+              17,
+              10
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 揚陸艦を海岸へ",
+        "marks": [
+          {
+            "label": "海岸",
+            "at": [
+              12.2,
+              7.4
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑨ 歩兵を上陸",
+        "marks": []
+      },
+      {
+        "name": "⑩ 本営から配置",
+        "marks": []
+      },
+      {
+        "name": "⑩ 道路で補充",
+        "marks": [
+          {
+            "label": "補充",
+            "at": [
+              18.5,
+              29.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 道路を奪還",
+        "marks": [
+          {
+            "label": "奪還",
+            "at": [
+              16,
+              29.86
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 競合の先も半速",
+        "marks": [
+          {
+            "label": "競合",
+            "at": [
+              18.5,
+              29.5
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 補給部隊から分配",
+        "marks": []
+      },
+      {
+        "name": "⑩ 士気と敗走",
+        "marks": [
+          {
+            "label": "敗走",
+            "at": [
+              15,
+              26
+            ],
+            "alt": 0
+          }
+        ]
+      },
+      {
+        "name": "⑩ 味方の道で再集結",
+        "marks": [
+          {
+            "label": "回復",
+            "at": [
+              18.5,
+              29.5
+            ],
+            "alt": 0
+          }
+        ]
+      }
+    ],
+    "view": {
+      "at": [
+        10,
+        28
+      ],
+      "dist": 100,
+      "dir": [
+        0,
+        1,
+        0.65
+      ],
+      "max": 350
+    },
+    "opening": {
+      "target": [
+        10,
+        28
+      ],
+      "alt": 0,
+      "position": [
+        10,
+        14.38
+      ],
+      "height": 83.84
+    }
+  }
+}

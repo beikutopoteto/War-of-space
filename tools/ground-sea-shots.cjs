@@ -51,7 +51,7 @@ const {openGame,ROOT}=require('./browser.cjs');
     // (d) 同じ射撃表・damage を通して、低空の攻撃機と駆逐艦が相互に損害を与える。
     await fresh();await page.evaluate(()=>{
       fleets.forEach((f,i)=>f.pos.copy(groundPoint(4+i*2,31)));
-      const ship=fleets.find(f=>f.team===0&&f.groundKind==='sea'&&f.type==='dd'),base=op.quick.find(f=>f.groundKind==='attack'),plane=makeFleet(1,{...base,name:'共和国 攻撃航空隊'});
+      const ship=fleets.find(f=>f.team===0&&f.groundKind==='sea'&&f.type==='dd'),base=op.quick.map(groundUnitSpec).find(f=>f.groundKind==='attack'),plane=makeFleet(1,{...base,name:'共和国 攻撃航空隊'});
       fleets.push(plane);plane.band='low';plane.bandLeft=0;plane.queue=[];plane.order=null;plane.stance='evade';
       // 地上初期化と同じ既存航空モデルを、この撮影用の増援にも付ける。
       plane.groundModel=new THREE.Group();groundAircraft(plane.groundModel,TEAM_COL[1]);groundVisuals.add(plane.groundModel);

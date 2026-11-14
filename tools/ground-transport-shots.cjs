@@ -10,7 +10,7 @@ const {openGame,ROOT}=require('./browser.cjs');
     await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');
     await page.waitForFunction(()=>window.WOS&&typeof groundFog!=='undefined'&&groundFog);
     const setup=async()=>page.evaluate(()=>{
-      const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
+      const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]);
       reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map((kind,i)=>({...base,groundKind:kind,name:`第${i+1} ${groundRuleSet().unitTypes[kind].name}中隊`}))});setSpeed(0);
       fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(f.team?44:4,30));});
       window.transportShotUnits=Object.fromEntries(fleets.filter(f=>f.team===0).map(f=>[f.groundKind,f]));

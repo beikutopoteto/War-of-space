@@ -60,7 +60,7 @@ if(process.argv.includes('--sim')){
     });
     // e: 補給ボタンと味方の実クリック。札が重ならないよう対象外の部隊を遠くへ。
     await fresh();await page.evaluate(()=>{
-      const spec={...op.quick[0],name:'第13 補給中隊',groundKind:'supply'},f=makeFleet(0,spec);fleets.push(f);f.band='ground';f.pos.copy(groundPoint(15.7,26));f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);
+      const spec={...groundUnitSpec(op.quick[0]),name:'第13 補給中隊',groundKind:'supply'},f=makeFleet(0,spec);fleets.push(f);f.band='ground';f.pos.copy(groundPoint(15.7,26));f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);
       const src=shipMeshes[0].cv,mat=src.material.clone();mat.userData.baseOpacity=1;f.groundModel=new THREE.Group();const body=new THREE.Mesh(src.geometry.clone(),mat);body.scale.setScalar(SHIP_SIZE.cv);f.groundModel.add(body);groundVisuals.add(f.groundModel);
       f.companyId='shotSupply';groundOrg.companies.push({id:f.companyId,name:f.name,kind:'supply'});buildRoster();
       const t=fleets.find(t=>t.team===0&&t.groundKind==='infantry');t.pos.copy(groundPoint(15,26));t.groundSupply=25;select(f);

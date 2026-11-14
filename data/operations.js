@@ -1696,30 +1696,29 @@ WOS_DATA.operations.push((()=>{
 
 // 地上演習の核。キャンペーンには出さない。性能は地形データの地上専用表。
 WOS_DATA.operations.push((()=>{
-  const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,vis:9,stl:0});
-  const sea=(team,type,x,y)=>({name:(team?'共和国 ':'連合 ')+({cv:'高速艇',ff:'高速艇',dd:'イージス艦',cl:'イージス艦'}[type]||WOS_DATA.ships.find(s=>s.id===type).name),groundKind:'sea',band:'sea',team,type,n:1,pos:[(x-24)*4,(18-y)*4],alt:0});
+  const unit=(name,kind,x,y,band='ground')=>({name,kind,at:[x,y],band,vis:9,stl:0});
+  const sea=(team,type,x,y)=>({name:(team?'共和国 ':'連合 ')+({cv:'高速艇',ff:'高速艇',dd:'イージス艦',cl:'イージス艦'}[type]||WOS_DATA.ships.find(s=>s.id===type).name),kind:'sea',at:[x,y],band:'sea',team,type});
   return {id:'groundExercise2',hidden:true,ground:'exercise2',groundStaticEnemies:true,name:'地上演習（試作）',summary:'歩兵・戦車・占拠の演習',
     brief:'強化歩兵か地上の W.A.S. を拠点の小さな円へ進め、3拠点をすべて占拠する。中立は短時間で占拠。敵の拠点は占拠可能な敵部隊がいない状態で、時間をかけて占拠。両軍がいる間は停止し、離れても進捗は残る。戦車・重強化歩兵・航空は占拠しない。戦車には重強化歩兵を当てよう。揚陸艦は歩兵と戦車を搭載済み。海岸へ着けて「上陸」を押し、降りた歩兵を拠点へ進めよう。',
     date:'A.E. 44.09.10',start:'08:00',scale:'S',phase:'地上演習',win:{type:'ground',text:'強化歩兵か地上 W.A.S. で3拠点をすべて占拠せよ'},
     groundHQ:{0:'B',1:'F'},groundSupportSites:['B'],
+    groundSortie:{slots:[[8,27],[10,28],[12,27],[19,26],[15,18],[17,25]]},
     groundSites:[{site:'A',owner:null},{site:'B',owner:0},{site:'C',owner:1},{site:'F',owner:1}],
     // groundCargo は固定配備の中隊の定義。海の揚陸艦（駆逐艦の元性能・モデルを仮使用）に初めから載せる。
     groundSea:[sea(0,'dd',12,5),sea(0,'cl',17,4),sea(1,'dd',28,5),sea(1,'cl',33,4),
       {...sea(0,'dd',10,4),name:'連合 揚陸艦（仮）',groundLanding:true,groundCargo:[unit('第7 上陸歩兵中隊','infantry',10,4),unit('第8 上陸戦車中隊','vehicle',10,4)]}], // 艦種・隻数・位置は試作用の仮配置。
     result:{win:'3拠点をすべて占拠した。地上演習を完了。',lose:'自軍の地上演習部隊は全滅した。',winLog:['演習完了','3拠点をすべて占拠した。'],loseLog:['演習失敗','自軍の演習部隊は全滅した。']},
-    view:{target:[0,0],dist:230,dir:[0,1,1],max:350},
+    view:{targetKm:[24,18],dist:230,dir:[0,1,1],max:350},
     quick:[unit('第1 戦車中隊','vehicle',8,27),unit('第2 強化歩兵中隊','infantry',10,28),unit('第3 重強化歩兵中隊','heavyInfantry',12,27),unit('第4 戦闘航空隊','fighter',19,26,'high'),unit('第5 攻撃航空隊','attack',15,18,'low'),unit('第6 陸戦型 W.A.S. 試験隊','was',17,25)],
     enemies:[unit('第1 守備戦車中隊','vehicle',24,21),unit('第2 守備歩兵中隊','infantry',22.5,21),unit('第3 守備歩兵中隊','infantry',41,27)]};
 })());
 
 // バイコヌール演習と、その固定配備を案内付きで始めるチュートリアル2。配置と文は仮。
 WOS_DATA.operations.push((()=>{
-  const unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,band,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],alt:0,stance:'evade'});
+  const unit=(name,kind,x,y,band='ground')=>({name,kind,at:[x,y],band,stance:'evade'});
   const names={inf:'第1 強化歩兵中隊',tank:'第2 主力戦車中隊',heavy:'第3 重強化歩兵中隊',scout:'第4 斥候中隊',air:'第5 攻撃航空隊',aa:'第6 自走対空砲中隊',gun:'第7 自走砲中隊',apc:'第8 装甲兵員輸送車中隊',eng:'第9 工兵中隊',ship:'演習砲撃艦',landing:'演習揚陸艦',cargo:'第10 上陸歩兵中隊'};
   const sea=(name,type,x,y)=>({...unit(name,'sea',x,y,'sea'),type,team:0});
-  const wideUnit=(name,kind,x,y,band='ground')=>({...unit(name,kind,x,y,band),pos:[(x-48)*4,(36-y)*4]});
-  const wideSea=(name,type,x,y)=>({...wideUnit(name,'sea',x,y,'sea'),type,team:0});
-  const mark=(label,x,y)=>({label,pos:[(x-24)*4,(18-y)*4],alt:0});
+  const mark=(label,x,y)=>({label,at:[x,y],alt:0});
   const row=(section,name,condition,actor,text,extra={})=>({section,name,condition,actor:names[actor],text,targets:['#roster'],marks:[],...extra});
   return {id:'baikonur',requires:'tutorial2',tag:'演習',ground:'baikonur2',npc:{1:{doctrine:'mars',level:'standard'}},
     name:'バイコヌール演習',place:{body:'地球'},date:'A.E. 45.08.20',start:'08:00',scale:'S',phase:'地上演習',reward:300,
@@ -1727,7 +1726,7 @@ WOS_DATA.operations.push((()=>{
     threat:'仮想敵10隊（仮）: 強化歩兵4、主力戦車2、自走砲1、自走対空砲1、斥候1、戦闘機1。共和国の指揮官が拠点へ部隊を動かす。',brief:'案内なしの広域地上演習です。北幹線橋 C・中央渡河地 D・河口橋 H の3経路から進み、敵の東方本営 F の占領、または敵の全戦力の撃破で勝利です。自軍全滅で敗北です。',
     win:{type:'groundHQ',text:'敵の本営（東方本営）を占領、または敵の全戦力を撃破せよ'},
     groundTutorial:{name:'チュートリアル2',tag:'チュートリアル',requires:'denaliBreak',forces:'fixed',reward:100,groundDrill:true,npc:null,ground:'exercise2',
-      groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],view:{target:[-56,-40],dist:100,dir:[0,1,.65],max:350},
+      groundHQ:{0:'B',1:'F'},groundSupportSites:['B','C','F'],view:{targetKm:[10,28],dist:100,dir:[0,1,.65],max:350},
       groundSea:[sea(names.ship,'cl',17,4),{...sea(names.landing,'dd',12,5),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',12,5)]}],
       quick:[unit(names.inf,'infantry',7,27),unit(names.tank,'vehicle',11,25),unit(names.heavy,'heavyInfantry',17,25),unit(names.scout,'scout',24.5,29),unit(names.air,'attack',29,20,'high'),unit(names.aa,'mobileAA',33,18),unit(names.gun,'artillery',13,19),unit(names.apc,'apc',9,29),unit(names.eng,'engineer',24,12)],
       enemies:[unit('仮想敵 歩兵','infantry',14,25),unit('仮想敵 戦車','vehicle',20,25),unit('仮想敵 斥候','scout',41,27),unit('仮想敵 航空','fighter',33,17,'low')],
@@ -1738,14 +1737,15 @@ WOS_DATA.operations.push((()=>{
       result:{win:'チュートリアル2を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','全手順の完了、確認しました。'],loseLog:['リコ軍曹','演習を終了します。']}},
     groundHQ:{0:'A',1:'F'},groundSupportSites:['B','E','G','I'],
     groundSites:[{site:'A',owner:0},{site:'B',owner:0},{site:'C',owner:null},{site:'D',owner:null},{site:'E',owner:1},{site:'F',owner:1},{site:'G',owner:0},{site:'H',owner:null},{site:'I',owner:1}],
-    view:{target:[-144,-72],dist:145,dir:[0,1,.65],max:650},
+    view:{targetKm:[12,54],dist:145,dir:[0,1,.65],max:650},
+    groundSortie:{site:'A',radiusKm:4}, // 半径4kmは仮。格子間隔1.5km、最大8kmまで広げる。
     // 広域演習専用の仮配備。チュートリアル2は地形・本営・海上を含め従来配置を保持。
-    quick:[wideUnit(names.inf,'infantry',9,55),wideUnit(names.tank,'vehicle',12,56),wideUnit(names.heavy,'heavyInfantry',11,58),wideUnit(names.scout,'scout',13,55),wideUnit(names.air,'attack',10,54,'high'),wideUnit(names.aa,'mobileAA',8,57),wideUnit(names.gun,'artillery',9,58),wideUnit(names.apc,'apc',10,55.5),wideUnit(names.eng,'engineer',11,54),wideUnit('第11 強化歩兵中隊','infantry',8,54),wideUnit('第12 補給中隊','supply',10,57)],
-    groundSea:[wideSea(names.ship,'cl',23,12),{...wideSea(names.landing,'dd',23,14),groundLanding:true,groundCargo:[wideUnit(names.cargo,'infantry',23,14)]}],
-    enemies:[wideUnit('仮想敵 歩兵','infantry',68,43),wideUnit('仮想敵 戦車','vehicle',70,45),
-      wideUnit('仮想敵 第2歩兵','infantry',84,55),wideUnit('仮想敵 第3歩兵','infantry',86,57),wideUnit('仮想敵 第4歩兵','infantry',75,21),
-      wideUnit('仮想敵 第2戦車','vehicle',87,54),wideUnit('仮想敵 自走砲','artillery',88,56),wideUnit('仮想敵 対空','mobileAA',85,56),
-      wideUnit('仮想敵 斥候','scout',68,46),wideUnit('仮想敵 航空','fighter',84,57,'low')].map(f=>({...f,stance:'engage'})),
+    quick:[unit(names.inf,'infantry',9,55),unit(names.tank,'vehicle',12,56),unit(names.heavy,'heavyInfantry',11,58),unit(names.scout,'scout',13,55),unit(names.air,'attack',10,54,'high'),unit(names.aa,'mobileAA',8,57),unit(names.gun,'artillery',9,58),unit(names.apc,'apc',10,55.5),unit(names.eng,'engineer',11,54),unit('第11 強化歩兵中隊','infantry',8,54),unit('第12 補給中隊','supply',10,57)],
+    groundSea:[sea(names.ship,'cl',23,12),{...sea(names.landing,'dd',23,14),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',23,14)]}],
+    enemies:[unit('仮想敵 歩兵','infantry',68,43),unit('仮想敵 戦車','vehicle',70,45),
+      unit('仮想敵 第2歩兵','infantry',84,55),unit('仮想敵 第3歩兵','infantry',86,57),unit('仮想敵 第4歩兵','infantry',75,21),
+      unit('仮想敵 第2戦車','vehicle',87,54),unit('仮想敵 自走砲','artillery',88,56),unit('仮想敵 対空','mobileAA',85,56),
+      unit('仮想敵 斥候','scout',68,46),unit('仮想敵 航空','fighter',84,57,'low')].map(f=>({...f,stance:'engage'})),
     tutorial:[
       row(1,'① 部隊を選ぶ','groundSelect','inf','少佐、演習場との照合が済みました。リコ軍曹です。……地上の手順を一つずつ確かめます。まず、右下の「第1 強化歩兵中隊」を選んでください。'),
       row(1,'① 地上を移動','groundMove','inf','選択、確認しました。地上では地形に沿って進みます。金色の輪「移動」をクリックして、第1 強化歩兵中隊を動かしてください。',{marks:[mark('移動',7,25)]}),

@@ -152,7 +152,7 @@ function nodeChecks(){
   ctx.TEAM_COL=['blue','red'].map(c=>new ctx.THREE.Color(c));
   results.push(...run(`(()=>{
     const results=[],check=(name,ok)=>results.push({name,ok});
-    op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[makeFleet(0,op.quick[0])];groundSeaDeploy();
+    op=WOS_DATA.operations.find(o=>o.id==='groundExercise2');fleets=[makeFleet(0,groundUnitSpec(op.quick[0]))];groundSeaDeploy();
     groundHud=groundCaptureInit=groundSightInit=()=>{};groundBoard=new THREE.Group();
     globalThis.shipMeshes=[0,1].map(()=>Object.fromEntries(['cv','dd','cl'].map(t=>[t,new THREE.Mesh(shapeGeo(t),new THREE.MeshStandardMaterial())])));
     const org={companies:[{id:'test',name:'test',kind:'vehicle'}],battalions:[],brigades:[]},before=JSON.stringify(org);

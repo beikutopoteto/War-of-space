@@ -105,7 +105,7 @@ function tacticsCases(){
  groundSites=[{id:'H',x:6,y:29,pos:groundPoint(6,29),radiusKm:2,captureRadius:GROUND_SCALE*.3,owner:1},
   {id:'T',x:18,y:29,pos:groundPoint(18,29),radiusKm:2,captureRadius:GROUND_SCALE*.3,owner:null}];
  const unit=(team,kind,x,y=29,band='ground')=>{
-  const f=makeFleet(team,{...op.quick[0],groundKind:kind,n:1,band,name:kind});f.pos.copy(groundPoint(x,y));f.band=band;f.pos.y=groundUnitHeight(f);
+  const f=makeFleet(team,{...groundUnitSpec(op.quick[0]),groundKind:kind,n:1,band,name:kind});f.pos.copy(groundPoint(x,y));f.band=band;f.pos.y=groundUnitHeight(f);
   f.groundVisible=[true,true];f.groundContacts=[];f.groundMorale=f.groundSupply=100;f.groundShotT=1000;return f;
  };
  const tank=unit(1,'vehicle',8),inf=unit(1,'infantry',8,30),heavy=unit(1,'heavyInfantry',8,28),air=unit(1,'attack',8,29,'low');

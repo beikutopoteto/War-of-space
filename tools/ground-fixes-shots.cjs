@@ -21,7 +21,7 @@ if(process.argv.includes('--sim')){
   const shot=async letter=>{fail();await page.screenshot({path:path.join(ROOT,'.shots',`直し-${letter}.png`)});fail();};
   const fresh=async()=>{
     await page.evaluate(()=>{
-      reset({op:'groundExercise2',fleets:[{...OPS.find(o=>o.id==='groundExercise2').quick.find(f=>f.groundKind==='infantry')}]});
+      reset({op:'groundExercise2',fleets:[{...OPS.find(o=>o.id==='groundExercise2').quick.map(groundUnitSpec).find(f=>f.groundKind==='infantry')}]});
       setSpeed(0);endDeploy();setSpeed(0);
       const hq=groundSites.find(s=>s.id===op.groundHQ[0]);
       for(const f of fleets)if(f.team===0&&!f.embarked){groundClearOrders(f);f.stance='evade';f.pos.copy(hq.pos);f.pos.y=groundUnitHeight(f);}
@@ -88,7 +88,7 @@ if(process.argv.includes('--sim')){
     await page.evaluate(()=>{
       const f=selected;for(const t of fleets)if(t!==f&&!t.embarked)t.pos.copy(groundPoint(t.team?41:7,t.team?27:33));
       f.pos.copy(groundPoint(15,26));f.pos.y=groundUnitHeight(f);f.groundSupply=30;
-      const t=makeFleet(0,{...op.quick[0],name:'撮影 補給中隊',groundKind:'supply'});fleets.push(t);t.band='ground';t.pos.copy(groundPoint(15.7,26));t.pos.y=groundUnitHeight(t);groundSupplyInitUnit(t);
+      const t=makeFleet(0,{...groundUnitSpec(op.quick[0]),name:'撮影 補給中隊',groundKind:'supply'});fleets.push(t);t.band='ground';t.pos.copy(groundPoint(15.7,26));t.pos.y=groundUnitHeight(t);groundSupplyInitUnit(t);
       const src=shipMeshes[0].cv,mat=src.material.clone();mat.userData.baseOpacity=1;t.groundModel=new THREE.Group();const mesh=new THREE.Mesh(src.geometry.clone(),mat);mesh.scale.setScalar(SHIP_SIZE.cv);t.groundModel.add(mesh);groundVisuals.add(t.groundModel);
       t.companyId='fixesSupply';groundOrg.companies.push({id:t.companyId,name:t.name,kind:'supply'});buildRoster();select(t);
     });await view(15.35,26,25,1.5);

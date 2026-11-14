@@ -22,7 +22,7 @@ function commandIconCases(){
    select(troop);document.getElementById('groundBoard').click();
    dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true}));
    const cancelled=!groundWorkAiming&&!groundStrikeAiming&&!groundSupplyAiming&&!paused;
-   const base=op.quick[0];
+   const base=groundUnitSpec(op.quick[0]);
    const extras=['artillery','engineer','supply','apc'].map((kind,i)=>makeFleet(0,{...base,name:'確認用'+kind,groundKind:kind,pos:[-60+i*3,0,30]}));
    fleets.push(...extras);extras.forEach(f=>f.band='ground');setSel([troop,...extras]);
    const expand=document.getElementById('groundCommandExpand');expand.click();

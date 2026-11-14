@@ -58,13 +58,13 @@ window.WOS_GROUND_RULES = {
 
 /* 既定の6中隊。従来の地上演習と同じ名前・兵科・順番・仮配置。 */
 window.WOS_GROUND_DEFAULT_COMPANIES = [
-  {name:'第1 戦車中隊',groundKind:'vehicle',band:'ground',pos:[-64,-36]},
-  {name:'第2 強化歩兵中隊',groundKind:'infantry',band:'ground',pos:[-56,-40]},
-  {name:'第3 重強化歩兵中隊',groundKind:'heavyInfantry',band:'ground',pos:[-48,-36]},
-  {name:'第4 戦闘航空隊',groundKind:'fighter',band:'high',pos:[-20,-32]},
-  {name:'第5 攻撃航空隊',groundKind:'attack',band:'low',pos:[-36,0]},
-  {name:'第6 陸戦型 W.A.S. 試験隊',groundKind:'was',band:'ground',pos:[-28,-28]}
-].map(f=>({type:'cv',n:1,scale:.3,alt:0,vis:9,stl:0,...f}));
+  {name:'第1 戦車中隊',groundKind:'vehicle',band:'ground'},
+  {name:'第2 強化歩兵中隊',groundKind:'infantry',band:'ground'},
+  {name:'第3 重強化歩兵中隊',groundKind:'heavyInfantry',band:'ground'},
+  {name:'第4 戦闘航空隊',groundKind:'fighter',band:'high'},
+  {name:'第5 攻撃航空隊',groundKind:'attack',band:'low'},
+  {name:'第6 陸戦型 W.A.S. 試験隊',groundKind:'was',band:'ground'}
+];
 
 let groundRuleCache=null;
 // 読み取り時は重ね直さない。setup前の確認では、作戦・地形の切替時に初期化する。

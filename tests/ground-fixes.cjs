@@ -71,8 +71,8 @@ function fixesCases(){
 
   // 初期の全敵（海上も含む）を射程内に置く。命令なしの自動交戦と残った射撃目標を試す。
   groundSites=[];groundSupplyNet=null;op={...realOp,groundHQ:null};
-  const blue=unit(0,'infantry',20,25),reds=realOp.enemies.map(s=>makeFleet(1,s));
-  for(const spec of realOp.groundSea.filter(s=>s.team===1))reds.push(makeFleet(1,spec));
+  const blue=unit(0,'infantry',20,25),reds=realOp.enemies.map(groundUnitSpec).map(s=>makeFleet(1,s));
+  for(const spec of realOp.groundSea.map(groundUnitSpec).filter(s=>s.team===1))reds.push(makeFleet(1,spec));
   for(const f of reds){f.band=groundBands(f)[0];f.pos.copy(blue.pos).add(new THREE.Vector3(1,0,0));f.pos.y=groundUnitHeight(f);groundSupplyInitUnit(f);f.stance='engage';f.fireTarget=blue;}
   fleets=[blue,...reds];const starts=reds.map(f=>f.pos.clone()),realDamage=damage;let hits=0;
   damage=(t,n,src,...rest)=>{if(src?.team===1)hits++;return realDamage(t,n,src,...rest);};

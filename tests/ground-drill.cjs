@@ -44,6 +44,7 @@ function createDrillContext(guided=true){
   run('tutorialRender=()=>{};groundHud=()=>{};');
   run(`op=WOS_DATA.operations.find(o=>o.id==='baikonur');
     if(${guided})op={...op,...op.groundTutorial,enemies:(op.groundTutorial.enemies||op.enemies).map(f=>({...f,stance:'evade'}))};groundSetup(op.ground);
+    op={...op,quick:op.quick.map(groundUnitSpec),enemies:op.enemies.map(groundUnitSpec)};
     fleets=[...op.quick.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];groundSeaDeploy();
     globalThis.shipMeshes=[0,1].map(()=>Object.fromEntries(['cv','dd','cl'].map(t=>[t,new THREE.Mesh(shapeGeo(t),new THREE.MeshStandardMaterial())])));
     globalThis.SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
@@ -224,7 +225,7 @@ function runDrill(){
   assert.equal(run(`(()=>{${bg.slice(bg.indexOf('const DEG='),bg.indexOf('const cv='))}${bg.slice(bg.indexOf('function opW('),bg.indexOf('function dayOf('))}return opW({place:{body:'地球'}},0).every(Number.isFinite);})()`),true,'地球の作戦マーカーは有効な座標');
   assert.equal(run("WOS_DATA.operations.filter(o=>o.chapter&&!o.hidden).at(-1).id"),'denaliBreak');
   assert.equal(run("op.name==='チュートリアル2'&&!op.chapter&&op.requires==='denaliBreak'&&op.reward===100"),true,'チュートリアル2の名前・配置・解放・報酬');
-  assert.equal(run("op.ground==='exercise2'&&op.tutorial.length===26&&op.groundHQ[0]==='B'&&op.groundSea[0].pos[0]===(17-24)*4&&op.view.max===350"),true,'案内の地形・本営・艦・カメラ・26手順は従来通り');
+  assert.equal(run("op.ground==='exercise2'&&op.tutorial.length===26&&op.groundHQ[0]==='B'&&op.groundSea[0].at[0]===17&&op.view.max===350"),true,'案内の地形・本営・艦・カメラ・26手順は従来通り');
   assert.equal(run('fleets.some(f=>f.team===0&&f.groundKind===\'was\')'),false);
   assert.equal(run('groundBuildings.length>0&&groundForests.length>0'),true);
   assert.equal(run(`(()=>{const s=groundSites[0];s.owner=0;groundCaptureStep(.05);s.owner=null;return !over;})()`),true,'全占拠だけでは勝たない');

@@ -46,7 +46,7 @@ function nodeChecks(){
     assert.deepEqual(Array.from(run('defaults.companies'),c=>[c.name,c.kind]),[
       ['第1 戦車中隊','vehicle'],['第2 強化歩兵中隊','infantry'],['第3 重強化歩兵中隊','heavyInfantry'],
       ['第4 戦闘航空隊','fighter'],['第5 攻撃航空隊','attack'],['第6 陸戦型 W.A.S. 試験隊','was']]);
-    assert.equal(run('sortie.fleets.length===6&&sortie.fleets[0].pos[0]===-64&&sortie.fleets[5].pos[1]===-28&&WOS_GROUND_ORG.types().vehicle.hp===100'),true);
+    assert.equal(run(`sortie.fleets.length===6&&sortie.fleets[0].name===defaults.companies[0].name&&sortie.fleets[0].groundKind==='vehicle'&&sortie.fleets[5].groundKind==='was'&&sortie.fleets.every(f=>!f.pos&&!f.at)&&WOS_GROUND_ORG.types().vehicle.hp===100`),true);
   });
   return rows;
 }

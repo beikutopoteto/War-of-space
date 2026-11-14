@@ -9,7 +9,7 @@ function groundCanBoardAny(f){return groundBoardable(f)||groundShipBoardable(f);
 function groundPassengers(f){return groundLandingShip(f)?f.groundPassengers||[]:f.groundPassenger?[f.groundPassenger]:[];}
 // 固定の搭載中隊は通常の出撃編成に足す。宇宙の carrier / 揚陸艇は参照しない。
 function groundSeaDeploy(){
-  const ships=(op.groundSea||[]).map(s=>makeFleet(s.team,s)),cargo=[];
+  const ships=(op.groundSea||[]).map(groundUnitSpec).map(s=>makeFleet(s.team,s)),cargo=[];
   for(const ship of ships)if(groundLandingShip(ship)){
     if((ship.groundCargo||[]).length>groundLandingRules().capacity)throw new Error('揚陸艦の初期搭載数が上限を超えている');
     ship.groundPassengers=[];
