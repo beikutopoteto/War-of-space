@@ -67,14 +67,12 @@ function groundAreaSample(area){
 function groundAreaShot(f,area){
  const minimum=groundAreaRequiredRadius([f],area.points,area.radius);
  if(minimum>area.radius+1e-6)return null;
- // 内側の帯で狙点を選んでから最小散布円を足す。射程境界で散布円を切り詰めない。
- const inner={...area,radius:Math.max(0,area.radius-minimum)};
- for(let i=0;i<48;i++){
-  const aim=groundAreaSample(inner);if(!groundStrikeInRange(f,aim))continue;
-  const impact=aim.clone().add(groundScatterOffset(minimum));aim.y=groundHeight(aim.x,aim.z);impact.y=groundHeight(impact.x,impact.z);return {aim,impact};
- }
- const near=groundAreaClosest(inner,f.pos),aim=near.point.clone();if(near.distance>0)aim.add(new THREE.Vector3(f.pos.x-aim.x,0,f.pos.z-aim.z).multiplyScalar(Math.min(near.distance,inner.radius)/near.distance));
- if(groundStrikeInRange(f,aim)){const impact=aim.clone().add(groundScatterOffset(minimum));aim.y=groundHeight(aim.x,aim.z);impact.y=groundHeight(impact.x,impact.z);return {aim,impact};}
+ /* 着弾点は、選んだ範囲全体からそのままランダムに選ぶ。範囲の中の1点を中心に散布円を足す形はやめた
+    （ユーザー 2026-11-14「選択した砲撃範囲内にランダムに落としてください」）。距離による最小散布は、範囲の幅の下限（上の minimum）として残る */
+ const land=p=>{p.y=groundHeight(p.x,p.z);return {aim:p.clone(),impact:p};};
+ for(let i=0;i<48;i++){const p=groundAreaSample(area);if(groundStrikeInRange(f,p))return land(p);}
+ const near=groundAreaClosest(area,f.pos),p=near.point.clone();if(near.distance>0)p.add(new THREE.Vector3(f.pos.x-p.x,0,f.pos.z-p.z).multiplyScalar(Math.min(near.distance,area.radius)/near.distance));
+ if(groundStrikeInRange(f,p))return land(p);
  return null;
 }
 function groundAreaTarget(f,area){return groundAreaShot(f,area)?.aim||null;}

@@ -135,7 +135,8 @@ function groundStrikeDraw(){
       }
     }
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
-    const visible=s.team===0||groundPointSeenBy(0,p);ring.visible=visible;el.hidden=!visible||at.z>1;
+    // 範囲砲撃の飛んでいる弾は、着弾点の円と札を出さない（範囲の線だけを見せる。ユーザー 2026-11-14）。着弾したあとの輪は出す
+    const visible=s.team===0||groundPointSeenBy(0,p),marked=!(pending&&s.area);ring.visible=visible&&marked;el.hidden=!visible||!marked||at.z>1;
     if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
     el.textContent=pending?`${s.kind==='sea'?'艦砲':groundRuleSet().unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;

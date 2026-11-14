@@ -20,7 +20,8 @@ function areaCases(){
   const concentrated=seen[seen.length-1],minimum=groundScatterRadius(gun,center),concentratedArea=concentrated.area;
   check('回数上限30・半径ゼロ指定も最小散布円へ拡張',gun.groundAreaSalvo.remaining===29&&concentratedArea===gun.groundAreaSalvo.area&&concentratedArea.radius>=minimum-1e-8&&Math.abs(minimum-.05)<1e-8);
   const deviation=Math.hypot(concentrated.impact.x-concentrated.aim.x,concentrated.impact.z-concentrated.aim.z);
-  check('最小円でも狙点と実着弾を分け、実弾は円内に散る',Math.hypot(concentrated.aim.x-center.x,concentrated.aim.z-center.z)<1e-8&&deviation>0&&deviation<=minimum+1e-8&&groundAreaClosest(concentratedArea,concentrated.impact).distance<=concentratedArea.radius+1e-8);
+  // 2026-11-14 から、範囲の中にそのままランダムに落とす（狙点＝着弾点。範囲の中の1点を中心に散布円を足さない。ユーザー決定）
+  check('最小円でも実弾は範囲の中にランダムに落ち、狙点と着弾点は同じ',deviation<1e-8&&groundAreaClosest(concentratedArea,concentrated.impact).distance<=concentratedArea.radius+1e-8);
   undo();check('戻すで未発射の残り回数を取り消す',!gun.groundAreaSalvo);
   gun.groundStrikeCooldown=0;groundSalvoCount=2;groundStrikeToggle();groundAreaTap(center);groundAreaTap(center);
   groundClearOrders(gun);const stopped=seen.length;for(let i=0;i<100;i++)groundStrikeStep(.1);check('停止で未発射の残り回数を取り消す',seen.length===stopped);
@@ -47,7 +48,7 @@ function areaCases(){
   const mixedArea=gun.groundAreaSalvo.area,mixedShots=seen.slice(mixedStart);
   check('混成の最小円はロケット直径30mを守り各隊の実弾も円内',Math.abs(mixedArea.radius-.06)<1e-8&&groundAreaLimits([gun,rocket]).radius===7&&mixedShots.length===2&&mixedShots.some(s=>s.source===gun)&&mixedShots.some(s=>s.source===rocket)&&mixedShots.every(s=>groundAreaClosest(mixedArea,s.impact).distance<=mixedArea.radius+1e-8&&Math.hypot(s.impact.x-s.aim.x,s.impact.z-s.aim.z)<=groundScatterRadius(s.source,s.aim)+1e-8));
   const replaySeed=seed,planned=groundAreaShot(gun,mixedArea);seed=replaySeed;const nominal=groundAreaTarget(gun,mixedArea);
-  check('互換APIは実着弾ではなく同じ乱数の狙点を返す',planned&&nominal&&nominal.equals(planned.aim)&&Math.hypot(nominal.x-planned.impact.x,nominal.z-planned.impact.z)>0);
+  check('互換APIは同じ乱数の着弾点を返す（狙点＝着弾点）',planned&&nominal&&nominal.equals(planned.aim)&&Math.hypot(nominal.x-planned.impact.x,nominal.z-planned.impact.z)<1e-8);
   groundClearOrders(gun);groundClearOrders(rocket);
   const tank=unit('vehicle'),target=groundPoint(11,27),scout=unit('scout',11);groundBuildings=[{minX:groundPoint(9.5,27).x-.2,maxX:groundPoint(9.5,27).x+.2,minZ:target.z-3,maxZ:target.z+3,bottom:0,top:1}];
   check('遮蔽確認の狙点は戦車の直接射程3km境界',groundDistanceTo(tank,{pos:target})===groundStrikeRange(tank).max);
