@@ -417,7 +417,8 @@ function groundStep(dt){
     }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
-    else if(target&&groundEngagementRange(f,target)>0&&groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8){
+    // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）
+    else if(target&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target))){
       f.groundChaseT=(f.groundChaseT||0)-dt;
       if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
       if(f.order.path&&(!op.npc||npcGroundHoldChase(f,target))) groundFollow(f,dt);
