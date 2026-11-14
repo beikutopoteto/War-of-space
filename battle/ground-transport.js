@@ -100,6 +100,15 @@ function groundCancelWork(f){
   for(const b of groundBridges.filter(b=>b.builder===f&&!b.complete))groundBridgeRemove(b);
   f.groundBuilding=false;
 }
+/* 今この中隊が乗れる味方（空いた輸送車、岸にいて空きのある揚陸艦）。搭乗ボタンを出すかと、押したあとに光らせる相手に使う
+   （ユーザー決定 2026-11-14「乗車ボタンは乗れない兵科は表示しないように」「押したら乗れる装輪装甲車をハイライト」）。
+   条件は groundBoardCommand の断る理由と同じ。道の探索だけは重いので含めない */
+function groundBoardTargets(f){
+  if(!f||!fleets.includes(f))return [];
+  return fleets.filter(c=>c!==f&&c.alive&&!c.locked&&!c.embarked&&c.team===f.team&&(groundLandingShip(c)
+    ?groundShipBoardable(f)&&!c.groundUnloading&&groundPassengers(c).length+(c.groundBoarders||[]).filter(p=>p!==f).length<groundLandingRules().capacity&&groundCoastCells(c,groundMoveKind(f)).length>0
+    :c.groundKind==='apc'&&groundBoardable(f)&&!c.groundRout&&!c.groundPassenger&&(!c.groundBoarder||c.groundBoarder===f)));
+}
 function groundBoardCommand(list,carrier){
   const f=list.length===1?list[0]:null;
   if(groundLandingShip(carrier)){
