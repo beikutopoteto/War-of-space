@@ -694,6 +694,33 @@ const GROUND_SHAPES={
       ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
       ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
       ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
+  /* 戦艦の見直しの見本（2026-11-15、見本だけ。SPACE_MODELS には入れていない）
+     spBB2a 重装: a broad hull with an armoured citadel, three big twin turrets (two superfiring forward, one aft), a tall bridge
+     spBB2b 砲列: a long broad hull with side armour belts, four twin turrets (two forward, two aft, superfiring), a low bridge
+     spBBM2a 砲艦: the Republic hull with a blunt bow built round a much larger spinal railgun, bigger turrets
+     spBBM2b 矢じり: a swept arrowhead wing, a thicker body, bigger turrets and two more on the wing shoulders */
+  spBB2a:()=>[loft([[-1.35,.42,.21],[-.75,.58,.28],[.3,.52,.25],[.95,.27,.15],[1.45,0,.01,-.03]]),
+    at(loft([[-.95,.3,.07],[-.5,.34,.1,.02],[.45,.3,.09,.01],[.78,0,0]]),0,.24,0),
+    at(loft([[-.6,.17,.09],[-.32,.18,.18,.06],[-.02,.1,.1,.04],[.15,0,0,.02]]),0,.37,0), at(loft([[-.5,.08,.07],[-.32,.08,.12,.05],[-.14,0,0,.03]]),0,.6,0),
+    ...laserT(0,.122,1,1.7,2), at(new THREE.CylinderGeometry(.19,.2,.12,8),0,.27,.5), ...laserT(0,.325,.5,1.7,2), ...laserT(0,.225,-1.06,1.7,2,true),
+    ...laserT(.21,.3,.12,.6), ...laserT(-.21,.3,.12,.6), ...laserT(.22,.3,-.78,.6), ...laserT(-.22,.3,-.78,.6),
+    ...spBells([.25,-.25,0],0,-1.4,.11), ...pair(at(plate([[.36,-1.05],[.6,-1.2],[.6,-1.32],[.36,-1.3]],.02),0,0,0)),
+    ...pdG(.4,.13,.35,.9), ...pdG(-.4,.13,.35,.9), ...pdG(.44,.14,-.5,.9), ...pdG(-.44,.14,-.5,.9),
+    tone(at(box(.18,.03,.08),0,.5,.02),GL), at(box(.025,.14,.025),0,.76,-.4), at(box(.12,.012,.02),0,.78,-.4), tone(at(box(.05,.03,.04),0,.84,-.4),GL),
+    ...bellyR(-.262,-.4,1.1,1.25), ...gatB(.26,-.16,.2,1), ...gatB(-.26,-.16,.2,1), ...gatB(.3,-.16,-.9,1), ...gatB(-.3,-.16,-.9,1)],
+  spBB2b:()=>[loft([[-1.4,.4,.2],[-.7,.52,.26],[.4,.46,.23],[1,.24,.14],[1.5,0,.01,-.03]]),
+    ...pair(at(loft([[-.85,.05,.1],[-.5,.07,.13],[.35,.07,.12],[.7,.03,.08]]),.47,0,-.1)),
+    at(loft([[-.92,.26,.06],[-.3,.3,.08,.01],[.5,.26,.07,.01],[.82,0,0]]),0,.22,0),
+    at(loft([[-.3,.14,.07],[-.1,.15,.13,.05],[.12,.08,.08,.03],[.25,0,0,.02]]),0,.33,0),
+    ...laserT(0,.122,1.04,1.45,2), at(new THREE.CylinderGeometry(.16,.17,.1,8),0,.27,.6), ...laserT(0,.315,.6,1.45,2),
+    at(new THREE.CylinderGeometry(.16,.17,.1,8),0,.27,-.62), ...laserT(0,.315,-.62,1.45,2,true), ...laserT(0,.21,-1.1,1.45,2,true),
+    ...laserT(.36,.12,.15,.55), ...laserT(-.36,.12,.15,.55), ...laserT(.38,.13,-.3,.55), ...laserT(-.38,.13,-.3,.55),
+    ...spBells([.22,-.22,0],0,-1.45,.1), ...pair(at(plate([[.32,-1.1],[.54,-1.25],[.54,-1.37],[.32,-1.35]],.02),0,0,0)),
+    ...pdG(.18,.265,.25,.9), ...pdG(-.18,.265,.25,.9), ...pdG(.18,.29,-.35,.9), ...pdG(-.18,.29,-.35,.9),
+    tone(at(box(.16,.03,.08),0,.43,.05),GL), at(box(.025,.12,.025),0,.52,-.12), at(box(.1,.012,.02),0,.56,-.12),
+    ...bellyR(-.245,-.4,1.1,1.25), ...gatB(.24,-.15,.2,1), ...gatB(-.24,-.15,.2,1), ...gatB(.28,-.15,-.9,1), ...gatB(-.28,-.15,-.9,1)],
+  spBBM2a:()=>bbMarsSample([[-1.35,.25,.12],[-.6,.38,.18],[.3,.36,.18],[1,.27,.14],[1.45,.17,.09]],[[-1.15,.4,.03],[-.75,.66,.04],[-.1,.66,.04],[.45,.44,.035],[.8,.32,.03]],1.8,1.55,false),
+  spBBM2b:()=>bbMarsSample([[-1.35,.27,.14],[-.6,.38,.2],[.3,.34,.18],[1,.2,.12],[1.45,.08,.06]],[[-1.2,.5,.03],[-.95,.8,.04],[-.5,.72,.04],[.3,.4,.035],[.9,.2,.03]],1.3,1.5,true),
   /* 戦闘母艦（共和国, 15.16）: a slim heavy aviation cruiser — a long narrow hull with a fine bow, the fore deck armed (two twin
      turrets, two pairs of raised twin launch tubes), a big two-level island to starboard amidships with an optical mast and dome, and
      an angled flight deck on the after half whose fore end swings out past the port side on a support */
@@ -727,6 +754,18 @@ const GROUND_SHAPES={
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
    2026-11-12: the number that fits the arm) */
+/* 戦艦の見直しの見本（共和国）: spBBM と同じ作りで、船体 Ms・翼 Gs・レールガンの太さ rs・主砲の大きさ gs を変える。wing は翼の肩の砲 */
+function bbMarsSample(Ms,Gs,rs,gs,wing){ const M=mA(Ms), G=mA(Gs), m=.05, W=z=>M.at(z).w;
+  const T=onTop(M,[[-.95,.22,.045],[-.2,.25,.05],[.55,.2,.045],[.75,.12,.035]]);
+  const rz=[.62,.9,1.2,1.47], fair=loft(rz.map(z=>[z,(z>1.4?.075:.1)*rs,.03*rs,M.top(Math.min(z,1.45))+.022*rs]),FACET), ry=z=>M.top(Math.min(z,1.45))+.03*rs+.022*rs, tilt=Math.atan2(ry(.62)-ry(1.47),.85);
+  const rail=[fair, ...[.045,-.045].map(x=>tone(at(box(.035*rs,.03,.86),x*rs,ry(1.05)+.004,1.04,tilt,0,0),.55)), tone(at(box(.04*rs,.006,.84),0,ry(1.05)-.006,1.04,tilt,0,0),DK),
+    ...[.85,1.1,1.33].map(z=>at(box(.16*rs,.022,.04),0,ry(z)+.012,z)), tone(at(box(.17*rs,.06,.08),0,T.top(.7)-.005,.7),DK), tone(at(box(.12*rs,.05,.012),0,ry(1.47)-.01,1.478),DK)];
+  return [...M.hull(), ...ySh(G.hull(),-.01), ...T.parts, ...mHump(-.55,.15,.16,.06,T.top(-.2)-.005), ...M.eyes(1.25), ...mEng([.18,0,-.18],-1.35,.075),
+    ...mGun(0,T.top(.38),.38,gs,2), ...mGun(0,M.top(-1.1),-1.1,gs,2,true), ...rail, ...[-.4,.2].flatMap(z=>mPair(mPD,.38,G.top(z)-.01,z,.95)),
+    ...(wing?mPair((x,y,z,s)=>mGun(x,y,z,s,2),.52,G.top(-.6)-.01,-.6,1.1):[]),
+    ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
+    ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
+    ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; }
 const GROUND_FORMS={
   one:[[0,0]],
   v3:[[0,0],[-3,-3],[3,-3]],                              // the old aircraft V
