@@ -119,7 +119,7 @@ function nodeChecks(){
     // groundInit の実装が参照する外側の共有名へ渡す。
     globalThis.shipMeshes=shipMeshes;
     const spec=WOS_DATA.operations.find(o=>o.id==='groundExercise2');op=spec;
-    fleets=[makeFleet(0,spec.quick[0]),...spec.groundSea.map(s=>makeFleet(s.team,s))];
+    fleets=[makeFleet(0,groundUnitSpec(spec.quick[0])),...spec.groundSea.map(groundUnitSpec).map(s=>makeFleet(s.team,s))];
     const org={companies:[{id:'test',name:'中隊',kind:'vehicle'}],battalions:[],brigades:[]},before=JSON.stringify(org);
     groundInitOrg(org);groundInit();
     const ships=fleets.filter(f=>f.groundKind==='sea');

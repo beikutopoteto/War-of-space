@@ -117,7 +117,7 @@ async function checkGroundTransport(page,check){
   await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(transportCases))check(c.ok,'輸送・工兵: '+c.name);
   await page.evaluate(()=>{
-    const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
+    const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]);
     reset({op:'groundExercise2',fleets:['infantry','apc','engineer','vehicle'].map(kind=>({...base,name:groundRuleSet().unitTypes[kind].name,groundKind:kind}))});setSpeed(0);endDeploy();
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(f.team?44:9,27));});
     const infantry=fleets.find(f=>f.groundKind==='infantry'&&f.team===0),carrier=fleets.find(f=>f.groundKind==='apc');

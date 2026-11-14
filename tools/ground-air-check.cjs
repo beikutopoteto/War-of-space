@@ -7,7 +7,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
   await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');await page.waitForFunction(()=>window.WOS);
   await page.evaluate(()=>{
    window.requestAnimationFrame=()=>0;
-   const base=OPS.find(o=>o.id==='groundExercise2'),old={quick:base.quick,enemies:base.enemies,groundSea:base.groundSea},unit=(name,kind,x,y,band='ground')=>({name,groundKind:kind,type:'cv',n:1,scale:.3,pos:[(x-24)*4,(18-y)*4],band,stance:'evade'});
+   const base=OPS.find(o=>o.id==='groundExercise2'),old={quick:base.quick,enemies:base.enemies,groundSea:base.groundSea},unit=(name,kind,x,y,band='ground')=>({name,kind,at:[x,y],band,stance:'evade'});
    try{base.quick=[unit('戦闘航空隊','fighter',18,20,'low'),unit('広域戦略支援航空隊','supportAircraft',14,25,'high')];base.enemies=[unit('固定航空目標','fighter',19.5,20,'low'),unit('固定地上目標','infantry',26,25)];base.groundSea=[];reset({op:base.id,fleets:base.quick});}finally{Object.assign(base,old);}
    if(talking)endTalk();endDeploy();setSpeed(0);fleets.forEach(f=>{f.stance='evade';f.groundAAEnabled=false;});op={...op,groundHQ:null,groundStaticEnemies:true};
   });

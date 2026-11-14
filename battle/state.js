@@ -464,11 +464,10 @@ function reset(cfg=lastCfg){
   debris=(op.debris||[]).map(c=>({c:new THREE.Vector3(c.pos[0],c.alt||0,c.pos[1]),r:c.r}));
   enemyWASSeen=false;
   opEvents=[...(op.reinforcements||[]),...(op.events||[])].map(e=>({...e})).sort((a,b)=>a.after-b.after);   // copies: onSpot may move an event's time
-  const groundSortie=op.ground&&op.forces!=='fixed'&&!(cfg&&cfg.fleets&&cfg.fleets.length)?window.WOS_GROUND_ORG.sortie(cfg&&cfg.groundOrg):null;
-  const spec=op.groundDrill?op.quick:groundSortie?groundSortie.fleets:cfg&&cfg.fleets&&cfg.fleets.length?cfg.fleets:op.quick;
-  fleets=[...spec.map(o=>makeFleet(0,o)),...op.enemies.map(o=>makeFleet(1,o))];
+  const {fleets:spec,enemies,org:sortieOrg}=groundResolveForces(op,cfg);
+  fleets=[...spec.map(o=>makeFleet(0,o)),...enemies.map(o=>makeFleet(1,o))];
   if(op.ground)groundSeaDeploy();
-  if(op.ground){ groundInitOrg(groundSortie?groundSortie.org:null); groundInit(); }
+  if(op.ground){ groundInitOrg(sortieOrg); groundInit(); }
   /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
      army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
   if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;

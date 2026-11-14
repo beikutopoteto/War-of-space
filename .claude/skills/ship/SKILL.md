@@ -46,6 +46,8 @@ description: War of Space の変更を出す手順。テスト、コミット、
 
 `battle/` や `data/` や最上位にファイルを足したら（2026-11-04 の `prep-bg.js` など）、この表と下の `git archive` にも足す。
 
+票3のkm変換・出撃配備は既存の `battle/terrain.js` に含まれる。`tools/ground-start-snapshot.cjs` と `tests/ground-forces.cjs`、固定配備の実測JSONは確認用で、filesの表・`git archive` の配信一覧・`index.html` のscriptには加えない。
+
 ユーザーの Mac（2026-10-31）: 載せるファイルは作業ディレクトリかスクラッチパッドの中に限られる。`git archive origin/main index.html battle data marks.js prep.js prep.css prep-bg.js prep-dock.js battle/terrain.js battle/ground.js battle/ground-naval.js battle/ground-plan.js battle/ground-volley.js battle/ground-area.js battle/ground-sight.js battle/ground-ballistics.js battle/ground-air.js battle/ground-air-orders.js battle/ground-air-missions.js battle/ground-scatter.js battle/ground-shapes.js battle/ground-aa.js battle/ground-strike.js battle/ground-transport.js battle/ground-drill.js battle/ground-supply.js data/ground-org.js data/ground-rules.js data/terrain/exercise2.js data/terrain/baikonur2.js data/terrain/wide-fields.js data/ground-fields.js data/command-icons.js data/npc-doctrines.js battle/npc-core.js battle/npc-ground.js battle/npc-space.js | tar -x -C <スクラッチパッド>/play` で写し、`file_path` を `<スクラッチパッド>/play/index.html`、`root` を `<スクラッチパッド>/play` にする。前の会話のページなので、先に `action:"read"` で読む。
 
 コミット・push・マージがオートモードの安全チェックで止まったら、回り道をせずユーザーに承認を聞く（`開発環境/.claude/settings.local.json` の許可は、セッションを開き直すと効く）。

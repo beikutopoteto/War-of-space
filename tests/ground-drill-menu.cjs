@@ -52,8 +52,8 @@ function runMenuChecks(){
   assert.match(exercises,/data-op="tutorial2"[^>]*>[\s\S]*?チュートリアル2/);count++;
   assert.match(exercises,/data-op="baikonur"[^>]*disabled[\s\S]*?バイコヌール演習/);count++;
   check("TUT2.tutorial===TUT2_BASE.tutorial&&TUT2.groundDrill&&!TUT2_BASE.groundDrill&&TUT2.tutorial.length===26",'案内は基本演習と共有する26手順');
-  check("TUT2.quick.length===9&&TUT2_BASE.quick.length===11&&TUT2.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(33-24)*4&&TUT2_BASE.quick.find(f=>f.groundKind==='mobileAA').pos[0]===(8-48)*4",'案内の旧配備9隊と演習の西側配備11隊を分ける');
-  check("TUT2.ground==='exercise2'&&TUT2_BASE.ground==='baikonur2'&&TUT2.groundHQ[0]==='B'&&TUT2_BASE.groundHQ[0]==='A'&&TUT2.groundSea[0].pos[0]===(17-24)*4&&TUT2.view.max===350&&TUT2_BASE.view.max===650",'案内の地形・本営・艦・カメラを従来値で保持');
+  check("TUT2.quick.length===9&&TUT2_BASE.quick.length===11&&TUT2.quick.find(f=>f.kind==='mobileAA').at[0]===33&&TUT2_BASE.quick.find(f=>f.kind==='mobileAA').at[0]===8",'案内の旧配備9隊と演習の西側配備11隊を分ける');
+  check("TUT2.ground==='exercise2'&&TUT2_BASE.ground==='baikonur2'&&TUT2.groundHQ[0]==='B'&&TUT2_BASE.groundHQ[0]==='A'&&TUT2.groundSea[0].at[0]===17&&TUT2.view.max===350&&TUT2_BASE.view.max===650",'案内の地形・本営・艦・カメラを従来値で保持');
   assert.equal(node('goQuick').hidden,true);count++;
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur',tutorial:true});count++;
@@ -61,6 +61,12 @@ function runMenuChecks(){
   check("onEnd('baikonur',true).includes('資金 +100')&&cleared('tutorial2')&&!cleared('baikonur')&&prog().funds===100&&opOpen(TUT2_BASE)",'案内付き勝利は専用記録・資金100・通常演習解放');
   check("onEnd('baikonur',true).includes('資金 +67')&&prog().funds===167",'チュートリアル2再戦は67');
   run("sortieOp='baikonur';renderSortie()");
+  const originalNote=node('fixedNote').textContent;
+  assert.equal(originalNote,`地上軍の全6個中隊で出撃します。編成が空なら初期部隊を使います。`);count++;
+  run("var originalSortie=TUT2_BASE.groundSortie;TUT2_BASE.groundSortie={...originalSortie,maxCompanies:2,bannedKinds:['was']};renderSortie()");
+  assert.ok(node('fixedNote').textContent.includes('中隊は 2 個まで')&&node('fixedNote').textContent.includes('W.A.S.')&&node('fixedNote').textContent.includes('は出撃できません'));count++;
+  run('TUT2_BASE.groundSortie=originalSortie;renderSortie()');
+  assert.equal(node('fixedNote').textContent,originalNote);count++;
   assert.equal(node('goQuick').hidden,false);count++;
   node('goQuick').onclick();
   assert.equal(calls.at(-1).fleets.length,11);count++;

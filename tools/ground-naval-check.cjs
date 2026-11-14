@@ -10,9 +10,9 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
   assert.deepEqual(rows.filter(r=>!r.ok),[]);
   const scene=await page.evaluate(()=>{
    window.requestAnimationFrame=()=>0;
-   const base=OPS.find(o=>o.id==='baikonur'),old={groundSea:base.groundSea,enemies:base.enemies},spec=(name,type,x,team=0)=>({name,type,groundKind:'sea',band:'sea',team,n:1,pos:[(x-24)*4,56],stance:'evade'});
+   const base=OPS.find(o=>o.id==='baikonur'),old={groundSea:base.groundSea,enemies:base.enemies},spec=(name,type,x,team=0)=>({name,type,kind:'sea',at:[x,22],band:'sea',team,stance:'evade'});
    try{
-    base.groundSea=[spec('高速艇 旧cv','cv',10),spec('高速艇 旧ff','ff',14),spec('イージス艦 旧dd','dd',18),spec('イージス艦 旧cl','cl',22),spec('戦艦 射撃確認','bb',27)];base.enemies=[spec('海上観測目標','cl',40,1)];
+    base.groundSea=[spec('高速艇 旧cv','cv',34),spec('高速艇 旧ff','ff',38),spec('イージス艦 旧dd','dd',42),spec('イージス艦 旧cl','cl',46),spec('戦艦 射撃確認','bb',51)];base.enemies=[spec('海上観測目標','cl',64,1)];
     const scout={name:'目視観測航空隊',groundKind:'attack',type:'cv',band:'low',n:1,scale:.3,pos:[56,56],stance:'evade'};
     reset({op:'baikonur',fleets:[...base.quick,scout]});
    }finally{Object.assign(base,old);}

@@ -11,7 +11,7 @@ const {setupPermissionScene,setupAntiAirScene,NEW_KINDS}=require('../tests/groun
     const frame=async()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const shoot=async letter=>{await frame();await page.screenshot({path:path.join(ROOT,'.shots',`⑧-${letter}.png`)});};
     await page.evaluate(kinds=>{
-      const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
+      const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]);
       WOS.start({op:'groundExercise2',fleets:kinds.map(kind=>({...base,name:groundRuleSet().unitTypes[kind].name,groundKind:kind,band:kind==='droneHive'?'low':'ground'}))});setSpeed(0);
       const mine=fleets.filter(f=>f.team===0);
       fleets.filter(f=>f.team===1).forEach((f,i)=>{f.stance='evade';f.pos.copy(groundPoint(44,29+i));});

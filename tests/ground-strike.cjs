@@ -65,7 +65,7 @@ async function checkGroundStrike(page,check){
   await page.evaluate(()=>{reset({op:'groundExercise2'});setSpeed(0);endDeploy();});
   for(const c of await page.evaluate(strikeCases))check(c.ok,'地点攻撃: '+c.name);
   await page.evaluate(()=>{
-    const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
+    const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]);
     reset({op:'groundExercise2',fleets:[{...base,groundKind:'artillery',name:'自走砲'}]});setSpeed(0);endDeploy();
     fleets.forEach(f=>{f.stance='evade';f.order=null;f.pos.copy(groundPoint(f.team?44:9,27));});
     select(fleets.find(f=>f.team===0));camAnim=null;controls.target.copy(selected.pos);camera.position.copy(selected.pos).add(new THREE.Vector3(0,90,.01));camera.lookAt(controls.target);controls.update();

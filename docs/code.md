@@ -10,7 +10,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   - `operations.js` 作戦。並びは 1. 演習「要塞カリュブディス攻略戦」（出撃画面のクイック出撃もこれ）、2. 第一章第1節「ネオ信濃奇襲」、3. 第2節「後退」、4. 第3節「ナイル防衛線」、5. 第4節「デナリの盾」、6. 第5節「フェブルアーリア防衛戦」、7. 第6節「デナリ破砕」（2026-10-24、作りかけ。`hidden:true` で出撃画面に出さず、`WOS.start({op:'denaliBreak'})` でだけ開く。第4節のデナリを使うので配列のあとに push で足す）
   - `tech.js` 解放・報酬・技術ツリー
   - `ground-rules.js` 地上・海上の12個の基本規則（`WOS_GROUND_RULES`）と既定の6中隊。地形より前に読む。入口 `groundRuleSet()` は基本 → 地形の `overrides` → 作戦の `groundRuleOverrides` → 試合中の変化を重ねた同じ結果を返す。開始・やり直しは `groundSetup()` から `rebuildGroundRuleSet()`、天候等の変化時は `rebuildGroundRuleSet(changes)` で変更一式を渡す。地形に残す `water.engineerBridgeMaxWidthKm` は川幅の判定用。
-  - `ground-org.js` 規則の兵科表と既定の中隊一覧から地上編成を作る。隠し作戦には依存しない。
+  - `ground-org.js` 規則の兵科表と既定の中隊一覧から地上編成を作る。`sortie()` は位置を決めず、地形や隠し作戦には依存しない。
   - `earth.js` Natural Earth の地球の陸地マスク（`tools/earth-mask.cjs` で生成）
   - `WOS_DATA.balance`（`operations.js`）: 全体の釣り合い。耐久の倍率 `hp` と艦の速さの倍率 `speed` は全部の作戦で同じで、戦闘の生成のときに掛ける（`battle/state.js` の `HP_K`・`SPEED_K`）。データと準備画面の表示は元の値
   - `WOS_DATA.roles`（`ships.js`）: 艦種別の動きの表（2026-10-22、ユーザー決定。陣営ごとの役目・狙い・距離・退き際。作戦の `roleAI:true` だけで使う。`docs/menu.md`「艦種別の動き」）
@@ -18,7 +18,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   - `WOS_DATA.sides`（`ships.js`）: 両陣営の艦種の表（2026-10-20）。作戦データで `hp` を書いていない戦う艦隊は、陣営の表と作戦の `stage`（技術の段階）から `battle/state.js` の `techFleet` で値を出す（`makeFleet` の最初）
 - `battle/`: 戦闘画面。一番外側の名前はファイル間で共有される（名前を変えるときは全ファイルを検索する）。読み込み時に呼ぶ処理は `loop.js` に置く。読み込み順:
   1. `scene.js` シーン・要塞・ステーション
-  1.5 `terrain.js` 地上演習の盤と地表高度・マス経路・通行（`?ground=exercise2`、宇宙では無効）
+  1.5 `terrain.js` 地上演習の盤と地表高度・マス経路・通行（`?ground=exercise2`）。`groundUnitSpec(u)` は `{name,kind,at:[xKm,yKm],band?}` と搭載中隊を艦隊の形へ変換し、`at` がなければそのまま返す。`groundSortieForces(op,org)` は作戦の `groundSortie`（`slots` または `site`・`radiusKm`、任意の `maxCompanies`・`bannedKinds`）で編成を制限・配置する。`groundResolveForces(op,cfg)` が既存の部隊選択をまとめ、宇宙は従来の仕様を返す。`groundSetupCoordinates()` は視点の `targetKm` と案内の `at` を再変換する（併設されたチュートリアルの印はその地図の座標を使う）。
   2. `effects.js` 粒子・曳光弾・矢印
   2.5 `base.js` 第5節の総基地のゲート（八角形のふた、状態の帯、塞いだ瓦礫）と強化歩兵の点・撃つ見た目（2026-10-16。共和国の強化歩兵の赤い点 `drawTroops` は 2026-10-18。描くだけ。シールド・塞ぐ・守備隊の仕組みは `sim.js`）。地表の砲台の案I（`pitBuild`・`pitDraw`: 竪穴をステンシルで岩に見せる、向きと仰角、砲台の強化歩兵。2026-10-17。仰角の制限 `pitCan` と砲台の歩兵の射撃は `sim.js`。後処理の描画先にステンシルを持たせたのは `scene.js`）
   3. `shapes.js` 艦と小型機と地表の砲台・推進器の形（艦の古い形は、地上の画面の海の戦闘母艦・突撃揚陸艦がまだ使う。準備画面のドックは 2026-11-14 から新しい形）
@@ -36,6 +36,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
 - `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tools/terrain-check.cjs`・`tests/terrain-check.cjs`: 地形検査。`node tools/terrain-check.cjs <地形id|all> [--json] [--perf]` で拠点・本営道路網・橋・6兵科の経路・架橋区間・浜・盤と海の塗りを調べる。不合格があれば終了コード1。ブラウザ不要の検査と壊した写しのテストは ground 組、`--perf` の Chromium 計測は手元だけ。性能の仮上限と基準値は `docs/ground-structure.md` 票5。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
+- `tools/ground-start-snapshot.cjs`: `before` / `after` で5種類の開始状態をJSON（test-results）、1600×900の写真（.shots）に保存する。`tests/fixtures/ground-start-before.json` は変更前の実測。`tests/ground-forces.cjs` がkm変換・出撃制限・配置不足・固定配備と本営周囲の開始位置を ground 組で確認する。確認用ファイルなのでゲームの配信・script一覧へは加えない。
 - `tools/`: 確認用の道具（ゲームは使わない）。`tools/body-shots.cjs` は天体の見本の画像、`tools/retreat-sim.cjs` は第2節、`tools/denali-sim.cjs` は第4節、`tools/februaria-sim.cjs` は第5節の早送り（`q` はデバッグのオートモード `autoAI` をそのまま使う。2026-10-19）、`tools/op-sim.cjs` はどの作戦でも早送りして勝ち負け・長さ・沈んだ隻数を出す（2026-10-20）、`tools/length-sim.cjs` は第1〜6節の長さの表（2026-10-30）、`tools/feint-sim.cjs` は第6節の止まっている隊・陽動・方角守備隊・オートモードの分岐の記録（2026-10-30）。`tools/ch1-check.cjs` は1つの作戦を最後まで早送りして、例外・console.error・任務欄と名札の NaN／undefined を集める（第一章の通しのバグ取り、2026-11-05）。`STAGE=1` を付けると自分の艦隊をその作戦の技術の段階まで研究した値にする（`tools/browser.cjs` の `toStage`）、`tools/ally-targets.cjs` は友軍の狙う相手の表。`tools/model-sheet.cjs`（地上モデルの見本ページ）・`tools/ground-model-shots.cjs`（ゲーム画面の写真）・`tools/model-floaters.cjs`（体から浮いた部品の一覧）は `docs/models.md` 4。`tools/tutorial-check.cjs`（演習のチュートリアル）・`tools/prep-tutorial-check.cjs`（準備画面のチュートリアル）・`tools/masc-check.cjs`（強襲母艦の配備と別枠）は `tests/smoke.cjs` から呼ぶ確かめで、1つだけでも走る。使い方は `docs/maps.md`。
 
 ## ライブラリ
@@ -45,7 +46,7 @@ Three.js r128（cdnjs）、OrbitControls と EffectComposer/UnrealBloom（jsdeli
 localStorage の `wos.save.v1`（進行は `prog`）。形式を変えたら `migrate()` で古いデータを直す。デバッグの切り替えは別のキー `wos.debug`、オプションは `wos.opt`（prep.js が `window.WOS_OPT` に置き、battle/hud.js が会話を出すか決める）。
 
 ## 画面のつながり
-`prep.js` → `window.WOS.start({op, fleets, groups, flags})`（`hud.js`）。`fleets` を渡さなければ作戦の `quick` の艦隊で戦う（決まった艦隊の作戦とクイック出撃）。戦闘後は `window.WOS_MENU.open()`（`prep.js`）。
+`prep.js` → `window.WOS.start({op, fleets, groups, flags})`（`hud.js`）。`fleets` を渡さなければ宇宙・固定作戦は `quick` を使う。編成が可変の地上作戦は保存された地上編成（空なら既定6中隊）を作戦の出撃地点へ配置する。地上のクイック出撃は `fleets:op.quick` を渡す。戦闘後は `window.WOS_MENU.open()`（`prep.js`）。
 
 ## 艦隊の仕様の形式
 `prep.js` の `armyToFleet()` が打撃群をこの形にする。作戦データ（`data/operations.js`）の艦隊も同じ形。`type` か `comp` で艦の形が決まる。

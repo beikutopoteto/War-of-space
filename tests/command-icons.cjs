@@ -30,7 +30,7 @@ function commandIconCases(){
    const lit=groundBoardTargets(troop).includes(carrier)&&carrier.el.classList.contains('board-target')&&carrier.groundSelection.visible&&!tank.el.classList.contains('board-target');
    dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',bubbles:true}));groundDraw();
    const unlit=!carrier.el.classList.contains('board-target')&&!carrier.groundSelection.visible;
-   const base=op.quick[0];
+   const base=groundUnitSpec(op.quick[0]);
    const extras=['artillery','engineer','supply','apc'].map((kind,i)=>makeFleet(0,{...base,name:'確認用'+kind,groundKind:kind,pos:[-60+i*3,0,30]}));
    fleets.push(...extras);extras.forEach(f=>f.band='ground');setSel([troop,...extras]);
    const expand=document.getElementById('groundCommandExpand');expand.click();

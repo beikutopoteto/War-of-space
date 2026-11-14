@@ -95,7 +95,7 @@ function branchCases(){
 }
 // 実画面と写真cで同じ配置を使う。射程1.2km内の3隊を三角に置き、名札が重ならない距離まで寄る。
 function setupPermissionScene(){
-  const base=OPS.find(o=>o.id==='groundExercise2').quick[0];
+  const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]);
   WOS.start({op:'groundExercise2',fleets:[{...base,name:'機械化突撃兵',groundKind:'mechanicalAssault'}]});setSpeed(0);endDeploy();
   fleets.forEach((f,i)=>{f.stance='evade';f.order=null;f.queue=[];f.pos.copy(groundPoint(43,29+i));});
   op={...op,groundHQ:null}; // ここは射撃許可だけの実画面場面。
@@ -105,7 +105,7 @@ function setupPermissionScene(){
   groundUpdateSight();select(f);camAnim=null;controls.target.copy(groundPoint(9,26));camera.position.copy(controls.target).add(new THREE.Vector3(0,30,.01));camera.lookAt(controls.target);controls.update();camera.updateMatrixWorld(true);groundDraw();updateRoster();fleets.forEach(f=>updateFleetLabel(f,false,''));
 }
 function setupAntiAirScene(){
-  const operation=OPS.find(o=>o.id==='groundExercise2'),base=operation.quick[0],enemies=operation.enemies;
+  const operation=OPS.find(o=>o.id==='groundExercise2'),base=groundUnitSpec(operation.quick[0]),enemies=operation.enemies;
   // 作戦データは撮影用リセット中だけ差し替え、モデルも通常の groundInit で作る。
   try{
     operation.enemies=[{...base,name:'高高度の航空目標',groundKind:'fighter',band:'high',stance:'evade'}];

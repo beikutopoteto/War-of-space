@@ -11,7 +11,7 @@ const {openGame,ROOT}=require('./browser.cjs');
     await page.waitForFunction(()=>window.WOS&&typeof groundFog!=='undefined'&&groundFog);
     await page.evaluate(()=>setSpeed(0));
     const resetScene=async(kind,blind=false)=>page.evaluate(({kind,blind})=>{
-      const base=OPS.find(o=>o.id==='groundExercise2').quick[0],type=groundRuleSet().unitTypes[kind];
+      const base=groundUnitSpec(OPS.find(o=>o.id==='groundExercise2').quick[0]),type=groundRuleSet().unitTypes[kind];
       reset({op:'groundExercise2',fleets:Array.from({length:blind?3:1},(_,i)=>({...base,groundKind:kind,name:type.name+(blind?' '+(i+1):''),band:kind==='supportAircraft'?'high':'ground'}))});
       setSpeed(0);
       fleets.forEach(f=>{f.stance='evade';f.order=null;f.queue=[];f.groundStrikeCooldown=0;f.pos.copy(groundPoint(f.team?44:9,27));});

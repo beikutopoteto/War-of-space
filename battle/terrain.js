@@ -23,6 +23,66 @@ function groundMapX(worldX){ return worldX/GROUND_SCALE+groundDimensions().halfW
 function groundMapY(worldZ){ return groundDimensions().halfHeightKm-worldZ/GROUND_SCALE; }
 function groundWorldX(mapX){ return (mapX-groundDimensions().halfWidthKm)*GROUND_SCALE; }
 function groundWorldZ(mapY){ return (groundDimensions().halfHeightKm-mapY)*GROUND_SCALE; }
+// 作戦のkm表記を、既存の艦隊生成が読む形へ直す唯一の入口。旧表記はそのまま使える。
+function groundUnitSpec(u){
+  if(!u.at)return u;
+  const {kind,at,...rest}=u;
+  return {type:'cv',n:1,scale:.3,alt:0,...rest,groundKind:kind,band:u.band||'ground',
+    pos:[groundWorldX(at[0]),groundWorldZ(at[1])],
+    ...(u.groundCargo?{groundCargo:u.groundCargo.map(groundUnitSpec)}:{})};
+}
+// 編成は位置を持たない。出撃制限を適用してから、作戦の枠または拠点周辺へ置く。
+function groundSortieForces(operation,value){
+  const config=operation.groundSortie;
+  if(!config)throw new Error(operation.id+': groundSortie がありません');
+  const sortie=window.WOS_GROUND_ORG.sortie(value),max=config.maxCompanies;
+  if(max!=null&&(!Number.isInteger(max)||max<0))throw new Error('groundSortie.maxCompanies は0以上の整数です');
+  const companies=sortie.org.companies.filter(c=>!(config.bannedKinds||[]).includes(c.kind)).slice(0,max??Infinity);
+  const ids=new Set(companies.map(c=>c.id));
+  const org=window.WOS_GROUND_ORG.normalize({...sortie.org,companies});
+  const units=sortie.fleets.filter(f=>ids.has(f.companyId));
+  if(config.slots){
+    if(!config.slots.length)throw new Error('groundSortie.slots が空です');
+    return {org,fleets:units.map((f,i)=>{const slot=config.slots[i%config.slots.length];
+      return groundUnitSpec({...f,kind:f.groundKind,at:[slot[0]+Math.floor(i/config.slots.length)*.6,slot[1]]});})};
+  }
+  const center=groundData().sites.find(s=>s.id===config.site),radius=config.radiusKm;
+  if(!center||!Number.isFinite(radius)||radius<=0)throw new Error('groundSortie の拠点・半径が不正です');
+  const spacing=1.5,limit=Math.ceil(radius*2/spacing),points=[]; // 間隔1.5km、最大半径2倍（仮）
+  for(let y=-limit;y<=limit;y++)for(let x=-limit;x<=limit;x++){
+    const distance=Math.hypot(x,y)*spacing;
+    if(distance<=radius*2)points.push({at:[center.x+x*spacing,center.y+y*spacing],distance});
+  }
+  points.sort((a,b)=>a.distance-b.distance||a.at[1]-b.at[1]||a.at[0]-b.at[0]);
+  const used=new Set();
+  const fleets=units.map(f=>{
+    const moveKind=groundMoveKind(f),air=moveKind==='air';let slot;
+    const valid=p=>!used.has(p)&&groundPass(...p.at,moveKind,false)&&(air||groundData().water.rivers.every(r=>{
+      const river=groundRiverAt(...p.at,r);return river.dist>=river.width/2+.12;
+    }));
+    for(let reach=radius;!slot;reach=Math.min(radius*2,reach+1)){
+      slot=points.find(p=>p.distance<=reach&&valid(p));
+      if(reach===radius*2)break;
+    }
+    if(!slot)throw new Error(operation.id+': '+f.name+' の出撃地点が半径'+radius*2+'km以内にありません');
+    used.add(slot);return groundUnitSpec({...f,kind:f.groundKind,at:slot.at});
+  });
+  return {org,fleets};
+}
+// 宇宙の部隊選択も従来どおり返す。state.js に地上用の分かれ目を増やさない。
+function groundResolveForces(operation,cfg){
+  const sortie=operation.ground&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg):null;
+  const spec=operation.groundDrill?operation.quick:sortie?sortie.fleets:cfg?.fleets?.length?cfg.fleets:operation.quick;
+  return {fleets:operation.ground?spec.map(groundUnitSpec):spec,
+    enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,org:sortie?.org||null};
+}
+function groundSetupCoordinates(){
+  if(op.view?.targetKm)op.view.target=op.view.targetKm.map((v,i)=>i?groundWorldZ(v):groundWorldX(v));
+  const guide=op.groundTutorial?.ground;
+  const d=guide?WOS_TERRAIN[guide]:groundData();
+  for(const row of op.tutorial||[])for(const mark of row.marks||[])if(mark.at)
+    mark.pos=[(mark.at[0]-d.meta.widthKm/2)*GROUND_SCALE,(d.meta.heightKm/2-mark.at[1])*GROUND_SCALE];
+}
 // 描画と同じ樹冠・建物の位置を地上の索敵に渡す（戦闘単位）。
 let groundForests=[], groundBuildings=[];
 function groundInside(x,y,poly){ let hit=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i],b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) hit=!hit; } return hit; }
@@ -105,7 +165,7 @@ function groundFactor(x,z,kind){
 let groundBackground=null;
 function groundSetup(id){
   groundTerrainId=id||null;groundDimensionCache=null;
-  if(id)rebuildGroundRuleSet();
+  if(id){rebuildGroundRuleSet();groundSetupCoordinates();}
   if(typeof groundSightReset==='function')groundSightReset();
   if(typeof groundBallisticReset==='function')groundBallisticReset();
   if(groundWaterMaterial){ groundWaterMaterial.uniforms.mask.value.dispose(); groundWaterMaterial=null; }
