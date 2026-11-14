@@ -245,7 +245,7 @@ function nodeChecks(){
  // 実ゲームのspeedOfを読み、同期を無視する土台のstubから差し替える。
  const sim=require('node:fs').readFileSync(require('node:path').join(__dirname,'../battle/sim.js'),'utf8');
  tactics.run(sim.slice(sim.indexOf('function speedOf('),sim.indexOf('function speedOf(')+sim.slice(sim.indexOf('function speedOf(')).indexOf('\n')));
- return [movement,...auto.run('('+autoCases.toString()+')()'),...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
+ return [...require('./npc-lift.cjs').nodeChecks(),movement,...auto.run('('+autoCases.toString()+')()'),...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
 }
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});

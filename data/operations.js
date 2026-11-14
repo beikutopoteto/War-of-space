@@ -1799,3 +1799,28 @@ WOS_DATA.operations.push((()=>{
       ]}
   };
 })());
+
+// 輸送・上陸・東分流の架橋を試す隠し演習。隊数・配備・600秒は仮。
+WOS_DATA.operations.push((()=>{
+  const base=WOS_DATA.operations.find(o=>o.id==='groundExercise2');
+  const unit=(name,kind,at)=>({name,kind,at,band:'ground'});
+  return {id:'groundLiftExercise',hidden:true,debug:true,ground:'exercise2',forces:'fixed',npcLift:true,
+    name:'渡河と上陸の防衛演習（仮）',summary:'東分流の架橋と海からの上陸に対する本営防衛',
+    brief:'演習港 H を600秒守るか、敵の全戦力を撃破してください。敵の工兵は東の分流、揚陸艦は西の葦原 D 側から進みます。隊数と配備は仮です。',
+    date:base.date,start:base.start,scale:base.scale,phase:'渡河・上陸演習',view:{targetKm:[24,13],dist:170,dir:[0,1,1],max:350},
+    groundHQ:{0:'H',1:'D'},groundSupportSites:['H','D'],groundSites:[{site:'D',owner:1},{site:'H',owner:0},{site:'G',owner:null}],
+    npc:{1:{doctrine:'earth',level:'standard'}},
+    quick:[unit('第1 守備歩兵中隊','infantry',[40,10]),unit('第2 守備戦車中隊','vehicle',[41,10]),unit('第3 重強化歩兵中隊','heavyInfantry',[39,10])],
+    enemies:[unit('仮想敵 工兵中隊','engineer',[24.2,10]),unit('仮想敵 第1歩兵中隊','infantry',[24,10]),
+      unit('仮想敵 第2歩兵中隊','infantry',[24.4,10]),unit('仮想敵 第3歩兵中隊','infantry',[24.6,10]),
+      unit('仮想敵 第1戦車中隊','vehicle',[24.1,10.2]),unit('仮想敵 第2戦車中隊','vehicle',[24.5,10.2]),
+      unit('仮想敵 輸送車中隊','apc',[24.3,9.8]),unit('仮想敵 補給中隊','supply',[24.7,9.8])],
+    groundSea:[{name:'仮想敵 揚陸艦',kind:'sea',type:'dd',band:'sea',team:1,at:[40,4],groundLanding:true,
+      groundCargo:[unit('仮想敵 上陸歩兵中隊','infantry',[40,4]),unit('仮想敵 上陸戦車中隊','vehicle',[40,4])]}],
+    win:{type:'groundHQ',text:'敵の渡河と上陸から演習港 H を守る'},
+    result:{win:'演習港 H の防衛演習を完了した。',lose:'演習港 H を失うか、自軍が全滅した。',winLog:['演習管制','防衛演習、完了。'],loseLog:['演習管制','防衛演習は失敗。']},
+    groundScript:{objective:'敵の渡河と上陸から演習港 H を守る',loseText:'演習港 H を失うか全滅で敗北',
+      win:{any:[{hold:{site:'H',team:0,until:600}},{wiped:1}]},lose:{any:[{lost:'H',team:0},{wiped:0}]},
+      events:[{id:'enemyBridge',when:{flag:'npcBridgeStarted'},do:[{say:['演習管制','東の分流で、敵の工兵が架橋を開始。']}]}]}
+  };
+})());
