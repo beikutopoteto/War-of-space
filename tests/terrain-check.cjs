@@ -16,8 +16,10 @@ function nodeChecks(){
   assert.equal(r.coverage.gaps,0);assert.equal(r.coverage.corners.length,4);
  });
  check('同じ地形の通常作戦と tutorial2 の本営を両方調べる',()=>{
-  // groundScriptTest（地上の台本を試す隠しの演習、票4 2026-11-14）も同じ地形を使う
-  assert.deepEqual(headquarters(c,'exercise2').map(p=>p.operation),['groundExercise2','tutorial2','groundScriptTest','groundLiftExercise']);
+  /* 作戦の名前を決め打ちしない（2026-11-14: 隠しの演習を足すたびに Codex が止まった）。この地形を使う作戦が全部入り、
+     もとの2つ（通常作戦と tutorial2）があり、どの組にも本営の両端があることを見る */
+  const pairs=headquarters(c,'exercise2'),names=pairs.map(p=>p.operation),using=c.ctx.WOS_DATA.operations.filter(o=>o.ground==='exercise2').map(o=>o.id);
+  assert.ok(['groundExercise2','tutorial2'].every(id=>names.includes(id))&&using.every(id=>names.includes(id))&&new Set(names).size===names.length&&pairs.every(p=>p.from&&p.to));
   assert.deepEqual(headquarters(c,'baikonur2').map(p=>[p.from,p.to]),[['A','F']]);
   assert.deepEqual(headquarters(c,'field150').map(p=>[p.from,p.to]),[['A','C']]);
   assert.deepEqual(headquarters(c,'field300').map(p=>[p.from,p.to]),[['A','D']]);
