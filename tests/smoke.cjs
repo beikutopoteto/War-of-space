@@ -46,6 +46,7 @@ const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
 const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
 const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
+const {nodeChecks:groundFormationChecks,checkGroundFormations}=require('./ground-formations.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -74,6 +75,7 @@ function check(ok, label, detail = '') {
   for(const r of groundHintChecks())check(r.ok,'操作案内: '+r.name,r.error||'');
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
+  for(const r of groundFormationChecks())check(r.ok,'隊形: '+r.name);
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
   for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
@@ -214,6 +216,7 @@ function check(ok, label, detail = '') {
     await checkGroundTempo(page,check);
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
+    await checkGroundFormations(page, check);
     await checkGroundForces(page, check);
     await checkGroundScript(page, check);
     await checkGroundSight(page, check);
