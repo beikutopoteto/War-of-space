@@ -22,7 +22,28 @@ function planCases(){
  check('途中の線は選択変更で取り消す',!groundLineStart&&!groundWorkAiming);
  groundPlanToggle('plan');groundPlanTap(a);pressEscape();check('Escで線と入力待ちを取り消す',!groundLineStart&&!groundWorkAiming);
  groundPlanToggle('plan');groundPlanTap(a);groundPlanTap(a);check('長さゼロの線は確定せず修正可能',!!groundLineStart&&groundPlanMessage.includes('終点'));
- groundClearAiming();op={};groundPlanToggle('plan');check('宇宙では起動しない',!groundWorkAiming);
+ groundClearAiming();
+ { // 兵科で2列（ユーザー決定 2026-11-14）: 前列は線の上、後列は自軍の側へ1km。片方だけなら線の上
+  const kindUnit=(kind,x)=>{const f=unit(x);f.groundKind=kind;f.name=kind+x;return f;};
+  for(const f of units){groundCancelWork(f);f.order=null;f.groundPlan=null;}
+  const tank=kindUnit('vehicle',9),gun=kindUnit('artillery',11),mixed=[units[0],tank,gun,units[2]],line=dest=>(dest.z-a.z); // 線は z 一定（y=29）。隊は y=27 側＝z が大きい側
+  setSel(mixed);groundPlanToggle('plan');groundPlanTap(a);groundPlanTap(b);
+  check('布陣・計画の前列（歩兵・戦車）は線の上に等間隔',[units[0],tank,units[2]].every(f=>Math.abs(line(f.groundPlan.dest))<1e-6)&&Math.abs(tank.groundPlan.dest.x-a.clone().lerp(b,.5).x)<1e-6);
+  check('後列（自走砲）は自軍の側へ1km下がる',Math.abs(line(gun.groundPlan.dest)-GROUND_SCALE)<1e-6&&Math.abs(gun.groundPlan.dest.x-a.clone().lerp(b,.5).x)<1e-6);
+  for(const f of mixed)f.groundPlan=null;
+  setSel([gun]);groundPlanToggle('plan');groundPlanTap(a);groundPlanTap(b);check('後列の兵科だけなら線の上',Math.abs(line(gun.groundPlan.dest))<1e-6);gun.groundPlan=null;
+  // 進撃の途中で撃てる敵がいれば、自動交戦の隊は止まり、命令優先の隊は進む
+  setSel([units[0],units[2]]);groundPlanToggle('plan');groundPlanTap(groundPoint(8,33));groundPlanTap(groundPoint(12,33));groundPlanExecute();
+  units[0].stance='engage';units[2].stance='evade';const foe={alive:true};units[0].fireTarget=units[2].fireTarget=foe;
+  const before=[units[0].pos.clone(),units[2].pos.clone()],realFire=groundCanFire;groundCanFire=()=>false;
+  // groundStep の終わりで fireTarget を選び直すので、1ステップ目の判断だけを見る
+  const realFollow=followPath;let moved=new Set();followPath=(f,dt)=>{moved.add(f);return realFollow(f,dt);};
+  groundStep(.05);followPath=realFollow;groundCanFire=realFire;
+  check('進撃は groundAdvance を付け、敵がいると自動交戦の隊は止まり命令優先の隊は進む',units[0].order?.groundAdvance&&!moved.has(units[0])&&moved.has(units[2])&&Math.hypot(units[0].pos.x-before[0].x,units[0].pos.z-before[0].z)<1e-9);
+  units[0].fireTarget=null;moved=new Set();followPath=(f,dt)=>{moved.add(f);return realFollow(f,dt);};groundStep(.05);followPath=realFollow;
+  check('敵がいなくなれば自動交戦の隊も進撃を続ける',moved.has(units[0]));
+ }
+ op={};groundPlanToggle('plan');check('宇宙では起動しない',!groundWorkAiming);
  return rows;
 }
 function nodeChecks(){const {run}=require('./ground-controls.cjs').createControlsContext();return run(`(${planCases.toString()})()`);}
