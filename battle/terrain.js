@@ -491,7 +491,14 @@ function groundMovePath(from,waypoints,kind){
   }
   return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L:curve.getLength(),s:0,pts,at};
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=speedOf(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
+/* 進撃（共有命令の実行）の組は、まだ進撃中の生きている地上の隊のうち、いちばん遅い隊の今の速さで進む（ユーザー決定 2026-11-14）。
+   航空は数えない。地形・道路の速さの倍率は各隊の足元で今までどおり掛かる */
+function groundAdvanceSpeed(f){
+  const g=f.order?.groundAdvance,own=speedOf(f);if(!g?.units)return own;
+  let slowest=own;for(const u of g.units)if(u!==f&&u.alive&&u.order?.groundAdvance===g&&groundMoveKind(u)!=='air')slowest=Math.min(slowest,speedOf(u));
+  return slowest;
+}
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=groundAdvanceSpeed(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
     /* 経路は検査点（セルの1/8ごと）で確かめるので、検査点のあいだに細い水際が残ることがある（橋の端の角など）。
        そこで止まったままにしない: 今いる所が通れなければ次の点の速さで抜け、進んだ先が細い水際なら、その先の通れる所まで（検査点の間隔の2倍まで）進める。
        それより広い水は今までどおり手前で止まる（2026-11-14、戦車が橋の上で止まる不具合） */
