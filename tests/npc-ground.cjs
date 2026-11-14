@@ -3,6 +3,7 @@ const assert=require('node:assert/strict');
 function bridgeCases(){
  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
  npcGroundInit();const c=npcGroundState.commanders.get(1),sit=npcGroundSituation(c);
+ check('単独占領・複数占領の資格と必要隊数を頭へ渡す',sit.captureGroup===groundRuleSet().capture.group&&sit.units.every(u=>{const f=fleets.find(f=>f.id===u.id);return u.canHold===groundCanCapture(f)&&u.canPair===groundCaptureCounts(f);}));
  const cfg=op.npc[c.team],oldIntent=cfg.intent;
  check('intent未指定はseize、stylesの表も指揮官へ渡す',sit.goal.type==='seize'&&c.styles===window.WOS_DATA.npc.styles);
  check('軍ごとのintentのtype・zones・until・styleをsit.goalへ渡す',['seize','hold','delay','withdraw'].every(type=>{
@@ -148,6 +149,16 @@ function tacticsCases(){
  enemy.pos.copy(groundPoint(20.01,29));check('敵が影響円から出た瞬間に追撃を止める',!npcGroundHoldChase(tank,enemy));npcGroundHoldStep();check('円外の敵は射程内なら攻撃を保ち、追撃はしない',tank.order?.type==='attack'&&!npcGroundHoldChase(tank,enemy));enemy.pos.copy(groundPoint(25,29));npcGroundHoldStep();check('交戦範囲を離れた敵から元の守備位置へ戻る',tank.order?.type==='move'&&tank.order.dest.equals(homes[1]));
  enemy.pos.copy(groundPoint(20.1,29));npcGroundApply(c,sit,{tasks:[hold]});check('円外の敵も直射射程1.5倍以内なら攻撃命令を出す',heavy.order?.target===enemy&&!npcGroundHoldChase(heavy,enemy));
  hold.stage='wait';npcGroundApply(c,sit,{tasks:[hold]});check('脅威のないwaitでは攻撃命令を出さない',tank.order?.type==='move');
+ // 単独占領できる主力がいない突入では、混成の主力全隊を小さな占領円へ入れる。
+ for(const type of ['seize','cut']){
+  const pair=task(type,'assault',[tank,heavy,...trucks]);pair.units.push({id:inf.id,as:'support'});
+  const points=pair.units.slice(0,-1).map((x,i)=>npcGroundDestination(c,sit,pair,x,i,pair.units.length));
+  check(type+' の戦車・重歩兵・非武装支援の主力は占領円内へ',points.every(p=>p&&groundDistanceTo({pos:p},groundSites[1])<groundSites[1].captureRadius));
+  groundPass=(x,y)=>y>=29;
+  const corrected=pair.units.slice(0,-1).map((x,i)=>npcGroundDestination(c,sit,pair,x,i,pair.units.length));
+  check(type+' の通行補正も占領円内に保つ',corrected.every(p=>p&&groundDistanceTo({pos:p},groundSites[1])<=groundSites[1].captureRadius));
+  groundPass=()=>true;
+ }
  // syncSpeedは既存の実移動でも使う。航空・別任務を含めない。
  advance.units.push({id:air.id,as:'main'});tank.speed=4;inf.speed=2;heavy.speed=3;air.speed=8;
  npcGroundApply(c,sit,{tasks:[advance]});check('前進中の同任務地上隊は最も遅い速度、航空は同期しない',[tank,inf,heavy].every(f=>f.syncSpeed===2)&&air.syncSpeed==null);

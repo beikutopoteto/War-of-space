@@ -72,7 +72,8 @@ function advanceNpcSim(seconds){
     if(m.cfg.ally>0)sampleNpcAlly(gameSec-at);
     if(m.firstContact===null&&fleets.some(f=>f.groundContacts?.[1-f.team]))m.firstContact=gameSec-m.start;
     for(const s of groundSites)if(m.owners[s.id]!==s.owner){
-      const ally=npcGroundState?.commanders.get('0:ally'),byAlly=s.owner===0&&!!ally&&fleets.some(f=>ally.unitIds.has(f.id)&&groundCanCapture(f)&&groundDistanceTo(f,s)<=s.captureRadius);
+      const ally=npcGroundState?.commanders.get('0:ally'),at=ally?fleets.filter(f=>f.team===0&&ally.unitIds.has(f.id)&&groundDistanceTo(f,s)<=s.captureRadius):[];
+      const byAlly=s.owner===0&&!!ally&&(at.some(f=>groundCanCapture(f))||at.filter(f=>groundCaptureCounts(f)).length>=groundRuleSet().capture.group);
       if(s.owner===0){m.ally.totalCaptures++;if(byAlly){m.ally.captures++;if(s.id===op.groundHQ?.[1])m.ally.finalCaptures++;}}
       m.events.push({time:+(gameSec-m.start).toFixed(2),site:s.id,owner:s.owner,...(m.cfg.ally>0?{ally:byAlly}:{})});m.owners[s.id]=s.owner;
     }

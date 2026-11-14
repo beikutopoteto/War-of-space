@@ -98,6 +98,55 @@ function nodeChecks(){
   const c=commander(),s=fixture();s.units.forEach((u,i)=>u.canHold=i===0);const p=npcThink(c,s);
   assert(main(p).units.some(x=>x.id==='u0'&&x.as==='main'));assert(!p.tasks.filter(k=>k.type==='hold').some(k=>k.units.some(x=>x.id==='u0')));
  });
+ function pairFixture(){
+  const s=fixture();s.captureGroup=2;s.contacts=[];
+  s.units.forEach(u=>Object.assign(u,{role:'strike',canHold:false,canPair:false}));
+  return s;
+ }
+ test('歩兵がなくても戦車2隊を主攻の主力に確保する',()=>{
+  const s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'shock',canPair:true}));
+  const p=npcThink(commander(),s);
+  assert.deepEqual(main(p).units.filter(x=>x.as==='main').map(x=>x.id).sort(),['u0','u1']);
+ });
+ test('戦車1隊だけなら主攻を落とし予備などへ戻す',()=>{
+  const s=pairFixture();Object.assign(s.units[0],{role:'shock',canPair:true});
+  const p=npcThink(commander(),s);assert(!main(p));assert.equal(p.main,null);
+  assert(p.tasks.some(k=>!['seize','cut'].includes(k.type)&&k.units.some(x=>x.id==='u0')));
+ });
+ test('歩兵がいれば2隊より優先して歩兵1隊を主攻に確保する',()=>{
+  const s=pairFixture();Object.assign(s.units[0],{role:'line',canHold:true,canPair:true});
+  s.units.slice(1,3).forEach(u=>Object.assign(u,{role:'fires',canPair:true}));
+  const k=main(npcThink(commander(),s));assert.deepEqual(k.units.filter(x=>x.as==='main'),[{id:'u0',as:'main'}]);
+ });
+ test('2隊の確保は近い非武装支援より武装のある隊を優先する',()=>{
+  const s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'support',canPair:true}));
+  s.units.slice(2,4).forEach(u=>Object.assign(u,{role:'fires',canPair:true,x:-20}));
+  const k=main(npcThink(commander(),s));assert.deepEqual(k.units.filter(x=>x.as==='main').map(x=>x.id).sort(),['u2','u3']);
+ });
+ test('武装のない2隊でも確保し、captureGroupの指定数を使う',()=>{
+  for(const group of [2,3]){
+   const s=pairFixture();s.captureGroup=group;s.units.slice(0,group).forEach(u=>Object.assign(u,{role:'support',canPair:true}));
+   const k=main(npcThink(commander(),s));assert.equal(k.units.filter(x=>x.as==='main').length,group);
+  }
+ });
+ test('占領資格が足りなくなった継続主攻も解除する',()=>{
+  const c=commander(),s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'shock',canPair:true}));
+  const k=main(npcThink(c,s));assert(k);s.time=3;s.units=s.units.filter(u=>u.id!=='u1');
+  const p=npcThink(c,s);assert(!main(p));assert.equal(p.main,null);assert(!c.tasks.has(k.key));
+ });
+ test('遮断も含めて占領可能な主力が不足する攻め任務は残さない',()=>{
+  const s=fixture();s.captureGroup=2;s.units.forEach(u=>Object.assign(u,{canHold:false,canPair:true}));
+  s.zones.push({id:'E',x:25,z:0,r:2,owner:'foe',known:'foe',seen:true});
+  s.links=s.links.filter(l=>!(l.a==='C'&&l.b==='F'));s.links.push({a:'C',b:'E',len:10},{a:'E',b:'F',len:10});
+  const p=npcThink(commander('mars','hard'),s);assert(p.tasks.some(k=>k.type==='cut'));
+  for(const k of p.tasks.filter(k=>['seize','cut'].includes(k.type)))assert(k.units.filter(x=>x.as==='main').length>=2);
+  s.time=3;s.units.forEach(u=>u.canPair=false);
+  assert(!npcThink(commander('mars','hard'),s).tasks.some(k=>['seize','cut'].includes(k.type)));
+ });
+ test('captureGroupのない宇宙の割り当てはcanPairに影響されない',()=>{
+  const s=fixture(),p=npcThink(commander(),structuredClone(s));s.units.forEach(u=>u.canPair=true);
+  assert.deepEqual(npcThink(commander(),s),p);
+ });
  function assault(){
   const c=commander(),s=fixture();let k=main(npcThink(c,s));const z=s.zones.find(z=>z.id===k.zone);
   for(const x of k.units.filter(x=>x.as==='main')){const u=s.units.find(u=>u.id===x.id);u.x=z.x;u.z=z.z;}
