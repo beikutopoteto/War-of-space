@@ -80,8 +80,9 @@ async function checkGroundStrike(page,check){
   await page.mouse.click(p.x,p.y);
   const display=await page.evaluate(()=>{
     groundDraw();const s=groundStrikes[0];if(!s)return false;
-    return !groundStrikeAiming&&s.visual.ring.parent===groundVisuals&&s.visual.el.textContent.includes(s.left.toFixed(1)+'秒');
-  });check(display,'地点攻撃の操作: Bと中心・半径指定で予告円と残り秒');
+    // 範囲砲撃の飛んでいる弾は、着弾点の円と札を出さない（2026-11-14、ユーザー決定）
+    return !groundStrikeAiming&&!!s.area&&s.visual.ring.parent===groundVisuals&&!s.visual.ring.visible&&s.visual.el.hidden;
+  });check(display,'地点攻撃の操作: Bと中心・半径指定で、飛んでいる弾の円と札は出さない');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
     friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
