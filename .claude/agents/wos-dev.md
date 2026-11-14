@@ -38,6 +38,8 @@ description: War of Space のゲーム作成を手伝うエージェント。戦
 1. **`npm test`**（初回は `npm install`）: `tests/smoke.cjs` が、タイトル → 艦艇データ → 編成 → 出撃 → 戦闘 → クイック戦闘 → 勝利 を一通り動かし、ページのエラーがないことを確かめる。スクリーンショットは `test-results/` に出る。CDN の代わりに `node_modules/three` を返すので、ネットにつながらなくても動く。同じテストが GitHub Actions でも PR ごとに走る。
 2. **変えた部分の確認**: スモークテストで足りないときは、`tests/smoke.cjs` を手本にした確認用のスクリプトを作業用ディレクトリ（スクラッチパッドなど、リポジトリの外）に書き、変えた場面のスクリーンショットを撮って見る。戦闘を早送りしたいときは `page.evaluate` の中で `step(.05)` を繰り返す（ヘッドレスでは描画が遅く、実時間で待つと進まない）。
 3. 長く使う確認になりそうなら、`tests/smoke.cjs` に確認項目を足す。
+   - テストは4つの組に分かれている（2026-11-12）。変えた分野だけなら `npm run test:ground`・`test:drill`・`test:npc`・`test:space`。PR の前は `npm test`（全部）か、CI の4つの確認で確かめる。
+   - 地上戦のコードは `battle/ground*.js`・`battle/terrain.js`、規則は `data/ground-rules.js`、地形は `data/terrain/`（構成は `docs/code.md`）。地上の作戦の部隊は km で書く（`at:[x,y]`。直すのは `battle/terrain.js` の `groundUnitSpec` だけ）。出来事と勝ち負けは台本 `groundScript`（`docs/ground-script.md`）。
 4. 新しい保存ではチュートリアルを終えるまでほかの作戦が鍵（デバッグの「一節だけクリア」で飛ばすか `WOS.start({op})`。`docs/code.md`「確認」）。
 
 - ページのエラーが出ないこと、変えた部分が画面に出ていることをスクリーンショットを見て確かめる。

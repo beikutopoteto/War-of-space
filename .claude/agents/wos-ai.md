@@ -24,6 +24,7 @@ description: War of Space の CPU（敵 AI と友軍 AI、自軍の自動交戦�
 2. `docs/maps.md` の「動きの種類」と「つまずいたこと」「確かめ方」
 3. `battle/sim.js` の AI: `enemyAI`、`allyAI`、`pickFoe`、`claimsOn`、`slotOf`、`pincers`、`protectAI`、`fireTargetOf`、`nearestFoe`、`stepToward`。自軍の自動交戦は `fireTargetOf` と命令の処理。第6節からの作戦は CPU の行動規範の3段（作戦 → ドクトリンの型 `stepPacks`・`packAI`（作戦の `packs`）→ 艦種別の動き `roleOf` ほか（作戦の `roleAI`）。`docs/spec.md`「CPU の行動規範」、`docs/menu.md` の「艦種別の動き」「ドクトリン（型）」）
 4. 対象の作戦の `data/operations.js` と `docs/campaign.md` の実装メモ
+5. **NPC の指揮官**（2026-11-11〜。`npc` を持つ作戦、地上の演習とカリュブディス演習）: 設計は `docs/npc-doctrine.md`、頭は `battle/npc-core.js`、地上と宇宙の橋渡しは `battle/npc-ground.js`・`battle/npc-space.js`、規範の表は `data/npc-doctrines.js`。測るのは `node tools/npc-sim.cjs`・`tools/npc-measure.cjs`（同時に回さない）、テストは `npm run test:npc`。頭の判断と規範の数値は、ユーザーの決定なしに変えない
 
 ## 進め方
 
