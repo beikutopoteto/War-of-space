@@ -468,6 +468,7 @@ function reset(cfg=lastCfg){
   fleets=[...spec.map(o=>makeFleet(0,o)),...enemies.map(o=>makeFleet(1,o))];
   if(op.ground)groundSeaDeploy();
   if(op.ground){ groundInitOrg(sortieOrg); groundInit(); }
+  groundScriptReset();
   /* the carrier given for this operation (op.carrier, user decision 2026-10-09): it joins at the end of our fleet list, outside any
      army group; it is not one of the player's own fleets, so research does not touch it (no craft rates) */
   if(op.carrier){ const C=op.carrier; opCarrier=makeFleet(0,{...C.fleet,pos:C.at,alt:C.fleet.alt||0}); opCarrier.isCarrier=true;

@@ -90,8 +90,10 @@ if(require.main===module){
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/ground-rules.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../data/terrain/exercise2.js'),'utf8'),context);
   context.WOS_TERRAIN=context.window.WOS_TERRAIN;
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/terrain.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground-supply.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground.js'),'utf8'),context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../battle/ground-script.js'),'utf8'),context);
   const results=vm.runInContext(`(${captureCases.toString()})()`,context), failed=results.filter(r=>!r.ok);
   console.log(`| 占拠の固定場面（ブラウザ不要） | ${results.length-failed.length}/${results.length} 成功 |`);
   if(failed.length){console.error(failed);process.exitCode=1;}

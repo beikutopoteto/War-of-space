@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-宇宙艦隊戦の 3D リアルタイムストラテジー「War of Space」の試作。ブラウザだけで動く。毎回読み込まれるので短く保つ（詳しくは下の資料）。
+宇宙艦隊戦の 3D リアルタイムストラテジー「War of Space」の試作。ブラウザだけで動く。詳しくは下の資料。
 
 ## 会話
 - 日本語で、短く結論から。
@@ -35,6 +35,7 @@
 | `docs/terrain.md` | 地上戦のマップの地形の方針（作る順、設計図の形）。作戦ごとは `docs/terrain/` |
 | `docs/supply.md` | 地上戦の補給と士気（仕様と仮の数値） |
 | `docs/npc-doctrine.md` | NPC の規範行動（宇宙と地上で共通の指揮官の層、陣営の性格、強さの段階、確かめ方） |
+| `docs/ground-script.md` | 地上の台本 |
 | `docs/ground-structure.md` | 地上のコードの作りの見直し（第二章の前の整理） |
 | `docs/weather.md` | 天候（雲・雨・雷・雪）のまとめ。実装は地上戦の土台のあと |
 | `docs/riko.md` | リコ軍曹の話し方と考え方（台詞を書く前に読む） |
@@ -48,8 +49,8 @@
 
 ## ファイルと動かし方（詳しくは `docs/code.md`）
 - ビルド不要。`file://` でも動くよう ES モジュールでなく普通の `<script>` で読む。Three.js r128（新しい API はない）、CDN は cdnjs と jsdelivr の `three@0.128.0`。
-- `index.html` は骨組みだけ。`data/` はゲームのデータ（`window.WOS_DATA`、数値や作戦はここだけ直す）。`battle/` は戦闘画面（外側の名前をファイル間で共有）。`prep.js` / `prep.css` はタイトル〜出撃〜艦隊編集〜技術ツリー。
-- 規則: `data/ground-rules.js`
+- `index.html` は骨組みだけ。`data/` はゲームのデータ（`window.WOS_DATA`、数値や作戦はここだけ直す）。`battle/` は戦闘画面。`prep.js` / `prep.css` はタイトル〜出撃〜艦隊編集〜技術ツリー。
+- 地上: 規則 `data/ground-rules.js`、台本 `battle/ground-script.js`。
 - 保存は localStorage の `wos.save.v1`。形式を変えたら `migrate()` で古いデータを直す。
 - 確認: `npm install` のあと `npm test`（ヘッドレス Chromium）と `npm run check-docs`。PR ごとに GitHub Actions でも走る。
 - 試遊ページ: https://claude.ai/artifact/TZwfsz3vsyF6sgY3YYxPk1（非公開。GitHub Pages は公開になるので使わない）。

@@ -15,7 +15,7 @@ function groundMembers(level,id){
   const org=groundOrg, item=org&&org[level].find(x=>x.id===id); if(!item) return [];
   const ids=level==='companies'?[id]:level==='battalions'?item.companies:
     item.battalions.flatMap(id=>org.battalions.find(b=>b.id===id)?.companies||[]);
-  return fleets.filter(f=>f.team===0&&!f.ward&&f.alive&&ids.includes(f.companyId));
+  return fleets.filter(f=>f.team===0&&!f.ward&&f.alive&&!f.groundExited&&ids.includes(f.companyId));
 }
 function groundSelectUnit(level,id){ const list=groundMembers(level,id); if(list.length) setSel(list); }
 function groundBuildRoster(mk){
@@ -35,7 +35,7 @@ function groundBuildRoster(mk){
   };
   const companies=(ids,parent)=>{
     const tiles=document.createElement('div');tiles.className='tiles';parent.append(tiles);
-    for(const id of ids){const f=fleets.find(f=>f.team===0&&f.companyId===id);if(f)tiles.append(mk(f));}
+    for(const id of ids){const f=fleets.find(f=>f.team===0&&f.companyId===id);if(f&&!f.groundExited)tiles.append(mk(f));}
   };
   groundOrg.brigades.forEach(b=>branch('brigades',b,rosterEl));
   groundOrg.battalions.filter(b=>!groundOrg.brigades.some(p=>p.battalions.includes(b.id))).forEach(b=>branch('battalions',b,rosterEl));
@@ -43,6 +43,7 @@ function groundBuildRoster(mk){
   if(free.length){const title=document.createElement('small');title.textContent='独立中隊';rosterEl.append(title);companies(free.map(c=>c.id),rosterEl);}
 }
 function groundOpenSelected(list){
+  if(list.some(f=>f.groundExited)){setSel(list.filter(f=>!f.groundExited));return;}
   let changed=false;
   const open=(items,level)=>items.forEach(item=>{if(item.open===false&&groundMembers(level,item.id).some(f=>list.includes(f))){item.open=true;changed=true;}});
   open(groundOrg.brigades,'brigades');open(groundOrg.battalions,'battalions');if(changed)buildRoster();
@@ -123,7 +124,7 @@ function groundStaticTarget(f){return !!(op.ground&&op.groundStaticEnemies&&f.te
 function groundSurfaceHeight(x,z){return Math.max(groundHeight(x,z),groundSightHeight(x,z));}
 function groundCanFire(f,t){ return (!groundPermissionOnly(f)||f.order?.type==='attack'&&f.order.target===t)&&groundFireSolution(f,t); }
 // AI の目標指定も、射程・共有視界・遮蔽の同じ規則で候補を調べる。
-function groundFireSolution(f,t){ return !groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundSeenBy(f.team,t)&&!!groundFireMode(f,t); }
+function groundFireSolution(f,t){ return !groundScriptDescending(f)&&!groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundSeenBy(f.team,t)&&!!groundFireMode(f,t); }
 function groundLandable(f){ return groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),'infantry'); }
 function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>f.alive&&!f.embarked&&groundCommandAllowed(f,'band')&&groundBands(f).includes(band)&&(band!=='ground'||groundLandable(f)))) return false;
@@ -182,56 +183,58 @@ function groundConfigure(active){
 document.querySelectorAll('#groundCommand button').forEach(b=>b.addEventListener('click',()=>groundSetBand(orderTargets(),b.dataset.band)));
 document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('click',()=>groundSetView(b.dataset.band)));
 document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
-function groundInit(){
-  groundVisuals=new THREE.Group(); groundVisuals.scale.setScalar(1/GROUND_SCALE); groundBoard.add(groundVisuals);
-  for(const f of fleets){
-    f.groundMaxHp=f.hpPool;
-    f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
-    // 兵科変更・追加で元の配置が通れなくなった時は、同じ出発点付近の通行可能なセルへ置く。
-    if(!groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),groundMoveKind(f))){
-      const size=WOS_TERRAIN[op.ground].meta.cellKm;let best=null,dist=Infinity;
-      for(let y=size/2;y<groundDimensions().heightKm;y+=size)for(let x=size/2;x<groundDimensions().widthKm;x+=size){
-        if(!groundPass(x,y,groundMoveKind(f)))continue;const p=groundPoint(x,y),d=p.distanceToSquared(f.pos);if(d<dist){best=p;dist=d;}
-      }
-      if(best)f.pos.copy(best);
+function groundInitUnit(f){
+  f.groundMaxHp=f.hpPool;
+  f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
+  // 兵科変更・追加で元の配置が通れなくなった時は、同じ出発点付近の通行可能なセルへ置く。
+  if(!groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),groundMoveKind(f))){
+    const size=WOS_TERRAIN[op.ground].meta.cellKm;let best=null,dist=Infinity;
+    for(let y=size/2;y<groundDimensions().heightKm;y+=size)for(let x=size/2;x<groundDimensions().widthKm;x+=size){
+      if(!groundPass(x,y,groundMoveKind(f)))continue;const p=groundPoint(x,y),d=p.distanceToSquared(f.pos);if(d<dist){best=p;dist=d;}
     }
-    f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
-    for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
-    groundSelectionInit(f);
-    const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
-    const spec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
-    model.userData.groundShape=!!spec;
-    if(spec){
-      const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
-      const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const geos=new Map([spec.key,...spec.move].map(key=>[key,null]));
-      for(const key of geos.keys())geos.set(key,groundShapeGeo(key));
-      const geo=geos.get(spec.key),size=spec.size;
-      if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
-      for(const [i,[x,z]] of spec.offsets.entries()){
-        const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
-        if(spec.move.length){
-          // Stable body-local seed: drawing or rebuilding this fleet must not reshuffle its steps.
-          let seed=2166136261;
-          for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
-          const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-          const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)};
-          const moves=spec.move.map(key=>{
-            const moving=new THREE.Mesh(geos.get(key),mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);return moving;
-          });
-          model.userData.pose.stand.push(body); model.userData.pose.move.push(moves); model.userData.pose.clocks.push(clock);
-        }
+    if(best)f.pos.copy(best);
+  }
+  f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
+  for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
+  groundSelectionInit(f);
+  const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
+  const spec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+  model.userData.groundShape=!!spec;
+  if(spec){
+    const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
+    const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
+    const geos=new Map([spec.key,...spec.move].map(key=>[key,null]));
+    for(const key of geos.keys())geos.set(key,groundShapeGeo(key));
+    const geo=geos.get(spec.key),size=spec.size;
+    if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
+    for(const [i,[x,z]] of spec.offsets.entries()){
+      const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
+      if(spec.move.length){
+        // Stable body-local seed: drawing or rebuilding this fleet must not reshuffle its steps.
+        let seed=2166136261;
+        for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
+        const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+        const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)};
+        const moves=spec.move.map(key=>{
+          const moving=new THREE.Mesh(geos.get(key),mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);return moving;
+        });
+        model.userData.pose.stand.push(body); model.userData.pose.move.push(moves); model.userData.pose.clocks.push(clock);
       }
-    }
-    else if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
-    else {
-      const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];
-      const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
-      const geo=f.groundKind==='was'?src.geometry.clone():shapeGeo(f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv');
-      if(mat.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));
-      const mesh=new THREE.Mesh(geo,mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.groundKind==='sea'?(groundNavalModel(f)||f.type):f.type]||f.scale); model.add(mesh);
     }
   }
+  else if(['fighter','attack','supportAircraft'].includes(f.groundKind)) groundAircraft(model,TEAM_COL[f.team]);
+  else {
+    const src=f.groundKind==='was'?craftMeshes[f.team].was:shipMeshes[f.team][f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv'];
+    const mat=src.material.clone(); mat.transparent=true; mat.userData.baseOpacity=1;
+    const geo=f.groundKind==='was'?src.geometry.clone():shapeGeo(f.groundKind==='sea'?(groundNavalModel(f)||f.type):'cv');
+    if(mat.vertexColors&&!geo.attributes.color)geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3).fill(1),3));
+    const mesh=new THREE.Mesh(geo,mat); mesh.scale.setScalar(f.groundKind==='was'?1:SHIP_SIZE[f.groundKind==='sea'?(groundNavalModel(f)||f.type):f.type]||f.scale); model.add(mesh);
+  }
+  groundSupplyInitUnit(f);
+}
+function groundInit(){
+  groundVisuals=new THREE.Group(); groundVisuals.scale.setScalar(1/GROUND_SCALE); groundBoard.add(groundVisuals);
+  for(const f of fleets)groundInitUnit(f);
   // 見本と同じ薄い格子。地表の起伏と同じ高さを足し、盤の輪郭内だけに置く。
   const dims=groundDimensions(),span=Math.max(dims.widthWorld,dims.heightWorld),gap=Math.max(groundRules().gridStep,span/48),segment=Math.max(1.6,span/192);
   for(const band of ['ground','low','high']){
@@ -245,7 +248,7 @@ function groundInit(){
     const grid=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:band==='high'?0xe1d7ff:0xd5f8ff,transparent:true,opacity:.08,depthWrite:false}));
     groundGrids[band]=grid; groundVisuals.add(grid);
   }
-  groundTransportInit();groundCaptureInit(); groundSupplyInit(); groundSightInit(); groundUpdateSight(); groundHud(); groundDraw();
+  groundTransportInit();groundCaptureInit(); groundScriptReset(); groundSupplyInit(); groundSightInit(); groundUpdateSight(); groundHud(); groundDraw();
 }
 // 見本 ground-b.html の輪郭と3機のV字編隊。
 function groundAircraft(group,color){
@@ -308,7 +311,7 @@ function groundDraw(){
   }
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
   groundFogDraw(); groundCaptureDraw(); groundHud();
-  groundStrikeDraw(); groundTransportDraw(); groundSupplyDraw();
+  groundStrikeDraw(); groundTransportDraw(); groundSupplyDraw(); groundScriptDraw();
   if(typeof groundPlanDraw==='function')groundPlanDraw();
   if(typeof groundAreaDraw==='function')groundAreaDraw();
 }
@@ -322,7 +325,7 @@ function groundStep(dt){
   groundUpdateSight();
   if(op.npc&&!op.groundDrill)npcGroundStep();
   for(const f of fleets){
-    if(!f.alive||f.embarked||groundAbsent(f)) continue;
+    if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.groundKind==='mechanicalAssault'){
       groundMechanicalWear(f,dt); if(!f.alive)continue;
     }
@@ -362,7 +365,7 @@ function groundStep(dt){
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
   groundUpdateSight();
   for(const f of fleets){
-    if(!f.alive||f.embarked||groundAbsent(f)) continue;
+    if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
@@ -391,11 +394,12 @@ function groundMatchup(f,t){
     f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
 }
 function groundDamageFactor(t){
-  if(t.groundUnloading)return groundLandingRules().damageFactor;
-  if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return 1;
+  const descent=groundScriptDescending(t)?1.5:1;
+  if(t.groundUnloading)return groundLandingRules().damageFactor*descent;
+  if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return descent;
   const c=groundRuleSet().combat,m=c.urbanMargin;
   const cover=groundInForest(t.pos.x,t.pos.z)||groundBuildings.some(b=>t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
-  return cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1;
+  return descent*(cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1);
 }
 function groundMechanicalWear(f,dt){
   f.hpPool=Math.max(0,f.hpPool-(f.groundMaxHp||f.n*f.hp)*groundRuleSet().combat.mechanicalWearPerSec*dt);
@@ -409,7 +413,7 @@ function groundMechanicalWear(f,dt){
 }
 // 進捗は軍ごとに保持。所有者が変わった時だけ両軍のゲージを消す。
 let groundSites=[], groundTerritory=null;
-function groundCanCapture(f){ return f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
+function groundCanCapture(f){ return !groundAbsent(f)&&!groundScriptDescending(f)&&f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
 function groundCaptureSeconds(s,owner=s.owner){return owner===null?groundRuleSet().capture.neutralSeconds:s.captureSec;}
 function groundCaptureStep(dt){
   if(over) return;
@@ -424,9 +428,7 @@ function groundCaptureStep(dt){
     s.progress[team]=Math.min(seconds,s.progress[team]+dt);
     if(s.progress[team]>=seconds-1e-8){ s.owner=team; s.progress=[0,0]; }
   }
-  if(!fleets.some(f=>f.team===0&&f.alive&&f.hpPool>0)) end(false);
-  else if(!op.groundDrill&&op.win?.type==='groundHQ'&&(groundSites.some(s=>s.id===op.groundHQ?.[1]&&s.owner===0)||!fleets.some(f=>f.team===1&&f.alive&&f.hpPool>0))) end(true);
-  else if(op.win?.type!=='groundHQ'&&(!op.groundDrill||tutorial?.skipped)&&groundSites.length&&(op.groundDrill?groundSites.filter(s=>s.id==='A'):groundSites.filter(s=>!(op.groundSupportSites||[]).includes(s.id))).every(s=>s.owner===0)) end(true);
+  groundScriptStep(dt);
 }
 function groundCaptureInit(){
   for(const s of groundSites){s.el?.remove();if(s.ring){groundVisuals.remove(s.ring);s.ring.geometry.dispose();s.ring.material.dispose();}}

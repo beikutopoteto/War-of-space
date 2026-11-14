@@ -38,6 +38,7 @@ const {nodeChecks:groundScatterChecks}=require('./ground-scatter.cjs');
 const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
 const {nodeChecks:groundRuleChecks}=require('./ground-rules.cjs');
+const {nodeChecks:groundScriptChecks,checkGroundScript}=require('./ground-script.cjs');
 const {nodeChecks:groundForceChecks,checkGroundForces}=require('./ground-forces.cjs');
 const {nodeChecks:terrainCheckChecks}=require('./terrain-check.cjs');
 const {nodeChecks:baikonurMapChecks}=require('./baikonur-map.cjs');
@@ -66,6 +67,7 @@ function check(ok, label, detail = '') {
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   if (on('ground')) {
+  for(const r of groundScriptChecks())check(r.ok,'地上台本: '+r.name,r.error||'');
   for(const r of groundForceChecks())check(r.ok,'地上配備: '+r.name,r.error||'');
   for(const r of groundRuleChecks())check(r.ok,'地上規則: '+r.name,r.error||'');
   for(const r of terrainCheckChecks())check(r.ok,'地形検査: '+r.name,r.error||'');
@@ -213,6 +215,7 @@ function check(ok, label, detail = '') {
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
     await checkGroundForces(page, check);
+    await checkGroundScript(page, check);
     await checkGroundSight(page, check);
     await checkGroundStrike(page, check);
     await checkGroundTransport(page, check);

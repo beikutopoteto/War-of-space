@@ -151,7 +151,7 @@ function groundSightInit(){
 function groundFogDraw(force=false){
   const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
   const d=groundData(),r=groundRuleSet().sight,{width,height}=fog.canvas,raw=fog.pixels.data;
-  const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
+  const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked&&!f.groundExited).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
     const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=groundWorldX(gx),z=groundWorldZ(gy);
     const k=(py*width+px)*4;let visible=false;
