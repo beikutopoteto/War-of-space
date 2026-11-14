@@ -163,16 +163,16 @@ function npcGroundSituation(c){
     return {id:s.id,name:s.name||s.id,x:s.x,z:s.y,r:s.radiusKm,owner:seen?relative(s.owner):null,seen,known:relative(npcGroundState.initial.get(s.id)),
       base,goal:base==='foe',final:base==='foe',supply:s.owner===team?groundSupplyAt({pos:s.pos,team}).rate:0};
   });
-  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
+  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
     x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),speed:speedOf(f)/GROUND_SCALE,health:Math.max(0,f.hpPool/(f.groundMaxHp||f.n*f.hp)),
     canHold:groundCanCapture(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&f.groundKind!=='sea',
     engaged:!!(f.fireTarget||f.order?.type==='attack'||f.groundHitLeft>0)}));
   // 死亡・現在の耐久・現在位置を視界外から読まない。最後に見たときの記録だけ。
   const contacts=[];
-  for(const f of fleets){if(f.team===team||!f.alive)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
+  for(const f of fleets){if(f.team===team||!f.alive||f.groundExited)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
-  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...((c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
+  const sit={time:gameSec,zones,links:npcGroundLinks(),units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
   if(c.side==='ally'&&!c.debugAuto){
     // 明示の先頭拠点を優先。未指定なら既知の自軍拠点まで（最終目標は頭でも除外する）。
     const home=zones.find(z=>z.base==='own'),own=zones.filter(z=>z.owner==='own');

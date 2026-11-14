@@ -52,7 +52,7 @@ function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.cl
 function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
 function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
-function shown(u){ if(op.ground)return u.team===0||groundSeenBy(0,u); return u.team===0||u.seen; }
+function shown(u){ if(op.ground)return !u.groundExited&&(u.team===0||groundSeenBy(0,u)); return u.team===0||u.seen; }   // 出口から出た隊（地上の台本）は見せない
 let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
   if(op.ground){ groundUpdateSight(); return; }
@@ -181,7 +181,7 @@ function destroyFleet(f,src){
   if(f===opCarrier&&!over){ loseWhy='carrier'; end(false); }
   /* every fleet of ours lost (the carrier of 第4節 counts as ours: while it lives the operation goes on). op.wipeLose:false (第5節, user decision
      2026-10-21): losing them is no defeat; the battle goes on until the garrison is gone or the Republic falls back */
-  if(op.wipeLose!==false&&!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
+  if(!op.ground&&op.wipeLose!==false&&!fleets.some(x=>x.team===0&&x.alive&&!x.ward)) end(!!chase);   // once the fortress has fallen, the operation is won whatever follows
   updateRoster();
 }
 let outcome=null;
@@ -196,7 +196,7 @@ function end(win,quit=false,full=false){
   const why=!win&&loseWhy==='time'&&op.timeUp?{lose:op.timeUp.lose,loseLog:op.timeUp.loseLog}:!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}
     :!win&&loseWhy==='garrison'&&op.result.loseGarrison?{lose:op.result.loseGarrison,loseLog:op.result.loseGarrisonLog}
     :!win&&loseWhy&&op.result.loseBy&&op.result.loseBy[loseWhy]?{lose:op.result.loseBy[loseWhy][0],loseLog:op.result.loseBy[loseWhy].slice(1)}:win&&repelBy==='time'&&op.result.winTime?{win:op.result.winTime,winLog:op.result.winTimeLog||op.result.winLog}:win&&repelBy==='was'&&op.result.winWas?{win:op.result.winWas,winLog:op.result.winWasLog||op.result.winLog}:{};
-  const R={...op.result,...why,...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=op.groundDrill&&!tutorial?.skipped?`手順 ${tutorial.complete?op.tutorial.length:tutorial.step}/${op.tutorial.length}。残存部隊 ${left}隊。`:op.ground?`占拠 ${groundSites.filter(s=>s.owner===0).length}/${groundSites.length}拠点。残存部隊 ${left}隊。`:fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
+  const R={...op.result,...why,...groundScriptResult(win),...(perfect?{win:op.result.perfect,winLog:op.result.perfectLog}:chase&&chase.escaped?{win:op.result.escape}:{})}, tail=op.groundDrill&&!tutorial?.skipped?`手順 ${tutorial.complete?op.tutorial.length:tutorial.step}/${op.tutorial.length}。残存部隊 ${left}隊。`:op.ground?`占拠 ${groundSites.filter(s=>s.owner===0).length}/${groundSites.length}拠点。残存部隊 ${left}隊。`:fortress.defend?`${fortress.name}の耐久 ${Math.max(0,Math.ceil(100*fortress.hpPool/fortress.max))}%。`:convoy?`輸送船 ${convoy.escaped?convoy.ships.length:0}/${convoy.n}隻が離脱。`:
     op.win&&op.win.type==='repel'?`共和国の主力の${Math.round(mainSunk()*100)}%を沈めた。${gates.length?`塞いだゲート ${gates.filter(g=>g.sealed).length}/${gates.length}。基地守備隊 ${garrison?Math.ceil(100*garrison.hp/garrison.max):0}%。`:''}残存艦 ${left}隻。`:
     op.win&&op.win.type==='shatter'&&nuke?`残存艦 ${left}隻。`:
     op.win&&op.win.type==='deflect'&&nuke?(nuke.fireAt!=null?`着弾予想点 ${nuke.km.toFixed(1)} km（23:00 の見込み ${Math.max(0,nukeEst()).toFixed(1)} km）。`:'')+`残存艦 ${left}隻。`:

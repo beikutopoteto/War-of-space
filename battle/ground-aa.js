@@ -9,7 +9,7 @@ function groundAARange(f){
 }
 function groundAutoAAReady(f){
   return typeof op!=='undefined'&&!!op.ground&&groundAutoAASource(f)&&f.alive&&!f.embarked&&!groundAbsent(f)&&
-    !f.groundBuilding&&!f.groundRout&&f.groundMorale!==0&&!f.groundAirState&&!f.locked&&
+    !(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&!f.groundBuilding&&!f.groundRout&&f.groundMorale!==0&&!f.groundAirState&&!f.locked&&
     !f.silent&&!f.groundHoldFire&&f.groundAAEnabled!==false&&!groundTrainingEnemy(f)&&!groundStaticTarget(f);
 }
 function groundAASolution(f,t){

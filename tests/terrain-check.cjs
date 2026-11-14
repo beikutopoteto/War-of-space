@@ -16,7 +16,8 @@ function nodeChecks(){
   assert.equal(r.coverage.gaps,0);assert.equal(r.coverage.corners.length,4);
  });
  check('同じ地形の通常作戦と tutorial2 の本営を両方調べる',()=>{
-  assert.deepEqual(headquarters(c,'exercise2').map(p=>p.operation),['groundExercise2','tutorial2']);
+  // groundScriptTest（地上の台本を試す隠しの演習、票4 2026-11-14）も同じ地形を使う
+  assert.deepEqual(headquarters(c,'exercise2').map(p=>p.operation),['groundExercise2','tutorial2','groundScriptTest']);
   assert.deepEqual(headquarters(c,'baikonur2').map(p=>[p.from,p.to]),[['A','F']]);
   assert.deepEqual(headquarters(c,'field150').map(p=>[p.from,p.to]),[['A','C']]);
   assert.deepEqual(headquarters(c,'field300').map(p=>[p.from,p.to]),[['A','D']]);

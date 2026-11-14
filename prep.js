@@ -627,7 +627,7 @@ function renderMode(){ const next=tutDone()?CAMP.find(o=>!cleared(o.id)):TUT; do
 function groupSummary(g){ return g.members.map(m=>armyById(m.army)).filter(Boolean); }
 function sortieSections(){
   const sections=[{id:'第一章',title:'無重力',ops:[]},{id:'第二章',title:'重力',ops:[]},{id:'演習',title:'',ops:[]}];
-  const camp=tutDone()?CAMP:[TUT,...CAMP], ex=[TUT2,...OPS.filter(o=>!o.chapter&&!o.hidden)];
+  const camp=tutDone()?CAMP:[TUT,...CAMP], ex=[TUT2,...OPS.filter(o=>!o.chapter&&(!o.hidden||dbg.free&&o.debug))];
   camp.forEach(o=>{ const id=o.chapter?.split(' ')[0]||'第一章'; let section=sections.find(s=>s.id===id);
     if(!section){ section={id,title:o.chapterTitle||'',ops:[]}; sections.splice(sections.length-1,0,section); }
     if(o.chapterTitle) section.title=o.chapterTitle; section.ops.push(o); });

@@ -1778,3 +1778,24 @@ WOS_DATA.operations.push((()=>{
     result:{win:'バイコヌール演習を完了した。',lose:'演習部隊は全滅した。',winLog:['リコ軍曹','演習完了、確認しました。'],loseLog:['リコ軍曹','自軍の反応、ありません。……演習を終了します。']}
   };
 })());
+
+// 台本の検証用。時刻・隊数・位置は仮。dbg.free の演習一覧からだけ開く。
+WOS_DATA.operations.push((()=>{
+  const base=WOS_DATA.operations.find(o=>o.id==='groundExercise2');
+  const unit=(name,kind,at)=>({name,kind,at,band:'ground'});
+  return {id:'groundScriptTest',hidden:true,debug:true,ground:'exercise2',forces:'fixed',name:'地上台本の演習（仮）',
+    summary:'本営防衛・増援・空挺降下の検証',brief:'本営 B を守る。60秒に東から増援、100秒に西への降下予告、120秒に降下。時刻はゲーム秒。',
+    date:base.date,start:base.start,scale:base.scale,phase:'台本の演習',view:base.view,
+    groundHQ:{0:'B',1:'F'},groundSites:base.groundSites.map(s=>({...s})),
+    quick:base.quick.map(u=>({...u,at:[...u.at]})),enemies:base.enemies.map(u=>({...u,at:[...u.at]})),
+    npc:{1:{doctrine:'mars',level:'standard'}},
+    win:{type:'groundHQ',text:'本営 B を300秒守る、または敵を全滅させる'},
+    result:{win:'地上台本の演習を完了した。',lose:'本営を失うか、自軍が全滅した。',winLog:['演習管制','地上台本の演習を完了。'],loseLog:['演習管制','地上台本の演習は失敗。']},
+    groundScript:{objective:'本営 B を300秒守る、または敵を全滅させる',loseText:'本営 B を失うか全滅で敗北',
+      win:{any:[{hold:{site:'B',team:0,until:300}},{wiped:1}]},lose:{any:[{lost:'B',team:0},{wiped:0}]},
+      events:[
+        {id:'east',when:{at:60},do:[{spawn:{team:1,via:'edge',units:[unit('増援 歩兵中隊','infantry',[47,26]),unit('増援 戦車中隊','vehicle',[47,28])]}},{say:['演習管制','敵の増援、東から']}]},
+        {id:'drop',when:{at:100},do:[{spawn:{team:1,via:'air',warnSec:20,descentSec:10,units:[unit('降下 第1歩兵中隊','infantry',[4,27]),unit('降下 第2歩兵中隊','infantry',[5,28])]}},{say:['演習管制','本営 B の西へ敵が降下する。あと20秒。']}]}
+      ]}
+  };
+})());
