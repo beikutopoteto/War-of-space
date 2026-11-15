@@ -103,6 +103,42 @@ function nodeChecks(){
   s.units.forEach(u=>Object.assign(u,{role:'strike',canHold:false,canPair:false}));
   return s;
  }
+ function replacedAssault(canHold=false){
+  const c=commander(),s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'shock',canPair:true}));
+  let k=main(npcThink(c,s));const z=s.zones.find(z=>z.id===k.zone);
+  s.units.slice(0,2).forEach(u=>Object.assign(u,{x:z.x,z:z.z}));
+  s.time=3;k=main(npcThink(c,s));assert.equal(k.stage,'assault');
+  assert.deepEqual(c.tasks.get(k.key).assaultIds,['u0','u1']);
+  c.tasks.get(k.key).power0=7;c.tasks.get(k.key).arriveAt=-100;
+  // 元の主力を外し、目標付近と遠方の隊へ入れ替える。ほかの隊は占領資格なし。
+  s.units=s.units.filter(u=>!['u0','u1'].includes(u.id));
+  const near={...s.units[0],id:'near',role:'shock',canPair:true,canHold,x:z.x-z.r*2.5,z:z.z},
+    far={...near,id:'far',canHold:false,x:-20};
+  s.units.push(near,far);s.time=6;return {c,s,k,z,near,far};
+ }
+ test('突入中に主力が替わり近くの1隊で占領できなければ前進へ戻り、到着か待機期限で再突入する',()=>{
+  for(const arrival of [true,false]){
+   const {c,s,k,z,far}=replacedAssault();
+   let p=main(npcThink(c,s)),st=c.tasks.get(k.key);
+   assert.equal(p.stage,'advance');assert.equal(st.since,6);assert.equal(st.arriveAt,6);assert.equal(st.power0,7);
+   assert.deepEqual(st.assaultIds,['u0','u1']);
+   assert(c.log.some(l=>l.what==='seize:regroup'&&l.zone===k.zone&&l.why==='主力が替わったので集まり直す'));
+   if(arrival){Object.assign(far,{x:z.x,z:z.z});s.time=9;}
+   else {
+    s.time=6+c.D.assembleMax/2;assert.equal(main(npcThink(c,s)).stage,'advance');
+    s.time+=.001;
+   }
+   p=main(npcThink(c,s));st=c.tasks.get(k.key);assert.equal(p.stage,'assault');
+   assert.equal(st.power0,2);assert.equal(st.since,s.time);assert.deepEqual(st.assaultIds,['near','far']);
+   assert.equal(c.log.filter(l=>l.what==='seize:regroup').length,1);
+  }
+ });
+ test('替わった主力の近くにcanHoldの隊がいれば突入を保ち、主力の記録だけ更新する',()=>{
+  const {c,s,k}=replacedAssault(true),p=main(npcThink(c,s)),st=c.tasks.get(k.key);
+  assert(p.units.some(x=>x.as==='main'&&x.id==='near'));assert.equal(p.stage,'assault');
+  assert.deepEqual(st.assaultIds,p.units.filter(x=>x.as==='main').map(x=>x.id));
+  assert.equal(st.power0,7);assert.equal(st.since,3);assert(!c.log.some(l=>l.what==='seize:regroup'));
+ });
  test('歩兵がなくても戦車2隊を主攻の主力に確保する',()=>{
   const s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'shock',canPair:true}));
   const p=npcThink(commander(),s);

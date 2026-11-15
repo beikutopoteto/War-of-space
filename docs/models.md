@@ -811,6 +811,6 @@ Codex の案（`docs/reports/2026-11-13-mars-corvette-frigate.md`）のおすす
 - **消した鍵**: 古い形 `spCL`・`spBB`・`spCVB`・`spCLM`・`spBBM`・`spCVBM`・`masc2`、採らなかった見本 `spCLM4b`・`spCLM3a/b`・`spBBM3a/b`・`spBBM4` と部品 `mDart`・`mFork`・`mSpine`。
 - **ドック**: 地球側の新しい形が出る。長くなっても柱・桟橋とぶつからない（全艦種を止めた写真で確かめた。`tools/carrier-dock-shots.cjs`）。
 - **量**: 第5節の初めの描く頂点は 1,163,826 → 1,460,640（約1.25倍）。
-- **確かめ**: `tests/ground-models.cjs` の宇宙の艦の確認を8艦種（強襲母艦を含む）にし、強襲母艦の高さは両陣営の形と y −.10 で見る。写真は `tools/space-models-shots.cjs`（前と後を同じ角度で）。手元の `npm test` は1,827通り、1つ落ちた（視点のスティックを0.5秒倒して回る角度が17°で、期待の20°に届かない。1コマの時間を .05 秒で切る作りなので、ヘッドレスの画面が重いと回る量が減る）。
+- **確かめ**: `tests/ground-models.cjs` の宇宙の艦の確認を8艦種（強襲母艦を含む）にし、強襲母艦の高さは両陣営の形と y −.10 で見る。写真は `tools/space-models-shots.cjs`（前と後を同じ角度で）。手元の `npm test` は1,827通り、1つ落ちた（視点のスティックを0.5秒倒して回る角度が17°で、期待の20°に届かない。1コマの時間を .05 秒で切る作りなので、ヘッドレスの画面が重いと回る量が減る）。新しい形を入れる前の main（#428）でも、手元では同じく17°で落ちた。CI では通る。
 - `tests/ground-models.cjs` を単独で走らせると、終わりのほうの盤の札の確認で `f.el?.classList.toggle is not a function` の例外で止まる。main でも同じで、`npm test` と CI はこのファイルを走らせていない（今回は直していない）。
 
