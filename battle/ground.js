@@ -490,6 +490,15 @@ function groundCapturePresent(s,team){
   return false;
 }
 function groundCaptureSeconds(s,owner=s.owner){return owner===null?groundRuleSet().capture.neutralSeconds:s.captureSec;}
+// 途中の占領は残り続けない（ユーザー決定 2026-11-15）: 持ち主が踏むとすぐ戻り、いない軍の進みは占領と同じ速さで減る。
+// 視界の外で「中断」と見たままの進みも、同じ速さで減ったものとして見せる。拠点と道路で共通。true なら占領は進まない。
+function groundCaptureDecay(s,team,dt){
+  const lose=dt*groundRuleSet().capture.decayPerSec;
+  if(team!==null&&team===s.owner)s.progress=[0,0];
+  else for(const t of [0,1])if(t!==team)s.progress[t]=Math.max(0,s.progress[t]-lose);
+  if(s.observed===false&&s.knownProgress&&!s.knownContested&&s.knownCapturingTeam==null)s.knownProgress=s.knownProgress.map(p=>Math.max(0,p-lose));
+  return team===null||team===s.owner;
+}
 function groundCaptureStep(dt){
   if(over) return;
   for(const s of groundSites){
@@ -497,7 +506,7 @@ function groundCaptureStep(dt){
     s.contested=present[0]&&present[1];s.capturingTeam=s.contested?null:present[0]?0:present[1]?1:null;
     if(s.contested) continue;
     const team=present[0]?0:present[1]?1:null;
-    if(team===null||s.owner===team) continue;
+    if(groundCaptureDecay(s,team,dt)) continue;
     const seconds=groundCaptureSeconds(s);
     s.progress[team]=Math.min(seconds,s.progress[team]+dt);
     if(s.progress[team]>=seconds-1e-8){ s.owner=team; s.progress=[0,0]; }

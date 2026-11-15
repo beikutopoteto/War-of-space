@@ -601,17 +601,19 @@ addEventListener('keyup',e=>{ if(e.key==='Control') talkFast=false; });
 addEventListener('blur',()=>{ talkFast=false; });
 setInterval(()=>{ if(talking&&talkFast&&!paused) nextTalk(); },100);
 
-/* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open */
+/* the briefing shows its text briefly on each new event, then folds back to one line; click to pin it open.
+   A 作戦概要 the player folded stays folded: a new event only lights its tab (user 2026-11-15) */
 const briefEl=document.getElementById('brief'); let briefTimer=0;
-function flashBrief(ms=5000){ briefEl.classList.add('fresh'); clearTimeout(briefTimer); briefTimer=setTimeout(()=>briefEl.classList.remove('fresh'),ms); }
+function flashBrief(ms=5000){ briefEl.classList.add('fresh'); clearTimeout(briefTimer); briefTimer=setTimeout(()=>briefEl.classList.remove('fresh'),ms);
+  if(briefEl.classList.contains('shut')) hudTab.brief?.classList.add('new'); }
 briefEl.tabIndex=0;
 function toggleBrief(){ briefEl.classList.toggle('open'); briefEl.classList.remove('fresh'); }
 briefEl.addEventListener('click',toggleBrief);
 briefEl.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggleBrief(); } });
 /* 任務 and 作戦概要 as two small tabs side by side at the top left (見本F2, user decision 2026-11-05): each tab folds its own
-   panel under the row, so both, one or neither can be open. A folded 作戦概要 still shows for a moment on a new event (fresh) */
+   panel under the row, so both, one or neither can be open. A folded 作戦概要 does not open on a new event; its tab lights (.new) */
 const hudTab={}; document.querySelectorAll('#hudTabs [data-tab]').forEach(b=>{ const el=document.getElementById(b.dataset.tab); hudTab[b.dataset.tab]=b;
-  b.addEventListener('click',()=>{ const shut=el.classList.toggle('shut'); b.setAttribute('aria-expanded',String(!shut)); }); });
+  b.addEventListener('click',()=>{ const shut=el.classList.toggle('shut'); b.setAttribute('aria-expanded',String(!shut)); if(!shut) b.classList.remove('new'); }); });
 /* view toggles: H hides the panels, L hides name flags */
 const vUi=document.getElementById('vUi'), vLb=document.getElementById('vLb');
 function toggleUi(){ const off=document.body.classList.toggle('noui'); vUi.setAttribute('aria-pressed',String(!off)); }

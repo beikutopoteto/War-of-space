@@ -31,17 +31,27 @@ function fixesCases(){
   const observer=unit(0,'infantry',7,27);fleets=[observer];
   const enemySite=groundSites.find(s=>s.owner===1),neutral=groundSites.find(s=>s.owner===null);
   groundUpdateSight();groundCaptureDraw();
-  check('未探知の敵拠点・中立拠点は同じ中立色',enemySite.knownOwner===null&&neutral.knownOwner===null&&enemySite.el.style.color===neutral.el.style.color);
+  check('敵の拠点は視界の外でも敵色、中立の拠点は中立色',enemySite.knownOwner===1&&neutral.knownOwner===null&&enemySite.el.style.color==='#ff998b'&&neutral.el.style.color!=='#ff998b');
   check('霧の中でも名札・円・影響範囲を描く',enemySite.el.style.visibility==='visible'&&enemySite.ring.visible&&enemySite.ring.renderOrder>3&&groundTerritory.mesh.renderOrder>3);
-  check('未探知名札は敵の持ち主と本営を明かさない',!enemySite.el.querySelector('small').textContent.includes('共和国')&&!enemySite.el.querySelector('small').textContent.includes('本営'));
+  check('視界の外の敵拠点の名札も持ち主を出す',enemySite.el.querySelector('small').textContent.includes('共和国'));
   observer.pos.copy(enemySite.pos);groundUpdateSight();groundCaptureDraw();
   check('探知した拠点は敵色',enemySite.knownOwner===1&&enemySite.el.style.color==='#ff998b');
   observer.pos.copy(groundPoint(7,27));groundUpdateSight();groundCaptureDraw();
   check('視界を離れても敵色を保持',!enemySite.observed&&enemySite.knownOwner===1&&enemySite.el.style.color==='#ff998b');
   enemySite.owner=null;groundUpdateSight();groundCaptureDraw();
-  check('視界外の所有変更は最後に見た敵色を保持',enemySite.knownOwner===1);
+  check('視界の外の拠点の持ち主の変化もすぐ分かる',enemySite.knownOwner===null);enemySite.owner=1;
   observer.pos.copy(enemySite.pos);groundUpdateSight();groundCaptureDraw();
-  check('再探知で中立への変更も反映',enemySite.knownOwner===null);
+  check('再探知しても持ち主は同じ',enemySite.knownOwner===1);
+  // 占領した拠点はその周りを見る。中立の拠点や敵の拠点は青の目にならない（ユーザー決定 2026-11-15）
+  {
+    const ownSite=groundSites.find(s=>s.owner===0),far=s=>groundSites.every(o=>o.owner!==0||o.pos.distanceTo(s.pos)>groundRuleSet().sight.site+8);
+    const foe=unit(1,'vehicle',0,0),saved=fleets;fleets=[foe];
+    foe.pos.copy(ownSite.pos).add(new THREE.Vector3(3,0,0));foe.pos.y=groundUnitHeight(foe);groundUpdateSight();
+    const nearOwn=foe.groundVisible[0];
+    const lone=groundSites.find(s=>s.owner!==0&&far(s));foe.pos.copy(lone.pos).add(new THREE.Vector3(3,0,0));foe.pos.y=groundUnitHeight(foe);groundUpdateSight();
+    check('味方の拠点の近くの敵は部隊がいなくても見え、遠くの拠点の近くは見えない',nearOwn&&!foe.groundVisible[0]&&groundPointSeenBy(0,ownSite.pos)&&!groundPointSeenBy(0,lone.pos));
+    foe.alive=false;foe.el?.remove();fleets=saved;groundUpdateSight();
+  }
   const road=groundSupplyNet.edges.find(e=>!e.circle&&e.owner===1);
   observer.pos.copy(groundPoint(7,27));groundUpdateSight();
   check('未探知道路は中立色',!!road&&road.knownOwner===null);

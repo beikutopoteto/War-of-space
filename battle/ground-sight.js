@@ -96,15 +96,27 @@ function groundCanSee(f,t){
   if(groundAbsent(f)||groundAbsent(t))return false;
   return f.alive&&t.alive&&!f.embarked&&!t.embarked&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
 }
+// 占領した拠点も、その周り（site、仮に5km）を見る（ユーザー決定 2026-11-15）。中立の拠点は誰の目にもならない。
+function groundSiteObservers(team){
+  const r=groundSightRules();
+  return groundSites.filter(s=>s.owner===team).map(s=>({eye:{x:s.pos.x,z:s.pos.z,y:groundSightHeight(s.pos.x,s.pos.z)+r.eyeHeight},range:r.site}));
+}
+function groundSiteSees(observers,t){
+  if(!observers.length||groundAbsent(t)||!t.alive||t.embarked)return false;
+  const eye=groundEye(t),range=groundConcealment(t);
+  return observers.some(o=>Math.hypot(eye.x-o.eye.x,eye.z-o.eye.z)<=o.range*range&&groundClearLine(o.eye,eye));
+}
 function groundSeenBy(team,t){ return !!(t.groundVisible&&t.groundVisible[team]); }
 // 地点の観測も⑤の距離・地形遮蔽を共有する。敵部隊の有無や射手の直線遮蔽とは独立。
 function groundPointSeenBy(team,p){
   const target={x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight};
-  return fleets.some(f=>f.team===team&&f.alive&&!f.embarked&&!groundAbsent(f)&&Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<=groundSightRange(f)&&groundClearLine(groundEye(f),target));
+  return fleets.some(f=>f.team===team&&f.alive&&!f.embarked&&!groundAbsent(f)&&Math.hypot(p.x-f.pos.x,p.z-f.pos.z)<=groundSightRange(f)&&groundClearLine(groundEye(f),target))
+    ||groundSiteObservers(team).some(o=>Math.hypot(p.x-o.eye.x,p.z-o.eye.z)<=o.range&&groundClearLine(o.eye,target));
 }
-// 所有者は現在見える地点でだけ更新する。自軍の占領は命令の結果として既知。
+// 道路の所有者は現在見える地点でだけ更新する。自軍の占領は命令の結果として既知。
+// 拠点の持ち主は、中立でなければ視界の外でも分かる（ユーザー決定 2026-11-15）。進みと競合は見えるときだけ。
 function groundRememberTerritory(){
-  const observers=fleets.filter(f=>f.team===0&&f.alive&&!f.embarked&&!groundAbsent(f)).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
+  const observers=fleets.filter(f=>f.team===0&&f.alive&&!f.embarked&&!groundAbsent(f)).map(f=>({eye:groundEye(f),range:groundSightRange(f)})).concat(groundSiteObservers(0));
   const net=groundSupplyActive()?groundSupplyNet:null;
   const key=observers.map(o=>`${o.eye.x},${o.eye.y},${o.eye.z},${o.range}`).join('|')+'/'+groundSites.map(s=>`${s.owner}:${s.contested}:${s.progress}:${s.capturingTeam}`).join('|')+'/'+(net?.edges.map(e=>`${e.owner}:${e.contested}:${e.progress}:${e.capturingTeam}`).join('|')||'');
   // 同じ観測位置と所有状態で、移動前後・描画ごとに視線を引き直さない。
@@ -115,7 +127,7 @@ function groundRememberTerritory(){
     if(s.observed){s.knownOwner=s.owner;s.knownContested=s.contested;s.knownProgress=s.progress?.slice();s.knownCapturingTeam=s.capturingTeam??null;}
     else if(s.knownOwner===undefined){s.knownOwner=null;s.knownContested=false;}
   };
-  for(const s of groundSites)remember(s,s.pos);
+  for(const s of groundSites){remember(s,s.pos);s.knownOwner=s.owner;}
   if(net)for(const e of net.edges){
     if(e.circle)continue;
     remember(e,groundPoint(e.x,e.y));
@@ -123,11 +135,11 @@ function groundRememberTerritory(){
 }
 function groundUpdateSight(){
   if(!op.ground)return;
-  const live=fleets.filter(f=>f.alive&&!f.embarked);
+  const live=fleets.filter(f=>f.alive&&!f.embarked),sites=[groundSiteObservers(0),groundSiteObservers(1)];
   for(const t of fleets){
     t.groundVisible=[false,false];t.groundContacts=t.groundContacts||[null,null];
     for(const team of [0,1]){
-      const visible=t.alive&&!t.embarked&&!groundAbsent(t)&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t)));
+      const visible=t.alive&&!t.embarked&&!groundAbsent(t)&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t))||groundSiteSees(sites[team],t));
       t.groundVisible[team]=visible;
       if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec,...(op.npc&&!op.groundDrill?{power:npcGroundPower(t),role:window.WOS_DATA.npc.roles.ground[t.groundKind]||'line'}:{})};
     }
@@ -153,7 +165,7 @@ function groundSightInit(){
 function groundFogDraw(force=false){
   const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
   const d=groundData(),r=groundRuleSet().sight,{width,height}=fog.canvas,raw=fog.pixels.data;
-  const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked&&!f.groundExited).map(f=>({eye:groundEye(f),range:groundSightRange(f)}));
+  const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked&&!f.groundExited).map(f=>({eye:groundEye(f),range:groundSightRange(f)})).concat(groundSiteObservers(0));
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
     const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=groundWorldX(gx),z=groundWorldZ(gy);
     const k=(py*width+px)*4;let visible=false;
