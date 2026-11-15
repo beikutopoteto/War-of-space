@@ -326,9 +326,18 @@ function npcThink(c,sit){
       if(st.stage==='assemble'&&!k.blocked&&(sum>0&&at/sum>=D.massing&&!low||t-st.since>D.assembleMax))set('advance');
       if(k.via==='sea'&&st.stage==='advance'&&t-st.since>T.seaMax){ c.link.set(lkey(...k.link),t); mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'上陸できなかった'); k.aborted=true; }
       // 前進→突入: 目標の手前に主攻がそろってから一斉に入る（先に着いた隊だけで突っ込まない）。待つのは assembleMax の半分まで。
-      const near=mains.filter(u=>away(u,k.zone)<=reach+(z.r||0)).reduce((s,u)=>s+u.power,0);
+      const nearby=mains.filter(u=>away(u,k.zone)<=reach+(z.r||0)), near=nearby.reduce((s,u)=>s+u.power,0);
+      if(st.stage==='assault'&&(k.type==='seize'||k.type==='cut')){
+        if(!st.assaultIds)st.assaultIds=mains.map(u=>u.id); // 以前の状態は、今の主力を覚えるだけ
+        else if(mains.some(u=>!st.assaultIds.includes(u.id))){
+          const canCapture=!sit.captureGroup||nearby.some(u=>u.canHold)||nearby.filter(u=>u.canPair).length>=sit.captureGroup;
+          if(!canCapture&&near/sum<D.massing){
+            set('advance'); st.arriveAt=null; npcLog(c,t,k.type+':regroup',k.zone,'主力が替わったので集まり直す');
+          } else st.assaultIds=mains.map(u=>u.id);
+        }
+      }
       if(st.stage==='advance'&&near>0&&st.arriveAt==null)st.arriveAt=t;
-      if(st.stage==='advance'&&near>0&&(near/sum>=D.massing||t-st.arriveAt>D.assembleMax/2)){ set(k.type==='fix'?'pin':'assault'); st.power0=sum; } // 突入したときの力を基準に損害を測る
+      if(st.stage==='advance'&&near>0&&(near/sum>=D.massing||t-st.arriveAt>D.assembleMax/2)){ set(k.type==='fix'?'pin':'assault'); st.power0=sum; if(k.type!=='fix')st.assaultIds=mains.map(u=>u.id); } // 突入したときの力を基準に損害を測る
       const weak=k.type==='fix'?D.fix*.5:D.break_; // 助攻はもともと弱い力で押さえるので、中止の境目も低い
       if(sum<=0||(st.stage==='assault'||st.stage==='pin')&&t-st.since>=D.commit&&(sum<E.get(k.zone).foe*weak||sum<D.abort*st.power0)){
         mem(k.zone).failAt=t; npcLog(c,t,k.type+':abort',k.zone,'押し返された'); k.aborted=true; }
