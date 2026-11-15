@@ -20,7 +20,8 @@ function sheetPage(){
   document.getElementById('heading').textContent=config.title;document.getElementById('intro').textContent=config.intro||'';
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
   renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;
-  function material(table,side){
+  function material(table,side,neutral){
+    if(neutral)return new THREE.MeshStandardMaterial({color:0xb6bab4,metalness:0,roughness:.9,vertexColors:true}); // 建物: 陣営色でなく灰色
     let c=new THREE.Color(teams[side?side==='mars'?1:0:faction]);
     if(table==='craft'){c=c.clone().lerp(new THREE.Color(1,1,1),.35);return new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});}
     return new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:table==='ground'});
@@ -39,7 +40,7 @@ function sheetPage(){
       const geo=item.table==='ground'?groundShapeGeo(item.key,!!item.mono):item.table==='ship'?shapeGeo(item.key):craftGeo(item.key);
       const scene=new THREE.Scene();scene.background=new THREE.Color('#172330');scene.add(new THREE.AmbientLight(0x3a4a66,.9));
       const sun=new THREE.DirectionalLight(0xffe2c0,1.6);sun.position.set(120,80,40);scene.add(sun);const rim=new THREE.DirectionalLight(0x6fa8ff,.7);rim.position.set(-100,30,-120);scene.add(rim);const under=new THREE.DirectionalLight(0xffe2c0,1.4);under.position.set(60,-120,40);under.visible=false;scene.add(under);scene.userData.under=under;
-      const group=new THREE.Group(),mat=material(item.table,item.side);scene.add(group);
+      const group=new THREE.Group(),mat=material(item.table,item.side,!!item.neutral);scene.add(group);
       const form=item.form??'one';
       if(!Object.prototype.hasOwnProperty.call(GROUND_FORMS,form))throw new Error('Unknown form: '+form);
       for(const [x,z] of GROUND_FORMS[form]){const body=new THREE.Mesh(geo,mat);body.position.set(x,0,z);group.add(body);}
@@ -105,7 +106,7 @@ function sheetPage(){
   }
   const observer=new IntersectionObserver(entries=>{for(const e of entries){const c=cards.find(c=>c.el===e.target);c.visible=e.isIntersecting;if(c.visible)c.dirty=true;}schedule();});cards.forEach(c=>observer.observe(c.el));
   const resize=new ResizeObserver(()=>{cards.forEach(c=>c.dirty=true);schedule();});cards.forEach(c=>resize.observe(c.el));
-  function setFaction(n){faction=n;document.querySelectorAll('[data-faction]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.faction===n)));for(const c of cards){const m=material(c.item.table,c.item.side);c.mat.copy(m);m.dispose();c.dirty=true;}schedule();}
+  function setFaction(n){faction=n;document.querySelectorAll('[data-faction]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.faction===n)));for(const c of cards){const m=material(c.item.table,c.item.side,!!c.item.neutral);c.mat.copy(m);m.dispose();c.dirty=true;}schedule();}
   document.querySelectorAll('[data-faction]').forEach(b=>b.addEventListener('click',()=>setFaction(+b.dataset.faction)));
   document.addEventListener('visibilitychange',schedule);
   window.MODEL_SHEET={setFaction,freeze(){frozen=true;cards.forEach(c=>{c.angle=c.yaw=c.pitch=0;c.dirty=true;});schedule();},async settle(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));for(const c of cards){const b=c.el.getBoundingClientRect();c.visible=b.bottom>0&&b.top<innerHeight;if(c.visible)c.dirty=true;}draw(performance.now());}};

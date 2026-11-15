@@ -429,6 +429,24 @@ function wallStrip(pts,y0,t=.035){ const V=(x,y,z)=>new THREE.Vector3(x,y,z), P=
   const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; }
 const sideAt=(mk,x,y)=>[...mk().map(g=>{ g.rotateZ(-Math.PI/2); g.translate(x,y,0); return g; }), ...mk().map(g=>{ g.rotateZ(Math.PI/2); g.translate(-x,y,0); return g; })];
 /* model key → parts. Keys ending in A, B… are variants shown on the sample sheet; the game uses the keys named in GROUND_MODELS */
+/* 建物の部品（docs/models.md 16）。obx: 底が y0 の箱。obRoof: 棟が x に沿う切妻の屋根（幅 w、高さ h、奥行き l。中心の高さに置く）。
+   obPrism: y に立つ柱（断面は loft の形）。obDomeG: 半球。OB_SAW: のこぎり屋根の断面。OB_ARC: かまぼこ屋根の断面 */
+const obx=(w,h,l,x,y0,z)=>at(box(w,h,l),x,y0+h/2,z);
+const OB_TRI=[[1,-1],[-1,-1],[0,1]], OB_SAW=[[1,-1],[-1,-1],[-1,1],[-.7,1]], OB_ARC=[...Array(7)].map((_,i)=>[Math.cos(i*Math.PI/6),Math.sin(i*Math.PI/6)*2-1]);
+const obRoof=(w,h,l)=>at(loft([[-w/2,l/2,h/2],[w/2,l/2,h/2]],OB_TRI),0,0,0,0,Math.PI/2,0);
+const obPrism=(rx,rz,h,prof)=>{ const g=loft([[0,rx,rz],[h,rx,rz]],prof); g.rotateX(-Math.PI/2); return g; };
+const obDomeG=(r,h)=>{ const g=new THREE.SphereGeometry(1,8,4,0,Math.PI*2,0,Math.PI/2); g.scale(r,h,r); return g; };
+/* 見本用の町: ゲームの置き方（battle/terrain.js の町。道の両側に、道から .18km 以上離して並べる）を同じ比で写す。建物1つの底面は .68 × .6。
+   pick(r) が形の鍵を返す（null なら今の灰色の箱で、高さは .64〜1.44）。端に戦車4両（size .5 のくさび形）を大きさの比べ用に置く */
+function obTown(pick){
+  let seed=20261115; const rnd=()=>{ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; }, P=[];
+  const put=(g,x,z,k,t)=>{ g=g.index?g.toNonIndexed():g; g.scale(k,k,k); g.translate(x,0,z); g.userData.tone=t; P.push(g); };
+  P.push(tone(obx(11,.02,.5,0,-.02,0),.45));
+  for(let i=0;i<34;i++){ const along=(rnd()-.5)*10, side=(rnd()<.5?-1:1)*(.72+rnd()*.52)*1.3, key=pick(rnd()), h=.64+rnd()*.8;
+    if(key) GROUND_SHAPES[key]().forEach(g=>put(g,along,side,.68,g.userData.tone)); else put(box(.68,h,.6).translate(0,h/2,0),along,side,1,1); }
+  [[.65,.7],[-.65,.7],[1.95,-.7],[-1.95,-.7]].forEach(([x,z])=>GROUND_SHAPES.tankE().forEach(g=>{ const t=(g.userData.tone??1)*.5; g=g.index?g.toNonIndexed():g; g.rotateY(Math.PI/2); put(g,z*.5+5.9,x*.5,.5,t); }));
+  return P;
+}
 const GROUND_SHAPES={
   /* placeholder until the pilot shapes are in: a box hull with a darker turret */
   stub:()=>[at(box(.7,.3,1.8),0,.15,0), tone(at(box(.4,.2,.6),0,.4,-.1),.6), tone(at(tube(.04,.9,6),0,.42,.6),.6)],
@@ -773,6 +791,64 @@ const GROUND_SHAPES={
     const fend=[.25,-.45].flatMap(z=>pair(tone(at(tube(.028,.1,8),M.at(z).w+.003,.02,z),DK)));
     return [...M.hull(), ...walls, floor, ...ramp, ...pods, ...lids, ...house, ...fend, ...mEng([.1,-.1],-1.2,.055),
       ...mGun(0,wy+.107,-.9,.7), ...mPair(mPD,.285,wy+.12,-.55,.75), ...sideAt(()=>flatM(0,0,m,.6),M.at(m).w-.006,.02)]; },
+  /* ---- 地上の建物と施設（見本の第1回、2026-11-15。ゲームにはまだ入れていない。docs/models.md 16）----
+     底面はおよそ 1 × 1（x・z が ±.5）、地面は y = 0。高さは形ごとに決まり、縦には伸ばさない。回さずに置く（視界と遮蔽の箱が軸に沿うため）。
+     色は陣営色でなく灰色で描く。tone で屋根・窓の帯・暗い部品を分ける */
+  /* 中東: 平らな屋根の低い家。手すり壁と、角に載る小さい2階、中庭の塀 */
+  obHouseFlat:()=>[obx(.78,.34,.7,-.08,0,.05), tone(obx(.82,.04,.74,-.08,.34,.05),.8), obx(.36,.24,.34,-.26,.36,-.1), tone(obx(.4,.03,.38,-.26,.6,-.1),.8),
+    obx(.2,.2,.9,.4,0,0), tone(obx(.1,.16,.02,-.1,.02,.41),DK), tone(obx(.5,.05,.02,-.08,.2,.41),GL)],
+  /* 中東: 丸屋根の建物と細い塔（町の目印） */
+  obDome:()=>[obx(.72,.36,.72,-.1,0,0), tone(obx(.76,.03,.76,-.1,.36,0),.8), tone(at(obDomeG(.27,.24),-.1,.39,0),.9), at(new THREE.CylinderGeometry(.05,.06,.95,6),.4,.475,.36),
+    tone(at(new THREE.CylinderGeometry(.075,.075,.04,6),.4,.78,.36),.8), tone(at(new THREE.ConeGeometry(.06,.16,6),.4,1.03,.36),.8), obx(.3,.12,.2,.25,0,.36)],
+  /* 中東: 3〜4階の平屋根の集合住宅。段になった屋上と水のタンク */
+  obBlockFlat:()=>[obx(.9,.62,.6,0,0,0), tone(obx(.94,.03,.64,0,.62,0),.8), obx(.5,.2,.5,-.2,.65,0), tone(obx(.54,.03,.54,-.2,.85,0),.8),
+    ...[.16,.34,.52].map(y=>tone(obx(.92,.05,.61,0,y,0),GL)), tone(at(new THREE.CylinderGeometry(.07,.07,.12,6),.28,.71,.12),DK), tone(at(new THREE.CylinderGeometry(.07,.07,.12,6),.28,.71,-.12),DK)],
+  /* 華南: 道沿いの長屋。1階がひさしの通路、勾配の屋根 */
+  obShop:()=>[obx(.9,.46,.56,0,0,-.05), tone(at(obRoof(.94,.2,.6),0,.56,-.05),.62), tone(obx(.9,.03,.2,0,.2,.3),.75), ...[-.36,-.12,.12,.36].map(x=>obx(.04,.2,.04,x,0,.37)),
+    tone(obx(.8,.07,.02,0,.3,.23),GL)],
+  /* 華南: 中層の集合住宅。ベランダの帯と屋上の階段室 */
+  obApart:()=>[obx(.96,1.05,.5,0,0,0), ...[.18,.36,.54,.72,.9].map(y=>tone(obx(.98,.06,.52,0,y,0),GL)), tone(obx(1,.03,.54,0,1.05,0),.8),
+    obx(.2,.14,.24,-.3,1.08,0), tone(obx(.3,.1,.2,.2,1.08,.05),DK), obx(.16,1.12,.56,0,0,0)],
+  /* 広州: 高層ビル。上で細くなる段と、屋上のアンテナ */
+  obTower:()=>[obx(.8,1.3,.7,0,0,0), obx(.62,.7,.54,0,1.3,0), obx(.4,.3,.34,0,2,0), ...[.25,.5,.75,1,1.5,1.75].map(y=>tone(obx(y>1.3?.63:.81,.1,y>1.3?.55:.71,0,y,0),GL)),
+    tone(obx(.84,.03,.74,0,1.3,0),.8), tone(obx(.66,.03,.58,0,2,0),.8), tone(at(new THREE.CylinderGeometry(.012,.02,.4,5),0,2.5,0),DK)],
+  /* 広州: 100年先の高層ビル。角を切ったガラスの塔2本を、空中の渡り廊下でつなぐ */
+  obTowerTwin:()=>{ const tw=(x,h,z)=>[at(obPrism(.19,.19,h,O8),x,0,z), tone(at(obPrism(.195,.195,h*.82,O8),x,h*.1,z),GL), at(obPrism(.2,.2,.04,O8),x,h,z)];
+    return [obx(1,.16,.8,0,0,0), tone(obx(1.02,.02,.82,0,.16,0),.8), ...tw(-.26,2.3,.08), ...tw(.26,1.9,-.08), obx(.3,.1,.14,0,1.35,0), tone(obx(.26,.05,.15,0,1.375,0),GL)]; },
+  /* 倉庫: 長い切妻の屋根と大きな扉 */
+  obWarehouse:()=>[obx(1.2,.3,.7,0,0,0), tone(at(obRoof(1.24,.16,.74),0,.38,0),.62), tone(obx(.26,.22,.02,-.3,0,.35),DK), tone(obx(.26,.22,.02,.3,0,.35),DK)],
+  /* 工場: のこぎり屋根と煙突 */
+  obFactory:()=>[obx(1.1,.3,.8,-.05,0,0), ...[-.3,-.1,.1,.3].map(z=>tone(at(loft([[-.55,.1,.07],[.55,.1,.07]],OB_SAW),-.05,.37,z,0,Math.PI/2,0),.62)),
+    at(new THREE.CylinderGeometry(.045,.06,.9,6),.48,.45,-.3), tone(at(new THREE.CylinderGeometry(.05,.05,.05,6),.48,.86,-.3),DK), obx(.2,.2,.3,.45,0,.2)],
+  /* 燃料タンク: 丸いタンク3基と配管 */
+  obTanks:()=>[...[[-.28,-.2],[.28,-.2],[0,.26]].flatMap(([x,z])=>[at(new THREE.CylinderGeometry(.23,.23,.3,10),x,.15,z), tone(at(new THREE.CylinderGeometry(.03,.235,.05,10),x,.325,z),.8)]),
+    tone(obx(.6,.03,.03,0,.05,-.2),DK), tone(obx(.03,.03,.5,.1,.05,.03),DK), tone(obx(1,.02,.96,0,0,.03),.7)],
+  /* 港: 岸壁のガントリークレーン。脚4本、梁、海へ張り出す腕 */
+  obCrane:()=>[...[[-.25,-.2],[.25,-.2],[-.25,.2],[.25,.2]].map(([x,z])=>obx(.05,.9,.05,x,0,z)), obx(.56,.05,.46,0,.9,0), obx(.08,.06,1.5,0,.95,.3), tone(obx(.16,.12,.2,0,.83,.5),DK),
+    tone(obx(.012,.5,.012,0,.33,.5),DK), tone(obx(.2,.03,.1,0,.3,.5),DK), obx(.03,.42,.03,0,1,-.1), tone(limb([0,1.42,-.1],[0,1.01,.95],.01,.01),DK),
+    ...[-.2,.2].map(z=>obx(.55,.04,.04,0,.45,z))],
+  /* 港: コンテナの山 */
+  obContainers:()=>[[-.3,0,-.25,1],[0,0,-.25,.85],[.3,0,-.25,.7],[-.3,.14,-.25,.7],[0,.14,-.25,1],[-.15,.28,-.25,.85],[-.3,0,.25,.85],[0,0,.25,.7],[.3,0,.25,1],[.15,.14,.25,.85]]
+    .map(([x,y,z,k])=>tone(obx(.28,.14,.44,x,y,z),k)).concat([tone(obx(1,.02,1,0,0,0),.7)]),
+  /* 飛行場: かまぼこ形の格納庫 */
+  obHangar:()=>[at(loft([[-.5,.5,.2],[.5,.5,.2]],OB_ARC),0,.2,0), tone(obx(.7,.26,.02,0,0,.5),DK), tone(obx(1.04,.03,1.04,0,0,0),.7)],
+  /* 飛行場: 管制塔 */
+  obControl:()=>[obx(.5,.24,.5,0,0,0), at(obPrism(.11,.11,.7,O8),0,.24,0), tone(at(new THREE.CylinderGeometry(.24,.17,.16,8),0,1.02,0),GL), at(new THREE.CylinderGeometry(.26,.26,.04,8),0,1.12,0),
+    tone(at(new THREE.CylinderGeometry(.01,.01,.24,5),.1,1.26,0),DK)],
+  /* 軍: 司令部。斜めの壁の掩体、アンテナの柱、レーダーの皿 */
+  obHQ:()=>[at(loft([[-.45,.5,.14],[.45,.5,.14]],SLAB),0,.14,0), obx(.5,.14,.4,-.1,.28,0), tone(obx(.42,.05,.02,-.1,.33,.2),GL), tone(obx(.2,.16,.02,.2,0,.455),DK),
+    tone(at(new THREE.CylinderGeometry(.012,.02,.6,5),-.28,.72,-.1),DK), at(new THREE.CylinderGeometry(.03,.04,.16,6),.22,.36,-.1), tone(at(new THREE.CylinderGeometry(.16,.03,.06,8),.22,.47,-.1,.5,0,0),.8)],
+  /* 軍: レーダー。台の上の丸い覆い */
+  obRadar:()=>[obx(.5,.2,.5,0,0,0), at(obPrism(.14,.14,.3,O8),0,.2,0), tone(at(new THREE.SphereGeometry(.27,8,6),0,.7,0),.9)],
+  /* 軍: 補給所。屋根つきの置き場と、積んだ箱、燃料の筒 */
+  obDepot:()=>[...[[-.4,-.3],[.4,-.3],[-.4,.3],[.4,.3]].map(([x,z])=>obx(.04,.3,.04,x,0,z)), tone(at(obRoof(.96,.1,.76),0,.35,0),.62), ...[[-.2,0,-.1,.85],[.05,0,-.1,.7],[-.08,.12,-.1,1],[.25,0,.12,.85]].map(([x,y,z,k])=>tone(obx(.22,.12,.3,x,y,z),k)),
+    tone(at(tube(.06,.34,8),-.22,.08,.2,0,Math.PI/2,0),DK), tone(obx(.98,.02,.78,0,0,0),.7)],
+  /* 見本用: 町の並び（ゲームの置き方と同じ決まりで並べる）。今の灰色の箱、中東、華南、広州、港と基地。手前の4両は戦車（大きさの比べ用） */
+  obTownOld:()=>obTown(()=>null),
+  obTownME:()=>obTown(r=>r<.55?'obHouseFlat':r<.85?'obBlockFlat':r<.93?'obDome':'obShop'),
+  obTownCN:()=>obTown(r=>r<.4?'obShop':r<.8?'obApart':r<.9?'obBlockFlat':'obWarehouse'),
+  obTownCity:()=>obTown(r=>r<.3?'obApart':r<.6?'obTower':r<.75?'obTowerTwin':r<.9?'obShop':'obBlockFlat'),
+  obTownPort:()=>obTown(r=>r<.2?'obWarehouse':r<.35?'obContainers':r<.5?'obTanks':r<.6?'obCrane':r<.7?'obFactory':r<.78?'obHangar':r<.84?'obControl':r<.9?'obHQ':r<.95?'obRadar':'obDepot'),
 };
 /* formations: where each body of a unit stands, in model units before the size is applied (x to the right, z forward; a
    vehicle is about 2 long and 1 wide). A unit on the map is a company; it is drawn as one platoon of its arm (user decision
