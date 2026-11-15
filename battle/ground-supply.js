@@ -91,7 +91,7 @@ function groundSupplyRoadCapture(dt){
     if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
     const present=[false,false];for(const f of troops)if(groundDistance(groundMapX(f.pos.x),groundMapY(f.pos.z),e.path)<=width+1e-8)present[f.team]=true;
     e.contested=present[0]&&present[1];e.capturingTeam=e.contested?null:present[0]?0:present[1]?1:null;if(e.contested)continue;
-    const team=present[0]?0:present[1]?1:null;if(team===null||team===e.owner)continue;
+    const team=present[0]?0:present[1]?1:null;if(groundCaptureDecay(e,team,dt))continue;
     const seconds=groundRoadCaptureSeconds(e);
     e.progress[team]=Math.min(seconds,e.progress[team]+dt);
     if(e.progress[team]>=seconds-1e-8){e.owner=team;e.progress=[0,0];groundSupplyNet.revision++;}

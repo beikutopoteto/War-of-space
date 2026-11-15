@@ -424,8 +424,8 @@ body.inmenu #rtip{display:none}
 #goal,#brief{clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
 #goal:not(.shut):has(+#brief:not(.shut)){clip-path:none}
 #goal:not(.shut)+#brief{border-top:1px solid rgba(127,200,255,.18)}
-#goal.shut,#brief.shut:not(.fresh){display:none}
-#brief.shut.fresh{margin-top:4px}
+#goal.shut,#brief.shut{display:none}
+#hudTabs button.new{color:var(--brass)}
 #brief .t{font-size:11px}
 #brief h2{font-size:15px}
 /* top right (見本P2, user decision 2026-11-05): a wide, low plate with the clock big on the left and speed over view on the right;

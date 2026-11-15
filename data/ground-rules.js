@@ -2,7 +2,7 @@
 window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
-  sight: { basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
+  sight: { site:20, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   // minScatterDiameter10KmM は10kmでの最小直径（m）。ロケットのdelay/radius/spreadは自走砲と同じ暫定値。6発/車・群間0.25秒・最終群後の装填30秒も仮。
   strike: { vehicle:{delay:2,radius:2,spread:1,reload:4}, artillery:{delay:5,radius:7,spread:2,reload:8,minScatterDiameter10KmM:25}, guidedRocket:{delay:5,radius:7,spread:2,reload:30,rocketsPerVolley:6,burstInterval:.25,minScatterDiameter10KmM:30}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, sea:{delay:8,radius:10,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
@@ -52,7 +52,7 @@ window.WOS_GROUND_RULES = {
   },
   // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
   combat: { damageScale:1.3, tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, mechanicalWearPerSec:.001 }, // 消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
-  capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25 },
+  capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25, decayPerSec:1, decayDelay:2 },
   movement: { timeScale:1.2, roadFactor:1.75, marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
 };
 
