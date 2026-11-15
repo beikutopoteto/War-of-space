@@ -732,8 +732,10 @@ const GROUND_SHAPES={
        its edges; an outrigger wedge pod on each side with a turret and an engine, set a little low on a drooped wing with a curved edge
      masc3M (the Republic): two slim hulls side by side, each with a level launch deck and a hangar that runs down to the stern as
        one slope; a flat bridge spans them over the hangars with the command hump in the middle, and a beam joins them at the stern */
-  masc3:()=>{ const H=eHull([[-1.3,.3,.14],[-1,.34,.17],[.2,.2,.15],[.9,.11,.11],[1.35,.05,.07,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK), by=.365, py=-.245, px=.66,
-      wing=()=>{ const g=plate([[-.04,-.2],[.03,-.3],[.1,-.36],[.25,-.4],[.48,-.42],[.48,-.72],[.25,-.76],[.1,-.82],[.03,-.92],[-.04,-1.1]],.045); g.rotateZ(-.524); g.translate(.27,-.02,0); return g; },
+  masc3:()=>{ const H=eHull([[-1.3,.3,.14],[-1,.34,.17],[.2,.2,.15],[.9,.11,.11],[1.35,.05,.07,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK), by=.365, py=-.25, px=.66,
+      wing=()=>{ const P=[[-.04,-.2,-1.1,10],[.03,-.3,-.92,20],[.1,-.36,-.82,32],[.25,-.4,-.76,40],[.48,-.42,-.72]], out=[]; let x=.235, y=-.005;
+        for(let i=0;i<4;i++){ const A=P[i], B=P[i+1], L=B[0]-A[0], a=A[3]*Math.PI/180, g=plate([[-.006,A[1]],[L+.006,B[1]],[L+.006,B[2]],[-.006,A[2]]],.045);
+          g.rotateZ(-a); g.translate(x,y,0); out.push(g); x+=L*Math.cos(a); y-=L*Math.sin(a); } return out; },
       SL=[[.72,1],[1,-1],[-1,-1],[-.72,1]], BV=[[.8,1],[1,0],[.8,-1],[-.8,-1],[-1,0],[-.8,1]],
       win=(xf,zf,xb,zb,y,h)=>{ const dx=xb-xf, dz=zb-zf, L=Math.hypot(dx,dz), th=Math.atan2(dx,dz), cx=(xf+xb)/2-dz/L*.003, cz=(zf+zb)/2+dx/L*.003;
         return [1,-1].map(sg=>tone(at(box(.012,h,L*.8),sg*cx,y,cz,0,sg*th),GL)); };
@@ -745,7 +747,7 @@ const GROUND_SHAPES={
       at(loft([[-1.12,.11,.034,by],[-1,.13,.04,by],[-.55,.04,.028,by]],BV),0,0,0), tone(at(box(.065,.02,.02),0,by,-.546),GL), ...win(.04,-.55,.13,-1,by,.02),
       at(loft([[-1.02,.04,.02],[-.8,.025,.02]],TRAP),0,by+.05,0), at(barG([0,by+.06,-.95],[0,by+.2,-1.02],.02,.02),0,0,0), at(box(.1,.01,.016),0,by+.14,-.99), tone(at(box(.04,.024,.04),0,by+.2,-1.02),GL),
       ...pair(at(loft([[-.9,.09,.09],[-.6,.11,.1],[.35,.02,.03]]),px,py,0)),
-      ...pair(wing()),
+      ...wing().flatMap(g=>pair(g)),
       ...laserT(px,py+.088,-.45,.7,2), ...laserT(-px,py+.088,-.45,.7,2), ...spBells([px,-px],py,-.95,.07), ...spBells([.15,-.15],0,-1.35,.08),
       ...pdG(.13,.258,-.8,.8), ...pdG(-.13,.258,-.8,.8), ...pdG(.13,.256,-1.1,.8), ...pdG(-.13,.256,-1.1,.8),
       ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.08,H.low(.08,.4),.4,.8), ...gatB(-.08,H.low(.08,.4),.4,.8), ...gatB(.12,H.low(.12,-.7),-.7,.8), ...gatB(-.12,H.low(.12,-.7),-.7,.8)]; },
@@ -759,6 +761,10 @@ const GROUND_SHAPES={
       ...mPair(mPD,.22,.275,-.5,.85), ...mGun(0,.065,-1,.75,1,true),
       ...both(sg=>B().under(mGun(0,0,.2,.7,2),.2)), ...both(sg=>B().under(mGat(0,0,-.5,.85),-.5)), ...both(sg=>B().under(mGat(0,0,.8,.85),.8)),
       ...both(sg=>{ const p=mGun(0,0,.05,.7,2); return p.map(g=>{ g.rotateZ(-sg*Math.PI/2); g.translate(sg*(M.at(.05).w-.006),.012,0); return g; }); })]; },
+  /* the assault carriers landed (15.25): the same ships with the landing gear down. Earth stands on dark skids under its two low
+     pods and a nose leg; the Republic on four legs under its two hulls. At sea both float as they are (no gear) */
+  masc3L:()=>[...GROUND_SHAPES.masc3(), ...pair(tone(at(box(.11,.03,.5),.66,-.36,-.6),DK)), at(box(.03,.28,.03),0,-.235,.9), tone(at(box(.12,.02,.18),0,-.365,.9),DK)],
+  masc3ML:()=>[...GROUND_SHAPES.masc3M(), ...[-.8,.7].flatMap(z=>[.3,-.3].flatMap(x=>[at(box(.03,.22,.03),x,-.16,z), tone(at(box(.12,.02,.16),x,-.27,z),DK)]))],
   spBBM5:()=>mBB5(),
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
