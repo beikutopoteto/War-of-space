@@ -479,33 +479,42 @@ const OB_PICK={
       (g,r)=>g===0?(r<.5?'obSuper':'obTowerTwin'):g===1?(r<.45?'obTower':r<.75?'obTowerTwin':'obOffice'):(r<.35?'obTower':r<.85?'obApart':'obOffice'),
       (g,r)=>g<=1?(r<.6?'obSuper':'obTowerTwin'):g===2?(r<.4?'obSuper':r<.8?'obTower':'obTowerTwin'):(r<.45?'obTower':r<.8?'obApart':'obOffice')]};
 const OB_BLOCK=(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null;
+/* 四角でない建物（ユーザー 2026-11-15「四角以外の建物も導入」）: 区画の四辺形 q（[x,z] が4点）をそのまま底面にして立てる。
+   h: 高さ。o.set: 上に細い段を1〜2段。o.roof: 低い屋根。窓の帯と屋上の縁つき。台形・くさび・ゆがんだ四辺形の区画をすき間なく埋めるのに使う */
+function obLot(q,h,o={}){ const cx=(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4, cz=(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4, sc=k=>q.map(([x,z])=>[cx+(x-cx)*k,cz+(z-cz)*k]),
+    pl=(pts,y0,t)=>{ const g=plate(pts,t); g.translate(0,y0+t/2,0); return g; }, n=Math.max(1,Math.round(h/.3)), P=[pl(q,0,h), tone(pl(sc(1.04),h,.025),.8)];
+  for(let i=0;i<n;i++) P.push(tone(pl(sc(1.03),(i+.4)*h/n,h/n*.36),GL));
+  if(o.set){ P.push(pl(sc(.7),h,h*.45), tone(pl(sc(.72),h*1.1,h*.25),GL)); if(o.set>1) P.push(pl(sc(.44),h*1.45,h*.4), tone(pl(sc(.46),h*1.52,h*.22),GL), tone(pl(sc(.1),h*1.85,h*.25),DK)); }
+  if(o.roof) P.push(tone(pl(sc(.62),h+.02,.09),.62));
+  return P; }
+/* 形の鍵 → 区画の建物の高さと作り（OB_PICK をそのまま使うため） */
+const OB_LOT={obHouseFlat:[.3],obShop:[.34,{roof:1}],obBlockFlat:[.6],obDome:[.42],obWarehouse:[.3,{roof:1}],obApart:[.85],obOffice:[1.2],obTower:[1.5,{set:1}],obTowerME:[1.5,{set:1}],obTowerTwin:[1.7,{set:1}],obSuper:[2.1,{set:2}]};
 /* 放射状（kind 'rad'）と自然都市（'org'）の見本。半径は段階で 3・5・7（盤目の 3×3・5×5・7×7 街区と同じ広さ）。
-   放射状: 中心の広場から放射の大通りと環状の道。建物は環に沿って並ぶ。自然都市: 曲がりくねった昔の道と、ゆがんだ環状の道。建物は道を避けて不規則に詰まる。
-   建物はどの型でも回さない。道は回してよい */
-function obCityFree(kind,cult,tier,seed){ const P=[], put=obPut(P), r=obRnd(seed), R=[3,5,7][tier-1], top=tier, pick=OB_PICK[cult][tier-1], roads=[], bigs=[], lots=[], T=Math.PI*2;
-  const seg=(x1,z1,x2,z2,w)=>{ roads.push([x1,z1,x2,z2,w]); const l=Math.hypot(x2-x1,z2-z1); P.push(tone(at(box(w,.02,l+w*.5),(x1+x2)/2,.005,(z1+z2)/2,0,Math.atan2(x2-x1,z2-z1),0),OC.asph)); };
-  const dSeg=(x,z,[a,b,c,d])=>{ const vx=c-a, vz=d-b, t=Math.max(0,Math.min(1,((x-a)*vx+(z-b)*vz)/(vx*vx+vz*vz||1))); return Math.hypot(x-a-vx*t,z-b-vz*t); };
-  const ringRoad=(rad,w,wob=()=>1)=>{ const n=28; for(let i=0;i<n;i++){ const a=i/n*T, b=(i+1)/n*T, ra=rad*wob(a), rb=rad*wob(b); seg(Math.cos(a)*ra,Math.sin(a)*ra,Math.cos(b)*rb,Math.sin(b)*rb,w); } };
-  P.push(tone(at(new THREE.CylinderGeometry(R+.6,R+.6,.02,36),0,-.01,0),OC.walk));
-  if(tier===3) bigs.push([0,0,'obMega',1.6,1.5], ...[0,1,2,3].map(i=>[Math.cos(Math.PI/8+i*T/4)*2.7,Math.sin(Math.PI/8+i*T/4)*2.7,'obArco',1.3,1.15]));
-  else if(tier===2) bigs.push([0,0,'obSuper',1,.8]);
+   どちらも「環状の道」と「中心から外へ伸びる道」で区画を切り、区画を四角でない建物（obLot）ですき間なく埋める。
+   放射状: 道はまっすぐな放射と正しい円。自然都市: 同じ網をゆがめる（環は波打ち、外へ伸びる道はうねり、間隔も不ぞろい）。区画の分け方も不ぞろいにする */
+function obCityFree(kind,cult,tier,seed){ const P=[], put=obPut(P), r=obRnd(seed), R=[3,5,7][tier-1], top=tier, pick=OB_PICK[cult][tier-1], T=Math.PI*2, org=kind==='org';
+  const ph=[r()*T,r()*T,r()*T,r()*T], wob=a=>org?1+.13*Math.sin(3*a+ph[0])+.07*Math.sin(5*a+ph[1]):1, wig=d=>org?.22*Math.sin(d*1.1+ph[2])+.1*Math.sin(d*2.7+ph[3]):0;
+  const F=(d,a)=>{ const b=a+wig(d), q=d*wob(b); return [Math.cos(b)*q,Math.sin(b)*q]; };
+  const road=(pts,w)=>{ for(let i=1;i<pts.length;i++){ const [x1,z1]=pts[i-1], [x2,z2]=pts[i], l=Math.hypot(x2-x1,z2-z1); P.push(tone(at(box(w,.02,l+w*.4),(x1+x2)/2,.005,(z1+z2)/2,0,Math.atan2(x2-x1,z2-z1),0),OC.asph)); } };
+  P.push(tone(at(new THREE.CylinderGeometry(R+.9,R+.9,.02,40),0,-.01,0),OC.walk));
+  const rings=[1.2]; while(rings[rings.length-1]<R-.6) rings.push(rings[rings.length-1]+(org?1.5+r()*.7:1.85)); rings[rings.length-1]=Math.max(rings[rings.length-1],R+.3);
+  const n=tier===1?6:8, spokes=[...Array(n)].map((_,i)=>(i+(org?(r()-.5)*.5:0))/n*T);
+  rings.slice(0,-1).forEach(q=>road([...Array(41)].map((_,i)=>F(q,i/40*T)),.32));
+  spokes.forEach(a=>road([...Array(Math.ceil((R+.5-1.2)/.4)+1)].map((_,i)=>F(Math.min(R+.5,1.2+i*.4),a)),.36));
+  const bigs=tier===3?[[0,0,'obMega',1.6,1.25], ...[0,1,2,3].map(i=>[...F(2.7,Math.PI/8+i*T/4),'obArco',1.3,1.2])]:tier===2?[[0,0,'obSuper',1.2,.9]]:[];
   const hw=tier>=2?R*.5:null, hw2=tier===3?-R*.5:null;
-  if(kind==='rad'){ const n=tier===1?6:8, rr=[]; for(let q=1.25;q<R+.2;q+=2.1) rr.push(q); rr.forEach(q=>ringRoad(q,.34));
-    for(let i=0;i<n;i++){ const a=i/n*T; seg(Math.cos(a)*1.25,Math.sin(a)*1.25,Math.cos(a)*(R+.4),Math.sin(a)*(R+.4),.4); }
-    rr.forEach((q,b)=>{ for(const row of [q+.62,q+1.42]){ if(row>R+.25) continue; const m=Math.floor(T*row/.84); for(let k=0;k<m;k++){ const a=(k+.5)/m*T; lots.push([Math.cos(a)*row,Math.sin(a)*row]); } } });
-  } else { const ph=r()*T, ph2=r()*T, wob=a=>1+.16*Math.sin(3*a+ph)+.09*Math.sin(5*a+ph2);
-    for(let q=1.5;q<R;q+=2.1) ringRoad(q,.3,wob);
-    const n=tier===1?5:7; for(let i=0;i<n;i++){ let a=(i+r()*.7)/n*T, x=0, z=0; while(Math.hypot(x,z)<R+.3){ const nx=x+Math.cos(a)*.9, nz=z+Math.sin(a)*.9; seg(x,z,nx,nz,.3); x=nx; z=nz; a+=(r()-.5)*.9; a+=(Math.atan2(z,x)-a)*.0; if(Math.cos(a-Math.atan2(z,x))<.3) a=Math.atan2(z,x)+(r()-.5)*.6; } }
-    for(let k=0;k<5000;k++){ const a=r()*T, d=Math.sqrt(r())*(R+.3)*wob(a); lots.push([Math.cos(a)*d,Math.sin(a)*d]); } }
-  const used=[];
-  for(const [x,z] of lots){ const d=Math.hypot(x,z); if(d>R+.5) continue;
-    if(roads.some(s=>dSeg(x,z,s)<s[4]/2+.42)||bigs.some(b=>Math.hypot(x-b[0],z-b[1])<b[4])||(hw!=null&&Math.abs(z-hw)<.72)||(hw2!=null&&Math.abs(x-hw2)<.72)||used.some(u=>Math.abs(u[0]-x)<.76&&Math.abs(u[1]-z)<.7)) continue;
-    used.push([x,z]); const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(key) put(GROUND_SHAPES[key](),x,z); }
+  for(let k=0;k<rings.length-1;k++) for(let i=0;i<n;i++){ const d0=rings[k]+.24, d1=rings[k+1]-(k===rings.length-2?0:.24), a0=spokes[i], a1=i===n-1?spokes[0]+T:spokes[i+1], dm=(d0+d1)/2;
+    const rows=Math.max(1,Math.round((d1-d0)/.8)), cut=(m,j)=>org&&j>0&&j<m?(j+(r()-.5)*.35)/m:j/m;
+    const rc=[...Array(rows+1)].map((_,j)=>d0+(d1-d0)*cut(rows,j));
+    for(let u=0;u<rows;u++){ const ra=rc[u]+.03, rb=rc[u+1]-.03, rm=(ra+rb)/2, g0=.26/rm, arc=(a1-a0-2*g0)*rm, cols=Math.max(1,Math.round(arc/.8)), cc=[...Array(cols+1)].map((_,j)=>a0+g0+(a1-a0-2*g0)*cut(cols,j));
+      for(let v=0;v<cols;v++){ const b0=cc[v]+.03/rm, b1=cc[v+1]-.03/rm, q=[F(ra,b0),F(ra,b1),F(rb,b1),F(rb,b0)], [x,z]=F(rm,(b0+b1)/2), d=Math.hypot(x,z);
+        if(bigs.some(b=>Math.hypot(x-b[0],z-b[1])<b[4])||(hw!=null&&Math.abs(z-hw)<.62)||(hw2!=null&&Math.abs(x-hw2)<.62)) continue;
+        const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(!key) continue; const [h,o]=OB_LOT[key]||[.5]; obLot(q,h*(.85+r()*.3),o).forEach(g=>P.push(g)); } } }
   bigs.forEach(([x,z,key,k])=>put(GROUND_SHAPES[key](),x,z,k));
-  const chord=c=>Math.sqrt(Math.max(0,(R+.6)**2-c*c));
+  const chord=c=>Math.sqrt(Math.max(0,(R+.9)**2-c*c));
   if(hw!=null){ const h=chord(hw); for(let x=-h+.45;x<h;x+=.9) put(GROUND_SHAPES.obHighway(),x,hw,.9,true); }
   if(hw2!=null){ const h=chord(hw2); for(let z=-h+.45;z<h;z+=.9) put(GROUND_SHAPES.obHighway(),hw2,z,.9); }
-  if(tier===3){ const z=-(R+1.2); P.push(tone(obx(2*R,.02,1.1,0,-.02,z),.6)); for(let k=0;k<2*R;k++) put(GROUND_SHAPES.obRail(),-R+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-R*.5,z,1,true); }
+  if(tier===3){ const z=-(R+1.5); P.push(tone(obx(2*R,.02,1.1,0,-.02,z),.6)); for(let k=0;k<2*R;k++) put(GROUND_SHAPES.obRail(),-R+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-R*.5,z,1,true); }
   return P; }
 /* 見本用の町: ゲームの置き方（battle/terrain.js の町。道の両側に、道から .18km 以上離して並べる）を同じ比で写す。建物1つの底面は .68 × .6。
    pick(r) が形の鍵を返す（null なら今の灰色の箱で、高さは .64〜1.44）。端に戦車4両（size .5 のくさび形）を大きさの比べ用に置く */
@@ -993,6 +1002,9 @@ const GROUND_SHAPES={
   /* 見本用の森: 今のゲームの森（丸い塊だけ）、広葉樹、針葉樹、熱帯雨林、ヤシの林。端に戦車4両 */
   obForestOld:()=>obForest(()=>null,61), obForestBroad:()=>obForest(r=>'obTreeBroad',62), obForestConifer:()=>obForest(r=>r<.92?'obTreeConifer':'obTreeBroad',63),
   obForestRain:()=>obForest(r=>r<.45?'obTreeRain':r<.7?'obTreeBroad':r<.82?'obPalm':'obUnder',64,1.5), obForestPalm:()=>obForest(r=>r<.75?'obPalm':'obUnder',65,.6),
+  /* 四角でない建物の見本: 台形（放射状の区画）、くさび、ゆがんだ四辺形、段のある塔 */
+  obLotTrap:()=>obLot([[-.3,-.4],[.3,-.4],[.5,.4],[-.5,.4]],.85), obLotWedge:()=>obLot([[-.45,-.4],[.5,-.15],[.45,.4],[-.3,.35]],.6), obLotSkew:()=>obLot([[-.5,-.3],[.35,-.45],[.5,.3],[-.4,.45]],.34,{roof:1}),
+  obLotTower:()=>obLot([[-.3,-.4],[.3,-.4],[.5,.4],[-.5,.4]],1.5,{set:1}), obLotSuper:()=>obLot([[-.4,-.45],[.45,-.3],[.4,.45],[-.45,.3]],2.1,{set:2}),
   /* 見本用: 町の並び（ゲームの置き方と同じ決まりで並べる）。今の灰色の箱、中東、華南、広州、港と基地。手前の4両は戦車（大きさの比べ用） */
   obTownOld:()=>obTown(()=>null),
   obTownME:()=>obTown(r=>r<.55?'obHouseFlat':r<.85?'obBlockFlat':r<.93?'obDome':'obShop'),
