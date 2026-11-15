@@ -774,12 +774,11 @@ const GROUND_SHAPES={
      9°. On it the landing area (centre dashes, two edge lines, arresting wires), two bow catapults and two waist catapults on the
      angled deck (dark tracks, blast deflectors at their aft ends), three deck-edge elevators (two starboard forward of the island, one
      port aft), a small island aft of amidships on the starboard edge with flat radar faces and a mast, and parked aircraft */
-  spCVB4:()=>{ const H=eHull([[-1.42,.2,.08,.07],[-1.1,.24,.12,.03],[-.3,.25,.14,.01],[.5,.23,.14,.01],[1,.17,.12,.03],[1.35,.09,.09,.06],[1.5,.03,.045,.105]]),
-      T=.15, dt=T+.03, dy=T+.015, y=dt+.003, A=.157, cA=Math.cos(A), cx=z=>.02+(z+1.38)*Math.tan(A), m=g=>tone(g,DK), xi=-.215,
+  spCVB4:()=>{ const T=.15, K=T-.22, dt=T+.03, dy=T+.015, y=dt+.003, A=.157, cA=Math.cos(A), cx=z=>.02+(z+1.38)*Math.tan(A), m=g=>tone(g,DK), xi=-.215,
       D=[[-.1,1.52],[-.19,1.3],[-.24,1],[-.26,.6],[-.27,-.2],[-.27,-1.42],[.18,-1.42],[.26,-1.25],[.38,-.85],[.44,-.45],[.45,-.1],[.42,.12],[.3,.4],[.21,.62],[.19,1],[.15,1.3],[.1,1.52]],
       ln=(o,z,l,w=.01)=>at(box(w,.008,l),cx(z)+o/cA,y,z,0,A,0),
       jet=(x,z,r)=>{ const g=plate([[0,.07],[.04,-.02],[.015,-.03],[.015,-.05],[-.015,-.05],[-.015,-.03],[-.04,-.02]],.012); g.rotateY(r); g.translate(x,dt+.004,z); return g; };
-    return [...H.parts, tone(at(plate(D,.03),0,dy,0),.62), tone(at(plate(D.map(([x,z])=>[x*.93,z*.985]),.05),0,T-.02,0),.78),
+    return [deckHull(D,[[T,1,1],[T-.05,.93,.99],[T-.13,.56,.96],[K,.32,.9]]), tone(at(plate(D,.03),0,dy,0),.62),
       ...[-1.25,-1.05,-.85,-.65,-.45,-.25,-.05].map(z=>ln(0,z,.08)), ...[.13,-.13].map(o=>ln(o,-.6,1.5)), ...[-1.05,-.97,-.89,-.81].map(z=>m(ln(0,z,.008,.22))),
       ...[-.07,.05].flatMap(x=>[m(at(box(.012,.008,.78),x,y,1.03)), m(at(box(.1,.008,.025),x,y,.6))]),
       m(ln(.06,-.1,.5,.012)), m(ln(.06,-.37,.025,.1)), m(ln(.17,-.25,.4,.012)), m(ln(.17,-.47,.025,.1)),
@@ -789,8 +788,8 @@ const GROUND_SHAPES={
       at(barG([xi,dt+.15,-.45],[xi,dt+.32,-.49],.018,.018),0,0,0), at(box(.1,.01,.016),xi,dt+.27,-.48), tone(at(box(.04,.024,.04),xi,dt+.33,-.49),GL),
       ...[.72,.86,1,1.14].map(z=>jet(-.17,z,Math.PI*.75)), ...[-.85,-1,-1.15].map(z=>jet(-.2,z,Math.PI*.25)), ...[1.2,1.33].map(z=>jet(.1,z,-Math.PI*.75)),
       ...pdG(-.22,dt-.004,-1.36,.75), ...pdG(.15,dt-.004,-1.36,.75), ...pdG(.4,dt-.004,-.62,.75), ...pdG(-.23,dt-.004,-.95,.75), ...pdG(-.14,dt-.004,1.4,.75), ...pdG(.12,dt-.004,1.42,.75),
-      ...sideT(H.w(.4)-.013,.01,.4,.6), ...sideT(-(H.w(.4)-.013),.01,.4,.6), ...spBells([.1,-.1],.06,-1.44,.07),
-      ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.12,H.low(.12,.5),.5,.8), ...gatB(-.12,H.low(.12,.5),.5,.8), ...gatB(.13,H.low(.13,-.8),-.8,.8), ...gatB(-.13,H.low(.13,-.8),-.8,.8)]; },
+      ...spBells([.13,0,-.13],.075,-1.41,.06),
+      ...belly(0,K+.003,0,.6), ...[.5,-.8].flatMap(z=>[...gatB(.06,K+.003,z,.8), ...gatB(-.06,K+.003,z,.8)])]; },
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
   spCVBM2:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.9,.17,.1],[1.5,.03,.05]]), m=0, A=-.11, dy=M.top(-.5)+.03;
@@ -862,6 +861,14 @@ const EDK=[[.7,1],[1,.3],[1,-.38],[0,-1],[-1,-.38],[-.5,1]];
 const eHull=S=>{ const sz=z=>{ if(z<=S[0][0]) return S[0]; for(let i=0;i<S.length-1;i++){ const a=S[i], b=S[i+1]; if(z<=b[0]){ const t=(z-a[0])/(b[0]-a[0]); return [z,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t,(a[3]||0)+((b[3]||0)-(a[3]||0))*t]; } } return S[S.length-1]; };
   return {parts:[loft(S,EDK)], w:z=>sz(z)[1], top:z=>{ const s=sz(z); return (s[3]||0)+s[2]; }, keel:z=>{ const s=sz(z); return (s[3]||0)-s[2]; },
     low:(x,z)=>{ const s=sz(z); return (s[3]||0)-s[2]*(1-.62*x/s[1]); } }; };
+/* deckHull (15.26): a hull that follows a flight deck's outline D ([x, z]) — rings of the outline scaled about x 0 and z 0 at each
+   level L [y, sx, sz], from the deck edge down to a narrow flat keel; capped above and below */
+const deckHull=(D,L)=>{ const R=L.map(([y,sx,sz])=>D.map(([x,z])=>new THREE.Vector3(x*sx,y,z*sz))), P=[], n=D.length;
+  const tri=(a,b,c,out)=>{ const v=new THREE.Vector3().subVectors(b,a).cross(new THREE.Vector3().subVectors(c,a)); if(v.dot(out)<0) P.push(a,c,b); else P.push(a,b,c); };
+  let ar=0; for(let j=0;j<n;j++){ const k=(j+1)%n; ar+=D[j][0]*D[k][1]-D[k][0]*D[j][1]; } const sg=ar>0?1:-1;
+  for(let i=0;i<R.length-1;i++) for(let j=0;j<n;j++){ const k=(j+1)%n, A=R[i][j], B=R[i][k], C=R[i+1][k], E=R[i+1][j], out=new THREE.Vector3(sg*(B.z-A.z),0,-sg*(B.x-A.x)); tri(A,B,C,out); tri(A,C,E,out); }
+  for(const [r,dy] of [[R[0],1],[R[R.length-1],-1]]) for(const [a,b,c] of THREE.ShapeUtils.triangulateShape(r.map(v=>new THREE.Vector2(v.x,v.z)),[])) tri(r[a],r[b],r[c],new THREE.Vector3(0,dy,0));
+  const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; };
 const lSki=(x,y,z0,z1,w,d=1)=>{ const p=[tone(at(box(w,.02,z1-z0),x,y,(z0+z1)/2),DK)]; let py=y, pz=d>0?z1-.005:z0+.005; for(const a of [.1,.22,.33]){ const L=.06;
     p.push(tone(at(box(w,.02,L+.01),x,py+L/2*Math.sin(a),pz+d*L/2*Math.cos(a),-d*a),DK)); py+=L*Math.sin(a); pz+=d*L*Math.cos(a); } return p; };
 const lLeg=(x,yt,zt,yd,zd,yf,zf)=>[...[.045,-.045].map(dx=>at(barG([x+dx,yt,zt],[x,yf,zf],.014,.014),0,0,0)), at(barG([x,yd,zd],[x,yf,zf],.012,.012),0,0,0),
