@@ -725,6 +725,30 @@ const GROUND_SHAPES={
       ...bellyR(H.keel(-.4)+.003,-.4,1.1,1.25), ...gatB(.16,H.low(.16,.1),.1,1), ...gatB(-.16,H.low(.16,.1),.1,1), ...gatB(.16,H.low(.16,-.9),-.9,1), ...gatB(-.16,H.low(.16,-.9),-.9,1)]; },
   spCLM4a:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.09,.04]], guns:[[.5,.9,2,false],[-.7,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:false, eng:[[.07,-.07],-1.1,.045], pd:[-.3], gat:[-.45], rad:-.8}),
   spCLM4b:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.1,.055]], guns:[[-.15,.9,2,false],[-.75,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:true, eng:[[.07,-.07],-1.1,.045], pd:[-.45], gat:[.45], rad:-.8}),
+  /* 戦闘母艦の作り直しの見本 (15.25、見本だけ)
+     spCVB3 (Earth): a slim hull with a long bow; a level flight deck on the centre line from the bow back into the dark mouth of a
+       hangar block aft; the bridge on the hangar; an outrigger pod on each side aft, joined by a wing, each with a turret and an engine
+     spCVBM3 (the Republic): a slim creased hull on a broad flat hangar body that widens aft (a wedge); two dark hangar mouths in its
+       front face, a launch deck running forward from each beside the hull; a low command hump, guns on the hull's back */
+  spCVB3:()=>{ const H=eHull([[-1.3,.2,.14],[-.7,.3,.17],[.2,.26,.16],[.9,.17,.12],[1.35,.08,.08,.02],[1.5,0,.01,.07]]), fy=.185, hy=.35;
+    return [...H.parts, loft([[-.3,.13,.045,.14],[1,.13,.045,.14],[1.38,.06,.045,.14]],RECT),
+      ...[...[.05,-.05].map(x=>at(box(.012,.008,1.3),x,fy+.002,.42)), ...[-.05,.25,.55,.85].map(z=>at(box(.03,.008,.08),0,fy+.002,z)), at(box(.2,.008,.02),0,fy+.002,1.02), at(box(.1,.008,.02),0,fy+.002,1.3)].map(g=>tone(g,DK)),
+      tone(at(loft([[-1.05,.2,.09],[-.32,.22,.09],[-.2,.18,.08]],SLAB),0,.26,0),.9), tone(at(box(.27,.11,.02),0,.245,-.196),DK),
+      at(loft([[-.8,.06,.06],[-.58,.055,.06],[-.5,.03,.05]],TRAP),0,hy+.055,0), tone(at(box(.08,.025,.03),0,hy+.08,-.53),GL),
+      at(box(.02,.14,.02),0,hy+.18,-.7), at(box(.14,.012,.02),0,hy+.2,-.7), tone(at(box(.05,.03,.04),0,hy+.26,-.7),GL),
+      ...pair(at(loft([[-1.25,.08,.09],[-.9,.1,.11],[-.3,.1,.1],[.1,.03,.04]]),.47,0,0)), ...pair(at(plate([[.2,-.15],[.42,-.32],[.42,-1],[.2,-1.08]],.05),0,0,0)),
+      ...laserT(.47,.1,-.6,.7,2), ...laserT(-.47,.1,-.6,.7,2), ...spBells([.47,-.47],0,-1.3,.07), ...spBells([.1,-.1],0,-1.35,.08),
+      ...pdG(.14,hy-.004,-.35,.8), ...pdG(-.14,hy-.004,-.35,.8), ...pdG(.14,hy-.004,-.95,.8), ...pdG(-.14,hy-.004,-.95,.8),
+      ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.1,H.low(.1,.4),.4,.8), ...gatB(-.1,H.low(.1,.4),.4,.8), ...gatB(.12,H.low(.12,-.7),-.7,.8), ...gatB(-.12,H.low(.12,-.7),-.7,.8)]; },
+  spCVBM3:()=>{ const M=mA([[-1.3,.2,.12],[-.6,.26,.14],[.3,.22,.13],[1,.14,.1],[1.5,.07,.06]]), G=mA([[-1.25,.5,.07],[-.5,.58,.08],[.2,.5,.075],[.3,.46,.07]]), dy=-.02;
+    return [...M.hull(), ...ySh(G.hull(),-.01), ...M.hump(-.5,-.1,.12,.05), ...M.eyes(1.32,.5), ...mEng([.34,.12,-.12,-.34],-1.28,.055),
+      ...pair(tone(at(box(.2,.085,.02),.34,-.005,.302),DK)),
+      ...pair(at(plate([[.25,.28],[.25,1],[.31,1.12],[.4,1.12],[.44,1],[.44,.28]],.03),0,dy,0)),
+      ...pair(tone(at(box(.012,.008,.74),.345,dy+.017,.68),DK)), ...pair(tone(at(box(.14,.008,.02),.345,dy+.017,1.02),DK)), ...[.5,.75].flatMap(z=>pair(tone(at(box(.05,.008,.06),.345,dy+.017,z),DK))),
+      ...mGun(0,M.top(.8),.8,.8,2), ...mGun(0,M.top(.42),.42,.85,2), ...mPair((x,y,z,s)=>mGun(x,y,z,s,1,true),.38,G.top(-.95)-.014,-.95,.75),
+      ...mPair(mPD,.42,G.top(-.1)-.014,-.1,.85), ...mPD(0,M.top(-.8),-.8,.85),
+      ...pair(tone(at(box(.16,.008,.34),.4,G.top(-.5)-.012,-.52),DK)),
+      ...M.under(mGun(0,0,0,.6),0), ...[.15,-.15].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,dz,.85),dz,sg*.13)))]; },
   spBBM5:()=>mBB5(),
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
