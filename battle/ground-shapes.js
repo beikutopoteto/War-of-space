@@ -727,27 +727,24 @@ const GROUND_SHAPES={
   spCLM4b:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.1,.055]], guns:[[-.15,.9,2,false],[-.75,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:true, eng:[[.07,-.07],-1.1,.045], pd:[-.45], gat:[.45], rad:-.8}),
   /* 強襲母艦の作り直しの見本 (15.25、見本だけ。両陣営で別の形)
      masc3 (Earth): a slim hull with a long bow; two catapults of the same kind side by side on the centre deck (launch pads), for
-       W.A.S. and aircraft alike, out of two dark mouths. The hangar is not a box: round shoulders, tapering fore and aft in plan,
-       with a fin running forward between the catapults; on it a slim two-tier tower bridge and a raked radiator stack; an
+       W.A.S. and aircraft alike, out of two dark mouths. The hangar is three triangular tiers (the cut point forward with the
+       mouths, widening aft), each smaller and further aft, so the side view steps up to the stern; the bridge on the top tier; an
        outrigger pod on each side aft with a turret and an engine
      masc3M (the Republic): two slim hulls side by side, each with a level launch deck and a hangar that runs down to the stern as
        one slope; a flat bridge spans them over the hangars with the command hump in the middle, and a beam joins them at the stern */
   masc3:()=>{ const H=eHull([[-1.3,.2,.14],[-.7,.3,.17],[.2,.28,.16],[.9,.17,.12],[1.35,.08,.08,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK),
-      DOME=[[.35,1],[.8,.7],[1,.1],[1,-1],[-1,-1],[-1,.1],[-.8,.7],[-.35,1]],
-      HS=[[-1.2,.13,.03,.19],[-1.02,.24,.065,.225],[-.72,.32,.1,.26],[-.42,.31,.095,.255],[-.25,.27,.085,.245]],
-      R=z=>{ for(let i=0;i<HS.length-1;i++){ const a=HS[i], b=HS[i+1]; if(z<=b[0]){ const t=Math.max(0,(z-a[0])/(b[0]-a[0])); return a[2]+a[3]+(b[2]+b[3]-a[2]-a[3])*t; } } return .33; };
+      tri=(xf,zf,xb,zb,ze)=>[[xf,zf],[xb,zb],[xb-.03,ze],[-xb+.03,ze],[-xb,zb],[-xf,zf]], y1=.26, y2=.33, y3=.39;
     return [...H.parts, loft([[-.3,.15,.045,.14],[1,.15,.045,.14],[1.38,.07,.045,.14]],RECT),
       ...[.075,-.075].flatMap(x=>[...[0,.3,.6,.9].map(z=>m(at(box(.09,.008,.12),x,fy+.002,z))), m(at(box(.01,.008,1.3),x,fy+.002,.42))]), m(at(box(.2,.008,.02),0,fy+.002,1.12)),
-      tone(loft(HS,DOME),.92), ...[.1,-.1].map(x=>m(at(box(.1,.085,.02),x,.232,-.246))),
-      at(loft([[-.3,.045,.06,fy+.05],[0,.03,.035,fy+.03],[.25,.012,.012,fy+.008]],TRAP),0,0,0),
-      ...[1,-1].map(sg=>m(at(box(.012,.05,.3),sg*.312,.235,-.6))),
-      at(loft([[-.86,.05,.04],[-.6,.055,.04],[-.44,.02,.03]],TRAP),0,R(-.7)+.03,0),
-      at(loft([[-.78,.04,.045],[-.6,.042,.045],[-.52,.02,.035]],TRAP),0,R(-.7)+.105,0), tone(at(box(.07,.022,.03),0,R(-.7)+.115,-.548),GL),
-      at(box(.2,.016,.03),0,R(-.7)+.16,-.68), at(box(.024,.1,.024),0,R(-.7)+.2,-.68), tone(at(box(.05,.028,.04),0,R(-.7)+.26,-.68),GL),
-      ...eStack(R(-.95)-.02,-.93,.06,.13,.11), at(box(.016,.12,.016),0,R(-1.08)+.04,-1.08), at(box(.1,.01,.016),0,R(-1.08)+.08,-1.08),
+      tone(at(plate(tri(.14,-.25,.33,-1,-1.15),.1),0,y1-.05,0),.92), at(plate(tri(.09,-.47,.24,-1,-1.1),.07),0,y2-.035,0), tone(at(plate(tri(.05,-.68,.15,-1,-1.05),.06),0,y3-.03,0),.92),
+      ...[.08,-.08].map(x=>m(at(box(.1,.07,.02),x,.213,-.246))), tone(at(box(.14,.022,.02),0,y2-.03,-.466),GL), tone(at(box(.07,.02,.02),0,y3-.028,-.676),GL),
+      at(loft([[-.27,.022,.035,fy+.03],[.2,.008,.008,fy+.006]],TRAP),0,0,0),
+      ...[1,-1].map(sg=>m(at(box(.07,.008,.16),sg*.25,y1+.002,-1.04))),
+      at(loft([[-1,.05,.035],[-.86,.05,.035],[-.78,.025,.028]],TRAP),0,y3+.03,0), tone(at(box(.07,.02,.02),0,y3+.04,-.8),GL),
+      at(box(.2,.014,.03),0,y3+.07,-.93), at(box(.022,.1,.022),0,y3+.11,-.93), tone(at(box(.05,.028,.04),0,y3+.17,-.93),GL),
       ...pair(at(loft([[-1.25,.08,.09],[-.9,.1,.11],[-.3,.1,.1],[.1,.03,.04]]),.6,0,0)), ...pair(at(plate([[.18,-.3],[.55,-.4],[.55,-1],[.18,-1.08]],.05),0,0,0)),
       ...laserT(.6,.1,-.6,.7,2), ...laserT(-.6,.1,-.6,.7,2), ...spBells([.6,-.6],0,-1.3,.07), ...spBells([.1,-.1],0,-1.35,.08),
-      ...pdG(.08,R(-.36)-.008,-.36,.8), ...pdG(-.08,R(-.36)-.008,-.36,.8), ...pdG(.185,H.top(.1)-.012,.1,.8), ...pdG(-.185,H.top(.1)-.012,.1,.8),
+      ...pdG(.2,y1-.004,-.72,.8), ...pdG(-.2,y1-.004,-.72,.8), ...pdG(.185,H.top(.1)-.012,.1,.8), ...pdG(-.185,H.top(.1)-.012,.1,.8),
       ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.1,H.low(.1,.4),.4,.8), ...gatB(-.1,H.low(.1,.4),.4,.8), ...gatB(.12,H.low(.12,-.7),-.7,.8), ...gatB(-.12,H.low(.12,-.7),-.7,.8)]; },
   masc3M:()=>{ const bx=.3, dk=.125, m=g=>tone(g,DK), B=()=>mA([[-1.3,.13,.1],[-.5,.17,.12],[.3,.15,.1],[1,.1,.08],[1.45,.05,.05]]), M=B(),
       HP=[[.5,1],[1,.1],[1,-1],[-1,-1],[-1,.1],[-.5,1]], HS=[[-1.27,.09,.03,.11],[-.5,.15,.1,.19],[-.3,.14,.09,.18]],
