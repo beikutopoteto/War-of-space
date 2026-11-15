@@ -702,29 +702,30 @@ const GROUND_SHAPES={
        range-finder, a raked stack and mast, point defence crowded round the tower; the big railgun stays under the keel (15.9)
      spCLM3a / spCLM3b, spBBM3a / spBBM3b (the Republic): see mDart, mFork and mSpine below */
   spCL3:()=>{ const H=eHull([[-1.1,.17,.13],[-.6,.24,.16],[.2,.24,.16],[.75,.16,.12],[1.05,.07,.08,.03],[1.2,0,.01,.1]]), T=H.top, dk=T(0)+.085;
-    return [...H.parts, tone(at(loft([[-.5,.11,.045],[-.2,.13,.045],[.26,.12,.045],[.36,.07,.04]],SLAB),0,T(0)+.04,0),.9),
-      at(loft([[.06,.08,.09],[.26,.07,.09],[.33,.035,.07]],TRAP),0,dk+.085,0), tone(at(box(.1,.028,.03),0,dk+.12,.285),GL),
-      at(box(.22,.02,.035),0,dk+.185,.16), at(box(.03,.1,.03),0,dk+.24,.16), tone(at(box(.06,.035,.05),0,dk+.3,.16),GL),
-      ...eStack(dk-.005,-.1,.09,.16,.17), at(box(.022,.2,.022),0,dk+.095,-.43), at(box(.16,.012,.02),0,dk+.15,-.43), tone(at(box(.05,.03,.04),0,dk+.2,-.43),GL),
+    return [...H.parts, tone(at(loft([[-.5,.08,.045],[-.2,.095,.045],[.26,.09,.045],[.36,.05,.04]],SLAB),0,T(0)+.04,0),.9),
+      at(loft([[.06,.05,.09],[.26,.045,.09],[.33,.025,.07]],TRAP),0,dk+.085,0), tone(at(box(.07,.028,.03),0,dk+.12,.285),GL),
+      at(box(.16,.02,.035),0,dk+.185,.16), at(box(.03,.1,.03),0,dk+.24,.16), tone(at(box(.06,.035,.05),0,dk+.3,.16),GL),
+      ...eStack(dk-.005,-.1,.065,.16,.17), at(box(.022,.2,.022),0,dk+.095,-.43), at(box(.16,.012,.02),0,dk+.15,-.43), tone(at(box(.05,.03,.04),0,dk+.2,-.43),GL),
       ...laserT(0,T(.78)-.008,.78,.8,2), at(new THREE.CylinderGeometry(.09,.1,.08,8),0,T(.54)+.03,.54), ...laserT(0,T(.54)+.07,.54,.8,2),
       at(new THREE.CylinderGeometry(.09,.1,.08,8),0,T(-.66)+.03,-.66), ...laserT(0,T(-.66)+.07,-.66,.8,2,true), ...laserT(0,T(-.9)-.008,-.9,.8,2,true),
-      ...pdG(.08,dk-.004,.02,.8), ...pdG(-.08,dk-.004,.02,.8), ...pdG(.08,dk-.004,-.3,.8), ...pdG(-.08,dk-.004,-.3,.8),
+      ...pdG(.055,dk-.004,.02,.8), ...pdG(-.055,dk-.004,.02,.8), ...pdG(.06,dk-.004,-.3,.8), ...pdG(-.06,dk-.004,-.3,.8),
       ...pair(at(plate([[.17,-.55],[.36,-.8],[.36,-1],[.17,-.95]]),0,-.04,0)), ...spBells([.11,-.11,0],0,-1.15,.07),
       ...belly(0,H.keel(.05)+.003,.05,.6), ...sideT(H.w(.05)-.013,0,.05,.6), ...sideT(-(H.w(.05)-.013),0,.05,.6), ...gatB(.11,H.low(.11,-.5),-.5,.9), ...gatB(-.11,H.low(.11,-.5),-.5,.9)]; },
   spBB3:()=>{ const H=eHull([[-1.35,.2,.15],[-.9,.3,.19],[-.25,.34,.2],[.4,.3,.18],[.9,.18,.13],[1.25,.07,.09,.05],[1.45,0,.01,.13]]), T=H.top, dk=T(-.2)+.105, t1=dk+.2;
-    return [...H.parts, tone(at(loft([[-.84,.15,.055],[-.4,.2,.055],[.12,.19,.055],[.24,.1,.05]],SLAB),0,T(-.2)+.05,0),.9),
-      at(loft([[-.32,.1,.1],[-.06,.095,.1],[.04,.05,.08]],TRAP),0,dk+.1,0), tone(at(box(.18,.03,.03),0,dk+.13,-.04),GL),
-      at(box(.12,.15,.15),0,t1+.07,-.16), tone(at(box(.13,.026,.02),0,t1+.1,-.082),GL),
-      at(box(.38,.03,.045),0,t1+.16,-.16), at(box(.07,.07,.07),0,t1+.2,-.16), tone(at(box(.08,.025,.02),0,t1+.21,-.12),GL),
-      ...eStack(dk-.005,-.47,.11,.22,.2), at(barG([0,dk,-.62],[0,dk+.3,-.72],.03,.03),0,0,0), at(box(.2,.012,.02),0,dk+.24,-.7), tone(at(box(.05,.03,.04),0,dk+.31,-.72),GL),
+    return [...H.parts, tone(at(loft([[-.84,.11,.055],[-.4,.14,.055],[.12,.13,.055],[.24,.08,.05]],SLAB),0,T(-.2)+.05,0),.9),
+      at(loft([[-.32,.065,.1],[-.06,.06,.1],[.04,.035,.08]],TRAP),0,dk+.1,0), tone(at(box(.12,.03,.03),0,dk+.13,-.04),GL),
+      at(box(.085,.15,.15),0,t1+.07,-.16), tone(at(box(.095,.026,.02),0,t1+.1,-.082),GL),
+      at(box(.3,.03,.045),0,t1+.16,-.16), at(box(.07,.07,.07),0,t1+.2,-.16), tone(at(box(.08,.025,.02),0,t1+.21,-.12),GL),
+      ...eStack(dk-.005,-.47,.085,.22,.2), at(barG([0,dk,-.62],[0,dk+.3,-.72],.03,.03),0,0,0), at(box(.2,.012,.02),0,dk+.24,-.7), tone(at(box(.05,.03,.04),0,dk+.31,-.72),GL),
       ...laserT(0,T(.72)-.008,.72,1.2,3), at(new THREE.CylinderGeometry(.14,.15,.11,8),0,T(.37)+.045,.37), ...laserT(0,T(.37)+.095,.37,1.2,3), ...laserT(0,T(-1)-.008,-1,1.2,3,true),
       at(new THREE.CylinderGeometry(.065,.07,.09,8),0,dk+.04,.14), ...laserT(0,dk+.085,.14,.6,3), ...laserT(0,dk-.004,-.76,.6,3,true),
-      ...[.0,-.25,-.55].flatMap(z=>[...pdG(.13,dk-.004,z,.9), ...pdG(-.13,dk-.004,z,.9)]), ...[.1,-.88].flatMap(z=>[...pdG(H.w(z)*.58,T(z)-.004,z,.9), ...pdG(-H.w(z)*.58,T(z)-.004,z,.9)]),
+      ...[.0,-.25,-.55].flatMap(z=>[...pdG(.085,dk-.004,z,.9), ...pdG(-.085,dk-.004,z,.9)]), ...[.1,-.88].flatMap(z=>[...pdG(H.w(z)*.58,T(z)-.004,z,.9), ...pdG(-H.w(z)*.58,T(z)-.004,z,.9)]),
       ...pair(at(plate([[.2,-1],[.42,-1.18],[.42,-1.33],[.2,-1.3]],.02),0,0,0)), ...spBells([.14,.047,-.047,-.14],0,-1.4,.055),
       ...sideT(H.w(.05)-.013,0,.05,.8), ...sideT(-(H.w(.05)-.013),0,.05,.8),
       ...bellyR(H.keel(-.4)+.003,-.4,1.1,1.25), ...gatB(.16,H.low(.16,.1),.1,1), ...gatB(-.16,H.low(.16,.1),.1,1), ...gatB(.16,H.low(.16,-.9),-.9,1), ...gatB(-.16,H.low(.16,-.9),-.9,1)]; },
   spCLM4a:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.09,.04]], guns:[[.5,.9,2,false],[-.7,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:false, eng:[[.07,-.07],-1.1,.045], pd:[-.3], gat:[-.45], rad:-.8}),
   spCLM4b:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.1,.055]], guns:[[-.15,.9,2,false],[-.75,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:true, eng:[[.07,-.07],-1.1,.045], pd:[-.45], gat:[.45], rad:-.8}),
+  spBBM5:()=>mBB5(),
   spBBM4:()=>mCT({S:[[-1.35,.26,.1],[.25,.3,.22],[1.45,.15,.075]], guns:[[-.1,1.3,2,false],[-.55,1.05,2,false],[-1.02,1.1,2,true]], side:()=>mGun(0,0,.05,.9), rail:true, eng:[[.14,0,-.14],-1.35,.06], pd:[-.33,-.8], gat:[.6,-.3], rad:-.95}),
   spCLM3a:()=>mDart(),
   spCLM3b:()=>mFork({body:[[-1.1,.16,.08],[-.7,.3,.12],[-.2,.4,.15],[.3,.3,.14],[.45,.25,.12]], prong:[[.2,.075,.09],[.6,.075,.09],[1,.07,.075],[1.2,.055,.055]], px:.155,
@@ -821,6 +822,21 @@ function mCT(o){ const S=o.S, M=mA(S), W=z=>M.at(z).w, zp=S[1][0], z1=S[2][0], t
     ...o.guns.flatMap(([z,s,n,rear])=>mBoth(M,()=>mGun(0,0,z,s,n,rear),z)), ...M.side(o.side,.05),
     ...o.pd.flatMap(z=>mBoth(M,()=>mPD(0,0,z,.9),z)), ...o.gat.flatMap(z=>M.under(mGat(0,0,z,.95),z)),
     ...[1,-1].map(sg=>tone(at(box(.014,M.at(o.rad).h*.26,.34),sg*(W(o.rad)-.004),0,o.rad),DK))]; }
+/* mBB5 (見本 第4回, 15.24): the Republic's battleship in the language of its other ships — a slim creased hull with a level back and a
+   cut bow. The railgun lies level along the back from the middle to past the bow: a low fairing in one piece with the hull, two
+   rails with a dark slot, clamp bands, a dark breech at its root and a dark muzzle. A short cropped-delta wing (after the F-16's)
+   on each side carries the bridge: a low command hump with an optical band on each wing, dark radiator panels behind it */
+function mBB5(){ const M=mA([[-1.35,.22,.12],[-.7,.3,.17],[.5,.3,.17],[1.1,.24,.15],[1.45,.18,.13]]), m=.05, W=z=>M.at(z).w, ty=.17, z0=-.3, z1=1.5, zc=(z0+z1)/2, L=z1-z0;
+  const gun=[loft([[z0,.1,.05,ty+.03],[z0+.12,.13,.05,ty+.03],[1.1,.13,.05,ty+.03],[z1-.03,.11,.05,ty+.03]],FACET),
+    ...[1,-1].map(sg=>tone(at(box(.04,.03,L-.1),sg*.055,ty+.09,zc+.03),.55)), tone(at(box(.07,.012,L-.12),0,ty+.082,zc+.03),DK),
+    ...[.0,.35,.7,1.05,1.36].map(z=>at(box(.2,.03,.05),0,ty+.092,z)), tone(at(box(.22,.09,.16),0,ty+.045,z0-.02),DK), tone(at(box(.17,.085,.03),0,ty+.045,z1-.02),DK)];
+  const wing=pair(at(plate([[.26,.12],[.66,-.42],[.66,-.64],[.26,-.74]],.05),0,.035,0));
+  const bridge=sg=>[...atX(mHump(-.56,-.3,.09,.05,.03),sg*.46), tone(at(box(.14,.008,.1),sg*.42,.037,-.66),DK), tone(at(box(.012,.03,.2),sg*.662,.015,-.53),GL)];
+  return [...M.hull(), ...gun, ...wing, ...bridge(1), ...bridge(-1), ...M.eyes(1.25), ...mEng([.14,0,-.14],-1.35,.065),
+    at(box(.26,.05,.3),0,M.top(-.62)+.02,-.62), ...mGun(0,M.top(-.62)+.04,-.62,1.3,2), ...mGun(0,M.top(-1.08)-.004,-1.08,1.2,2,true),
+    ...mPair(mPD,.2,M.top(-.9)-.004,-.9,.95), ...mPair(mPD,.2,ty-.004,.3,.95),
+    ...M.under(mGun(0,0,m,1.25,2),m), ...M.under(mGun(0,0,-.75,1.1,2,true),-.75), ...M.side(()=>mGun(0,0,.4,.7),.4),
+    ...[.5,-.35].flatMap(z=>[1,-1].flatMap(sg=>M.under(mGat(0,0,z,.95),z,sg*W(z)*.55)))]; }
 const GROUND_FORMS={
   one:[[0,0]],
   v3:[[0,0],[-3,-3],[3,-3]],                              // the old aircraft V
