@@ -138,7 +138,8 @@ async function checkGroundFixes(page,check){
     for(const f of fleets)if(f.team===0&&!f.embarked){f.stance='evade';groundClearOrders(f);f.pos.copy(home.pos);}
     groundUpdateSight();groundDraw();groundFogDraw(true);
     const color=(rgb)=>{const ctx=groundTerritory.canvas.getContext('2d'),p=ctx.getImageData(Math.floor(s.x*10),Math.floor((36-s.y)*10),1,1).data;return p[3]===102&&rgb.every((v,i)=>Math.abs(p[i]-v)<=2);};
-    const unknown=s.knownOwner===null&&color([160,168,165])&&s.el.style.visibility==='visible'&&s.ring.material.color.getHexString()==='cad1c5';
+    // 拠点の持ち主は視界の外でも分かる（ユーザー決定 2026-11-15）
+    const unseenOwner=!s.observed&&s.knownOwner===1&&color([230,85,72])&&s.el.style.visibility==='visible'&&s.ring.material.color.getHexString()==='ff998b';
     const observer=fleets.find(f=>f.team===0&&f.groundKind==='infantry');observer.pos.copy(s.pos);groundUpdateSight();groundDraw();
     const detected=s.knownOwner===1&&color([230,85,72]);
     observer.pos.copy(home.pos);groundUpdateSight();groundDraw();groundFogDraw(true);
@@ -148,7 +149,7 @@ async function checkGroundFixes(page,check){
     groundSupplyAfter(3);groundDraw();const line=groundSupplyLinks.get(observer);
     const supplied=!!line&&line.parent===groundVisuals&&line.geometry.attributes.position.count>1&&line.material.isLineDashedMaterial;
     observer.groundSupply=100;groundSupplyAfter(1);groundDraw();const full=!groundSupplyLinks.has(observer);
-    return {unknown,detected,remembered,supplied,full,aboveFog:s.ring.renderOrder>3&&groundTerritory.mesh.renderOrder>3};
+    return {unseenOwner,detected,remembered,supplied,full,aboveFog:s.ring.renderOrder>3&&groundTerritory.mesh.renderOrder>3};
   });
   for(const [name,ok] of Object.entries(result))check(ok,'地上の直しの実画面: '+name);
   await page.evaluate(()=>{reset({op:'charybdis'});});

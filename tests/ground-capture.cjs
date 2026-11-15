@@ -12,7 +12,7 @@ function captureCases() {
     const s=site(), blue=unit(0), red=unit(1);groundSites=[s,site()];groundSites[1].pos.x=200;fleets=[blue,red];
     groundCaptureStep(10);check('両軍の占拠部隊で停止',s.contested&&s.progress.every(x=>x===0));
     s.owner=1;red.pos.x=50;groundCaptureStep(12);check('単独の歩兵で12秒進む',!s.contested&&s.progress[0]===12);
-    blue.pos.x=50;groundCaptureStep(5);check('離れると占領と同じ速さで減る',s.progress[0]===7);
+    blue.pos.x=50;groundCaptureStep(1);check('離れて2秒までは減らない',s.progress[0]===12);groundCaptureStep(4);check('そのあと占領と同じ速さで減る',s.progress[0]===9);
     groundCaptureStep(20);check('誰もいなければ0まで戻る',s.progress[0]===0);
     blue.pos.x=0;groundCaptureStep(12);blue.pos.x=50;red.pos.x=0;groundCaptureStep(.1);check('持ち主が踏むとすぐ戻り、進めない',s.progress[0]===0&&s.progress[1]===0);
     blue.pos.x=0;red.pos.x=50;groundCaptureStep(12);red.pos.x=0;groundCaptureStep(10);check('進捗がある競合では止まり、減らない',s.contested&&s.progress[0]===12&&s.progress[1]===0);

@@ -99,7 +99,7 @@ function groundCanSee(f,t){
 // 占領した拠点も、その周り（site、仮に5km）を見る（ユーザー決定 2026-11-15）。中立の拠点は誰の目にもならない。
 function groundSiteObservers(team){
   const r=groundSightRules();
-  return groundSites.filter(s=>s.owner===team).map(s=>({eye:{x:s.pos.x,z:s.pos.z,y:groundSightHeight(s.pos.x,s.pos.z)+r.eyeHeight},range:r.site}));
+  return (typeof groundSites==='undefined'?[]:groundSites).filter(s=>s.owner===team).map(s=>({eye:{x:s.pos.x,z:s.pos.z,y:groundSightHeight(s.pos.x,s.pos.z)+r.eyeHeight},range:r.site}));
 }
 function groundSiteSees(observers,t){
   if(!observers.length||groundAbsent(t)||!t.alive||t.embarked)return false;
