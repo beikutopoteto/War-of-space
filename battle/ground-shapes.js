@@ -493,8 +493,9 @@ const OB_LOT={obHouseFlat:[.3],obShop:[.34,{roof:1}],obBlockFlat:[.6],obDome:[.4
    どちらも「環状の道」と「中心から外へ伸びる道」で区画を切り、区画を四角でない建物（obLot）ですき間なく埋める。
    放射状: 道はまっすぐな放射と正しい円。自然都市: 同じ網をゆがめる（環は波打ち、外へ伸びる道はうねり、間隔も不ぞろい）。区画の分け方も不ぞろいにする */
 function obCityFree(kind,cult,tier,seed){ const P=[], put=obPut(P), r=obRnd(seed), R=[3,5,7][tier-1], top=tier, pick=OB_PICK[cult][tier-1], T=Math.PI*2, org=kind==='org';
-  const ph=[r()*T,r()*T,r()*T,r()*T], wob=a=>org?1+.13*Math.sin(3*a+ph[0])+.07*Math.sin(5*a+ph[1]):1, wig=d=>org?.22*Math.sin(d*1.1+ph[2])+.1*Math.sin(d*2.7+ph[3]):0;
-  const F=(d,a)=>{ const b=a+wig(d), q=d*wob(b); return [Math.cos(b)*q,Math.sin(b)*q]; };
+  const ph=[r()*T,r()*T,r()*T,r()*T], reg=[1,.6,.4][tier-1], amp=d=>org?reg+(1-reg)*Math.min(1,d/R):0,   // 自然都市のゆがみ。大都会・メトロポリタンは中心ほど整備されて小さい
+    wob=(a,d)=>1+amp(d)*(.08*Math.sin(2*a+ph[0])+.045*Math.sin(3*a+ph[1])), wig=d=>amp(d)*(.38*Math.sin(d*.9+ph[2])+.12*Math.sin(d*1.9+ph[3]))/Math.max(1.5,d);
+  const F=(d,a)=>{ const b=a+wig(d), q=d*wob(b,d); return [Math.cos(b)*q,Math.sin(b)*q]; };
   const road=(pts,w)=>{ for(let i=1;i<pts.length;i++){ const [x1,z1]=pts[i-1], [x2,z2]=pts[i], l=Math.hypot(x2-x1,z2-z1); P.push(tone(at(box(w,.02,l+w*.4),(x1+x2)/2,.005,(z1+z2)/2,0,Math.atan2(x2-x1,z2-z1),0),OC.asph)); } };
   P.push(tone(at(new THREE.CylinderGeometry(R+.9,R+.9,.02,40),0,-.01,0),OC.walk));
   const rings=[1.2]; while(rings[rings.length-1]<R-.6) rings.push(rings[rings.length-1]+(org?1.5+r()*.7:1.85)); rings[rings.length-1]=Math.max(rings[rings.length-1],R+.3);
@@ -504,12 +505,14 @@ function obCityFree(kind,cult,tier,seed){ const P=[], put=obPut(P), r=obRnd(seed
   const bigs=tier===3?[[0,0,'obMega',1.6,1.25], ...[0,1,2,3].map(i=>[...F(2.7,Math.PI/8+i*T/4),'obArco',1.3,1.2])]:tier===2?[[0,0,'obSuper',1.2,.9]]:[];
   const hw=tier>=2?R*.5:null, hw2=tier===3?-R*.5:null;
   for(let k=0;k<rings.length-1;k++) for(let i=0;i<n;i++){ const d0=rings[k]+.24, d1=rings[k+1]-(k===rings.length-2?0:.24), a0=spokes[i], a1=i===n-1?spokes[0]+T:spokes[i+1], dm=(d0+d1)/2;
-    const rows=Math.max(1,Math.round((d1-d0)/.8)), cut=(m,j)=>org&&j>0&&j<m?(j+(r()-.5)*.35)/m:j/m;
+    const rows=Math.max(1,Math.round((d1-d0)/.8)), cut=(m,j)=>org&&j>0&&j<m?(j+(r()-.5)*.3*amp(dm))/m:j/m;
     const rc=[...Array(rows+1)].map((_,j)=>d0+(d1-d0)*cut(rows,j));
     for(let u=0;u<rows;u++){ const ra=rc[u]+.03, rb=rc[u+1]-.03, rm=(ra+rb)/2, g0=.26/rm, arc=(a1-a0-2*g0)*rm, cols=Math.max(1,Math.round(arc/.8)), cc=[...Array(cols+1)].map((_,j)=>a0+g0+(a1-a0-2*g0)*cut(cols,j));
       for(let v=0;v<cols;v++){ const b0=cc[v]+.03/rm, b1=cc[v+1]-.03/rm, q=[F(ra,b0),F(ra,b1),F(rb,b1),F(rb,b0)], [x,z]=F(rm,(b0+b1)/2), d=Math.hypot(x,z);
         if(bigs.some(b=>Math.hypot(x-b[0],z-b[1])<b[4])||(hw!=null&&Math.abs(z-hw)<.62)||(hw2!=null&&Math.abs(x-hw2)<.62)) continue;
-        const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(!key) continue; const [h,o]=OB_LOT[key]||[.5]; obLot(q,h*(.85+r()*.3),o).forEach(g=>P.push(g)); } } }
+        const E=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]), area=Math.abs((q[2][0]-q[0][0])*(q[3][1]-q[1][1])-(q[3][0]-q[1][0])*(q[2][1]-q[0][1]))/2, thin=area/Math.max(E(q[0],q[1]),E(q[1],q[2]),E(q[2],q[3]),E(q[3],q[0]));
+        if(thin<.36){ const g=plate(q,.03); g.translate(0,.02,0); P.push(tone(g,OC.crop)); continue; }   // 細すぎる区画は建てずに緑地にする（薄く細いビルを作らない）
+        const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(!key) continue; const [h,o]=OB_LOT[key]||[.5]; obLot(q,h*(.85+r()*.3),thin<.5?{...o,set:0}:o).forEach(g=>P.push(g)); } } }
   bigs.forEach(([x,z,key,k])=>put(GROUND_SHAPES[key](),x,z,k));
   const chord=c=>Math.sqrt(Math.max(0,(R+.9)**2-c*c));
   if(hw!=null){ const h=chord(hw); for(let x=-h+.45;x<h;x+=.9) put(GROUND_SHAPES.obHighway(),x,hw,.9,true); }
