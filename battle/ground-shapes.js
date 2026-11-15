@@ -761,10 +761,12 @@ const GROUND_SHAPES={
       ...mPair(mPD,.22,.275,-.5,.85), ...mGun(0,.065,-1,.75,1,true),
       ...both(sg=>B().under(mGun(0,0,.2,.7,2),.2)), ...both(sg=>B().under(mGat(0,0,-.5,.85),-.5)), ...both(sg=>B().under(mGat(0,0,.8,.85),.8)),
       ...both(sg=>{ const p=mGun(0,0,.05,.7,2); return p.map(g=>{ g.rotateZ(-sg*Math.PI/2); g.translate(sg*(M.at(.05).w-.006),.012,0); return g; }); })]; },
-  /* the assault carriers landed (15.25): the same ships with the landing gear down. Earth stands on dark skids under its two low
-     pods and a nose leg; the Republic on four legs under its two hulls. At sea both float as they are (no gear) */
-  masc3L:()=>[...GROUND_SHAPES.masc3(), ...pair(tone(at(box(.11,.03,.5),.66,-.36,-.6),DK)), at(box(.03,.28,.03),0,-.235,.9), tone(at(box(.12,.02,.18),0,-.365,.9),DK)],
-  masc3ML:()=>[...GROUND_SHAPES.masc3M(), ...[-.8,.7].flatMap(z=>[.3,-.3].flatMap(x=>[at(box(.03,.22,.03),x,-.16,z), tone(at(box(.12,.02,.16),x,-.27,z),DK)]))],
+  /* the assault carriers landed (15.25): the same ships with the landing gear down. The gear is a ski (lSki: a dark runner whose
+     front end curves up in three steps) on raked struts. Earth stands on a ski under each low pod and one under the bow; the
+     Republic on four under its two hulls. At sea both float as they are (no gear) */
+  masc3L:()=>[...GROUND_SHAPES.masc3(), ...[.66,-.66].flatMap(x=>[...lSki(x,-.39,-.85,-.38,.1), at(barG([x,-.3,-.8],[x,-.385,-.7],.03,.03),0,0,0), at(barG([x,-.3,-.55],[x,-.385,-.45],.03,.03),0,0,0)]),
+    ...lSki(0,-.39,.84,1,.1), at(barG([0,-.1,.68],[0,-.385,.92],.035,.035),0,0,0)],
+  masc3ML:()=>[...GROUND_SHAPES.masc3M(), ...[-.85,.6].flatMap(z=>[.3,-.3].flatMap(x=>[...lSki(x,-.27,z+.04,z+.22,.1), at(barG([x,-.08,z],[x,-.265,z+.13],.03,.03),0,0,0)]))],
   spBBM5:()=>mBB5(),
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
@@ -837,6 +839,7 @@ const EDK=[[.7,1],[1,.3],[1,-.38],[0,-1],[-1,-.38],[-.5,1]];
 const eHull=S=>{ const sz=z=>{ if(z<=S[0][0]) return S[0]; for(let i=0;i<S.length-1;i++){ const a=S[i], b=S[i+1]; if(z<=b[0]){ const t=(z-a[0])/(b[0]-a[0]); return [z,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t,(a[3]||0)+((b[3]||0)-(a[3]||0))*t]; } } return S[S.length-1]; };
   return {parts:[loft(S,EDK)], w:z=>sz(z)[1], top:z=>{ const s=sz(z); return (s[3]||0)+s[2]; }, keel:z=>{ const s=sz(z); return (s[3]||0)-s[2]; },
     low:(x,z)=>{ const s=sz(z); return (s[3]||0)-s[2]*(1-.62*x/s[1]); } }; };
+const lSki=(x,y,z0,z1,w)=>{ const p=[tone(at(box(w,.02,z1-z0),x,y,(z0+z1)/2),DK)]; let py=y, pz=z1-.005; for(const a of [.3,.65,1]){ const L=.07; p.push(tone(at(box(w,.02,L+.01),x,py+L/2*Math.sin(a),pz+L/2*Math.cos(a),-a),DK)); py+=L*Math.sin(a); pz+=L*Math.cos(a); } return p; };
 const eStack=(y,z,w,h,l,rk=.28)=>{ const c=Math.cos(rk), s=Math.sin(rk), P=(g,d,dx=0)=>at(g,dx,y+d*c,z-d*s,-rk);
   return [P(box(w,h,l),h/2-.01), tone(P(box(w*1.08,.03,l*1.06),h),DK), ...[1,-1].map(sg=>tone(P(box(.012,h*.6,l*.7),h*.5,sg*w/2),DK))]; };
 const mBoth=(M,p,z,x=0)=>[...p().map(g=>{ g.translate(x,M.top(z)-.004,0); return g; }), ...M.under(p(),z,-x)];
