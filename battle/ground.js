@@ -260,7 +260,8 @@ function groundInitUnit(f){
     const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
     const mat=base.clone(); base.dispose(); mat.transparent=true; mat.userData.baseOpacity=1;
     const geos=new Map([spec.key,...spec.move].map(key=>[key,null]));
-    for(const key of geos.keys())geos.set(key,groundShapeGeo(key));
+    // y: the table's lift of the shape before scaling (the sea assault carriers' waterline, docs/models.md 15.25)
+    for(const key of geos.keys()){ const g=groundShapeGeo(key); if(spec.y)g.translate(0,spec.y,0); geos.set(key,g); }
     const geo=geos.get(spec.key),size=spec.size;
     const form=model.userData.formation={spec,bodies:[],layouts:{},flights:[]};
     for(const state of ['idle','defend','advance','move'])form.layouts[state]=groundFormationLayout(f,spec,state);

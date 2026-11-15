@@ -10,11 +10,11 @@ function nodeChecks(){
     c.scene=new c.THREE.Scene();c.TEAM_COL=[0,1,2,3].map(()=>new c.THREE.Color('blue'));
     test.run(u.slice(u.indexOf('const SHIP_MAX='),u.indexOf('/* small craft')));
     const verify=(name,code)=>{assert.equal(test.run(code),true,name);count++;};
-    verify('両陣営の7艦種の頂点数とジオメトリ共有',`Object.entries(SPACE_MODELS).filter(([k])=>k!=='masc').every(([k,s])=>['earth','mars'].every(side=>{const key=k+(side==='mars'?'@mars':'');return shipMeshes[0][key].geometry.attributes.position.count===groundShapeGeo(s[side]).attributes.position.count&&shipMeshes.every(m=>m[key].geometry===shipMeshes[0][key].geometry);}))`);
+    verify('両陣営の8艦種の頂点数とジオメトリ共有',`Object.entries(SPACE_MODELS).every(([k,s])=>['earth','mars'].every(side=>{const key=k+(side==='mars'?'@mars':'');return shipMeshes[0][key].geometry.attributes.position.count===groundShapeGeo(s[side]).attributes.position.count&&shipMeshes.every(m=>m[key].geometry===shipMeshes[0][key].geometry);}))`);
     verify('全艦の頂点色',`shipMeshes.every(m=>Object.values(m).every(v=>!!v.geometry.attributes.color))`);
     verify('陣営と鹵獲艦の鍵',`shipMeshKey({team:1},'cv')==='cv@mars'&&shipMeshKey({team:1},'bb')==='bb'&&shipMeshKey({team:1,side:'earth'},'cv')==='cv'&&shipMeshKey({team:0},'cv')==='cv'`);
     verify('共和国の鍵がない場合は従来の鍵',`(()=>{const m=shipMeshes[1]['cv@mars'];delete shipMeshes[1]['cv@mars'];const key=shipMeshKey({team:1},'cv');shipMeshes[1]['cv@mars']=m;return key==='cv';})()`);
-    verify('強襲母艦の高さ',`(()=>{const a=shipMeshes[0].masc.geometry.attributes.position,b=groundShapeGeo('masc2').attributes.position;return a.count===b.count&&Array.from({length:a.count},(_,i)=>Math.abs(a.getY(i)-b.getY(i)+.09)<1e-6).every(Boolean)&&!shipMeshes[0]['masc@mars'];})()`);
+    verify('強襲母艦の高さ',`SPACE_MODELS.masc.y===-.10&&['earth','mars'].every(side=>{const a=shipMeshes[0][side==='earth'?'masc':'masc@mars'].geometry.attributes.position,b=groundShapeGeo(SPACE_MODELS.masc[side]).attributes.position;return a.count===b.count&&Array.from({length:a.count},(_,i)=>Math.abs(a.getY(i)-b.getY(i)+.10)<1e-6).every(Boolean);})`);
   }
 
   run(`globalThis.testKey=Object.keys(GROUND_SHAPES)[0];`);

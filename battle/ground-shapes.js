@@ -603,19 +603,6 @@ const GROUND_SHAPES={
     at(loft([[.2,.15,.09],[.55,.14,.09],[.7,.08,.08,-.01]],TRAP),0,.22,0), tone(at(loft([[.45,.105,.014],[.555,.1,.014],[.705,.056,.014]],RECT),0,.27,0),GL),
     ...seaMast(.35,.3,.16,.16), tone(at(box(.3,.008,1.1),0,.132,-.45),.7), tone(at(box(.26,.12,.02),0,.06,-1.1),DK),
     ...pair(tone(at(loft([[-.6,.04,.035],[-.2,.04,.035],[-.1,.02,.03,.005]],RECT),.225,.1,0),.8))],
-  /* 強襲母艦 (docs/models.md 14): one design for space and sea — the space carrier's two slim hulls joined by a broad deck,
-     worked out. Twin flat-bottomed hulls with an engine bell in each stern, a hangar body between them under the deck with a
-     dark launch mouth at its front, a flight deck with two launch tracks, two W.A.S. lifts on the port side and a landing area
-     aft, an island on the starboard hull, two small guns. Waterline y 0 */
-  masc2:()=>{ const CAT=[[.6,1],[1,.2],[.6,-1],[-.6,-1],[-1,.2],[-.6,1]], sx=(p,x)=>p.map(g=>{ g.translate(x,0,0); return g; });
-    return [...pair(at(loft([[-1.2,.12,.12,.06],[-.4,.16,.13,.06],[.6,.13,.125,.06],[1.25,0,.07,.11]],CAT),.36,0,0)),
-      loft([[-.95,.21,.09,.11],[.5,.21,.09,.11],[.78,.15,.07,.13]],RECT), tone(at(box(.26,.1,.02),0,.125,.782),DK),
-      at(loft([[-1.05,.5,.025],[.3,.5,.025],[.82,.3,.025]],RECT),0,.215,0),
-      ...engines([.36,-.36],.07,-1.26,.085).map(g=>tone(g,DK)), ...engines([.1,-.1],.11,-1,.055).map(g=>tone(g,DK)),
-      ...pair(tone(at(box(.03,.008,.95),.1,.241,.3),DK)), ...[-.25,.12].map(z=>tone(at(box(.17,.008,.22),-.3,.241,z),DK)), tone(at(box(.6,.008,.4),0,.241,-.75),.7),
-      at(loft([[-.5,.075,.07],[-.12,.075,.07],[.02,.04,.06,-.01]],TRAP),.38,.31,0), tone(at(loft([[-.2,.062,.014],[-.12,.062,.014],[.025,.034,.014]],RECT),.38,.335,0),GL),
-      at(box(.025,.16,.025),.38,.45,-.35), at(box(.14,.012,.02),.38,.47,-.35), at(box(.06,.03,.045),.38,.53,-.35),
-      ...sx(gunTurret(.235,.2),-.4), ...sx(gunTurret(.235,.22),.38)]; },
   /* space ships worked out (docs/models.md 15, round 2 in 15.4): today's hulls with their numbers kept, outlines added where
      the role shows, laser turrets worked out (laserT), point defence on every ship (pdG). Centred on y 0. sp…: used for space ships; SHAPES remains for legacy ground and sea drawings */
   spCV:()=>[loft([[-1,.13,.07],[-.55,.2,.1],[.35,.13,.07],[1.05,0,0]]), ...pair(at(plate([[.08,-.2],[.5,-.65],[.5,-.8],[.08,-.62]]),0,0,0)),
@@ -634,26 +621,6 @@ const GROUND_SHAPES={
     ...[.29,-.29].flatMap(x=>[[-.022,-.012],[.022,-.012],[0,.022]].map(([dx,dy])=>tone(at(tube(.015,.03,6),x+dx,-.03+dy,.455),DK))), ...spBells([.08,-.08],0,-1.15,.07),
     ...laserT(0,.088,.62,.8), tone(at(box(.07,.025,.1),0,.2,-.02),GL), ...pdG(.29,.035,-.35,.7), ...pdG(-.29,.035,-.35,.7), ...pdG(0,.205,-.42,.7),
     ...belly(0,-.118,.08,.7), ...gatB(.1,-.089,-.2,.8), ...gatB(-.1,-.089,-.2,.8)],
-  spCL:()=>[loft([[-1.1,.32,.19],[-.45,.38,.23],[.45,.29,.17],[1.2,0,.01,-.02]]), at(loft([[-.6,.15,.09],[-.25,.17,.16,.06],[.05,.1,.08,.03],[.25,0,0]]),0,.2,0),
-    ...laserT(0,.142,.55,1,2), ...laserT(0,.2,-.82,1,2,true),
-    ...pair(at(plate([[.3,-.45],[.55,-.75],[.55,-.95],[.3,-.9]]),0,-.04,0)), ...spBells([.17,-.17,0],0,-1.15,.09), tone(at(box(.14,.03,.08),0,.3,.02),GL),
-    ...pdG(.2,.11,.1,.8), ...pdG(-.2,.11,.1,.8), ...pdG(.22,.14,-.45,.8), ...pdG(-.22,.14,-.45,.8),
-    ...belly(0,-.197,.05,.6), ...sideT(.322,0,.05,.6), ...sideT(-.322,0,.05,.6), ...gatB(.15,-.171,-.5,.9), ...gatB(-.15,-.171,-.5,.9)],
-  spBB:()=>[loft([[-1.35,.34,.2],[-.6,.41,.25],[.6,.31,.19],[1.45,0,.01,-.03]]), at(loft([[-.85,.18,.09],[-.35,.2,.17,.06],[.05,.13,.1,.04],[.3,0,0,.02]]),0,.22,0),
-    at(loft([[-.6,.08,.07],[-.4,.08,.12,.05],[-.2,0,0,.03]]),0,.44,0),
-    ...laserT(0,.118,.88,1.3,2), at(new THREE.CylinderGeometry(.13,.14,.08,8),0,.22,.52), ...laserT(0,.26,.52,1.3,2), ...laserT(0,.215,-1.02,1.25,2,true),
-    ...laserT(.27,.11,.12,.55), ...laserT(-.27,.11,.12,.55), ...laserT(.27,.13,-.3,.55), ...laserT(-.27,.13,-.3,.55),
-    at(plate([[0,-.3],[0,-1.05],[.03,-1.05],[.03,-.5]],.025),0,-.19,0,0,0,-Math.PI/2), ...spBells([.18,-.18,0],0,-1.4,.1), ...pair(at(plate([[.26,-1.05],[.46,-1.2],[.46,-1.32],[.26,-1.3]],.02),0,0,0)),
-    ...pdG(.15,.33,-.5,.9), ...pdG(-.15,.33,-.5,.9), ...pdG(.3,.12,-.72,.9), ...pdG(-.3,.12,-.72,.9),
-    tone(at(box(.16,.03,.08),0,.33,0),GL), at(box(.025,.14,.025),0,.6,-.45), at(box(.12,.012,.02),0,.62,-.45), tone(at(box(.05,.03,.04),0,.68,-.45),GL),
-    ...bellyR(-.24,-.4,1.1,1.25), ...gatB(.2,-.139,.1,1), ...gatB(-.2,-.139,.1,1), ...gatB(.25,-.137,-.9,1), ...gatB(-.25,-.137,-.9,1)],
-  spCVB:()=>[at(loft([[-1.2,.3,.03],[-.8,.38,.03],[.55,.34,.03],[1.2,.06,.03]],RECT),0,.16,0), loft([[-1.15,.2,.13],[-.4,.23,.15],[.6,.17,.11],[1.15,0,.01]]),
-    loft([[-.85,.17,.035,.095],[.7,.17,.035,.095],[.8,.12,.03,.095]],RECT), tone(at(box(.2,.05,.01),0,.095,.802),DK),
-    at(loft([[-.4,.05,.05],[-.22,.06,.18,.09],[0,.035,.09,.05],[.1,0,0]]),.33,.2,0), ...spBells([.1,-.1],-.02,-1.2,.08),
-    ...pair(tone(at(box(.03,.008,1),.09,.191,.25),DK)), tone(at(box(.14,.008,.2),-.22,.191,-.3),DK), tone(at(box(.5,.008,.36),0,.191,-.9),.7),
-    tone(at(box(.06,.03,.07),.33,.36,-.1),GL), at(box(.02,.12,.02),.33,.47,-.22), tone(at(box(.05,.025,.035),.33,.54,-.22),GL),
-    ...laserT(-.26,.19,.3,.6), ...laserT(-.26,.19,-.1,.6), ...pdG(.3,.19,-1,.8), ...pdG(-.3,.19,-1,.8), ...pdG(.24,.19,.62,.8), ...pdG(-.2,.19,.75,.8),
-    ...belly(0,-.134,0,.6), ...gatB(.1,-.082,.3,.8), ...gatB(-.1,-.082,.3,.8), ...gatB(.12,-.094,-.7,.8), ...gatB(-.12,-.094,-.7,.8), ...gatB(.3,.13,-.3,.8), ...gatB(-.3,.13,-.3,.8)],
   /* 突撃揚陸艦 (docs/models.md 15.5): the W.A.S. drop from under the body — a flat-bottomed launch bay under the hull, its sides
      drawn in toward the bottom, and two rows of five pods (one W.A.S. each) half out of its floor, each with a dark lid. No side pods:
      a flat twin secondary gun laid on each side wall (15.7) */
@@ -676,31 +643,13 @@ const GROUND_SHAPES={
     return [...B.hull(), ...atX(P.hull(),.09), ...atX(P.hull(),-.09), ...pair(tone(at(box(.04,.01,.09),.09,P.top(1.08)+.002,1.08),GL)), ...B.hump(-.7,-.25,.08,.04),
       ...pair(at(loft([[-1.12,.05,.05],[-.85,.065,.06],[-.5,.03,.035]],O8),.2,0,0)), ...pair(tone(at(new THREE.CylinderGeometry(.04,.034,.04,8).rotateX(Math.PI/2),.2,0,-1.13),DK)), ...mGun(0,B.top(.3),.3,.85,2), ...mPair(mPD,B.at(-.45).w*.5,B.top(-.45),-.45,.75),
       ...B.under(mGun(0,0,m,.7,2),m), ...B.side(()=>mGat(0,0,m,.85),m)]; },
-  spCLM:()=>{ const M=mA([[-1.1,.13,.07],[-.6,.3,.11],[-.1,.43,.14],[.45,.3,.12],[1,.1,.06],[1.2,.05,.035]]), m=.05, W=z=>M.at(z).w;
-    const spine=at(loft([-.95,-.6,-.1,.45,.8].map(z=>[z,z>.7?.025:.045,.03,M.top(z)+.022]),TRAP),0,0,0);
-    return [...M.hull(), spine, ...M.hump(-.4,.02,.12,.05), ...M.eyes(1.05,.5), ...mEng([.07,-.07],-1.1,.05),
-      ...mPair((x,y,z,s)=>mGun(x,y,z,s,2),W(.5)*.47,M.top(.5),.5,.9), ...mPair(mPD,W(-.1)*.65,M.top(-.1),-.1,.85), ...mPair(mPD,W(-.6)*.6,M.top(-.6),-.6,.85),
-      ...pair(tone(at(box(.1,.012,.3),.1,M.top(-.82),-.82),DK)),
-      ...M.under(mGun(0,0,m,.6),m), ...M.side(()=>flatM(0,0,m,.6),m), ...[1,-1].flatMap(sg=>M.under(mGat(0,0,m,.9),m,sg*W(m)*.5))]; },
-  spBBM:()=>{ const M=mA([[-1.35,.25,.12],[-.6,.36,.17],[.3,.34,.17],[1,.2,.12],[1.45,.08,.06]]), G=mA([[-1.15,.4,.03],[-.75,.66,.04],[-.1,.66,.04],[.45,.42,.035],[.8,.3,.03]]), m=.05, W=z=>M.at(z).w;
-    const T=onTop(M,[[-.95,.22,.045],[-.2,.25,.05],[.55,.2,.045],[.75,.12,.035]]);
-    /* the hull-integrated railgun (15.17): a low creased fairing on the centre line from the upper deck's front to the bow, two flat
-       rails side by side on it with a dark slot between, three clamp bands, a dark capacitor box at the root and a dark muzzle */
-    const rz=[.62,.9,1.2,1.47], fair=loft(rz.map(z=>[z,z>1.4?.075:.1,.03,M.top(Math.min(z,1.45))+.022]),FACET), ry=z=>M.top(Math.min(z,1.45))+.052;
-    const rail=[fair, ...[.045,-.045].map(x=>tone(at(box(.035,.03,.86),x,ry(1.05)+.004,1.04,Math.atan2(ry(.62)-ry(1.47),.85),0,0),.55)), tone(at(box(.04,.006,.84),0,ry(1.05)-.006,1.04,Math.atan2(ry(.62)-ry(1.47),.85),0,0),DK),
-      ...[.85,1.1,1.33].map(z=>at(box(.16,.022,.04),0,ry(z)+.012,z)), tone(at(box(.17,.06,.08),0,T.top(.7)-.005,.7),DK), tone(at(box(.12,.05,.012),0,ry(1.47)-.01,1.478),DK)];
-    return [...M.hull(), ...ySh(G.hull(),-.01), ...T.parts, ...mHump(-.55,.15,.16,.06,T.top(-.2)-.005), ...M.eyes(1.25), ...mEng([.18,0,-.18],-1.35,.075),
-      ...mGun(0,T.top(.42),.42,1.1,2), ...mGun(0,M.top(-1.1),-1.1,1.25,2,true), ...rail, ...[-.4,.2].flatMap(z=>mPair(mPD,.38,G.top(z)-.01,z,.95)),
-      ...pair(tone(at(box(.12,.008,.3),.4,G.top(-.75)-.008,-.75),DK)),
-      ...M.under(mGun(0,0,m,1.25,2),m), ...ySh(G.side(()=>mGun(0,0,m,.65),m),-.01),
-      ...[.14,-.14].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.95),m+dz,sg*W(m)*.6)))]; },
-  /* 巡洋艦・戦艦の作り直しの見本（2026-11-15、docs/models.md 15.24。見本だけで SPACE_MODELS には入れていない）
+  /* 巡洋艦・戦艦の作り直しの見本（2026-11-15、docs/models.md 15.24。採用の形を SPACE_MODELS に接続）
      spCL3 (Earth cruiser, after the heavy cruiser Prinz Eugen): a long slim hull with a flat deck and a raked bow, four twin turrets
        (two superfiring forward, two aft), a tower bridge, one raked stack (a radiator tower) and an aft mast
      spBB3 (Earth battleship, after the battleship Yamato): a broad hull widest abaft the middle with a long fine bow that rises, three
        triple turrets (two superfiring forward, one aft), two triple secondaries on the centre line, a tall tower with a wide
        range-finder, a raked stack and mast, point defence crowded round the tower; the big railgun stays under the keel (15.9)
-     spCLM3a / spCLM3b, spBBM3a / spBBM3b (the Republic): see mDart, mFork and mSpine below */
+     Republic cruiser: spCLM4a; battleship: spBBM5. */
   spCL3:()=>{ const H=eHull([[-1.35,.13,.11],[-.95,.21,.15],[-.6,.24,.16],[.2,.24,.16],[.8,.17,.125],[1.3,.1,.09],[1.6,.045,.065],[1.75,.022,.05]]), T=H.top, dk=T(0)+.085;
     return [...H.parts, tone(at(loft([[-.5,.08,.045],[-.2,.095,.045],[.26,.09,.045],[.36,.05,.04]],SLAB),0,T(0)+.04,0),.9),
       at(loft([[.06,.05,.09],[.26,.045,.09],[.33,.025,.07]],TRAP),0,dk+.085,0), tone(at(box(.07,.028,.03),0,dk+.12,.285),GL),
@@ -724,7 +673,6 @@ const GROUND_SHAPES={
       ...sideT(H.w(.05)-.013,0,.05,.8), ...sideT(-(H.w(.05)-.013),0,.05,.8),
       ...bellyR(H.keel(-.4)+.003,-.4,1.1,1.25), ...gatB(.16,H.low(.16,.1),.1,1), ...gatB(-.16,H.low(.16,.1),.1,1), ...gatB(.16,H.low(.16,-.9),-.9,1), ...gatB(-.16,H.low(.16,-.9),-.9,1)]; },
   spCLM4a:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.09,.04]], guns:[[.5,.9,2,false],[-.7,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:false, eng:[[.07,-.07],-1.1,.045], pd:[-.3], gat:[-.45], rad:-.8}),
-  spCLM4b:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.1,.055]], guns:[[-.15,.9,2,false],[-.75,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:true, eng:[[.07,-.07],-1.1,.045], pd:[-.45], gat:[.45], rad:-.8}),
   /* 強襲母艦の作り直しの見本 (15.25、見本だけ。両陣営で別の形)
      masc3 (Earth): a slim hull with a long bow; two catapults of the same kind side by side on the centre deck (launch pads), for
        W.A.S. and aircraft alike, out of two dark mouths. The hangar is one wedge with leaning walls (the cut point forward
@@ -761,7 +709,8 @@ const GROUND_SHAPES={
       ...mPair(mPD,.22,.275,-.5,.85), ...mGun(0,.065,-1,.75,1,true),
       ...both(sg=>B().under(mGun(0,0,.2,.7,2),.2)), ...both(sg=>B().under(mGat(0,0,-.5,.85),-.5)), ...both(sg=>B().under(mGat(0,0,.8,.85),.8)),
       ...both(sg=>{ const p=mGun(0,0,.05,.7,2); return p.map(g=>{ g.rotateZ(-sg*Math.PI/2); g.translate(sg*(M.at(.05).w-.006),.012,0); return g; }); })]; },
-  /* the assault carriers landed (15.25): the same ships with the landing gear down. The gear is a ski (lSki: a dark runner whose
+  /* ゲームでは使わない。設定の絵（15.25）。
+     the assault carriers landed (15.25): the same ships with the landing gear down. The gear is a ski (lSki: a dark runner whose
      end curves up a little) on a skeleton leg (lLeg: two thin splayed struts, a drag strut and a cross brace). Earth rests on its
      two low pods and one ski under the bow; the Republic on four skis under its two hulls — the fore pair raked and curved
      forward, the aft pair raked and curved aft. At sea both float as they are (no gear) */
@@ -806,27 +755,9 @@ const GROUND_SHAPES={
       ...mGun(0,M.top(1.18),1.18,.75,2), ...mGun(0,M.top(.9),.9,.8,2),
       ...mPair(mPD,.19,M.top(.46)-.004,.46,.8), ...mPD(.17,M.top(-.98),-.98,.8), ...mPD(-.37,dy+.013,-.17,.8),
       ...M.under(mGun(0,0,m,.6),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.85),m+dz,sg*.15)))]; },
-  spBBM4:()=>mCT({S:[[-1.35,.26,.1],[.25,.3,.22],[1.45,.15,.075]], guns:[[-.1,1.3,2,false],[-.55,1.05,2,false],[-1.02,1.1,2,true]], side:()=>mGun(0,0,.05,.9), rail:true, eng:[[.14,0,-.14],-1.35,.06], pd:[-.33,-.8], gat:[.6,-.3], rad:-.95}),
-  spCLM3a:()=>mDart(),
-  spCLM3b:()=>mFork({body:[[-1.1,.16,.08],[-.7,.3,.12],[-.2,.4,.15],[.3,.3,.14],[.45,.25,.12]], prong:[[.2,.075,.09],[.6,.075,.09],[1,.07,.075],[1.2,.055,.055]], px:.155,
-    guns:[[-.05,.95,false],[-.8,.8,true]], side:()=>flatM(0,0,.05,.6), hump:[-.5,-.22,.1,.045], eng:[[.07,-.07],-1.1,.05], pd:[.2,-.55], gat:[.05], rad:[-.78,.1,.26]}),
-  spBBM3a:()=>mFork({body:[[-1.35,.3,.13],[-.9,.5,.2],[-.2,.56,.22],[.35,.44,.2],[.6,.36,.17]], prong:[[.3,.11,.13],[.7,.115,.13],[1.2,.105,.11],[1.45,.08,.08]], px:.225,
-    guns:[[.12,1.5,false],[-.95,1.3,true]], side:()=>mGun(0,0,.05,.8), hump:[-.6,-.22,.15,.06], eng:[[.2,0,-.2],-1.35,.075], pd:[.42,-.5], gat:[.19,-.09], rad:[-.8,.14,.34]}),
-  spBBM3b:()=>mSpine(),
   /* 戦闘母艦（共和国, 15.16）: a slim heavy aviation cruiser — a long narrow hull with a fine bow, the fore deck armed (two twin
      turrets, two pairs of raised twin launch tubes), a big two-level island to starboard amidships with an optical mast and dome, and
      an angled flight deck on the after half whose fore end swings out past the port side on a support */
-  spCVBM:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.8,.17,.1],[1.2,.03,.05]]), m=0, A=-.2, dy=M.top(-.5)+.013;
-    const deck=[at(box(.34,.025,1.15),-.15,dy,-.55,0,A,0), at(box(.14,.05,.45),-.3,dy-.035,-.12,0,A,0),
-      ...[at(box(.01,.006,1.05),-.15,dy+.015,-.55,0,A,0), ...[-.25,-.6,-.95].map(z=>at(box(.07,.006,.07),-.15+(z+.55)*Math.sin(A),dy+.015,z,0,A,0))].map(g=>tone(g,DK))];
-    const yI=M.top(-.1)-.02, isl=[at(loft([[-.42,.06,.055,.055],[-.3,.08,.065,.065],[.12,.08,.065,.065],[.2,.05,.05,.05]],TRAP),.16,yI,0),
-      at(loft([[-.3,.045,.05,.05],[-.2,.06,.06,.06],[.04,.055,.055,.055],[.1,.035,.04,.04]],TRAP),.16,yI+.12,0), tone(at(box(.13,.03,.16),.16,yI+.18,-.07),GL),
-      at(box(.025,.16,.025),.16,yI+.3,-.12), tone(at(new THREE.IcosahedronGeometry(.035,0),.16,yI+.4,-.12),GL)];
-    const tubes=[.09,-.09].flatMap(x=>[.06,-.03].flatMap(dx=>[at(box(.035,.035,.22),x+dx,M.top(.35)+.035,.35,-.25,0,0), tone(at(box(.03,.03,.012),x+dx,M.top(.35)+.062,.455,-.25,0,0),DK)])).concat([.09,-.09].map(x=>at(box(.12,.03,.1),x,M.top(.32)+.012,.32)));
-    return [...M.hull(), ...deck, ...isl, ...tubes, ...M.eyes(1.02,.5), ...mEng([.12,-.12],-1.2,.06),
-      ...mGun(0,M.top(.95),.95,.75,2), ...mGun(0,M.top(.66),.66,.8,2),
-      ...mPair(mPD,.12,M.top(.12),.12,.8), ...mPD(.17,M.top(-.98),-.98,.8), ...mPD(-.17,dy+.012,-1.02,.8),
-      ...M.under(mGun(0,0,m,.6),m), ...[.13,-.13].flatMap(dz=>[1,-1].flatMap(sg=>M.under(mGat(0,0,m+dz,.85),m+dz,sg*.15)))]; },
   /* 突撃揚陸艦（共和国, 15.16, longer and streamlined 15.18）: a landing craft — a flat-bottomed hull drawn in at both ends; an open
      well deck between side walls that follow the hull and turn in over the fore third; a raked wedge ramp with dark grating bars ahead
      of the well and a fine bow below it; a low deckhouse aft with a sloped front, its optical band and a post; dark fenders. The eight
@@ -850,13 +781,7 @@ const GROUND_SHAPES={
    EDK / eHull: the Earth's hull with a flat weather deck above and the pointed keel below (a sea ship's deck on a space hull); gives
      the deck's height, the half width, the keel and the lower face's height at x for any z. eStack: a raked radiator tower (the
      funnel of a sea ship) standing on y at z, with a dark top and dark radiator faces on both sides
-   mDart (the Republic's cruiser, plan A 十字砲): a dart with a thick cut bow; four twin turrets round the widest section (above,
-     below and on both sides), so all four bear ahead; the same above and below
-   mFork (plans with the railgun as the bow): the body ends at a blunt face and two armoured prongs run on to the bow — they are the
-     rail casings; between them a dark barrel core, lighter rails on the inner faces, braces across the slot and a dark breech where
-     the slot meets the body. Turrets, point defence, radiators and gatlings are the same above and below
-   mSpine (the Republic's battleship, plan B 背骨): one closed hull; the barrel is a ridge that runs the whole length above and below
-     and opens in the bow face as a dark muzzle; turrets stand in pairs beside it */
+ */
 const EDK=[[.7,1],[1,.3],[1,-.38],[0,-1],[-1,-.38],[-.5,1]];
 const eHull=S=>{ const sz=z=>{ if(z<=S[0][0]) return S[0]; for(let i=0;i<S.length-1;i++){ const a=S[i], b=S[i+1]; if(z<=b[0]){ const t=(z-a[0])/(b[0]-a[0]); return [z,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t,(a[3]||0)+((b[3]||0)-(a[3]||0))*t]; } } return S[S.length-1]; };
   return {parts:[loft(S,EDK)], w:z=>sz(z)[1], top:z=>{ const s=sz(z); return (s[3]||0)+s[2]; }, keel:z=>{ const s=sz(z); return (s[3]||0)-s[2]; },
@@ -869,6 +794,7 @@ const deckHull=(D,L)=>{ const R=L.map(([y,sx,sz])=>D.map(([x,z])=>new THREE.Vect
   for(let i=0;i<R.length-1;i++) for(let j=0;j<n;j++){ const k=(j+1)%n, A=R[i][j], B=R[i][k], C=R[i+1][k], E=R[i+1][j], out=new THREE.Vector3(sg*(B.z-A.z),0,-sg*(B.x-A.x)); tri(A,B,C,out); tri(A,C,E,out); }
   for(const [r,dy] of [[R[0],1],[R[R.length-1],-1]]) for(const [a,b,c] of THREE.ShapeUtils.triangulateShape(r.map(v=>new THREE.Vector2(v.x,v.z)),[])) tri(r[a],r[b],r[c],new THREE.Vector3(0,dy,0));
   const g=new THREE.BufferGeometry(); g.setFromPoints(P); g.computeVertexNormals(); return g; };
+/* lSki・lLeg: ゲームでは使わない。設定の絵（15.25）。 */
 const lSki=(x,y,z0,z1,w,d=1)=>{ const p=[tone(at(box(w,.02,z1-z0),x,y,(z0+z1)/2),DK)]; let py=y, pz=d>0?z1-.005:z0+.005; for(const a of [.1,.22,.33]){ const L=.06;
     p.push(tone(at(box(w,.02,L+.01),x,py+L/2*Math.sin(a),pz+d*L/2*Math.cos(a),-d*a),DK)); py+=L*Math.sin(a); pz+=d*L*Math.cos(a); } return p; };
 const lLeg=(x,yt,zt,yd,zd,yf,zf)=>[...[.045,-.045].map(dx=>at(barG([x+dx,yt,zt],[x,yf,zf],.014,.014),0,0,0)), at(barG([x,yd,zd],[x,yf,zf],.012,.012),0,0,0),
@@ -876,31 +802,6 @@ const lLeg=(x,yt,zt,yd,zd,yf,zf)=>[...[.045,-.045].map(dx=>at(barG([x+dx,yt,zt],
 const eStack=(y,z,w,h,l,rk=.28)=>{ const c=Math.cos(rk), s=Math.sin(rk), P=(g,d,dx=0)=>at(g,dx,y+d*c,z-d*s,-rk);
   return [P(box(w,h,l),h/2-.01), tone(P(box(w*1.08,.03,l*1.06),h),DK), ...[1,-1].map(sg=>tone(P(box(.012,h*.6,l*.7),h*.5,sg*w/2),DK))]; };
 const mBoth=(M,p,z,x=0)=>[...p().map(g=>{ g.translate(x,M.top(z)-.004,0); return g; }), ...M.under(p(),z,-x)];
-function mDart(){ const M=mA([[-1.1,.18,.09],[-.8,.4,.13],[-.4,.46,.15],[.3,.3,.14],[1,.15,.09],[1.2,.1,.06]]), m=.05, W=z=>M.at(z).w;
-  return [...M.hull(), ...M.hump(-.62,-.3,.12,.05), ...M.eyes(1.08,.5), ...M.under(M.eyes(1.08,.5).map(g=>{ g.translate(0,-M.top(1.08)-.002,0); return g; }),1.08), ...mEng([.08,-.08],-1.1,.05),
-    ...mBoth(M,()=>mGun(0,0,m,1.05,2),m), ...M.side(()=>mGun(0,0,m,.95,2),m), ...mBoth(M,()=>mGun(0,0,-.85,.75,1,true),-.85),
-    ...[.5,-.45].flatMap(z=>[1,-1].flatMap(sg=>mBoth(M,()=>mPD(0,0,z,.85),z,sg*W(z)*.5))),
-    ...[1,-1].flatMap(sg=>mBoth(M,()=>[tone(at(box(.1,.012,.24),0,0,-.62),DK)],-.62,sg*.27)),
-    ...[1,-1].flatMap(sg=>M.under(mGat(0,0,.6,.9),.6,sg*W(.6)*.45))]; }
-function mFork(o){ const M=mA(o.body), P=mA(o.prong), m=.05, W=z=>M.at(z).w, z0=o.prong[0][0], z1=o.prong[o.prong.length-1][0], zb=o.body[o.body.length-1][0], gap=o.px-P.at(z0).w, ph=P.at((z0+z1)/2).h, L=z1-zb;
-  const prongs=[1,-1].flatMap(sg=>P.hull().map(g=>{ g.translate(sg*o.px,0,0); return g; }));
-  const gun=[tone(at(box(gap*.7,ph*.45,L-.1),0,0,zb+L/2-.05),DK), ...[1,-1].map(sg=>tone(at(box(gap*.22,ph*.8,L-.04),sg*gap*.9,0,zb+L/2-.01),.55)),
-    ...[.3,.62,.92].map(t=>at(box(gap*2.6,ph*.7,.035),0,0,zb+L*t)), tone(at(box(gap*2.6,ph*1.9,.07),0,0,zb+.02),DK),
-    ...[1,-1].flatMap(sg=>mBoth(P,()=>[tone(at(box(.05,.012,.09),0,0,z1-.14),GL)],z1-.14,sg*o.px))];
-  return [...M.hull(), ...prongs, ...gun, ...M.hump(...o.hump), ...mEng(...o.eng),
-    ...o.guns.flatMap(([z,s,rear])=>mBoth(M,()=>mGun(0,0,z,s,2,rear),z)), ...M.side(o.side,m),
-    ...o.pd.flatMap(z=>[1,-1].flatMap(sg=>mBoth(M,()=>mPD(0,0,z,.9),z,sg*W(z)*.55))),
-    ...[1,-1].flatMap(sg=>mBoth(M,()=>[tone(at(box(o.rad[1],.012,o.rad[2]),0,0,o.rad[0]),DK)],o.rad[0],sg*W(o.rad[0])*.5)),
-    ...o.gat.flatMap(z=>[1,-1].flatMap(sg=>M.under(mGat(0,0,z,.95),z,sg*W(z)*.5)))]; }
-function mSpine(){ const M=mA([[-1.35,.28,.13],[-.85,.5,.2],[-.1,.58,.22],[.6,.44,.19],[1.2,.27,.14],[1.45,.2,.11]]), m=.05, W=z=>M.at(z).w, zs=[-.7,-.1,.6,1.2,1.45];
-  const ridge=()=>[loft(zs.map(z=>[z,z<-.6?.06:.11,.04,M.top(z)+.03]),FACET), ...[-.3,.3,.85,1.25].map(z=>at(box(.26,.03,.05),0,M.top(z)+.06,z)), tone(at(box(.14,.04,.2),0,M.top(-.62)+.035,-.66),DK)];
-  return [...M.hull(), ...ridge(), ...flipY(ridge()), at(box(.3,M.top(1.45)*2+.14,.05),0,0,1.44), tone(at(box(.13,M.top(1.45)*2+.02,.03),0,0,1.462),DK),
-    ...mBoth(M,()=>[at(loft([[-.5,.1,.03,.03],[-.38,.14,.03,.03],[-.2,.08,.025,.025]],CREASE),.3,0,0), tone(at(box(.2,.016,.06),.3,.045,-.27),GL)],-.35),
-    ...M.eyes(1.3,.75), ...mEng([.18,0,-.18],-1.35,.075),
-    ...[1,-1].flatMap(sg=>mBoth(M,()=>mGun(0,0,.28,1.25,2),.28,sg*.26)), ...mBoth(M,()=>mGun(0,0,-.98,1.3,2,true),-.98), ...M.side(()=>mGun(0,0,m,.8),m),
-    ...[.75,-.5].flatMap(z=>[1,-1].flatMap(sg=>mBoth(M,()=>mPD(0,0,z,.95),z,sg*W(z)*.6))),
-    ...[1,-1].flatMap(sg=>mBoth(M,()=>[tone(at(box(.14,.012,.3),0,0,-.8),DK)],-.8,sg*.3)),
-    ...[.6,-.6].flatMap(z=>[1,-1].flatMap(sg=>M.under(mGat(0,0,z,.95),z,sg*W(z)*.75)))]; }
 /* mCT (見本 第3回, 15.24): the Republic's cruiser and battleship as flat planes — three sections only, so the side view is one peak
    with a straight line down to the cut bow and another down to the stern; a slab belt on the sides, a narrow flat ridge above and
    below (the same both ways up). A dark sensor band before the peak and a sensor bar at the bow. rail: the forward wedge is the
@@ -971,20 +872,20 @@ const GROUND_MODELS={
   'sea:cl':{key:'seaCL',size:1.44,form:'one'},
   'sea:ff':{key:'seaFF',size:.84,form:'one'},
   'sea:dd':{key:'seaDD',size:1.02,form:'one'},
-  'sea:masc':{key:'masc2',size:1.92,form:'one'},
+  'sea:masc':{earth:{key:'masc3',size:1.92,form:'one',y:.14},mars:{key:'masc3M',size:1.92,form:'one',y:.04}},
 };
 /* space ship class → the shape each side draws (docs/models.md 15.23; battle/units.js shipMeshes and shipMeshKey). y: moved up or down
    to centre the shape in space */
 const SPACE_MODELS={cv:{earth:'spCV',mars:'spCVM'}, ff:{earth:'spFF',mars:'spFFM'}, dd:{earth:'spDD',mars:'spDDM'},
-  cl:{earth:'spCL',mars:'spCLM'}, bb:{earth:'spBB',mars:'spBBM'}, cvb:{earth:'spCVB',mars:'spCVBM'},
-  mas:{earth:'spMAS',mars:'spMASM'}, masc:{earth:'masc2',mars:'masc2',y:-.09}};
+  cl:{earth:'spCL3',mars:'spCLM4a'}, bb:{earth:'spBB3',mars:'spBBM5'}, cvb:{earth:'spCVB4',mars:'spCVBM2'},
+  mas:{earth:'spMAS',mars:'spMASM'}, masc:{earth:'masc3',mars:'masc3M',y:-.10}};
 /* ?groundModels=kind:key:size:form[:move],kind@mars:key:size:form in the page address overrides the table (for sample shots
    only); an entry without @side applies to both sides. Returns {key,move,size,form,offsets} or null. key is the
    shape when the unit stands or fights. move: the keys of the shapes shown while it is moving (in the table an array, in the
    address joined with +; empty: the same shape always). With two or more, each body of the unit steps through them on its
    own clock (the steps of a walk), starting at a random one, so the bodies are out of step with each other */
 function groundModelFor(kind,side='earth'){
-  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:(Array.isArray(m.move)?m.move:String(m.move||'').split('+')).filter(k=>has(GROUND_SHAPES,k)),size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one']}:null;
+  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:(Array.isArray(m.move)?m.move:String(m.move||'').split('+')).filter(k=>has(GROUND_SHAPES,k)),size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one'],y:Number.isFinite(+m.y)?+m.y:0}:null;
   const q=typeof location!=='undefined'&&new URLSearchParams(location.search).get('groundModels');
   if(q) for(const who of [kind+'@'+side,kind]) for(const s of q.split(',')){
     if(!s.startsWith(who+':')) continue;

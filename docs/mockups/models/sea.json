@@ -92,14 +92,14 @@
       "items": [
         {
           "label": "強襲母艦",
-          "key": "masc2",
+          "key": "masc3",
           "table": "ground",
           "side": "earth",
           "note": "新しい形。"
         },
         {
           "label": "強襲母艦",
-          "key": "masc2",
+          "key": "masc3M",
           "table": "ground",
           "side": "mars",
           "note": "惑星共和国の色。"
