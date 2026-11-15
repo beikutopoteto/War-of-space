@@ -44,6 +44,7 @@ function sheetPage(){
       const form=item.form??'one';
       if(!Object.prototype.hasOwnProperty.call(GROUND_FORMS,form))throw new Error('Unknown form: '+form);
       for(const [x,z] of GROUND_FORMS[form]){const body=new THREE.Mesh(geo,mat);body.position.set(x,0,z);group.add(body);}
+      const fx=item.table==='ground'&&typeof GROUND_FIRES!=='undefined'&&Object.prototype.hasOwnProperty.call(GROUND_FIRES,item.key)?groundFire(GROUND_FIRES[item.key]):null;if(fx){fx.update(1.7);group.add(fx.group);} // 炎: 光る別の網
       const bounds=new THREE.Box3().setFromObject(group),center=bounds.getCenter(new THREE.Vector3()),extent=bounds.getSize(new THREE.Vector3());
       group.position.sub(center);const radius=Math.max(.1,extent.length()/2);
       const plane=new THREE.Mesh(new THREE.PlaneGeometry(radius*100,radius*100),new THREE.MeshStandardMaterial({color:'#7f8758',roughness:1}));
@@ -52,7 +53,7 @@ function sheetPage(){
       for(const [label,kind] of [['真横','side'],['真上','top'],['正面','front'],...(config.bottomView?[['真下','bottom']]:[])])views.push(addView(fixed,label,kind));if(config.bottomView)fixed.style.gridTemplateColumns='repeat(4,minmax(0,1fr))';
       text('p','ゲームでの大きさ',el,'strip-title');const strip=document.createElement('div');strip.className='views';el.appendChild(strip);
       for(const px of [16,32,64])views.push({...addView(strip,px+' px','size'),px});
-      const card={el,scene,group,mat,plane,views,item,radius,extent,visible:false,dirty:true,yaw:0,pitch:0,dragged:false,angle:0,zoom:1};cards.push(card);
+      const card={el,scene,group,mat,plane,views,item,radius,extent,fx,visible:false,dirty:true,yaw:0,pitch:0,dragged:false,angle:0,zoom:1};cards.push(card);
       const canvas=views[0].canvas,pointers=new Map();let pinch=0;
       const zoomBy=factor=>{card.zoom=Math.max(.5,Math.min(5,card.zoom*factor));card.mainDirty=true;schedule();};
       const distance=()=>{const [a,b]=[...pointers.values()];return Math.hypot(a[0]-b[0],a[1]-b[1]);};
@@ -99,8 +100,9 @@ function sheetPage(){
     raf=0;const dt=Math.min(.1,(now-(last||now))/1000);last=now;let active=false;
     for(const c of cards){if(!c.visible)continue;const auto=!frozen&&!c.dragged&&!document.hidden;
       if(auto){c.angle+=dt*.12;active=true;}
+      const live=c.fx&&!frozen&&!document.hidden;if(live){c.fx.update(now/1000);active=true;} // 炎は回していなくても動かす
       if(c.dirty){for(const v of c.views)render(c,v);c.dirty=false;c.mainDirty=false;}
-      else if(auto||c.mainDirty){render(c,c.views[0]);c.mainDirty=false;}
+      else if(auto||live||c.mainDirty){render(c,c.views[0]);c.mainDirty=false;}
     }
     if(active)schedule();
   }
@@ -109,7 +111,7 @@ function sheetPage(){
   function setFaction(n){faction=n;document.querySelectorAll('[data-faction]').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.faction===n)));for(const c of cards){const m=material(c.item.table,c.item.side,!!c.item.neutral);c.mat.copy(m);m.dispose();c.dirty=true;}schedule();}
   document.querySelectorAll('[data-faction]').forEach(b=>b.addEventListener('click',()=>setFaction(+b.dataset.faction)));
   document.addEventListener('visibilitychange',schedule);
-  window.MODEL_SHEET={setFaction,freeze(){frozen=true;cards.forEach(c=>{c.angle=c.yaw=c.pitch=0;c.dirty=true;});schedule();},async settle(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));for(const c of cards){const b=c.el.getBoundingClientRect();c.visible=b.bottom>0&&b.top<innerHeight;if(c.visible)c.dirty=true;}draw(performance.now());}};
+  window.MODEL_SHEET={setFaction,freeze(){frozen=true;cards.forEach(c=>{c.angle=c.yaw=c.pitch=0;if(c.fx)c.fx.update(1.7);c.dirty=true;});schedule();},async settle(){await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));for(const c of cards){const b=c.el.getBoundingClientRect();c.visible=b.bottom>0&&b.top<innerHeight;if(c.visible)c.dirty=true;}draw(performance.now());}};
   window.MODEL_SHEET_READY=true;schedule();
 }
 function build(config,configDir=ROOT){
