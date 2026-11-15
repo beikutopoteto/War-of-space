@@ -726,42 +726,39 @@ const GROUND_SHAPES={
   spCLM4a:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.09,.04]], guns:[[.5,.9,2,false],[-.7,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:false, eng:[[.07,-.07],-1.1,.045], pd:[-.3], gat:[-.45], rad:-.8}),
   spCLM4b:()=>mCT({S:[[-1.1,.17,.07],[.15,.2,.15],[1.2,.1,.055]], guns:[[-.15,.9,2,false],[-.75,.7,1,true]], side:()=>mGun(0,0,.05,.8,2), rail:true, eng:[[.07,-.07],-1.1,.045], pd:[-.45], gat:[.45], rad:-.8}),
   /* 強襲母艦の作り直しの見本 (15.25、見本だけ。両陣営で別の形)
-     masc3 (Earth): a slim hull with a long bow; two catapults out of the hangar's dark mouths — the wide W.A.S. deck on the centre
-       line to the bow (launch pads), the narrow aircraft deck beside it to starboard on a sponson (a launch line). The hangar has
-       cut shoulders and falls away aft; on it a slim two-tier tower bridge, a raked radiator stack and the W.A.S. elevators; an
+     masc3 (Earth): a slim hull with a long bow; two catapults of the same kind side by side on the centre deck (launch pads), for
+       W.A.S. and aircraft alike, out of two dark mouths. The hangar is not a box: round shoulders, tapering fore and aft in plan,
+       with a fin running forward between the catapults; on it a slim two-tier tower bridge and a raked radiator stack; an
        outrigger pod on each side aft with a turret and an engine
-     masc3M (the Republic): the same catapult layout. The forward half is a level launch deck; the hangar rises from the face with
-       the mouths and runs down to the stern as one straight slope (one peak in the side view, as mCT); a low command hump on it */
-  masc3:()=>{ const H=eHull([[-1.3,.2,.14],[-.7,.3,.17],[.2,.28,.16],[.9,.17,.12],[1.35,.08,.08,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK), bx=-.13,
-      HS=[[-1.14,.22,.045,.215],[-.85,.33,.08,.25],[-.42,.36,.095,.265],[-.28,.33,.085,.255]],
-      R=z=>{ for(let i=0;i<HS.length-1;i++){ const a=HS[i], b=HS[i+1]; if(z<=b[0]){ const t=Math.max(0,(z-a[0])/(b[0]-a[0])); return a[2]+a[3]+(b[2]+b[3]-a[2]-a[3])*t; } } return .34; };
+     masc3M (the Republic): two slim hulls side by side, each with a level launch deck and a hangar that runs down to the stern as
+       one slope; a flat bridge spans them over the hangars with the command hump in the middle, and a beam joins them at the stern */
+  masc3:()=>{ const H=eHull([[-1.3,.2,.14],[-.7,.3,.17],[.2,.28,.16],[.9,.17,.12],[1.35,.08,.08,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK),
+      DOME=[[.35,1],[.8,.7],[1,.1],[1,-1],[-1,-1],[-1,.1],[-.8,.7],[-.35,1]],
+      HS=[[-1.2,.13,.03,.19],[-1.02,.24,.065,.225],[-.72,.32,.1,.26],[-.42,.31,.095,.255],[-.25,.27,.085,.245]],
+      R=z=>{ for(let i=0;i<HS.length-1;i++){ const a=HS[i], b=HS[i+1]; if(z<=b[0]){ const t=Math.max(0,(z-a[0])/(b[0]-a[0])); return a[2]+a[3]+(b[2]+b[3]-a[2]-a[3])*t; } } return .33; };
     return [...H.parts, loft([[-.3,.15,.045,.14],[1,.15,.045,.14],[1.38,.07,.045,.14]],RECT),
-      ...[-.05,.25,.55,.85].map(z=>m(at(box(.16,.008,.14),0,fy+.002,z))), ...[.13,-.13].map(x=>m(at(box(.012,.008,1.25),x,fy+.002,.4))), m(at(box(.12,.008,.02),0,fy+.002,1.3)),
-      at(plate([[.15,-.3],[.15,.78],[.2,.86],[.3,.86],[.35,.78],[.35,-.3]],.03),0,fy-.035,0), tone(at(plate([[.15,-.25],[.15,.7],[.31,.7],[.31,-.25]],.07),0,fy-.085,0),.72),
-      m(at(box(.012,.008,.95),.25,fy-.018,.3)), m(at(box(.12,.008,.02),.25,fy-.018,.8)), ...[.0,.4].map(z=>m(at(box(.04,.008,.06),.25,fy-.018,z))),
-      tone(loft(HS,FACET),.92), m(at(box(.3,.105,.02),0,.243,-.276)), m(at(box(.13,.065,.02),.235,.2,-.276)),
-      ...[1,-1].map(sg=>m(at(box(.012,.05,.36),sg*.348,.235,-.63))),
-      at(loft([[-.86,.05,.04],[-.6,.055,.04],[-.44,.02,.03]],TRAP),bx,R(-.7)+.03,0),
-      at(loft([[-.78,.04,.045],[-.6,.042,.045],[-.52,.02,.035]],TRAP),bx,R(-.7)+.105,0), tone(at(box(.07,.022,.03),bx,R(-.7)+.115,-.548),GL),
-      at(box(.2,.016,.03),bx,R(-.7)+.16,-.68), at(box(.024,.1,.024),bx,R(-.7)+.2,-.68), tone(at(box(.05,.028,.04),bx,R(-.7)+.26,-.68),GL),
-      ...atX(eStack(R(-.95)-.02,-.93,.06,.13,.11),bx), at(box(.016,.12,.016),bx,R(-1.06)+.05,-1.06), at(box(.1,.01,.016),bx,R(-1.06)+.09,-1.06),
-      m(at(box(.16,.008,.19),.09,R(-.52)+.002,-.52)), m(at(box(.16,.008,.19),.09,R(-.78)-.004,-.78)),
+      ...[.075,-.075].flatMap(x=>[...[0,.3,.6,.9].map(z=>m(at(box(.09,.008,.12),x,fy+.002,z))), m(at(box(.01,.008,1.3),x,fy+.002,.42))]), m(at(box(.2,.008,.02),0,fy+.002,1.12)),
+      tone(loft(HS,DOME),.92), ...[.1,-.1].map(x=>m(at(box(.1,.085,.02),x,.232,-.246))),
+      at(loft([[-.3,.045,.06,fy+.05],[0,.03,.035,fy+.03],[.25,.012,.012,fy+.008]],TRAP),0,0,0),
+      ...[1,-1].map(sg=>m(at(box(.012,.05,.3),sg*.312,.235,-.6))),
+      at(loft([[-.86,.05,.04],[-.6,.055,.04],[-.44,.02,.03]],TRAP),0,R(-.7)+.03,0),
+      at(loft([[-.78,.04,.045],[-.6,.042,.045],[-.52,.02,.035]],TRAP),0,R(-.7)+.105,0), tone(at(box(.07,.022,.03),0,R(-.7)+.115,-.548),GL),
+      at(box(.2,.016,.03),0,R(-.7)+.16,-.68), at(box(.024,.1,.024),0,R(-.7)+.2,-.68), tone(at(box(.05,.028,.04),0,R(-.7)+.26,-.68),GL),
+      ...eStack(R(-.95)-.02,-.93,.06,.13,.11), at(box(.016,.12,.016),0,R(-1.08)+.04,-1.08), at(box(.1,.01,.016),0,R(-1.08)+.08,-1.08),
       ...pair(at(loft([[-1.25,.08,.09],[-.9,.1,.11],[-.3,.1,.1],[.1,.03,.04]]),.6,0,0)), ...pair(at(plate([[.18,-.3],[.55,-.4],[.55,-1],[.18,-1.08]],.05),0,0,0)),
       ...laserT(.6,.1,-.6,.7,2), ...laserT(-.6,.1,-.6,.7,2), ...spBells([.6,-.6],0,-1.3,.07), ...spBells([.1,-.1],0,-1.35,.08),
-      ...pdG(.15,R(-.36)-.006,-.36,.8), ...pdG(-.15,R(-.36)-.006,-.36,.8), ...pdG(.12,R(-1)-.008,-1,.8),
+      ...pdG(.08,R(-.36)-.008,-.36,.8), ...pdG(-.08,R(-.36)-.008,-.36,.8), ...pdG(.185,H.top(.1)-.012,.1,.8), ...pdG(-.185,H.top(.1)-.012,.1,.8),
       ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.1,H.low(.1,.4),.4,.8), ...gatB(-.1,H.low(.1,.4),.4,.8), ...gatB(.12,H.low(.12,-.7),-.7,.8), ...gatB(-.12,H.low(.12,-.7),-.7,.8)]; },
-  masc3M:()=>{ const M=mA([[-1.3,.26,.1],[-.4,.38,.13],[.3,.28,.11],[1,.17,.085],[1.5,.09,.06]]), dk=.14, ay=.1, m=g=>tone(g,DK), HP=[[.5,1],[1,.1],[1,-1],[-1,-1],[-1,.1],[-.5,1]],
-      HS=[[-1.27,.2,.03,.115],[-.5,.36,.115,.2],[-.3,.35,.105,.19]], R=z=>{ const a=z<-.5?HS[0]:HS[1], b=z<-.5?HS[1]:HS[2], t=(z-a[0])/(b[0]-a[0]); return a[2]+a[3]+(b[2]+b[3]-a[2]-a[3])*t; },
-      D=[-.3,.3,1,1.42].map(z=>{ const b=M.top(z)-.03, w=z>1?.08:.15; return [z,w,(dk-b)/2,(dk+b)/2]; });
-    return [...M.hull(), tone(loft(D,SLAB),.95), tone(loft(HS,HP),.9), ...mEng([.24,.08,-.08,-.24],-1.28,.055),
-      m(at(box(.3,.1,.02),0,dk+.052,-.296)), m(at(box(.13,.065,.02),.24,ay+.035,-.296)),
-      ...[-.08,.2,.48,.76].map(z=>m(at(box(.16,.008,.13),0,dk+.002,z))), ...[.13,-.13].map(x=>m(at(box(.012,.008,1.2),x,dk+.002,.34))), tone(at(box(.12,.012,.03),0,dk+.004,1.34),GL),
-      at(plate([[.16,-.3],[.16,.72],[.2,.8],[.28,.8],[.32,.72],[.32,-.3]],.03),0,ay-.015,0), tone(at(plate([[.15,-.28],[.15,.66],[.29,.66],[.29,-.28]],.07),0,ay-.06,0),.72),
-      m(at(box(.012,.008,.9),.24,ay+.002,.25)), m(at(box(.1,.008,.02),.24,ay+.002,.74)), ...[0,.36].map(z=>m(at(box(.04,.008,.05),.24,ay+.002,z))),
-      ...atX(mHump(-.95,-.62,.1,.07,R(-.8)-.02),-.06), ...[1,-1].map(sg=>m(at(box(.012,.05,.3),sg*.352,.17,-.5))),
-      ...mPair(mPD,.12,R(-.4)-.004,-.4,.85), ...mGun(0,R(-1.12)-.012,-1.12,.75,1,true),
-      ...M.side(()=>mGun(0,0,.5,.75,2),.5), ...mPD(-.21,M.top(.1)-.004,.1,.85), ...mPD(-.21,M.top(-.15)-.004,-.15,.85),
-      ...M.under(mGun(0,0,.2,.7,2),.2), ...M.under(mGun(0,0,-.7,.7,1,true),-.7), ...[.5,-.3].flatMap(z=>[1,-1].flatMap(sg=>M.under(mGat(0,0,z,.85),z,sg*.13)))]; },
+  masc3M:()=>{ const bx=.3, dk=.125, m=g=>tone(g,DK), B=()=>mA([[-1.3,.13,.1],[-.5,.17,.12],[.3,.15,.1],[1,.1,.08],[1.45,.05,.05]]), M=B(),
+      HP=[[.5,1],[1,.1],[1,-1],[-1,-1],[-1,.1],[-.5,1]], HS=[[-1.27,.09,.03,.11],[-.5,.15,.1,.19],[-.3,.14,.09,.18]],
+      D=[-.3,.3,1,1.4].map(z=>{ const b=M.top(z)-.03, w=z>1?.045:.09; return [z,w,(dk-b)/2,(dk+b)/2]; }), both=f=>[1,-1].flatMap(sg=>atX(f(sg),sg*bx)),
+      S=mA([[-.72,.3,.035],[-.5,.34,.045],[-.3,.3,.035]]), A=mA([[-1.12,.3,.05],[-.9,.3,.05]]);
+    return [...both(()=>B().hull()), ...both(()=>[tone(loft(D,SLAB),.95), tone(loft(HS,HP),.9), m(at(box(.16,.085,.02),0,dk+.045,-.296)),
+        ...[-.08,.2,.48,.76].map(z=>m(at(box(.1,.008,.11),0,dk+.002,z))), m(at(box(.01,.008,1.2),0,dk+.002,.36)), tone(at(box(.07,.012,.03),0,dk+.004,1.33),GL)]),
+      ...ySh(S.hull(),.235), ...mHump(-.66,-.36,.12,.065,.27), ...ySh(A.hull(),.02), ...mEng([.36,.24,-.24,-.36],-1.28,.05),
+      ...mPair(mPD,.22,.275,-.5,.85), ...mGun(0,.065,-1,.75,1,true),
+      ...both(sg=>B().under(mGun(0,0,.2,.7,2),.2)), ...both(sg=>B().under(mGat(0,0,-.5,.85),-.5)), ...both(sg=>B().under(mGat(0,0,.8,.85),.8)),
+      ...both(sg=>{ const p=mGun(0,0,.05,.7,2); return p.map(g=>{ g.rotateZ(-sg*Math.PI/2); g.translate(sg*(M.at(.05).w-.006),.012,0); return g; }); })]; },
   spBBM5:()=>mBB5(),
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
