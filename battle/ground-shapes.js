@@ -462,6 +462,51 @@ function obCity(n,pick,seed,o={}){ const P=[], put=obPut(P), r=obRnd(seed), pitc
   for(const hw of [].concat(o.hw??[])) for(let k=0;k<Math.ceil((n*pitch+.4)/.9);k++) put(GROUND_SHAPES.obHighway(),-half-.2+.45+k*.9,(hw-n/2)*pitch,.9,true);
   if(o.rail){ const z=half+.75; P.push(tone(obx(n*pitch+.4,.02,1.1,0,-.02,z),.6)); for(let k=0;k<n*2;k++) put(GROUND_SHAPES.obRail(),-half+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-half*.5,z+.0,1,true); }
   return P; }
+/* 木の色と部品。obBlob: 角ばった塊（樹冠）。obForest: 6 × 4 の林。pick(r) が木の鍵（null は今のゲームの木＝丸い塊だけ）。dens は混み具合 */
+const OT={trunk:[.5,.4,.3],broad:[.4,.6,.38],broad2:[.52,.66,.42],fir:[.26,.46,.36],fir2:[.32,.52,.4],rain:[.24,.56,.3],rain2:[.36,.66,.34]};
+const obBlob=(rx,ry,rz,x,y,z)=>{ const g=new THREE.IcosahedronGeometry(1,0); g.scale(rx,ry,rz); return at(g,x,y,z); };
+function obForest(pick,seed,dens=1){ const P=[], put=obPut(P), r=obRnd(seed), used=[]; P.push(tone(obx(6.6,.02,4.4,0,-.02,0),[.56,.62,.44]));
+  for(let k=0;k<Math.round(110*dens)*30&&used.length<Math.round(110*dens);k++){ const x=(r()-.5)*6, z=(r()-.5)*3.8, gap=.42/Math.sqrt(dens); if(used.some(u=>Math.hypot(u[0]-x,u[1]-z)<gap)) continue; used.push([x,z]);
+    const key=pick(r()), k2=.5+r()*.3; if(key) put(GROUND_SHAPES[key](),x,z,k2); else { const h=.38+r()*.3; P.push(tone(obBlob(.62*(.85+r()*.5),.62*h/.35,.62*(.85+r()*.5),x,h*4*.455,z),r()<.5?[.3,.48,.33]:[.43,.58,.38])); } }
+  [[.65,.7],[-.65,.7],[1.95,-.7],[-1.95,-.7]].forEach(([x,z])=>GROUND_SHAPES.tankE().forEach(g=>{ const t=(g.userData.tone??1)*.5; g=g.index?g.toNonIndexed():g; g.rotateY(Math.PI/2); g.scale(.5,.5,.5); g.translate(z*.5+3.8,0,x*.5); g.userData.tone=t; P.push(g); }));
+  return P; }
+/* 段階ごとの建物の選び方: pick(ring, r)。ring は中心からの段（0 が中心）。OB_BLOCK: メトロポリタンで1街区を占める巨大建築 */
+const OB_PICK={
+  ME:[(g,r)=>r<.12?null:r<.6?'obHouseFlat':r<.9?'obBlockFlat':'obDome',
+      (g,r)=>g===0?(r<.5?'obSuper':'obTowerME'):g===1?(r<.5?'obTowerME':r<.8?'obOffice':'obTowerTwin'):(r<.3?'obOffice':r<.45?'obTowerME':r<.9?'obBlockFlat':'obDome'),
+      (g,r)=>g<=1?(r<.6?'obSuper':'obTowerME'):g===2?(r<.4?'obSuper':r<.8?'obTowerME':'obTowerTwin'):(r<.4?'obTowerME':r<.7?'obOffice':'obBlockFlat')],
+  EA:[(g,r)=>r<.1?null:r<.6?'obShop':r<.9?'obApart':'obWarehouse',
+      (g,r)=>g===0?(r<.5?'obSuper':'obTowerTwin'):g===1?(r<.45?'obTower':r<.75?'obTowerTwin':'obOffice'):(r<.35?'obTower':r<.85?'obApart':'obOffice'),
+      (g,r)=>g<=1?(r<.6?'obSuper':'obTowerTwin'):g===2?(r<.4?'obSuper':r<.8?'obTower':'obTowerTwin'):(r<.45?'obTower':r<.8?'obApart':'obOffice')]};
+const OB_BLOCK=(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null;
+/* 放射状（kind 'rad'）と自然都市（'org'）の見本。半径は段階で 3・5・7（盤目の 3×3・5×5・7×7 街区と同じ広さ）。
+   放射状: 中心の広場から放射の大通りと環状の道。建物は環に沿って並ぶ。自然都市: 曲がりくねった昔の道と、ゆがんだ環状の道。建物は道を避けて不規則に詰まる。
+   建物はどの型でも回さない。道は回してよい */
+function obCityFree(kind,cult,tier,seed){ const P=[], put=obPut(P), r=obRnd(seed), R=[3,5,7][tier-1], top=tier, pick=OB_PICK[cult][tier-1], roads=[], bigs=[], lots=[], T=Math.PI*2;
+  const seg=(x1,z1,x2,z2,w)=>{ roads.push([x1,z1,x2,z2,w]); const l=Math.hypot(x2-x1,z2-z1); P.push(tone(at(box(w,.02,l+w*.5),(x1+x2)/2,.005,(z1+z2)/2,0,Math.atan2(x2-x1,z2-z1),0),OC.asph)); };
+  const dSeg=(x,z,[a,b,c,d])=>{ const vx=c-a, vz=d-b, t=Math.max(0,Math.min(1,((x-a)*vx+(z-b)*vz)/(vx*vx+vz*vz||1))); return Math.hypot(x-a-vx*t,z-b-vz*t); };
+  const ringRoad=(rad,w,wob=()=>1)=>{ const n=28; for(let i=0;i<n;i++){ const a=i/n*T, b=(i+1)/n*T, ra=rad*wob(a), rb=rad*wob(b); seg(Math.cos(a)*ra,Math.sin(a)*ra,Math.cos(b)*rb,Math.sin(b)*rb,w); } };
+  P.push(tone(at(new THREE.CylinderGeometry(R+.6,R+.6,.02,36),0,-.01,0),OC.walk));
+  if(tier===3) bigs.push([0,0,'obMega',1.6,1.5], ...[0,1,2,3].map(i=>[Math.cos(Math.PI/8+i*T/4)*2.7,Math.sin(Math.PI/8+i*T/4)*2.7,'obArco',1.3,1.15]));
+  else if(tier===2) bigs.push([0,0,'obSuper',1,.8]);
+  const hw=tier>=2?R*.5:null, hw2=tier===3?-R*.5:null;
+  if(kind==='rad'){ const n=tier===1?6:8, rr=[]; for(let q=1.25;q<R+.2;q+=2.1) rr.push(q); rr.forEach(q=>ringRoad(q,.34));
+    for(let i=0;i<n;i++){ const a=i/n*T; seg(Math.cos(a)*1.25,Math.sin(a)*1.25,Math.cos(a)*(R+.4),Math.sin(a)*(R+.4),.4); }
+    rr.forEach((q,b)=>{ for(const row of [q+.62,q+1.42]){ if(row>R+.25) continue; const m=Math.floor(T*row/.84); for(let k=0;k<m;k++){ const a=(k+.5)/m*T; lots.push([Math.cos(a)*row,Math.sin(a)*row]); } } });
+  } else { const ph=r()*T, ph2=r()*T, wob=a=>1+.16*Math.sin(3*a+ph)+.09*Math.sin(5*a+ph2);
+    for(let q=1.5;q<R;q+=2.1) ringRoad(q,.3,wob);
+    const n=tier===1?5:7; for(let i=0;i<n;i++){ let a=(i+r()*.7)/n*T, x=0, z=0; while(Math.hypot(x,z)<R+.3){ const nx=x+Math.cos(a)*.9, nz=z+Math.sin(a)*.9; seg(x,z,nx,nz,.3); x=nx; z=nz; a+=(r()-.5)*.9; a+=(Math.atan2(z,x)-a)*.0; if(Math.cos(a-Math.atan2(z,x))<.3) a=Math.atan2(z,x)+(r()-.5)*.6; } }
+    for(let k=0;k<5000;k++){ const a=r()*T, d=Math.sqrt(r())*(R+.3)*wob(a); lots.push([Math.cos(a)*d,Math.sin(a)*d]); } }
+  const used=[];
+  for(const [x,z] of lots){ const d=Math.hypot(x,z); if(d>R+.5) continue;
+    if(roads.some(s=>dSeg(x,z,s)<s[4]/2+.42)||bigs.some(b=>Math.hypot(x-b[0],z-b[1])<b[4])||(hw!=null&&Math.abs(z-hw)<.72)||(hw2!=null&&Math.abs(x-hw2)<.72)||used.some(u=>Math.abs(u[0]-x)<.76&&Math.abs(u[1]-z)<.7)) continue;
+    used.push([x,z]); const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(key) put(GROUND_SHAPES[key](),x,z); }
+  bigs.forEach(([x,z,key,k])=>put(GROUND_SHAPES[key](),x,z,k));
+  const chord=c=>Math.sqrt(Math.max(0,(R+.6)**2-c*c));
+  if(hw!=null){ const h=chord(hw); for(let x=-h+.45;x<h;x+=.9) put(GROUND_SHAPES.obHighway(),x,hw,.9,true); }
+  if(hw2!=null){ const h=chord(hw2); for(let z=-h+.45;z<h;z+=.9) put(GROUND_SHAPES.obHighway(),hw2,z,.9); }
+  if(tier===3){ const z=-(R+1.2); P.push(tone(obx(2*R,.02,1.1,0,-.02,z),.6)); for(let k=0;k<2*R;k++) put(GROUND_SHAPES.obRail(),-R+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-R*.5,z,1,true); }
+  return P; }
 /* 見本用の町: ゲームの置き方（battle/terrain.js の町。道の両側に、道から .18km 以上離して並べる）を同じ比で写す。建物1つの底面は .68 × .6。
    pick(r) が形の鍵を返す（null なら今の灰色の箱で、高さは .64〜1.44）。端に戦車4両（size .5 のくさび形）を大きさの比べ用に置く */
 function obTown(pick){
@@ -920,15 +965,12 @@ const GROUND_SHAPES={
   /* 見本用: 村と、文化圏ごとの3段階の都市（地方都市・大都市・メトロポリタン）、交通の施設の並び */
   obVillageME:()=>obVillage('obFarmME','obField',11),
   obVillageEA:()=>obVillage('obFarmCN','obPaddy',12),
-  /* 地方都市: 低い町。大都会: 今の上海・ニューヨーク・東京・ロンドン級（超高層の中心と密な高層）。メトロポリタン: 前からの大都会の最終形（積層都市と連結超高層、何本もの高架）（ユーザー 2026-11-15） */
-  obCityME1:()=>obCity(3,(g,r)=>r<.12?null:r<.6?'obHouseFlat':r<.9?'obBlockFlat':'obDome',21),
-  obCityME2:()=>obCity(5,(g,r)=>g===0?(r<.5?'obSuper':'obTowerME'):g===1?(r<.5?'obTowerME':r<.8?'obOffice':'obTowerTwin'):(r<.3?'obOffice':r<.45?'obTowerME':r<.9?'obBlockFlat':'obDome'),22,{hw:1}),
-  obCityME3:()=>obCity(7,(g,r)=>g<=1?(r<.6?'obSuper':'obTowerME'):g===2?(r<.4?'obSuper':r<.8?'obTowerME':'obTowerTwin'):(r<.4?'obTowerME':r<.7?'obOffice':'obBlockFlat'),23,
-    {hw:[2,5],rail:1,block:(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null}),
-  obCityEA1:()=>obCity(3,(g,r)=>r<.1?null:r<.6?'obShop':r<.9?'obApart':'obWarehouse',31),
-  obCityEA2:()=>obCity(5,(g,r)=>g===0?(r<.5?'obSuper':'obTowerTwin'):g===1?(r<.45?'obTower':r<.75?'obTowerTwin':'obOffice'):(r<.35?'obTower':r<.85?'obApart':'obOffice'),32,{hw:1}),
-  obCityEA3:()=>obCity(7,(g,r)=>g<=1?(r<.6?'obSuper':'obTowerTwin'):g===2?(r<.4?'obSuper':r<.8?'obTower':'obTowerTwin'):(r<.45?'obTower':r<.8?'obApart':'obOffice'),33,
-    {hw:[2,5],rail:1,block:(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null}),
+  /* 都市の型は3つ（ユーザー 2026-11-15）: 盤目（obCity）、放射状、自然都市（開発はされているが、道が昔からの流用で不規則）。
+     段階は3つ: 地方都市／大都会（今の上海・ニューヨーク・東京・ロンドン級）／メトロポリタン（前からの大都会の最終形）。鍵は ob<型><文化圏><段階> */
+  obCityME1:()=>obCity(3,OB_PICK.ME[0],21), obCityME2:()=>obCity(5,OB_PICK.ME[1],22,{hw:1}), obCityME3:()=>obCity(7,OB_PICK.ME[2],23,{hw:[2,5],rail:1,block:OB_BLOCK}),
+  obCityEA1:()=>obCity(3,OB_PICK.EA[0],31), obCityEA2:()=>obCity(5,OB_PICK.EA[1],32,{hw:1}), obCityEA3:()=>obCity(7,OB_PICK.EA[2],33,{hw:[2,5],rail:1,block:OB_BLOCK}),
+  obRadEA1:()=>obCityFree('rad','EA',1,41), obRadEA2:()=>obCityFree('rad','EA',2,42), obRadEA3:()=>obCityFree('rad','EA',3,43), obRadME2:()=>obCityFree('rad','ME',2,44),
+  obOrgEA1:()=>obCityFree('org','EA',1,51), obOrgEA2:()=>obCityFree('org','EA',2,52), obOrgEA3:()=>obCityFree('org','EA',3,53), obOrgME2:()=>obCityFree('org','ME',2,54),
   obSceneAir:()=>{ const P=[], put=obPut(P); P.push(tone(obx(6,.02,3.6,0,-.02,0),[.6,.66,.48])); [-2,0,2].forEach(x=>put(GROUND_SHAPES.obRunway(),x,-1,1,true)); put(GROUND_SHAPES.obTerminal(),0,.5,1.2);
     [-2.3,-1.6].forEach(x=>put(GROUND_SHAPES.obHangar(),x,.6,.8)); put(GROUND_SHAPES.obControl(),1.5,.5,.68); put(GROUND_SHAPES.obRadar(),2.3,.7,.68); return P; },
   obScenePort:()=>{ const P=[], put=obPut(P); P.push(tone(obx(6,.02,2,0,-.02,-1),.75)); P.push(tone(obx(6,.02,2,0,-.03,1),OC.water)); [-2.1,-.7,.7,2.1].forEach(x=>put(GROUND_SHAPES.obQuay(),x,0,1));
@@ -938,6 +980,19 @@ const GROUND_SHAPES={
     [-.2,1.8].forEach(z=>put(GROUND_SHAPES.obRoadCity(),0,z-.2+ (z<0?-.3:0),1)); [-2,-1,0,1,2].forEach(x=>put(GROUND_SHAPES.obHighway(),x,-.8,1,true)); return P; },
   obSceneRail:()=>{ const P=[], put=obPut(P); P.push(tone(obx(5.4,.02,2.4,0,-.02,0),[.6,.66,.48])); [-2.2,-1.2,1.2,2.2].forEach(x=>put(GROUND_SHAPES.obRail(),x,-.17,1,true)); put(GROUND_SHAPES.obStation(),0,0,1,true);
     put(GROUND_SHAPES.obTrain(),-1.7,.17,1,true); [1.3,2.3].forEach(x=>put(GROUND_SHAPES.obRail(),x,.17,1,true)); return P; },
+  /* ---- 木（第4回、2026-11-15。ユーザー「森林も現在のに加えて、針葉樹、熱帯雨林など」）。幅はおよそ1、根元は y = 0。色つき ---- */
+  /* 広葉樹: 今のゲームの木（丸い塊）に短い幹を足した形。針葉樹: 幹と3段の円すい。熱帯雨林の高木: 細く高い幹の上に平たい樹冠、下に低い樹冠。
+     ヤシ: 曲がった幹と放射の葉。下生え: 低い茂み */
+  obTreeBroad:()=>[tone(at(new THREE.CylinderGeometry(.06,.09,.4,5),0,.2,0),OT.trunk), tone(obBlob(.5,.55,.5,0,.85,0),OT.broad), tone(obBlob(.32,.34,.32,.22,.6,.12),OT.broad2)],
+  obTreeConifer:()=>[tone(at(new THREE.CylinderGeometry(.05,.08,.5,5),0,.25,0),OT.trunk), ...[[.46,.75,.6],[.36,.65,1.05],[.24,.6,1.5]].map(([r,h,y],i)=>tone(at(new THREE.ConeGeometry(r,h,6),0,y,0),i%2?OT.fir2:OT.fir))],
+  obTreeRain:()=>[tone(at(new THREE.CylinderGeometry(.05,.1,1.7,5),0,.85,0),OT.trunk), tone(obBlob(.62,.24,.62,0,1.85,0),OT.rain), tone(obBlob(.36,.2,.36,.2,2.02,-.1),OT.rain2),
+    tone(obBlob(.4,.3,.4,-.2,.75,.15),OT.rain2), tone(obBlob(.34,.26,.34,.24,.5,-.2),OT.rain), ...[[-.5,.3],[.5,-.2]].map(([x,z])=>tone(limb([0,.03,0],[x,.0,z],.07,.02),OT.trunk))],
+  obPalm:()=>[tone(limb([0,0,0],[.08,.7,0],.07,.055),OT.trunk), tone(limb([.08,.7,0],[.2,1.35,0],.055,.045),OT.trunk),
+    ...[...Array(7)].map((_,i)=>{ const a=i/7*Math.PI*2, g=plate([[0,0],[.07,.25],[0,.6],[-.07,.25]],.02); g.rotateX(.5); g.rotateY(a); g.translate(.2,1.36,0); return tone(g,i%2?OT.rain2:OT.rain); }), tone(obBlob(.07,.07,.07,.2,1.34,0),OT.trunk)],
+  obUnder:()=>[tone(obBlob(.34,.2,.3,-.12,.17,0),OT.rain2), tone(obBlob(.26,.16,.26,.22,.13,.1),OT.rain), tone(obBlob(.2,.13,.2,0,.1,-.24),OT.broad2)],
+  /* 見本用の森: 今のゲームの森（丸い塊だけ）、広葉樹、針葉樹、熱帯雨林、ヤシの林。端に戦車4両 */
+  obForestOld:()=>obForest(()=>null,61), obForestBroad:()=>obForest(r=>'obTreeBroad',62), obForestConifer:()=>obForest(r=>r<.92?'obTreeConifer':'obTreeBroad',63),
+  obForestRain:()=>obForest(r=>r<.45?'obTreeRain':r<.7?'obTreeBroad':r<.82?'obPalm':'obUnder',64,1.5), obForestPalm:()=>obForest(r=>r<.75?'obPalm':'obUnder',65,.6),
   /* 見本用: 町の並び（ゲームの置き方と同じ決まりで並べる）。今の灰色の箱、中東、華南、広州、港と基地。手前の4両は戦車（大きさの比べ用） */
   obTownOld:()=>obTown(()=>null),
   obTownME:()=>obTown(r=>r<.55?'obHouseFlat':r<.85?'obBlockFlat':r<.93?'obDome':'obShop'),
