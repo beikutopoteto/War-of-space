@@ -769,6 +769,28 @@ const GROUND_SHAPES={
   masc3ML:()=>[...GROUND_SHAPES.masc3M(), ...[.3,-.3].flatMap(x=>[...lSki(x,-.27,.64,.82,.09), ...lLeg(x,-.07,.6,-.07,.8,-.265,.73),
     ...lSki(x,-.27,-.97,-.79,.09,-1), ...lLeg(x,-.08,-.75,-.08,-.95,-.265,-.88)])],
   spBBM5:()=>mBB5(),
+  /* 戦闘母艦（連合）の作り直しの見本 (15.26): the flight deck after a modern supercarrier's (looked at only). One deck plate wider
+     than the slim hull: a square-ended bow, a straight starboard edge, and the angled landing deck swinging out to port amidships at
+     9°. On it the landing area (centre dashes, two edge lines, arresting wires), two bow catapults and two waist catapults on the
+     angled deck (dark tracks, blast deflectors at their aft ends), three deck-edge elevators (two starboard forward of the island, one
+     port aft), a small island aft of amidships on the starboard edge with flat radar faces and a mast, and parked aircraft */
+  spCVB4:()=>{ const H=eHull([[-1.42,.2,.08,.07],[-1.1,.24,.12,.03],[-.3,.25,.14,.01],[.5,.23,.14,.01],[1,.17,.12,.03],[1.35,.09,.09,.06],[1.5,.03,.045,.105]]),
+      T=.15, dt=T+.03, dy=T+.015, y=dt+.003, A=.157, cA=Math.cos(A), cx=z=>.02+(z+1.38)*Math.tan(A), m=g=>tone(g,DK), xi=-.215,
+      D=[[-.1,1.52],[-.19,1.3],[-.24,1],[-.26,.6],[-.27,-.2],[-.27,-1.42],[.18,-1.42],[.26,-1.25],[.38,-.85],[.44,-.45],[.45,-.1],[.42,.12],[.3,.4],[.21,.62],[.19,1],[.15,1.3],[.1,1.52]],
+      ln=(o,z,l,w=.01)=>at(box(w,.008,l),cx(z)+o/cA,y,z,0,A,0),
+      jet=(x,z,r)=>{ const g=plate([[0,.07],[.04,-.02],[.015,-.03],[.015,-.05],[-.015,-.05],[-.015,-.03],[-.04,-.02]],.012); g.rotateY(r); g.translate(x,dt+.004,z); return g; };
+    return [...H.parts, tone(at(plate(D,.03),0,dy,0),.62), tone(at(plate(D.map(([x,z])=>[x*.93,z*.985]),.05),0,T-.02,0),.78),
+      ...[-1.25,-1.05,-.85,-.65,-.45,-.25,-.05].map(z=>ln(0,z,.08)), ...[.13,-.13].map(o=>ln(o,-.6,1.5)), ...[-1.05,-.97,-.89,-.81].map(z=>m(ln(0,z,.008,.22))),
+      ...[-.07,.05].flatMap(x=>[m(at(box(.012,.008,.78),x,y,1.03)), m(at(box(.1,.008,.025),x,y,.6))]),
+      m(ln(.06,-.1,.5,.012)), m(ln(.06,-.37,.025,.1)), m(ln(.17,-.25,.4,.012)), m(ln(.17,-.47,.025,.1)),
+      ...[.3,.04].map(z=>tone(at(box(.13,.034,.16),-.245,dy,z),.45)), tone(at(box(.13,.034,.15),.33,dy,-1),.45),
+      at(loft([[-.64,.045,.05],[-.38,.05,.05],[-.32,.03,.04]],TRAP),xi,dt+.05,0), at(loft([[-.5,.04,.03],[-.37,.045,.03],[-.33,.03,.025]],TRAP),xi,dt+.13,0),
+      tone(at(box(.06,.018,.012),xi,dt+.135,-.335),GL), ...[1,-1].map(sg=>m(at(box(.008,.04,.06),xi+sg*.05,dt+.06,-.47))), m(at(box(.06,.04,.008),xi,dt+.06,-.343)),
+      at(barG([xi,dt+.15,-.45],[xi,dt+.32,-.49],.018,.018),0,0,0), at(box(.1,.01,.016),xi,dt+.27,-.48), tone(at(box(.04,.024,.04),xi,dt+.33,-.49),GL),
+      ...[.72,.86,1,1.14].map(z=>jet(-.17,z,Math.PI*.75)), ...[-.85,-1,-1.15].map(z=>jet(-.2,z,Math.PI*.25)), ...[1.2,1.33].map(z=>jet(.1,z,-Math.PI*.75)),
+      ...pdG(-.22,dt-.004,-1.36,.75), ...pdG(.15,dt-.004,-1.36,.75), ...pdG(.4,dt-.004,-.62,.75), ...pdG(-.23,dt-.004,-.95,.75), ...pdG(-.14,dt-.004,1.4,.75), ...pdG(.12,dt-.004,1.42,.75),
+      ...sideT(H.w(.4)-.013,.01,.4,.6), ...sideT(-(H.w(.4)-.013),.01,.4,.6), ...spBells([.1,-.1],.06,-1.44,.07),
+      ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.12,H.low(.12,.5),.5,.8), ...gatB(-.12,H.low(.12,.5),.5,.8), ...gatB(.13,H.low(.13,-.8),-.8,.8), ...gatB(-.13,H.low(.13,-.8),-.8,.8)]; },
   /* 戦闘母艦（共和国）の飛行甲板の直しの見本 (15.24): the same ship; the angled deck is one plate cut to the hull — its starboard edge runs
      along the island, its port edge swings out from the stern, the corners are cut, and a darker sponson under the overhang fairs it into the side */
   spCVBM2:()=>{ const M=mA([[-1.2,.2,.12],[-.9,.25,.12],[.2,.25,.12],[.9,.17,.1],[1.5,.03,.05]]), m=0, A=-.11, dy=M.top(-.5)+.03;
