@@ -10,7 +10,8 @@ function groundJoin(parts,mono=false){
   parts=parts.map(g=>{ if(!g.index) return g; const n=g.toNonIndexed(); n.userData.tone=g.userData.tone; return n; });
   let n=0; parts.forEach(g=>n+=g.attributes.position.count);
   const pos=new Float32Array(n*3), col=new Float32Array(n*3); let o=0;
-  parts.forEach(g=>{ const c=g.attributes.position.count, k=mono?1:(g.userData.tone??1); pos.set(g.attributes.position.array,o*3); col.fill(k,o*3,(o+c)*3); o+=c; g.dispose(); });
+  parts.forEach(g=>{ const c=g.attributes.position.count, k=mono?1:(g.userData.tone??1); pos.set(g.attributes.position.array,o*3);
+    if(Array.isArray(k)) for(let i=o;i<o+c;i++) col.set(k,i*3); else col.fill(k,o*3,(o+c)*3); o+=c; g.dispose(); }); // tone は濃さ1つか、色 [r,g,b]（畑・水・道）
   const out=new THREE.BufferGeometry(); out.setAttribute('position',new THREE.BufferAttribute(pos,3)); out.setAttribute('color',new THREE.BufferAttribute(col,3));
   out.computeVertexNormals(); return out;
 }
@@ -436,6 +437,31 @@ const OB_TRI=[[1,-1],[-1,-1],[0,1]], OB_SAW=[[1,-1],[-1,-1],[-1,1],[-.7,1]], OB_
 const obRoof=(w,h,l)=>at(loft([[-w/2,l/2,h/2],[w/2,l/2,h/2]],OB_TRI),0,0,0,0,Math.PI/2,0);
 const obPrism=(rx,rz,h,prof)=>{ const g=loft([[0,rx,rz],[h,rx,rz]],prof); g.rotateX(-Math.PI/2); return g; };
 const obDomeG=(r,h)=>{ const g=new THREE.SphereGeometry(1,8,4,0,Math.PI*2,0,Math.PI/2); g.scale(r,h,r); return g; };
+/* 色つきの tone（建物の灰色に掛ける色）: 土、畑の緑2つ、稲、水、舗装、線 */
+const OC={soil:[.74,.62,.44],crop:[.5,.66,.36],crop2:[.66,.7,.4],rice:[.56,.74,.42],water:[.34,.5,.64],asph:.36,line:1.05,walk:.82};
+const obRoofZ=(w,h,l)=>loft([[-l/2,w/2,h/2],[l/2,w/2,h/2]],OB_TRI);        // 棟が z に沿う切妻
+const obTurn=g=>{ const t=g.userData.tone; g=g.index?g.toNonIndexed():g; g.rotateY(Math.PI/2); g.userData.tone=t; return g; }; // 部品を90°回す
+const obRails=(x,l,z=0)=>[tone(obx(.3,.03,l,x,0,z),.55), ...[...Array(Math.round(l*8))].map((_,i)=>tone(obx(.26,.012,.05,x,.03,z-l/2+(i+.5)/8),.32)), ...[-.08,.08].map(d=>tone(obx(.02,.025,l,x+d,.035,z),.95))];
+/* 見本用の並べ方。obPut(P): 形を k 倍して (x,z) に置く。 */
+const obPut=P=>(parts,x,z,k=.68,turn=false)=>parts.forEach(g=>{ const t=g.userData.tone; g=g.index?g.toNonIndexed():g; if(turn) g.rotateY(Math.PI/2); g.scale(k,k,k); g.translate(x,0,z); g.userData.tone=t; P.push(g); });
+const obRnd=seed=>()=>{ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; };
+/* 村: 道の両側に家、その外に畑か水田 */
+function obVillage(house,field,seed){ const P=[], put=obPut(P), r=obRnd(seed); P.push(tone(obx(9,.02,.4,0,-.02,0),.5));
+  for(let i=0;i<9;i++) put(GROUND_SHAPES[r()<.8?house:'obShed'](),-3.6+i*.9+(r()-.5)*.3,(i%2?1:-1)*(.75+r()*.25));
+  for(let i=0;i<6;i++) for(const sg of [1,-1]) for(const row of [0,1]) put(GROUND_SHAPES[r()<.8?field:'obField'](),-3.75+i*1.5,sg*(2+row*1.5),1.45,r()<.5);
+  return P; }
+/* 都市: n × n の街区を道の格子で区切る。1街区は建物4棟。pick(ring, r) が形の鍵（ring は中心からの段。0 が中心）。
+   o.block(ring, r): 鍵を返すと、その街区は1つの巨大な建物（1.6倍）になる。o.hw: 高架の高速道路が街を横切る（道の番号。配列なら複数）。o.rail: 端に鉄道と駅 */
+function obCity(n,pick,seed,o={}){ const P=[], put=obPut(P), r=obRnd(seed), pitch=2, c=(n-1)/2, half=n*pitch/2;
+  P.push(tone(obx(n*pitch+.4,.02,n*pitch+.4,0,-.02,0),OC.asph));
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){ const bx=(i-c)*pitch, bz=(j-c)*pitch, ring=Math.round(Math.max(Math.abs(i-c),Math.abs(j-c)));
+    P.push(tone(obx(1.66,.03,1.66,bx,-.01,bz),OC.walk));
+    const big=o.block&&o.block(ring,r()); if(big){ put(GROUND_SHAPES[big](),bx,bz,1.6); continue; }
+    for(const [dx,dz] of [[-.4,-.4],[.4,-.4],[-.4,.4],[.4,.4]]){ const key=pick(ring,r()); if(key) put(GROUND_SHAPES[key](),bx+dx,bz+dz); } }
+  for(let i=0;i<=n;i++) for(let j=0;j<n*2;j++){ P.push(tone(obx(.02,.012,.3,(i-n/2)*pitch,0,-half+.5+j),OC.line)); P.push(tone(obx(.3,.012,.02,-half+.5+j,0,(i-n/2)*pitch),OC.line)); }
+  for(const hw of [].concat(o.hw??[])) for(let k=0;k<Math.ceil((n*pitch+.4)/.9);k++) put(GROUND_SHAPES.obHighway(),-half-.2+.45+k*.9,(hw-n/2)*pitch,.9,true);
+  if(o.rail){ const z=half+.75; P.push(tone(obx(n*pitch+.4,.02,1.1,0,-.02,z),.6)); for(let k=0;k<n*2;k++) put(GROUND_SHAPES.obRail(),-half+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-half*.5,z+.0,1,true); }
+  return P; }
 /* 見本用の町: ゲームの置き方（battle/terrain.js の町。道の両側に、道から .18km 以上離して並べる）を同じ比で写す。建物1つの底面は .68 × .6。
    pick(r) が形の鍵を返す（null なら今の灰色の箱で、高さは .64〜1.44）。端に戦車4両（size .5 のくさび形）を大きさの比べ用に置く */
 function obTown(pick){
@@ -843,6 +869,75 @@ const GROUND_SHAPES={
   /* 軍: 補給所。屋根つきの置き場と、積んだ箱、燃料の筒 */
   obDepot:()=>[...[[-.4,-.3],[.4,-.3],[-.4,.3],[.4,.3]].map(([x,z])=>obx(.04,.3,.04,x,0,z)), tone(at(obRoof(.96,.1,.76),0,.35,0),.62), ...[[-.2,0,-.1,.85],[.05,0,-.1,.7],[-.08,.12,-.1,1],[.25,0,.12,.85]].map(([x,y,z,k])=>tone(obx(.22,.12,.3,x,y,z),k)),
     tone(at(tube(.06,.34,8),-.22,.08,.2,0,Math.PI/2,0),DK), tone(obx(.98,.02,.78,0,0,0),.7)],
+  /* ---- 第2回で足した形（2026-11-15。ユーザー「村落、畑・水田、都会を文化圏ごとに3種類、高速道路と都市の道路、鉄道と駅、飛行場、港」）---- */
+  /* 畑: うねの縞。水田: あぜで区切った水面と稲の列 */
+  obField:()=>[tone(obx(1,.02,1,0,0,0),OC.soil), ...[...Array(8)].map((_,i)=>tone(obx(.07,.035,.94,-.42+i*.12,0,0),i%4<2?OC.crop:OC.crop2))],
+  obPaddy:()=>[tone(obx(1,.02,1,0,0,0),OC.water), ...[-.48,0,.48].flatMap(d=>[tone(obx(1,.045,.04,0,0,d),OC.soil), tone(obx(.04,.045,1,d,0,0),OC.soil)]),
+    ...[[-.24,-.24],[.24,.24]].flatMap(([x,z])=>[...Array(5)].map((_,i)=>tone(obx(.36,.03,.03,x,0,z-.16+i*.08),OC.rice)))],
+  /* 村の家（中東）: 塀で囲んだ中庭と平屋根の家。村の家（東アジア）: 勾配屋根の母屋と離れ、庭の塀。物置 */
+  obFarmME:()=>[obx(.5,.26,.42,-.2,0,-.24), tone(obx(.54,.03,.46,-.2,.26,-.24),.8), obx(.3,.18,.3,.3,0,.3), tone(obx(.34,.03,.34,.3,.18,.3),.8),
+    obx(1,.13,.04,0,0,-.48), obx(1,.13,.04,0,0,.48), obx(.04,.13,1,-.48,0,0), obx(.04,.13,.6,.48,0,-.2), tone(obx(.08,.14,.02,-.2,.01,-.02),DK)],
+  obFarmCN:()=>[obx(.66,.24,.36,0,0,-.26), tone(at(obRoof(.74,.16,.46),0,.32,-.26),.6), obx(.26,.18,.4,-.32,0,.18), tone(at(obRoofZ(.34,.12,.46),-.32,.24,.18),.6),
+    obx(.68,.1,.03,.14,0,.385), obx(.03,.1,.5,.465,0,.15), tone(obx(.3,.05,.02,0,.12,-.07),GL)],
+  obShed:()=>[obx(.4,.18,.3,0,0,0), tone(at(obRoof(.46,.1,.36),0,.23,0),.6), tone(obx(.14,.13,.02,0,0,.15),DK)],
+  /* 大都市の事務所ビル: 低い台と薄い板の塔 */
+  obOffice:()=>[obx(.95,.2,.8,0,0,0), tone(obx(.97,.02,.82,0,.2,0),.8), obx(.7,1.5,.4,0,.22,0), tone(obx(.62,1.4,.42,0,.27,0),GL), tone(obx(.74,.03,.44,0,1.72,0),.8), tone(obx(.3,.1,.2,.1,1.75,0),DK)],
+  /* メトロポリタンの超高層: 上へ細くなる八角の塔と尖塔 */
+  obSuper:()=>{ const body=k=>{ const g=loft([[.2,.36*k,.36*k],[1.7,.3*k,.3*k],[2.9,.2*k,.2*k],[3.4,.08*k,.08*k]],O8); g.rotateX(-Math.PI/2); return g; };
+    return [obx(.95,.2,.95,0,0,0), tone(obx(.97,.02,.97,0,.2,0),.8), tone(body(1),GL), ...[0,1,2,3].map(i=>at(obx(.05,3.1,.05,.3,.2,0).rotateZ(.083),0,0,0,0,i*Math.PI/2+Math.PI/8,0)),
+      ...[1,1.7,2.4].map(y=>at(obPrism(.33-.055*(y-.2),.33-.055*(y-.2),.04,O8),0,y,0)), tone(at(new THREE.CylinderGeometry(.01,.03,.6,5),0,3.7,0),DK)]; },
+  /* メトロポリタンの積層都市: 1街区を占める段々の巨大建築。段ごとにガラスの帯と屋上の緑、頂に塔 */
+  obArco:()=>[...[[1,0,.5],[.8,.5,.5],[.6,1,.5],[.4,1.5,.7]].flatMap(([w,y,h])=>[obx(w,h,w,0,y,0), tone(obx(w+.01,h*.5,w+.01,0,y+h*.3,0),GL), tone(obx(w,.02,w,0,y+h,0),OC.crop)]),
+    tone(obx(.42,.03,.42,0,2.2,0),.8), tone(at(new THREE.CylinderGeometry(.012,.03,.5,5),0,2.45,0),DK)],
+  /* メトロポリタンの連結超高層: 3本の塔を2段の空中の輪でつなぐ */
+  obMega:()=>{ const tw=(x,z,h)=>{ const g=loft([[.2,.2,.2],[h*.6,.17,.17],[h,.09,.09]],O8); g.rotateX(-Math.PI/2); g.translate(x,0,z); return [tone(g,GL), at(obPrism(.1,.1,.04,O8),x,h,z), tone(at(new THREE.CylinderGeometry(.008,.02,.4,5),x,h+.2,z),DK)]; };
+    return [obx(1,.2,1,0,0,0), tone(obx(1.02,.02,1.02,0,.2,0),.8), ...tw(0,.27,3.6), ...tw(-.25,-.17,3.1), ...tw(.25,-.17,2.7), ...[1.1,2].flatMap(y=>[at(obPrism(.46,.46,.07,O8),0,y,0), tone(at(obPrism(.47,.47,.03,O8),0,y+.02,0),GL)])]; },
+  /* 中東の大都市の塔: 細い塔に、斜めに切った頂部 */
+  obTowerME:()=>[obx(.9,.16,.9,0,0,0), tone(at(obDomeG(.16,.14),.28,.16,.28),.9), obx(.46,1.7,.46,-.1,.16,-.1), ...[.5,.9,1.3,1.7].map(y=>tone(obx(.47,.2,.47,-.1,y-.14,-.1),GL)),
+    tone(at(loft([[-.23,.23,.2],[.23,.23,.2]],OB_SAW),-.1,2.06,-.1),.8)],
+  /* 都市の道路（長さ1、z 向き）: 車道、歩道、中央の線。交差点 */
+  obRoadCity:()=>[tone(obx(.5,.02,1,0,0,0),OC.asph), ...[-.3,.3].map(x=>tone(obx(.1,.035,1,x,0,0),OC.walk)), ...[-.33,0,.33].map(z=>tone(obx(.015,.024,.18,0,0,z),OC.line))],
+  obCross:()=>[tone(obx(.7,.02,.7,0,0,0),OC.asph), ...[[1,1],[1,-1],[-1,1],[-1,-1]].map(([a,b])=>tone(obx(.1,.035,.1,a*.3,0,b*.3),OC.walk)),
+    ...[[0,.27,1],[0,-.27,1],[.27,0,0],[-.27,0,0]].flatMap(([x,z,h])=>[-.15,-.05,.05,.15].map(d=>tone(h?obx(.05,.024,.08,x+d,0,z):obx(.08,.024,.05,x,0,z+d),OC.line)))],
+  /* 高速道路（高架、長さ1、z 向き）: 橋脚、2本の車道、中央と両側の壁 */
+  obHighway:()=>[...[-.3,.3].flatMap(z=>[obx(.14,.3,.12,0,0,z), obx(.8,.06,.12,0,.3,z)]), tone(obx(.84,.04,1,0,.36,0),OC.asph), ...[-.42,0,.42].map(x=>tone(obx(.03,.07,1,x,.38,0),.9)),
+    ...[-.21,.21].flatMap(x=>[-.3,.1].map(z=>tone(obx(.012,.01,.2,x,.4,z+.1),OC.line)))],
+  /* 鉄道（長さ1、z 向き）。駅: ホーム2本と線路2本、かまぼこの上屋、駅舎。列車: 100年先の高速列車3両 */
+  obRail:()=>obRails(0,1),
+  obStation:()=>[tone(obx(1.9,.02,1.6,.15,0,0),.6), ...obRails(-.17,1.6), ...obRails(.17,1.6), ...[-.42,.42].map(x=>tone(obx(.16,.07,1.6,x,0,0),.8)), tone(at(loft([[-.6,.52,.1],[.6,.52,.1]],OB_ARC),0,.4,0),.62),
+    ...[-.5,.5].flatMap(x=>[-.5,0,.5].map(z=>obx(.03,.32,.03,x,0,z))), obx(.36,.3,.8,.76,0,0), tone(obx(.4,.03,.84,.76,.3,0),.8), tone(obx(.02,.1,.6,.945,.1,0),GL)],
+  obTrain:()=>[...obRails(0,1.6), ...[-.5,0,.5].flatMap((z,i)=>[at(loft(i===1?[[-.25,.075,.065],[.25,.075,.065]]:i?[[-.25,.075,.065],[.1,.075,.065],[.26,.03,.03,-.03]]:[[-.26,.03,.03,-.03],[-.1,.075,.065],[.25,.075,.065]],SQR),0,.12,z),
+      tone(obx(.155,.03,.36,0,.13,z+(i-1)*-.04),GL)])],
+  /* 飛行場: 滑走路（長さ2、z 向き）とターミナル（弓なりの屋根と搭乗橋） */
+  obRunway:()=>[tone(obx(.6,.02,2,0,0,0),OC.asph), ...[...Array(7)].map((_,i)=>tone(obx(.02,.024,.16,0,0,-.72+i*.24),OC.line)), ...[-.9,.9].flatMap(z=>[-.2,-.12,-.04,.04,.12,.2].map(x=>tone(obx(.03,.024,.12,x,0,z),OC.line))),
+    ...[-.28,.28].map(x=>tone(obx(.012,.024,1.96,x,0,0),OC.line))],
+  obTerminal:()=>[obTurn(at(loft([[-.7,.3,.11],[.7,.3,.11]],OB_ARC),0,.11,0)).translate(0,0,-.2), tone(obx(1.36,.12,.02,0,.02,.1),GL), ...[-.4,.4].flatMap(x=>[obx(.1,.1,.5,x,.02,.34), tone(obx(.26,.06,.06,x,.05,.5),DK)]),
+    tone(obx(1.5,.02,1.2,0,0,.1),.7)],
+  /* 港: 岸壁（水面つき）、突堤、貨物船 */
+  obQuay:()=>[tone(obx(1.4,.1,.5,0,0,-.25),.8), tone(obx(1.4,.03,.6,0,0,.28),OC.water), obx(.14,.09,.56,-.4,0,.28), ...[-.5,0,.5].map(x=>tone(at(new THREE.CylinderGeometry(.02,.025,.05,6),x,.125,-.04),DK))],
+  obShipCargo:()=>[tone(obx(.5,.02,1.5,0,0,0),OC.water), at(loft([[-.62,.1,.07],[-.5,.15,.08],[.4,.15,.08],[.66,.02,.07]],SLAB),0,.085,0), obx(.22,.2,.14,0,.16,-.48), tone(obx(.24,.04,.03,0,.3,-.41),GL),
+    ...[[-.25,1],[-.05,.75],[.15,.9],[.33,.7]].flatMap(([z,k])=>[tone(obx(.24,.07,.17,0,.165,z),k), tone(obx(.24,.06,.17,0,.235,z),k*.85)]).slice(0,7)],
+  /* 見本用: 村と、文化圏ごとの3段階の都市（地方都市・大都市・メトロポリタン）、交通の施設の並び */
+  obVillageME:()=>obVillage('obFarmME','obField',11),
+  obVillageEA:()=>obVillage('obFarmCN','obPaddy',12),
+  /* 地方都市: 低い町。大都会: 今の上海・ニューヨーク・東京・ロンドン級（超高層の中心と密な高層）。メトロポリタン: 前からの大都会の最終形（積層都市と連結超高層、何本もの高架）（ユーザー 2026-11-15） */
+  obCityME1:()=>obCity(3,(g,r)=>r<.12?null:r<.6?'obHouseFlat':r<.9?'obBlockFlat':'obDome',21),
+  obCityME2:()=>obCity(5,(g,r)=>g===0?(r<.5?'obSuper':'obTowerME'):g===1?(r<.5?'obTowerME':r<.8?'obOffice':'obTowerTwin'):(r<.3?'obOffice':r<.45?'obTowerME':r<.9?'obBlockFlat':'obDome'),22,{hw:1}),
+  obCityME3:()=>obCity(7,(g,r)=>g<=1?(r<.6?'obSuper':'obTowerME'):g===2?(r<.4?'obSuper':r<.8?'obTowerME':'obTowerTwin'):(r<.4?'obTowerME':r<.7?'obOffice':'obBlockFlat'),23,
+    {hw:[2,5],rail:1,block:(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null}),
+  obCityEA1:()=>obCity(3,(g,r)=>r<.1?null:r<.6?'obShop':r<.9?'obApart':'obWarehouse',31),
+  obCityEA2:()=>obCity(5,(g,r)=>g===0?(r<.5?'obSuper':'obTowerTwin'):g===1?(r<.45?'obTower':r<.75?'obTowerTwin':'obOffice'):(r<.35?'obTower':r<.85?'obApart':'obOffice'),32,{hw:1}),
+  obCityEA3:()=>obCity(7,(g,r)=>g<=1?(r<.6?'obSuper':'obTowerTwin'):g===2?(r<.4?'obSuper':r<.8?'obTower':'obTowerTwin'):(r<.45?'obTower':r<.8?'obApart':'obOffice'),33,
+    {hw:[2,5],rail:1,block:(g,r)=>g===0?'obMega':g===1?(r<.5?'obArco':null):g===2&&r<.15?'obArco':null}),
+  obSceneAir:()=>{ const P=[], put=obPut(P); P.push(tone(obx(6,.02,3.6,0,-.02,0),[.6,.66,.48])); [-2,0,2].forEach(x=>put(GROUND_SHAPES.obRunway(),x,-1,1,true)); put(GROUND_SHAPES.obTerminal(),0,.5,1.2);
+    [-2.3,-1.6].forEach(x=>put(GROUND_SHAPES.obHangar(),x,.6,.8)); put(GROUND_SHAPES.obControl(),1.5,.5,.68); put(GROUND_SHAPES.obRadar(),2.3,.7,.68); return P; },
+  obScenePort:()=>{ const P=[], put=obPut(P); P.push(tone(obx(6,.02,2,0,-.02,-1),.75)); P.push(tone(obx(6,.02,2,0,-.03,1),OC.water)); [-2.1,-.7,.7,2.1].forEach(x=>put(GROUND_SHAPES.obQuay(),x,0,1));
+    [-1.6,.2].forEach(x=>put(GROUND_SHAPES.obCrane(),x,-.2,.68)); [-2.4,-.9,1.2].forEach(x=>put(GROUND_SHAPES.obContainers(),x,-1,.68)); put(GROUND_SHAPES.obWarehouse(),2.2,-1.2,.8); put(GROUND_SHAPES.obTanks(),.2,-1.3,.68);
+    put(GROUND_SHAPES.obShipCargo(),-.9,.7,1.3,true); return P; },
+  obSceneRoad:()=>{ const P=[], put=obPut(P); P.push(tone(obx(5,.02,3,0,-.02,0),[.6,.66,.48])); [-2,-1,1,2].forEach(x=>put(GROUND_SHAPES.obRoadCity(),x,.8,1,true)); put(GROUND_SHAPES.obCross(),0,.8,1.43);
+    [-.2,1.8].forEach(z=>put(GROUND_SHAPES.obRoadCity(),0,z-.2+ (z<0?-.3:0),1)); [-2,-1,0,1,2].forEach(x=>put(GROUND_SHAPES.obHighway(),x,-.8,1,true)); return P; },
+  obSceneRail:()=>{ const P=[], put=obPut(P); P.push(tone(obx(5.4,.02,2.4,0,-.02,0),[.6,.66,.48])); [-2.2,-1.2,1.2,2.2].forEach(x=>put(GROUND_SHAPES.obRail(),x,-.17,1,true)); put(GROUND_SHAPES.obStation(),0,0,1,true);
+    put(GROUND_SHAPES.obTrain(),-1.7,.17,1,true); [1.3,2.3].forEach(x=>put(GROUND_SHAPES.obRail(),x,.17,1,true)); return P; },
   /* 見本用: 町の並び（ゲームの置き方と同じ決まりで並べる）。今の灰色の箱、中東、華南、広州、港と基地。手前の4両は戦車（大きさの比べ用） */
   obTownOld:()=>obTown(()=>null),
   obTownME:()=>obTown(r=>r<.55?'obHouseFlat':r<.85?'obBlockFlat':r<.93?'obDome':'obShop'),

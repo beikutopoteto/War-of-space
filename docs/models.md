@@ -825,3 +825,12 @@ Codex の案（`docs/reports/2026-11-13-mars-corvette-frigate.md`）のおすす
 - **見本用の町**: `obTownOld`（今の箱）・`obTownME`・`obTownCN`・`obTownCity`・`obTownPort`。ゲームの置き方と同じ比で34棟を並べ、端に戦車4両を置く。ゲームでは使わない。
 - **道具**: `tools/model-sheet.cjs` の項目に `neutral:true` を書くと、陣営色でなく灰色で描く。
 - **まだ決めていないこと**: 採る形と地域ごとの組み合わせ、港・飛行場・軍の施設をどの拠点に置くか、橋や壊れた建物を作るか、遮蔽の箱を形に合わせるか（今は見た目だけ替える考え）。
+
+### 16.1 見本の第2回（2026-11-15。ユーザー「さらに何種類か」）
+
+- **ユーザーの指示**: 村落と畑・水田。都会は文化圏ごとに3種類。高速道路と都市の道路。鉄道と駅。飛行場、港。
+- **都市の3段階（ユーザーの定義）**: 地方都市／大都会（今の上海・ニューヨーク・東京・ロンドンの都市化の水準）／メトロポリタン（前から大都会だった町の最終形）。
+- **足した形**: 農地 `obField`・`obPaddy`、村の家 `obFarmME`・`obFarmCN`・`obShed`、都市 `obOffice`・`obSuper`・`obTowerME`、メトロポリタン専用の `obArco`（1街区を占める積層都市）・`obMega`（空中の輪でつないだ超高層3本）、道路 `obRoadCity`・`obCross`・`obHighway`、鉄道 `obRail`・`obStation`・`obTrain`、飛行場 `obRunway`・`obTerminal`、港 `obQuay`・`obShipCargo`。
+- **見本用の並び**: 村 `obVillageME`・`obVillageEA`、都市 `obCityME1〜3`・`obCityEA1〜3`（`obCity`: 街区を道の格子で区切る。3×3・5×5・7×7 街区）、`obSceneAir`・`obScenePort`・`obSceneRoad`・`obSceneRail`。文化圏は今は中東と東アジアの2つ。
+- **色**: `tone` に色 `[r,g,b]` も渡せるようにした（`groundJoin`）。畑・水・道に使い、建物は灰色のまま。
+- **まだ決めていないこと**: ほかの文化圏（欧米など）を足すか。都市を格子で置くには、ゲームの町の置き方（今は道の両側に並べるだけ）と地図のデータを変える必要がある。道路・鉄道・滑走路を地図の道のデータにどうつなぐか。
