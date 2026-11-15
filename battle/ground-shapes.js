@@ -456,10 +456,10 @@ function obCity(n,pick,seed,o={}){ const P=[], put=obPut(P), r=obRnd(seed), dr=o
   P.push(tone(obx(n*pitch+.4,.02,n*pitch+.4,0,-.02,0),OC.asph));
   for(let i=0;i<n;i++) for(let j=0;j<n;j++){ const bx=(i-c)*pitch, bz=(j-c)*pitch, ring=Math.round(Math.max(Math.abs(i-c),Math.abs(j-c)));
     P.push(tone(obx(1.66,.03,1.66,bx,-.01,bz),OC.walk));
-    const big=o.block&&o.block(ring,r()); if(big){ put(GROUND_SHAPES[big](),bx,bz,1.6); continue; }
+    const big=o.block&&o.block(ring,r()); if(big){ put(GROUND_SHAPES[o.dmg&&OB_RUINKEY[big]||big](),bx,bz,1.6); continue; }
     for(const [dx,dz] of [[-.4,-.4],[.4,-.4],[-.4,.4],[.4,.4]]){ const key=pick(ring,r()); if(!key) continue;
       if(o.slum&&ring>=Math.round(c)){ put(obSlumQ(OB_SQ,dr,dr()<.1),bx+dx,bz+dz,.9); continue; }
-      const lv=obDmg(o.dmg,dr()); put(lv?obRuinSq(key,lv,dr):GROUND_SHAPES[key](),bx+dx,bz+dz); } }
+      const lv=obDmg(o.dmg,dr()); put(lv===1&&OB_RUINKEY[key]?GROUND_SHAPES[OB_RUINKEY[key]]():lv?obRuinSq(key,lv,dr):GROUND_SHAPES[key](),bx+dx,bz+dz); } }
   for(let i=0;i<=n;i++) for(let j=0;j<n*2;j++){ P.push(tone(obx(.02,.012,.3,(i-n/2)*pitch,0,-half+.5+j),OC.line)); P.push(tone(obx(.3,.012,.02,-half+.5+j,0,(i-n/2)*pitch),OC.line)); }
   for(const hw of [].concat(o.hw??[])) for(let k=0;k<Math.ceil((n*pitch+.4)/.9);k++) if(!(o.dmg&&dr()<o.dmg*.2)) put(GROUND_SHAPES.obHighway(),-half-.2+.45+k*.9,(hw-n/2)*pitch,.9,true);
   if(o.rail){ const z=half+.75; P.push(tone(obx(n*pitch+.4,.02,1.1,0,-.02,z),.6)); for(let k=0;k<n*2;k++) put(GROUND_SHAPES.obRail(),-half+.5+k,z,1,true); put(GROUND_SHAPES.obStation(),0,z,1,true); put(GROUND_SHAPES.obTrain(),-half*.5,z+.0,1,true); }
@@ -517,7 +517,7 @@ function obCityFree(kind,cult,tier,seed,O={}){ const P=[], put=obPut(P), r=obRnd
         const key=pick(Math.min(top,Math.floor(d/(R+.5)*(top+1))),r()); if(!key) continue; const [h,o]=OB_LOT[key]||[.5], hh=h*(.85+r()*.3);
         if(O.slum&&d>R*O.slum){ obSlumQ(q,dr,dr()<.08).forEach(g=>P.push(g)); continue; }
         const lv=obDmg(O.dmg,dr()); (lv?obLotRuin(q,hh,lv,dr):obLot(q,hh,thin<.5?{...o,set:0}:o)).forEach(g=>P.push(g)); } } }
-  bigs.forEach(([x,z,key,k])=>put(O.dmg&&OB_LOT[key]?obRuinSq(key,O.dmg,dr):GROUND_SHAPES[key](),x,z,k));
+  bigs.forEach(([x,z,key,k])=>put(GROUND_SHAPES[O.dmg&&OB_RUINKEY[key]||key](),x,z,k));
   if(O.slum<0){ const a=.78; obSlumQ([[-a,-a],[a,-a],[a,a],[-a,a]],dr,true).forEach(g=>P.push(g)); }   // スラムだけの町は中心の広場も埋める
   const chord=c=>Math.sqrt(Math.max(0,(R+.9)**2-c*c));
   if(hw!=null){ const h=chord(hw); for(let x=-h+.45;x<h;x+=.9) if(!(O.dmg&&dr()<O.dmg*.2)) put(GROUND_SHAPES.obHighway(),x,hw,.9,true); }
@@ -544,6 +544,9 @@ function obLotRuin(q,h,lv,r){ const {B,sub,pl}=obQ(q), P=[tone(pl(sub(-.14,1.14,
   } else P.push(tone(pl(sub(.1,.9,.1,.9),.02,.05),.62), tone(pl(sub(.3,.75,.25,.6),.05,.07),.72));
   blob(-.06,.3,1.3); blob(1.07,.6,1.4); if(lv>1) blob(.5,.5,1.7);
   return P; }
+/* 目印の建物（超高層・連結超高層・積層都市・双子の塔）の半壊の鍵。町が壊れていれば、これに差し替える */
+const OB_RUINKEY={obSuper:'obSuperRuin',obMega:'obMegaRuin',obArco:'obArcoRuin',obTowerTwin:'obTwinRuin'};
+const obSkirt=w=>[tone(obx(w,.04,w,0,0,0),.5), tone(obBlob(.16,.09,.15,w*.42,.04,-w*.3),.58), tone(obBlob(.14,.08,.16,-w*.4,.04,w*.34),.58)];
 const obRuinSq=(key,lv,r)=>obLotRuin(OB_SQ,((OB_LOT[key]||[.5])[0])*1.5,lv,r);
 function obSlumStack(k=1){ const P=[obx(.16,1.25,.16,0,0,0), tone(obx(.3,.03,.3,0,1.25,0),.8), tone(at(new THREE.CylinderGeometry(.09,.09,.1,6),0,1.33,0),.9)];
   [[.52,.4,.1,0],[.4,.54,-.08,.06],[.5,.36,.02,-.1],[.36,.5,.1,.08],[.46,.38,-.1,0],[.34,.44,.06,-.06]].forEach(([w,l,x,z],i)=>{ P.push(tone(obx(w,.17,l,x,i*.2,z),i%2?.78:1), tone(obx(w+.02,.05,l+.02,x,i*.2+.07,z),GL)); });
@@ -1061,6 +1064,27 @@ const GROUND_SHAPES={
   obFireTanks:()=>[tone(obx(1.6,.02,1.4,0,-.02,0),.7), ...GROUND_SHAPES.obTanks()],
   obFireForest:()=>{ const P=[], put=obPut(P), r=obRnd(91); P.push(tone(obx(3.4,.02,2.4,0,-.02,0),[.56,.62,.44]));
     for(let i=0;i<5;i++) for(let j=0;j<3;j++) put(GROUND_SHAPES[r()<.8?'obTreeConifer':'obTreeBroad'](),-1.3+i*.65+(r()-.5)*.25,-.75+j*.75+(r()-.5)*.25,.5+r()*.2); return P; },
+  /* 目印の建物の半壊（2026-11-16。ユーザー「真ん中のランドマークの半壊モデルも」）。元の形が分かるように、折れた所・残った骨組み・落ちた上半分で壊れを見せる。
+     obCut: 先細りの八角の塔を高さ hc で折る（割れ口は暗い）。obSkirt: すそのがれき */
+  obSuperRuin:()=>{ const sec=(y0,y1,r0,r1)=>{ const g=loft([[y0,r0,r0],[y1,r1,r1]],O8); g.rotateX(-Math.PI/2); return g; };
+    return [...obSkirt(1.5), obx(.95,.2,.95,0,0,0), tone(obx(.97,.02,.97,0,.2,0),.7), tone(sec(.2,1.7,.36,.3),GL), tone(sec(1.7,1.95,.3,.285),GL), tone(at(obPrism(.27,.27,.03,O8),0,1.94,0),DK),
+      tone(at(sec(1.9,2.75,.15,.05),.12,0,.08),.5),                                                               // 残った芯
+      ...[0,1,2,3].map(i=>at(obx(.05,i%2?2.6:1.85,.05,.3,.2,0).rotateZ(.083),0,0,0,0,i*Math.PI/2+Math.PI/8,0)),      // 骨組みは2本が割れ口の上まで残る
+      ...[1,1.7].map(y=>at(obPrism(.33-.055*(y-.2),.33-.055*(y-.2),.04,O8),0,y,0)),
+      tone(at(loft([[0,.2,.2],[.75,.11,.11],[1.05,.05,.05]],O8),.74,.2,-.6,0,.5,0),.36), tone(obBlob(.2,.1,.18,.62,.05,-.5),.58), tone(obBlob(.16,.09,.16,1.2,.05,-.05),.58)]; },   // 落ちた上半分
+  obMegaRuin:()=>{ const tw=(x,z,H,hc)=>{ const rr=y=>y<H*.6?.2-(.03)*(y-.2)/(H*.6-.2):.17-.08*(y-H*.6)/(H*.4), S=[[.2,.2,.2]]; if(hc>H*.6) S.push([H*.6,.17,.17]); S.push([hc,rr(hc),rr(hc)]);
+        const g=loft(S,O8); g.rotateX(-Math.PI/2); g.translate(x,0,z); return [tone(g,GL), hc<H?tone(at(obPrism(rr(hc)*.9,rr(hc)*.9,.03,O8),x,hc-.01,z),DK):at(obPrism(.1,.1,.04,O8),x,H,z)]; };
+    return [...obSkirt(1.55), obx(1,.2,1,0,0,0), tone(obx(1.02,.02,1.02,0,.2,0),.7), ...tw(0,.27,3.6,3.6), ...tw(-.25,-.17,3.1,1.55), ...tw(.25,-.17,2.7,2.3),
+      at(obPrism(.46,.46,.07,O8),0,1.1,0), tone(at(obPrism(.47,.47,.03,O8),0,1.12,0),GL), at(obPrism(.3,.3,.07,O8),.125,2,.05), tone(at(obPrism(.31,.31,.03,O8),.125,2.02,.05),GL),   // 上の輪は半分だけ残る
+      tone(at(loft([[0,.15,.15],[1.2,.09,.09]],O8),-.75,.16,-.55,0,-.6,0),.36), tone(obBlob(.2,.1,.18,-.6,.05,-.62),.58), tone(obBlob(.17,.09,.15,.72,.05,.3),.58)]; },
+  obArcoRuin:()=>[...obSkirt(1.6), ...[[1,0,.5],[.8,.5,.5]].flatMap(([w,y,h])=>[obx(w,h,w,0,y,0), tone(obx(w+.01,h*.5,w+.01,0,y+h*.3,0),GL), tone(obx(w,.02,w,0,y+h,0),.5)]),
+    obx(.34,.5,.6,-.13,1,0), tone(obx(.35,.25,.61,-.13,1.15,0),GL), tone(obx(.3,.02,.56,-.13,1.5,0),DK), obx(.2,.42,.3,-.2,1.5,-.1), tone(obx(.16,.02,.26,-.2,1.92,-.1),DK),    // 3段目は半分、頂は割れた芯
+    tone(obBlob(.2,.1,.2,.22,1.06,.1),.58), tone(obBlob(.15,.08,.14,.2,1.05,-.2),.58), tone(obBlob(.22,.11,.2,.62,.06,.6),.58), tone(obBlob(.18,.1,.2,-.7,.05,-.4),.58)],
+  obTwinRuin:()=>{ const tw=(x,h,z,cut)=>[at(obPrism(.19,.19,h,O8),x,0,z), tone(at(obPrism(.195,.195,h*.82,O8),x,h*.1,z),GL), cut?tone(at(obPrism(.17,.17,.03,O8),x,h,z),DK):at(obPrism(.2,.2,.04,O8),x,h,z)];
+    return [...obSkirt(1.5), obx(1,.16,.8,0,0,0), tone(obx(1.02,.02,.82,0,.16,0),.7), ...tw(-.26,2.3,.08), ...tw(.26,1.05,-.08,true), obx(.2,.1,.14,-.1,1.35,0),
+      tone(at(obPrism(.17,.17,.7,O8),.72,.17,-.4,Math.PI/2-.12,.5,0),.36), tone(obBlob(.18,.1,.16,.6,.05,.3),.58)]; },
+  obOrgEA3D1:()=>obCityFree('org','EA',3,53,{dmg:1}),
+  obCityEA2D1F:()=>GROUND_SHAPES.obCityEA2D1(), obCityEA2D2F:()=>GROUND_SHAPES.obCityEA2D2(), obOrgEA2D1F:()=>GROUND_SHAPES.obOrgEA2D1(), obOrgEA2D2F:()=>GROUND_SHAPES.obOrgEA2D2(), obSuperRuinF:()=>GROUND_SHAPES.obSuperRuin(),
   /* 見本用: 町の並び（ゲームの置き方と同じ決まりで並べる）。今の灰色の箱、中東、華南、広州、港と基地。手前の4両は戦車（大きさの比べ用） */
   obTownOld:()=>obTown(()=>null),
   obTownME:()=>obTown(r=>r<.55?'obHouseFlat':r<.85?'obBlockFlat':r<.93?'obDome':'obShop'),
@@ -1194,6 +1218,9 @@ function groundModelFor(kind,side='earth'){
 const GROUND_FIRES={ obFireS:[[0,0,0,.45]], obFireL:[[0,0,0,.8],[.5,0,.25,.6],[-.45,0,-.3,.55],[-.1,0,.45,.45,0]],
   obFireHouse:[[0,.3,-.26,.42],[-.3,.2,.18,.26,0]], obFireTank:[[0,.3,-.1,.4]], obFireTanks:[[0,.3,.26,.8],[-.28,.3,-.2,.5,0]],
   obFireForest:[[-.6,.45,0,.55],[.1,.45,-.6,.45],[.7,.4,.5,.5,0],[-1.2,.3,.6,.3,0]] };
+/* 壊れた町に置く炎: 町の中に n か所（盤目は四角 half、ほかは半径 R の中）。大きさと煙の有無は乱数 */
+const obFirePts=(seed,n,R,sq)=>{ const r=obRnd(seed), P=[]; while(P.length<n){ const x=(r()*2-1)*R, z=(r()*2-1)*R; if(!sq&&Math.hypot(x,z)>R) continue; P.push([x,.15,z,.6+r()*.7,r()<.75?1:0]); } return P; };
+Object.assign(GROUND_FIRES,{ obCityEA2D1F:obFirePts(101,7,4.6,true), obCityEA2D2F:obFirePts(102,12,4.6,true), obOrgEA2D1F:[[0,2.3,0,.7],...obFirePts(103,6,5)], obOrgEA2D2F:[[0,2.3,0,.7],...obFirePts(104,11,5)], obSuperRuinF:[[0,1.9,0,.5],[.7,.3,-.5,.35,0]] });
 let groundFireGeo=null;
 function groundFire(points){
   if(!groundFireGeo){ const H=[...Array(6)].map((_,i)=>[Math.cos(i*Math.PI/3),Math.sin(i*Math.PI/3)]), tongue=loft([[0,.3,.3],[.2,.46,.46],[.5,.3,.3],[.78,.13,.13],[1,0,0]],H); tongue.rotateX(-Math.PI/2);
