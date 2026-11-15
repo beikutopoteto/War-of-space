@@ -732,7 +732,7 @@ const GROUND_SHAPES={
        its edges; an outrigger wedge pod on each side with a turret and an engine, set a little low on a drooped wing with a curved edge
      masc3M (the Republic): two slim hulls side by side, each with a level launch deck and a hangar that runs down to the stern as
        one slope; a flat bridge spans them over the hangars with the command hump in the middle, and a beam joins them at the stern */
-  masc3:()=>{ const H=eHull([[-1.3,.3,.14],[-1,.34,.17],[.2,.2,.15],[.9,.11,.11],[1.35,.05,.07,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK), by=.365, py=-.07,
+  masc3:()=>{ const H=eHull([[-1.3,.3,.14],[-1,.34,.17],[.2,.2,.15],[.9,.11,.11],[1.35,.05,.07,.02],[1.5,0,.01,.07]]), fy=.185, m=g=>tone(g,DK), by=.365, py=-.3, px=.54,
       SL=[[.72,1],[1,-1],[-1,-1],[-.72,1]], BV=[[.8,1],[1,0],[.8,-1],[-.8,-1],[-1,0],[-.8,1]],
       win=(xf,zf,xb,zb,y,h)=>{ const dx=xb-xf, dz=zb-zf, L=Math.hypot(dx,dz), th=Math.atan2(dx,dz), cx=(xf+xb)/2-dz/L*.003, cz=(zf+zb)/2+dx/L*.003;
         return [1,-1].map(sg=>tone(at(box(.012,h,L*.8),sg*cx,y,cz,0,sg*th),GL)); };
@@ -743,9 +743,9 @@ const GROUND_SHAPES={
       at(loft([[-1.04,.085,.04,.295],[-.72,.045,.04,.295]],TRAP),0,0,0),
       at(loft([[-1.12,.17,.034,by],[-1,.2,.04,by],[-.55,.055,.028,by]],BV),0,0,0), tone(at(box(.09,.02,.02),0,by,-.546),GL), ...win(.055,-.55,.2,-1,by,.02),
       at(loft([[-1.02,.05,.02],[-.8,.03,.02]],TRAP),0,by+.05,0), at(barG([0,by+.06,-.95],[0,by+.2,-1.02],.02,.02),0,0,0), at(box(.1,.01,.016),0,by+.14,-.99), tone(at(box(.04,.024,.04),0,by+.2,-1.02),GL),
-      ...pair(at(loft([[-1.1,.09,.09],[-.8,.11,.1],[.15,.02,.03]]),.62,py,0)),
-      ...pair(at(plate([[.16,.1],[.21,-.12],[.31,-.3],[.45,-.45],[.6,-.55],[.6,-.9],[.48,-.9],[.36,-.92],[.25,-.96],[.16,-1.03]],.045),0,0,0,0,0,-.12)),
-      ...laserT(.62,py+.088,-.65,.7,2), ...laserT(-.62,py+.088,-.65,.7,2), ...spBells([.62,-.62],py,-1.15,.07), ...spBells([.15,-.15],0,-1.35,.08),
+      ...pair(at(loft([[-.9,.09,.09],[-.6,.11,.1],[.35,.02,.03]]),px,py,0)),
+      ...pair(at(plate([[.16,.3],[.21,.08],[.31,-.1],[.45,-.25],[.62,-.35],[.62,-.7],[.48,-.7],[.36,-.72],[.25,-.76],[.16,-.83]],.045),0,0,0,0,0,-.524)),
+      ...laserT(px,py+.088,-.45,.7,2), ...laserT(-px,py+.088,-.45,.7,2), ...spBells([px,-px],py,-.95,.07), ...spBells([.15,-.15],0,-1.35,.08),
       ...pdG(.17,.258,-.8,.8), ...pdG(-.17,.258,-.8,.8), ...pdG(.21,.256,-1.1,.8), ...pdG(-.21,.256,-1.1,.8),
       ...belly(0,H.keel(0)+.003,0,.6), ...gatB(.08,H.low(.08,.4),.4,.8), ...gatB(-.08,H.low(.08,.4),.4,.8), ...gatB(.12,H.low(.12,-.7),-.7,.8), ...gatB(-.12,H.low(.12,-.7),-.7,.8)]; },
   masc3M:()=>{ const bx=.3, dk=.125, m=g=>tone(g,DK), B=()=>mA([[-1.3,.13,.1],[-.5,.17,.12],[.3,.15,.1],[1,.1,.08],[1.45,.05,.05]]), M=B(),
