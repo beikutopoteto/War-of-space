@@ -118,6 +118,11 @@ function groundBallisticTrace(s){
       if(value(right)<-1e-7){const hit=groundBallisticBand(qa,qb,qc,left,right,-Infinity,0);accept(hit??right,'terrain');}
     }
   }
+  const towns=groundTownZones(),sourceTowns=new Set(physical&&s.sourceGround?towns.filter(t=>groundInsideTown(s.origin,t)).map(t=>t.settlement):[]);
+  if(!physical)for(const town of towns){
+    if(groundInsideTown(s.target,town)||groundInsideTown(s.origin,town)&&s.origin.y<scene.height(x,z)+town.roof)continue;
+    accept(groundTownHit(s.origin,s.target,town),'building');
+  }
   const index=groundBallisticBuildings(scene),candidates=new Set(),bins=groundBallisticGridCuts(x,z,dx,dz,4);
   // DDAの区画と境界の両隣を調べる。箱全体・射線の矩形全体を毎回走査しない。
   for(let i=0;i<bins.length;i++){
@@ -127,6 +132,11 @@ function groundBallisticTrace(s){
   const inside=(px,pz,box)=>px>=box.minX&&px<=box.maxX&&pz>=box.minZ&&pz<=box.maxZ;
   for(const item of candidates){
     const box=item.box,interval=[lo,first===null?hi:Math.min(hi,first)];
+    if(!physical&&box.settlement!=null)continue;
+    if(physical&&sourceTowns.has(box.settlement)){
+      // 地上からの曲射の上昇中だけ同じ町の建物を通す。
+      interval[0]=Math.max(interval[0],-b/(2*a));if(interval[0]>interval[1])continue;
+    }
     // 立てこもる（ユーザー決定 2026-11-14）: 撃つ隊が中にいる建物（屋根より低い）と、直射で狙う点が中にある建物は遮らない。
     // 曲射・爆弾は今どおり狙う点の屋根に当たる。上空の機体は自分の真下の建物を無視しない。
     if(inside(x,z,box)&&c<(physical?item.topM:box.top)||!physical&&inside(s.target.x,s.target.z,box))continue;
@@ -179,7 +189,7 @@ function groundBallisticSolution(f,p,options={ignoreRange:false}){
   if(!Number.isFinite(T)||!(T>0)||!groundBallisticFinite(velocity))return groundBallisticFail('unreachable');
   const solution={clear:true,reason:'clear',mode,origin,target,originMeters,targetMeters,velocityMeters:velocity,
     duration:T/profile.physicalSecondsPerGameSecond,physicalDuration:T,timeScale:profile.physicalSecondsPerGameSecond,
-    gravity:mode==='indirect'?profile.gravity:0,scene,impact:target.clone(),collision:null};
+    gravity:mode==='indirect'?profile.gravity:0,sourceGround:(f.band||'ground')==='ground',scene,impact:target.clone(),collision:null};
   if(mode==='legacy-support')return solution;
   // 直射も描画三角形との厳密交差を通す。LOSのサンプル間の細い隆起を抜けない。
   const directClear=mode==='direct'?groundClearLine(origin,target):null;

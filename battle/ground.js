@@ -463,7 +463,7 @@ function groundDamageFactor(t){
   if(t.groundUnloading)return groundLandingRules().damageFactor*descent;
   if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return descent;
   const c=groundRuleSet().combat,m=c.urbanMargin;
-  const cover=groundInForest(t.pos.x,t.pos.z)||groundBuildings.some(b=>t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
+  const cover=groundInForest(t.pos.x,t.pos.z)||groundTownZones().some(zone=>groundInsideTown(t.pos,zone))||groundBuildings.some(b=>b.settlement==null&&t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
   return descent*(cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1);
 }
 function groundMechanicalWear(f,dt){
