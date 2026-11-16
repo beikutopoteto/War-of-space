@@ -22,7 +22,7 @@ function fxPage(){
     canvas.addEventListener('wheel',e=>{ e.preventDefault(); view.dist*=Math.exp(e.deltaY*.001); },{passive:false});
     function render(){ const w=canvas.clientWidth,h=canvas.clientHeight; if(canvas.width!==Math.round(w*renderer.getPixelRatio())){ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
       const c=Math.cos(view.pitch); camera.position.set(view.target.x+Math.sin(view.yaw)*c*view.dist,view.target.y+Math.sin(view.pitch)*view.dist,view.target.z+Math.cos(view.yaw)*c*view.dist); camera.lookAt(view.target); renderer.render(scene,camera); }
-    return {scene,view,tex,render};
+    return {scene,view,tex,render,ground};
   }
   /* 効果の一覧: 始めた時刻から update を呼び、false で片付ける */
   function fxList(scene){ const list=[]; return { add(fx,pos,look,at=0){ if(pos) fx.group.position.copy(pos); if(look) fx.group.lookAt(look); fx.group.visible=false; scene.add(fx.group); list.push({fx,at}); return fx; },
@@ -79,6 +79,43 @@ function fxPage(){
       hull.rotation.y=st.hull; tur.rotation.y=st.tur; gun.rotation.x=-st.el; aim.position.z=rig.muzzle; aim.scale.z=Math.max(.1,Math.hypot(dx,dz,mark.position.y-o.y)-rig.muzzle);
       const moving=[Math.abs(st.el-el0)>1e-4&&'仰角',Math.abs(st.tur-tur0)>1e-4&&'砲塔',Math.abs(st.hull-hull0)>1e-4&&'車体'].filter(Boolean), out=wantEl>rig.el[1]+.01||wantEl<rig.el[0]-.01;
       note.textContent=(rig.hasTurret?'砲塔あり':'砲塔なし（車体ごと向きます）')+'。今動いているのは: '+(moving.join('・')||'なし')+(out?'。的が仰角の届く範囲の外です':'')+'。';
+      S.render(); requestAnimationFrame(frame); }
+    frame(); })();
+
+  /* ---- D: 艦の砲塔（海と宇宙） ---- */
+  (()=>{ const S=stage(document.getElementById('shipCanvas'),{dist:8,target:[0,.3,0],yaw:.8,pitch:.32}); window.SHV=S.view; window.SHL=()=>L; const note=document.getElementById('shipNote'), holder=new THREE.Group(); S.scene.add(holder);
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(400,400).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({color:0x3d6c88})); sea.position.y=-.01; S.scene.add(sea);
+    const stars=(()=>{ const P=[]; for(let i=0;i<900;i++){ const v=new THREE.Vector3(Math.random()-.5,Math.random()-.5,Math.random()-.5).normalize().multiplyScalar(150); P.push(v.x,v.y,v.z); }
+      const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); return new THREE.Points(g,new THREE.PointsMaterial({color:0xcfd8e6,size:.7,sizeAttenuation:false})); })(); S.scene.add(stars);
+    const ships=[{label:'戦艦（海）',sea:'seaBB'},{label:'イージス艦（海）',sea:'seaCL'},{label:'高速艇（海）',sea:'seaFF'},{label:'強襲母艦（海）',sea:'masc3',mars:'masc3M'},
+      ...[['bb','戦艦'],['cl','巡洋艦'],['dd','駆逐艦'],['ff','フリゲート'],['cv','コルベット'],['cvb','戦闘母艦'],['mas','突撃揚陸艦'],['masc','強襲母艦']].map(([type,name])=>({label:name+'（宇宙）',type}))];
+    const mark=new THREE.Mesh(new THREE.IcosahedronGeometry(1,1),new THREE.MeshBasicMaterial({color:0xff5a4a})); S.scene.add(mark);
+    const sideBtn=document.getElementById('shipSide'); let cur=ships[0], side=0, rig=null, L=1, list=[], last=performance.now()/1000;
+    function build(){ while(holder.children.length) holder.remove(holder.children[0]); holder.rotation.set(0,0,0);
+      const key=cur.sea?(side&&cur.mars?cur.mars:cur.sea):SPACE_MODELS[cur.type][side?'mars':'earth'], space=!cur.sea; rig=groundTurretRig(key);
+      S.ground.visible=false; sea.visible=!space; stars.visible=space; S.scene.background.set(space?0x0b0f16:0x8fa3b0); S.scene.fog.far=space?2000:220;
+      holder.position.y=space?1.2:0; holder.add(new THREE.Mesh(rig.hull,mats[side])); rig.hull.computeBoundingSphere(); L=rig.hull.boundingSphere.radius;
+      list=rig.turrets.map(t=>{ const m=[t.house,t.gun].map(g=>{ if(!g) return null; const x=new THREE.Mesh(g,mats[side]); x.matrixAutoUpdate=false; holder.add(x); return x; }); t.yaw=0; t.elev=t.built; return {t,house:m[0],gun:m[1]}; });
+      /* 主砲: 回れる角に限りのある砲塔のうち、いちばん遅いもの（同じ速さはみな）。主砲が向けないときだけ艦体が回る */
+      const lim=rig.turrets.filter(t=>t.arc<Math.PI), slow=Math.min(...lim.map(t=>t.rate)); for(const e of list) e.main=e.t.arc<Math.PI&&e.t.rate<=slow+1e-6;
+      mark.scale.setScalar(L*.05); S.view.dist=L*3.4; S.view.target.set(0,holder.position.y+L*.05,0); S.view.pitch=space?.3:.35; sideBtn.hidden=!(cur.type||cur.mars); }
+    buttons(document.getElementById('shipModes'),ships,k=>{ cur=k; build(); });
+    sideBtn.onclick=()=>{ side=1-side; sideBtn.textContent=side?'惑星共和国':'地球連合'; build(); }; build();
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)), wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)), slew=(v,to,max)=>v+clamp(to-v,-max,max), q=new THREE.Vector3();
+    function frame(){ const now=performance.now()/1000, dt=Math.min(.05,now-last); last=now; const t=still?5:now, space=!cur.sea;
+      /* 的: 艦のまわりを回る。海では海面から低い空、宇宙では艦の上と下を行き来する */
+      const a=t*.28, R=L*3.2; mark.position.set(Math.sin(a)*R, space?holder.position.y+Math.sin(t*.37)*L*1.6:L*(.12+.5*(.5+.5*Math.sin(t*.5))), Math.cos(a)*R);
+      const tl=holder.worldToLocal(mark.position.clone()); let mains=0, bear=0, moved={el:false,tur:false,hull:false};
+      for(const e of list){ const T=e.t; q.copy(tl).applyMatrix4(T.Mi); const want=Math.atan2(q.x,q.z), d=q.clone().sub(T.pivot), wantEl=Math.atan2(d.y,Math.hypot(d.x,d.z));
+        const y0=T.yaw, e0=T.elev, full=T.arc>=Math.PI-1e-6;
+        T.elev=slew(T.elev,clamp(wantEl,T.el[0],T.el[1]),T.rate*1.3*dt);
+        T.yaw=full?T.yaw+clamp(wrap(want-T.yaw),-T.rate*dt,T.rate*dt):slew(T.yaw,clamp(want,-T.arc,T.arc),T.rate*dt);
+        if(e.main){ mains++; if(Math.abs(want)<=T.arc+1e-3&&wantEl>=T.el[0]-.02&&wantEl<=T.el[1]+.02) bear++; } if(Math.abs(T.elev-e0)>1e-4) moved.el=true; if(Math.abs(wrap(T.yaw-y0))>1e-4) moved.tur=true;
+        if(e.house&&e.gun) groundTurretPose(T,T.yaw,T.elev,e.house.matrix,e.gun.matrix); else if(e.gun) groundTurretPose(T,T.yaw,T.elev,new THREE.Matrix4(),e.gun.matrix); }
+      /* 艦体: 主砲のどれも向けない（左右の角か仰角が届かない）ときだけ、的の方へゆっくり回る */
+      const need=mains>0&&bear===0; if(need){ const turn=clamp(wrap(Math.atan2(tl.x,tl.z)),-.22*dt,.22*dt); holder.rotation.y+=turn; moved.hull=Math.abs(turn)>1e-5; }
+      const names=[moved.el&&'仰角',moved.tur&&'砲塔',moved.hull&&'艦体'].filter(Boolean);
+      if(dt>0) note.textContent='砲塔 '+list.length+' 基。今動いているのは: '+(names.join('・')||'なし')+(need?'（主砲のどれも向けないので艦体が回っています）':'')+'。';
       S.render(); requestAnimationFrame(frame); }
     frame(); })();
 
@@ -160,12 +197,14 @@ canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/10;border:1px sol
 @media (max-width:520px){canvas{aspect-ratio:4/3.6}}
 </style>
 <main>
-<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第6回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
+<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第7回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
 <section aria-labelledby="h-was"><h2 id="h-was">W.A.S. の動き</h2><div class="modes" id="wasModes" role="group" aria-label="W.A.S. の動き"></div><canvas id="wasCanvas" aria-label="W.A.S. の動きの絵"></canvas><p class="note" id="wasNote"></p></section>
 <section aria-labelledby="h-fx"><h2 id="h-fx">射撃・弾道・着弾</h2><div class="modes" id="fxModes" role="group" aria-label="兵科"></div><canvas id="fxCanvas" aria-label="射撃と着弾の絵"></canvas><p class="note" id="fxNote"></p>
 <p class="dim">青が撃つ側、赤が撃たれる側です。距離は絵に収まるよう縮めています。爆風の輪の広さはゲームの値のままです。</p></section>
 <section aria-labelledby="h-rig"><h2 id="h-rig">砲塔と仰角</h2><div class="modes" id="rigModes" role="group" aria-label="車両"></div><div class="modes"><button type="button" id="rigSide">地球連合</button></div><canvas id="rigCanvas" aria-label="砲塔と仰角の絵"></canvas><p class="note" id="rigNote"></p>
 <p class="dim">赤い玉が的です。4秒は高さだけ変わり、次の4秒で横へ回ります。狙う順は、仰角、砲塔、車体です。</p></section>
+<section aria-labelledby="h-ship"><h2 id="h-ship">艦の砲塔</h2><div class="modes" id="shipModes" role="group" aria-label="艦"></div><div class="modes"><button type="button" id="shipSide">地球連合</button></div><canvas id="shipCanvas" aria-label="艦の砲塔の絵"></canvas><p class="note" id="shipNote"></p>
+<p class="dim">赤い玉が的で、艦のまわりを回ります（宇宙では上と下も行き来します）。どの砲塔も、仰角と旋回で的を追います。正面から左右へ回れる角には限りがあり（近接防御と機関砲は一周）、主砲のどれも向けないときだけ艦体が回ります。</p></section>
 </main>
 <script src="${CDN}"></script><script>${inline('battle/shapes.js')}</script><script>${inline('battle/ground-shapes.js')}</script><script>${inline('battle/ground-fx.js')}</script>
 <script>(${fxPage.toString()})();</script>`;
