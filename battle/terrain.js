@@ -446,7 +446,7 @@ for(const road of d.objects.roads)drawLine(ctx,road.points,.1,SURF.art,scale);
 for(const bridge of d.objects.bridges)drawLine(ctx,[[bridge.x-.45,bridge.y],[bridge.x+.45,bridge.y]],.14,'#eee7d4',scale);
 ctx.save();ctx.globalCompositeOperation='destination-in';polyPath(ctx,boardOutline,scale);ctx.fillStyle='#fff';ctx.fill();ctx.restore();
 const texture=new THREE.CanvasTexture(canvas);texture.anisotropy=renderer.capabilities.getMaxAnisotropy();
-const geometry=new THREE.PlaneGeometry(W,H,dimensions.mesh.segmentsX,dimensions.mesh.segmentsZ);geometry.rotateX(-Math.PI/2);const pos=geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setY(i,elevation(pos.getX(i)+W/2,H/2-pos.getZ(i)));geometry.computeVertexNormals();const groundMesh=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));groundMesh.receiveShadow=true;world.add(groundMesh);
+const geometry=new THREE.PlaneGeometry(W,H,dimensions.mesh.segmentsX,dimensions.mesh.segmentsZ);geometry.rotateX(-Math.PI/2);const pos=geometry.attributes.position;for(let i=0;i<pos.count;i++)pos.setY(i,elevation(pos.getX(i)+W/2,H/2-pos.getZ(i)));geometry.computeVertexNormals();const groundMesh=new THREE.Mesh(geometry,new THREE.MeshLambertMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide}));groundMesh.receiveShadow=true;groundMesh.renderOrder=-3;world.add(groundMesh);   // 半透明の組でいちばん先（町の道の帯 -2・-1 がその上）
 
 // Animated specular flecks are masked to the sea and excluded from dry ground.
 const waterMask=document.createElement('canvas');waterMask.width=canvas.width;waterMask.height=canvas.height;const wm=waterMask.getContext('2d');smoothPath(wm,d.water.sea,scale);wm.fillStyle='#fff';wm.fill();wm.globalCompositeOperation='destination-in';polyPath(wm,boardOutline,scale);wm.fill();const waterMaskTexture=new THREE.CanvasTexture(waterMask);const waterGeo=geometry.clone(),wp=waterGeo.attributes.position;for(let i=0;i<wp.count;i++)wp.setY(i,wp.getY(i)+.008);const waterMaterial=groundWaterMaterial=new THREE.ShaderMaterial({uniforms:{mask:{value:waterMaskTexture},time:{value:0}},vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'uniform sampler2D mask; uniform float time; varying vec2 vUv; void main(){float m=texture2D(mask,vUv).a; float a=sin(vUv.x*780.0+vUv.y*280.0+time*.65); float b=sin(vUv.y*620.0-vUv.x*120.0-time*.43); float glint=pow(max(0.0,a*b),13.0);gl_FragColor=vec4(.68,.86,.84,m*glint*.25);}',transparent:true,depthWrite:false});const waterLayer=new THREE.Mesh(waterGeo,waterMaterial);waterLayer.visible=seaMode==='real';world.add(waterLayer);
@@ -512,8 +512,11 @@ function populateShrubs(){
 
 populateReeds();populateForest();populateShrubs();
 // 町ごとに路面1枚・ふち1枚。幹線の腕も重ね、路面を全てのふちより上へ置く。
+// 帯は奥行きを書かない（ユーザー 2026-11-16「傾けると幹線道路の陣営の色が消える」: 帯の奥行きが、上に重ねる陣営の色と視界の霧を隠していた）。
+// 半透明の組で、地面（renderOrder -3）のすぐあと、ほかの全て（攻撃の円など 0、霧 3、陣営の色 4）の前に描く。
+// 重なりは描く順で決める: ふち（-2）→ 路面（-1）、同じ層では生活道路 → 集散路 → 幹線（前の高さの順と同じ）。
 for(const [spec,t] of townLayouts){
- const sampled=t.roads.map(r=>{const d=denseRoad(r.pts);for(const p of d.points)p.h=elevation(...p.p);return {r,...d,corners:r.pts.map(p=>elevation(...p))};});
+ const sampled=t.roads.map(r=>{const d=denseRoad(r.pts);for(const p of d.points)p.h=elevation(...p.p);return {r,...d,corners:r.pts.map(p=>elevation(...p))};}).sort((a,b)=>RANK[a.r.cls]-RANK[b.r.cls]);
  const floats=sampled.reduce((n,d)=>n+(d.points.length-1)*18+d.r.pts.length*8*9,0);
  for(const layer of ['edge','surf']){const P=new Float32Array(floats),C=new Float32Array(floats),surface=layer==='surf';let at=0;
   for(const {r,points,L,corners} of sampled){const w=roadWidth(t,r,surface),height=(surface?.009:.004)+RANK[r.cls]*.0012,edgeColor=new THREE.Color(EDGE[r.cls]),colorAt=surface?roadColors(t,r):()=>edgeColor,ca=new THREE.Color(),cb=new THREE.Color();
@@ -524,7 +527,7 @@ for(const [spec,t] of townLayouts){
    let s=0;r.pts.forEach((p,i)=>{if(i)s+=Math.hypot(p[0]-r.pts[i-1][0],p[1]-r.pts[i-1][1]);const c=colorAt(s,L,ca),h=corners[i];for(let k=0;k<8;k++){const a=k/8*Math.PI*2,b=(k+1)/8*Math.PI*2;put(...p,h,c);put(p[0]+Math.cos(b)*w/2,p[1]+Math.sin(b)*w/2,h,c);put(p[0]+Math.cos(a)*w/2,p[1]+Math.sin(a)*w/2,h,c);}});
   }
   if(!at)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('color',new THREE.BufferAttribute(C,3));g.computeVertexNormals();
-  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:surface?-2:-1,polygonOffsetUnits:surface?-2:-1}));m.receiveShadow=true;m.userData={groundObject:surface?'streets':'streetEdges',settlement:spec.site||spec.id};world.add(m);
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:surface?-2:-1,polygonOffsetUnits:surface?-2:-1}));m.renderOrder=surface?-1:-2;m.receiveShadow=true;m.userData={groundObject:surface?'streets':'streetEdges',settlement:spec.site||spec.id};world.add(m);
  }
  // 広場、本営の敷地と三方の低い塀、公園（公園の木は遮蔽に含めない）。
  for(const b of t.blocks){const u=b.u,v=[-u[1],u[0]],corners=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([i,j])=>[b.x+u[0]*b.hu*i+v[0]*b.hv*j,b.y+u[1]*b.hu*i+v[1]*b.hv*j]);
