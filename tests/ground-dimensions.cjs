@@ -10,7 +10,7 @@ function createContext(){
   context.window=context;
   for(const key of ['grid','starField','skyObj','fieldRocks','debrisObj','cloudObj','farPlanet','rim'])context[key]=new THREE.Group();
   const run=s=>vm.runInContext(s,context);
-  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','battle/shapes.js','battle/ground-shapes.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
   run(`function groundRules(){return groundRuleSet().bands;}
     function groundStrikeRange(f){return f.rangeOverride||{min:0,max:200};}
     function gun(x,z){return {alive:true,groundKind:'artillery',band:'ground',pos:new THREE.Vector3(x,groundHeight(x,z),z)};}`);
