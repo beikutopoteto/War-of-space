@@ -69,7 +69,7 @@ function fxPage(){
     const scenes=[
       {label:'自走砲',text:'砲口の光と砲煙。弾は山なりに飛び、着弾で輪が爆風の届く所（約1.75 km）まで広がります。炎はなく、煙が少し残ります。',dist:46,pitch:.42,period:5.2,
         setup(){ this.a=place('artillery',0,-15,1); this.b=place('vehicle',1,15,-1); }, fire(now){ this.a.forEach((u,i)=>{ const t=now+i*.5, m=u.muzzle(1), end=V(rnd(2.5),0,15+rnd(2.5));
-          F.add(GFX.muzzle(.7,{smokeK:1.4,life:.14}),m,V(m.x,m.y+.6,m.z+1),t); F.add(GFX.shot(arc(m,end,9),1.7,'shell',.16),null,null,t); F.add(GFX.blast(7),end,null,t+1.7); }); }},
+          F.add(GFX.muzzle(.7,{smokeK:1.4,life:.14,side:true}),m,V(m.x,m.y+.6,m.z+1),t); F.add(GFX.shot(arc(m,end,9),1.7,'shell',.16),null,null,t); F.add(GFX.blast(7),end,null,t+1.7); }); }},
       {label:'ロケット',text:'6発を続けて撃ち、白い煙の尾を引きます。着弾ごとに輪が広がります。',dist:50,pitch:.42,period:6.5,
         setup(){ this.a=place('guidedRocket',0,-16,1); this.b=place('infantry',1,16,-1); }, fire(now){ for(let i=0;i<6;i++){ const u=this.a[i%3], t=now+i*.22, m=u.muzzle(1.05), end=V(rnd(4),0,16+rnd(4));
           F.add(GFX.muzzle(.5,{smokeK:1.2}),m,V(m.x,m.y+1,m.z-1),t); F.add(GFX.shot(arc(m,end,10),2,'rocket',.2),null,null,t); F.add(GFX.blast(7,{smokeK:.8}),end,null,t+2); } }},
@@ -80,10 +80,10 @@ function fxPage(){
       {label:'艦砲',text:'艦の主砲。光と砲煙が大きく、輪は約2.5 km まで広がります。',dist:62,pitch:.4,period:6,
         setup(){ this.a=place('sea:cl',0,-22,1); this.b=place('artillery',1,20,-1); const w=new THREE.Mesh(new THREE.PlaneGeometry(400,60).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({color:0x3f6f8c})); w.position.set(0,.02,-40); units.add(w); },
         fire(now){ for(let i=0;i<2;i++){ const u=this.a[0], t=now+i*.4, m=V(rnd(.1),u.top*.55,-22+1.2), end=V(rnd(3),0,20+rnd(3));
-          F.add(GFX.muzzle(1,{smokeK:1.6,life:.16}),m,V(m.x,m.y+.5,m.z+1),t); F.add(GFX.shot(arc(m,end,10),2,'shell',.22),null,null,t); F.add(GFX.blast(10),end,null,t+2); } }},
+          F.add(GFX.muzzle(1,{smokeK:1.6,life:.16,side:true}),m,V(m.x,m.y+.5,m.z+1),t); F.add(GFX.shot(arc(m,end,10),2,'shell',.22),null,null,t); F.add(GFX.blast(10),end,null,t+2); } }},
       {label:'戦車',text:'直射。砲口の光と砲煙、速い光の筋、当たった所に小さな輪と土ぼこり。',dist:20,pitch:.3,period:3.2,
         setup(){ this.a=place('vehicle',0,-7,1); this.b=place('vehicle',1,7,-1); }, fire(now){ this.a.forEach((u,i)=>{ const t=now+i*.45, m=u.muzzle(.8), tg=this.b[i%this.b.length], end=V(tg.pos.x+rnd(.3),.3,tg.pos.z-.4);
-          F.add(GFX.muzzle(.45,{smokeK:1}),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.16,'tracer',.12),null,null,t); F.add(GFX.blast(2,{smokeK:.7}),end.clone().setY(0),null,t+.16); }); }},
+          F.add(GFX.muzzle(.45,{smokeK:1,side:true}),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.16,'tracer',.12),null,null,t); F.add(GFX.blast(2,{smokeK:.7}),end.clone().setY(0),null,t+.16); }); }},
       {label:'歩兵',text:'小銃の細い筋と、当たった所の小さな土ぼこり。',dist:11,pitch:.28,period:1.5,
         setup(){ this.a=place('infantry',0,-3.5,1); this.b=place('infantry',1,3.5,-1); }, fire(now){ for(const u of this.a) for(let k=0;k<3;k++){ const t=now+Math.random()*1.2+k*.09, m=u.muzzle(.8), end=V(rnd(1.6),.05+Math.random()*.3,3.5+rnd(.6));
           F.add(GFX.muzzle(.07),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.12,'tracer',.035),null,null,t); F.add(GFX.hit(.1,{sparks:false}),end.clone().setY(0),null,t+.12); } }},
@@ -129,7 +129,7 @@ canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/10;border:1px sol
 @media (max-width:520px){canvas{aspect-ratio:4/3.6}}
 </style>
 <main>
-<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第1回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
+<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第3回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
 <section aria-labelledby="h-was"><h2 id="h-was">W.A.S. の動き</h2><div class="modes" id="wasModes" role="group" aria-label="W.A.S. の動き"></div><canvas id="wasCanvas" aria-label="W.A.S. の動きの絵"></canvas><p class="note" id="wasNote"></p></section>
 <section aria-labelledby="h-fx"><h2 id="h-fx">射撃・弾道・着弾</h2><div class="modes" id="fxModes" role="group" aria-label="兵科"></div><canvas id="fxCanvas" aria-label="射撃と着弾の絵"></canvas><p class="note" id="fxNote"></p>
 <p class="dim">青が撃つ側、赤が撃たれる側です。距離は絵に収まるよう縮めています。爆風の輪の広さはゲームの値のままです。</p></section>
