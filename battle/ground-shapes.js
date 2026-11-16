@@ -269,6 +269,8 @@ function wasMix(P={}){ const K=WAS_KIT, p=[], U=[], NZ=[], th=(a,b,r=.028)=>segG
   const HY=.69+(P.hy||0), HZ=-.02, lean=a=>new THREE.Matrix4().makeTranslation(0,HY,HZ).multiply(new THREE.Matrix4().makeRotationX(a)).multiply(new THREE.Matrix4().makeTranslation(0,-.84,0)), M=lean(P.lean??.3), M0=lean(P.lean0??.12), SX=.28, W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
   /* a frame along a forearm: the elbow at the origin, +Z toward the wrist */
   const along=(el,wr)=>new THREE.Matrix4().compose(new THREE.Vector3(...el),new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1),new THREE.Vector3(...wr).sub(new THREE.Vector3(...el)).normalize()),new THREE.Vector3(1,1,1));
+  /* thr: the back thrusters swung about their mount (negative: the nozzles point further down) */
+  const THR=new THREE.Matrix4().makeTranslation(0,1.1,-.27).multiply(new THREE.Matrix4().makeRotationX(P.thr||0)).multiply(new THREE.Matrix4().makeTranslation(0,-1.1,.27));
   for(const sx of [1,-1]){ const hip=[sx*.13,HY,HZ], ank=P.ank?P.ank[sx>0?0:1]:[sx*.23,.13,0], pitch=P.foot?P.foot[sx>0?0:1]:0,
       knee=P.ank||P.hy?(()=>{ const T=.3217, L=.3548, h=new THREE.Vector3(...hip), d=new THREE.Vector3(...ank).sub(h), dd=Math.min(d.length(),T+L-.004), dn=d.clone().normalize(), a=(T*T-L*L+dd*dd)/(2*dd),
         f=new THREE.Vector3(sx*.13,0,1); f.addScaledVector(dn,-f.dot(dn)).normalize(); return h.addScaledVector(dn,a).addScaledVector(f,Math.sqrt(Math.max(0,T*T-a*a))).toArray(); })():[sx*.2,.44,.17], S=along(ank,knee), SL=new THREE.Vector3(...knee).distanceTo(new THREE.Vector3(...ank));
@@ -308,7 +310,7 @@ function wasMix(P={}){ const K=WAS_KIT, p=[], U=[], NZ=[], th=(a,b,r=.028)=>segG
     ...[1,-1].map(f=>at(loft([[-.19,.012,.008,.024],[-.1,.034,.018,.012],[.02,.04,.022],[.15,.014,.01,-.022]],FACET),f*.062,1.36,-.01,0,-f*.2,-f*.18)),
     ...pair(tone(at(box(.05,.05,.1),.088,1.33,-.05),.8)), ...pair(tone(at(box(.03,.026,.035),.102,1.332,-.02),DK)), tone(at(box(.012,.14,.012),-.088,1.42,-.09,-.2),DK)].map(g=>{ g.translate(0,-1.275,.03); g.scale(.875,.875,.875); g.translate(0,1.275,-.03); return g; }),
     ...[.1,-.1].map(x=>{ const g=new THREE.CylinderGeometry(.085,.085,.17,8); g.rotateZ(Math.PI/2); return tone(at(g,x,1.02,-.215),.6); }),
-    ...pair(at(loft([[-.32,.03,.03],[-.1,.07,.07],[.1,.05,.05]],HEX),.17,1.1,-.27,-.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.17,.94,-.55,1.1))),
+    ...[...pair(at(loft([[-.32,.03,.03],[-.1,.07,.07],[.1,.05,.05]],HEX),.17,1.1,-.27,-.5)), ...pair(K.dk(at(new THREE.CylinderGeometry(.04,.065,.1,6),.17,.94,-.55,1.1)))].map(g=>{ g.applyMatrix4(THR); return g; }),
     ...K.subArms(.9,.115));
   const wing=()=>{ const g=loft([[0,.22,.06],[.1,.19,.056,-.004],[.24,.1,.028,-.026],[.34,.04,.01,-.05],[.41,.006,.003,-.066]],WAS_WING); g.rotateY(Math.PI/2); g.applyMatrix4(new THREE.Matrix4().set(1,0,0,0, 0,1,0,0, -.62,0,1,0, 0,0,0,1)); return g; };
   const guard=()=>{ let g=plate([[.085,.11],[.085,-.09],[-.02,-.075],[-.15,.01],[-.02,.085]],.028); g=g.index?g.toNonIndexed():g; g.rotateZ(Math.PI/2); return g; };
@@ -319,7 +321,7 @@ function wasMix(P={}){ const K=WAS_KIT, p=[], U=[], NZ=[], th=(a,b,r=.028)=>segG
   p.push(...U);
   /* arms */
   const shR=W([-SX,1.22,-.02]), elR=add(shR,P.elR||[-.025,-.13,-.02]), wrR=add(elR,P.wrR||[0,0,.36]), shL=W([SX,1.22,-.02]), elL=add(shL,P.elL||[.025,-.13,-.02]), wrL=add(elL,P.wrL||[.03,-.2,.27]), SH=P.shield||[[.1,-.176,.096],-.5,0,0];
-  for(const x of [.17,-.17]) NZ.push({p:W([x,.9,-.63]), d:new THREE.Vector3(0,-.45,-.89).transformDirection(M).toArray(), k:1});
+  for(const x of [.17,-.17]) NZ.push({p:new THREE.Vector3(x,.9,-.63).applyMatrix4(THR).applyMatrix4(M).toArray(), d:new THREE.Vector3(0,-.45,-.89).transformDirection(THR).transformDirection(M).toArray(), k:1});
   for(const [sh,el,wr] of [[shR,elR,wrR],[shL,elL,wrL]]){ const A=along(el,wr), hand=box(.09,.09,.1).toNonIndexed(); hand.translate(0,0,new THREE.Vector3(...wr).distanceTo(new THREE.Vector3(...el))+.035); hand.applyMatrix4(A);
     p.push(segG(sh,el,.07,.08,4), K.J(...el,.06,.11), segG(el,wr,.06,.085,4), hand); }
   /* right forearm: the guns, parallel to it; the belt sags from the receiver to the drum on the back */
@@ -336,13 +338,13 @@ function wasMix(P={}){ const K=WAS_KIT, p=[], U=[], NZ=[], th=(a,b,r=.028)=>segG
 const WAS_POSE=(()=>{
   /* the guard (user 2026-11-17): the shield before the body, slanting across it (its top toward the left shoulder, its point
      down to the right) and leaning with the foot of it forward; when firing the right arm's guns rest on its upper edge */
-  const G={elL:[-.03,-.13,.06], wrL:[-.2,-.06,.3], shield:[[-.13,-.2,.2],-.36,-Math.PI/2+.2,-.6]}, REST={elR:[.1,-.13,-.02], wrR:[.04,0,.36]};
+  const G={elL:[-.03,-.13,.06], wrL:[-.2,-.06,.3], shield:[[-.08,-.2,.2],-.36,-Math.PI/2+.2,-.6]}, REST={elR:[.1,-.13,-.02], wrR:[.04,0,.36]};
   const step=(l,r,hy,sw)=>({hy,lean:.34,ank:[l,r],foot:[l[1]>.14&&l[2]<0?.5:0,r[1]>.14&&r[2]<0?.5:0], elR:[-.025,-.13,-.02+sw*.03], wrR:[0,sw*.02,.36], ...G, wrL:[-.2,-.06+sw*.015,.3-sw*.02]});
   return { wasWalk1:step([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasWalk2:step([.22,.13,.03],[-.21,.27,.02],0,.3),
     wasWalk3:step([.22,.17,-.2],[-.22,.13,.24],-.03,-1), wasWalk4:step([.21,.27,.02],[-.22,.13,.03],0,-.3),
     wasFire:{hy:-.13,lean:.36,ank:[[.28,.13,.22],[-.28,.13,-.26]],foot:[0,.12], ...G, ...REST},
     wasFly:{lean:.22,lean0:.05,ank:[[.2,.1,-.14],[-.2,.1,-.14]],foot:[.75,.75], wrL:[.03,-.24,.22]},
-    wasFlyFire:{lean:.3,lean0:.08,ank:[[.2,.1,-.14],[-.2,.1,-.14]],foot:[.75,.75], ...G, ...REST},
+    wasFlyFire:{lean:.3,lean0:.08,ank:[[.4,.26,-.04],[-.4,.26,-.04]],foot:[.45,.45],thr:-.8, ...G, ...REST},
     wasFlyMove:{lean:.58,lean0:.4,ank:[[.17,.3,-.52],[-.17,.3,-.52]],foot:[1.3,1.3], ...G},
     wasFlyUp:{lean:.12,lean0:0,ank:[[.16,.04,-.06],[-.16,.04,-.06]],foot:[1.1,1.1], wrL:[.03,-.27,.17]},
     wasFlyDown:{lean:.05,lean0:-.1,ank:[[.22,.25,.3],[-.22,.25,.3]],foot:[.25,.25], wrL:[.05,-.16,.3]} }; })();

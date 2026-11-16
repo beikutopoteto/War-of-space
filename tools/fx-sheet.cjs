@@ -39,7 +39,7 @@ function fxPage(){
       {label:'歩行',text:'4こまの歩き。盾を前に構えたまま、足に合わせて腕が少し前後します。',key:t=>'wasWalk'+(1+Math.floor(t/.24)%4),y:t=>.012*Math.sin(t/.24*Math.PI),scroll:1.1,power:0},
       {label:'射撃',text:'腰を落として踏んばり、盾を体の前に斜めに構えます。右腕のバルカンを盾の上に乗せて撃ち、背の砲も撃ちます。',key:()=>'wasFire',y:()=>0,scroll:0,power:0,fire:true},
       {label:'飛行・待機',text:'その場に浮きます。足を下げ、噴射は弱めです。',key:()=>'wasFly',y:t=>1.5+.06*Math.sin(t*1.7),scroll:0,power:.55},
-      {label:'飛行・射撃',text:'空中でも同じ構えで、敵に向いて撃ちます。',key:()=>'wasFlyFire',y:t=>1.5+.05*Math.sin(t*1.7),scroll:0,power:.6,fire:true},
+      {label:'飛行・射撃',text:'空中でも同じ構えで、敵に向いて撃ちます。足は曲げてハの字に開き、背中の噴射は下へ向けます。',key:()=>'wasFlyFire',y:t=>1.5+.05*Math.sin(t*1.7),scroll:0,power:.6,fire:true},
       {label:'飛行・移動',text:'体を前へ倒し、足を後ろへ流します。盾は前に構えたまま。噴射は強めです。',key:()=>'wasFlyMove',y:t=>1.5+.04*Math.sin(t*2.3),scroll:5,power:1.25},
       {label:'上昇',text:'体を伸ばして上がります。噴射はいちばん強いです。',key:()=>'wasFlyUp',y:t=>.9+(t%2.4)*1,scroll:0,power:1.5},
       {label:'下降',text:'足を前に出して降ります。噴射は弱く、着く前に少し強まります。',key:()=>'wasFlyDown',y:t=>3.2-(t%2.4)*1,scroll:0,power:t=>.3+.5*Math.max(0,(t%2.4)-1.6)}];
@@ -129,7 +129,7 @@ canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/10;border:1px sol
 @media (max-width:520px){canvas{aspect-ratio:4/3.6}}
 </style>
 <main>
-<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第4回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
+<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第5回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
 <section aria-labelledby="h-was"><h2 id="h-was">W.A.S. の動き</h2><div class="modes" id="wasModes" role="group" aria-label="W.A.S. の動き"></div><canvas id="wasCanvas" aria-label="W.A.S. の動きの絵"></canvas><p class="note" id="wasNote"></p></section>
 <section aria-labelledby="h-fx"><h2 id="h-fx">射撃・弾道・着弾</h2><div class="modes" id="fxModes" role="group" aria-label="兵科"></div><canvas id="fxCanvas" aria-label="射撃と着弾の絵"></canvas><p class="note" id="fxNote"></p>
 <p class="dim">青が撃つ側、赤が撃たれる側です。距離は絵に収まるよう縮めています。爆風の輪の広さはゲームの値のままです。</p></section>
