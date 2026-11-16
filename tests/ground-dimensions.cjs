@@ -2,7 +2,7 @@
    Canvasの描画命令だけstub。広域データの設計をfixtureの引伸ばしで代用しない。 */
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict'),THREE=require('three');
 function createContext(){
-  const canvases=[],draw=new Proxy({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),createRadialGradient:()=>({addColorStop(){}})}, {get:(t,k)=>k in t?t[k]:()=>{}});
+  const canvases=[],draw=new Proxy({createImageData:(w,h)=>({data:new Uint8ClampedArray(w*h*4)}),createRadialGradient:()=>({addColorStop(){}}),createLinearGradient:()=>({addColorStop(){}})}, {get:(t,k)=>k in t?t[k]:()=>{}});
   const context=vm.createContext({THREE,console,op:{ground:'exercise2'},fleets:[],gameSec:0,
     document:{createElement(){const c={width:0,height:0,getContext:()=>draw};canvases.push(c);return c;}},
     scene:new THREE.Scene(),sun:new THREE.DirectionalLight(),ambient:new THREE.AmbientLight(),

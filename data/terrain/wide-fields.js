@@ -33,7 +33,7 @@
   d.objects={forest:{type:'森林',seed:b.seed+10,count:b.forest,roadClearanceKm:.15,terraceMaxYKm:H*.85,bands:rivers.map((r,i)=>({river:r.id,yMin:r.points.at(-1)[1]+2,yMax:i?Math.max(...r.points.map(p=>p[1])):H*.85,bankMinKm:.6,bankMaxNorthKm:1.4,bankMaxSouthKm:.8,fadeStartYKm:H*.4,gapPeriodKm:i?3:6,gapFraction:.25}))},
    shrubs:{type:'低木',species:['タマリスク','ヨモギ類','塩生低木'],seed:b.seed+20,count:b.shrubs,renderCount:b.shrubs,clusterKm:3,terraceMaxYKm:H*.96,roadClearanceKm:.2,zones:[{id:'west-steppe',kind:'steppe',polygon:rect(W*.04,H*.38,W*.4,H*.9),density:.22},{id:'east-steppe',kind:'steppe',polygon:rect(W*.72,H*.52,W*.95,H*.92),density:.22},{id:'forest-edge',kind:'bank',riverIds:['main','west','east'],minKm:1.5,maxKm:2.6,density:.6}]},
    reeds:{coverIds:b.swamps.map((_,i)=>'reed-'+i),count:b.reeds,seed:b.seed+30,densityPerKm2:.87},
-   settlements:d.sites.map(s=>({site:s.id,type:'市街地',count:s.id==='A'||s.id===(b.sites.length===6?'C':'D')?90:50,spacingKm:.16,alongRoadKm:.18,polygon:rect(s.x-.8,s.y-.8,s.x+.8,s.y+.8)})),
+   settlements:d.sites.map(s=>({site:s.id,...(s.id==='A'||s.id===(b.sites.length===6?'C':'D')?{layout:'radial',tier:2,facilities:['depot']}:{layout:'organic',tier:1}),type:'市街地',count:s.id==='A'||s.id===(b.sites.length===6?'C':'D')?90:50,spacingKm:.16,alongRoadKm:.18,polygon:rect(s.x-.8,s.y-.8,s.x+.8,s.y+.8)})),
    roads:b.roads.map(([id,points],i)=>({id,type:i?'local':'main',points})),bridges:b.bridges.map(([id,x,y,river])=>({id,x,y,river})),fords:b.fords.map(([id,x,y,river])=>({id,x,y,river,widthKm:.2}))};
   // 道路: 本営・橋・港・中継の間だけを連結する。河川や集落の配置を後から曲げない。
   const port=d.sites.find(s=>s.id===(b.sites.length===6?'D':'E'));d.water.deepChannel.points=[[port.x,0],[port.x,Math.max(0,port.y-5)],[port.x,port.y]];
