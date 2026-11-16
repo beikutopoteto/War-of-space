@@ -780,7 +780,8 @@ function groundCaptureReadout(s,seconds){
   const team=teams.includes(s.knownCapturingTeam)?s.knownCapturingTeam:teams.sort((a,b)=>p[b]-p[a])[0]??null;
   if(team===null)return prefix+(s.knownOwner==null?'未占領':'占領済み');
   const remaining=Math.max(0,Math.ceil(seconds-p[team]));
-  return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+' あと'+remaining+'秒';
+  // 視界の外では残り秒を出さない（最後に見たときの秒数は今の値ではないため。ユーザー 2026-11-16）
+  return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+(s.observed===false?'':' あと'+remaining+'秒');
 }
 
 // 工兵選択時の架橋不可帯。地形ごとに初回選択で生成し、groundSetup から破棄する。

@@ -97,9 +97,17 @@ function groundCanSee(f,t){
   return f.alive&&t.alive&&!f.embarked&&!t.embarked&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
 }
 // 占領した拠点も、その周り（site、仮に5km）を見る（ユーザー決定 2026-11-15）。中立の拠点は誰の目にもならない。
+// 拠点の目は町の屋上（いちばん高い建物の上）に置く。地面の高さだと、まわりの建物にすべての向きを遮られる（2026-11-16）
+let groundSiteRoofSource=null,groundSiteRoofs=new Map();
+function groundSiteRoof(s){
+  const list=typeof groundBuildings==='undefined'?[]:groundBuildings;
+  if(groundSiteRoofSource!==list){groundSiteRoofSource=list;groundSiteRoofs=new Map();}
+  if(!groundSiteRoofs.has(s)){const R=2*GROUND_SCALE;let top=-Infinity;for(const b of list)if(Math.hypot((b.minX+b.maxX)/2-s.pos.x,(b.minZ+b.maxZ)/2-s.pos.z)<=R)top=Math.max(top,b.top);groundSiteRoofs.set(s,top);}
+  return groundSiteRoofs.get(s);
+}
 function groundSiteObservers(team){
   const r=groundSightRules();
-  return (typeof groundSites==='undefined'?[]:groundSites).filter(s=>s.owner===team).map(s=>({eye:{x:s.pos.x,z:s.pos.z,y:groundSightHeight(s.pos.x,s.pos.z)+r.eyeHeight},range:r.site}));
+  return (typeof groundSites==='undefined'?[]:groundSites).filter(s=>s.owner===team).map(s=>({eye:{x:s.pos.x,z:s.pos.z,y:Math.max(groundSightHeight(s.pos.x,s.pos.z),groundSiteRoof(s))+r.eyeHeight},range:r.site}));
 }
 function groundSiteSees(observers,t){
   if(!observers.length||groundAbsent(t)||!t.alive||t.embarked)return false;

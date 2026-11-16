@@ -127,6 +127,8 @@ function groundRiverFactor(x,y,kind,includeBuilt=true){
   }
   return factor;
 }
+// 町に実際に建てる数。地図のデータの count の0.8倍（建物が重なって見えたため。ユーザー 2026-11-16）
+const GROUND_TOWN_DENSITY=.8;function groundTownCount(spec){return Math.round(spec.count*GROUND_TOWN_DENSITY);}
 function groundPass(x,y,kind='vehicle',includeBuilt=true){ const d=groundData(),sea=groundInside(x,y,d.water.sea); return x>=0&&x<d.meta.widthKm&&y>=0&&y<d.meta.heightKm&&groundInside(x,y,d.display.board)&&(kind==='air'||(kind==='sea'?sea:!sea&&!d.water.ponds.some(p=>groundInside(x,y,p))&&groundRiverFactor(x,y,kind,includeBuilt)>0)); }
 // 道路帯は所有・補給の状態から独立した幾何。探索中の各サンプルで全道路を走査しない。
 const groundRoadGeometry=new WeakMap();
@@ -185,6 +187,32 @@ function groundSetup(id){
   const d=groundData(),W=d.meta.widthKm,H=d.meta.heightKm,seaMode='real',inside=groundInside,segmentDistance=groundDistance,elevation=(x,y)=>groundElevation(x,y)/GROUND_SCALE,toX=x=>groundWorldX(x)/GROUND_SCALE,toZ=y=>groundWorldZ(y)/GROUND_SCALE;
   function nearestRoadPoint(x,y){let best=Infinity,result={x,y,dx:1,dy:0};for(const road of d.objects.roads)for(let i=0;i<road.points.length-1;i++){const a=road.points[i],b=road.points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],len=dx*dx+dy*dy,t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/len)),px=a[0]+t*dx,py=a[1]+t*dy,dist=Math.hypot(x-px,y-py);if(dist<best){best=dist;result={x:px,y:py,dx:dx/Math.sqrt(len),dy:dy/Math.sqrt(len)}}}return result}
   const world=groundBoard=new THREE.Group(); world.scale.setScalar(GROUND_SCALE); scene.add(world);
+  /* 町の作り（ユーザー 2026-11-16「円形に広げて細い未舗装道路…大通りから道路をまず書き、その合間に重ならないよう建物を少しずつ置き、なるべく円形に」）。
+     ① 地図の道（大通り）の、拠点にいちばん近い点を町の中心にする。② 大通りに直角の横道を一定の間隔で、円の内側に引く（町の段階で本数・幅・色が変わる）。
+     大きな町は、大通りに平行な裏道と、環状の道も引く。③ 道の両側に、道から順に列を作って建物の候補を並べ、中心に近い候補から、重ならないものを数がそろうまで置く。
+     段階は今は建物の数で決める（地図のデータに tier を書くようになったらそれを使う。docs/terrain.md 3.5） */
+  const townLayouts=new Map();
+  function groundTownLayout(spec,grow=1){
+   const site=d.sites.find(s=>s.id===spec.site)||spec,id=spec.site||spec.id,random=rng(d.meta.seed+Array.from(id).reduce((n,c)=>n+c.charCodeAt(0),0)),target=groundTownCount(spec);
+   const tier=target>=60?2:target>=30?1:0,road=nearestRoadPoint(site.x,site.y),c=[road.x,road.y],u=[road.dx,road.dy],n=[-road.dy,road.dx];
+   const width=[.07,.09,.12][tier],color=[['#7d6c4e','#cbb88f'],['#776a52','#d0c39c'],['#6c665a','#c9c2b0']][tier];   // 未舗装（土）→ 砂利、幅も段階で広がる
+   const R=Math.sqrt(target*.19*.17/(.42*Math.PI))*grow,at=(a,b)=>[c[0]+u[0]*a+n[0]*b,c[1]+u[1]*a+n[1]*b],wet=(x,y)=>!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const q=groundRiverAt(x,y,r);return q.dist<q.width/2+.1;});
+   const streets=[],line=(pts)=>{let cur=[];for(const p of pts){if(wet(p[0],p[1])){if(cur.length>1)streets.push(cur);cur=[];}else cur.push(p);}if(cur.length>1)streets.push(cur);};
+   const step=[.62,.52,.46][tier];
+   for(let a=-R+step*.5;a<R;a+=step){const off=a+(random()-.5)*.1,half=Math.sqrt(Math.max(0,R*R-off*off))*1.08;if(half<.3)continue;const bend=(random()-.5)*.12,pts=[];for(let k=0;k<=10;k++){const b=-half+2*half*k/10;pts.push(at(off+bend*Math.sin(Math.PI*k/10),b));}line(pts);}   // 横道
+   if(tier>=1)for(const b of [-R*.5,R*.5]){const half=Math.sqrt(R*R-b*b)*1.02,pts=[];for(let k=0;k<=10;k++)pts.push(at(-half+2*half*k/10,b+(random()-.5)*.05));line(pts);}   // 裏道
+   if(tier>=2){const rr=R*.72,pts=[];for(let k=0;k<=36;k++){const t=k/36*Math.PI*2,q=rr*(1+.05*Math.sin(3*t+random()*.2));pts.push(at(Math.cos(t)*q,Math.sin(t)*q));}line(pts);}   // 環状の道
+   const near=(x,y,m)=>Math.hypot(x-road.x,y-road.y)<R*1.6&&groundDistance(x,y,[at(-R*1.6,0),at(R*1.6,0)])<spec.alongRoadKm-.02||streets.some(st=>groundDistance(x,y,st)<width/2+m);
+   const cand=[],rows=(pts,off0)=>{for(let i=0;i<pts.length-1;i++){const [ax,ay]=pts[i],[bx,by]=pts[i+1],L=Math.hypot(bx-ax,by-ay);if(L<1e-6)continue;const tx=(bx-ax)/L,ty=(by-ay)/L;for(let t=0;t<L;t+=.2)for(const sd of [-1,1])for(let row=0;row<3;row++){const o=off0+row*.19,x=ax+tx*t-ty*o*sd,y=ay+ty*t+tx*o*sd;cand.push([x,y,Math.hypot(x-c[0],y-c[1])+random()*.12]);}}};
+   rows([at(-R*1.3,0),at(R*1.3,0)],spec.alongRoadKm+.02);for(const st of streets)rows(st,width/2+.11);
+   cand.sort((p,q)=>p[2]-q[2]);
+   const spots=[],wob=[0,0,0].map(()=>random()*Math.PI*2);
+   for(const [x,y] of cand){if(spots.length>=target)break;const ang=Math.atan2(y-c[1],x-c[0]),edge=R*(1.15+.12*Math.sin(2*ang+wob[0])+.08*Math.sin(3*ang+wob[1]));
+    if(Math.hypot(x-c[0],y-c[1])>edge||wet(x,y)||near(x,y,.085)||spots.some(([px,py])=>Math.abs(px-x)<.19&&Math.abs(py-y)<.17))continue;spots.push([x,y,random()]);}
+   if(spots.length<target&&grow<1.9)return groundTownLayout(spec,grow*1.15);   // 川や海で足りないときは、町を少し広げて引き直す
+   const out={streets,width,color,spots,c,R:Math.max(...spots.map(([x,y])=>Math.hypot(x-c[0],y-c[1])))+.25};townLayouts.set(spec,out);return out;
+  }
+  for(const spec of d.objects.settlements)groundTownLayout(spec);
 function polyPath(ctx,points,scale){ctx.beginPath();points.forEach(([x,y],i)=>{const px=x*scale,py=(H-y)*scale;i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.closePath()}
 function smoothPath(ctx,points,scale){ctx.beginPath();const n=points.length;for(let i=0;i<n;i++){const a=points[(i+n-1)%n],b=points[i],c=points[(i+1)%n],start=[(a[0]+b[0])/2,(a[1]+b[1])/2],end=[(b[0]+c[0])/2,(b[1]+c[1])/2];if(i===0)ctx.moveTo(start[0]*scale,(H-start[1])*scale);ctx.quadraticCurveTo(b[0]*scale,(H-b[1])*scale,end[0]*scale,(H-end[1])*scale)}ctx.closePath()}
 function smoothOutline(points){const curve=new THREE.CatmullRomCurve3(points.map(([x,y])=>new THREE.Vector3(...onGround(x,y,.03))),true,'centripetal');return curve.getPoints(points.length*8).map(p=>[p.x,p.y,p.z])}
@@ -223,6 +251,7 @@ ctx.restore();if(seaMode==='real'){const shorelineCurve=new THREE.CatmullRomCurv
 for(const pond of d.water.ponds){polyPath(ctx,pond,scale);ctx.fillStyle='#4d8987';ctx.fill()}
 for(const river of d.water.rivers){const path=new THREE.CatmullRomCurve3(river.points.map(p=>new THREE.Vector3(p[0],p[1],0)),false,'centripetal'),points=path.getPoints((river.points.length-1)*8);for(let i=0;i<points.length-1;i++){let t=i/(points.length-1)*(river.widths.length-1),k=Math.floor(t),width=river.widths[k]*(1-(t-k))+river.widths[Math.min(k+1,river.widths.length-1)]*(t-k);drawLine(ctx,[[points[i].x,points[i].y],[points[i+1].x,points[i+1].y]],width,'#4c9fa8',scale)}}
 drawLine(ctx,d.water.deepChannel.points,d.water.deepChannel.widthKm,'#24596b',scale);
+for(const t of townLayouts.values())for(const st of t.streets){drawLine(ctx,st,t.width+.03,t.color[0],scale);drawLine(ctx,st,t.width,t.color[1],scale);}
 for(const road of d.objects.roads){drawLine(ctx,road.points,.19,'#5d594c',scale);drawLine(ctx,road.points,.1,'#e2d7b8',scale)}
 for(const bridge of d.objects.bridges)drawLine(ctx,[[bridge.x-.45,bridge.y],[bridge.x+.45,bridge.y]],.14,'#eee7d4',scale);
 ctx.save();ctx.globalCompositeOperation='destination-in';polyPath(ctx,boardOutline,scale);ctx.fillStyle='#fff';ctx.fill();ctx.restore();
@@ -267,7 +296,7 @@ function populateForest(){
   if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea)||(spec.avoidWater&&y>spec.terraceMaxYKm))continue;
   if(spec.avoidWater&&(!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2;})))continue;
   const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;
-  const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;const shade=random()<.5?1:.86;
+  const height=.38+random()*.3;if([...townLayouts.values()].some(t=>Math.hypot(x-t.c[0],y-t.c[1])<t.R)){random();random();random();random();continue;}   // 町の円の中には木を置かない（乱数は同じ数だけ引く）dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;const shade=random()<.5?1:.86;
   groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE,...(spec.windbreaks||spec.islands?{zone}:{})});
   dummy.position.y=elevation(x,y);dummy.scale.set(.308*dummy.scale.x/.9,(height*.455+.154*height/.35)/1.32,.308*dummy.scale.z/.9);dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color().setRGB(shade,shade,shade));count++;
  }
@@ -286,7 +315,14 @@ function populateShrubs(){
 }
 
 populateReeds();populateForest();populateShrubs();
-const buildingKeys=['obBlockFlat','obHQ','obDome','obOffice','obTowerME'],buildingGeos={},buildingHeights={};
+// 町の道を地面に沿う細い帯で置く（地面の絵だけでは拡大したときに見えない）。町ごとに1つの網、色は段階で変わる
+for(const t of townLayouts.values()){const P=[],C=[],col=new THREE.Color(t.color[1]);
+ for(const st of t.streets){const pts=[];for(let i=0;i<st.length-1;i++){const [ax,ay]=st[i],[bx,by]=st[i+1],n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/.08));for(let k=0;k<n;k++)pts.push([ax+(bx-ax)*k/n,ay+(by-ay)*k/n]);}pts.push(st[st.length-1]);
+  for(let i=0;i<pts.length-1;i++){const [ax,ay]=pts[i],[bx,by]=pts[i+1],L=Math.hypot(bx-ax,by-ay)||1,nx=-(by-ay)/L*t.width/2,ny=(bx-ax)/L*t.width/2,v=(x,y)=>[toX(x),elevation(x,y)+.012,toZ(y)];
+   const q=[v(ax+nx,ay+ny),v(ax-nx,ay-ny),v(bx-nx,by-ny),v(bx+nx,by+ny)];for(const k of [0,1,2,0,2,3]){P.push(...q[k]);C.push(col.r,col.g,col.b);}}}
+ if(!P.length)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(P,3));g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));g.computeVertexNormals();
+ const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,polygonOffset:true,polygonOffsetFactor:-2}));m.receiveShadow=true;m.userData.groundObject='streets';world.add(m);}
+const buildingKeys=['obHouseFlat','obBlockFlat','obHQ','obDome','obOffice','obTowerME'],buildingGeos={},buildingHeights={};
 for(const key of buildingKeys){const geo=groundShapeGeo(key);geo.computeBoundingBox();geo.userData.groundShapeKey=key;{const c=geo.attributes.color;for(let i=0;i<c.count*3;i++)c.array[i]=.62+.38*c.array[i];}buildingGeos[key]=geo;buildingHeights[key]=geo.boundingBox.max.y-geo.boundingBox.min.y;}
 const buildingMaterial=new THREE.MeshLambertMaterial({color:0xb6bab4,vertexColors:true}),hasHQRole=d.sites.some(s=>s.role==='本営');
 for(const spec of d.objects.settlements){
@@ -295,7 +331,8 @@ for(const spec of d.objects.settlements){
  function shapeFor(h){
   const ratio=h/.17,choice=shapeRandom(),hqChoice=shapeRandom();
   let pair,first;
-  if(ratio<1.2){pair=['obBlockFlat','obDome'];first=choice<.7?0:1;if(isHQ&&hqChoice<.2)pair[first]='obHQ';}
+  if(ratio<.85){pair=['obHouseFlat','obBlockFlat'];first=choice<.75?0:1;}
+  else if(ratio<1.2){pair=['obBlockFlat','obDome'];first=choice<.7?0:1;if(isHQ&&hqChoice<.2)pair[first]='obHQ';}
   else if(ratio<1.6){pair=['obDome','obOffice'];first=choice<.5?0:1;}
   else {pair=['obOffice','obTowerME'];first=choice<.55?0:1;}
   const scale=key=>ratio/buildingHeights[key],valid=key=>scale(key)>=.7&&scale(key)<=1.35;
@@ -303,11 +340,9 @@ for(const spec of d.objects.settlements){
   return {key,vertical:Math.max(.7,Math.min(1.35,scale(key)))};
  }
  function buildingMesh(key){if(!meshes[key]){const mesh=meshes[key]=new THREE.InstancedMesh(buildingGeos[key],buildingMaterial,spec.count);mesh.count=0;mesh.userData={groundObject:'buildings',settlement:id};mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);}return meshes[key];}
- let count=0;
- for(let attempt=0;attempt<spec.count*80&&count<spec.count;attempt++){
-  const road=nearestRoadPoint(site.x,site.y),along=(random()-.5)*spec.spacingKm*8,side=(random()<.5?-1:1)*(spec.alongRoadKm+random()*.13),x=road.x+road.dx*along-road.dy*side,y=road.y+road.dy*along+road.dx*side,h=.16+random()*.2;
-  if(spec.avoidWater&&(!inside(x,y,spec.polygon)||!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2+.1;})))continue;
-  const {key,vertical}=shapeFor(h),mesh=buildingMesh(key);dummy.position.set(toX(x),elevation(x,y)+.02,toZ(y));dummy.scale.set(.17,.17*vertical,.17);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(mesh.count++,dummy.matrix);count++;
+ for(const [x,y,r] of townLayouts.get(spec).spots){
+  const h=(.16+r*.2)*(isHQ?.75:.5);   // 戦車に合わせて低く（ユーザー 2026-11-16）。本営の町は少し高い
+  const {key,vertical}=shapeFor(h),mesh=buildingMesh(key);dummy.position.set(toX(x),elevation(x,y)+.02,toZ(y));dummy.scale.set(.17,.17*vertical,.17);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(mesh.count++,dummy.matrix);
   groundBuildings.push({minX:(toX(x)-.085)*GROUND_SCALE,maxX:(toX(x)+.085)*GROUND_SCALE,minZ:(toZ(y)-.075)*GROUND_SCALE,maxZ:(toZ(y)+.075)*GROUND_SCALE,bottom:(elevation(x,y)+.02)*GROUND_SCALE,top:(elevation(x,y)+h+.02)*GROUND_SCALE});
  }
 }
