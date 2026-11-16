@@ -67,7 +67,7 @@ function fxPage(){
     const arc=(a,b,h)=>u=>V(a.x+(b.x-a.x)*u,a.y+(b.y-a.y)*u+h*4*u*(1-u),a.z+(b.z-a.z)*u);
     const line=(a,b)=>u=>a.clone().lerp(b,u);
     const scenes=[
-      {label:'自走砲',text:'砲口の光と砲煙。弾は山なりに飛び、着弾で輪が爆風の届く所（約1.75 km）まで広がります。炎はなく、煙が少し残ります。',dist:46,pitch:.42,period:5.2,
+      {label:'自走砲',text:'砲口の光と砲煙。弾は山なりに飛び、着弾で土煙の輪が爆風の届く所（約1.75 km）まで広がります。炎はなく、煙が少し残ります。',dist:46,pitch:.42,period:5.2,
         setup(){ this.a=place('artillery',0,-15,1); this.b=place('vehicle',1,15,-1); }, fire(now){ this.a.forEach((u,i)=>{ const t=now+i*.5, m=u.muzzle(1), end=V(rnd(2.5),0,15+rnd(2.5));
           F.add(GFX.muzzle(.7,{smokeK:1.4,life:.14,side:true}),m,V(m.x,m.y+.6,m.z+1),t); F.add(GFX.shot(arc(m,end,9),1.7,'shell',.16),null,null,t); F.add(GFX.blast(7),end,null,t+1.7); }); }},
       {label:'ロケット',text:'6発を続けて撃ち、白い煙の尾を引きます。着弾ごとに輪が広がります。',dist:50,pitch:.42,period:6.5,
@@ -129,7 +129,7 @@ canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/10;border:1px sol
 @media (max-width:520px){canvas{aspect-ratio:4/3.6}}
 </style>
 <main>
-<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第3回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
+<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第4回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
 <section aria-labelledby="h-was"><h2 id="h-was">W.A.S. の動き</h2><div class="modes" id="wasModes" role="group" aria-label="W.A.S. の動き"></div><canvas id="wasCanvas" aria-label="W.A.S. の動きの絵"></canvas><p class="note" id="wasNote"></p></section>
 <section aria-labelledby="h-fx"><h2 id="h-fx">射撃・弾道・着弾</h2><div class="modes" id="fxModes" role="group" aria-label="兵科"></div><canvas id="fxCanvas" aria-label="射撃と着弾の絵"></canvas><p class="note" id="fxNote"></p>
 <p class="dim">青が撃つ側、赤が撃たれる側です。距離は絵に収まるよう縮めています。爆風の輪の広さはゲームの値のままです。</p></section>

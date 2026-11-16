@@ -43,25 +43,27 @@ const GFX=(()=>{
       return loop||alive; }};
   }
   /* 爆風。R: 爆風の届く半径。smokeK: 煙の量（0で無し）。
-     0〜0.2秒: 中心の白い光と地面を照らす光。0〜0.75秒: 輪が R まで広がる（明るい前の縁、後ろに土ぼこりの帯と低い壁）。
+     0〜0.2秒: 中心の白い光と地面を照らす光。0〜0.75秒: 土煙の輪が R まで広がる（転がる土煙の塊、後ろに土ぼこりの帯と低い壁）。白い線は使わない。
      0〜1.2秒: 土の噴き上げと土ぼこり、火花。あとに焦げ跡と少しの煙 */
   function blast(R,{smokeK=1,dust=0x8f7f66,dirt=0x4a3f33}={}){
     const group=new THREE.Group(), T0=.75, X=tex();
     const scorch=mesh(geo().flat,mat(0x161412,.6,false,X.soft),group), light=mesh(geo().flat,mat(0xffd9a0,1,true,X.glow),group), haze=mesh(geo().flat,mat(dust,.6,false,X.haze),group),
-      wall=mesh(geo().tube,mat(dust,.5,false,X.wall),group), edge=mesh(geo().flat,mat(0xfff1d6,1,true,X.edge),group), flash=glow(0xffe2b0,group), core=glow(0xffffff,group);
-    scorch.position.y=.01; light.position.y=.02; haze.position.y=.03; edge.position.y=.05;
+      wall=mesh(geo().tube,mat(dust,.5,false,X.wall),group), flash=glow(0xffe2b0,group), core=glow(0xffffff,group);
+    /* 爆風の前の縁は、白い線ではなく、地面を転がって広がる土煙の輪で見せる（ユーザー 2026-11-17） */
+    const front=[...Array(30)].map((_,i)=>({m:mesh(geo().puff2,mat(i%3?0xa39a8a:0x8a8072,.6),group),a:(i+rnd()*.7)/30*6.28,k:.7+rnd()*.7,j:.94+rnd()*.07,sp:rnd()*6}));
+    scorch.position.y=.01; light.position.y=.02; haze.position.y=.03;
     const jets=[...Array(8)].map((_,i)=>{ const m=mesh(geo().jet,mat(dirt,.9),group), a=i/8*6.28+rnd(), lean=i?(.25+rnd()*.5):0; m.rotation.set(Math.cos(a)*lean,0,Math.sin(a)*lean); return {m,h:R*(i?.16+rnd()*.14:.34),w:R*(.035+rnd()*.03),d:rnd()*.08}; });
     const clouds=[...Array(7)].map((_,i)=>({m:mesh(geo().puff2,mat(dust,.6),group),a:i/7*6.28+rnd(),k:.7+rnd()*.6}));
     const spark=sparks(group,12,R*.9,R*.55,R*1.4,R*.07), sm=smokeK?smoke(R*.075*smokeK,{n:4,life:4.5,rise:4}):null; if(sm) group.add(sm.group);
     return {group,update(t){
-      const u=t/T0, r=Math.max(.001,R*ease(u)), fade=t<T0?1:Math.max(0,1-(t-T0)/.4);
+      const u=t/T0, r=Math.max(.001,R*ease(u)), fade=t<T0?1:Math.max(0,1-(t-T0)/.7);
       flash.visible=core.visible=t<.22; flash.scale.setScalar(R*(.5+t*3)); flash.material.opacity=Math.max(0,1-t/.22); flash.position.y=R*.05; core.scale.setScalar(R*(.22+t*.6)); core.material.opacity=Math.max(0,1-t/.12); core.position.y=R*.05;
       light.visible=t<.4; light.scale.setScalar(R*(.5+t*1.6)); light.material.opacity=.8*Math.max(0,1-t/.4);
       scorch.scale.setScalar(R*.14); scorch.material.opacity=.6*Math.max(0,1-t/7);
-      edge.visible=haze.visible=wall.visible=fade>0;
-      edge.scale.setScalar(r/.968); edge.material.opacity=fade*(1-.35*Math.min(1,u));
+      haze.visible=wall.visible=fade>0;
+      for(const f of front){ f.m.visible=fade>0&&t>.03; const k=R*.05*f.k*(.45+.9*Math.min(1,u)+(t>T0?(t-T0)*.8:0)); f.m.position.set(Math.cos(f.a)*r*f.j,k*.55,Math.sin(f.a)*r*f.j); f.m.scale.set(k,k*.75,k); f.m.rotation.set(0,f.sp+t*2,t*3); f.m.material.opacity=.62*fade*(1-.3*Math.min(1,u)); }
       haze.scale.setScalar(r); haze.material.opacity=.6*fade*(1-.4*Math.min(1,u));
-      wall.scale.set(r*.97,R*.05*(.5+Math.min(1,u*2))*(1-.3*Math.min(1,u)),r*.97); wall.material.opacity=.5*fade;
+      wall.scale.set(r*.97,R*.07*(.5+Math.min(1,u*2))*(1-.3*Math.min(1,u)),r*.97); wall.material.opacity=.55*fade;
       for(const j of jets){ const v=(t-j.d)/1.1, on=v>0&&v<1; j.m.visible=on; if(on){ const k=Math.sin(Math.PI*Math.pow(v,.6)); j.m.scale.set(j.w*(1+v*1.5),j.h*k,j.w*(1+v*1.5)); j.m.material.opacity=.9*(1-v*v); } }
       for(const c of clouds){ const v=t/1.6, on=v<1; c.m.visible=on; if(on){ const d=R*.13*ease(v)*c.k, k=R*.07*c.k*(.5+ease(v)*1.1); c.m.position.set(Math.cos(c.a)*d,k*.55,Math.sin(c.a)*d); c.m.scale.set(k,k*.7,k); c.m.rotation.y=c.a+v; c.m.material.opacity=.6*(1-v); } }
       spark(t); const s=sm?sm.update(t-.3):false; return t<7||s; }};
