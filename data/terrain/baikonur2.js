@@ -42,6 +42,8 @@
   const villages=[['v1',19,53],['v2',30,47],['v3',36,43],['v4',58,42],['v5',77,48],['v6',26,35],['v7',60,24],['v8',75,32]];
   for(const [id,x,y] of villages)d.surface.push({id:'fields-'+id,type:'field',as:'平地',polygon:rect(x-2,y-1.4,x+2,y+1.4)});
   // 森は河岸・防風林・氾濫原の島、低木は草原区画・林縁・塩性地の縁に局在する。
+  const townFields={A:{layout:'radial',tier:2,facilities:['depot']},F:{layout:'radial',tier:2,facilities:['depot']},B:{layout:'radial',tier:1},E:{layout:'radial',tier:1},C:{layout:'organic',tier:1},D:{layout:'organic',tier:1},H:{layout:'organic',tier:1},G:{layout:'grid',tier:1,facilities:['port']},I:{layout:'grid',tier:1,facilities:['port']},
+  v1:{layout:'roadside',tier:0},v2:{layout:'roadside',tier:0},v3:{layout:'roadside',tier:0},v4:{layout:'roadside',tier:0},v5:{layout:'roadside',tier:0},v6:{layout:'roadside',tier:0},v7:{layout:'roadside',tier:0},v8:{layout:'roadside',tier:0}};
   const settlements=[['A',10,56,96],['B',27,49,62],['C',49,60,42],['D',47,39,42],['E',69,44,62],['F',86,55,96],['G',23,19,42],['H',46,25,42],['I',76,20,42]];
   d.objects={forest:{type:'森林',species:['ヤナギ','ポプラ'],seed:28121,count:6000,renderFactor:.55,roadClearanceKm:.32,terraceMaxYKm:61,avoidWater:true,
     windbreakShare:.25,islandShare:.2,windbreaks:[
@@ -55,8 +57,8 @@
     {id:'west-steppe',kind:'steppe',polygon:rect(5,35,36,66),density:.22},{id:'east-steppe',kind:'steppe',polygon:rect(62,39,92,65),density:.22},
     {id:'bank-edge',kind:'bank',riverIds:['main','west','east'],minKm:1.3,maxKm:2,density:.6},{id:'salt-edge',kind:'salt',polygon:rect(77,19,94,35),density:.15}]},
    reeds:{coverIds:regions.filter(r=>r.mix.沼地).map(r=>r.id),seed:28141,count:1000,roadClearanceKm:.18},
-   settlements:[...settlements.map(([site,x,y,count])=>({site,type:'市街地',count,spacingKm:.22,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1.3,y-1.3,x+1.3,y+1.3)})),
-    ...villages.map(([id,x,y])=>({id,x,y,type:'市街地',count:14,spacingKm:.15,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1,y-1,x+1,y+1)}))]};
+   settlements:[...settlements.map(([site,x,y,count])=>({site,...townFields[site],type:'市街地',count,spacingKm:.22,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1.3,y-1.3,x+1.3,y+1.3)})),
+    ...villages.map(([id,x,y])=>({id,x,y,...townFields[id],type:'市街地',count:14,spacingKm:.15,alongRoadKm:.24,avoidWater:true,polygon:rect(x-1,y-1,x+1,y+1)}))]};
   // 道路は先に定めた乾燥地の集落と渡河点を結ぶ。河口分流は道路より南。
   d.objects.roads=[
    {id:'西本営幹線',type:'main',points:[[10,56],[19,53],[27,49]]},

@@ -87,7 +87,7 @@ function nodeSceneChecks(ctx){
   const results=vm.runInContext(`(()=>{
     const results=[],check=(name,ok)=>results.push({name,ok});
     check('生成した樹冠1210本が有限座標',groundForests.length===1210&&groundForests.every(p=>Object.values(p).every(Number.isFinite)));
-    check('生成した建物279棟が有限の遮蔽体',groundBuildings.length===279&&groundBuildings.every(p=>Object.values(p).every(Number.isFinite)));
+    check('生成した町の222棟と本営施設16棟が有限の遮蔽体',groundBuildings.length===WOS_TERRAIN.exercise2.objects.settlements.reduce((n,s)=>n+groundTownCount(s),0)+16&&groundBuildings.every(p=>['minX','maxX','minZ','maxZ','bottom','top','x','z','ang','w','d','damage'].every(k=>Number.isFinite(p[k]))&&typeof p.key==='string'&&typeof p.settlement==='string'));
     const make=(team,kind,p,band='ground')=>({team,groundKind:kind,alive:true,band,pos:p});
     const forest=groundForests.find(p=>groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'infantry')&&groundPass((p.x-24)/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'infantry')&&groundCanSee(make(0,'scout',new THREE.Vector3(p.x-24,0,p.z)),make(1,'infantry',new THREE.Vector3(p.x,0,p.z))));
     check('写真bの森と斥候を配置できる',!!forest);
