@@ -515,18 +515,25 @@ populateReeds();populateForest();populateShrubs();
 // 帯は奥行きを書かない（ユーザー 2026-11-16「傾けると幹線道路の陣営の色が消える」: 帯の奥行きが、上に重ねる陣営の色と視界の霧を隠していた）。
 // 半透明の組で、地面（renderOrder -3）のすぐあと、ほかの全て（攻撃の円など 0、霧 3、陣営の色 4）の前に描く。
 // 重なりは描く順で決める: ふち（-2）→ 路面（-1）、同じ層では生活道路 → 集散路 → 幹線（前の高さの順と同じ）。
+// 幹線の腕（町の外れ + 1.2 km まで伸びる）の外の端は、最後の 0.8 km で透けていき、地面の絵の同じ幹線へつながる
+// （ユーザー 2026-11-16「ここのようなつなぎ目はなくして」）。透ける所でふちと路面が重なると色が濁るので、
+// 幹線のふちは路面の両わきの2本の帯にする（重ならなければ、同じ色の絵の上で透けても色は変わらない）。
+const ART_FADE=.8;
 for(const [spec,t] of townLayouts){
  const sampled=t.roads.map(r=>{const d=denseRoad(r.pts);for(const p of d.points)p.h=elevation(...p.p);return {r,...d,corners:r.pts.map(p=>elevation(...p))};}).sort((a,b)=>RANK[a.r.cls]-RANK[b.r.cls]);
- const floats=sampled.reduce((n,d)=>n+(d.points.length-1)*18+d.r.pts.length*8*9,0);
- for(const layer of ['edge','surf']){const P=new Float32Array(floats),C=new Float32Array(floats),surface=layer==='surf';let at=0;
-  for(const {r,points,L,corners} of sampled){const w=roadWidth(t,r,surface),height=(surface?.009:.004)+RANK[r.cls]*.0012,edgeColor=new THREE.Color(EDGE[r.cls]),colorAt=surface?roadColors(t,r):()=>edgeColor,ca=new THREE.Color(),cb=new THREE.Color();
-   const put=(x,y,h,c)=>{P[at]=toX(x);C[at++]=c.r;P[at]=h+height;C[at++]=c.g;P[at]=toZ(y);C[at++]=c.b;};
-   for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],[ax,ay]=a.p,[bx,by]=b.p,len=Math.hypot(bx-ax,by-ay)||1,nx=-(by-ay)/len*w/2,ny=(bx-ax)/len*w/2,ac=colorAt(a.s,L,ca),bc=colorAt(b.s,L,cb);
-    put(ax+nx,ay+ny,a.h,ac);put(bx-nx,by-ny,b.h,bc);put(ax-nx,ay-ny,a.h,ac);put(ax+nx,ay+ny,a.h,ac);put(bx+nx,by+ny,b.h,bc);put(bx-nx,by-ny,b.h,bc);
-   }
-   let s=0;r.pts.forEach((p,i)=>{if(i)s+=Math.hypot(p[0]-r.pts[i-1][0],p[1]-r.pts[i-1][1]);const c=colorAt(s,L,ca),h=corners[i];for(let k=0;k<8;k++){const a=k/8*Math.PI*2,b=(k+1)/8*Math.PI*2;put(...p,h,c);put(p[0]+Math.cos(b)*w/2,p[1]+Math.sin(b)*w/2,h,c);put(p[0]+Math.cos(a)*w/2,p[1]+Math.sin(a)*w/2,h,c);}});
+ const reach=t.Redge+1.2,verts=sampled.reduce((n,d)=>n+(d.points.length-1)*12+d.r.pts.length*24,0);
+ for(const layer of ['edge','surf']){const P=new Float32Array(verts*3),C=new Float32Array(verts*4),surface=layer==='surf';let pi=0,ci=0;
+  for(const {r,points,L,corners} of sampled){const w=roadWidth(t,r,surface),inner=r.map&&!surface?roadWidth(t,r,true):0,height=(surface?.009:.004)+RANK[r.cls]*.0012,edgeColor=new THREE.Color(EDGE[r.cls]),colorAt=surface?roadColors(t,r):()=>edgeColor,ca=new THREE.Color(),cb=new THREE.Color();
+   const fade=r.map&&L>=reach-1e-3?ART_FADE:0,alpha=s=>fade?Math.max(0,Math.min(1,(L-s)/fade)):1;
+   const put=(x,y,h,c,a)=>{P[pi++]=toX(x);P[pi++]=h+height;P[pi++]=toZ(y);C[ci++]=c.r;C[ci++]=c.g;C[ci++]=c.b;C[ci++]=a;};
+   // 道の中心から横へ o0〜o1 の帯（前と同じ巻き方）。
+   const strip=(o0,o1)=>{for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i],[ax,ay]=a.p,[bx,by]=b.p,len=Math.hypot(bx-ax,by-ay)||1,ux=-(by-ay)/len,uy=(bx-ax)/len,aa=alpha(a.s),ba=alpha(b.s);if(!aa&&!ba)continue;const ac=colorAt(a.s,L,ca),bc=colorAt(b.s,L,cb);
+    put(ax+ux*o1,ay+uy*o1,a.h,ac,aa);put(bx+ux*o0,by+uy*o0,b.h,bc,ba);put(ax+ux*o0,ay+uy*o0,a.h,ac,aa);put(ax+ux*o1,ay+uy*o1,a.h,ac,aa);put(bx+ux*o1,by+uy*o1,b.h,bc,ba);put(bx+ux*o0,by+uy*o0,b.h,bc,ba);}};
+   if(inner){strip(inner/2,w/2);strip(-w/2,-inner/2);}else strip(-w/2,w/2);
+   // 折れ目の丸。幹線のふちは透けない所だけ（透ける所では路面に重なって濁る）。
+   let s=0;r.pts.forEach((p,i)=>{if(i)s+=Math.hypot(p[0]-r.pts[i-1][0],p[1]-r.pts[i-1][1]);const a0=alpha(s);if(a0<=0||(inner&&a0<1))return;const c=colorAt(s,L,ca),h=corners[i];for(let k=0;k<8;k++){const a=k/8*Math.PI*2,b=(k+1)/8*Math.PI*2;put(...p,h,c,a0);put(p[0]+Math.cos(b)*w/2,p[1]+Math.sin(b)*w/2,h,c,a0);put(p[0]+Math.cos(a)*w/2,p[1]+Math.sin(a)*w/2,h,c,a0);}});
   }
-  if(!at)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P,3));g.setAttribute('color',new THREE.BufferAttribute(C,3));g.computeVertexNormals();
+  if(!pi)continue;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(P.slice(0,pi),3));g.setAttribute('color',new THREE.BufferAttribute(C.slice(0,ci),4));g.computeVertexNormals();
   const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:surface?-2:-1,polygonOffsetUnits:surface?-2:-1}));m.renderOrder=surface?-1:-2;m.receiveShadow=true;m.userData={groundObject:surface?'streets':'streetEdges',settlement:spec.site||spec.id};world.add(m);
  }
  // 広場、本営の敷地と三方の低い塀、公園（公園の木は遮蔽に含めない）。
