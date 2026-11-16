@@ -19,8 +19,8 @@ function readoutCases(){
  const s={knownOwner:1,knownContested:false,knownProgress:[12,0],knownCapturingTeam:0,observed:true};
  check('拠点は30秒の残り時間',groundCaptureReadout(s,30).includes('あと18秒'));
  s.knownCapturingTeam=null;check('部隊が離れた進捗は中断表示',groundCaptureReadout(s,30).includes('中断'));
- s.observed=false;s.progress=[29,0];check('視界外は最終確認の18秒を維持',groundCaptureReadout(s,30).includes('最終確認')&&groundCaptureReadout(s,30).includes('18秒'));
- check('双方の進捗が残っても現在占領中の軍を優先',groundCaptureReadout({knownOwner:null,knownProgress:[20,5],knownCapturingTeam:1},30).includes('赤 あと25秒'));
+ s.observed=false;s.progress=[29,0];check('視界外は最終確認の進捗を維持し、残り秒は出さない',groundCaptureReadout(s,30).includes('最終確認')&&!groundCaptureReadout(s,30).includes('秒')&&s.knownProgress[0]===12);
+ check('視界の外の占領は残り秒を出さない',(r=>r==='最終確認：占領中 赤')(groundCaptureReadout({observed:false,knownOwner:null,knownProgress:[0,5],knownCapturingTeam:1},30)));check('双方の進捗が残っても現在占領中の軍を優先',groundCaptureReadout({knownOwner:null,knownProgress:[20,5],knownCapturingTeam:1},30).includes('赤 あと25秒'));
  check('未発見の拠点は敵情報を表示しない',groundCaptureReadout({knownOwner:null},30)==='未占領');
  check('戦車は直接射撃の射程',groundRangeInfo(tank).text==='直接射撃');
  const gun=make('artillery'),info=groundRangeInfo(gun);check('自走砲は間接砲撃を主表示',info.text==='間接砲撃');

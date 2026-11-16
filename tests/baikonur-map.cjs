@@ -30,7 +30,7 @@ function nodeChecks(){
   check('森林6000枠・実モデル3300本、防風林と島状林を実生成',d.objects.forest.count>=5000&&actual('forest')>=3000&&groundForests.length===actual('forest')&&['bank','windbreak','island'].every(zone=>groundForests.filter(p=>p.zone===zone).length>=600));
   check('樹冠も道路幅を避け、北幹線と浅瀬の迂回路は開ける',groundForests.every(p=>{const x=groundMapX(p.x),y=groundMapY(p.z);return y<=61&&groundPass(x,y,'vehicle')&&d.objects.roads.every(r=>groundDistance(x,y,r.points)>=(p.r/GROUND_SCALE+.095));}));
   check('低木3000枠・代表2600群、葦1000束を実生成',d.objects.shrubs.count>=2500&&actual('shrubs')>=2500&&d.objects.reeds.count>=800&&actual('reeds')>=800);
-  check('既存集落を1.5倍以上にし沿道の村8か所を実生成',d.objects.settlements.filter(s=>!s.site).length===8&&d.objects.settlements.filter(s=>s.site).every(s=>s.count>=({A:55,B:35,C:24,D:24,E:35,F:55,G:24,H:24,I:24}[s.site])*1.5)&&actual('buildings')===d.objects.settlements.reduce((n,s)=>n+s.count,0));
+  check('既存集落を1.5倍以上にし沿道の村8か所を実生成',d.objects.settlements.filter(s=>!s.site).length===8&&d.objects.settlements.filter(s=>s.site).every(s=>s.count>=({A:55,B:35,C:24,D:24,E:35,F:55,G:24,H:24,I:24}[s.site])*1.5)&&actual('buildings')===d.objects.settlements.reduce((n,s)=>n+groundTownCount(s),0));
   check('建物は川・海・湖を避ける',groundBuildings.every(b=>{const x=groundMapX((b.minX+b.maxX)/2),y=groundMapY((b.minZ+b.maxZ)/2);return groundPass(x,y,'vehicle')&&d.water.rivers.every(r=>{const at=groundRiverAt(x,y,r);return at.dist>at.width/2+.09;});}));
   check('畑は集落・村の周囲10区画、地形は平地を維持',d.surface.filter(s=>s.type==='field').length===10&&d.surface.filter(s=>s.type==='field').every(s=>s.as==='平地'));
   let peak=0;for(let y=18;y<70;y+=.25)for(let x=4;x<92;x+=.5)if(groundPass(x,y,'vehicle'))peak=Math.max(peak,groundElevation(x,y));

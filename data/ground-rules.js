@@ -2,7 +2,7 @@
 window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
-  sight: { site:20, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
+  sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   // minScatterDiameter10KmM は10kmでの最小直径（m）。ロケットのdelay/radius/spreadは自走砲と同じ暫定値。6発/車・群間0.25秒・最終群後の装填30秒も仮。
   strike: { vehicle:{delay:2,radius:2,spread:1,reload:4}, artillery:{delay:5,radius:7,spread:2,reload:8,minScatterDiameter10KmM:25}, guidedRocket:{delay:5,radius:7,spread:2,reload:30,rocketsPerVolley:6,burstInterval:.25,minScatterDiameter10KmM:30}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, sea:{delay:8,radius:10,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
