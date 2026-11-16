@@ -32,14 +32,15 @@ function fxPage(){
 
   /* ---- A: W.A.S. の動き ---- */
   (()=>{ const S=stage(document.getElementById('wasCanvas'),{dist:5.2,target:[0,.95,0],yaw:2.3,pitch:.22}), F=fxList(S.scene), note=document.getElementById('wasNote');
-    const keys=['was4','wasWalk1','wasWalk2','wasWalk3','wasWalk4','wasFire','wasFly','wasFlyMove','wasFlyUp','wasFlyDown'], body=new THREE.Group(), meshes={}, data={}; S.scene.add(body);
+    window.FXV=S.view; const keys=['was4','wasWalk1','wasWalk2','wasWalk3','wasWalk4','wasFire','wasFly','wasFlyFire','wasFlyMove','wasFlyUp','wasFlyDown'], body=new THREE.Group(), meshes={}, data={}; S.scene.add(body);
     for(const k of keys){ const parts=GROUND_SHAPES[k](); data[k]={nozzles:parts.nozzles,muzzle:parts.muzzle,guns:parts.guns}; for(const g of parts) g.dispose(); meshes[k]=new THREE.Mesh(geo(k),mats[0]); meshes[k].visible=false; body.add(meshes[k]); }
     const plumes=[0,1,2,3].map(()=>{ const p=GFX.plume(.16); body.add(p.group); return p; });
     const modes=[
-      {label:'歩行',text:'4こまの歩き。足に合わせて腕と盾が少し前後します。',key:t=>'wasWalk'+(1+Math.floor(t/.24)%4),y:t=>.012*Math.sin(t/.24*Math.PI),scroll:1.1,power:0},
-      {label:'射撃',text:'足を開いて踏んばり、盾を体の前に構えて、背の砲で撃ちます。右腕のバルカンも撃ちます。',key:()=>'wasFire',y:()=>0,scroll:0,power:0,fire:true},
+      {label:'歩行',text:'4こまの歩き。盾を前に構えたまま、足に合わせて腕が少し前後します。',key:t=>'wasWalk'+(1+Math.floor(t/.24)%4),y:t=>.012*Math.sin(t/.24*Math.PI),scroll:1.1,power:0},
+      {label:'射撃',text:'腰を落として踏んばり、盾を体の前に斜めに構えます。右腕のバルカンを盾の上に乗せて撃ち、背の砲も撃ちます。',key:()=>'wasFire',y:()=>0,scroll:0,power:0,fire:true},
       {label:'飛行・待機',text:'その場に浮きます。足を下げ、噴射は弱めです。',key:()=>'wasFly',y:t=>1.5+.06*Math.sin(t*1.7),scroll:0,power:.55},
-      {label:'飛行・移動',text:'体を前へ倒し、足を後ろへ流します。噴射は強めです。',key:()=>'wasFlyMove',y:t=>1.5+.04*Math.sin(t*2.3),scroll:5,power:1.25},
+      {label:'飛行・射撃',text:'空中でも同じ構えで、敵に向いて撃ちます。',key:()=>'wasFlyFire',y:t=>1.5+.05*Math.sin(t*1.7),scroll:0,power:.6,fire:true},
+      {label:'飛行・移動',text:'体を前へ倒し、足を後ろへ流します。盾は前に構えたまま。噴射は強めです。',key:()=>'wasFlyMove',y:t=>1.5+.04*Math.sin(t*2.3),scroll:5,power:1.25},
       {label:'上昇',text:'体を伸ばして上がります。噴射はいちばん強いです。',key:()=>'wasFlyUp',y:t=>.9+(t%2.4)*1,scroll:0,power:1.5},
       {label:'下降',text:'足を前に出して降ります。噴射は弱く、着く前に少し強まります。',key:()=>'wasFlyDown',y:t=>3.2-(t%2.4)*1,scroll:0,power:t=>.3+.5*Math.max(0,(t%2.4)-1.6)}];
     let mode=modes[0], t0=performance.now()/1000, lastShot=-9, lastGun=-9, gun=0;
@@ -50,9 +51,9 @@ function fxPage(){
       d.nozzles.forEach((n,i)=>{ const p=plumes[i]; p.group.position.set(...n.p); p.group.lookAt(body.localToWorld(V(n.p[0]+n.d[0],n.p[1]+n.d[1],n.p[2]+n.d[2]))); p.update(t,power*n.k); });
       body.position.z=0;
       if(mode.fire&&!still){
-        if(t-lastShot>1.7){ lastShot=t; const m=V(...d.muzzle), end=V(m.x,m.y-.2,m.z+26); F.add(GFX.muzzle(.34,{smokeK:1}),m,V(m.x,m.y,m.z+1),now); F.add(GFX.shot(u=>m.clone().lerp(end,u),.22,'tracer',.13),null,null,now); F.add(GFX.hit(.5),end.clone().setY(0),null,now+.22); }
+        if(t-lastShot>1.7){ lastShot=t; const m=V(...d.muzzle).add(V(0,body.position.y,0)), end=V(m.x,m.y-.2,m.z+26); F.add(GFX.muzzle(.34,{smokeK:1}),m,V(m.x,m.y,m.z+1),now); F.add(GFX.shot(u=>m.clone().lerp(end,u),.22,'tracer',.13),null,null,now); F.add(GFX.hit(.5),end.clone().setY(0),null,now+.22); }
         const rec=Math.max(0,1-(t-lastShot)/.25); body.position.z=-.07*rec;
-        if(t%1.7>.7&&t%1.7<1.5&&t-lastGun>.07){ lastGun=t; const g=V(...d.guns[gun++%2]), end=V(g.x+(Math.random()-.5)*1.4,.1,g.z+22); F.add(GFX.muzzle(.13),g,V(g.x,g.y,g.z+1),now); F.add(GFX.shot(u=>g.clone().lerp(end,u),.2,'tracer',.07,{color:0xffc070}),null,null,now); F.add(GFX.hit(.2),end,null,now+.2); } }
+        if(t%1.7>.7&&t%1.7<1.5&&t-lastGun>.07){ lastGun=t; const g=V(...d.guns[gun++%2]).add(V(0,body.position.y,0)), end=V(g.x+(Math.random()-.5)*1.4,.1,g.z+22); F.add(GFX.muzzle(.13),g,V(g.x,g.y,g.z+1),now); F.add(GFX.shot(u=>g.clone().lerp(end,u),.2,'tracer',.07,{color:0xffc070}),null,null,now); F.add(GFX.hit(.2),end,null,now+.2); } }
       F.step(now); S.render(); requestAnimationFrame(frame); }
     frame(); })();
 
