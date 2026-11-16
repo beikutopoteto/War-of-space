@@ -66,15 +66,63 @@ function groundBuildingBlocks(a,b,box){
 }
 // 立っている建物の中（平面で箱の内側）。中の隊は外が見え、外からも見える（立てこもる。ユーザー決定 2026-11-14）。
 function groundInsideBuilding(p,box){ return p.x>=box.minX&&p.x<=box.maxX&&p.z>=box.minZ&&p.z<=box.maxZ; }
+// 建物配列の参照が変わったときだけ町の凸包を作り直す。
+let groundTownSource=null,groundTownCache=[];
+function groundTownZones(){
+  if(groundTownSource===groundBuildings)return groundTownCache;
+  groundTownSource=groundBuildings;const groups=new Map(),margin=groundRuleSet().combat.townMargin;
+  for(const b of groundBuildings)if(b.settlement!=null){if(!groups.has(b.settlement))groups.set(b.settlement,[]);groups.get(b.settlement).push(b);}
+  groundTownCache=[];
+  for(const [settlement,boxes] of groups){
+    const points=[],heights=[];
+    for(const b of boxes){const c=Math.cos(b.ang),s=Math.sin(b.ang);heights.push(b.top-b.bottom);
+      for(const i of [-1,1])for(const j of [-1,1]){const x=b.x+i*b.w/2*c+j*b.d/2*s,z=b.z-i*b.w/2*s+j*b.d/2*c;
+        for(let k=0;k<8;k++)points.push([x+margin*Math.cos(k*Math.PI/4),z+margin*Math.sin(k*Math.PI/4)]);}}
+    points.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+    const cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+    const half=ps=>{const h=[];for(const p of ps){while(h.length>1&&cross(h[h.length-2],h[h.length-1],p)<=0)h.pop();h.push(p);}return h;};
+    const lower=half(points),upper=half([...points].reverse());lower.pop();upper.pop();const hull=lower.concat(upper);
+    heights.sort((a,b)=>a-b);const roof=(heights[(heights.length-1)>>1]+heights[heights.length>>1])/2;
+    groundTownCache.push({settlement,hull,roof,minX:Math.min(...hull.map(p=>p[0])),maxX:Math.max(...hull.map(p=>p[0])),minZ:Math.min(...hull.map(p=>p[1])),maxZ:Math.max(...hull.map(p=>p[1]))});
+  }
+  return groundTownCache;
+}
+function groundInsideTown(p,t){
+  if(p.x<t.minX||p.x>t.maxX||p.z<t.minZ||p.z>t.maxZ)return false;
+  return t.hull.every((v,i)=>{const q=t.hull[(i+1)%t.hull.length];return (q[0]-v[0])*(p.z-v[1])-(q[1]-v[1])*(p.x-v[0])>=-1e-9;});
+}
+// Cyrus–Beck: 凸包の内側へ入る・出る線分の位置。
+function groundTownInterval(a,b,t){
+  if(Math.max(a.x,b.x)<t.minX||Math.min(a.x,b.x)>t.maxX||Math.max(a.z,b.z)<t.minZ||Math.min(a.z,b.z)>t.maxZ)return null;
+  let lo=0,hi=1;const dx=b.x-a.x,dz=b.z-a.z;
+  for(let i=0;i<t.hull.length;i++){const p=t.hull[i],q=t.hull[(i+1)%t.hull.length],ex=q[0]-p[0],ez=q[1]-p[1],v=ex*(a.z-p[1])-ez*(a.x-p[0]),d=ex*dz-ez*dx;
+    if(Math.abs(d)<1e-12){if(v<0)return null;}else if(d>0)lo=Math.max(lo,-v/d);else hi=Math.min(hi,-v/d);if(lo>hi)return null;}
+  return [lo,hi];
+}
+function groundTownHit(a,b,t){
+  const range=groundTownInterval(a,b,t);if(!range)return null;
+  const [lo,hi]=range,n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)*(hi-lo)/.1));
+  const below=u=>a.y+(b.y-a.y)*u<groundSightHeight(a.x+(b.x-a.x)*u,a.z+(b.z-a.z)*u)+t.roof;
+  for(let i=0;i<=n;i++){const u=lo+(hi-lo)*i/n;
+    if(below(u)){
+      if(!i)return u;
+      // 屋根より低くなった位置を、最初の検出区間内で詰める。
+      let left=lo+(hi-lo)*(i-1)/n,right=u;
+      for(let j=0;j<24;j++){const mid=(left+right)/2;if(below(mid))right=mid;else left=mid;}
+      return right;
+    }}
+  return null;
+}
 function groundBuildingsBlock(a,b){
+  for(const town of groundTownZones())if(!groundInsideTown(a,town)&&!groundInsideTown(b,town)&&groundTownHit(a,b,town)!==null)return true;
   // 建物を4戦闘単位の区画に分け、線分の範囲外の町を調べない。
   if(groundSightBuildingSource!==groundBuildings){
     groundSightBuildingSource=groundBuildings;groundSightBuildingBins=new Map();
-    for(const box of groundBuildings)for(let z=Math.floor(box.minZ/4);z<=Math.floor(box.maxZ/4);z++)for(let x=Math.floor(box.minX/4);x<=Math.floor(box.maxX/4);x++){
+    for(const box of groundBuildings)if(box.settlement==null)for(let z=Math.floor(box.minZ/4);z<=Math.floor(box.maxZ/4);z++)for(let x=Math.floor(box.minX/4);x<=Math.floor(box.maxX/4);x++){
       const key=x+','+z;if(!groundSightBuildingBins.has(key))groundSightBuildingBins.set(key,[]);groundSightBuildingBins.get(key).push(box);
     }
   }
-  if(!groundBuildings.length)return false;
+  if(!groundSightBuildingBins.size)return false;
   const minX=Math.floor(Math.min(a.x,b.x)/4),maxX=Math.floor(Math.max(a.x,b.x)/4),minZ=Math.floor(Math.min(a.z,b.z)/4),maxZ=Math.floor(Math.max(a.z,b.z)/4);
   for(let z=minZ;z<=maxZ;z++)for(let x=minX;x<=maxX;x++){
     const boxes=groundSightBuildingBins.get(x+','+z);

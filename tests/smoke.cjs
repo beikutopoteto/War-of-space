@@ -10,6 +10,7 @@ const {nodeChecks:groundTempoChecks,checkGroundTempo}=require('./ground-tempo.cj
 const { checkGroundCapture } = require('./ground-capture.cjs');
 const { checkGroundOrg } = require('./ground-org.cjs');
 const { checkGroundSight } = require('./ground-sight.cjs');
+const {nodeChecks:townCoverChecks}=require('./town-cover.cjs');
 const { checkGroundStrike } = require('./ground-strike.cjs');
 const { checkGroundTransport } = require('./ground-transport.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
@@ -83,6 +84,7 @@ function check(ok, label, detail = '') {
   for(const r of groundAirChecks())check(r.ok,'航空物理: '+r.name);
   for(const r of groundAirOrderChecks())check(r.ok,'航空運動: '+r.name);
   for(const r of groundAirIntegrationChecks())check(r.ok,'航空統合: '+r.name);
+  for(const r of townCoverChecks())check(r.ok,'町の遮蔽: '+r.name);
   for(const r of groundBallisticChecks())check(r.ok,'地上弾道: '+r.name);
   for(const r of groundScatterChecks())check(r.ok,'地上散布精度: '+r.name);
   for(const r of groundVolleyChecks())check(r.ok,'地上斉射: '+r.name);
