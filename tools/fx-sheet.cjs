@@ -57,8 +57,33 @@ function fxPage(){
       F.step(now); S.render(); requestAnimationFrame(frame); }
     frame(); })();
 
+  /* ---- C: 砲塔と仰角 ---- */
+  (()=>{ const S=stage(document.getElementById('rigCanvas'),{dist:7,target:[0,.5,0],yaw:.7,pitch:.38}), note=document.getElementById('rigNote'), holder=new THREE.Group(); S.scene.add(holder);
+    const kinds=[{label:'主力戦車',kind:'vehicle',high:1.2},{label:'装甲兵員輸送車',kind:'apc',high:3},{label:'自走砲',kind:'artillery',high:6},{label:'ロケット車両',kind:'guidedRocket',high:6},{label:'自走対空砲',kind:'mobileAA',high:7},{label:'斥候',kind:'scout',high:3}];
+    const mark=new THREE.Mesh(new THREE.IcosahedronGeometry(.16,1),new THREE.MeshBasicMaterial({color:0xff5a4a})); S.scene.add(mark);
+    const aim=new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0,0,0),V(0,0,1)]),new THREE.LineBasicMaterial({color:0xe2c58a,transparent:true,opacity:.7})); let cur=kinds[0], side=0, rig=null, hull, tur, gun, st, last=performance.now()/1000;
+    function build(){ while(holder.children.length) holder.remove(holder.children[0]); const sp=groundModelFor(cur.kind,side?'mars':'earth'); rig=groundRig(sp.key);
+      hull=new THREE.Group(); hull.add(new THREE.Mesh(rig.hull,mats[side])); tur=new THREE.Group(); tur.position.set(...rig.turretAt); if(rig.turret) tur.add(new THREE.Mesh(rig.turret,mats[side]));
+      gun=new THREE.Group(); gun.position.set(...rig.gunAt); gun.add(new THREE.Mesh(rig.gun,mats[side])); aim.scale.z=1; gun.add(aim); tur.add(gun); hull.add(tur); holder.add(hull); st={hull:0,tur:0,el:0}; }
+    buttons(document.getElementById('rigModes'),kinds,k=>{ cur=k; build(); });
+    document.getElementById('rigSide').onclick=e=>{ side=1-side; e.currentTarget.textContent=side?'惑星共和国':'地球連合'; build(); }; build();
+    const slew=(v,to,max)=>v+Math.max(-max,Math.min(max,to-v)), wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+    function frame(){ const now=performance.now()/1000, dt=Math.min(.05,now-last); last=now; const t=still?3:now;
+      /* 的: 4秒は高さだけ変わり、次の4秒で横へ回る */
+      const c=Math.floor(t/8), ph=t%8, ang=c*1.9+(ph>4?(1-Math.cos((ph-4)/4*Math.PI))/2*1.9:0), h=.4+cur.high*(.5-.5*Math.cos(Math.min(ph,4)/4*Math.PI*2));
+      mark.position.set(Math.sin(ang)*6,h,Math.cos(ang)*6);
+      const o=V(0,0,0); gun.getWorldPosition(o); const dx=mark.position.x-o.x, dz=mark.position.z-o.z, wantYaw=Math.atan2(dx,dz), wantEl=Math.atan2(mark.position.y-o.y,Math.hypot(dx,dz));
+      /* 狙う順: 仰角 → 砲塔 → 車体。砲塔が無い車両は車体で向く */
+      const el0=st.el, tur0=st.tur, hull0=st.hull; st.el=slew(st.el,Math.max(rig.el[0],Math.min(rig.el[1],wantEl)),1.1*dt);
+      if(rig.hasTurret) st.tur+=slew(0,wrap(wantYaw-st.hull-st.tur),1.4*dt); else st.hull+=slew(0,wrap(wantYaw-st.hull),.55*dt);
+      hull.rotation.y=st.hull; tur.rotation.y=st.tur; gun.rotation.x=-st.el; aim.position.z=rig.muzzle; aim.scale.z=Math.max(.1,Math.hypot(dx,dz,mark.position.y-o.y)-rig.muzzle);
+      const moving=[Math.abs(st.el-el0)>1e-4&&'仰角',Math.abs(st.tur-tur0)>1e-4&&'砲塔',Math.abs(st.hull-hull0)>1e-4&&'車体'].filter(Boolean), out=wantEl>rig.el[1]+.01||wantEl<rig.el[0]-.01;
+      note.textContent=(rig.hasTurret?'砲塔あり':'砲塔なし（車体ごと向きます）')+'。今動いているのは: '+(moving.join('・')||'なし')+(out?'。的が仰角の届く範囲の外です':'')+'。';
+      S.render(); requestAnimationFrame(frame); }
+    frame(); })();
+
   /* ---- B: 射撃・弾道・着弾 ---- */
-  (()=>{ const S=stage(document.getElementById('fxCanvas')), F=fxList(S.scene), note=document.getElementById('fxNote'), units=new THREE.Group(); S.scene.add(units);
+  (()=>{ const S=stage(document.getElementById('fxCanvas')), F=fxList(S.scene); window.FXB=S.view; const note=document.getElementById('fxNote'), units=new THREE.Group(); S.scene.add(units);
     const spec=(kind,side)=>groundModelFor(kind,side), rnd=(a=1)=>(Math.random()-.5)*2*a;
     /* 隊を置く: 体ごとの位置と砲口（箱の前の上寄り）を返す */
     function place(kind,team,z,face,y=0){ const s=spec(kind,team?'mars':'earth'), g=geo(s.key); g.computeBoundingBox(); const b=g.boundingBox, form=GROUND_FORMS[s.form]||[[0,0]];
@@ -90,6 +115,12 @@ function fxPage(){
       {label:'重強化歩兵',text:'腰の機関砲の連射。筋が太く、数が多いです。',dist:11,pitch:.28,period:1.6,
         setup(){ this.a=place('heavyInfantry',0,-3.5,1); this.b=place('infantry',1,3.5,-1); }, fire(now){ for(const u of this.a){ const s=Math.random()*.5; for(let k=0;k<7;k++){ const t=now+s+k*.07, m=u.muzzle(.55), end=V(u.pos.x+rnd(.8),.1,3.5+rnd(.5));
           F.add(GFX.muzzle(.1),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.11,'tracer',.05,{color:0xffc070}),null,null,t); F.add(GFX.hit(.14),end.clone().setY(0),null,t+.11); } } }},
+      {label:'重強化歩兵のミサイル',text:'背中の発射機が頭の上へ起き上がり、戦車と航空機へミサイルを撃ちます。撃ち終わると元の位置へ下がります。',dist:22,pitch:.2,period:5,target:[0,2.2,1],
+        setup(){ this.a=place('heavyInfantry',0,-6,1); this.b=place('vehicle',1,7,-1); this.c=place('attack',1,9,-1,6); this.up=-1; },
+        fire(now){ this.up=now; for(const u of this.a) u.m.geometry=geo('hinfMsl'); this.a.forEach((u,i)=>{ const t=now+.6+i*.22, m=V(u.pos.x,u.top*1.2,u.pos.z+.05), air=i%2===1, tg=air?this.c[i%this.c.length]:this.b[i%this.b.length], end=V(tg.pos.x,air?6:.25,tg.pos.z), mid=m.clone().add(V(0,1.2,1.6));
+          F.add(GFX.muzzle(.16,{smokeK:.8}),m,m.clone().add(V(0,-.5,-1)),t);
+          F.add(GFX.shot(u=>{ const a=m.clone().lerp(mid,u), b=mid.clone().lerp(end,u); return a.lerp(b,u); },1.1,'rocket',.07),null,null,t); F.add(air?GFX.airBurst(.5):GFX.blast(1.6,{smokeK:.6}),air?end:end.clone().setY(0),null,t+1.1); }); },
+        tick(now){ if(this.up>0&&now-this.up>2.9){ this.up=-1; for(const u of this.a) u.m.geometry=geo('hinf'); } }},
       {label:'自走対空砲',text:'空へ伸びる連射の筋と、機体のそばで破裂する黒い煙。',dist:24,pitch:.12,period:2.4,target:[0,3.5,0],
         setup(){ this.a=place('mobileAA',0,-6,1); this.b=place('attack',1,7,-1,7); }, fire(now){ this.a.forEach((u,i)=>{ for(let k=0;k<12;k++){ const t=now+i*.2+k*.08, m=u.muzzle(1), end=V(rnd(2.5),7+rnd(1),7+rnd(2));
           F.add(GFX.muzzle(.14),m,m.clone().add(V(0,1,1.6)),t); F.add(GFX.shot(line(m,end),.3,'tracer',.06,{color:0xffb060}),null,null,t); if(k%3===0) F.add(GFX.airBurst(.35),end,null,t+.3); } }); }},
@@ -129,10 +160,12 @@ canvas{display:block;width:100%;max-width:100%;aspect-ratio:16/10;border:1px sol
 @media (max-width:520px){canvas{aspect-ratio:4/3.6}}
 </style>
 <main>
-<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第5回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
+<header><h1>効果と W.A.S. の動き</h1><p class="dim">見本 第6回。まだゲームには入っていません。絵はドラッグで回せます（ホイールで拡大）。</p></header>
 <section aria-labelledby="h-was"><h2 id="h-was">W.A.S. の動き</h2><div class="modes" id="wasModes" role="group" aria-label="W.A.S. の動き"></div><canvas id="wasCanvas" aria-label="W.A.S. の動きの絵"></canvas><p class="note" id="wasNote"></p></section>
 <section aria-labelledby="h-fx"><h2 id="h-fx">射撃・弾道・着弾</h2><div class="modes" id="fxModes" role="group" aria-label="兵科"></div><canvas id="fxCanvas" aria-label="射撃と着弾の絵"></canvas><p class="note" id="fxNote"></p>
 <p class="dim">青が撃つ側、赤が撃たれる側です。距離は絵に収まるよう縮めています。爆風の輪の広さはゲームの値のままです。</p></section>
+<section aria-labelledby="h-rig"><h2 id="h-rig">砲塔と仰角</h2><div class="modes" id="rigModes" role="group" aria-label="車両"></div><div class="modes"><button type="button" id="rigSide">地球連合</button></div><canvas id="rigCanvas" aria-label="砲塔と仰角の絵"></canvas><p class="note" id="rigNote"></p>
+<p class="dim">赤い玉が的です。4秒は高さだけ変わり、次の4秒で横へ回ります。狙う順は、仰角、砲塔、車体です。</p></section>
 </main>
 <script src="${CDN}"></script><script>${inline('battle/shapes.js')}</script><script>${inline('battle/ground-shapes.js')}</script><script>${inline('battle/ground-fx.js')}</script>
 <script>(${fxPage.toString()})();</script>`;

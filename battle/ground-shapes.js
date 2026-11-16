@@ -35,6 +35,8 @@ const trackG=(x,z0,z1,w=.1,h=.24,n=6)=>[tone(at(loft([[z0,w,h*.22,h*.64],[z0+.14
 const wheelG=(x,z,r=.15,w=.12)=>{ const g=new THREE.CylinderGeometry(r,r,w,8); g.rotateZ(Math.PI/2); return tone(at(g,x,r,z),DK); };
 const brl=(r,z0,z1,seg=6)=>at(tube(r,z1-z0,seg),0,0,(z0+z1)/2);
 const gunG=(pieces,y,z,el=0)=>pieces.map(g=>tone(at(g,0,y,z,-el),DK));
+/* 動く部品の印（ユーザー 2026-11-17）: TUR 砲塔（向きを変える）、GUN 砲（仰角を変える）。形は変えない。groundRig が印で分ける */
+const TUR=ps=>ps.map(g=>{ g.userData.part='turret'; return g; }), GUN=ps=>ps.map(g=>{ g.userData.part='gun'; return g; });
 /* shared running gear (docs/models.md 2). hullE: the Earth's tank hull — tracks showing under plate skirts, a flat deck, a
    sloping glacis (top of the deck at y .36), a fender over each track from the hull side out to the skirt, turned down at both
    ends (user 2026-11-13: no open space above the tracks). hullM: the Republic's common hull for tank, gun, air defence, rockets and
@@ -84,7 +86,7 @@ for(const k of ['walk','hwalk','cwalk']) EXO_POSE[k+'2']={...EXO_POSE[k],feet:[.
    kind 'c' (commando): no power unit but a ghillie suit — shaggy tufts in two tones over the head, shoulders, back and arms and
    wrapped round the rifle (user 2026-11-12), none on the chest front, where the vest shows (user 2026-11-13) — and a long rifle with a sight; it moves in a low crouch, carrying the
    rifle across the chest as the ordinary trooper does (user 2026-11-12), and fights kneeling */
-function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+function exoParts(kind,pose,msl=false){ const heavy=kind===true, cmd=kind==='c', BODY=.16, T=.375, P=EXO_POSE[(heavy?'h':cmd?'c':'')+pose], p=[], U=[], body=g=>tone(g,BODY), HY=.82-P.d, mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
   const M=new THREE.Matrix4().makeTranslation(0,HY,0).multiply(new THREE.Matrix4().makeRotationX(P.L)).multiply(new THREE.Matrix4().makeTranslation(0,-.82,0));
   const W=v=>new THREE.Vector3(...v).applyMatrix4(M).toArray();
   for(const sx of [1,-1]){ const f=P.feet[sx>0?0:1], hip=[sx*.1,HY,0], ank=[sx*f[0],f[2]||.08,f[1]], dy=ank[1]-hip[1], dz=ank[2]-hip[2], dd=Math.hypot(dy,dz), k=Math.sqrt(Math.max(0,T*T-dd*dd/4));
@@ -106,7 +108,9 @@ function exoParts(kind,pose){ const heavy=kind===true, cmd=kind==='c', BODY=.16,
     U.push(at(head,0,1.53,0), tone(at(box(.17,.065,.05),0,1.54,.095),GL), at(new THREE.CylinderGeometry(.15,.175,.13,8),0,1.43,-.005),
       stand(loft([[1.08,.2,.13],[1.3,.25,.15],[1.4,.2,.11]],HEX)), at(box(.27,.14,.06),0,.99,.095), at(box(.26,.1,.07),0,.86,.09),
       ...pair(at(loft([[-.11,.1,.07],[.11,.085,.05]],SLAB),.325,1.36,-.01)), ...pair(at(box(.075,.19,.1),.34,1.17,-.03)),
-      at(box(.42,.2,.26),0,1.5,-.29,-.25), tone(at(box(.36,.14,.02),0,1.535,-.165,-.25),DK), at(box(.1,.18,.1),0,1.33,-.25), tone(discG(0,1.0,-.27,.12,.24),.6)); }
+      /* the launcher on the back: carried low behind the head; msl: swung up over the head on two arms, its tubes forward and up, to fire (user 2026-11-17) */
+      ...(msl?[at(box(.42,.2,.3),0,1.83,-.2,-.42), tone(at(box(.38,.16,.012),0,1.89,-.065,-.42),DK), ...pair(tone(segG([.15,1.42,-.27],[.15,1.76,-.26],.022,.022,5),.45))]
+        :[at(box(.42,.2,.26),0,1.5,-.29,-.25), tone(at(box(.36,.14,.02),0,1.535,-.165,-.25),DK)]), at(box(.1,.18,.1),0,1.33,-.25), tone(discG(0,1.0,-.27,.12,.24),.6)); }
   for(const g of U) g.applyMatrix4(M);
   p.push(...U);
   /* arms and weapon, in the world: shoulder and elbow follow the lean, the hands hold the weapon */
@@ -614,32 +618,32 @@ const GROUND_SHAPES={
   tankE:()=>[...hullE(), ...pair(at(box(.03,.15,1.84),.49,.235,-.02)), ...[.6,.36,.12,-.12].flatMap(z=>pair(tone(at(box(.05,.11,.2),.52,.25,z),.82))),
     tone(at(box(.5,.035,.3),0,.33,.72,.23),.82), tone(at(box(.52,.04,.42),0,.375,-.7),.6),
     ...pair(tone(at(box(.022,.13,.4),.535,.25,-.8),DK)), tone(at(box(1.09,.13,.022),0,.25,-1.02),DK),
-    at(loft([[-.8,.27,.085],[-.4,.37,.1],[.1,.37,.1],[.5,.12,.065,-.025]],SLAB),0,.475,-.02),
+    ...TUR([at(loft([[-.8,.27,.085],[-.4,.37,.1],[.1,.37,.1],[.5,.12,.065,-.025]],SLAB),0,.475,-.02),
     ...pair(tone(at(box(.045,.125,.4),.268,.458,.285,.0,-.54,0),.82)), ...pair(tone(at(box(.05,.03,.36),.235,.55,.25,0,-.54,0),.82)), at(box(.15,.12,.14),0,.455,.5),
     tone(at(box(.56,.09,.14),0,.47,-.86),.55), tone(at(box(.72,.1,.02),0,.46,-.95),DK), ...pair(tone(at(box(.02,.1,.3),.36,.46,-.8),DK)),
     ...pair(tone(at(box(.04,.05,.12),.35,.51,.02),DK)),
     at(new THREE.CylinderGeometry(.085,.085,.05,6),.15,.6,-.22), at(box(.13,.09,.02),.15,.66,-.13), ...piv([tone(brl(.016,0,.3),DK)],.15,.66,-.14),
-    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.34), tone(at(box(.09,.07,.09),-.13,.61,.0),DK),
-    ...gunG([brl(.05,0,1.08),brl(.062,.12,.4),brl(.071,.46,.66),brl(.062,.72,.94),brl(.058,1.02,1.08)],.475,.52)],
+    at(new THREE.CylinderGeometry(.07,.07,.035,6),-.16,.59,-.34), tone(at(box(.09,.07,.09),-.13,.61,.0),DK)]),
+    ...GUN(gunG([brl(.05,0,1.08),brl(.062,.12,.4),brl(.071,.46,.66),brl(.062,.72,.94),brl(.058,1.02,1.08)],.475,.52))],
   /* 装甲兵員輸送車（地球連合）: eight wheels under a box that is a plain rectangle seen from above; the front is one long,
      gentle slope from the roof down to the nose, half the length of the vehicle (user decision 2026-11-12). The weapon
      station sits off to one side behind the commander's hatch, stowage boxes along the rear sides, a ramp door behind */
   apcE:()=>[...wheelsG([-.66,-.24,.22,.64]), tone(at(box(.5,.15,1.8),0,.2,0),.6),
     loft([[-.96,.36,.15,.43],[.02,.36,.15,.43],[.99,.36,.04,.31]],SLAB), tone(at(box(.42,.2,.02),0,.42,-.965),.6),
     tone(at(box(.46,.02,.1),0,.535,.3,.245),GL), ...pair(at(box(.05,.12,.5),.34,.5,-.6)),
-    at(loft([[-.15,.11,.055],[.13,.09,.045]],SLAB),.14,.635,-.34), ...piv([tone(brl(.02,0,.5),DK),tone(at(box(.05,.05,.05),.07,.04,-.05),DK)],.14,.645,-.24),
+    ...TUR([at(loft([[-.15,.11,.055],[.13,.09,.045]],SLAB),.14,.635,-.34)]), ...GUN(piv([tone(brl(.02,0,.5),DK),tone(at(box(.05,.05,.05),.07,.04,-.05),DK)],.14,.645,-.24)),
     at(new THREE.CylinderGeometry(.075,.075,.035,6),-.15,.6,-.12), tone(at(box(.03,.3,.03),-.3,.73,-.85),DK)],
   /* 自走砲（地球連合）: the tank hull under a tall, wide gun house at the rear, a thick raised gun with a boxed muzzle brake */
   spgE:()=>[...hullE(), at(loft([[-.98,.3,.17],[-.2,.33,.2],[.1,.27,.17],[.26,.19,.12,-.02]],SLAB),0,.56,0), tone(at(box(.44,.12,.03),0,.56,-1),.6),
     tone(at(box(.1,.07,.12),-.16,.79,-.5),DK), at(new THREE.CylinderGeometry(.07,.07,.03,6),.15,.775,-.3),
-    ...gunG([brl(.075,0,.3),brl(.05,.3,1.34),at(box(.15,.09,.15),0,0,1.38)],.6,.16,.2)],
+    ...GUN(gunG([brl(.075,0,.3),brl(.05,.3,1.34),at(box(.15,.09,.15),0,0,1.38)],.6,.16,.2))],
   /* 自走対空砲（地球連合）: the tank hull under a turret with a pair of cannon on each side, raised, and an optical tracker
      ball on a short mast (no radar in this war) */
-  aaE:()=>[...hullE(), at(loft([[-.45,.19,.11],[.25,.2,.11],[.42,.12,.08,-.01]],SLAB),0,.48,-.08),
-    ...[.29,-.29].flatMap(x=>piv([box(.1,.13,.34),tone(at(brl(.02,0,.75),0,.03,.1),DK),tone(at(brl(.02,0,.75),0,-.03,.1),DK)],x,.52,-.02,.45)),
-    tone(at(box(.5,.05,.05),0,.52,-.02),.6), tone(at(box(.03,.14,.03),0,.66,-.36),DK), tone(at(new THREE.IcosahedronGeometry(.075,0),0,.78,-.36),GL)],
+  aaE:()=>[...hullE(), ...TUR([at(loft([[-.45,.19,.11],[.25,.2,.11],[.42,.12,.08,-.01]],SLAB),0,.48,-.08)]),
+    ...GUN([.29,-.29].flatMap(x=>piv([box(.1,.13,.34),tone(at(brl(.02,0,.75),0,.03,.1),DK),tone(at(brl(.02,0,.75),0,-.03,.1),DK)],x,.52,-.02,.45))),
+    ...TUR([tone(at(box(.5,.05,.05),0,.52,-.02),.6), tone(at(box(.03,.14,.03),0,.66,-.36),DK), tone(at(new THREE.IcosahedronGeometry(.075,0),0,.78,-.36),GL)])],
   /* ロケット車両（地球連合）: the truck with a boxed launcher of six tubes on the bed, raised */
-  mlrsE:()=>[...truckE(), ...piv([at(box(.58,.3,1.05),0,.17,.5),tone(at(box(.5,.22,.02),0,.17,1.03),DK),tone(at(box(.5,.22,.02),0,.17,-.03),DK)],0,.36,-.92,.3), tone(at(box(.44,.1,.24),0,.36,-.84),.6), tone(barG([0,.3,-.28],[0,.56,-.37],.08,.06),.45)],
+  mlrsE:()=>[...truckE(), ...GUN(piv([at(box(.58,.3,1.05),0,.17,.5),tone(at(box(.5,.22,.02),0,.17,1.03),DK),tone(at(box(.5,.22,.02),0,.17,-.03),DK)],0,.36,-.92,.3)), tone(at(box(.44,.1,.24),0,.36,-.84),.6), tone(barG([0,.3,-.28],[0,.56,-.37],.08,.06),.45)],
   /* 補給（地球連合）: the truck with a ribbed container on the bed */
   supE:()=>[...truckE(), tone(at(box(.62,.42,1.3),0,.53,-.28),.8), ...[-.75,-.28,.19].map(z=>at(box(.66,.44,.04),0,.53,z))],
   /* 工兵（地球連合）: the tank hull with a dozer blade in front and a folded bridge carried on top */
@@ -648,38 +652,39 @@ const GROUND_SHAPES={
   /* 斥候（地球連合）: a small four-wheeled scout car with a sensor head on a tall mast */
   scoutE:()=>[...wheelsG([-.42,.42],.33,.16), tone(at(box(.44,.12,1.2),0,.22,0),.6), loft([[-.72,.3,.1,.38],[.2,.3,.1,.38],[.58,.28,.06,.34],[.76,.24,.03,.3]],SLAB),
     at(loft([[-.55,.22,.07],[.05,.22,.07],[.2,.16,.04,-.02]],SLAB),0,.55,0), tone(at(box(.36,.06,.03),0,.56,.2,.6),GL),
-    tone(at(box(.03,.5,.03),-.12,.86,-.4),DK), tone(at(box(.12,.1,.1),-.12,1.14,-.4),GL), ...piv([tone(brl(.016,0,.36),DK)],.1,.64,-.1)],
+    tone(at(box(.03,.5,.03),-.12,.86,-.4),DK), tone(at(box(.12,.1,.1),-.12,1.14,-.4),GL), ...GUN(piv([tone(brl(.016,0,.36),DK)],.1,.64,-.1))],
   /* --- 惑星共和国の車両 (docs/models.md 2.2; the Armata line a century on, user decision 2026-11-12): few crew sitting in the
      hull front, sealed shells with no hatches or windows, small uncrewed turrets set back, one common hull, long slim guns --- */
   /* 主力戦車（惑星共和国）: a narrow faceted turret shell, a very long gun, slat frames at the rear */
   tankM:()=>[...hullM(), ...pair(tone(at(box(.025,.11,.36),.5,.22,-.82),DK)),
-    at(loft([[-.86,.1,.05],[-.56,.2,.085],[-.1,.19,.08],[.4,0,0,-.03]],HEX),0,.45,-.05), tone(at(box(.07,.08,.07),.08,.555,-.32),DK),
-    ...gunG([brl(.058,0,.24),at(taper(.04,.03,1.2,6),0,0,.84)],.45,.24)],
+    ...TUR([at(loft([[-.86,.1,.05],[-.56,.2,.085],[-.1,.19,.08],[.4,0,0,-.03]],HEX),0,.45,-.05), tone(at(box(.07,.08,.07),.08,.555,-.32),DK)]),
+    ...GUN(gunG([brl(.058,0,.24),at(taper(.04,.03,1.2,6),0,0,.84)],.45,.24))],
   /* 装甲兵員輸送車（惑星共和国）: eight wheels under a boat hull with a crease along its sides and an upswept prow, a flat
      uncrewed turret set well back with a long thin cannon */
   apcM:()=>[...wheelsG([-.7,-.28,.16,.6]), tone(at(box(.5,.13,1.72),0,.2,-.04),.6),
     loft([[-.98,.3,.13,.36],[-.72,.37,.15,.37],[.45,.37,.15,.37],[.85,.28,.1,.37],[1.1,.1,.03,.41]],CREASE), tone(at(box(.26,.03,.04),0,.5,.58,.3),GL),
-    at(new THREE.CylinderGeometry(.15,.2,.08,6),0,.56,-.32), ...gunG([brl(.018,0,.85),at(box(.05,.05,.2),.06,0,.1)],.58,-.26)],
+    ...TUR([at(new THREE.CylinderGeometry(.15,.2,.08,6),0,.56,-.32)]), ...GUN(gunG([brl(.018,0,.85),at(box(.05,.05,.2),.06,0,.1)],.58,-.26))],
   /* 自走砲（惑星共和国）: the common hull under a tall narrow gun house with cut top edges; a long powder gun, the longest on the
      field (user decision 2026-11-12: not a railgun, its range would not fit 30 km) */
   spgM:()=>[...hullM(), at(loft([[-.92,.2,.15],[-.5,.24,.19],[.18,.22,.17],[.46,.11,.09,-.04]],FACET),0,.56,-.05), tone(at(box(.07,.07,.07),.1,.775,-.4),DK),
-    ...gunG([brl(.062,0,.26),brl(.038,.26,1.78),brl(.052,.9,1.06),brl(.055,1.64,1.78)],.6,.3,.22)],
+    ...GUN(gunG([brl(.062,0,.26),brl(.038,.26,1.78),brl(.052,.9,1.06),brl(.055,1.64,1.78)],.6,.3,.22))],
   /* 自走対空砲（惑星共和国）: the common hull under a flat uncrewed turret with four short cannon in a block, raised a little, and
      a tracker ball; low and compact (user 2026-11-12) */
-  aaM:()=>[...hullM(), at(new THREE.CylinderGeometry(.22,.27,.1,6),0,.42,-.2),
-    ...piv([box(.22,.13,.3),...[[.05,.035],[-.05,.035],[.05,-.035],[-.05,-.035]].map(([x,y])=>tone(at(brl(.018,0,.5),x,y,.12),DK))],0,.52,-.2,.3), tone(at(box(.03,.12,.03),.2,.4,-.42),DK), tone(at(new THREE.IcosahedronGeometry(.07,0),.2,.5,-.42),GL)],
+  aaM:()=>[...hullM(), ...TUR([at(new THREE.CylinderGeometry(.22,.27,.1,6),0,.42,-.2)]),
+    ...GUN(piv([box(.22,.13,.3),...[[.05,.035],[-.05,.035],[.05,-.035],[-.05,-.035]].map(([x,y])=>tone(at(brl(.018,0,.5),x,y,.12),DK))],0,.52,-.2,.3)), ...TUR([tone(at(box(.03,.12,.03),.2,.4,-.42),DK), tone(at(new THREE.IcosahedronGeometry(.07,0),.2,.5,-.42),GL)])],
   /* ロケット車両（惑星共和国）: the common hull with two rows of launch tubes lying low on the deck */
-  mlrsM:()=>[...hullM(), ...piv([...[-.17,0,.17].flatMap(x=>[.06,.2].map(y=>{ const g=tube(.068,1.15,6); return at(g,x,y,.5); })),tone(at(box(.5,.3,.02),0,.13,1.08),DK),at(box(.56,.06,.3),0,-.02,.2)],0,.4,-.9,.16)],
+  mlrsM:()=>[...hullM(), ...GUN(piv([...[-.17,0,.17].flatMap(x=>[.06,.2].map(y=>{ const g=tube(.068,1.15,6); return at(g,x,y,.5); })),tone(at(box(.5,.3,.02),0,.13,1.08),DK),at(box(.56,.06,.3),0,-.02,.2)],0,.4,-.9,.16))],
   /* 補給（惑星共和国）: the sealed truck with two tanks on the bed */
   supM:()=>[...truckM(), ...[-.62,-.02].map(z=>{ const g=new THREE.CylinderGeometry(.24,.24,.52,8); g.rotateX(Math.PI/2); return tone(at(g,0,.56,z),.8); }), at(box(.5,.06,1.2),0,.33,-.32)],
   /* 工兵（惑星共和国）: the common hull with a folded bridge on top and a narrow blade */
   engM:()=>[...hullM(), at(box(.8,.18,.04),0,.14,1.12,-.3), ...pair(tone(at(box(.05,.05,.3),.3,.15,.98),DK)), tone(at(box(.46,.05,1.5),0,.42,-.3),.75), tone(at(box(.46,.05,1.5),0,.5,-.3),.75), ...[-.9,.3].map(z=>tone(at(box(.5,.17,.04),0,.435,z),DK))],
   /* 斥候（惑星共和国）: a small low four-wheeled boat hull with a tiny uncrewed turret */
   scoutM:()=>[...wheelsG([-.42,.42],.33,.16), tone(at(box(.44,.12,1.2),0,.22,0),.6), loft([[-.72,.26,.11,.34],[-.5,.32,.13,.35],[.35,.32,.13,.35],[.82,.1,.03,.37]],CREASE), tone(at(box(.22,.03,.04),0,.46,.45,.3),GL),
-    at(new THREE.CylinderGeometry(.1,.14,.07,6),0,.51,-.22), ...gunG([brl(.015,0,.5)],.53,-.18), tone(at(box(.05,.07,.05),.0,.58,-.3),GL)],
+    ...TUR([at(new THREE.CylinderGeometry(.1,.14,.07,6),0,.51,-.22)]), ...GUN(gunG([brl(.015,0,.5)],.53,-.18)), ...TUR([tone(at(box(.05,.07,.05),.0,.58,-.3),GL)])],
   /* 強化歩兵: about 2 m tall. W: moving, F: standing or fighting */
   infW:()=>exoParts(false,'walk'), infW2:()=>exoParts(false,'walk2'), infF:()=>exoParts(false,'fight'),
   /* 重強化歩兵: the same frame a little bigger, armoured all over (user decision 2026-11-12) */
+  hinfMsl:()=>exoParts(true,'walk',true).map(g=>g.scale(1.12,1.12,1.12)),
   hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)), hinf2:()=>exoParts(true,'walk2').map(g=>g.scale(1.12,1.12,1.12)),
   /* 強化コマンド歩兵: the soldier who uses the ground. A ghillie suit instead of the power unit, a long rifle; W: moving in a low
      crouch, F: kneeling to shoot */
@@ -1267,4 +1272,22 @@ function groundFire(points){
   }
   update(0); return {group,update};
 }
+/* 動く車両の組み立て（ユーザー 2026-11-17「砲塔そして仰角が動くように」）。鍵 → 砲塔の軸 turret [x,z]（無ければ車体と一体）、
+   砲の軸 gun [y,z]（x は砲塔の軸と同じ）、built: 形に付けてある仰角、el: 動かせる仰角 [下,上]（ラジアン。仮）。
+   自走砲とロケット砲は砲塔なし（車体ごと向く）。狙う順は 仰角 → 砲塔 → 車体。
+   groundRig(key) は {hull, turret, gun（網の形。無ければ null）, turretAt, gunAt（砲塔の軸から）, el, muzzle（砲の軸から砲口までの長さ）} を返す。
+   置き方: 車体の下に砲塔の節（turretAt、rotation.y が向き）、その下に砲の節（gunAt、rotation.x が −仰角）。 */
+const GROUND_RIG={ tankE:{turret:[0,-.1],gun:[.475,.52],el:[-.12,.35]}, tankM:{turret:[0,-.3],gun:[.45,.24],el:[-.1,.35]},
+  apcE:{turret:[.14,-.3],gun:[.645,-.24],el:[-.1,.9]}, apcM:{turret:[0,-.32],gun:[.58,-.26],el:[-.1,.9]},
+  spgE:{gun:[.6,.16],built:.2,el:[0,1.1]}, spgM:{gun:[.6,.3],built:.22,el:[0,1.1]},
+  aaE:{turret:[0,-.08],gun:[.52,-.02],built:.45,el:[-.05,1.45]}, aaM:{turret:[0,-.2],gun:[.52,-.2],built:.3,el:[-.05,1.45]},
+  mlrsE:{gun:[.36,-.92],built:.3,el:[0,1]}, mlrsM:{gun:[.4,-.9],built:.16,el:[0,1]},
+  scoutE:{turret:[.1,-.1],gun:[.64,-.1],el:[-.1,.9]}, scoutM:{turret:[0,-.22],gun:[.53,-.18],el:[-.1,.9]} };
+function groundRig(key){ const R=GROUND_RIG[key]; if(!R) return null;
+  const parts=GROUND_SHAPES[key](), by={hull:[],turret:[],gun:[]}, [tx,tz]=R.turret||[0,R.gun[1]], [gy,gz]=R.gun;
+  for(const g of parts) by[g.userData.part||'hull'].push(g);
+  for(const g of by.turret) g.translate(-tx,0,-tz);
+  for(const g of by.gun){ g.translate(-tx,-gy,-gz); if(R.built) g.rotateX(R.built); }
+  const join=l=>l.length?groundJoin(l):null, gun=join(by.gun); gun.computeBoundingBox();
+  return {hull:join(by.hull), turret:join(by.turret), gun, hasTurret:!!R.turret, turretAt:[tx,0,tz], gunAt:[0,gy,gz-tz], el:R.el, muzzle:gun.boundingBox.max.z}; }
 function groundShapeGeo(key,mono=false){ return Object.prototype.hasOwnProperty.call(GROUND_SHAPES,key)?groundJoin(GROUND_SHAPES[key](),mono):null; }
