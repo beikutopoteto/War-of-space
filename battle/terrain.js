@@ -238,7 +238,7 @@ function populateReeds(){const spec=d.objects.reeds,random=rng(spec.seed),polys=
 function forestBandWidth(b,y){const t=Math.max(0,Math.min(1,(y-b.yMin)/(b.fadeStartYKm-b.yMin)));return b.bankMaxSouthKm+(b.bankMaxNorthKm-b.bankMaxSouthKm)*t}
 // Place trees from each actual channel outwards, in reproducible interrupted banks.
 function populateForest(){
- const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*(spec.renderFactor??.55)),mesh=new THREE.InstancedMesh(new THREE.IcosahedronBufferGeometry(.154,0),new THREE.MeshLambertMaterial({color:0xffffff}),treeCount),dummy=new THREE.Object3D();
+ const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*(spec.renderFactor??.55)),mesh=new THREE.InstancedMesh(groundShapeGeo('obTreeBroad'),new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true}),treeCount),dummy=new THREE.Object3D();
  function bankCandidate(){
   const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;
   if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)return null;
@@ -267,8 +267,9 @@ function populateForest(){
   if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea)||(spec.avoidWater&&y>spec.terraceMaxYKm))continue;
   if(spec.avoidWater&&(!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2;})))continue;
   const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;
-  const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color(random()<.5?0x446e4c:0x638456));
-  groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE,...(spec.windbreaks||spec.islands?{zone}:{})});count++;
+  const height=.38+random()*.3;dummy.position.set(toX(x),elevation(x,y)+height*.455,toZ(y));dummy.scale.set(.85+random()*.5,height/.35,.85+random()*.5);dummy.rotation.y=random()*Math.PI;const shade=random()<.5?1:.86;
+  groundForests.push({x:toX(x)*GROUND_SCALE,z:toZ(y)*GROUND_SCALE,r:.154*Math.max(dummy.scale.x,dummy.scale.z)*GROUND_SCALE,...(spec.windbreaks||spec.islands?{zone}:{})});
+  dummy.position.y=elevation(x,y);dummy.scale.set(.308*dummy.scale.x/.9,(height*.455+.154*height/.35)/1.32,.308*dummy.scale.z/.9);dummy.updateMatrix();mesh.setMatrixAt(count,dummy.matrix);mesh.setColorAt(count,new THREE.Color().setRGB(shade,shade,shade));count++;
  }
  mesh.count=count;mesh.userData.groundObject='forest';if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);
 }
@@ -285,16 +286,30 @@ function populateShrubs(){
 }
 
 populateReeds();populateForest();populateShrubs();
+const buildingKeys=['obBlockFlat','obHQ','obDome','obOffice','obTowerME'],buildingGeos={},buildingHeights={};
+for(const key of buildingKeys){const geo=groundShapeGeo(key);geo.computeBoundingBox();geo.userData.groundShapeKey=key;{const c=geo.attributes.color;for(let i=0;i<c.count*3;i++)c.array[i]=.62+.38*c.array[i];}buildingGeos[key]=geo;buildingHeights[key]=geo.boundingBox.max.y-geo.boundingBox.min.y;}
+const buildingMaterial=new THREE.MeshLambertMaterial({color:0xb6bab4,vertexColors:true}),hasHQRole=d.sites.some(s=>s.role==='本営');
 for(const spec of d.objects.settlements){
- const site=d.sites.find(s=>s.id===spec.site)||spec,id=spec.site||spec.id,mesh=new THREE.InstancedMesh(new THREE.BoxBufferGeometry(1,1,1),new THREE.MeshLambertMaterial({color:0xb6bab4}),spec.count),dummy=new THREE.Object3D(),random=rng(d.meta.seed+Array.from(id).reduce((n,c)=>n+c.charCodeAt(0),0));
+ const site=d.sites.find(s=>s.id===spec.site)||spec,id=spec.site||spec.id,dummy=new THREE.Object3D(),random=rng(d.meta.seed+Array.from(id).reduce((n,c)=>n+c.charCodeAt(0),0)),shapeRandom=rng(d.meta.seed+100003+Array.from(id).reduce((n,c)=>n*31+c.charCodeAt(0),0)%1000000),meshes={};
+ const isHQ=hasHQRole?site.role==='本営':Object.values(op.groundHQ||{}).includes(id);
+ function shapeFor(h){
+  const ratio=h/.17,choice=shapeRandom(),hqChoice=shapeRandom();
+  let pair,first;
+  if(ratio<1.2){pair=['obBlockFlat','obDome'];first=choice<.7?0:1;if(isHQ&&hqChoice<.2)pair[first]='obHQ';}
+  else if(ratio<1.6){pair=['obDome','obOffice'];first=choice<.5?0:1;}
+  else {pair=['obOffice','obTowerME'];first=choice<.55?0:1;}
+  const scale=key=>ratio/buildingHeights[key],valid=key=>scale(key)>=.7&&scale(key)<=1.35;
+  let key=pair[first];if(!valid(key)){const other=pair[1-first];key=valid(other)?other:(Math.abs(scale(key)-1)<=Math.abs(scale(other)-1)?key:other);}
+  return {key,vertical:Math.max(.7,Math.min(1.35,scale(key)))};
+ }
+ function buildingMesh(key){if(!meshes[key]){const mesh=meshes[key]=new THREE.InstancedMesh(buildingGeos[key],buildingMaterial,spec.count);mesh.count=0;mesh.userData={groundObject:'buildings',settlement:id};mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);}return meshes[key];}
  let count=0;
  for(let attempt=0;attempt<spec.count*80&&count<spec.count;attempt++){
   const road=nearestRoadPoint(site.x,site.y),along=(random()-.5)*spec.spacingKm*8,side=(random()<.5?-1:1)*(spec.alongRoadKm+random()*.13),x=road.x+road.dx*along-road.dy*side,y=road.y+road.dy*along+road.dx*side,h=.16+random()*.2;
   if(spec.avoidWater&&(!inside(x,y,spec.polygon)||!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2+.1;})))continue;
-  dummy.position.set(toX(x),elevation(x,y)+h/2+.02,toZ(y));dummy.scale.set(.17,h,.15);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix);
+  const {key,vertical}=shapeFor(h),mesh=buildingMesh(key);dummy.position.set(toX(x),elevation(x,y)+.02,toZ(y));dummy.scale.set(.17,.17*vertical,.17);dummy.rotation.set(0,0,0);dummy.updateMatrix();mesh.setMatrixAt(mesh.count++,dummy.matrix);count++;
   groundBuildings.push({minX:(toX(x)-.085)*GROUND_SCALE,maxX:(toX(x)+.085)*GROUND_SCALE,minZ:(toZ(y)-.075)*GROUND_SCALE,maxZ:(toZ(y)+.075)*GROUND_SCALE,bottom:(elevation(x,y)+.02)*GROUND_SCALE,top:(elevation(x,y)+h+.02)*GROUND_SCALE});
  }
- mesh.count=count;mesh.userData={groundObject:'buildings',settlement:id};mesh.castShadow=true;mesh.receiveShadow=true;world.add(mesh);
 }
 
 }
