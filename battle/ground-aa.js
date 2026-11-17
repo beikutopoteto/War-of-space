@@ -32,7 +32,15 @@ function groundAutoAAStep(dt){
     if(!f)continue;
     f.groundAATimer=Math.max(0,(Number.isFinite(f.groundAATimer)?f.groundAATimer:0)-dt);
     const previous=f.groundAATarget;f.groundAATarget=null;
-    if(!groundAutoAAReady(f)||groundAARange(f)<=0)continue;
+    if(f.bodies)for(const b of f.bodies)b.aaT=Math.max(0,b.aaT-dt);
+    if(!groundAutoAAReady(f)||groundAARange(f)<=0){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
+    if(f.bodies){
+      if(f.bodies.every(b=>!b.alive||b.aaT>1e-8)){if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&['low','high'].includes(previous.band)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;continue;}
+      const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b));
+      const target=candidates.find(t=>groundAASolution(f,t));f.groundAATarget=target||null;
+      if(target){f.groundAAResolving=target;try{groundBodyFire(f,target,0,true);}finally{f.groundAAResolving=null;}}else groundBodyIdleClock(f,'aaT');
+      continue;
+    }
     // 装填中は射線を全隊ぶん再探索しない。これは表示用の保持だけで、発射時は必ず実射線を確認する。
     if(f.groundAATimer>1e-8){
       if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&['low','high'].includes(previous.band)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;

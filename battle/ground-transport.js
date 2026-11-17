@@ -175,13 +175,13 @@ function groundTransportDestroyed(f,src){
     for(const p of f.groundBoarders||[])groundClearOrders(p);
     f.groundBoarders=[];
     const passengers=groundPassengers(f);f.groundPassengers=[];
-    for(const p of passengers){p.embarked=null;groundClearOrders(p);p.hpPool=0;p.ships=[];destroyFleet(p,src);}
+    for(const p of passengers){p.embarked=null;groundClearOrders(p);if(p.bodies){for(const body of p.bodies)groundBodyHit(p,body,body.hp);}else p.hpPool=0;p.ships=[];destroyFleet(p,src);}
     return;
   }
   if(f.groundBoarder){groundClearOrders(f.groundBoarder);f.groundBoarder=null;}
   const passenger=f.groundPassenger;if(!passenger)return;
   groundUnload(f,true);
-  passenger.hpPool=Math.max(0,passenger.hpPool-(passenger.groundMaxHp||passenger.n*passenger.hp)*groundTransportRules().wreckLoss);
+  groundBodiesSpread(passenger,(passenger.groundMaxHp||passenger.n*passenger.hp)*groundTransportRules().wreckLoss);
   const want=Math.max(0,Math.ceil(passenger.hpPool/passenger.hp));
   while(passenger.ships.length>want){const s=passenger.ships.pop();burst(s.pos,TEAM_COL[passenger.team],16,7,.9);}
   if(!want)destroyFleet(passenger,src);

@@ -165,7 +165,7 @@ function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===c
 function updateFleetLabel(f,lost,sub){
   const el=f.el, mark=el.querySelector('.mk2'), nm=el.querySelector('.nm'); if(!mark) return;
   const colour=colOf(f); el.dataset.col=colour;
-  const key=fleetMark(f)+(f.groundKind?`<em>×${f.ships.length}</em>`+groundSupplyMeters([f]):'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
+  const key=fleetMark(f)+(f.groundKind?`<em>×${f.bodies?groundAliveBodies(f):f.ships.length}</em>`+groundSupplyMeters([f]):'<em>'+f.ships.length+'</em>'); if(f._labelMark!==key){ f._labelMark=key; mark.innerHTML=key; }
   el.classList.toggle('named',namedFleet(f));
   el.classList.toggle('ground-label',!!f.groundKind);
   if(f.groundKind){
@@ -253,7 +253,7 @@ function hideTip(){ tipFleet=null; tipRow=null; tipGroundSummary=null;rosterTip.
 function fillTip(){
   if(tipGroundSummary){const {level,item}=tipGroundSummary;rosterTip.textContent=item.name+'\n'+(groundSupplyRosterText(groundMembers(level,item.id))||'対象外');return;}
   const f=tipFleet; if(!f) return; const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1);
-  if(op.ground){const meters=groundSupplyRosterText([f],false);rosterTip.textContent=f.name+' ×'+f.ships.length+'\n'+(meters?meters+'\n':'')+groundSupplyStatus(f);return;}
+  if(op.ground){const meters=groundSupplyRosterText([f],false);rosterTip.textContent=f.name+' ×'+(f.bodies?groundAliveBodies(f):f.ships.length)+'\n'+(meters?meters+'\n':'')+groundSupplyStatus(f);return;}
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
   rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
     types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${shipLabel(t)}</span><em>×${by[t]||0}</em></div>`).join(''); }
@@ -418,7 +418,7 @@ function updateRoster(){
     const nb=f.btn.querySelector('.no b'), nn=!unitNo(f.name); const no=(g&&f===groupFlag(g)?'★':'')+tileNo(f);
     if(nb.dataset.k!==no){ nb.dataset.k=no; if(nn) nb.textContent=no; else nb.innerHTML=no.replace('第','<i>第</i>'); }
     if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
-    f.btn.querySelector('.no small').textContent=(npcAutoPlayerUnit(f)?'手動 ':'')+(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+f.ships.length);
+    f.btn.querySelector('.no small').textContent=(npcAutoPlayerUnit(f)?'手動 ':'')+(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+(op.ground&&f.bodies?groundAliveBodies(f):f.ships.length));
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
     if(op.ground)groundSupplyUpdateTile(f);else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));

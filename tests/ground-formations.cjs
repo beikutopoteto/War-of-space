@@ -2,16 +2,16 @@ const assert=require('assert/strict');
 function nodeChecks(){
  const {run}=require('./ground-controls.cjs').createControlsContext();
  return run(`(()=>{
-  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok}),f={id:12,name:'中隊',groundKind:'vehicle',groundModel:{userData:{movedAt:9.8}}};
+  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok}),f={id:12,name:'中隊',groundKind:'vehicle',bodies:[],groundMovedAt:9.8,groundModel:{userData:{movedAt:9.8}}};
   for(const deployed of [false,true])for(const moving of [false,true])for(const advance of [false,true]){
-   f.groundDeployed=deployed;f.groundModel.userData.movedAt=moving?9.8:9;f.order=advance?{type:'move',groundAdvance:1}:null;
+   f.groundDeployed=deployed;f.groundMovedAt=moving?9.8:9;f.order=advance?{type:'move',groundAdvance:1}:null;
    check('状態 '+[deployed,moving,advance].join('/'),groundFormationState(f,10)===(moving?(advance?'advance':'move'):(deployed?'defend':'idle')));
   }
-  f.groundModel.userData.movedAt=0;check('0.4秒の境界で停止',groundFormationState(f,.4)==='defend');
+  f.groundMovedAt=0;check('0.4秒の境界で停止',groundFormationState(f,.4)==='defend');
   delete f.groundModel;check('モデルなしでも停止判定',groundFormationState(f,10)==='defend');
   f.pos=new THREE.Vector3();f.groundModel=new THREE.Group();groundFormationDraw(f,10);
   check('従来の手組みモデルも描画時計を初期化',f.groundModel.userData.movedAt===-Infinity&&f.groundModel.userData.last.equals(f.pos));
-  f.pos.x=1;groundFormationDraw(f,10.1);check('従来モデルも実移動を追跡',groundFormationState(f,10.1)==='advance'&&f.pos.x===1);
+  f.pos.x=1;groundFormationDraw(f,10.1);check('描画だけでは移動状態を変えない',groundFormationState(f,10.1)==='defend'&&f.pos.x===1);f.groundMovedAt=10.1;check('戦闘側の移動時計で侵攻',groundFormationState(f,10.1)==='advance');const legacy={...f};delete legacy.bodies;delete legacy.groundMovedAt;check('体のない従来モデルは描画の移動時計を維持',groundFormationState(legacy,10.1)==='advance');
   const spec={offsets:GROUND_FORMS.wedge4,size:.5},layout=(kind,state,s=spec)=>groundFormationLayout({...f,groundKind:kind},s,state);
   for(const kind of ['vehicle','apc','artillery','guidedRocket','mobileAA','scout','engineer','supply']){
    const p=layout(kind,'move');check(kind+'は前から一列で最小1.2間隔',p.every((v,i)=>v.x===0&&(!i||p[i-1].z-v.z>=1.2-1e-9)));
