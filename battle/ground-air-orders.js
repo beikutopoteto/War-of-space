@@ -75,7 +75,7 @@ function groundAirMotion(f,dt){
  if(o?.type==='attack'&&o.target?.alive&&groundSeenBy(f.team,o.target)){
   const t=o.target;
   if(f.groundKind==='supportAircraft'&&['ground','sea'].includes(t.band||'ground')){
-   if((f.groundStrikeCooldown||0)<=1e-8&&groundBombPrepare(f,{point:t.pos.clone()}))return groundBombApproach(f,dt);
+   if((f.groundStrikeCooldown||0)<=1e-8&&groundBombPrepare(f,{point:groundStrikeTargetPoint(f,0,t)}))return groundBombApproach(f,dt);
    groundAirLoiter(f,dt);return true;
   }
   if(f.groundKind==='fighter'&&groundAirTarget(t)){

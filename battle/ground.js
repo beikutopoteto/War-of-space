@@ -519,7 +519,7 @@ function groundStep(dt){
     if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','was','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
     if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');}
     if(f.fireTarget&&f.groundShotT===0){
-      if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos});continue;}
+      if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
       damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget)*groundSupplyAttackFactor(f),f);
       groundSupplyShot(f);
@@ -534,8 +534,7 @@ function groundStep(dt){
 
 function groundMatchup(f,t){
   const c=groundRuleSet().combat;
-  return f.groundKind==='guidedRocket'?(t.groundKind==='vehicle'?c.rocketTank:['low','high'].includes(t.band)?c.rocketAir:1):
-    f.groundKind==='mobileAA'&&['low','high'].includes(t.band)?c.mobileAAAir:
+  return f.groundKind==='mobileAA'&&['low','high'].includes(t.band)?c.mobileAAAir:
     f.groundKind==='vehicle'&&['infantry','commando'].includes(t.groundKind)?c.tankInfantry:
     f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
 }

@@ -279,7 +279,7 @@ async function checkNpcGround(page,check){
 // 実際のメニューボタン・方針ボタン・部隊一覧・デバッグ保存を確認する（Claude実行用）。
 async function checkNpcAuto(page,check){
  // メニューのオート切替は保存値どおりに body の dbg-battle を付け直すので、デバッグのボタンを押す前に毎回付ける
- const clickDbg=async sel=>{await page.evaluate(()=>document.body.classList.add('dbg-battle'));await page.click(sel);};
+ const clickDbg=async sel=>{await page.evaluate(()=>document.body.classList.add('dbg-battle'));await page.click(sel,{noWaitAfter:true});};
  // 全体のテスト（tests/smoke.cjs）は台本どおりの要塞を確かめるため WOS_NO_NPC を立てている。この確認のあいだだけ外す。
  const saved=await page.evaluate(()=>{const v={debug:localStorage.getItem('wos.debug'),auto:autoMode,ret:npcAutoReturn,battle:document.body.classList.contains('dbg-battle'),noNpc:window.WOS_NO_NPC};window.WOS_NO_NPC=false;return v;});
  try{

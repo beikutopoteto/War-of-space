@@ -46,7 +46,7 @@ function areaCases(){
   const rocket=unit('guidedRocket',9);gun.groundStrikeCooldown=0;setSel([gun,rocket]);groundSalvoCount=2;groundStrikeToggle();
   groundAreaTap(center);groundAreaTap(center);const mixedStart=seen.length;groundAreaTap(center);
   const mixedArea=gun.groundAreaSalvo.area,mixedShots=seen.slice(mixedStart);
-  check('混成の最小円はロケット直径30mを守り各隊の実弾も円内',Math.abs(mixedArea.radius-.06)<1e-8&&groundAreaLimits([gun,rocket]).radius===7&&mixedShots.length===2&&mixedShots.some(s=>s.source===gun)&&mixedShots.some(s=>s.source===rocket)&&mixedShots.every(s=>groundAreaClosest(mixedArea,s.impact).distance<=mixedArea.radius+1e-8&&Math.hypot(s.impact.x-s.aim.x,s.impact.z-s.aim.z)<=groundScatterRadius(s.source,s.aim)+1e-8));
+  check('混成の最小円は距離2%のロケット直径を守り各隊の実弾も円内',Math.abs(mixedArea.radius-groundAreaRequiredRadius([gun,rocket],mixedArea.points,mixedArea.radius))<1e-6&&groundAreaLimits([gun,rocket]).radius===7&&mixedShots.length===2&&mixedShots.some(s=>s.source===gun)&&mixedShots.some(s=>s.source===rocket)&&mixedShots.every(s=>groundAreaClosest(mixedArea,s.impact).distance<=mixedArea.radius+1e-8&&Math.hypot(s.impact.x-s.aim.x,s.impact.z-s.aim.z)<=groundScatterRadius(s.source,s.aim)+1e-8));
   const replaySeed=seed,planned=groundAreaShot(gun,mixedArea);seed=replaySeed;const nominal=groundAreaTarget(gun,mixedArea);
   check('互換APIは同じ乱数の着弾点を返す（狙点＝着弾点）',planned&&nominal&&nominal.equals(planned.aim)&&Math.hypot(nominal.x-planned.impact.x,nominal.z-planned.impact.z)<1e-8);
   groundClearOrders(gun);groundClearOrders(rocket);

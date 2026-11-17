@@ -1,11 +1,23 @@
 /* 地上・海上専用の基本規則。地形とは独立し、宇宙の性能表には適用しない。 */
 window.WOS_GROUND_RULES = {
-  bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
+  bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
-  // minScatterDiameter10KmM は10kmでの最小直径（m）。ロケットのdelay/radius/spreadは自走砲と同じ暫定値。6発/車・群間0.25秒・最終群後の装填30秒も仮。
-  strike: { vehicle:{delay:2,radius:2,spread:1,reload:4}, artillery:{delay:5,radius:7,spread:2,reload:8,minScatterDiameter10KmM:25}, guidedRocket:{delay:5,radius:7,spread:2,reload:30,rocketsPerVolley:6,burstInterval:.25,minScatterDiameter10KmM:30}, supportAircraft:{delay:7,radius:9,spread:2,reload:10}, sea:{delay:8,radius:10,spread:2,reload:10}, unseenSpread:2, edgeDamage:.2, aiCluster:2, effectSec:.8 },
+  // 2026-11-17決定の最大値で遊ぶ。initialは将来の研究用データだけで、現在は参照しない。
+  // minScatterDiameter10KmM は10kmでの最小直径（m）、scatterRatioは距離に対する直径の比。
+  strike: {
+    vehicle:{delay:2,radius:.4,areaRadius:2,spread:.08,reload:4,initial:{radius:.2,reload:6}},
+    was:{delay:5,radius:.4,areaRadius:7,reload:8,minScatterDiameter10KmM:25,initial:{radius:.2,reload:12}},
+    artillery:{delay:5,radius:.8,areaRadius:7,spread:2,reload:8,minScatterDiameter10KmM:25,initial:{radius:.4,reload:12}},
+    guidedRocket:{delay:5,radius:1.2,areaRadius:7,reload:30,rocketsPerVolley:12,burstInterval:.25,scatterRatio:.02,initial:{radius:.6,burstInterval:.5,reload:45}},
+    supportAircraft:{delay:7,radius:2.4,areaRadius:9,spread:2,reload:10,bombsPerPass:6,initial:{radius:1.2,reload:15,bombsPerPass:4}},
+    battleship:{delay:8,radius:1.2,areaRadius:10,reload:10,scatterRatio:.004,initial:{radius:.6,reload:15}},
+    sea:{delay:8,radius:.48,areaRadius:10,reload:10,minScatterDiameter10KmM:25,initial:{radius:.24,reload:15}},
+    // ドローン・海の艦・橋・未指定兵科の倍率、aiBodiesは仮（#448）。
+    armor:{supply:1.3,infantry:1,commando:1,mechanicalAssault:1,heavyInfantry:.35,apc:.35,scout:.35,artillery:.35,mobileAA:.35,guidedRocket:.35,engineer:.35,vehicle:.15,was:.2,droneHive:1.3,sea:.15,bridge:1,default:1},
+    unseenSpread:2,aiBodies:3,effectSec:.8
+  },
   // 輸送・架橋の試作値。距離は戦闘単位、橋の幅判定は water の km。
   transport: { boardRange:1.6, unloadKm:.4, wreckLoss:.5, repathSec:.5 },
   landing: { capacity:2, seconds:10, damageFactor:1.3 }, // 海の揚陸艦だけの仮値。沈没時は搭載中隊を全滅扱い。
@@ -23,7 +35,7 @@ window.WOS_GROUND_RULES = {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2,fireRangesKm:{direct:0.8,aa:0.5}},
     heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:80,dmg:4,fireRangesKm:{direct:4,aa:6}},
     commando:{name:'強化コマンド歩兵',speed:2.5,range:10,hp:40,dmg:2,fireRangesKm:{direct:0.8,aa:0.5}},
-    guidedRocket:{name:'精密誘導ロケット兵',speed:1.5,range:30,hp:40,dmg:4,permissionOnly:true,fireRangesKm:{indirect:{min:0,max:50}}},
+    guidedRocket:{name:'無誘導ロケット',speed:1.5,range:30,hp:40,dmg:4,permissionOnly:true,fireRangesKm:{indirect:{min:0,max:50}}},
     droneHive:{name:'ドローンハイブ',speed:4,range:12,hp:20,dmg:2,permissionOnly:true,fireRangesKm:{direct:10}}, // 送り出す機体の運用範囲（仮）
     mechanicalAssault:{name:'機械化突撃兵',speed:3,range:10,hp:40,dmg:3,permissionOnly:true,fireRangesKm:{direct:1.2,aa:0.8}},
     mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:60,dmg:4,fireRangesKm:{direct:2,aa:4}},
@@ -51,7 +63,7 @@ window.WOS_GROUND_RULES = {
     masc:{direct:3.7,indirect:{min:0,max:3.7},aa:3.7}
   },
   // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
-  combat: { damageScale:1.3, tankInfantry:2, heavyTank:3, rocketTank:3, rocketAir:2, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, townMargin:.4, mechanicalWearPerSec:.001 }, // 町の余白は仮に0.1km（0.4 world）。消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
+  combat: { damageScale:1.3, tankInfantry:2, heavyTank:3, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, townMargin:.4, mechanicalWearPerSec:.001 }, // 町の余白は仮に0.1km（0.4 world）。消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
   capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25, decayPerSec:1, decayDelay:2 },
   movement: { timeScale:1.2, roadFactor:1.75, marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
 };

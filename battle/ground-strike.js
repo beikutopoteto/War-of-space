@@ -4,7 +4,18 @@ function groundStrikeRules(){ return groundRuleSet().strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
   const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
-  return capable?(groundStrikeRules()[f.groundKind]||(['guidedRocket','was'].includes(f.groundKind)?groundStrikeRules().artillery:null)):null;
+  return capable?groundStrikeRules()[f.groundKind==='sea'&&f.type==='bb'?'battleship':f.groundKind]||null:null;
+}
+function groundStrikeRadius(s,t){const armor=groundStrikeRules().armor;return s.radius*(armor[t.groundKind]??armor.default);}
+function groundStrikeFalloff(distance,radius){return distance>radius||!(radius>0)?0:distance<=radius/3?1:(radius/3/distance)**2;}
+// 隊の視界と射程判定は従来どおり。照準だけは各射手にいちばん近い生存体へ。
+function groundStrikeTargetPoint(f,index,t){
+  if(!t?.alive||t.embarked||!groundSeenBy(f.team,t))return null;
+  const from=f.bodies?groundBodyPosition(f,index):f.pos;
+  if(!t.bodies)return t.pos.clone();
+  let best=null,distance=Infinity;
+  for(const [i,b] of t.bodies.entries())if(b.alive){const p=groundBodyPosition(t,i),d=Math.hypot(p.x-from.x,p.z-from.z);if(d<distance){best=p;distance=d;}}
+  return best;
 }
 // 戦車は直射、航空は現在高度・速度の水平到達（計画許可は別）、その他は間接。
 function groundStrikeRange(f){
@@ -19,27 +30,35 @@ function groundStrikeInRange(f,p){
   const r=groundStrikeRange(f),distance=groundDistanceTo(f,{pos:p});
   return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(groundMapX(p.x),groundMapY(p.z),'air')&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}))&&(f.groundKind==='supportAircraft'||groundBallisticPoint(f,p).clear);
 }
-function groundStrikeCanLaunch(f,p,volley=null){return groundStrikeInRange(f,p)&&(f.groundKind!=='supportAircraft'||groundBombPose(f,p))&&(volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);}
-function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){
+function groundStrikeCanLaunch(f,p,volley=null){return groundStrikeInRange(f,p)&&(f.groundKind!=='supportAircraft'||volley?.ledger?.fired.size>0||groundBombPose(f,p))&&(volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);}
+function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null,entry=null){
   if(!groundStrikeCanLaunch(f,p,volley))return null;
-  const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),distanceScatter=['artillery','guidedRocket'].includes(f.groundKind),spread=f.groundKind==='supportAircraft'?0:distanceScatter?groundScatterRadius(f,p):w.spread*(observed?1:groundStrikeRules().unseenSpread);
+  const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),distanceScatter=groundScatterBase(f)>0,spread=f.groundKind==='supportAircraft'?0:distanceScatter?groundScatterRadius(f,p):w.spread*(observed?1:groundStrikeRules().unseenSpread);
   const angle=Math.random()*Math.PI*2,offset=Math.sqrt(Math.random())*spread,aim=p.clone(),impact=p.clone();
   aim.y=groundHeight(aim.x,aim.z);impact.x+=Math.cos(angle)*offset;impact.z+=Math.sin(angle)*offset;impact.y=groundHeight(impact.x,impact.z);
   if(impactOverride)impact.copy(impactOverride);
-  const flight=f.groundKind==='supportAircraft'?groundBombSolution(f):groundBallisticPoint(f,impact,{ignoreRange:true});
+  let flight=f.groundKind==='supportAircraft'?groundBombSolution(f):groundBallisticPoint(f,impact,{ignoreRange:true});
   if(f.groundKind==='supportAircraft'&&!flight)return null;
   if(flight&&(!flight.origin||!flight.impact||!Number.isFinite(flight.duration)||flight.duration<=0))return null;
   if(flight?.impact)impact.copy(flight.impact);
+  const origin=f.bodies?groundBodyPosition(f,entry?.index??f.bodies.findIndex(b=>b.alive)):f.pos.clone();
+  if(flight&&f.groundKind!=='supportAircraft'){
+    // 射程・衝突判定は隊の解を保持し、発射点だけを体へ移す。共有キャッシュは変更しない。
+    const offset=origin.clone().sub(f.pos);flight={...flight,origin:flight.origin.clone().add(offset),originMeters:flight.originMeters.clone(),velocityMeters:flight.velocityMeters.clone()};
+    flight.originMeters.x+=offset.x*flight.scene.m;flight.originMeters.z+=offset.z*flight.scene.m;
+    flight.velocityMeters.x-=offset.x*flight.scene.m/flight.physicalDuration;flight.velocityMeters.z-=offset.z*flight.scene.m/flight.physicalDuration;
+  }
   const duration=flight?(flight.hitTime??flight.duration):w.delay;
-  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f)*(f.bodies?groundAliveBodies(f)/f.bodies0:1),distanceScatter,flight,duration,left:duration,resolving:false,visual:null};
-  if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,origin,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f)/(f.bodies?f.bodies0:1),distanceScatter,flight,duration,left:duration,resolving:false,visual:null,label:!volley||volley.ledger.fired.size===0,firstRound:!entry||entry.round===0};
+  if(f.groundKind==='vehicle')shoot(groundBodyShotPosition(f,origin),impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);if(!volley)f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true,volley?1/volley.ledger.entries.length:1);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
   return strike;
 }
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。
 function groundStrikeHits(s,t,src){
-  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&(t.bodies?t.bodies.some((b,i)=>b.alive&&groundDistanceTo({pos:groundBodyPosition(t,i)},{pos:s.impact})<=s.radius):groundDistanceTo(t,{pos:s.impact})<=s.radius);
+  const radius=groundStrikeRadius(s,t);
+  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&(t.bodies?t.bodies.some((b,i)=>b.alive&&groundDistanceTo({pos:groundBodyPosition(t,i)},{pos:s.impact})<=radius):groundDistanceTo(t,{pos:s.impact})<=radius);
 }
 function groundStrikeStep(dt){
   for(const f of fleets)f.groundStrikeCooldown=Math.max(0,(f.groundStrikeCooldown||0)-dt);
@@ -50,10 +69,10 @@ function groundStrikeStep(dt){
     s.resolving=true;
     try{
       for(const t of fleets.filter(t=>groundStrikeHits(s,t,s.source))){
-        const bodies=t.bodies?t.bodies.map((b,i)=>({b,pos:groundBodyPosition(t,i)})).filter(x=>x.b.alive&&groundDistanceTo({pos:x.pos},{pos:s.impact})<=s.radius):[{b:null,pos:t.pos}];
+        const radius=groundStrikeRadius(s,t),bodies=t.bodies?t.bodies.map((b,i)=>({b,pos:groundBodyPosition(t,i)})).filter(x=>x.b.alive&&groundDistanceTo({pos:x.pos},{pos:s.impact})<=radius):[{b:null,pos:t.pos}];
         for(const hit of bodies){
-          if(!t.alive)break;const falloff=1-(1-groundStrikeRules().edgeDamage)*groundDistanceTo({pos:hit.pos},{pos:s.impact})/s.radius;
-          damage(t,s.dmg*falloff*(s.kind==='guidedRocket'?groundMatchup(s.source,t):1)/(t.bodies?t.bodies0:1),s.source,s,hit.b);
+          if(!t.alive)break;const falloff=groundStrikeFalloff(groundDistanceTo({pos:hit.pos},{pos:s.impact}),radius);
+          damage(t,s.dmg*falloff/(t.bodies?t.bodies0:1),s.source,s,hit.b);
         }
       }
       groundBridgeHit(s);
@@ -71,10 +90,14 @@ function groundStrikeAI(f){
   if(groundStaticTarget(f)||!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
   const seen=fleets.filter(t=>t.team!==f.team&&t.alive&&!t.embarked&&(t.band==='ground'||f.groundKind==='sea'&&t.band==='sea')&&groundSeenBy(f.team,t));
   let best=null,count=0;
-  for(const t of seen){
-    const cluster=seen.filter(u=>groundDistanceTo(t,u)<=groundStrikeWeapon(f).radius),p=new THREE.Vector3();
-    cluster.forEach(u=>p.add(u.pos));p.divideScalar(cluster.length);
-    if(cluster.length>=groundStrikeRules().aiCluster&&cluster.length>count&&groundStrikeCanLaunch(f,p)&&groundPointSeenBy(f.team,p)){best=p;count=cluster.length;}
+  const weapon=groundStrikeWeapon(f),points=seen.flatMap(t=>{
+    const radius2=groundStrikeRadius(weapon,t)**2;
+    return t.bodies?t.bodies.flatMap((b,i)=>b.alive?[{pos:groundBodyPosition(t,i),radius2}]:[]):[{pos:t.pos,radius2}];
+  });
+  for(const candidate of points){
+    const p=candidate.pos;let cluster=0;
+    for(const u of points)if((p.x-u.pos.x)**2+(p.z-u.pos.z)**2<=u.radius2)cluster++;
+    if(cluster>=groundStrikeRules().aiBodies&&cluster>count&&groundStrikeCanLaunch(f,p)){best=p;count=cluster;}
   }
   if(best)groundVolleyStart(f,{point:best}); // 予告円を避ける AI は未決定なので追加しない。
 }
@@ -108,7 +131,7 @@ function groundStrikeDropVisual(s){
   const {ring,el,arc,projectile}=s.visual;
   for(const object of [arc,projectile])if(object){object.parent?.remove(object);object.geometry.dispose();object.material.dispose();}
   if(ring.parent)ring.parent.remove(ring);
-  ring.geometry.dispose();ring.material.dispose();el.remove();s.visual=null;
+  ring.geometry.dispose();ring.material.dispose();el?.remove();s.visual=null;
 }
 function groundStrikeReset(){
   if(Array.isArray(fleets))for(const f of fleets)if(groundFlyingAircraft(f))groundBombCancel(f);
@@ -130,8 +153,8 @@ function groundStrikeDraw(){
       for(let i=0;i<96;i++){const a=i/96*Math.PI*2,x=p.x+Math.cos(a)*s.radius,z=p.z+Math.sin(a)*s.radius;points.push(new THREE.Vector3(x,groundHeight(x,z)+.3,z));}
       const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:TEAM_COL[s.team],transparent:true,opacity:.85,depthWrite:false}));
       groundVisuals.add(ring);
-      const el=document.createElement('div');el.className='ground-strike-label';el.style.color='#'+TEAM_COL[s.team].getHexString();labelsEl.appendChild(el);s.visual={ring,el};
-      if(s.flight&&pending){
+      const el=s.label===false?null:document.createElement('div');if(el){el.className='ground-strike-label';el.style.color='#'+TEAM_COL[s.team].getHexString();labelsEl.appendChild(el);}s.visual={ring,el};
+      if(s.flight&&pending&&s.firstRound!==false){
         const path=[];for(let i=0;i<=48;i++)path.push(groundBallisticAt(s.flight,s.duration*i/48));
         const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(path),new THREE.LineDashedMaterial({color:TEAM_COL[s.team],transparent:true,opacity:.65,depthWrite:false,dashSize:.5,gapSize:.4}));arc.computeLineDistances();groundVisuals.add(arc);
         const projectile=new THREE.Mesh(new THREE.SphereGeometry(.16,6,4),new THREE.MeshBasicMaterial({color:0xe2c58a}));groundVisuals.add(projectile);s.visual.arc=arc;s.visual.projectile=projectile;
@@ -139,10 +162,10 @@ function groundStrikeDraw(){
     }
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     // 範囲砲撃の飛んでいる弾は、着弾点の円と札を出さない（範囲の線だけを見せる。ユーザー 2026-11-14）。着弾したあとの輪は出す
-    const visible=s.team===0||groundPointSeenBy(0,p),marked=!(pending&&s.area);ring.visible=visible&&marked;el.hidden=!visible||!marked||at.z>1;
+    const visible=s.team===0||groundPointSeenBy(0,p),marked=!(pending&&s.area);ring.visible=visible&&marked;if(el)el.hidden=!visible||!marked||at.z>1;
     if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
-    el.textContent=pending?`${s.kind==='sea'?'艦砲':groundRuleSet().unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
-    el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;
+    if(el){el.textContent=pending?`${s.kind==='sea'?'艦砲':groundRuleSet().unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
+    el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;}
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
   }
 }

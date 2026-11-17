@@ -98,7 +98,7 @@ async function checkGroundTempo(page,check){
    await page.evaluate(id=>{WOS.start({op:id});if(talking)endTalk();setSpeed(0);if(deploying)endDeploy();},id);
    await page.keyboard.press('Escape');
    for(let i=0;i<2;i++){
-    const before=await page.evaluate(()=>autoMode);await page.click('#pause [data-pm="auto"]');
+    const before=await page.evaluate(()=>autoMode);await page.click('#pause [data-pm="auto"]',{noWaitAfter:true});
     check(await page.evaluate(before=>{const b=document.querySelector('#pause [data-pm="auto"]'),saved=JSON.parse(localStorage.getItem('wos.debug'));return autoMode===!before&&document.body.classList.contains('dbg-auto')===autoMode&&saved.auto===autoMode&&b.getAttribute('aria-pressed')===String(autoMode)&&b.textContent.includes(autoMode?'オン':'オフ')&&paused&&speed===0;},before),id+' メニューでオートを切替・表示・保存');
    }
    await page.keyboard.press('Escape');

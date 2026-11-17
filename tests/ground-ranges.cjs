@@ -50,8 +50,8 @@ function rangeCases(){
   const company=unit('artillery',0,'cv',2);fleets=[company];groundStrikes=[];
   check('地点攻撃コマンドも2台の一斉射へ接続',groundStrikeCommand([company],company.pos.clone().add(new THREE.Vector3(12,0,0)))===1&&groundStrikes.length===2&&company.groundStrikeCooldown>0);
   const battery=unit('guidedRocket');fleets=[battery];groundStrikes=[];
-  const started=groundStrikeCommand([battery],battery.pos.clone().add(new THREE.Vector3(12,0,0))),ledger=battery.groundVolley?.ledger;groundStrikeStep(1.25);
-  check('地点攻撃コマンドのロケットも1斉射6発・長い装填',started===1&&ledger?.fired.size===6&&groundStrikes.length===6&&!battery.groundVolley&&battery.groundStrikeCooldown>=30-1e-6);
+  const started=groundStrikeCommand([battery],battery.pos.clone().add(new THREE.Vector3(12,0,0))),ledger=battery.groundVolley?.ledger;groundStrikeStep(2.75);
+  check('地点攻撃コマンドのロケットも1斉射12発・長い装填',started===1&&ledger?.fired.size===12&&groundStrikes.length+groundImpacts.length===12&&!battery.groundVolley&&battery.groundStrikeCooldown>=30-1e-6);
   op={};check('宇宙に地上射程・地点攻撃を適用しない',Object.keys(groundFireRanges(gun)).length===0&&!groundStrikeWeapon(gun));
  }finally{Object.assign(globalThis,saved);groundStrikes=[];groundImpacts=[];groundHeightCacheReset();}
  return rows;
