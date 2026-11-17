@@ -114,7 +114,9 @@ async function checkDrillLabels(page,check,onSelected=async()=>{}){
   await page.mouse.move(1590,10);await drawn();
   await checkStill();
   check(await normal.locator('.nm').isHidden()&&await picked.locator('.nm').isHidden(),'地上名札: ふだんは名前を隠す');
-  check(await normal.locator('.mk2 em').textContent()==='×1','地上名札: ふだんは兵科印と数だけ');
+  // 数は残っている体の数（#445。体を持たない隊は今までどおり艦の数）
+  const normalCount=await page.evaluate(()=>{const f=fleets.find(f=>f.el.dataset.drillLabel==='normal');return '×'+(f.bodies?groundAliveBodies(f):f.ships.length);});
+  check(normalCount!=='×1'&&await normal.locator('.mk2 em').textContent()===normalCount,`地上名札: ふだんは兵科印と数だけ（${normalCount}）`);
   check(await picked.locator('.mk2').evaluate(e=>{const r=e.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return e===hit||e.contains(hit);}),'地上名札: クリック位置に他の名札が重ならない');
   await picked.locator('.mk2').click();await page.mouse.move(1590,10);await drawn();
   await checkStill(); // 選択の輪を出した状態でも静止する。
