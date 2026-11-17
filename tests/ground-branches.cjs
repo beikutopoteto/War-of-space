@@ -112,6 +112,8 @@ function setupAntiAirScene(){
     WOS.start({op:operation.id,fleets:[{...base,name:'自走対空砲',groundKind:'mobileAA'}]});setSpeed(0);endDeploy();
   }finally{operation.enemies=enemies;}
   const gun=fleets.find(f=>f.team===0),air=fleets.find(f=>f.team===1);
+  // Keep allied naval AA from satisfying the gun's immediate-hit assertion first.
+  for(const f of fleets)if(f!==gun&&f!==air)f.alive=false;
   gun.pos.copy(groundPoint(8,25));air.pos.copy(groundPoint(12,25));air.pos.y=groundUnitHeight(air);gun.stance='engage';groundUpdateSight();select(gun);
   camAnim=null;controls.target.copy(groundPoint(10,25));camera.position.copy(controls.target).add(new THREE.Vector3(0,70,25));camera.lookAt(controls.target);controls.update();camera.updateMatrixWorld(true);
   groundDraw();updateRoster();
@@ -142,7 +144,7 @@ async function checkGroundBranches(page,check){
     await page.click('#pick [data-pk="attack"]');
     check(await page.evaluate(()=>{const t=fleets.find(f=>f.name==='許可する目標'),other=fleets.find(f=>f.name==='命じない目標'),f=selected,hp=t.hpPool,otherHP=other.hpPool;const ordered=f.order?.target===t;for(let i=0;i<22;i++)step(.05);groundDraw();return ordered&&t.hpPool<hp&&other.hpPool===otherHP&&f.fireTarget===t;}),'残り兵科: 実クリックで許可した目標だけを撃つ');
     await page.evaluate(setupAntiAirScene);
-    check(await page.evaluate(()=>{const gun=selected,air=fleets.find(f=>f.team===1),hp=air.hpPool;step(.05);groundDraw();return air.hpPool<hp&&gun.groundAATarget===air&&!gun.fireTarget&&air.groundModel.visible&&air.band==='high';}),'残り兵科: 実画面の自走対空砲が高高度の航空機を撃つ');
+    check(await page.evaluate(()=>{const gun=selected,air=fleets.find(f=>f.team===1),hp=air.hpPool,real=damage;let ownHits=0;damage=(t,n,src,...rest)=>{if(src===gun&&t===air&&n>0)ownHits++;return real(t,n,src,...rest);};try{for(let i=0;i<Math.ceil(groundRules().fireEvery/.05)+1&&!ownHits;i++)step(.05);}finally{damage=real;}groundDraw();return ownHits>0&&air.hpPool<hp&&gun.groundAATarget===air&&!gun.fireTarget&&air.groundModel.visible&&air.band==='high';}),'残り兵科: 実画面の自走対空砲が高高度の航空機を撃つ');
   }finally{await page.evaluate(s=>{if(s===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',s);},original);await page.reload();}
 }
 function nodeChecks(){

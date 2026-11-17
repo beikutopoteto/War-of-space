@@ -183,9 +183,9 @@ function groundConfigure(active){
 document.querySelectorAll('#groundCommand button').forEach(b=>b.addEventListener('click',()=>groundSetBand(orderTargets(),b.dataset.band)));
 document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('click',()=>groundSetView(b.dataset.band)));
 document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
-// Drawing-only state: the clock and last displacement live on the model, never on the path.
+// Formation state follows simulation movement, independently of drawing.
 function groundFormationState(f,now=gameSec){
-  if(now-(f.groundModel?.userData.movedAt??-Infinity)<.4)return f.order?.groundAdvance?'advance':'move';
+  if(now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4)return f.order?.groundAdvance?'advance':'move';
   return f.groundDeployed?'defend':'idle';
 }
 function groundFormationOrder(f,o){
@@ -238,8 +238,83 @@ function groundFormationDraw(f,now){
     for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
   });
 }
+function groundAliveBodies(f){return f.bodies?f.bodies.reduce((n,b)=>n+(b.alive?1:0),0):f.ships.length;}
+// Cache only geometry. HP and living-body choices are read afresh after every hit.
+function groundBodyPositions(f){
+  const state=groundFormationState(f),spec=f.groundBodySpec,c=f.groundBodyGeometry;
+  if(c&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.hx===f.heading?.x&&c.hz===f.heading?.z&&c.band===f.band&&c.state===state&&c.spec===spec)return c;
+  const centered=!f.bodies||f.bodies0===1||!spec||['fighter','attack'].includes(f.groundKind)||f.groundKind==='was'&&f.band!=='ground';
+  let positions;
+  if(centered)positions=[f.pos.clone()];
+  else{
+    if(f.groundBodyLayouts?.spec!==spec){f.groundBodyLayouts={spec};for(const st of ['idle','defend','advance','move'])f.groundBodyLayouts[st]=groundFormationLayout(f,spec,st);}
+    const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a);
+    positions=f.groundBodyLayouts[state].map(p=>new THREE.Vector3(f.pos.x+p.x*cos+p.z*sin,f.pos.y,f.pos.z-p.x*sin+p.z*cos));
+  }
+  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,hx:f.heading?.x,hz:f.heading?.z,band:f.band,state,spec,positions};
+}
+function groundBodyPosition(f,i){const positions=groundBodyPositions(f).positions;return (positions[i]||positions[0]).clone();}
+function groundBodySync(f){f.hpPool=f.bodies.reduce((n,b)=>n+(b.alive?b.hp:0),0);}
+function groundBodyHit(f,body,amt){
+  if(!body?.alive||!(amt>0))return;
+  body.hp=Math.max(0,body.hp-amt);
+  if(body.hp===0){body.alive=false;burst(groundBodyPosition(f,f.bodies.indexOf(body)),TEAM_COL[f.team],16,7,.9);}
+  groundBodySync(f);
+}
+function groundBodiesSpread(f,amt){
+  if(!f.bodies){f.hpPool=Math.max(0,f.hpPool-amt);return;}
+  const live=groundAliveBodies(f);if(live)for(const b of f.bodies)if(b.alive)groundBodyHit(f,b,amt/live);groundBodySync(f);
+}
+function groundBodyTarget(f,i,t,range){
+  const fromGeometry=groundBodyPositions(f),toGeometry=groundBodyPositions(t),from=fromGeometry.positions[i]||fromGeometry.positions[0];
+  const mask=t.bodies?t.bodies.reduce((n,b,j)=>n+(b.alive?2**j:0),0):1;
+  // Reuse a ray only within this simulation instant and with identical geometry/live slots.
+  // A moving squad, a formation change, or a newly destroyed target invalidates it immediately.
+  const cache=f.groundBodyTargets||(f.groundBodyTargets=new Map()),rows=cache.get(t)||[];cache.set(t,rows);
+  const old=rows[i];if(old&&old.time===gameSec&&old.from===fromGeometry&&old.to===toGeometry&&old.mask===mask&&old.range===range&&old.buildings===groundBuildings)return old.hit;
+  let best=-1,dist=Infinity;
+  const count=t.bodies?t.bodies.length:1;
+  for(let j=0;j<count;j++){
+    if(t.bodies&&!t.bodies[j].alive)continue;
+    const p=toGeometry.positions[j]||toGeometry.positions[0],d=Math.hypot(from.x-p.x,from.z-p.z);
+    if(d<dist){best=j;dist=d;}
+  }
+  let hit=null;
+  if(best>=0&&dist<=range){
+    const pos=toGeometry.positions[best]||toGeometry.positions[0],heights=groundRules().heights,eyeHeight=groundSightRules().eyeHeight;
+    const eye=(unit,p)=>({x:p.x,z:p.z,y:groundHeight(p.x,p.z)+(heights[unit.band||'ground']||0)+eyeHeight});
+    if(groundClearLine(eye(f,from),eye(t,pos)))hit={from,pos,b:t.bodies?t.bodies[best]:null,j:best};
+  }
+  rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,buildings:groundBuildings,hit};return hit;
+}
+function groundAnyBodyCanFire(f,t){
+  if(!f.bodies)return true;
+  const mode=groundFireMode(f,t);if(mode!=='direct')return mode==='indirect';
+  const range=groundTargetRange(f,t);return f.bodies.some((b,i)=>b.alive&&groundBodyTarget(f,i,t,range));
+}
+// Match groundDraw's existing .15 lift; hit tests still use the unshifted body positions.
+function groundBodyShotPosition(f,p){const out=p.clone();if(f.band==='ground')out.y+=.15;return out;}
+function groundBodyIdleClock(f,timer){
+  // Keep the seeded phases while there is no target, rather than making every clock wait at zero.
+  for(const b of f.bodies)if(b.alive&&b[timer]<=0)b[timer]=groundRules().fireEvery;
+}
+function groundBodyFire(f,t,dt,aa=false){
+  const timer=aa?'aaT':'shotT',range=aa?groundAARange(f):groundTargetRange(f,t);
+  for(const [i,b] of f.bodies.entries()){
+    b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
+    const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
+    b[timer]=groundRules().fireEvery;shoot(groundBodyShotPosition(f,hit.from),groundBodyShotPosition(t,hit.pos),TEAM_COL[f.team],.25);
+    damage(t,f.dmg*groundFireFactor(f,t)*groundMatchup(f,t)*groundSupplyAttackFactor(f)/f.bodies0,f,null,hit.b);
+    groundSupplyShot(f,false,1/f.bodies0);
+  }
+}
 function groundInitUnit(f){
   f.groundMaxHp=f.hpPool;
+  const bodySpec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+  f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;
+  f.groundBodySpec=bodySpec;f.bodies0=['sea','droneHive','supportAircraft'].includes(f.groundKind)?1:(bodySpec?.offsets.length||1);
+  f.bodies=Array.from({length:f.bodies0},(_,i)=>({hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:groundBodyRandom(f,i)()*groundRules().fireEvery,aaT:groundBodyRandom(f,i)()*groundRules().fireEvery}));
+  groundBodySync(f);f.groundMovedAt=-Infinity;
   f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
   // 兵科変更・追加で元の配置が通れなくなった時は、同じ出発点付近の通行可能なセルへ置く。
   if(!groundPass(groundMapX(f.pos.x),groundMapY(f.pos.z),groundMoveKind(f))){
@@ -249,7 +324,7 @@ function groundInitUnit(f){
     }
     if(best)f.pos.copy(best);
   }
-  f.pos.y=groundUnitHeight(f); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
+  f.pos.y=groundUnitHeight(f);f.groundLastPos=f.pos.clone(); f.post.copy(f.pos); f.home.copy(f.pos); f.seen=false; f.groundContacts=[null,null];
   for(const s of f.ships){ s.off.set(0,0,0); s.pos.copy(f.pos); }
   groundSelectionInit(f);
   const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
@@ -358,13 +433,14 @@ function groundDraw(){
       // Orders can wait at obstacles; actual displacement also covers pursuit and aircraft.
       if(pose.last.distanceToSquared(f.pos)>1e-10)pose.movedAt=now;
       pose.last.copy(f.pos);
-      const moving=now-pose.movedAt<.4;
-      pose.stand.forEach(body=>body.visible=!moving);
+      const moving=now-(f.bodies?f.groundMovedAt:pose.movedAt)<.4;
+      pose.stand.forEach((body,i)=>body.visible=!moving&&(!f.bodies||f.bodies[i]?.alive));
       pose.move.forEach((moves,i)=>{
         const clock=pose.clocks[i],at=(clock.start+Math.floor(now/clock.stepSec+clock.phase))%moves.length;
-        moves.forEach((body,j)=>body.visible=moving&&j===at);
+        moves.forEach((body,j)=>body.visible=moving&&j===at&&(!f.bodies||f.bodies[i]?.alive));
       });
     }
+    if(!pose&&model.userData.formation)model.userData.formation.bodies.forEach((body,i)=>body.visible=!f.bodies||!!f.bodies[i]?.alive);
     model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
     model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
@@ -388,6 +464,8 @@ function groundStep(dt){
   if(op.npc&&!op.groundDrill)npcGroundStep();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
+    if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10)f.groundMovedAt=gameSec;
+    if(f.groundLastPos)f.groundLastPos.copy(f.pos);
     if(f.groundKind==='mechanicalAssault'){
       groundMechanicalWear(f,dt); if(!f.alive)continue;
     }
@@ -410,7 +488,7 @@ function groundStep(dt){
       groundAirMotion(f,dt);continue;
     }
     // 進撃（共有命令の実行）の途中で撃てる敵がいれば、自動交戦の隊は止まって撃ち合う。命令優先の隊は進む（ユーザー決定 2026-11-14）。fireTarget は前のステップの値
-    const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive;
+    const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive&&groundAnyBodyCanFire(f,f.fireTarget);
     if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){ groundFormationArrive(f);f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
       const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
@@ -419,24 +497,27 @@ function groundStep(dt){
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）
-    else if(target&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target))){
+    else if(target&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
       f.groundChaseT=(f.groundChaseT||0)-dt;
       if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
       if(f.order.path&&(!op.npc||npcGroundHoldChase(f,target))) groundFollow(f,dt);
     }
   }
+  for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
   groundTransportSync();
   groundBombStep();
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
-    if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;continue;}
+    if(f.bodies)for(const b of f.bodies)b.shotT=Math.max(0,b.shotT-dt);
+    if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;if(f.bodies)groundBodyIdleClock(f,'shotT');continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
     if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','was','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
+    if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');}
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos});continue;}
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
@@ -467,7 +548,7 @@ function groundDamageFactor(t){
   return descent*(cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1);
 }
 function groundMechanicalWear(f,dt){
-  f.hpPool=Math.max(0,f.hpPool-(f.groundMaxHp||f.n*f.hp)*groundRuleSet().combat.mechanicalWearPerSec*dt);
+  groundBodiesSpread(f,(f.groundMaxHp||f.n*f.hp)*groundRuleSet().combat.mechanicalWearPerSec*dt);
   const want=Math.max(0,Math.ceil(f.hpPool/f.hp));
   while(f.ships.length>want)f.ships.pop();
   if(!want){

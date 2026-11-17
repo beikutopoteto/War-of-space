@@ -49,6 +49,7 @@ const {nodeChecks:groundNavalChecks}=require('./ground-naval.cjs');
 const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
 const {nodeChecks:groundFormationChecks,checkGroundFormations}=require('./ground-formations.cjs');
+const {nodeChecks:groundBodyChecks,checkGroundBodies}=require('./ground-bodies.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -78,6 +79,7 @@ function check(ok, label, detail = '') {
   for(const r of groundControlChecks())check(r.ok,'地上基本操作: '+r.name);
   for(const r of groundReadoutChecks())check(r.ok,'射程・占領: '+r.name);
   for(const r of groundFormationChecks())check(r.ok,'隊形: '+r.name);
+  for(const r of groundBodyChecks())check(r.ok,'地上の体: '+r.name);
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
   for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
@@ -152,7 +154,7 @@ function check(ok, label, detail = '') {
       const at=groundPoint(16,25),victim=by('vehicle',1); attack.pos.copy(at); victim.pos.copy(at).add(new THREE.Vector3(1,0,0));
       fleets=[attack,victim];victim.groundHoldFire=true;attack.band='low'; attack.order={type:'attack',target:victim};
       const originalDamage=damage,hits=[];
-      damage=(t,n,f)=>{hits.push({kind:f.groundKind,band:f.band,target:t.band,n}); originalDamage(t,n,f);};
+      damage=(t,n,f,...rest)=>{hits.push({kind:f.groundKind,band:f.band,target:t.band,n}); originalDamage(t,n,f,...rest);};
       let delayed,arrived,repeat,groundToAir,highWas;
       try{
         select(attack); document.querySelector('#groundCommand [data-band="high"]').click();
@@ -169,7 +171,7 @@ function check(ok, label, detail = '') {
         for(let i=0;i<80;i++)tick(.05);
         groundToAir=was.band==='ground'&&hits.some(h=>h.target==='ground')&&hits.some(h=>h.target==='high')&&hits.every(h=>h.kind==='was'&&h.band==='ground')&&was.groundAATarget===fighter&&was.order?.target===target;
         for(let i=0;i<20;i++)tick(.05);
-        was.groundShotT=was.groundAATimer=0;hits.length=0;tick(.05);
+        was.groundShotT=was.groundAATimer=0;for(const b of was.bodies){b.shotT=0;b.aaT=0;}hits.length=0;tick(.05);
         highWas=was.band==='high'&&hits.some(h=>h.kind==='was'&&h.band==='high'&&h.target==='high')&&was.groundAATarget===fighter&&was.fireTarget===target&&was.order?.target===target;
       }finally{damage=originalDamage;}
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
@@ -181,9 +183,12 @@ function check(ok, label, detail = '') {
         fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.speed=0;f.stance='evade';t.stance='evade';t.order=null;
         for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;f.groundAATimer=0;f.groundAATarget=null;
-          let calls=0;const hp=t.hpPool;damage=(u,n,src)=>{if(src===f)calls++;original(u,n,src);};
+          // The capability matrix now fires every body once; replenish the target to exclude overkill.
+          for(const b of f.bodies){b.shotT=0;b.aaT=0;}
+          for(const b of t.bodies){b.hp=b.max=1000/t.bodies0;b.alive=true;}groundBodySync(t);
+          let calls=0;const hp=t.hpPool;damage=(u,n,src,...rest)=>{if(src===f)calls++;original(u,n,src,...rest);};
           groundStep(.05);damage=original;
-          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?1:0)||Math.abs(delta-2*expected[i]*groundRuleSet().combat.damageScale)>1e-6)bad++;
+          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?f.bodies0:0)||Math.abs(delta-2*expected[i]*groundRuleSet().combat.damageScale)>1e-6)bad++;
           if(expected[i])allowedDamage+=delta;else blockedDamage+=delta;
           const autoAA=!['fighter','attack','supportAircraft'].includes(kind)&&targetBand!=='ground';
           if(expected[i]&&(autoAA?(f.groundAATarget!==t||!!f.fireTarget):(f.fireTarget!==t||!!f.groundAATarget)))bad++;
@@ -191,7 +196,7 @@ function check(ok, label, detail = '') {
           if(!expected[i]||autoAA){const after=t.hpPool;original(t,1,f);if(t.hpPool!==after)bad++;}
         }
         // 高さによる距離でなく水平射程。追撃移動を止め、射程のすぐ外は撃たない。
-        f.groundKind='fighter';f.band='low';f.speed=0;t.band='high';t.pos.y=1000;f.groundShotT=0;const hp=t.hpPool;groundStep(.05);
+        f.groundKind='fighter';f.band='low';f.speed=0;t.band='high';t.pos.y=1000;f.groundShotT=0;for(const b of f.bodies)b.shotT=0;const hp=t.hpPool;groundStep(.05);
         const horizontal=t.hpPool<hp;t.pos.x=f.pos.x+groundTargetRange(f,t)+.01;f.groundShotT=0;const hp2=t.hpPool;groundStep(.05);if(!horizontal||t.hpPool!==hp2)bad++;
       }finally{damage=original;fleets=saved;}
       reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
@@ -220,6 +225,7 @@ function check(ok, label, detail = '') {
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
     await checkGroundFormations(page, check);
+    await checkGroundBodies(page, check);
     await checkGroundForces(page, check);
     await checkGroundScript(page, check);
     await checkGroundSight(page, check);

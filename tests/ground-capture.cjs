@@ -69,11 +69,20 @@ async function checkGroundCapture(page, check) {
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};
-    let hp=target.hpPool+target.groundMorale;groundStep(.05);const heavyHit=Math.abs(hp-target.hpPool-target.groundMorale-heavy.dmg*groundRuleSet().combat.heavyTank*groundRuleSet().combat.damageScale)<1e-7;
+    // Check the unchanged matchup on each body shot, including its current supply factor.
+    // Give each target enough HP so body overkill cannot hide the multiplier.
+    const matchupHit=(source,victim,multiplier)=>{
+      for(const b of source.bodies)b.shotT=0;
+      for(const b of victim.bodies){b.hp=b.max=1000/victim.bodies0;b.alive=true;}groundBodySync(victim);
+      const before=victim.hpPool+victim.groundMorale,real=damage;let expected=0,calls=0,valid=true;
+      damage=(t,n,src,...rest)=>{if(src===source&&t===victim){calls++;const want=source.dmg*multiplier*groundSupplyAttackFactor(source)/source.bodies0;valid&&=Math.abs(n-want)<1e-7;expected+=want*groundRuleSet().combat.damageScale*groundDamageFactor(victim);}return real(t,n,src,...rest);};
+      try{groundStep(.05);}finally{damage=real;}
+      return calls>0&&valid&&Math.abs(before-victim.hpPool-victim.groundMorale-expected)<1e-7;
+    };
+    const heavyHit=matchupHit(heavy,target,groundRuleSet().combat.heavyTank);
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
-    // 兵科相性の確認にも、その場所の歩兵の遮蔽軽減を含める。
-    hp=enemyInfantry.hpPool+enemyInfantry.groundMorale;const expectedTankHit=tank.dmg*groundRuleSet().combat.tankInfantry*groundRuleSet().combat.damageScale*groundDamageFactor(enemyInfantry);groundStep(.05);const tankHit=Math.abs(hp-enemyInfantry.hpPool-enemyInfantry.groundMorale-expectedTankHit)<1e-7;
+    const tankHit=matchupHit(tank,enemyInfantry,groundRuleSet().combat.tankInfantry);
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();

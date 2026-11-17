@@ -31,7 +31,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){
   if(flight&&(!flight.origin||!flight.impact||!Number.isFinite(flight.duration)||flight.duration<=0))return null;
   if(flight?.impact)impact.copy(flight.impact);
   const duration=flight?(flight.hitTime??flight.duration):w.delay;
-  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f),distanceScatter,flight,duration,left:duration,resolving:false,visual:null};
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,observed,spread,radius:w.radius,dmg:f.dmg*groundSupplyAttackFactor(f)*(f.bodies?groundAliveBodies(f)/f.bodies0:1),distanceScatter,flight,duration,left:duration,resolving:false,visual:null};
   if(f.groundKind==='vehicle')shoot(f.pos,impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);if(!volley)f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true,volley?1/volley.ledger.entries.length:1);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
@@ -39,7 +39,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null){
 }
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。
 function groundStrikeHits(s,t,src){
-  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&groundDistanceTo(t,{pos:s.impact})<=s.radius;
+  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&(t.bodies?t.bodies.some((b,i)=>b.alive&&groundDistanceTo({pos:groundBodyPosition(t,i)},{pos:s.impact})<=s.radius):groundDistanceTo(t,{pos:s.impact})<=s.radius);
 }
 function groundStrikeStep(dt){
   for(const f of fleets)f.groundStrikeCooldown=Math.max(0,(f.groundStrikeCooldown||0)-dt);
@@ -50,8 +50,11 @@ function groundStrikeStep(dt){
     s.resolving=true;
     try{
       for(const t of fleets.filter(t=>groundStrikeHits(s,t,s.source))){
-        const falloff=1-(1-groundStrikeRules().edgeDamage)*groundDistanceTo(t,{pos:s.impact})/s.radius;
-        damage(t,s.dmg*falloff*(s.kind==='guidedRocket'?groundMatchup(s.source,t):1),s.source,s);
+        const bodies=t.bodies?t.bodies.map((b,i)=>({b,pos:groundBodyPosition(t,i)})).filter(x=>x.b.alive&&groundDistanceTo({pos:x.pos},{pos:s.impact})<=s.radius):[{b:null,pos:t.pos}];
+        for(const hit of bodies){
+          if(!t.alive)break;const falloff=1-(1-groundStrikeRules().edgeDamage)*groundDistanceTo({pos:hit.pos},{pos:s.impact})/s.radius;
+          damage(t,s.dmg*falloff*(s.kind==='guidedRocket'?groundMatchup(s.source,t):1)/(t.bodies?t.bodies0:1),s.source,s,hit.b);
+        }
       }
       groundBridgeHit(s);
     }finally{s.resolving=false;}

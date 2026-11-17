@@ -106,7 +106,7 @@ function civHit(n,ours){ const C=op.civil; if(!C||over||!(n>0)) return; casualti
 function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Math.min(u.n,u.dots.length))|0]||u.pos:u.pos;
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
-function damage(t,amt,src,groundImpact=null){
+function damage(t,amt,src,groundImpact=null,groundBody=null){
   if(op.ground&&src){
     const allowed=groundImpact?groundStrikeHits(groundImpact,t,src):(typeof groundAutoAAHit==='function'&&groundAutoAAHit(src,t))||groundCanFire(src,t)&&groundFireMode(src,t)==='direct';
     if(!allowed)return;
@@ -132,7 +132,9 @@ function damage(t,amt,src,groundImpact=null){
   /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */
   if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg)/HP_K,true);   // twice the hit points take twice the fire: the same lives (2026-10-13)
   if(op.ground)amt=groundSupplyHit(t,amt);
-  t.hpPool-=amt;
+  if(op.ground&&t.bodies){
+    const body=groundBody||t.bodies.find(b=>b.alive);groundBodyHit(t,body,amt);
+  }else t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
     if(last===undefined){
@@ -150,7 +152,7 @@ function damage(t,amt,src,groundImpact=null){
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],5,5,.6); }
     t.n=want; if(want===0){ t.alive=false; t.squad.n=0; t.squad.state='lost'; }
   } else if(t.kind==='fleet'){
-    const want=Math.max(0,Math.ceil(t.hpPool/t.hp)), had=t.ships.length;
+    const want=op.ground&&t.bodies?(groundAliveBodies(t)?1:0):Math.max(0,Math.ceil(t.hpPool/t.hp)), had=t.ships.length;
     while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(t.convoy&&want<had&&want>0) logEvent('輸送船 撃沈',`${src.name}の攻撃で輸送船を失った。残り${want}隻。`);
     if(want===0) destroyFleet(t,src); else if(t.rot) rotHurt(t);   // 第5節 (2026-10-23): a unit that comes and goes starts to go at once
