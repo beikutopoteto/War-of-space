@@ -1,0 +1,6 @@
+# 測りの途中のファイル
+*.out.json
+mx.json
+sc.json
+ps.json
+*.out
