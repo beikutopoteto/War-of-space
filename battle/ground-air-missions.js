@@ -26,8 +26,9 @@ function groundBombPrepare(f,target){
  const shot=target.area?groundAreaShot(f,target.area):target.point?{aim:target.point.clone(),impact:null}:null;
  if(!shot||!groundStrikeInRange(f,shot.aim))return false;
  const centerPlan=groundBombPlan(f,shot.aim);if(!centerPlan)return false;
- // 仮の投下列: 中央の予定点から前後へ等間隔。最初の投下へ進入し、機速で間隔を作る。
- const weapon=groundStrikeWeapon(f),state=groundBombState(f),releaseAim=shot.aim.clone().addScaledVector(centerPlan.heading,-(weapon.bombsPerPass-1)*weapon.radius/2);
+ // 仮の投下列: 進入の向きに爆風の半径ずつ。真ん中の1発（6発なら3発目）を指定点に落とす（列の真ん中を指定点にすると、偶数では指定点に1発も落ちない）。
+ // 最初の投下へ進入し、機速で間隔を作る。
+ const weapon=groundStrikeWeapon(f),state=groundBombState(f),releaseAim=shot.aim.clone().addScaledVector(centerPlan.heading,-Math.floor((weapon.bombsPerPass-1)/2)*weapon.radius);
  // 最初の投下点から方向を選び直すと、真下を指定した場合に方向が反転し、列の中央もずれる。
  // 中央へ進入する方向を保ったまま、最初の投下点の水平投下解を求める（groundBombPlanと同じ物理解）。
  const probe=new THREE.Vector3((releaseAim.x-centerPlan.heading.x)*state.scene.m,state.originMeters.y,(releaseAim.z-centerPlan.heading.z)*state.scene.m);

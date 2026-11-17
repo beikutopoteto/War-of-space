@@ -5,17 +5,18 @@ window.WOS_GROUND_RULES = {
   sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   // 2026-11-17決定の最大値で遊ぶ。initialは将来の研究用データだけで、現在は参照しない。
+  // dmgScale は地点攻撃の弾だけに掛ける威力の倍率（直射は unitTypes の dmg のまま）。間接の砲撃は2倍（ユーザー決定 2026-11-17）。
   // minScatterDiameter10KmM は10kmでの最小直径（m）、scatterRatioは距離に対する直径の比。
   strike: {
     vehicle:{delay:2,radius:.4,areaRadius:2,spread:.08,reload:4,initial:{radius:.2,reload:6}},
-    was:{delay:5,radius:.4,areaRadius:7,reload:8,minScatterDiameter10KmM:25,initial:{radius:.2,reload:12}},
-    artillery:{delay:5,radius:.8,areaRadius:7,spread:2,reload:8,minScatterDiameter10KmM:25,initial:{radius:.4,reload:12}},
-    guidedRocket:{delay:5,radius:1.2,areaRadius:7,reload:30,rocketsPerVolley:12,burstInterval:.25,scatterRatio:.02,initial:{radius:.6,burstInterval:.5,reload:45}},
+    was:{delay:5,radius:.4,dmgScale:2,areaRadius:7,reload:8,minScatterDiameter10KmM:25,initial:{radius:.2,reload:12}},
+    artillery:{delay:5,radius:.8,dmgScale:2,areaRadius:7,spread:2,reload:8,minScatterDiameter10KmM:25,initial:{radius:.4,reload:12}},
+    guidedRocket:{delay:5,radius:1.2,dmgScale:2,areaRadius:7,reload:30,rocketsPerVolley:12,burstInterval:.25,scatterRatio:.02,initial:{radius:.6,burstInterval:.5,reload:45}},
     supportAircraft:{delay:7,radius:2.4,areaRadius:9,spread:2,reload:10,bombsPerPass:6,initial:{radius:1.2,reload:15,bombsPerPass:4}},
-    battleship:{delay:8,radius:1.2,areaRadius:10,reload:10,scatterRatio:.004,initial:{radius:.6,reload:15}},
-    sea:{delay:8,radius:.48,areaRadius:10,reload:10,minScatterDiameter10KmM:25,initial:{radius:.24,reload:15}},
-    // ドローン・海の艦・橋・未指定兵科の倍率、aiBodiesは仮（#448）。
-    armor:{supply:1.3,infantry:1,commando:1,mechanicalAssault:1,heavyInfantry:.35,apc:.35,scout:.35,artillery:.35,mobileAA:.35,guidedRocket:.35,engineer:.35,vehicle:.15,was:.2,droneHive:1.3,sea:.15,bridge:1,default:1},
+    battleship:{delay:8,radius:1.2,dmgScale:2,areaRadius:10,reload:10,scatterRatio:.004,initial:{radius:.6,reload:15}},
+    sea:{delay:8,radius:.48,dmgScale:2,areaRadius:10,reload:10,minScatterDiameter10KmM:25,initial:{radius:.24,reload:15}},
+    // 海の艦・橋・未指定兵科の倍率、aiBodiesは仮（#448）。ドローンハイブは中身が未実装なので決めない（既定の1）。
+    armor:{supply:1.3,infantry:1,commando:1,mechanicalAssault:1,heavyInfantry:.35,apc:.35,scout:.35,artillery:.35,mobileAA:.35,guidedRocket:.35,engineer:.35,vehicle:.15,was:.2,sea:.15,bridge:1,default:1},
     unseenSpread:2,aiBodies:3,effectSec:.8
   },
   // 輸送・架橋の試作値。距離は戦闘単位、橋の幅判定は water の km。

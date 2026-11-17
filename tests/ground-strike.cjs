@@ -14,7 +14,7 @@ function strikeCases(){
     check('自走砲は弾道から求めた飛翔時間・半径0.8',s&&s.left>0&&s.left===groundBallisticSolution(gun,aim).duration&&s.radius===.8);
     check('再装填中は連射できない',groundStrikeLaunch(gun,aim)===null&&groundStrikes.length===1);
     const flight=s.left;groundStep(flight-.01);check('予告時間の直前は敵味方とも打撃0',enemy.hpPool===1000&&friend.hpPool===1000&&groundStrikes.length===1);
-    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',Math.abs(enemy.hpPool-(1000-12*groundRuleSet().combat.damageScale))<1e-7&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
+    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',Math.abs(enemy.hpPool-(1000-12*groundRuleSet().strike.artillery.dmgScale*groundRuleSet().combat.damageScale))<1e-7&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
     check('中心ほど強く円周にも当たる',1000-enemy.hpPool>1000-friend.hpPool&&1000-friend.hpPool>1000-edge.hpPool&&edge.hpPool<1000);
     check('円外と低高度には当たらない',outside.hpPool===1000&&air.hpPool===1000);
     const hp=friend.hpPool;damage(friend,5,gun,s);check('着弾処理の外から味方へ damage を呼んでも損害0',friend.hpPool===hp);
