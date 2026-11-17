@@ -32,17 +32,55 @@ function whiteShipGeo(type){
   const geo=shapeGeo(type), colors=new Float32Array(geo.attributes.position.count*3).fill(1);
   geo.setAttribute('color',new THREE.BufferAttribute(colors,3)); return geo;
 }
+/* Each local turret geometry is shared across all ships and teams with the same shape. */
+const shipTurretShapes=[], shipTurretFingerprint=new Map(), shipRigs={};
+function turretShape(geo){
+  if(!geo) return null;
+  const p=geo.attributes.position.array,c=geo.attributes.color.array;
+  const key=Array.from(p,(x,i)=>Math.round(x*1e4)+','+Math.round(c[i]*1e4)).join(';');
+  if(shipTurretFingerprint.has(key)){ geo.dispose(); return shipTurretFingerprint.get(key); }
+  const id=shipTurretShapes.length; shipTurretShapes.push(geo); shipTurretFingerprint.set(key,id); return id;
+}
+function makeShipRig(key,spec,side){
+  const rig=groundTurretRig(spec[side]), flip=new THREE.Matrix4().makeScale(-1,1,1);
+  rig.y=spec.y||0;
+  for(const t of rig.turrets){
+    if(t.M.determinant()<0){ t.M.multiply(flip); t.pivot.x=-t.pivot.x; }
+    t.Mi.copy(t.M).invert();
+    t.L0=new THREE.Matrix4().makeTranslation(0,rig.y,0).multiply(t.M);
+    if(t.house) t.house.applyMatrix4(t.Mi);
+    if(t.gun){ t.gun.applyMatrix4(t.Mi); const p=t.gun.attributes.position; let best=0;
+      for(let i=1;i<p.count;i++) if(p.getZ(i)>p.getZ(best)) best=i;
+      t.muzzle=new THREE.Vector3().fromBufferAttribute(p,best); }
+    t.houseId=turretShape(t.house); t.gunId=turretShape(t.gun);
+  }
+  shipRigs[key]=rig;
+  if(rig.y) rig.hull.translate(0,rig.y,0);
+  return rig.hull;
+}
 const shipGeos=Object.fromEntries(Object.keys(SHAPES).map(type=>{
-  const spec=SPACE_MODELS[type], geo=spec?groundShapeGeo(spec.earth):whiteShipGeo(type);
-  if(spec&&spec.y)geo.translate(0,spec.y,0);
-  return [type,geo];
+  const spec=SPACE_MODELS[type],geo=spec?groundShapeGeo(spec.earth):whiteShipGeo(type);
+  if(spec){ makeShipRig(type,spec,'earth'); if(spec.y) geo.translate(0,spec.y,0); }
+  geo.computeBoundingSphere(); return [type,geo];
 }));
 for(const [type,spec] of Object.entries(SPACE_MODELS)) if(spec.mars!==spec.earth){
-  const geo=groundShapeGeo(spec.mars); if(spec.y)geo.translate(0,spec.y,0); shipGeos[type+'@mars']=geo;
+  const key=type+'@mars',geo=groundShapeGeo(spec.mars); makeShipRig(key,spec,'mars');
+  if(spec.y) geo.translate(0,spec.y,0); geo.computeBoundingSphere(); shipGeos[key]=geo;
 }
 const shipMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t];
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.5),emissive:c,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
   return Object.fromEntries(Object.entries(shipGeos).map(([k,geo])=>[k,instanced(geo,mat,SHIP_MAX)])); });
+const shipHullMeshes=[0,1,2,3].map(()=>({}));
+/* Grow only the meshes actually used by the close view. */
+function shipPartInstance(table,key,geo,mat,matrix){
+  let m=table[key];
+  if(!m||m.count>=m.instanceMatrix.count){
+    const old=m; m=instanced(geo,mat,old?old.instanceMatrix.count*2:4);
+    if(old){ m.count=old.count; m.instanceMatrix.array.set(old.instanceMatrix.array); scene.remove(old); old.dispose(); }
+    table[key]=m;
+  }
+  m.setMatrixAt(m.count++,matrix);
+}
 /* the mesh key for a ship of this class in fleet f: the Republic's shape only for a Republic fleet and a class in its tables
    (WOS_DATA.sides.mars.ships); a class it has no table for is a captured Earth ship (state.js techFleet), drawn Earth-type, as is
    every ship of a side:'earth' fleet */
@@ -51,9 +89,32 @@ function shipMeshKey(f,type){
   return side==='mars'&&WOS_DATA.sides.mars.ships[type]&&meshes[key]?key:type;
 }
 /* small craft (fighters and W.A.S.) launched from carriers */
+const turretMeshes=[0,1,2,3].map(()=>new Map());
+function turretInstance(team,id,matrix){
+  if(id==null) return; const meshes=turretMeshes[team]; let m=meshes.get(id);
+  if(!m||m.count>=m.instanceMatrix.count){
+    const old=m, cap=old?old.instanceMatrix.count*2:4;
+    m=instanced(shipTurretShapes[id],shipMeshes[team].cv.material,cap);
+    if(old){ m.count=old.count; m.instanceMatrix.array.set(old.instanceMatrix.array); scene.remove(old); old.dispose(); }
+    meshes.set(id,m);
+  }
+  m.setMatrixAt(m.count++,matrix);
+}
+const wasSpaceGeos=(()=>{
+  const move=groundShapeGeo('wasFlyMove'),old=craftGeo('was'),size=new THREE.Vector3(),oldSize=new THREE.Vector3();
+  move.computeBoundingBox(); old.computeBoundingBox(); move.boundingBox.getSize(size); old.boundingBox.getSize(oldSize);
+  const scale=oldSize.length()/size.length(); old.dispose();
+  return Object.fromEntries(['wasFly','wasFlyMove','wasFlyFire'].map(k=>{
+    const g=k==='wasFlyMove'?move:groundShapeGeo(k);
+    g.translate(0,-.69,.02); g.scale(scale,scale,scale); return [k,g];
+  }));
+})();
 const craftMeshes=[0,1,2,3].map(t=>{ const c=TEAM_COL[t].clone().lerp(new THREE.Color(1,1,1),.35);
   const mat=new THREE.MeshStandardMaterial({color:c.clone().multiplyScalar(.55),emissive:c,emissiveIntensity:.35,metalness:.2,roughness:.5});
-  return Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)])); });
+  const result=Object.fromEntries(Object.keys(CRAFT_SHAPES).map(k=>[k,instanced(craftGeo(k),mat,CRAFT_MAX)]));
+  const wasMat=mat.clone(); wasMat.vertexColors=true;
+  for(const [k,g] of Object.entries(wasSpaceGeos)) result[k]=instanced(g,wasMat,CRAFT_MAX);
+  return result; });
 
 /* faint trails behind small craft: the last TRAIL_N positions, one every TRAIL_DT game seconds (about 0.6 s in all), fading
    toward the tail. W.A.S. trails are a slightly deeper shade than fighters' */
