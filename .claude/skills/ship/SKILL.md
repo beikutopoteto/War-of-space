@@ -10,7 +10,7 @@ description: War of Space の変更を出す手順。テスト、コミット、
 ユーザーの Mac（2026-10-30〜）では GitHub MCP の代わりに `~/.local/bin/gh` を使う: PR は `gh pr create`、見張りは `gh pr checks <番号> --watch`（後ろで走らせる）、マージは `gh pr merge <番号> --squash --delete-branch`。Codex の作業はコミットする前に必ず差分を読み、Codex が回したテストの結果を確かめ、大事な数は自分でも早送りで確かめる（テストを回すのも Codex に任せてよい。2026-10-30）（`docs/collaboration.md`「Codex を手元から呼ぶ」）。
 
 ## 1. 確かめる
-- `npm test` を走らせ、最後が「すべての確認に通りました。」であることを見る（`| tail -1` で足りる）。
+- `npm test` を走らせ、最後が「すべての確認に通りました。」であることを見る（`| tail -1` で足りる）。「✗ 実行中に例外」で終わったときは、そこから後の分野は走っていない。例外の出た分野と、まだの分野（ブラウザの部分は ground → npc → drill → space の順）を `npm run test:<分野>` で回してから PR にする（2026-11-17: 演習の始めのボタンの時間切れで演習と宇宙が走らず、宇宙だけ回し直したため、演習の名札の確かめの落ちを CI で初めて知った）。
 - 分野だけ走らせるときは `npm run test:ground`・`test:drill`・`test:npc`・`test:space`（`tests/smoke.cjs` に分野の名前を渡す）。PR の前には `npm test`（全部）か、変えた分野と CI の結果で確かめる。
 - マージは、4つの確認がすべて成功（SUCCESS）になってから。`gh pr checks <番号> --watch` の終わり方だけで決めず、`gh pr view <番号> --json statusCheckRollup` で全部の結論を見る（2026-11-12: 30分の制限で打ち切られた CI のままマージした）。
 - 画面が変わる変更は、スクリーンショットを1枚見て確かめる（`test-results/` か、スクラッチパッドの確認用スクリプト）。ユーザーは iPhone でも遊ぶので、文字や部品の大きさが変わるものはスマホの大きさ（390×780、`deviceScaleFactor:3`、`isMobile`）でも撮る（2026-11-06）。
