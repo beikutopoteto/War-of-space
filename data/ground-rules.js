@@ -8,7 +8,7 @@ window.WOS_GROUND_RULES = {
   // dmgScale は地点攻撃の弾だけに掛ける威力の倍率（直射は unitTypes の dmg のまま）。間接の砲撃は2倍（ユーザー決定 2026-11-17）。
   // minScatterDiameter10KmM は10kmでの最小直径（m）、scatterRatioは距離に対する直径の比。
   strike: {
-    vehicle:{delay:2,radius:.4,areaRadius:2,spread:.08,reload:4,initial:{radius:.2,reload:6}},
+    vehicle:{delay:2,radius:.4,dmgScale:3,areaRadius:2,spread:.08,reload:4,initial:{radius:.2,reload:6}}, // 地点攻撃だけ3倍（ユーザー決定 2026-11-17。爆風が小さくなり強化歩兵への効きが前の約0.28倍だった）
     was:{delay:5,radius:.4,dmgScale:2,areaRadius:7,reload:8,minScatterDiameter10KmM:25,initial:{radius:.2,reload:12}},
     artillery:{delay:5,radius:.8,dmgScale:2,areaRadius:7,spread:2,reload:8,minScatterDiameter10KmM:25,initial:{radius:.4,reload:12}},
     guidedRocket:{delay:5,radius:1.2,dmgScale:2,areaRadius:7,reload:30,rocketsPerVolley:12,burstInterval:.25,scatterRatio:.02,initial:{radius:.6,burstInterval:.5,reload:45}},
@@ -24,7 +24,8 @@ window.WOS_GROUND_RULES = {
   landing: { capacity:2, seconds:10, damageFactor:1.3 }, // 海の揚陸艦だけの仮値。沈没時は搭載中隊を全滅扱い。
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
-  supply: {max:100,refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:1,give:2,moraleGiveMax:.8,moraleGiveCost:.5, // 士気分配の上限・消費比は仮（2026-11-12）
+  // moraleMax は士気の最大の倍率（max×倍率）。歩兵は他の兵科より士気が高い（ユーザー決定 2026-11-17）。
+  supply: {max:100,moraleMax:{infantry:1.5,heavyInfantry:1.5,commando:1.5,mechanicalAssault:2},refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:1,give:2,moraleGiveMax:.8,moraleGiveCost:.5, // 士気分配の上限・消費比は仮（2026-11-12）
     terrainMove:{'平地':1,'沼地':3,'山岳':3,'砂漠':2},terrainIdle:['沼地','山岳','砂漠'],idleMorale:.05,
     moraleRefill:2,restWait:5,hitSlow:.65,hitSeconds:2,routArrivalKm:1,routRepath:2,rally:30,
     aiSupply:25,aiMorale:30,aiResume:60,airIdle:.05,airShot:2,airStrike:8,airReturn:15,airBase:20}, // 全て地上試作の仮値

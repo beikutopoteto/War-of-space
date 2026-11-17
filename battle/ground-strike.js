@@ -128,7 +128,10 @@ function groundStrikeHud(list){
 }
 function groundStrikeDropVisual(s){
   if(!s.visual)return;
-  const {ring,el,arc,projectile}=s.visual;
+  const {ring,el,arc,projectile,rocket,trail}=s.visual;
+  // ロケットの弾の形と色は全弾で共有するので捨てない。尾の線の形だけ捨てる。
+  if(rocket)rocket.parent?.remove(rocket);
+  if(trail){trail.parent?.remove(trail);trail.geometry.dispose();}
   for(const object of [arc,projectile])if(object){object.parent?.remove(object);object.geometry.dispose();object.material.dispose();}
   if(ring.parent)ring.parent.remove(ring);
   ring.geometry.dispose();ring.material.dispose();el?.remove();s.visual=null;
@@ -142,6 +145,13 @@ function groundStrikeReset(){
   if(typeof groundAreaReset==='function')groundAreaReset();
   [...groundStrikes,...groundImpacts].forEach(groundStrikeDropVisual);
   groundStrikes=[];groundImpacts=[];groundStrikeAiming=false;groundStrikeMessage='';
+}
+// 無誘導ロケットは、発射機から1発ずつ飛び出して列になって飛ぶのを見せる（ユーザー 2026-11-17「本体から何発も出ている想定」）。
+// 弾は光る小球と短い噴射の尾。点線の予定の弾道は最初の1発だけ（全弾に描くと1フレーム3割重かった）。発射の光は描く側だけで出す。
+const GROUND_ROCKET_LOOK={trailSec:.2,flash:new THREE.Color(0xffc878),smoke:new THREE.Color(0x8a8f86)};
+function groundRocketLook(){
+  if(!GROUND_ROCKET_LOOK.geo){GROUND_ROCKET_LOOK.geo=new THREE.SphereGeometry(.13,6,4);GROUND_ROCKET_LOOK.mat=new THREE.MeshBasicMaterial({color:0xfff0c8});GROUND_ROCKET_LOOK.trail=new THREE.LineBasicMaterial({color:0xffa850,transparent:true,opacity:.85,depthWrite:false});}
+  return GROUND_ROCKET_LOOK;
 }
 function groundStrikeDraw(){
   if(!groundVisuals)return;
@@ -159,11 +169,21 @@ function groundStrikeDraw(){
         const arc=new THREE.Line(new THREE.BufferGeometry().setFromPoints(path),new THREE.LineDashedMaterial({color:TEAM_COL[s.team],transparent:true,opacity:.65,depthWrite:false,dashSize:.5,gapSize:.4}));arc.computeLineDistances();groundVisuals.add(arc);
         const projectile=new THREE.Mesh(new THREE.SphereGeometry(.16,6,4),new THREE.MeshBasicMaterial({color:0xe2c58a}));groundVisuals.add(projectile);s.visual.arc=arc;s.visual.projectile=projectile;
       }
+      if(s.flight&&pending&&s.kind==='guidedRocket'){
+        const look=groundRocketLook(),rocket=new THREE.Mesh(look.geo,look.mat),trail=new THREE.Line(new THREE.BufferGeometry().setFromPoints([s.flight.origin.clone(),s.flight.origin.clone()]),look.trail);
+        groundVisuals.add(rocket);groundVisuals.add(trail);s.visual.rocket=rocket;s.visual.trail=trail;
+        if(s.team===0||s.source?.seen){const at=s.flight.origin.clone();burst(at,look.flash,5,2.2,.3);burst(at,look.smoke,4,.8,1.2);}
+      }
     }
     const at=proj(p.clone().add(new THREE.Vector3(0,1,0))),{ring,el}=s.visual;
     // 範囲砲撃の飛んでいる弾は、着弾点の円と札を出さない（範囲の線だけを見せる。ユーザー 2026-11-14）。着弾したあとの輪は出す
     const visible=s.team===0||groundPointSeenBy(0,p),marked=!(pending&&s.area);ring.visible=visible&&marked;if(el)el.hidden=!visible||!marked||at.z>1;
-    if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
+    if(s.visual.rocket){
+      const t=Math.max(0,s.duration-s.left),head=groundBallisticAt(s.flight,t),show=pending&&(s.team===0||groundPointSeenBy(0,head));
+      s.visual.rocket.visible=s.visual.trail.visible=show;
+      if(show){const tail=groundBallisticAt(s.flight,Math.max(0,t-GROUND_ROCKET_LOOK.trailSec)),a=s.visual.trail.geometry.attributes.position;s.visual.rocket.position.copy(head);a.setXYZ(0,tail.x,tail.y,tail.z);a.setXYZ(1,head.x,head.y,head.z);a.needsUpdate=true;s.visual.trail.geometry.computeBoundingSphere();}
+    }
+    if(s.visual.arc){s.visual.arc.visible=visible&&pending&&(s.team===0||s.source.seen);s.visual.projectile.visible=!s.visual.rocket&&visible&&pending&&(s.team===0||groundPointSeenBy(0,groundBallisticAt(s.flight,Math.max(0,s.duration-s.left))));if(pending)s.visual.projectile.position.copy(groundBallisticAt(s.flight,Math.max(0,s.duration-s.left)));}
     if(el){el.textContent=pending?`${s.kind==='sea'?'艦砲':groundRuleSet().unitTypes[s.kind].name} ${s.left.toFixed(1)}秒${s.observed?'':s.areaDirected||s.distanceScatter||s.kind==='supportAircraft'?' / 未観測':' / 未観測・散布×'+groundStrikeRules().unseenSpread}`:'着弾';
     el.style.transform=`translate(${at.x}px,${at.y-26}px) translate(-50%,-100%)`;}
     ring.material.opacity=pending?.85:s.left/groundStrikeRules().effectSec;
