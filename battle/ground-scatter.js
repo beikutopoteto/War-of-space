@@ -1,15 +1,20 @@
 /* 地上の距離依存精度。読み込み時に作戦・部隊へ触れない通常script。
-   確定: 10kmの最小直径は自走砲25m・ロケット30m、10kmごとに直径2倍。
+   確定: 自走砲・W.A.S.・小型艦は10kmで直径25m、10kmごとに直径2倍。
+   無誘導ロケットは距離の2%、戦艦は0.4%が直径（2026-11-17）。
    仮: 10km未満は基準値で固定し、中間距離は指数補間する。爆風・視界・散布範囲の指定とは別。
-   この2兵科の物理精度へ未観測倍率を掛けない。従来兵科の倍率は呼出し側の責務。 */
+   距離依存の物理精度へ未観測倍率を掛けない。従来兵科の倍率は呼出し側の責務。 */
+function groundScatterRule(f){
+  if(!f||typeof op==='undefined'||!op.ground||typeof WOS_TERRAIN==='undefined')return null;
+  return groundRuleSet()?.strike?.[f.groundKind==='sea'&&f.type==='bb'?'battleship':f.groundKind]||null;
+}
 function groundScatterBase(f){
-  if(!f||!['artillery','guidedRocket'].includes(f.groundKind)||typeof op==='undefined'||!op.ground||typeof WOS_TERRAIN==='undefined')return 0;
-  const base=groundRuleSet()?.strike?.[f.groundKind]?.minScatterDiameter10KmM;
+  const rule=groundScatterRule(f),base=rule?.minScatterDiameter10KmM||rule?.scatterRatio;
   return Number.isFinite(base)&&base>0?base:0;
 }
 function groundScatterAtDistance(f,distanceWorld){
   const base=groundScatterBase(f);
   if(!base||!Number.isFinite(distanceWorld)||distanceWorld<0)return 0;
+  const rule=groundScatterRule(f);if(rule.scatterRatio)return distanceWorld*rule.scatterRatio/2;
   const km=distanceWorld/GROUND_SCALE,diameterM=base*2**(Math.max(0,km-10)/10);
   return diameterM*GROUND_SCALE/2000;
 }

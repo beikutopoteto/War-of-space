@@ -5,6 +5,7 @@ function groundVolleyEligible(f){
   return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'strike')&&!!groundStrikeWeapon(f);
 }
 function groundVolleyPending(ledger){return ledger.entries.some(e=>!ledger.fired.has(e.id)&&!ledger.skipped.has(e.id));}
+function groundVolleyBodyAlive(f,entry){return entry.body?entry.body.alive&&f.bodies?.[entry.index]===entry.body:f.ships.includes(entry.vehicle);}
 function groundVolleyCancel(f){
   if(f)f.groundVolley=null;
   groundVolleySources.delete(f);
@@ -20,8 +21,7 @@ function groundRestoreVolley(f,snapshot){
   const ledger=snapshot?.ledger;
   if(!ledger||ledger.source!==f||ledger.epoch!==groundVolleyEpoch||!Number.isFinite(snapshot.elapsed)||!groundVolleyEligible(f))return null;
   // 一度失った車両の枠は、後から車両が追加されても再利用しない。
-  const live=new Set(f.ships||[]);
-  for(const e of ledger.entries)if(!ledger.fired.has(e.id)&&!live.has(e.vehicle))ledger.skipped.add(e.id);
+  for(const e of ledger.entries)if(!ledger.fired.has(e.id)&&!groundVolleyBodyAlive(f,e))ledger.skipped.add(e.id);
   if(!groundVolleyPending(ledger))return null;
   groundVolleySources.add(f);
   // 呼出し側がf.groundVolleyへ代入する。ここでは補給・cooldown・発射済み集合を巻き戻さない。
@@ -39,12 +39,13 @@ function groundVolleyEmit(f,v){
   for(const entry of ledger.entries){
     if(f.groundVolley!==v)break;
     if(ledger.fired.has(entry.id)||ledger.skipped.has(entry.id))continue;
-    if(!f.ships.includes(entry.vehicle)){ledger.skipped.add(entry.id);continue;}
+    if(!groundVolleyBodyAlive(f,entry)){ledger.skipped.add(entry.id);continue;}
     if(entry.at>v.elapsed+1e-8)continue;
     if(!groundVolleyEligible(f)){groundVolleyCancel(f);break;}
-    const shot=ledger.shot?{aim:ledger.shot.aim.clone(),impact:ledger.shot.impact?.clone()||null}:ledger.area?groundAreaShot(f,ledger.area):{aim:ledger.point.clone(),impact:null};
+    const shot=ledger.target?{aim:groundStrikeTargetPoint(f,entry.index,ledger.target),impact:null}:ledger.shot?{aim:ledger.shot.aim.clone(),impact:ledger.shot.impact?.clone()||null}:ledger.area?groundAreaShot(f,ledger.area):{aim:ledger.point.clone(),impact:null};
+    if(shot?.aim&&ledger.bombHeading){const offset=entry.round*ledger.bombSpacing;shot.aim.addScaledVector(ledger.bombHeading,offset);if(shot.impact)shot.impact.addScaledVector(ledger.bombHeading,offset);}
     if(!shot?.aim){groundVolleyCancel(f);break;}
-    const projectile=groundStrikeLaunch(f,shot.aim,shot.impact||null,ledger.area||null,v);
+    const projectile=groundStrikeLaunch(f,shot.aim,shot.impact||null,ledger.area||null,v,entry);
     if(!projectile){groundVolleyCancel(f);break;}
     ledger.fired.add(entry.id);emitted++;
   }
@@ -55,12 +56,13 @@ function groundVolleyStart(f,target){
   if(!groundVolleyEligible(f)||f.groundVolley||(f.groundStrikeCooldown||0)>1e-8||!Array.isArray(f.ships)||!f.ships.length)return false;
   if(!target||!!target.area===!!target.point)return false;
   if(target.point&&![target.point.x,target.point.y,target.point.z].every(Number.isFinite))return false;
-  const weapon=groundStrikeWeapon(f),rocket=f.groundKind==='guidedRocket',rounds=rocket?weapon.rocketsPerVolley:1,interval=rocket?weapon.burstInterval:0;
+  const weapon=groundStrikeWeapon(f),rocket=f.groundKind==='guidedRocket',bomb=f.groundKind==='supportAircraft',rounds=rocket?weapon.rocketsPerVolley:bomb?weapon.bombsPerPass:1,interval=rocket?weapon.burstInterval:bomb?weapon.radius/speedOf(f):0;
   if(!Number.isInteger(rounds)||rounds<1||!Number.isFinite(interval)||interval<0||!Number.isFinite(weapon.reload)||weapon.reload<0)return false;
-  const vehicles=f.ships.slice(),entries=[];
-  for(let round=0;round<rounds;round++)for(const vehicle of vehicles)entries.push({id:entries.length,vehicle,round,at:round*interval});
+  const bodies=f.bodies?f.bodies.map((body,index)=>({body,index})).filter(x=>x.body.alive):f.ships.map((vehicle,index)=>({vehicle,index})),entries=[];
+  for(let round=0;round<rounds;round++)for(const body of bodies)entries.push({id:entries.length,...body,round,at:round*interval});
   const ledger={id:++groundVolleySerial,epoch:groundVolleyEpoch,source:f,area:target.area||null,
-    point:target.point?target.point.clone():null,shot:target.shot?{aim:target.shot.aim.clone(),impact:target.shot.impact?.clone()||null}:null,entries,fired:new Set(),skipped:new Set(),reload:weapon.reload,burstDuration:(rounds-1)*interval};
+    point:target.point?target.point.clone():null,target:target.target||null,shot:target.shot?{aim:target.shot.aim.clone(),impact:target.shot.impact?.clone()||null}:null,entries,fired:new Set(),skipped:new Set(),reload:weapon.reload,burstDuration:(rounds-1)*interval,
+    bombHeading:bomb?(f.groundBombRun?.plan?.heading||groundAirForward(f)).clone():null,bombSpacing:bomb?weapon.radius:0};
   const v={ledger,elapsed:0};f.groundVolley=v;groundVolleySources.add(f);
   const emitted=groundVolleyEmit(f,v);
   if(!emitted){if(f.groundVolley===v)groundVolleyCancel(f);return false;}

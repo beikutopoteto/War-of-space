@@ -97,7 +97,7 @@ function fixesCases(){
   const rocket=unit(1,'guidedRocket',20,25);rocket.stance='engage';fleets.push(rocket);groundStep(.05);
   check('固定敵の許可制兵科は自動で攻撃命令を作らない',!rocket.order&&!rocket.fireTarget);
   const sea=reds.find(f=>f.groundKind==='sea');groundStrikes=[];
-  for(let i=1;i<groundStrikeRules().aiCluster;i++)fleets.push(unit(0,'infantry',20,25));
+  for(let i=1;i<groundStrikeRules().aiBodies;i++)fleets.push(unit(0,'infantry',20,25));
   groundUpdateSight();
   groundStrikeAI(sea);
   check('固定敵の艦砲は自動で地点攻撃しない',groundStrikes.length===0);

@@ -9,12 +9,12 @@ function strikeCases(){
   try{
     // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
     op={...op,groundHQ:null,groundStaticEnemies:false};
-    fresh();const gun=unit(0,'artillery',-20),enemy=unit(1,'infantry',0),friend=unit(0,'infantry',3),edge=unit(1,'infantry',7),outside=unit(1,'infantry',7.01),air=unit(1,'fighter',0,0,'low');
+    fresh();const gun=unit(0,'artillery',-20),enemy=unit(1,'infantry',0),friend=unit(0,'infantry',.3),edge=unit(1,'infantry',.8),outside=unit(1,'infantry',.801),air=unit(1,'fighter',0,0,'low');
     fleets=[gun,enemy,friend,edge,outside,air];const aim=enemy.pos.clone(),s=groundStrikeLaunch(gun,aim);
-    check('自走砲は弾道から求めた飛翔時間・半径7',s&&s.left>0&&s.left===groundBallisticSolution(gun,aim).duration&&s.radius===7);
+    check('自走砲は弾道から求めた飛翔時間・半径0.8',s&&s.left>0&&s.left===groundBallisticSolution(gun,aim).duration&&s.radius===.8);
     check('再装填中は連射できない',groundStrikeLaunch(gun,aim)===null&&groundStrikes.length===1);
     const flight=s.left;groundStep(flight-.01);check('予告時間の直前は敵味方とも打撃0',enemy.hpPool===1000&&friend.hpPool===1000&&groundStrikes.length===1);
-    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',Math.abs(enemy.hpPool-(1000-12*groundRuleSet().combat.damageScale))<1e-7&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
+    groundStep(.01);check('計算した飛翔時間で着弾し敵と味方に損害',Math.abs(enemy.hpPool-(1000-12*groundRuleSet().strike.artillery.dmgScale*groundRuleSet().combat.damageScale))<1e-7&&friend.hpPool<1000&&groundStrikes.length===0&&groundImpacts.length===1);
     check('中心ほど強く円周にも当たる',1000-enemy.hpPool>1000-friend.hpPool&&1000-friend.hpPool>1000-edge.hpPool&&edge.hpPool<1000);
     check('円外と低高度には当たらない',outside.hpPool===1000&&air.hpPool===1000);
     const hp=friend.hpPool;damage(friend,5,gun,s);check('着弾処理の外から味方へ damage を呼んでも損害0',friend.hpPool===hp);
@@ -46,13 +46,13 @@ function strikeCases(){
     check('自走砲の通行は戦車と同じ',groundMoveKind(gun)==='vehicle');
     fresh();const plane=unit(0,'supportAircraft',-10,0,'high');enemy.pos.set(0,0,0);enemy.hpPool=1000;fleets=[plane,enemy];
     plane.pos.y=groundUnitHeight(plane);const release=groundBombRelease(plane,enemy.pos);plane.pos.copy(release.releasePos);plane.heading.copy(release.heading);
-    const bomb=groundStrikeLaunch(plane,enemy.pos);check('高高度爆撃は実飛翔時間・半径9',bomb&&bomb.left===bomb.flight.duration&&bomb.left!==7&&bomb.radius===9);
+    const bomb=groundStrikeLaunch(plane,enemy.pos);check('高高度爆撃は実飛翔時間・半径2.4',bomb&&bomb.left===bomb.flight.duration&&bomb.left!==7&&bomb.radius===2.4);
     groundStep(bomb.duration-.01);check('爆撃の実着弾直前は打撃0',enemy.hpPool===1000);groundStep(.01);check('爆撃は物理飛翔時間で実際に着弾',enemy.hpPool<1000);
     plane.groundStrikeCooldown=0;plane.band='low';plane.bandTo='high';check('低から高へ遷移中は爆撃不可',!groundStrikeLaunch(plane,enemy.pos));
     plane.band='high';plane.bandTo='low';plane.pos.copy(release.releasePos);plane.heading.copy(release.heading);plane.groundFlightVelocity=null;check('高から低へ遷移中は元の高高度で爆撃可',!!groundStrikeLaunch(plane,enemy.pos));
-    fresh();const red=unit(1,'artillery',-20),a=unit(0,'infantry',0),b=unit(0,'infantry',2),c=unit(0,'infantry',20);red.stance='engage';fleets=[red,a,b,c];groundStep(.05);
-    check('敵自走砲は見える2隊の密集中心を砲撃',groundStrikes.length===1&&groundStrikes[0].team===1&&groundStrikes[0].aim.x===1);
-    const redShot=groundStrikes[0],redAim=redShot.aim.clone();a.pos.x=40;b.pos.x=42;groundStep(redShot.left);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
+    fresh();const red=unit(1,'artillery',-20),a=unit(0,'infantry',0),b=unit(0,'infantry',.2),c=unit(0,'infantry',.4);red.stance='engage';fleets=[red,a,b,c];groundStep(.05);
+    check('敵自走砲は見える3体の候補点を砲撃',groundStrikes.length===1&&groundStrikes[0].team===1&&groundStrikes[0].aim.x===0);
+    const redShot=groundStrikes[0],redAim=redShot.aim.clone();a.pos.x=40;b.pos.x=42;c.pos.x=44;groundStep(redShot.left);check('敵も発射後は追尾しない',groundImpacts[0].aim.equals(redAim)&&a.hpPool===1000&&b.hpPool===1000);
     red.groundStrikeCooldown=0;groundStrikes=[];groundStep(.05);check('敵は視界外の密集を狙わない',groundStrikes.length===0);
     a.pos.set(0,0,0);b.pos.set(20,0,0);c.pos.set(40,0,0);groundUpdateSight();groundStrikeAI(red);check('密集選択AIは孤立部隊を密集と数えない',groundStrikes.length===0);
   }finally{op=saved.op;
@@ -85,9 +85,9 @@ async function checkGroundStrike(page,check){
   });check(display,'地点攻撃の操作: Bと中心・半径指定で、飛んでいる弾の円と札は出さない');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
-    friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
-    let left=s.left;while(left>1e-8){const dt=Math.min(.05,left);step(dt/groundRuleSet().movement.timeScale);left-=dt;}groundDraw();
-    const hit=friend.hpPool+(friend.groundMorale||0)<hp[0]&&enemy.hpPool+(enemy.groundMorale||0)<hp[1],impact=groundImpacts.length===1&&document.querySelector('.ground-strike-label').textContent==='着弾';
+    friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';for(const f of [friend,enemy]){f.groundBodySpec={offsets:f.bodies.map(()=>[0,0]),size:1};f.groundBodyLayouts=null;f.groundBodyGeometry=null;}const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
+    let left=Math.max(...groundStrikes.map(s=>s.left));while(left>1e-8){const dt=Math.min(.05,left);step(dt/groundRuleSet().movement.timeScale);left-=dt;}groundDraw();
+    const hit=friend.hpPool+(friend.groundMorale||0)<hp[0]&&enemy.hpPool+(enemy.groundMorale||0)<hp[1],impact=groundImpacts.length===friend.bodies0&&document.querySelector('.ground-strike-label').textContent==='着弾';
     reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');
     reset({op:'charybdis'});return {hit,impact,clean,space:!groundStrikeAiming&&document.getElementById('groundAlt').hidden};
   });

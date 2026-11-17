@@ -19,20 +19,29 @@ function groundBombPose(f,p){
  return Math.hypot(end.x/state.scene.m-p.x,end.z/state.scene.m-p.z)<=GROUND_BOMB_APPROACH.tolerance;
 }
 function groundCopyBombRun(run){return run?.ledger?{ledger:run.ledger,phase:run.phase,plan:run.plan}:null;}
-function groundRestoreBombRun(f,saved){return saved?.ledger?.source===f&&!saved.ledger.issued&&f.alive?{ledger:saved.ledger,phase:'align',plan:null}:null;}
+function groundRestoreBombRun(f,saved){return saved?.ledger?.source===f&&(!saved.ledger.issued||f.groundVolley)&&f.alive?{ledger:saved.ledger,phase:saved.ledger.issued?'run':'align',plan:saved.ledger.issued?saved.plan:null}:null;}
 function groundBombCancel(f){f.groundBombRun=null;f.groundAirTask=null;f.groundAirTarget=null;f.groundLoiterCenter=null;}
 function groundBombPrepare(f,target){
  if(f.groundKind!=='supportAircraft'||!groundStrikeWeapon(f)||f.groundBombRun)return false;
  const shot=target.area?groundAreaShot(f,target.area):target.point?{aim:target.point.clone(),impact:null}:null;
  if(!shot||!groundStrikeInRange(f,shot.aim))return false;
- const plan=groundBombPlan(f,shot.aim);if(!plan)return false;
- const state=groundBombState(f),ledger={source:f,area:target.area||null,shot:{aim:shot.aim.clone(),impact:shot.impact?.clone()||null},altitudeMeters:state.originMeters.y,issued:false};
+ const centerPlan=groundBombPlan(f,shot.aim);if(!centerPlan)return false;
+ // 仮の投下列: 進入の向きに爆風の半径ずつ。真ん中の1発（6発なら3発目）を指定点に落とす（列の真ん中を指定点にすると、偶数では指定点に1発も落ちない）。
+ // 最初の投下へ進入し、機速で間隔を作る。
+ const weapon=groundStrikeWeapon(f),state=groundBombState(f),releaseAim=shot.aim.clone().addScaledVector(centerPlan.heading,-Math.floor((weapon.bombsPerPass-1)/2)*weapon.radius);
+ // 最初の投下点から方向を選び直すと、真下を指定した場合に方向が反転し、列の中央もずれる。
+ // 中央へ進入する方向を保ったまま、最初の投下点の水平投下解を求める（groundBombPlanと同じ物理解）。
+ const probe=new THREE.Vector3((releaseAim.x-centerPlan.heading.x)*state.scene.m,state.originMeters.y,(releaseAim.z-centerPlan.heading.z)*state.scene.m);
+ const plan=groundBombRelease({...f,pos:groundBallisticWorld(state.scene,probe)},releaseAim),radius=Math.max(1,state.speedWorld/GROUND_AIR_CONTROL.turnRate);
+ if(!plan||![plan.releasePos,plan.releasePos.clone().addScaledVector(plan.heading,-radius*6)].every(p=>groundPass(groundMapX(p.x),groundMapY(p.z),'air')))return false;
+ const ledger={source:f,area:target.area||null,shot:{aim:shot.aim.clone(),impact:shot.impact?.clone()||null},releaseAim,altitudeMeters:state.originMeters.y,issued:false};
  const delta=f.pos.clone().sub(plan.releasePos),along=delta.dot(plan.heading),cross=delta.clone().addScaledVector(plan.heading,-along).length();
  f.groundBombRun={ledger,plan,phase:along<0&&cross<.5&&groundAirForward(f).dot(plan.heading)>.98?'run':'align'};return true;
 }
 function groundBombApproach(f,dt){
- const run=f.groundBombRun;if(!run||run.ledger.issued)return false;
- const aim=run.ledger.shot.aim,plan=run.plan||groundBombPlan(f,aim);if(!plan){groundBombCancel(f);groundAirLoiter(f,dt);return true;}run.plan=plan;
+ const run=f.groundBombRun;if(!run)return false;
+ const aim=run.ledger.releaseAim,plan=run.plan||groundBombPlan(f,aim);if(!plan){groundBombCancel(f);groundAirLoiter(f,dt);return true;}run.plan=plan;
+ if(run.ledger.issued){groundAirTurnMove(f,f.pos.clone().addScaledVector(plan.heading,Math.max(1,speedOf(f))),dt);return true;}
  const radius=Math.max(1,speedOf(f)/GROUND_AIR_CONTROL.turnRate),pre=plan.releasePos.clone().addScaledVector(plan.heading,-radius*6),stage=plan.releasePos.clone().addScaledVector(plan.heading,-radius*3);
  // 上流の二つの点を順に通り、逆向きからの接近でも旋回距離を残す。
  if(run.phase==='align'&&groundDistanceTo(f,{pos:pre})<radius*.5)run.phase='entry';
@@ -46,13 +55,14 @@ function groundBombApproach(f,dt){
 function groundBombStep(){
  for(const f of fleets){const run=f.groundBombRun;if(!run||f.groundAirState)continue;
   if(!f.alive){groundBombCancel(f);continue;}
+  if(run.ledger.issued){if(!f.groundVolley){f.groundBombRun=null;if(!f.groundAreaSalvo&&!f.order)nextOrder(f);}continue;}
   if(!groundStrikeWeapon(f)){f.groundBombRun=null;continue;}
-  if(!groundStrikeCanLaunch(f,run.ledger.shot.aim))continue;
+  if(!groundStrikeCanLaunch(f,run.ledger.releaseAim))continue;
   const ledger=run.ledger,salvo=f.groundAreaSalvo;
-  if(!groundVolleyStart(f,{...(ledger.area?{area:ledger.area}:{point:ledger.shot.aim}),shot:ledger.shot}))continue;
-  ledger.issued=true;if(f.groundBombRun===run)f.groundBombRun=null;
+  const shift=ledger.releaseAim.clone().sub(ledger.shot.aim),shot={aim:ledger.releaseAim,impact:ledger.shot.impact?.clone().add(shift)||null};
+  if(!groundVolleyStart(f,{...(ledger.area?{area:ledger.area}:{point:ledger.releaseAim}),shot}))continue;
+  ledger.issued=true;
   if(ledger.area){ledger.area.sent.set(f,(ledger.area.sent.get(f)||0)+1);if(salvo?.area===ledger.area){salvo.remaining--;if(salvo.remaining<=0)f.groundAreaSalvo=null;}}
-  if(!f.groundAreaSalvo&&!f.order)nextOrder(f);
  }
 }
 function groundAirCopyOrder(o){

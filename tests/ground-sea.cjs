@@ -44,12 +44,12 @@ function seaCases(){
     fleets=[ship,target,friend,seaTarget,air];groundUpdateSight();
     const seaShot=groundStrikeLaunch(ship,groundPoint(13,5));check('艦砲は海の地点にも間接照準できる',!!seaShot&&seaShot.kind==='sea');groundStrikeReset();ship.groundStrikeCooldown=0;
     const random=Math.random;let s;try{Math.random=()=>0;s=groundStrikeLaunch(ship,target.pos);}finally{op=saved.op;Math.random=random;}
-    check('艦砲は弾道から求めた飛翔時間・半径10',s&&s.left>0&&s.left===groundBallisticSolution(ship,target.pos).duration&&s.radius===10&&s.kind==='sea');
+    check('艦砲は弾道から求めた飛翔時間・半径0.48',s&&s.left>0&&s.left===groundBallisticSolution(ship,target.pos).duration&&s.radius===.48&&s.kind==='sea');
     check('艦砲は再装填中に連射不可',!groundStrikeLaunch(ship,target.pos));
     // 本営ありでは打撃が先に士気へ入る。士気を持たない艦・航空も同じ尺度で確認する。
     const remaining=f=>f.hpPool+(f.groundMorale??0);
     // 地形滞在による士気消費などを混ぜず、艦砲の着弾処理だけを進める。
-    const before=[target,friend,seaTarget,air].map(remaining),flight=s.left;groundStrikeStep(flight-.01);
+    friend.pos.copy(s.impact);seaTarget.pos.copy(s.impact);target.pos.copy(s.impact);const before=[target,friend,seaTarget,air].map(remaining),flight=s.left;groundStrikeStep(flight-.01);
     check('計算した着弾時刻の直前には艦砲の損害なし',remaining(target)===before[0]&&remaining(friend)===before[1]&&groundStrikes.length===1);
     groundStrikeStep(.01);check('計算した飛翔時間で着弾し陸上の敵味方に損害',remaining(target)<before[0]&&remaining(friend)<before[1]&&!groundStrikes.length&&groundImpacts.length===1);
     check('艦砲は海面目標にも命中し航空には当たらない',remaining(seaTarget)<before[2]&&remaining(air)===before[3]);

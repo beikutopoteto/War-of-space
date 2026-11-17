@@ -367,7 +367,7 @@ function npcGroundSupportFire(c,k,z){
       (npcGroundInZone(t,z)||mains.some(m=>groundDistanceTo(m,t)<=3*GROUND_SCALE))&&groundStrikeCanLaunch(f,t.pos)&&
       !fleets.some(a=>a.team===c.team&&a.alive&&!a.embarked&&!groundAbsent(a)&&a.band==='ground'&&groundDistanceTo(a,t)<=w.radius+groundScatterRadius(f,t.pos)));
     const target=targets.sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
-    if(target)groundVolleyStart(f,{point:target.pos});
+    if(target)groundVolleyStart(f,{point:target.pos,target});
   }
 }
 // 通常の追撃経路が守備円の外へ出るなら進まない。見失い・交戦範囲からの離脱は思考間隔を待たず帰す。

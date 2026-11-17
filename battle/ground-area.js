@@ -13,7 +13,7 @@ function groundAreaReset(){
 function groundAreaUnits(list=orderTargets()){return list.filter(f=>groundStrikeWeapon(f));}
 function groundAreaLimits(units){
  const radii=units.map(f=>groundStrikeWeapon(f).areaRadius??groundStrikeWeapon(f).radius);
- return {radius:Math.min(...radii),length:units.reduce((n,f,i)=>n+2*radii[i]*Math.max(1,f.ships?.length??f.n??1),0)};
+ return {radius:Math.min(...radii),length:units.reduce((n,f,i)=>n+2*radii[i]*groundAliveBodies(f),0)};
 }
 // 曲線帯も含め、参加射手と帯の遠端から必要な精度下限を求める。
 function groundAreaClampRadius(units,points,wanted){

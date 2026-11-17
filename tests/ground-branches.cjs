@@ -11,14 +11,14 @@ function branchCases(){
   };
   const tick=seconds=>{for(let i=0;i<Math.round(seconds/.05);i++)groundStep(.05);};
   const near=(a,b)=>Math.abs(a-b)<1e-7;
-  // 許可制と1発の相性を確認する場面。ロケットは1両、最初の発射後に未発射分を取り消す。6連射は専用斉射テストで確認。
+  // 許可制と1発の相性を確認する場面。ロケットは1両、最初の発射後に未発射分を取り消す。12連射は専用斉射テストで確認。
   const fireOnce=(f,t)=>{
     const hp=t.hpPool,start=groundStrikes.length;tick(.05);
     if(f.groundKind==='guidedRocket'&&t.band==='ground'){
       const shots=groundStrikes.slice(start).filter(s=>s.source===f);
       check('ロケット：許可した1両の斉射は先頭1発、発射直後の打撃0',f.ships.length===1&&shots.length===1&&t.hpPool===hp);
       groundVolleyCancel(f);
-      if(shots.length===1){const s=shots[0];groundStrikeStep(s.left-.01);check('ロケット：着弾直前も打撃0',t.hpPool===hp);groundStrikeStep(.01);}
+      if(shots.length===1){const s=shots[0];t.pos.copy(s.impact);groundStrikeStep(s.left-.01);check('ロケット：着弾直前も打撃0',t.hpPool===hp);groundStrikeStep(.01);}
     }
   };
   try{
@@ -55,7 +55,7 @@ function branchCases(){
       check(kind+'：敵AIも明示した攻撃命令で許可し打撃',red.order?.type==='attack'&&red.order.target===blue&&blue.hpPool<blue.groundMaxHp);
     }
     // 新5兵科×4段。狙いの値でなく本物の damage による耐久差で表を確認。
-    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
+    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
         check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*groundRuleSet().combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
@@ -67,7 +67,7 @@ function branchCases(){
     }
     for(const band of ['ground','low','high']){
       const f=unit('guidedRocket'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-      check('ロケット：間接の対戦車倍率を維持、航空には撃たない '+band,near(hp-t.hpPool,(band==='ground'?12:0)*groundRuleSet().combat.damageScale));
+      check('ロケット：間接の対戦車倍率なし、航空には撃たない '+band,near(hp-t.hpPool,(band==='ground'?4*groundRuleSet().strike.guidedRocket.dmgScale:0)*groundRuleSet().combat.damageScale));
     }
     const command=unit('commando'),normal=unit('infantry'),heavy=unit('heavyInfantry',1,9,27);fleets=[command,normal,heavy];groundUpdateSight();
     const hit=f=>{const hp=f.hpPool;damage(f,10,heavy);return hp-f.hpPool;};
