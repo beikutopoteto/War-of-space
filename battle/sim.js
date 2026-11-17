@@ -349,7 +349,7 @@ function stepWings(dt){
     const ft=w.fireTarget;
     if(ft&&ft.alive&&ft.seen&&gap(w,ft)<=w.range*1.08&&(!(cover||umbrellaPack(c))||craftMayHit(w,ft))){
       damage(ft,w.n*w.dmg*dt,w); w.revealT=FIRE_REVEAL; if(ft.kind==='fleet') ft.slowT=.5;
-      if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randShip(w),randShip(ft),TEAM_COL[colOf(w)],.18);
+      if(Math.random()<Math.min(w.n,10)*1.4*dt) shoot(randomShipMuzzle(w),randShip(ft),TEAM_COL[colOf(w)],.18);
     }
   }
   wings=wings.filter(w=>w.alive);
@@ -412,7 +412,7 @@ function pitCan(f,t){ const P=f.pit; if(!P||P===true) return true; _gs.subVector
 /* one heavy shot of a battery (f.every): each gun throws a short, bright, thick bolt (three tracers side by side), a flash at the muzzle and one on the target */
 const _gs=new THREE.Vector3();
 function gunShot(f,t){ const c=TEAM_COL[0];   // a beam from each barrel that lingers (effects.js beam; user decision 2026-10-18: 見本 B)
-  for(const s of f.ships){ const a=s.muzzle?s.muzzle.clone():(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
+  for(const s of f.ships){ const a=s.turRig?shipMuzzle(f,s):s.muzzle?s.muzzle.clone():(s.base||s.pos).clone().addScaledVector(s.up||_up,1.2*(f.scale||1)), b=randShip(t).clone();
     beam(a,b,c); burst(a,c,5,3,.3); burst(b,HOT,6,4,.4); } }
 /* a large explosion at [x, z, alt] (operation data) */
 function blast(at){ const p=new THREE.Vector3(at[0],at[2]||0,at[1]); for(let i=0;i<6;i++) burst(p.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*6,(Math.random()-.5)*8)),HOT,30,10,1.4); }
@@ -2485,18 +2485,18 @@ function step(dt){
           const weapon=CLASS_MAX[type]?.weapon;
           if(weapon&&weapon.every){ if(f.typeShotT>0) continue; f.typeShotT=weapon.every;
             damage(ft,ships.length*stats.dps*weapon.every*factor,f); f.revealT=FIRE_REVEAL;
-            for(const ship of ships){ const a=ship.pos, b=randShip(ft); beam(a,b,TEAM_COL[0],.5); burst(a,TEAM_COL[0],5,3,.3); burst(b,HOT,6,4,.4); }
+            for(const ship of ships){ const a=shipMuzzle(f,ship), b=randShip(ft); beam(a,b,TEAM_COL[0],.5); burst(a,TEAM_COL[0],5,3,.3); burst(b,HOT,6,4,.4); }
           } else { damage(ft,ships.length*stats.dps*dt*factor,f); f.revealT=FIRE_REVEAL;
             const rate=Math.min(ships.length,12)*1.6/(f.reload||1);
-            if(Math.random()<rate*dt){ const a=ships[Math.random()*ships.length|0].pos, b=randShip(ft); if(type==='ff') missile(a,b); else shoot(a,b,TEAM_COL[0],.28); }
+            if(Math.random()<rate*dt){ const a=shipMuzzle(f,ships[Math.random()*ships.length|0]), b=randShip(ft); if(type==='ff') missile(a,b); else shoot(a,b,TEAM_COL[0],.28); }
           }
         }
         continue;
       }
       damage(ft,f.ships.length*f.dmg*dt*(f.pinch||1)*bowK(f,ft)/(f.reload||1),f); f.revealT=FIRE_REVEAL; if(!f.alive) continue;
       const rate=Math.min(f.ships.length,12)*1.6/(f.reload||1);
-      if(Math.random()<rate*dt) shoot(randShip(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
-      if(Math.random()<rate*dt*.5) shoot(randShip(f),randShip(ft),TEAM_COL[f.team],.22);
+      if(Math.random()<rate*dt) shoot(randomShipMuzzle(f),randShip(ft).clone().add(new THREE.Vector3((Math.random()-.5)*2,(Math.random()-.5)*2,(Math.random()-.5)*2)),TEAM_COL[f.team],.28);
+      if(Math.random()<rate*dt*.5) shoot(randomShipMuzzle(f),randShip(ft),TEAM_COL[f.team],.22);
     }
   }
   spreadAllies(dt);

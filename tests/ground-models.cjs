@@ -2,7 +2,15 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {createGroundContext}=require('./ground-landing.cjs'),{build}=require('../tools/model-sheet.cjs');
 function nodeChecks(){
+  require('./ship-turrets.cjs').nodeChecks();
   const {ctx,run}=createGroundContext();let count=0;
+  const label=ctx.mkUnitLabel;
+  ctx.mkUnitLabel=(...args)=>{
+    const el=label(...args),classes=new Set();
+    el.classList={add:k=>classes.add(k),remove:k=>classes.delete(k),contains:k=>classes.has(k),
+      toggle(k,on){ if(on===undefined) on=!classes.has(k); if(on) classes.add(k); else classes.delete(k); return on; }};
+    return el;
+  };
   const check=(name,code)=>{assert.equal(run(code),true,name);count++;};
   ctx.URLSearchParams=URLSearchParams;ctx.location={search:''};
   {
@@ -11,6 +19,7 @@ function nodeChecks(){
     test.run(u.slice(u.indexOf('const SHIP_MAX='),u.indexOf('/* small craft')));
     const verify=(name,code)=>{assert.equal(test.run(code),true,name);count++;};
     verify('両陣営の8艦種の頂点数とジオメトリ共有',`Object.entries(SPACE_MODELS).every(([k,s])=>['earth','mars'].every(side=>{const key=k+(side==='mars'?'@mars':'');return shipMeshes[0][key].geometry.attributes.position.count===groundShapeGeo(s[side]).attributes.position.count&&shipMeshes.every(m=>m[key].geometry===shipMeshes[0][key].geometry);}))`);
+    verify('砲塔の行列は正の行列式',`Object.values(shipRigs).every(r=>r.turrets.every(t=>Math.abs(t.M.determinant()-1)<1e-5))`);
     verify('全艦の頂点色',`shipMeshes.every(m=>Object.values(m).every(v=>!!v.geometry.attributes.color))`);
     verify('陣営と鹵獲艦の鍵',`shipMeshKey({team:1},'cv')==='cv@mars'&&shipMeshKey({team:1},'bb')==='bb'&&shipMeshKey({team:1,side:'earth'},'cv')==='cv'&&shipMeshKey({team:0},'cv')==='cv'`);
     verify('共和国の鍵がない場合は従来の鍵',`(()=>{const m=shipMeshes[1]['cv@mars'];delete shipMeshes[1]['cv@mars'];const key=shipMeshKey({team:1},'cv');shipMeshes[1]['cv@mars']=m;return key==='cv';})()`);
@@ -31,7 +40,7 @@ function nodeChecks(){
   check('全モデルの座標・法線・頂点色が有限',`Object.keys(GROUND_SHAPES).every(key=>{const g=groundShapeGeo(key);return ['position','normal','color'].every(k=>g.attributes[k].count===g.attributes.position.count&&[...g.attributes[k].array].every(Number.isFinite));})`);
   check('仮の形は二つの濃淡を保つ',`!Object.prototype.hasOwnProperty.call(GROUND_SHAPES,'stub')||new Set(groundShapeGeo('stub').attributes.color.array).size===2`);
   check('単色は全部の部品が白い頂点色',`Object.keys(GROUND_SHAPES).every(key=>[...groundShapeGeo(key,true).attributes.color.array].every(k=>k===1))`);
-  check('宇宙艦と小型機は頂点色を持たない',`!shapeGeo('cv').attributes.color&&!craftGeo('was').attributes.color`);
+  check('宇宙艦と戦闘機の旧形は頂点色を持たない',`!shapeGeo('cv').attributes.color&&!craftGeo('ftr').attributes.color`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:${ctx.testKey}:0.7:one,infantry:${ctx.testKey}:0.5:squad6,fighter:${ctx.testKey}:0.8:v3,sea:cl:${ctx.testKey}:1.1:line3`);
   check('地上と海上の差し替えを読む',`groundModelFor('vehicle').size===.7&&groundModelFor('infantry').form==='squad6'&&groundModelFor('infantry').offsets===GROUND_FORMS.squad6&&groundModelFor('sea:cl').size===1.1&&groundModelFor('was')===null`);
   ctx.location.search='?groundModels='+encodeURIComponent(`vehicle:missing-model:1:v3,infantry:${ctx.testKey}:-2:7`);

@@ -11,6 +11,7 @@ const { checkGroundCapture } = require('./ground-capture.cjs');
 const { checkGroundOrg } = require('./ground-org.cjs');
 const { checkGroundSight } = require('./ground-sight.cjs');
 const {nodeChecks:townCoverChecks}=require('./town-cover.cjs');
+const {nodeChecks:shipTurretChecks}=require('./ship-turrets.cjs');
 const { checkGroundStrike } = require('./ground-strike.cjs');
 const { checkGroundTransport } = require('./ground-transport.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
@@ -245,6 +246,8 @@ function check(ok, label, detail = '') {
     await checkGroundHint(page, check);
     }
     if (on('space')) {
+    /* 宇宙の艦の砲塔と W.A.S. の形（ブラウザなし、tests/ship-turrets.cjs。#442） */
+    try { shipTurretChecks(); check(true, '宇宙砲塔: 静止の形・狙い・遠い艦・砲口・W.A.S. の形（ブラウザなし）'); } catch (e) { check(false, '宇宙砲塔: ' + e.message); }
     /* title. ここから先の宇宙の確認は、要塞の台本（出撃・迎撃）を前提にするので、指揮官を切る（指揮官は checkNpcSpace で確認済み） */
     await page.addInitScript(() => { window.WOS_NO_NPC = true; });
     await page.goto('file://' + path.join(ROOT, 'index.html'));

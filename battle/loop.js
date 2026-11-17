@@ -61,6 +61,87 @@ const _sq=new THREE.Quaternion();
 function landK(f){ const D=f.land; return D?Math.max(0,Math.min(1,1-(f.pos.distanceTo(D.p)-DROP_SIT)/(DROP_OVER-DROP_SIT))):0; }
 function surfQ(u,h){ _gz.copy(h).addScaledVector(u,-h.dot(u)); if(_gz.lengthSq()<1e-4) _gz.set(1,0,0).addScaledVector(u,-u.x); _gz.normalize();
   _gx.crossVectors(u,_gz).normalize(); _gm.makeBasis(_gx,u,_gz); return _sq.setFromRotationMatrix(_gm); }
+/* 仮: 見本の速さを3倍、砲塔を分ける大きさは半径40px以上（docs/menu.md）。 */
+const SHIP_TURRET_RATE_K=3, SHIP_TURRET_PX=40;
+const _stA=new THREE.Matrix4(), _stB=new THREE.Matrix4(), _stC=new THREE.Matrix4(), _stV=new THREE.Vector3(), _stTarget=new THREE.Vector3();
+const _shipFrustum=new THREE.Frustum(), _shipProjection=new THREE.Matrix4(), _shipSphere=new THREE.Sphere();
+let shipTurretPixelScale=1;
+function shipTurretTarget(f,s,i){
+  const ft=f.fireTarget, range=f.byType&&f.byType[s.type]?f.byType[s.type].range:f.range;
+  if(!ft||!ft.alive||!ft.seen||gap(f,ft)>range*1.08||bodyBlocks(f.pos,ft.pos)) return null;
+  return ft.kind==='fleet'&&ft.ships&&ft.ships.length?ft.ships[i%ft.ships.length].pos:ft.pos;
+}
+function shipTurretMatrix(s,t,state,out){
+  return out.copy(s.turMatrix).multiply(t.L0).multiply(_stB.makeRotationY(state.yaw));
+}
+function shipGunMatrix(t,state,out){
+  _stC.makeRotationX(-(state.el-t.built));
+  _stV.copy(t.pivot).applyMatrix4(_stC).negate().add(t.pivot); _stC.setPosition(_stV);
+  return out.multiply(_stC);
+}
+/* Advance all aiming states, including ships drawn as one mesh or outside the view. */
+function drawShip(f,s,key,dt,i,visible=true){
+  const rig=shipRigs[key],team=colOf(f),whole=shipMeshes[team][key]; let split=false;
+  if(rig&&s.turMatrix) s.turMatrix.copy(o3.matrix);
+  if(rig&&(f.fireTarget||s.turMoving)){
+    const target=shipTurretTarget(f,s,i);
+    if(target||s.tur){
+      if(!s.tur){ s.tur=rig.turrets.map(t=>({yaw:0,el:t.built,aimed:false})); s.turMatrix=new THREE.Matrix4(); }
+      if(!s.turRig) s.turMatrix.copy(o3.matrix); s.turRig=rig;
+      if(dt>0){
+        if(target){ _stA.copy(o3.matrix).invert(); _stTarget.copy(target).applyMatrix4(_stA); _stTarget.y-=rig.y; }
+        let moving=false;
+        for(let j=0;j<rig.turrets.length;j++){
+          const t=rig.turrets[j],state=s.tur[j]; let yaw=0,el=t.built,reachable=false;
+          if(target){
+            _stV.copy(_stTarget).applyMatrix4(t.Mi);
+            const wantedYaw=Math.atan2(_stV.x,_stV.z),wantedEl=Math.atan2(_stV.y,Math.hypot(_stV.x,_stV.z));
+            reachable=Math.abs(wantedYaw)<=t.arc+.15&&wantedEl>=t.el[0]-.15&&wantedEl<=t.el[1]+.15;
+            yaw=Math.max(-t.arc,Math.min(t.arc,wantedYaw)); el=Math.max(t.el[0],Math.min(t.el[1],wantedEl));
+          }
+          let dy=yaw-state.yaw; if(t.arc>=Math.PI) dy=Math.atan2(Math.sin(dy),Math.cos(dy));
+          const step=t.rate*SHIP_TURRET_RATE_K*dt;
+          state.yaw+=Math.max(-step,Math.min(step,dy));
+          if(t.arc>=Math.PI) state.yaw=Math.atan2(Math.sin(state.yaw),Math.cos(state.yaw));
+          state.el+=Math.max(-step,Math.min(step,el-state.el));
+          const error=Math.atan2(Math.sin(yaw-state.yaw),Math.cos(yaw-state.yaw));
+          state.aimed=!!target&&reachable&&Math.abs(error)<.15&&Math.abs(el-state.el)<.15;
+          moving=moving||Math.abs(state.yaw)>1e-3||Math.abs(state.el-t.built)>1e-3;
+        }
+        s.turMoving=moving;
+      }
+      if(visible&&(target||s.turMoving)){
+        _shipSphere.copy(whole.geometry.boundingSphere).applyMatrix4(o3.matrix);
+        split=_shipFrustum.intersectsSphere(_shipSphere)&&_shipSphere.radius/Math.max(1e-6,camera.position.distanceTo(_shipSphere.center))*shipTurretPixelScale>=SHIP_TURRET_PX;
+      }
+    }
+  }
+  if(!visible) return;
+  if(!split){ if(whole.count<SHIP_MAX) whole.setMatrixAt(whole.count++,o3.matrix); return; }
+  shipPartInstance(shipHullMeshes[team],key,rig.hull,whole.material,o3.matrix);
+  for(let j=0;j<rig.turrets.length;j++){
+    const t=rig.turrets[j],state=s.tur[j]; shipTurretMatrix(s,t,state,_stA); turretInstance(team,t.houseId,_stA);
+    shipGunMatrix(t,state,_stA); turretInstance(team,t.gunId,_stA);
+  }
+}
+/* The muzzle is evaluated only when firing, even for ships drawn as one mesh. */
+function shipMuzzle(f,s){
+  if(!s||!s.turRig||!s.turMatrix||!s.tur) return s?s.pos:f.pos;
+  const target=shipTurretTarget(f,s,f.ships.indexOf(s)); if(!target) return s.pos;
+  _stA.copy(s.turMatrix).invert(); _stTarget.copy(target).applyMatrix4(_stA); _stTarget.y-=s.turRig.y;
+  for(let i=0;i<s.tur.length;i++){
+    const state=s.tur[i],t=s.turRig.turrets[i]; if(!t.muzzle) continue;
+    _stV.copy(_stTarget).applyMatrix4(t.Mi);
+    const yaw=Math.atan2(_stV.x,_stV.z),el=Math.atan2(_stV.y,Math.hypot(_stV.x,_stV.z));
+    const error=Math.atan2(Math.sin(yaw-state.yaw),Math.cos(yaw-state.yaw));
+    if(Math.abs(error)>.15||Math.abs(el-state.el)>.15) continue;
+    shipTurretMatrix(s,t,state,_stA); shipGunMatrix(t,state,_stA); return t.muzzle.clone().applyMatrix4(_stA);
+  }
+  return s.pos;
+}
+/* the start of a shot from fleet f: a ship's muzzle when its class has turrets, otherwise the point randShip gave before */
+function randomShipMuzzle(f){ if(f.troop||f.kind==='fortress'||!f.ships||!f.ships.length) return randShip(f);
+  const s=f.ships[Math.random()*f.ships.length|0]; return s.turRig?shipMuzzle(f,s):s.pos; }
 let last=performance.now(), time=0, rosterTick=0, autoTalkAt=0;
 const AUTO_TALK=1.6;
 /* the clock's digits each sit in a box of the same width, so the panel does not twitch as they change (the font has no tabular figures) */
@@ -76,18 +157,19 @@ function frame(now){
   if(dt>0) step(dt);
   skyObj.position.copy(camera.position); starField.position.copy(camera.position);   // the far sky does not grow or shrink with the zoom
   if(skyGrow.length) growSky(clockMin(opClock())/60);   // 第6節: Februaria grows as the clock goes on (scene.js)
-  // ships
-  for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
+  // ships: the camera frame is shared by every ship's size/visibility check.
+  camera.updateMatrixWorld(); _shipProjection.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse); _shipFrustum.setFromProjectionMatrix(_shipProjection);
+  shipTurretPixelScale=(H/2)/Math.tan(camera.fov*Math.PI/360);
+  for(const t of [0,1,2,3]){ for(const m of turretMeshes[t].values()) m.count=0; for(const m of Object.values(shipHullMeshes[t])) m.count=0; for(const m of Object.values(shipMeshes[t])) m.count=0; for(const m of Object.values(craftMeshes[t])) m.count=0; }
   for(const f of fleets){ if(op.ground||!f.alive||f.mark==='site') continue; const hide=f.type!=='thr'&&!shown(f), lk=landK(f);
     const k=1-Math.exp(-(dt>0?dt:0)*2.5); _oq.setFromAxisAngle(up,Math.atan2(f.heading.x,f.heading.z));   // the formation turns with the heading
-    for(const s of f.ships){
-      if(s.base){ s.pos.copy(s.base); if(hide||f.pit) continue; if(f.shape==='rgun'){ drawRgun(s,f,dt); continue; } const m=shipMeshes[colOf(f)][shipMeshKey(f,f.shape||s.type)]; if(m.count>=SHIP_MAX) continue; groundGun(s,f); m.setMatrixAt(m.count++,o3.matrix); continue; }
+    for(const [si,s] of f.ships.entries()){
+      if(s.base){ s.pos.copy(s.base); if(f.pit) continue; if(f.shape==='rgun'){ if(!hide) drawRgun(s,f,dt); continue; }
+        groundGun(s,f); drawShip(f,s,shipMeshKey(f,f.shape||s.type),dt,si,!hide); continue; }
       _w.copy(s.off).applyQuaternion(_oq).add(f.pos); if(op.ground) _w.y=groundHeight(_w.x,_w.z)+.15; else _w.y+=Math.sin(time*.8+s.wob)*.35; if(lk>0&&s.sit) _w.lerp(s.sit,lk);
       s.pos.lerp(_w,dt>0?k:0);
-      if(hide) continue;
-      const m=shipMeshes[colOf(f)][shipMeshKey(f,s.type)]; if(m.count>=SHIP_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(f.heading)); if(lk>0) o3.quaternion.slerp(surfQ(f.land.up,f.heading),lk);
-      o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
+      o3.scale.setScalar(SHIP_SIZE[s.type]||f.scale); o3.updateMatrix(); drawShip(f,s,shipMeshKey(f,s.type),dt,si,!hide);
     }
   }
   if(op.ground) groundDraw();
@@ -95,11 +177,13 @@ function frame(now){
   for(const w of wings){ if(!w.alive) continue;
     const t=w.state==='attack'?w.target:null, orbit=t&&t.alive&&w.pos.distanceTo(t.pos)<=w.range*.6+(t.radius||0)+3;
     const k=1-Math.exp(-(dt>0?dt:0)*(orbit?4:5)), hide=!shown(w);
+    if(!w.spaceDrawPos) w.spaceDrawPos=w.pos.clone();
+    if(dt>0){ w.spaceMoving=w.spaceDrawPos.distanceToSquared(w.pos)>1e-8; w.spaceDrawPos.copy(w.pos); }
     for(const s of w.ships){
       if(orbit) craftOrbit(w,s,t,_w); else { _w.copy(w.pos).add(s.off); _w.x+=Math.sin(time*1.7+s.wob)*.6; _w.y+=Math.cos(time*1.3+s.wob)*.4; }
       if(!s.hd) s.hd=w.heading.clone();
       if(dt>0){ _v.copy(s.pos); s.pos.lerp(_w,k); _v.subVectors(s.pos,_v); const d=_v.length();
-        if(orbit&&d>1e-4) s.hd.lerp(_v.multiplyScalar(1/d),Math.min(1,dt*10)).normalize(); else if(!orbit) s.hd.lerp(w.heading,Math.min(1,dt*4)).normalize(); }
+        if(orbit&&w.type==='was') s.hd.lerp(_v.subVectors(t.pos,s.pos).normalize(),Math.min(1,dt*10)).normalize(); else if(orbit&&d>1e-4) s.hd.lerp(_v.multiplyScalar(1/d),Math.min(1,dt*10)).normalize(); else if(!orbit) s.hd.lerp(w.heading,Math.min(1,dt*4)).normalize(); }
       if(!s.tr){ s.tr=[]; s.trT=0; }
       if(dt>0){ s.trT+=dt; if(s.trT>=TRAIL_DT){ s.trT=0; s.tr.unshift(s.pos.clone()); if(s.tr.length>TRAIL_N) s.tr.pop(); }
         if(w.type==='was'&&!hide&&Math.random()<dt*.5) sparks.burst(_v.copy(s.hd).multiplyScalar(-.3).add(s.pos),TEAM_COL[colOf(w)],3,2,.3); }
@@ -107,12 +191,13 @@ function frame(now){
       if(trV+TRAIL_N*2<=trPos.length/3){ const c=trailCol[colOf(w)][w.type]||trailCol[colOf(w)].ftr; let p=s.pos;
         for(let j=0;j<s.tr.length;j++){ const q=s.tr[j], k0=1-j/TRAIL_N, k1=1-(j+1)/TRAIL_N;
           trPos.set([p.x,p.y,p.z,q.x,q.y,q.z],trV*3); trCol.set([c.r*k0,c.g*k0,c.b*k0,c.r*k1,c.g*k1,c.b*k1],trV*3); trV+=2; p=q; } }
-      const m=craftMeshes[colOf(w)][w.type]||craftMeshes[colOf(w)].ftr; if(m.count>=CRAFT_MAX) continue;
+      const craftKey=w.type==='was'?(orbit?'wasFlyFire':(w.spaceMoving?'wasFlyMove':'wasFly')):w.type;
+      const m=craftMeshes[colOf(w)][craftKey]||craftMeshes[colOf(w)].ftr; if(m.count>=CRAFT_MAX) continue;
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(s.hd)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
   trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
-  for(const t of [0,1,2,3]){ for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
+  for(const t of [0,1,2,3]){ for(const m of turretMeshes[t].values()){ m.visible=m.count>0; m.instanceMatrix.needsUpdate=true; } for(const m of Object.values(shipHullMeshes[t])){ m.visible=m.count>0; m.instanceMatrix.needsUpdate=true; } for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBeams(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
   for(const g of gates) drawGate(g,dt>0?dt:0);   // 第5節: the gates' bands, lids and infantry (base.js)
   for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
