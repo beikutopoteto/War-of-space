@@ -17,6 +17,7 @@ tools: Read, Grep, Glob, Bash
 3. `docs/spec.md`: ユーザーが決めた戦闘の仕様（艦種、索敵、艦載機と W.A.S.、操作）。`docs/menu.md` の「敵 AI」「索敵」「艦載機と W.A.S.」（仮の数値）
 4. `data/operations.js` の対象の作戦（先頭のコメントに書き方がある）と、`battle/sim.js` の AI（`enemyAI`、`allyAI`、`pickFoe`、`slotOf` など。動きの種類は `docs/maps.md` の「動きの種類」）
 5. `docs/maps.md` の「確かめ方」: 早送りの道具（`tools/*-sim.cjs`）
+6. 地上戦では `docs/spec.md` の「兵科の役割」（ユーザーの考え 2026-11-18: 自走砲など＝弾幕の盾、戦車＝突破の槍、歩兵＝防衛の鎧、W.A.S.＝突破力と殲滅力）と「地上戦の規模」（師団・軍・方面軍の一角の3段の予定、駒は中隊のまま）
 
 ## 考えかた
 
