@@ -15,7 +15,10 @@ function supplyCases(){
     // Explicit fixed scenario: the blue army already owns this road up to the red headquarters.
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=e.x<39?0:1;groundSupplyRefresh();
   };
+  // 仕組みの確かめは兵科の倍率なし（最大100）で行い、歩兵の士気の倍率は最後に別に確かめる。
+  const moraleMax=window.WOS_GROUND_RULES.supply.moraleMax,setMoraleMax=v=>{window.WOS_GROUND_RULES.supply.moraleMax=v;groundSupplyRules().moraleMax=v;};
   try{
+    setMoraleMax({});
     setup();const blue=unit(0,'infantry',15),red=unit(1,'infantry',15);fleets=[blue,red];
     const initial=blue.pos.clone();check('本営の円外への配置は拒否',!groundSupplyPlace([blue],groundPoint(20,25))&&blue.pos.equals(initial));
     check('本営の通れる円内へ消費せず配置',groundSupplyPlace([blue],groundPoint(7,29))&&blue.groundSupply===100&&blue.groundMorale===100);blue.pos.copy(initial);
@@ -141,7 +144,20 @@ function supplyCases(){
     check('見出しの平均は対象部隊のみ、最低値も説明へ残す',groundSupplyRosterText(mixed)==='士気 56%（最低40%）　補給 68%（最低24%）'&&groundSupplyMeters(mixed).includes('data-low="true"'));
     check('空の見出しには棒なし',groundSupplyMeters([])===''&&groundSupplyRosterText([])==='');
     op={};check('宇宙では補給と士気の処理が無効',!groundSupplyActive()&&groundSupplyAttackFactor(f)===1&&groundSupplySpeedFactor(f)===1&&groundSupplyHit(f,7)===7);
-  }finally{op=saved.op;fleets=saved.fleets;groundSites=saved.groundSites;groundTerritory=saved.groundTerritory;groundSupplyNet=saved.groundSupplyNet;over=saved.over;end=saved.end;groundForests=saved.groundForests;groundBuildings=saved.groundBuildings;d.objects.roads=oldRoads;d.objects.bridges=oldBridges;groundBridges=oldBuilt;groundBridgeRevision=oldBridgeRevision;}
+    // 歩兵の士気は高い（ユーザー決定 2026-11-17）: 最大は兵科の倍率、割合は自分の最大に対して、敗走などの点は士気の数のまま。
+    setMoraleMax(moraleMax);setup();
+    const inf=unit(0,'infantry',15,27),kinds=['heavyInfantry','commando','mechanicalAssault','vehicle','engineer'].map(k=>unit(0,k,15,27));
+    check('歩兵の士気の最大は150、機械化突撃兵は200、ほかは100',inf.groundMorale===150&&kinds.map(f=>f.groundMorale).join()==='150,150,200,100,100');
+    check('満タンの歩兵の攻撃倍率は1のまま',near(groundSupplyAttackFactor(inf),1));
+    inf.groundMorale=75;check('士気の攻撃倍率は自分の最大に対する割合',near(groundSupplyAttackFactor(inf),.75));
+    check('一覧の士気の棒は自分の最大に対する割合',groundSupplyReadings([inf]).find(r=>r.key==='groundMorale').value===50);
+    fleets=[inf];inf.groundRest=5;inf.groundMoved=false;inf.groundMorale=119;groundSupplyAfter(1);check('味方色の外では歩兵の士気120で回復が止まる',near(inf.groundMorale,120));
+    inf.pos.copy(groundPoint(12,29));inf.groundMorale=149;groundSupplyAfter(1);check('味方拠点では歩兵の士気150まで回復',near(inf.groundMorale,150));
+    inf.groundMorale=150;check('歩兵は士気140の被弾を吸収して敗走しない',groundSupplyHit(inf,140)===0&&near(inf.groundMorale,10)&&!inf.groundRout);
+    const giver=unit(0,'supply',15.6,27);inf.pos.copy(groundPoint(15,27));fleets=[inf,giver];inf.groundSupply=100;inf.groundMorale=119;giver.groundSupply=100;
+    const ordered=groundSupplyCommand([giver],inf);groundSupplyGive(2,new Map());
+    check('補給部隊は歩兵の士気を自分の最大の8割（120）まで戻せる',ordered&&near(inf.groundMorale,120)&&near(giver.groundSupply,99.5));
+  }finally{setMoraleMax(moraleMax);op=saved.op;fleets=saved.fleets;groundSites=saved.groundSites;groundTerritory=saved.groundTerritory;groundSupplyNet=saved.groundSupplyNet;over=saved.over;end=saved.end;groundForests=saved.groundForests;groundBuildings=saved.groundBuildings;d.objects.roads=oldRoads;d.objects.bridges=oldBridges;groundBridges=oldBuilt;groundBridgeRevision=oldBridgeRevision;}
   return results;
 }
 function nodeChecks(){const {ctx,run}=createGroundContext();return run(`(${supplyCases.toString()})()`);}
@@ -155,9 +171,9 @@ function setupSupplyUIScene(){
   reset({op:'groundExercise2'});setSpeed(0);endDeploy();select(null);hideTip();closePick();
   if(labelEnemy){labelEnemy.el.classList.remove('label-picked');labelEnemy=null;}
   document.body.classList.remove('nolabels');groundView='all';
-  fleets.forEach((f,i)=>{f.stance='evade';groundClearOrders(f);if(!f.embarked)f.pos.copy(groundPoint(5+i%8*2,33));if(Number.isFinite(f.groundMorale))f.groundMorale=100;if(Number.isFinite(f.groundSupply))f.groundSupply=100;});
+  fleets.forEach((f,i)=>{f.stance='evade';groundClearOrders(f);if(!f.embarked)f.pos.copy(groundPoint(5+i%8*2,33));if(Number.isFinite(f.groundMorale))f.groundMorale=groundMoraleMax(f);if(Number.isFinite(f.groundSupply))f.groundSupply=100;});
   const mine=fleets.filter(f=>f.team===0),land=mine.find(f=>f.groundKind==='infantry'),vehicle=mine.find(f=>f.groundKind==='vehicle'),air=mine.find(f=>f.groundKind==='fighter'),exempt=mine.find(f=>f.groundKind==='was');
-  land.groundMorale=72;land.groundSupply=24;vehicle.groundMorale=40;vehicle.groundSupply=80;air.groundSupply=58;
+  land.groundMorale=.72*groundMoraleMax(land);land.groundSupply=24;vehicle.groundMorale=.4*groundMoraleMax(vehicle);vehicle.groundSupply=80;air.groundSupply=58;
   [land,air,exempt].forEach((f,i)=>{f.pos.copy(groundPoint(16+i*2,26));f.pos.y=groundUnitHeight(f);});
   // 保存データは触らず、見出しの平均/最低と航空だけの大隊を確かめる。
   const companies=mine.map(f=>{f.companyId='supplyUI'+f.id;return {id:f.companyId,name:f.name,kind:f.groundKind};});

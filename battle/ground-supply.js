@@ -8,7 +8,7 @@ function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
 function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
 function groundSupplyInitUnit(f){
   if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
-  if(groundSupplyLand(f))f.groundMorale=groundSupplyRules().max;
+  if(groundSupplyLand(f))f.groundMorale=groundMoraleMax(f);
   f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
 }
 function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
@@ -137,7 +137,7 @@ function groundSupplyInit(){
 }
 function groundSupplyAttackFactor(f){
   if(!groundSupplyActive())return 1;const max=groundSupplyRules().max;
-  return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.5+.5*f.groundSupply/max:1)*(Number.isFinite(f.groundMorale)?.5+.5*f.groundMorale/max:1);
+  return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.5+.5*f.groundSupply/max:1)*(Number.isFinite(f.groundMorale)?.5+.5*f.groundMorale/groundMoraleMax(f):1);
 }
 function groundSupplySpeedFactor(f){
   if(!groundSupplyActive())return 1;const r=groundSupplyRules();return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.7+.3*f.groundSupply/r.max:1)*(f.groundRout==='routing'||!(f.groundHitLeft>0)?1:r.hitSlow);
@@ -201,7 +201,7 @@ function groundSupplyGive(dt,netGains){
       t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;f.groundStockGiving=true;
     }
     // 物資分配と独立して士気も回復。残った補給で賄える実回復量だけ消費する。
-    const morale=Math.max(0,Math.min(r.give*dt,r.max*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
+    const morale=Math.max(0,Math.min(r.give*dt,groundMoraleMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
     if(morale>0){t.groundMorale+=morale;f.groundSupply-=morale*r.moraleGiveCost;f.groundMoraleGiving=true;}
     if(f.groundStockGiving||f.groundMoraleGiving){used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};}
   }
@@ -244,7 +244,9 @@ function groundSupplyBefore(dt){
   }
 }
 // 味方の占領色は100%、それ以外は80%。現在値を上限へ切り下げない。
-function groundMoraleCap(f,at){return groundSupplyRules().max*(at.owner===f.team&&!at.contested?1:.8);}
+// 士気の最大は兵科ごと（歩兵は高い）。割合（攻撃の倍率・回復と分配の上限・一覧の棒）はこの最大に対して測り、敗走・再編などの点は士気の数のまま。
+function groundMoraleMax(f){const r=groundSupplyRules();return r.max*(r.moraleMax?.[f?.groundKind]??1);}
+function groundMoraleCap(f,at){return groundMoraleMax(f)*(at.owner===f.team&&!at.contested?1:.8);}
 function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
@@ -277,7 +279,7 @@ function groundSupplyStatus(f){
 }
 function groundSupplyReadings(list){
   return [['groundMorale','士気'],['groundSupply','補給']].flatMap(([key,label])=>{
-    const values=list.filter(f=>Number.isFinite(f[key])).map(f=>Math.max(0,Math.min(100,100*f[key]/groundSupplyRules().max)));
+    const values=list.filter(f=>Number.isFinite(f[key])).map(f=>Math.max(0,Math.min(100,100*f[key]/(key==='groundMorale'?groundMoraleMax(f):groundSupplyRules().max))));
     return values.length?[{key,label,value:Math.round(values.reduce((a,b)=>a+b,0)/values.length),min:Math.floor(Math.min(...values)),low:values.some(v=>v<=30)}]:[];
   });
 }
