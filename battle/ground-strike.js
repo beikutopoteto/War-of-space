@@ -49,7 +49,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null,entry=
     flight.velocityMeters.x-=offset.x*flight.scene.m/flight.physicalDuration;flight.velocityMeters.z-=offset.z*flight.scene.m/flight.physicalDuration;
   }
   const duration=flight?(flight.hitTime??flight.duration):w.delay;
-  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,origin,observed,spread,radius:w.radius,dmg:f.dmg*(w.dmgScale??1)*groundSupplyAttackFactor(f)/(f.bodies?f.bodies0:1),distanceScatter,flight,duration,left:duration,resolving:false,visual:null,label:!volley||volley.ledger.fired.size===0,firstRound:!entry||entry.round===0};
+  const strike={area,areaDirected:!!impactOverride,source:f,team:f.team,kind:f.groundKind,aim,impact,origin,observed,spread,radius:w.radius,dmg:f.dmg*(w.dmgScale??1)*groundSupplyAttackFactor(f)/(f.bodies?groundBodiesPerPlatoon(f):1),distanceScatter,flight,duration,left:duration,resolving:false,visual:null,label:!volley||volley.ledger.fired.size===0,firstRound:!entry||entry.round===0};
   if(f.groundKind==='vehicle')shoot(groundBodyShotPosition(f,origin),impact,TEAM_COL[f.team],.25);
   groundStrikes.push(strike);if(!volley)f.groundStrikeCooldown=w.reload;groundSupplyShot(f,true,volley?1/volley.ledger.entries.length:1);
   if(op.groundDrill)groundDrillEvent('strike',f,strike);
@@ -72,7 +72,7 @@ function groundStrikeStep(dt){
         const radius=groundStrikeRadius(s,t),bodies=t.bodies?t.bodies.map((b,i)=>({b,pos:groundBodyPosition(t,i)})).filter(x=>x.b.alive&&groundDistanceTo({pos:x.pos},{pos:s.impact})<=radius):[{b:null,pos:t.pos}];
         for(const hit of bodies){
           if(!t.alive)break;const falloff=groundStrikeFalloff(groundDistanceTo({pos:hit.pos},{pos:s.impact}),radius);
-          damage(t,s.dmg*falloff/(t.bodies?t.bodies0:1),s.source,s,hit.b);
+          damage(t,s.dmg*falloff/(t.bodies?groundBodiesPerPlatoon(t):1),s.source,s,hit.b);
         }
       }
       groundBridgeHit(s);

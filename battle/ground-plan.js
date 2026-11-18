@@ -3,7 +3,7 @@ let groundLineStart=null,groundLinePointer=null,groundPlanMessage='',groundPlanV
 function groundPlanUnits(list=orderTargets()){
   return list.filter(f=>f.team===0&&f.alive&&!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
 }
-function groundCopyPlan(p){return p?{dest:p.dest.clone(),from:p.from.clone(),line:p.line.map(v=>v.clone())}:null;}
+function groundCopyPlan(p){return p?{dest:p.dest.clone(),from:p.from.clone(),line:p.line.map(v=>v.clone()),width:p.width,face:p.face&&{...p.face}}:null;}
 function groundPlanCancelInput(){groundLineStart=groundLinePointer=null;groundPlanMessage='';}
 function groundPlanReset(){
   groundPlanCancelInput();if(groundPlanVisual){groundPlanVisual.parent?.remove(groundPlanVisual);groundPlanVisual.geometry.dispose();groundPlanVisual.material.dispose();groundPlanVisual=null;}
@@ -23,14 +23,15 @@ function groundPlanSlots(list,a,b){
   let nx=-dz/length,nz=dx/length;
   const cx=list.reduce((s,f)=>s+f.pos.x,0)/list.length-(a.x+b.x)/2,cz=list.reduce((s,f)=>s+f.pos.z,0)/list.length-(a.z+b.z)/2;
   if(cx*nx+cz*nz<0){nx=-nx;nz=-nz;}
-  const shift=front.length&&back.length?GROUND_PLAN_ROW_KM*GROUND_SCALE:0,slots=[];
+  // width: その中隊が線の上で使える幅（列の中の中隊の数で線を割る）。face: 正面（自軍の側の反対）。中隊の中の小隊の並び（ground.js groundFormationLayout）に使う
+  const shift=front.length&&back.length?GROUND_PLAN_ROW_KM*GROUND_SCALE:0,slots=[],face={x:-nx,z:-nz};
   for(const [row,away] of [[front,0],[back,shift]]){
     const sorted=[...row].sort((f,g)=>((f.pos.x-g.pos.x)*dx+(f.pos.z-g.pos.z)*dz)||f.id-g.id);
     for(let i=0;i<sorted.length;i++){
       const f=sorted[i],dest=a.clone().lerp(b,sorted.length===1?.5:i/(sorted.length-1));dest.x+=nx*away;dest.z+=nz*away;
       const path=groundMovePath(f.pos,[dest],groundMoveKind(f));
       if(!path)return {error:f.name+'：指定位置まで通れる経路がありません'};
-      slots.push({f,dest,path});
+      slots.push({f,dest,path,line:{width:length/sorted.length,face}});
     }
   }
   return {slots};
@@ -43,20 +44,20 @@ function groundPlanTap(p){
   const result=groundPlanSlots(list,a,b);
   if(result.error){groundPlanMessage=result.error;groundHud();return;}
   npcAutoPlayer(list);saveUndo(list);
-  if(mode==='plan')for(const {f,dest} of result.slots)f.groundPlan={from:f.pos.clone(),dest,line:[a.clone(),b.clone()]};
-  else for(const {f,dest,path} of result.slots) {groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundDeploy:true});}
+  if(mode==='plan')for(const {f,dest,line} of result.slots)f.groundPlan={from:f.pos.clone(),dest,line:[a.clone(),b.clone()],width:line.width,face:line.face};
+  else for(const {f,dest,path,line} of result.slots) {groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundDeploy:true,groundLine:line});}
   groundClearAiming();groundPlanMessage=mode==='plan'?list.length+'隊の進撃計画を準備（実行で開始）':list.length+'隊が布陣を開始';groundHud();
 }
 function groundPlanExecute(){
   if(!op.ground||over||deploying)return;
   const list=groundPlanUnits().filter(f=>f.groundPlan),slots=[];if(!list.length)return;
   // 計画作成後の移動や架橋・破壊を反映して、実行前に全隊の通路を確認。
-  for(const f of list){const dest=f.groundPlan.dest.clone(),path=groundMovePath(f.pos,[dest],groundMoveKind(f));if(!path){groundPlanMessage=f.name+'：経路が変わったため実行できません';groundHud();return;}slots.push({f,dest,path});}
+  for(const f of list){const dest=f.groundPlan.dest.clone(),path=groundMovePath(f.pos,[dest],groundMoveKind(f));if(!path){groundPlanMessage=f.name+'：経路が変わったため実行できません';groundHud();return;}slots.push({f,dest,path,line:Number.isFinite(f.groundPlan.width)?{width:f.groundPlan.width,face:f.groundPlan.face}:null});}
   npcAutoPlayer(list);saveUndo(list);
   // 進撃（groundAdvance）: 途中で敵が射程に入ったら、自動交戦の隊は止まって撃ち合い、命令優先の隊は撃ちながら進む（ユーザー決定 2026-11-14。ground.js の groundStep）
   // 同じ実行で動き出した隊を1つの組にし、速さはいちばん遅い隊に合わせる（ユーザー決定 2026-11-14「速さはやっぱ最低速度で」。terrain.js の groundAdvanceSpeed）
   const group={units:slots.map(s=>s.f)};
-  for(const {f,dest,path} of slots){groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundAdvance:group});}
+  for(const {f,dest,path,line} of slots){groundCancelWork(f);f.queue=[];order(f,{type:'move',dest,groundPreparedPath:path,groundAdvance:group,...(line?{groundLine:line}:{})});}
   groundClearAiming();groundPlanMessage=list.length+'隊が進撃を開始';groundHud();
 }
 function groundPlanHud(list){

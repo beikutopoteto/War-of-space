@@ -451,6 +451,8 @@ function reset(cfg=lastCfg){
   /* the field's centre, radius and reach (op.fieldC:[x,z], op.fieldR, op.reach; 第5節), and how far the view may pull back (op.view.max) */
   fieldC.set(op.fieldC?op.fieldC[0]:0,0,op.fieldC?op.fieldC[1]:0); FIELD_R=op.fieldR||215; REACH=op.reach||200; setAltMax(op.altMax||60); setAlt(0,false);
   controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R;
+  /* how close the view may come: the ground board lets it come to 10 (about 2.5 km; user decision 2026-11-18, before 35), space keeps 35 */
+  controls.minDistance=op.ground?GROUND_MIN_VIEW:35;
   /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
      (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */
   const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)

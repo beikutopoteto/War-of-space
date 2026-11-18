@@ -9,7 +9,7 @@ function nodeChecks(){
   shoot=burst=groundHud=()=>{};groundSeenBy=groundPointSeenBy=()=>true;
  }
  function weaponsUnit(kind='artillery',team=0,x=-20,z=0,type='cv'){
-  const f=makeFleet(team,groundUnitSpec({name:'兵器の確認 '+fid,kind,type,at:[12,18],band:kind==='sea'?'sea':kind==='supportAircraft'?'high':'ground',stance:'evade'}));
+  const f=makeFleet(team,groundUnitSpec({name:'兵器の確認 '+fid,kind,type,at:[12,18],band:kind==='sea'?'sea':kind==='supportAircraft'?'high':'ground',stance:'evade',platoons:1}));
   fleets.push(f);groundInitUnit(f);f.pos.set(x,kind==='supportAircraft'?groundRules().heights.high:0,z);f.heading.set(1,0,0);f.groundDeployed=true;f.groundVisible=[true,true];f.eva=0;return f;
  }
  function weaponsLayout(f,offsets){f.heading.set(0,0,1);f.groundBodySpec={offsets,size:1};f.groundBodyLayouts=f.groundBodyGeometry=null;}

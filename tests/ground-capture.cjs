@@ -74,10 +74,11 @@ async function checkGroundCapture(page, check) {
     const matchupHit=(source,victim,multiplier)=>{
       for(const b of source.bodies)b.shotT=0;
       for(const b of victim.bodies){b.hp=b.max=1000/victim.bodies0;b.alive=true;}groundBodySync(victim);
-      const before=victim.hpPool+victim.groundMorale,real=damage;let expected=0,calls=0,valid=true;
-      damage=(t,n,src,...rest)=>{if(src===source&&t===victim){calls++;const want=source.dmg*multiplier*groundSupplyAttackFactor(source)/source.bodies0;valid&&=Math.abs(n-want)<1e-7;expected+=want*groundRuleSet().combat.damageScale*groundDamageFactor(victim);}return real(t,n,src,...rest);};
+      // 士気は小隊ごとに受ける（groundSupplyHit）。耐久と「士気×小隊の数」の合計が損害だけ減る
+      const morale=()=>victim.groundMorale*(victim.groundPlatoons||1),before=victim.hpPool+morale(),real=damage;let expected=0,calls=0,valid=true;
+      damage=(t,n,src,...rest)=>{if(src===source&&t===victim){calls++;const want=source.dmg*multiplier*groundSupplyAttackFactor(source)/groundBodiesPerPlatoon(source);valid&&=Math.abs(n-want)<1e-7;expected+=want*groundRuleSet().combat.damageScale*groundDamageFactor(victim);}return real(t,n,src,...rest);};
       try{groundStep(.05);}finally{damage=real;}
-      return calls>0&&valid&&Math.abs(before-victim.hpPool-victim.groundMorale-expected)<1e-7;
+      return calls>0&&valid&&Math.abs(before-victim.hpPool-morale()-expected)<1e-7;
     };
     const heavyHit=matchupHit(heavy,target,groundRuleSet().combat.heavyTank);
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
