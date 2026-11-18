@@ -25,6 +25,8 @@ const SHIP_SIZE=Object.fromEntries(WOS_DATA.ships.map(s=>[s.id,s.scale*1.2]));
    assault ship there was 0.55 of it */
 SHIP_SIZE.lc=SHIP_SIZE.mas*.55;
 function instanced(geo,mat,max){ const m=new THREE.InstancedMesh(geo,mat,max); m.count=0; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled=false; scene.add(m); return m; }
+/* after a frame fills an instanced mesh (battle/loop.js): hidden when it has none, else only the instances in use go to the GPU */
+function instancedSend(m){ m.visible=m.count>0; if(!m.count) return; const a=m.instanceMatrix; a.updateRange.offset=0; a.updateRange.count=m.count*16; a.needsUpdate=true; }
 /* ship shapes (docs/models.md 15.23): the classes in SPACE_MODELS use the approved shapes in GROUND_SHAPES (flat faces, part tones as
    vertex colours), the Republic's under the key <class>@mars; the other shapes (landing craft, transports, guns, thrusters) keep their
    look with every vertex colour 1. One geometry per shape, shared by the four teams */
