@@ -1211,6 +1211,10 @@ const GROUND_FORMS={
    keeps the old drawing (the carrier and the assault ship on the sea). The user approved sample round 14 (version 20) on
    2026-11-13 (docs/models.md 12); the entries are the ones that sample used (docs/mockups/models/pilot-override.txt). Sizes: a trooper
    .32 × 1.57 units is about 2 m, the W.A.S. .75 × 1.45 about 4.3 m */
+/* 地上の体を描く大きさの倍率（ユーザー決定 2026-11-18「モデルはいい感じです」、見本は今・2/3・2/3＋木も2/3）。並びの間隔（km）は
+   表の size のまま変えず、描く体だけを小さくする。木と建物は今のまま（ユーザー決定）。海の艦は変えない。動くときの列の間隔は描く体の
+   大きさから決めるので、列は短くなる */
+const GROUND_BODY_SCALE=2/3;
 const GROUND_MODELS={
   vehicle:{earth:{key:'tankE',size:.5,form:'wedge4'},mars:{key:'tankM',size:.45,form:'wedge4'}},
   apc:{earth:{key:'apcE',size:.5,form:'box4'},mars:{key:'apcM',size:.5,form:'box4'}},
@@ -1254,7 +1258,10 @@ function groundModelFor(kind,side='earth'){
     if(!s.startsWith(who+':')) continue;
     const [key,size,form,move]=s.slice(who.length+1).split(':'), m=done({key,size,form,move}); if(m) return m;
   }
-  const m=GROUND_MODELS[kind]; return done(m&&(m.earth||m.mars)?m[side]:m);
+  const m=GROUND_MODELS[kind],spec=done(m&&(m.earth||m.mars)?m[side]:m);
+  // body: 描く体の大きさ。表の size（並びの間隔）とは別に GROUND_BODY_SCALE を掛ける（海の艦は今のまま）。見本の差し替え（?groundModels=）は size のまま描く
+  if(spec&&!kind.startsWith('sea'))spec.body=spec.size*GROUND_BODY_SCALE;
+  return spec;
 }
 /* ---- 炎と煙（効果。2026-11-16、docs/models.md 16.6）----
    建物の形（灰色の1つの網）とは別の、光らせて時間で動かす網。groundFire(points) が {group, update(t)} を返す。

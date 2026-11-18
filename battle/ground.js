@@ -249,9 +249,10 @@ const GROUND_MARCH={
 };
 const groundBodyDimsCache=new Map();
 function groundBodyDims(spec){
-  if(!spec.key)return {len:2*spec.size,wid:spec.size};
-  const k=spec.key+':'+spec.size;if(groundBodyDimsCache.has(k))return groundBodyDimsCache.get(k);
-  const g=groundShapeGeo(spec.key);g.computeBoundingBox();const b=g.boundingBox,out={len:(b.max.z-b.min.z)*spec.size,wid:(b.max.x-b.min.x)*spec.size};g.dispose();
+  const size=spec.body??spec.size;   // 描く体の大きさ（GROUND_BODY_SCALE を掛けたもの）
+  if(!spec.key)return {len:2*size,wid:size};
+  const k=spec.key+':'+size;if(groundBodyDimsCache.has(k))return groundBodyDimsCache.get(k);
+  const g=groundShapeGeo(spec.key);g.computeBoundingBox();const b=g.boundingBox,out={len:(b.max.z-b.min.z)*size,wid:(b.max.x-b.min.x)*size};g.dispose();
   groundBodyDimsCache.set(k,out);return out;
 }
 function groundMarchLayout(f,spec,vehicle){
@@ -489,7 +490,7 @@ function groundInitUnit(f){
     const radius=Math.max(...spec.offsets.map(([x,z])=>Math.hypot(x,z)))*size;
     if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
     for(const [i,[x,z]] of spec.offsets.entries()){
-      const body=new THREE.Mesh(geo,mat); body.scale.setScalar(size); body.position.set(x*size,0,z*size); model.add(body);
+      const body=new THREE.Mesh(geo,mat); body.scale.setScalar(spec.body??size); body.position.set(x*size,0,z*size); model.add(body);
       form.bodies.push(body);
       const flightRandom=groundBodyRandom(f,i);
       form.flights.push({phase:flightRandom()*Math.PI*2,radius:radius*(1+flightRandom()),omega:Math.PI*2/(4+flightRandom()*3)*(flightRandom()<.5?-1:1),sway:1+flightRandom()});
