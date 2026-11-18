@@ -3,9 +3,9 @@
    300 km の検証場（field300）の拠点 B と C のあいだに、両軍に同じ数の小隊（引数、1軍あたり）を約14 km 離して並べ、
    両軍の指揮官 AI（地球・共和国、ふつう）で戦わせる。兵科の割合は旅団らしい16個中隊の組（歩兵4・戦車4・重強化歩兵2・
    自走砲2・ロケット・自走対空・斥候・補給 各1）の繰り返し。
-   小隊は「中隊の強さ」の形をこの道具の中だけで先取りする: 1中隊 = --per 小隊で、体の数・耐久・火力を per 倍
-   （小隊の体は横2列に並べる）。--per=1 は今の形（1中隊 = 1小隊）。
-   --today: 比べる基準。今のバイコヌール演習のクイック出撃（48×36 km、決まった部隊）を同じ測り方で（小隊の数の引数は要らない）。
+   1中隊 = --per 小隊（ゲームの小隊の数 platoons。体の数・耐久・火力が per 倍。2026-11-18 からゲームの実装を使う。
+   前はこの道具の中だけで先取りしていた）。--per=1 は1中隊 = 1小隊。
+   --today: 比べる基準。今のバイコヌール演習のクイック出撃（決まった部隊。2026-11-18 から各中隊4小隊）を同じ測り方で（小隊の数の引数は要らない）。
    測るもの（1フレームは groundStep 1回 + groundDraw + 描画 + 名札など。battle/loop.js の frame）:
    - 計算: groundStep(0.05) の平均と95%点（開始から --seconds ゲーム秒まで。撃ち合いの始まりと、撃っている隊の数の平均）
    - 1フレームの仕事: 戦いの最中に速度1で3秒動かし、frame 1回の時間（平均・95%点）と内訳。描画のすぐあとで GPU が描き終わるのを待つ（gl.finish）ので、GPU の仕事を含む
@@ -38,19 +38,9 @@ function setupWeight(cfg){
           const px=x+Math.cos(a/n*Math.PI*2)*s*.4,py=y+Math.sin(a/n*Math.PI*2)*s*.4,key=Math.round(px/.4)+','+Math.round(py/.4);
           if(!used.has(key)&&groundPass(px,py,kindMove,false)){at=[px,py];used.add(key);}
         }
-        out.push({name:(team?'赤':'青')+' 検証第'+(i+1)+'中隊',kind,at:at||[x,y],band:'ground',stance:'engage'});
+        out.push({name:(team?'赤':'青')+' 検証第'+(i+1)+'中隊',kind,at:at||[x,y],band:'ground',stance:'engage',platoons:cfg.per});
       }return out;};
     source.quick=place(0,134,126,1);source.enemies=place(1,148,123,-1);
-    if(cfg.per>1){
-      const scaled=new Set(['infantry','heavyInfantry','vehicle','artillery','guidedRocket','mobileAA','scout','supply','apc','engineer','commando','mechanicalAssault']);
-      const model=groundModelFor,init=groundInitUnit;
-      groundModelFor=(kind,side)=>{const m=model(kind,side);if(!m||!scaled.has(kind))return m;
-        const xs=m.offsets.map(o=>o[0]),zs=m.offsets.map(o=>o[1]),w=Math.max(...xs)-Math.min(...xs)+1.6,d=Math.max(...zs)-Math.min(...zs)+1.6;
-        const cols=Math.min(2,cfg.per),rows=Math.ceil(cfg.per/cols),offsets=[];
-        for(let p=0;p<cfg.per;p++)for(const [x,z] of m.offsets)offsets.push([x+(p%cols-(cols-1)/2)*w,z-(Math.floor(p/cols)-(rows-1)/2)*d]);
-        return {...m,offsets};};
-      groundInitUnit=f=>{if(scaled.has(f.groundKind)){f.hpPool*=cfg.per;f.dmg*=cfg.per;}return init(f);};
-    }
     reset({op:source.id,fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();
   }
   menuOpen=false;document.body.classList.remove('inmenu');document.getElementById('menu').hidden=true;   // WOS.start と同じ（戦闘の画面で測る）

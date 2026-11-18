@@ -188,29 +188,153 @@ function groundFormationState(f,now=gameSec){
   if(now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4)return f.order?.groundAdvance?'advance':'move';
   return f.groundDeployed?'defend':'idle';
 }
+// groundLine（布陣・進撃計画の線。ground-plan.js）: その中隊が使える幅と正面。着いたら正面を向き、その幅で小隊を並べる（2026-11-18）
 function groundFormationOrder(f,o){
   if(['move','attack'].includes(o.type)&&!o.groundDeploy&&!o.groundAdvance)f.groundDeployed=false;
+  if(o.groundDeploy||o.groundAdvance)f.groundLine=o.groundLine?{width:o.groundLine.width,face:{...o.groundLine.face}}:null;
 }
-function groundFormationArrive(f){if(f.order?.groundDeploy||f.order?.groundAdvance)f.groundDeployed=true;}
+function groundFormationArrive(f){
+  if(!(f.order?.groundDeploy||f.order?.groundAdvance))return;
+  f.groundDeployed=true;const face=f.groundLine?.face;if(face&&Math.hypot(face.x,face.z)>1e-6)f.heading.set(face.x,0,face.z).normalize();
+}
 function groundBodyRandom(f,i){
   let seed=2166136261;
   for(const c of `${f.id}:${f.name}:${i}`)seed=Math.imul(seed^c.charCodeAt(0),16777619)>>>0;
   return ()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 }
+/* 小隊の並び（ユーザー決定 2026-11-18）: 1小隊の並び（spec.platoon。GROUND_FORMS）を小隊の数だけ並べる。布陣・進撃では、布陣の線で
+   その中隊が使える幅（f.groundLine.width。ground-plan.js）に横一列に並べ、入りきらない小隊は後ろの列へ。幅の指定がなければ横一列。
+   ふつうに止まっているとき（idle）は2列の塊の大きさの中にばらけ、動くとき（move）は全部の体で道筋に沿った列（groundMarchLayout）。小隊の間は1小隊の幅（奥行き）＋
+   GROUND_PLATOON_GAP（模型の単位、仮） */
+const GROUND_PLATOON_GAP=1.6;
+function groundPlatoonOffsets(spec,cols){
+  const one=spec.platoon||spec.offsets,p=spec.platoons||1;if(p<=1)return one;
+  const xs=one.map(o=>o[0]),zs=one.map(o=>o[1]),w=Math.max(...xs)-Math.min(...xs)+GROUND_PLATOON_GAP,d=Math.max(...zs)-Math.min(...zs)+GROUND_PLATOON_GAP,out=[];
+  cols=Math.max(1,Math.min(p,cols));
+  for(let k=0;k<p;k++){const r=Math.floor(k/cols),inRow=Math.min(cols,p-r*cols),c=k-r*cols;for(const [x,z] of one)out.push([x+(c-(inRow-1)/2)*w,z-r*d]);}
+  return out;
+}
+// 1小隊の横幅（戦闘の単位）。布陣の幅にいくつ横に並ぶかを決める
+function groundPlatoonWidth(spec){const one=spec.platoon||spec.offsets,xs=one.map(o=>o[0]);return (Math.max(...xs)-Math.min(...xs)+GROUND_PLATOON_GAP)*spec.size;}
+// 1小隊の体の数。体1つの射撃・地点攻撃の威力は「中隊の火力 ÷ 1小隊の体の数」で、小隊が多いほど撃つ体が増える
+function groundBodiesPerPlatoon(f){return Math.max(1,(f.bodies0||1)/(f.groundPlatoons||1));}
+// 状態ごとの並び（体の位置の計算と描画で共通）。形と布陣の幅が変わったら作り直す
+function groundLayouts(f,spec=f.groundBodySpec){
+  const width=f.groundLine?.width??Infinity,c=f.groundBodyLayouts;
+  if(c&&c.spec===spec&&c.width===width)return c;
+  const out={spec,width};for(const st of ['idle','defend','advance','move'])out[st]=groundFormationLayout(f,spec,st);
+  return f.groundBodyLayouts=out;
+}
 function groundFormationLayout(f,spec,state){
-  const base=spec.offsets.map(([x,z])=>({x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0})),n=base.length;
+  const p=spec.platoons||1,width=f.groundLine?.width,cols=p<=1?1:state==='idle'?Math.min(2,p):Number.isFinite(width)?Math.floor(width/groundPlatoonWidth(spec)):p;
+  const base=groundPlatoonOffsets(spec,cols).map(([x,z])=>({x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0})),n=base.length;
   if(n<2)return base;
   const vehicles=['vehicle','apc','artillery','guidedRocket','mobileAA','scout','engineer','supply'],foot=['infantry','heavyInfantry','commando','mechanicalAssault','was'];
   if(!vehicles.includes(f.groundKind)&&!foot.includes(f.groundKind))return base;
-  let gap=Infinity;
-  for(let i=0;i<n;i++)for(let j=0;j<i;j++)gap=Math.min(gap,Math.hypot(base[i].x-base[j].x,base[i].z-base[j].z));
-  gap=Math.max(1.2,gap);
-  if(state==='move')return base.map((p,i)=>({...p,x:vehicles.includes(f.groundKind)?0:(i%2?1:-1)*(f.groundKind==='was'?.9:.45),z:vehicles.includes(f.groundKind)?((n-1)/2-i)*gap:((Math.ceil(n/2)-1)/2-Math.floor(i/2))*gap}));
+  if(state==='move')return groundMarchLayout(f,spec,vehicles.includes(f.groundKind));
   if(state==='idle'){
     const radius=Math.max(...base.map(p=>Math.hypot(p.x,p.z)))*1.3;
     return base.map((p,i)=>{const random=groundBodyRandom(f,i),a=random()*Math.PI*2,r=Math.sqrt(random())*radius;return {...p,x:Math.cos(a)*r,z:Math.sin(a)*r,yaw:(random()*2-1)*Math.PI/3};});
   }
   return base;
+}
+/* 動くときの列（ユーザー承認 2026-11-18。見本は千鳥の2列・曲線・ずれ）。体ごとに、列の先頭からの道筋の上の距離 s と横のずれ lat を決め、
+   描くときと当たり判定のときに、中隊の道筋（groundMarchPositions）の上へ置く。
+   - 歩兵: 基本は2列、3割ほどの横並びは3人。車両: 左右交互の千鳥の2列（最大2列）。小隊のあいだは少しあける。
+   - どちらも前後左右に少しずらし、動いているあいだはゆっくりゆらぐ（la/lw/lp は横、sa/sw/sp は前後のゆらぎの幅・速さ・位相）。
+   - 間隔は体の大きさ（モデルの長さと幅）から決めるので、モデルの大きさを変えると列の長さも変わる。数値はすべて仮 */
+const GROUND_MARCH={
+  foot:{row:1.7,minRow:.6,lane:1.7,minLane:.36,three:.3,platoonGap:1.3,smooth:1.1},
+  vehicle:{step:.62,minStep:.45,lane:.85,minLane:.3,platoonGap:1.4,smooth:1.7}
+};
+const groundBodyDimsCache=new Map();
+function groundBodyDims(spec){
+  if(!spec.key)return {len:2*spec.size,wid:spec.size};
+  const k=spec.key+':'+spec.size;if(groundBodyDimsCache.has(k))return groundBodyDimsCache.get(k);
+  const g=groundShapeGeo(spec.key);g.computeBoundingBox();const b=g.boundingBox,out={len:(b.max.z-b.min.z)*spec.size,wid:(b.max.x-b.min.x)*spec.size};g.dispose();
+  groundBodyDimsCache.set(k,out);return out;
+}
+function groundMarchLayout(f,spec,vehicle){
+  const p=spec.platoons||1,n=spec.offsets.length,per=Math.max(1,Math.round(n/p)),{len,wid}=groundBodyDims(spec),out=[];
+  let s=0;
+  if(!vehicle){
+    const M=GROUND_MARCH.foot,row=Math.max(len*M.row,M.minRow),lane=Math.max(wid*M.lane,M.minLane);
+    for(let k=0;k<p;k++){
+      if(k)s+=row*M.platoonGap;
+      for(let j=0;j<per;){
+        let w=per-j>=3&&groundBodyRandom(f,5000+k*97+j)()<M.three?3:2;w=Math.min(w,per-j);
+        for(let c=0;c<w;c++){
+          const i=k*per+j+c,r=groundBodyRandom(f,9000+i);
+          out[i]={s:s+(r()-.5)*row*.55,lat:(c-(w-1)/2)*lane+(r()-.5)*lane*.4,la:lane*(.18+r()*.14),lw:2*Math.PI/(5+r()*5),lp:r()*6.3,sa:row*(.18+r()*.14),sw:2*Math.PI/(4+r()*5),sp:r()*6.3,ya:.18};
+        }
+        j+=w;s+=row;
+      }
+      s-=row;
+    }
+    out.smooth=M.smooth;
+  }else{
+    const M=GROUND_MARCH.vehicle,step=Math.max(len*M.step,M.minStep),lane=Math.max(wid*M.lane,M.minLane);
+    for(let k=0;k<p;k++){
+      if(k)s+=step*M.platoonGap;
+      const first=groundBodyRandom(f,7000+k)()<.5?1:-1;
+      for(let j=0;j<per;j++){
+        const i=k*per+j,r=groundBodyRandom(f,9000+i);
+        out[i]={s:s+(r()-.5)*step*.35,lat:(j%2?-first:first)*lane+(r()-.5)*lane*.35,la:lane*(.12+r()*.12),lw:2*Math.PI/(7+r()*6),lp:r()*6.3,sa:step*(.1+r()*.1),sw:2*Math.PI/(6+r()*6),sp:r()*6.3,ya:.06};
+        s+=step;
+      }
+      s-=step;
+    }
+    out.smooth=Math.max(GROUND_MARCH.foot.smooth,len*M.smooth);
+  }
+  for(let i=0;i<n;i++)if(!out[i])out[i]={s,lat:0,la:0,lw:0,lp:0,sa:0,sw:0,sp:0,ya:0};
+  out.L=s;out.march=true;
+  return out;
+}
+/* 通った道（f.groundTrail、新しい順、0.2ごと）。動いているあいだだけ残し、止まったら消す（次に動くとき、前の道を逆向きにたどらない） */
+const GROUND_TRAIL_STEP=.2;
+function groundTrailMark(f){
+  if(!f.groundBodySpec||groundFormationState(f)!=='move'){f.groundTrail=null;return;}
+  const t=f.groundTrail;
+  if(!t){f.groundTrail=[{x:f.pos.x,z:f.pos.z}];return;}
+  if(Math.hypot(f.pos.x-t[0].x,f.pos.z-t[0].z)<GROUND_TRAIL_STEP)return;
+  t.unshift({x:f.pos.x,z:f.pos.z});
+  const lay=f.groundBodyLayouts?.move,need=(lay?.L||0)/2+(lay?.smooth||0)+3;
+  let acc=0;for(let i=1;i<t.length;i++){acc+=Math.hypot(t[i].x-t[i-1].x,t[i].z-t[i-1].z);if(acc>need){t.length=i+1;break;}}
+}
+/* 折れ線を先から順にたどる（d は増える順に渡す）。折れ線の先は最後の向きのまま延ばす（点が1つなら dx,dz の向き） */
+function groundPolyWalker(poly){
+  let i=1,acc=0;
+  return (d,out)=>{
+    while(i<poly.length){const a=poly[i-1],b=poly[i],l=Math.hypot(b.x-a.x,b.z-a.z);if(acc+l>=d&&l>1e-9){const k=(d-acc)/l;out.x=a.x+(b.x-a.x)*k;out.z=a.z+(b.z-a.z)*k;return out;}acc+=l;i++;}
+    const m=poly.length;
+    if(m<2){out.x=poly[0].x+poly[0].dx*(d-acc);out.z=poly[0].z+poly[0].dz*(d-acc);return out;}
+    const a=poly[m-2],b=poly[m-1],l=Math.hypot(b.x-a.x,b.z-a.z)||1;out.x=b.x+(b.x-a.x)/l*(d-acc);out.z=b.z+(b.z-a.z)/l*(d-acc);return out;
+  };
+}
+// 折れ線の長さ（limit を超えたらそこで止める）
+function groundPolyLength(poly,limit=Infinity){let acc=0;for(let i=1;i<poly.length&&acc<=limit;i++)acc+=Math.hypot(poly[i].x-poly[i-1].x,poly[i].z-poly[i-1].z);return acc;}
+/* 道筋: 中隊の位置から前はこれから通る経路、後ろは通った道。細かく取って幅 smooth でならし（角が丸くなる）、体を s の位置へ置く。
+   列の真ん中が中隊の位置。目的地が近いと前半を縮める（先頭が目的地で止まり、列が詰まる） */
+const GROUND_MARCH_STEP=.15;
+function groundMarchPositions(f,lay,now){
+  const hx=f.heading.x,hz=f.heading.z,path=f.order?.path,ahead=[{x:f.pos.x,z:f.pos.z,dx:hx,dz:hz}],behind=[{x:f.pos.x,z:f.pos.z,dx:-hx,dz:-hz}];
+  if(path?.points&&['move','attack'].includes(f.order.type))for(let i=path.atIndex||0;i<path.points.length;i++)ahead.push({x:path.points[i].x,z:path.points[i].z});
+  if(f.groundTrail)for(let i=1;i<f.groundTrail.length;i++)behind.push(f.groundTrail[i]);
+  const smooth=lay.smooth||1,half=lay.L/2,avail=ahead.length>1?groundPolyLength(ahead,half):Infinity,squeeze=Math.min(1,avail/Math.max(half,1e-6));
+  const H=GROUND_MARCH_STEP,back=Math.ceil((half+1+smooth)/H),lo=-back*H,hi=half*squeeze+1+smooth,K=back+Math.ceil(hi/H)+1,sx=new Float64Array(K+1),sz=new Float64Array(K+1);
+  // 後ろの点は中隊の位置から遠ざかる順、前の点は近い順にたどる（u = lo + k·H。k = back が中隊の位置）
+  const q={x:0,z:0},walkBack=groundPolyWalker(behind),walkAhead=groundPolyWalker(ahead),xs=new Float64Array(K),zs=new Float64Array(K);
+  for(let k=back;k>=0;k--){walkBack((back-k)*H,q);xs[k]=q.x;zs[k]=q.z;}
+  for(let k=back+1;k<K;k++){walkAhead((k-back)*H,q);xs[k]=q.x;zs[k]=q.z;}
+  for(let k=0;k<K;k++){sx[k+1]=sx[k]+xs[k];sz[k+1]=sz[k]+zs[k];}
+  const w=Math.round(smooth/H),sm=k=>{k=Math.max(0,Math.min(K-1,k));const a=Math.max(0,k-w),b=Math.min(K-1,k+w),c=b-a+1;return {x:(sx[b+1]-sx[a])/c,z:(sz[b+1]-sz[a])/c};};
+  const at=u=>{const t=(u-lo)/H,k=Math.floor(t),e=t-k,a=sm(k),b=sm(k+1);return {x:a.x+(b.x-a.x)*e,z:a.z+(b.z-a.z)*e};};
+  return lay.map(b=>{
+    let u=half-(b.s+b.sa*Math.sin(b.sw*now+b.sp));if(u>0)u*=squeeze;
+    const p=at(u),q=at(u+.3),r=at(u-.3);let tx=q.x-r.x,tz=q.z-r.z;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;
+    const lat=b.lat+b.la*Math.sin(b.lw*now+b.lp);
+    return {x:p.x+tz*lat,z:p.z-tx*lat,yaw:Math.atan2(tx,tz)+b.ya*Math.sin(b.lw*now+b.lp+1.2)};
+  });
 }
 function groundAircraftCombat(f){
   const target=f.order?.type==='attack'?f.order.target:null;
@@ -225,16 +349,30 @@ function groundFormationDraw(f,now){
   data.last.copy(f.pos);
   if(!form)return;
   const state=groundFormationState(f,now),air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
-  const combat=air&&groundAircraftCombat(f),targets=form.layouts[air?'defend':state],k=1-Math.exp(-4*dt);
+  const combat=air&&groundAircraftCombat(f),targets=groundLayouts(f,form.spec)[air?'defend':state],k=1-Math.exp(-4*dt);
+  /* 地上の体は世界の向きでならす: 隊の向きが経路の角で急に変わっても、体がいっせいに振られない（2026-11-18）。
+     a0 は前の描画のモデルの向き、a1 は今の向き。動くときの列は道筋の上の位置（groundBodyPositions）へ寄せる */
+  const a1=Math.atan2(f.heading.x,f.heading.z),c1=Math.cos(a1),s1=Math.sin(a1),a0=data.drawYaw??a1,da=a1-a0,cd=Math.cos(da),sd=Math.sin(da);data.drawYaw=a1;
+  const march=targets.march&&!air?groundBodyPositions(f):null;
   form.bodies.forEach((body,i)=>{
     let target=targets[i];
     if(combat){
       const flight=form.flights[i],a=flight.phase+now*flight.omega;
       target={x:Math.cos(a)*flight.radius,z:Math.sin(a)*flight.radius,y:.5*Math.sin(now*flight.sway+flight.phase),yaw:Math.atan2(-Math.sin(a)*flight.omega,Math.cos(a)*flight.omega),bank:Math.sign(flight.omega)*.28};
     }
-    body.position.x+=(target.x-body.position.x)*k;body.position.y+=(target.y-body.position.y)*k;body.position.z+=(target.z-body.position.z)*k;
-    body.rotation.y+=Math.atan2(Math.sin(target.yaw-body.rotation.y),Math.cos(target.yaw-body.rotation.y))*k;
-    body.rotation.z+=(target.bank-body.rotation.z)*k;
+    if(air){
+      body.position.x+=(target.x-body.position.x)*k;body.position.y+=(target.y-body.position.y)*k;body.position.z+=(target.z-body.position.z)*k;
+      body.rotation.y+=Math.atan2(Math.sin(target.yaw-body.rotation.y),Math.cos(target.yaw-body.rotation.y))*k;
+      body.rotation.z+=(target.bank-body.rotation.z)*k;
+    }else{
+      // 隊の向きが変わった分だけ体を逆に回し、世界では元の所に残す（向きが同じなら何もしない）
+      if(da){const x=body.position.x,z=body.position.z;body.position.x=x*cd-z*sd;body.position.z=x*sd+z*cd;body.rotation.y-=da;}
+      let tx=target.x,tz=target.z,ty=target.yaw;
+      if(march){const p=march.positions[i]||march.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;tx=wx*c1-wz*s1;tz=wx*s1+wz*c1;ty=(march.yaws?.[i]??a1)-a1;}
+      body.position.x+=(tx-body.position.x)*k;body.position.y+=((target.y||0)-body.position.y)*k;body.position.z+=(tz-body.position.z)*k;
+      body.rotation.y+=Math.atan2(Math.sin(ty-body.rotation.y),Math.cos(ty-body.rotation.y))*k;
+      body.rotation.z+=((target.bank||0)-body.rotation.z)*k;
+    }
     for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
   });
 }
@@ -242,16 +380,18 @@ function groundAliveBodies(f){return f.bodies?f.bodies.reduce((n,b)=>n+(b.alive?
 // Cache only geometry. HP and living-body choices are read afresh after every hit.
 function groundBodyPositions(f){
   const state=groundFormationState(f),spec=f.groundBodySpec,c=f.groundBodyGeometry;
-  if(c&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.hx===f.heading?.x&&c.hz===f.heading?.z&&c.band===f.band&&c.state===state&&c.spec===spec)return c;
-  const centered=!f.bodies||f.bodies0===1||!spec||['fighter','attack'].includes(f.groundKind)||f.groundKind==='was'&&f.band!=='ground';
-  let positions;
+  const width=f.groundLine?.width??Infinity;
+  if(c&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.hx===f.heading?.x&&c.hz===f.heading?.z&&c.band===f.band&&c.state===state&&c.spec===spec&&c.width===width&&(state!=='move'||c.t===gameSec))return c;
+  const centered=!f.bodies||f.bodies0===1||!spec||['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&f.band!=='ground';
+  let positions,yaws=null;
   if(centered)positions=[f.pos.clone()];
   else{
-    if(f.groundBodyLayouts?.spec!==spec){f.groundBodyLayouts={spec};for(const st of ['idle','defend','advance','move'])f.groundBodyLayouts[st]=groundFormationLayout(f,spec,st);}
-    const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a);
-    positions=f.groundBodyLayouts[state].map(p=>new THREE.Vector3(f.pos.x+p.x*cos+p.z*sin,f.pos.y,f.pos.z-p.x*sin+p.z*cos));
+    const lay=groundLayouts(f,spec)[state];
+    // 動くときの列は道筋の上（ゆらぎは時計で変わるので、動いているあいだは毎回作り直す）
+    if(lay.march){const m=groundMarchPositions(f,lay,gameSec);positions=m.map(p=>new THREE.Vector3(p.x,f.pos.y,p.z));yaws=m.map(p=>p.yaw);}
+    else{const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a);positions=lay.map(p=>new THREE.Vector3(f.pos.x+p.x*cos+p.z*sin,f.pos.y,f.pos.z-p.x*sin+p.z*cos));}
   }
-  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,hx:f.heading?.x,hz:f.heading?.z,band:f.band,state,spec,positions};
+  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,hx:f.heading?.x,hz:f.heading?.z,band:f.band,state,spec,width,t:gameSec,positions,yaws};
 }
 function groundBodyPosition(f,i){const positions=groundBodyPositions(f).positions;return (positions[i]||positions[0]).clone();}
 function groundBodySync(f){f.hpPool=f.bodies.reduce((n,b)=>n+(b.alive?b.hp:0),0);}
@@ -304,15 +444,21 @@ function groundBodyFire(f,t,dt,aa=false){
     b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
     const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
     b[timer]=groundRules().fireEvery;shoot(groundBodyShotPosition(f,hit.from),groundBodyShotPosition(t,hit.pos),TEAM_COL[f.team],.25);
-    damage(t,f.dmg*groundFireFactor(f,t)*groundMatchup(f,t)*groundSupplyAttackFactor(f)/f.bodies0,f,null,hit.b);
+    damage(t,f.dmg*groundFireFactor(f,t)*groundMatchup(f,t)*groundSupplyAttackFactor(f)/groundBodiesPerPlatoon(f),f,null,hit.b);
     groundSupplyShot(f,false,1/f.bodies0);
   }
 }
+/* 小隊の数（docs/spec.md「地上の部隊編成」、2026-11-18）: 1小隊は今の駒1つぶん。中隊の体の数・耐久・火力を小隊の数の倍にする。
+   体1つの耐久と、体1つの射撃・地点攻撃の弾の威力は1小隊のときと同じ。海の艦は1のまま。指定のない部隊は1（作戦のデータの部隊は
+   terrain.js groundUnitSpec で4） */
+function groundPlatoonCount(f){return f.groundKind==='sea'?1:Math.max(1,Math.min(4,Math.round(+f.groundPlatoons)||1));}
 function groundInitUnit(f){
+  f.groundPlatoons=groundPlatoonCount(f);if(!f.groundPlatoonHp){f.hpPool*=f.groundPlatoons;f.groundPlatoonHp=true;}
   f.groundMaxHp=f.hpPool;
-  const bodySpec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+  const one=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+  const bodySpec=one&&f.groundPlatoons>1?{...one,platoon:one.offsets,platoons:f.groundPlatoons,offsets:groundPlatoonOffsets({...one,platoon:one.offsets,platoons:f.groundPlatoons},f.groundPlatoons)}:one;
   f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;
-  f.groundBodySpec=bodySpec;f.bodies0=['sea','droneHive','supportAircraft'].includes(f.groundKind)?1:(bodySpec?.offsets.length||1);
+  f.groundBodySpec=bodySpec;f.bodies0=f.groundKind==='sea'?1:(bodySpec?.offsets.length||1);
   f.bodies=Array.from({length:f.bodies0},(_,i)=>({hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:groundBodyRandom(f,i)()*groundRules().fireEvery,aaT:groundBodyRandom(f,i)()*groundRules().fireEvery}));
   groundBodySync(f);f.groundMovedAt=-Infinity;
   f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
@@ -329,7 +475,7 @@ function groundInitUnit(f){
   groundSelectionInit(f);
   const model=f.groundModel=new THREE.Group(); groundVisuals.add(model);
   Object.assign(model.userData,{last:f.pos.clone(),movedAt:-Infinity,drawnAt:gameSec});
-  const spec=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
+  const spec=bodySpec;
   model.userData.groundShape=!!spec;
   if(spec){
     const team=TEAM_COL[f.team],base=new THREE.MeshStandardMaterial({color:team.clone().multiplyScalar(.5),emissive:team,emissiveIntensity:.22,metalness:.35,roughness:.5,vertexColors:true});
@@ -339,7 +485,7 @@ function groundInitUnit(f){
     for(const key of geos.keys()){ const g=groundShapeGeo(key); if(spec.y)g.translate(0,spec.y,0); geos.set(key,g); }
     const geo=geos.get(spec.key),size=spec.size;
     const form=model.userData.formation={spec,bodies:[],layouts:{},flights:[]};
-    for(const state of ['idle','defend','advance','move'])form.layouts[state]=groundFormationLayout(f,spec,state);
+    form.layouts=groundLayouts(f,spec);
     const radius=Math.max(...spec.offsets.map(([x,z])=>Math.hypot(x,z)))*size;
     if(spec.move.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity};
     for(const [i,[x,z]] of spec.offsets.entries()){
@@ -504,6 +650,7 @@ function groundStep(dt){
     }
   }
   for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
+  for(const f of fleets)if(f.alive&&f.bodies)groundTrailMark(f);
   groundTransportSync();
   groundBombStep();
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
@@ -521,7 +668,7 @@ function groundStep(dt){
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
       shoot(f.pos,f.fireTarget.pos,TEAM_COL[f.team],.25);
-      damage(f.fireTarget,f.dmg*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget)*groundSupplyAttackFactor(f),f);
+      damage(f.fireTarget,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget)*groundSupplyAttackFactor(f),f);
       groundSupplyShot(f);
       f.groundShotT=groundRules().fireEvery;
     }

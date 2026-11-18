@@ -13,13 +13,18 @@ function nodeChecks(){
   check('従来の手組みモデルも描画時計を初期化',f.groundModel.userData.movedAt===-Infinity&&f.groundModel.userData.last.equals(f.pos));
   f.pos.x=1;groundFormationDraw(f,10.1);check('描画だけでは移動状態を変えない',groundFormationState(f,10.1)==='defend'&&f.pos.x===1);f.groundMovedAt=10.1;check('戦闘側の移動時計で侵攻',groundFormationState(f,10.1)==='advance');const legacy={...f};delete legacy.bodies;delete legacy.groundMovedAt;check('体のない従来モデルは描画の移動時計を維持',groundFormationState(legacy,10.1)==='advance');
   const spec={offsets:GROUND_FORMS.wedge4,size:.5},layout=(kind,state,s=spec)=>groundFormationLayout({...f,groundKind:kind},s,state);
+  // 動くときの列（2026-11-18）: 車両は左右交互の千鳥の2列、歩兵は2列（ときどき3人）。体は列の先頭からの距離 s の順、小隊の間は少しあく
+  const four={...spec,platoon:spec.offsets,platoons:4,offsets:groundPlatoonOffsets({...spec,platoons:4},4)};
   for(const kind of ['vehicle','apc','artillery','guidedRocket','mobileAA','scout','engineer','supply']){
-   const p=layout(kind,'move');check(kind+'は前から一列で最小1.2間隔',p.every((v,i)=>v.x===0&&(!i||p[i-1].z-v.z>=1.2-1e-9)));
+   const p=layout(kind,'move',four),signs=new Set(p.map(v=>Math.sign(v.lat)));
+   check(kind+'は千鳥の2列で前から後ろへ',p.march&&p.length===16&&signs.size===2&&!signs.has(0)&&p.every((v,i)=>!i||v.s>p[i-1].s-1e-9||i%4===0)&&p.every((v,i)=>i%4===0||Math.sign(v.lat)!==Math.sign(p[i-1].lat))&&p.L>0);
+   check(kind+'は小隊の間があく',p[4].s-p[3].s>p[3].s-p[2].s);
   }
   for(const kind of ['infantry','heavyInfantry','commando','mechanicalAssault','was']){
-   const p=layout(kind,'move',{offsets:GROUND_FORMS.squad6,size:.32}),width=kind==='was'?.9:.45;
-   check(kind+'は2列で前から交互',p.every((v,i)=>v.x===(i%2?width:-width)&&v.z===p[i-i%2].z&&(!i||i%2||p[i-2].z>v.z)));
+   const s6={offsets:GROUND_FORMS.squad6,size:.32},p=layout(kind,'move',{...s6,platoon:s6.offsets,platoons:4,offsets:groundPlatoonOffsets({...s6,platoons:4},4)});
+   check(kind+'は列で、横のずれは3人ぶんまで',p.march&&p.length===24&&p.every(v=>Math.abs(v.lat)<=1.2)&&p.L>0);
   }
+  check('列は同じ種で再現',JSON.stringify(layout('vehicle','move',four))===JSON.stringify(layout('vehicle','move',four)));
   check('待機は同じ種で再現',JSON.stringify(layout('vehicle','idle'))===JSON.stringify(layout('vehicle','idle')));
   const idle=layout('vehicle','idle'),radius=Math.max(...spec.offsets.map(([x,z])=>Math.hypot(x,z)))*spec.size*1.3;
   check('待機は円内で向き±60度',idle.every(p=>Math.hypot(p.x,p.z)<=radius&&Math.abs(p.yaw)<=Math.PI/3)&&new Set(idle.map(p=>p.yaw)).size===4);

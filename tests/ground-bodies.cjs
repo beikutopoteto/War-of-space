@@ -9,8 +9,8 @@ function nodeChecks(){
    groundHeight=groundSightHeight=()=>0;groundHeightCacheReset();groundVisuals=new THREE.Group();gameSec=0;over=false;engaged.clear();bodyShots=[];bodyBursts=[];
    shoot=(a,b)=>bodyShots.push({from:a.clone(),to:b.clone()});burst=p=>bodyBursts.push(p.clone());groundHud=()=>{};
   }
-  function bodyUnit(kind='vehicle',team=0,x=0,z=0,init=true){
-   const f=makeFleet(team,groundUnitSpec({name:kind+' '+fid,kind,at:[8,27],stance:'evade'}));fleets.push(f);if(init)groundInitUnit(f);
+  function bodyUnit(kind='vehicle',team=0,x=0,z=0,init=true,platoons=1){
+   const f=makeFleet(team,groundUnitSpec({name:kind+' '+fid,kind,at:[8,27],stance:'evade',platoons}));fleets.push(f);if(init)groundInitUnit(f);
    f.pos.set(x,0,z);f.heading.set(0,0,1);f.band=groundBands(f)[0];f.pos.y=groundUnitHeight(f);f.groundVisible=[true,true];f.eva=0;f.groundDeployed=true;f.groundLastPos=f.pos.clone();return f;
   }
   function bodyClose(a,b){return Math.abs(a-b)<1e-7;}
@@ -23,6 +23,9 @@ function nodeChecks(){
  check('全兵科の体数はモデルのoffset、艦・ハイブ・支援機は1',`for(const kind of Object.keys(groundRuleSet().unitTypes)){const f=bodyUnit(kind),spec=groundModelFor(kind,'earth'),n=['sea','droneHive','supportAircraft'].includes(kind)?1:spec?.offsets.length||1;if(f.bodies0!==n)return false;}return true;`);
  check('体の時計は固有の再現可能な位相',`const f=bodyUnit();return new Set(f.bodies.map(b=>b.shotT)).size===4&&f.bodies.every((b,i)=>b.shotT===groundBodyRandom(f,i)()*groundRules().fireEvery);`);
  check('実直射で4→3→2→1→0、余りを捨て最後だけ隊撃破',`const f=bodyUnit(),t=bodyUnit('vehicle',1,0,8);f.dmg=1e6;for(let n=3;n>=0;n--){bodyReady(f);for(let i=1;i<f.bodies.length;i++)f.bodies[i].shotT=100;groundBodyFire(f,t,0);if(groundAliveBodies(t)!==n||!bodyClose(t.hpPool,bodySum(t))||t.alive!==(n>0)||t.ships.length!==(n?1:0)||t.n!==1)return false;if(t.bodies.filter(b=>b.alive).some(b=>b.hp!==b.max))return false;}return true;`);
+ // 小隊の数（2026-11-18）: 作戦のデータの中隊は4小隊。体・耐久・撃つ量が4倍、1体の耐久と1体の1発は1小隊のときと同じ
+ check('作戦データの中隊は既定で4小隊、体と耐久は4倍で1体の耐久は同じ',`const a=bodyUnit('vehicle',0,0,0,true,1),b=bodyUnit('vehicle',0,0,-3,true,4);return groundUnitSpec({name:'既定',kind:'vehicle',at:[1,1]}).groundPlatoons===4&&b.groundPlatoons===4&&b.bodies0===16&&bodyClose(b.groundMaxHp,a.groundMaxHp*4)&&bodyClose(b.bodies[0].max,a.bodies[0].max)&&bodyClose(b.hpPool,bodySum(b));`);
+ check('4小隊が全体で撃つと1小隊の4倍',`const f=bodyUnit('vehicle',0,0,0,true,4),t=bodyUnit('vehicle',1,0,8,true,4);f.dmg=.01;const hp=t.hpPool;bodyReady(f);groundBodyFire(f,t,0);return bodyShots.length===16&&bodyClose(hp-t.hpPool,4*f.dmg*groundMatchup(f,t)*groundRuleSet().combat.damageScale);`);
  check('撃破の小爆発は判定用の体の位置',`const f=bodyUnit(),p=groundBodyPosition(f,2);groundBodyHit(f,f.bodies[2],1e6);return bodyBursts.length===1&&bodyBursts[0].equals(p);`);
  check('消耗は生きている体へ等分しhpPoolと一致',`const f=bodyUnit('mechanicalAssault');groundBodyHit(f,f.bodies[0],1e6);const before=f.bodies.map(b=>b.hp),hp=f.hpPool,amt=f.groundMaxHp*groundRuleSet().combat.mechanicalWearPerSec*2;groundMechanicalWear(f,2);return bodyClose(f.hpPool,hp-amt)&&bodyClose(f.hpPool,bodySum(f))&&f.bodies.slice(1).every((b,i)=>bodyClose(before[i+1]-b.hp,amt/(f.bodies0-1)))&&f.ships.length===1;`);
  check('輸送車撃破の損害を搭載歩兵の全生存体へ等分',`const apc=bodyUnit('apc'),p=bodyUnit('infantry');apc.groundPassenger=p;p.embarked=apc;const hp=p.hpPool,per=p.bodies[0].hp;groundTransportDestroyed(apc,apc);return !p.embarked&&p.alive&&p.bodies.every(b=>bodyClose(b.hp,per*(1-groundTransportRules().wreckLoss)))&&bodyClose(p.hpPool,hp*(1-groundTransportRules().wreckLoss))&&bodyClose(p.hpPool,bodySum(p));`);
@@ -50,10 +53,10 @@ function nodeChecks(){
 }
 // Browser checks use the actual label, roster and moving/standing meshes.
 function bodyScene(kind='vehicle',pair=false){
- reset({op:'groundExercise2',fleets:[{name:'体の確認小隊',kind,at:[12,27],stance:'evade'}]});if(talking)endTalk();if(deploying)endDeploy();setSpeed(0);
+ reset({op:'groundExercise2',fleets:[{name:'体の確認小隊',kind,at:[12,27],stance:'evade',platoons:1}]});if(talking)endTalk();if(deploying)endDeploy();setSpeed(0);
  for(const f of fleets){f.stance='evade';groundClearOrders(f);if(f.name!=='体の確認小隊')f.alive=false;}
  const f=fleets.find(f=>f.alive);f.groundDeployed=true;f.heading.set(0,0,1);
- if(pair){op={...op,groundStaticEnemies:false};const t=makeFleet(1,groundUnitSpec({name:'対向歩兵小隊',kind,at:[12,27.5],stance:'evade'}));fleets.push(t);groundInitUnit(t);t.groundDeployed=true;f.stance=t.stance='engage';}
+ if(pair){op={...op,groundStaticEnemies:false};const t=makeFleet(1,groundUnitSpec({name:'対向歩兵小隊',kind,at:[12,27.5],stance:'evade',platoons:1}));fleets.push(t);groundInitUnit(t);t.groundDeployed=true;f.stance=t.stance='engage';}
  setSel([f]);groundUpdateSight();return f.name;
 }
 async function checkGroundBodies(page,check){
@@ -65,13 +68,15 @@ async function checkGroundBodies(page,check){
   record('名札と一覧は最初に×4',f.el.querySelector('.mk2 em').textContent==='×4'&&f.btn.querySelector('.no small').textContent.includes('×4'));
   groundBodyHit(f,f.bodies[1],1e6);groundDraw();updateRoster();updateFleetLabel(f,false,'');
   record('名札と一覧は撃破後×3',f.el.querySelector('.mk2 em').textContent==='×3'&&f.btn.querySelector('.no small').textContent.includes('×3'));
+  // 向きを変えた直後は体がなめらかに回って寄る（世界の向きでならす、2026-11-18）ので、落ち着いてから比べる
+  for(let i=0;i<200;i++){gameSec+=.05;groundDraw();}
   const form=f.groundModel.userData.formation,others=form.bodies.map(b=>b.position.clone());
   for(let i=0;i<20;i++){gameSec+=.05;groundDraw();}
-  record('停止中も撃破体は消えたままで空所を詰めない',!form.bodies[1].visible&&form.bodies.filter((b,i)=>i!==1).every((b,i)=>b.position.equals(others[i<1?i:i+1])));
+  record('停止中も撃破体は消えたままで空所を詰めない',!form.bodies[1].visible&&form.bodies.filter((b,i)=>i!==1).every((b,i)=>b.position.distanceTo(others[i<1?i:i+1])<1e-6)&&form.bodies.every((b,i)=>{const t=form.layouts.defend[i];return Math.hypot(b.position.x-t.x,b.position.z-t.z)<1e-4;}));
   order(f,{type:'move',dest:f.pos.clone().add(new THREE.Vector3(0,0,8))});const before=f.pos.clone();
   for(let i=0;i<20;i++){gameSec+=.05;groundStep(.05);groundDraw();}
   record('実移動後も撃破体は復活しない',f.pos.distanceTo(before)>0&&!form.bodies[1].visible);
-  const p=makeFleet(0,groundUnitSpec({name:'歩兵の姿勢確認',kind:'infantry',at:[10,27]}));fleets.push(p);groundInitUnit(p);groundBodyHit(p,p.bodies[2],1e6);
+  const p=makeFleet(0,groundUnitSpec({name:'歩兵の姿勢確認',kind:'infantry',at:[10,27],platoons:1}));fleets.push(p);groundInitUnit(p);groundBodyHit(p,p.bodies[2],1e6);
   order(p,{type:'move',dest:p.pos.clone().add(new THREE.Vector3(0,0,8))});
   for(let i=0;i<20;i++){gameSec+=.05;groundStep(.05);groundDraw();}
   const pose=p.groundModel.userData.pose;

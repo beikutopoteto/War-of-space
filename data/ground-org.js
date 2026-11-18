@@ -73,7 +73,7 @@ window.WOS_GROUND_ORG=(()=>{
   const platoonsOf=list=>list.reduce((n,c)=>n+(c.platoons||1),0);
   function sortie(value){
     let org=normalize(value); if(!org.companies.length) org=defaults();
-    const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,companyId:c.id,vis:9,stl:0,
+    const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,groundPlatoons:c.platoons,companyId:c.id,vis:9,stl:0,
       band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground'}));
     return {org,fleets};
   }

@@ -157,9 +157,10 @@ function groundSupplyHit(f,amount){
   if(!groundSupplyActive()||!(amount>0))return amount;
   f.groundHitLeft=groundSupplyRules().hitSeconds;f.groundRest=0;
   if(!Number.isFinite(f.groundMorale))return amount;
-  const absorbed=Math.min(f.groundMorale,amount);f.groundMorale-=absorbed;
+  // 士気は1小隊あたり（2026-11-18）: 小隊の数が p の中隊は、士気1あたりダメージ p を受け持つ（小隊の数で火力と耐久が増えても、崩れるまでの時間は同じ）
+  const p=f.groundPlatoons||1,absorbed=Math.min(f.groundMorale,amount/p);f.groundMorale-=absorbed;
   if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
-  return amount-absorbed;
+  return amount-absorbed*p;
 }
 function groundRoutStart(f){
   if(groundStaticTarget(f))return;

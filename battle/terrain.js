@@ -1,5 +1,6 @@
 /* 地上演習の盤。見本 ground-b.html と同じ地形・水系・高度を使う。座標は 1 km = 4 戦闘単位。 */
 const GROUND_SCALE=4;
+const GROUND_MIN_VIEW=7;   // カメラが寄れる最も近い距離（地上。約1.7km。ユーザー決定 2026-11-18「もう少し大きく」で10から。前は宇宙と同じ35）
 let groundBoard=null, groundWaterMaterial=null;
 let groundTerrainId=null, groundDimensionCache=null;
 // setup の明示IDを優先。setup前のNode確認等では作戦、最後に旧演習を使う。
@@ -24,10 +25,13 @@ function groundMapY(worldZ){ return groundDimensions().halfHeightKm-worldZ/GROUN
 function groundWorldX(mapX){ return (mapX-groundDimensions().halfWidthKm)*GROUND_SCALE; }
 function groundWorldZ(mapY){ return (groundDimensions().halfHeightKm-mapY)*GROUND_SCALE; }
 // 作戦のkm表記を、既存の艦隊生成が読む形へ直す唯一の入口。旧表記はそのまま使える。
+// 小隊の数（docs/spec.md「地上の部隊編成」）: 作戦のデータ・台本の部隊（km表記）で指定（platoons）がなければ4（満員の中隊。ユーザー決定 2026-11-18）。編成から出撃する中隊は編成の数。
+// 旧表記（km表記でない）はそのまま返し、小隊の数がなければ groundInitUnit で1になる
+const groundSpecPlatoons=u=>({groundPlatoons:u.groundPlatoons??u.platoons??4});
 function groundUnitSpec(u){
   if(!u.at)return u;
   const {kind,at,...rest}=u;
-  return {type:'cv',n:1,scale:.3,alt:0,...rest,groundKind:kind,band:u.band||'ground',
+  return {type:'cv',n:1,scale:.3,alt:0,...rest,...groundSpecPlatoons(u),groundKind:kind,band:u.band||'ground',
     pos:[groundWorldX(at[0]),groundWorldZ(at[1])],
     ...(u.groundCargo?{groundCargo:u.groundCargo.map(groundUnitSpec)}:{})};
 }

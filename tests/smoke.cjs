@@ -190,7 +190,7 @@ function check(ok, label, detail = '') {
           for(const b of t.bodies){b.hp=b.max=1000/t.bodies0;b.alive=true;}groundBodySync(t);
           let calls=0;const hp=t.hpPool;damage=(u,n,src,...rest)=>{if(src===f)calls++;original(u,n,src,...rest);};
           groundStep(.05);damage=original;
-          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?f.bodies0:0)||Math.abs(delta-2*expected[i]*groundRuleSet().combat.damageScale)>1e-6)bad++;
+          const delta=hp-t.hpPool;cases++;if(calls!==(expected[i]>0?f.bodies0:0)||Math.abs(delta-2*expected[i]*(f.groundPlatoons||1)*groundRuleSet().combat.damageScale)>1e-6)bad++;
           if(expected[i])allowedDamage+=delta;else blockedDamage+=delta;
           const autoAA=!['fighter','attack','supportAircraft'].includes(kind)&&targetBand!=='ground';
           if(expected[i]&&(autoAA?(f.groundAATarget!==t||!!f.fireTarget):(f.fireTarget!==t||!!f.groundAATarget)))bad++;
@@ -207,7 +207,7 @@ function check(ok, label, detail = '') {
       order(plane,{type:'move',dest:groundPoint(12,3)});let steps=0;while(plane.order&&steps++<4000)tick(.05);
       const arrivedAt=plane.pos.clone(),flight=!plane.order&&groundDistanceTo(plane,{pos:groundPoint(12,3)})<=GROUND_AIR_CONTROL.waypoint+speedOf(plane)*.05;tick(.1);const continued=plane.pos.distanceTo(arrivedAt)>0;
       groundWas.pos.copy(plane.pos);groundWas.band='high';const noSeaLanding=!groundSetBand([groundWas],'ground');
-      const rendered=plane.groundModel.children.filter(o=>o.isMesh).length, formSize=(groundModelFor(plane.groundKind,plane.side||(plane.team===1?'mars':'earth'))?.offsets.length)||3;
+      const rendered=plane.groundModel.children.filter(o=>o.isMesh).length, formSize=((groundModelFor(plane.groundKind,plane.side||(plane.team===1?'mars':'earth'))?.offsets.length)||3)*(plane.groundPlatoons||1);
       const logical=plane.band;select(null);
       document.querySelector('#groundView [data-band="low"]').click();
       const viewLow=groundView==='low'&&+plane.el.style.opacity===groundRules().dimOpacity&&groundGrids.low.material.opacity>groundGrids.high.material.opacity;
