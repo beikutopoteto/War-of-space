@@ -1,6 +1,6 @@
 /* 地上演習の盤。見本 ground-b.html と同じ地形・水系・高度を使う。座標は 1 km = 4 戦闘単位。 */
 const GROUND_SCALE=4;
-const GROUND_MIN_VIEW=10;   // カメラが寄れる最も近い距離（地上。約2.5km。ユーザー決定 2026-11-18、前は宇宙と同じ35）
+const GROUND_MIN_VIEW=7;   // カメラが寄れる最も近い距離（地上。約1.7km。ユーザー決定 2026-11-18「もう少し大きく」で10から。前は宇宙と同じ35）
 let groundBoard=null, groundWaterMaterial=null;
 let groundTerrainId=null, groundDimensionCache=null;
 // setup の明示IDを優先。setup前のNode確認等では作戦、最後に旧演習を使う。
