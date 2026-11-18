@@ -196,8 +196,11 @@ function frame(now){
       o3.position.copy(s.pos); o3.lookAt(_v.copy(s.pos).add(s.hd)); o3.scale.setScalar(1); o3.updateMatrix(); m.setMatrixAt(m.count++,o3.matrix);
     }
   }
-  trGeo.setDrawRange(0,trV); trGeo.attributes.position.needsUpdate=true; trGeo.attributes.color.needsUpdate=true;
-  for(const t of [0,1,2,3]){ for(const m of turretMeshes[t].values()){ m.visible=m.count>0; m.instanceMatrix.needsUpdate=true; } for(const m of Object.values(shipHullMeshes[t])){ m.visible=m.count>0; m.instanceMatrix.needsUpdate=true; } for(const m of Object.values(shipMeshes[t])) m.instanceMatrix.needsUpdate=true; for(const m of Object.values(craftMeshes[t])) m.instanceMatrix.needsUpdate=true; }
+  /* send the GPU only what this frame draws: the used part of the trails and of each instanced mesh; a mesh with none is hidden and
+     sends nothing (2026-11-18: every frame sent all 116 space meshes, 5.6 MB, in ground battles too — about 80 ms a frame on the
+     Mac's Intel GPU; docs/reports/2026-11-18-ground-weight.md) */
+  trGeo.setDrawRange(0,trV); if(trV) for(const a of [trGeo.attributes.position,trGeo.attributes.color]){ a.updateRange.offset=0; a.updateRange.count=trV*3; a.needsUpdate=true; }
+  for(const t of [0,1,2,3]){ for(const m of turretMeshes[t].values()) instancedSend(m); for(const m of Object.values(shipHullMeshes[t])) instancedSend(m); for(const m of Object.values(shipMeshes[t])) instancedSend(m); for(const m of Object.values(craftMeshes[t])) instancedSend(m); }
   stepParticles(rdt*(speed||1)); stepTracers(dt>0?dt:0); stepBeams(dt>0?dt:0); stepBaseFx(dt>0?dt:0);
   for(const g of gates) drawGate(g,dt>0?dt:0);   // 第5節: the gates' bands, lids and infantry (base.js)
   for(const f of fleets) if(f.pit) pitDraw(f,dt>0?dt:0);   // 第5節: the base's guns turn to their targets (base.js)
