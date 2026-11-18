@@ -102,7 +102,7 @@ WOS_DATA.branches=[
    until: この条件が満たされていれば、この段も済み（巡洋艦を先に置いたら、見るだけの段は飛ばす）
    aid: この段が始まったときに渡す援助（その作戦の aid。第2節の緊急援助） */
 WOS_DATA.prepTutorial=[
- {name:'艦隊編集を開く',screen:'title',condition:'org',until:'placed',targets:['#mainNav [data-go="org"]'],text:'ナイル警備の巡洋艦6隻が、駐屯隊に入りました。名簿を照会します……。まだ、どの戦区軍にも入っていません。「艦隊編集」を開いてください。'},
+ {name:'部隊編成を開く',screen:'title',condition:'org',until:'placed',targets:['#mainNav [data-go="org"]'],text:'ナイル警備の巡洋艦6隻が、駐屯隊に入りました。名簿を照会します……。まだ、どの戦区軍にも入っていません。「部隊編成」を開いてください。'},
  {name:'打撃群を見る',screen:'org',condition:'army',until:'placed',targets:['[data-tab="army"][aria-selected="false"]','#orgList [data-army="a1"]'],text:'打撃群は、戦闘で動かす単位です。同じ艦種の支隊を、5つまでまとめます。一覧のいちばん下が、新しく入った「第9打撃群」（巡洋艦6隻）です。選んで、能力を確かめてください。'},
  {name:'戦区軍を開く',screen:'org',condition:'group',until:'placed',targets:['[data-tab="group"]'],text:'戦区軍は、打撃群をまとめて一度に動かす単位です。上の「戦区軍」のタブを開いてください。'},
  {name:'戦区軍に置く',screen:'org',condition:'placed',targets:['.orgpop [data-addarmy="a1"]','#orgList [data-grp="g1"]:not(.sel)','[data-ly="2"][aria-pressed="false"]','.grid [data-cx="2"][data-cz="0"]'],text:'打撃群は5つまで、5×5×5の立方体に並べます。上が敵の側です。光っている前のマスを押して、「第9打撃群」を加えてください。巡洋艦は遅いぶん硬く、射程も長いので、正面に置きます。'},

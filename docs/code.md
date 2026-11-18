@@ -35,7 +35,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   7.5 `cut.js` 会話の後ろに出す絵（第6節のかすめる場面。2026-10-28）。会話の行の4つ目の要素で `showCut`、出ているあいだは `loop.js` が戦場の代わりに描く
   7.8 `tutorial.js` 演習の段の進行と、下のセリフの板の案内・光る枠・地図の目標地点。段の文と対象は `charybdis.tutorial`、作戦時計は `opClock()` と停止秒 `clockHeld`
   8. `loop.js` 描画ループと起動。挟撃の矢じり（`pinchMarks`）
-- `prep.js` / `prep.css`: タイトル、出撃、艦隊編集、技術ツリー、艦艇データ、オプション、デバッグ欄。`battle/` の後に読む。
+- `prep.js` / `prep.css`: タイトル、出撃、部隊編成、技術ツリー、兵種別データ、オプション、デバッグ欄。`battle/` の後に読む。
 - `tools/terrain-check.cjs`・`tests/terrain-check.cjs`: 地形検査。`node tools/terrain-check.cjs <地形id|all> [--json] [--perf]` で拠点・本営道路網・橋・6兵科の経路・架橋区間・浜・盤と海の塗りを調べる。不合格があれば終了コード1。ブラウザ不要の検査と壊した写しのテストは ground 組、`--perf` の Chromium 計測は手元だけ。性能の仮上限と基準値は `docs/ground-structure.md` 票5。
 - `tests/smoke.cjs`: 自動確認。`tests/docs-check.cjs`: 資料の確認（`npm run check-docs`）。
 - 地上の与ダメージの測り（2026-11-17〜18）: `tools/ground-damage-sim.cjs`（クイック出撃をオートモードで回し、兵科ごとの与ダメージ）、`tools/ground-indirect-measure.cjs`（サンドボックスで曲射を遮蔽・散布半径ごと）、`tools/ground-weapons-measure.cjs`・`tools/ground-weapons-compare.cjs`（#448 の兵器の前と後）、`tools/morale-plan/`（士気・耐久・装甲の作り直しの案を今の仕組みと比べる。実装前）。

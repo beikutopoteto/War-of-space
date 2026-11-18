@@ -8,12 +8,12 @@ const {openGame,ROOT}=require('./browser.cjs');
   try{
     await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});
     await page.click('[data-org-force="ground"]');
-    await page.waitForSelector('[data-ground-pick="companies"]');
+    await page.waitForSelector('[data-ground-kind]');
     const shoot=async letter=>{
       await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.screenshot({path:path.join(ROOT,'.shots',`④-${letter}.png`)});
     };
-    // (a) 第1旅団の下に2大隊・6中隊を表示。
+    // (a) 地上軍の大隊のタブ（中隊の行と小隊のマス）。
     await shoot('a');
     await page.click('[data-org-force="space"]');
     await page.waitForSelector('#orgList [data-army]');await shoot('b');

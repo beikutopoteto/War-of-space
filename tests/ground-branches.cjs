@@ -124,14 +124,16 @@ async function checkGroundBranches(page,check){
   const original=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
   try{
     await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');
-    await page.locator('[data-ground-pick="companies"]').first().click();
-    check(await page.locator('#groundKind option').count()===17,'残り兵科: 編成画面に17兵科');
+    // 大隊のタブの最初の中隊の行（2026-11-18 に中隊のページを消した）。
+    await page.waitForSelector('[data-ground-kind]');
+    const first=await page.getAttribute('[data-ground-kind]','data-ground-kind'),sel=`[data-ground-kind="${first}"]`;
+    check(await page.locator(sel+' option').count()===17,'残り兵科: 編成画面に17兵科');
     for(const kind of NEW_KINDS){
-      await page.selectOption('#groundKind',kind);
-      check(await page.inputValue('#groundKind')===kind&&await page.evaluate(kind=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg.companies[0].kind===kind,kind),'残り兵科: 編成選択・保存 '+kind);
+      await page.selectOption(sel,kind);
+      check(await page.inputValue(sel)===kind&&await page.evaluate(([id,kind])=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg.companies.find(c=>c.id===id).kind===kind,[first,kind]),'残り兵科: 編成選択・保存 '+kind);
     }
-    await page.reload();await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');await page.locator('[data-ground-pick="companies"]').first().click();
-    check(await page.inputValue('#groundKind')==='mobileAA','残り兵科: 新兵科の保存を再読込');
+    await page.reload();await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');await page.waitForSelector(sel);
+    check(await page.inputValue(sel)==='mobileAA','残り兵科: 新兵科の保存を再読込');
     await page.evaluate(setupPermissionScene);
     const policy=await page.evaluate(()=>{const f=selected,s=f.stance;applyStance([f],'evade');return f.stance===s&&f.stBtn.disabled&&f.el.textContent.includes('許可制')&&[...stanceEl.querySelectorAll('[data-st]')].every(b=>b.disabled);});
     check(policy,'残り兵科: 許可制表示・自動交戦の切替無効');

@@ -158,7 +158,7 @@ const SHIP_NAME=Object.fromEntries(WOS_DATA.ships.map(c=>[c.id,c.name]));
    第1節 未確認艦, 第2節 新型艦 for the assault ship; user decision 2026-11-07) */
 const shipLabel=t=>op&&op.shipNames&&op.shipNames[t]||SHIP_NAME[t]||t;
 let freeOpen=true;
-function fleetMark(f){ if(f.groundKind){ const shape=['infantry','heavyInfantry'].includes(f.groundKind)?'<path d="M2 3 L18 11 M18 3 L2 11"/>':'<ellipse cx="10" cy="7" rx="5" ry="3"/>'; return `<span class="mk"><svg viewBox="0 0 20 14" aria-hidden="true"><rect x="1" y="1" width="18" height="12" rx="1" fill="none" stroke="currentColor"/> <g fill="none" stroke="currentColor" stroke-width="1.3">${shape}</g></svg></span>`; } const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
+function fleetMark(f){ if(f.groundKind&&f.groundKind!=='sea'){ return window.WOS_MARKS?WOS_MARKS.ground(f.groundKind,window.WOS_OPT&&WOS_OPT.groundMarks,f.team!==0):''; } const by={}; f.ships.forEach(s=>by[s.type]=(by[s.type]||0)+1); const t=mainType(by)||f.types0&&f.types0[0];
   return window.WOS_MARKS&&t?`<span class="mk">${WOS_MARKS.svg(t,window.WOS_OPT&&WOS_OPT.markSet,true)}</span>`:''; }   // not to scale (marks.js fit)
 /* Labels use the same class ordering and original class list as the roster tip. */
 function namedFleet(f){ return !!(f.ace||f===opCarrier||f===convoy||chase&&f===chase.fleet||op.chase&&f.name===op.chase.fleet||nukeCarrier(f)); }
