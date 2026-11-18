@@ -21,8 +21,8 @@ const {setupPermissionScene,setupAntiAirScene,NEW_KINDS}=require('../tests/groun
       if(mine.length!==5||!mine.every(f=>f.el.textContent.includes(f.name)))throw new Error('新5兵科の名札が揃わない');
     },NEW_KINDS);await shoot('a');
     await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');
-    await page.locator('[data-ground-pick="companies"]').first().click();await page.selectOption('#groundKind','guidedRocket');
-    if(await page.inputValue('#groundKind')!=='guidedRocket'||await page.locator('#groundKind option').count()!==16)throw new Error('編成の新兵科を選べない');
+    await page.waitForSelector('[data-ground-kind]');await page.selectOption('[data-ground-kind]','guidedRocket');
+    if(await page.inputValue('[data-ground-kind]')!=='guidedRocket'||await page.locator('[data-ground-kind]').first().locator('option').count()!==17)throw new Error('編成の新兵科を選べない');
     await shoot('b');
     // 同じ配置を実画面テストでも使う。カメラの描画更新を待ってから座標を取得する。
     await page.evaluate(setupPermissionScene);await frame();

@@ -17,11 +17,16 @@ function nodeChecks(){
   check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].name='保存中隊';s.groundOrg.companies[0].kind='scout';G.assign(s.groundOrg,'companies','gc1','gb2');S.set(s);S.persist();const loaded=S.load();return JSON.stringify(loaded.groundOrg)===JSON.stringify(s.groundOrg)&&JSON.stringify(loaded.groups)===JSON.stringify(s.groups);})()`);
   check(`(()=>{const s=S.defaults();s.groundOrg={companies:[],battalions:[],brigades:[]};S.set(s);S.persist();return S.load().groundOrg.companies.length===0&&G.sortie(S.load().groundOrg).fleets.length===6;})()`);
   check(`(()=>{const o=G.defaults();return G.assign(o,'companies','gc4','gb1')&&!G.assign(o,'companies','gc5','gb1')&&o.battalions[0].companies.length===4&&o.battalions[1].companies.includes('gc5')&&!o.battalions[1].companies.includes('gc4');})()`);
-  check(`(()=>{const o=G.defaults();o.battalions.push({id:'gb3',name:'3',companies:[]},{id:'gb4',name:'4',companies:[]});return G.assign(o,'battalions','gb3','gr1')&&!G.assign(o,'battalions','gb4','gr1')&&!G.assign(o,'battalions','missing','gr1');})()`);
-  check(`(()=>{const o=G.defaults();G.remove(o,'brigades','gr1');G.remove(o,'battalions','gb1');return o.companies.length===6&&o.battalions.length===1&&!o.brigades.length;})()`);
+  check(`(()=>{const o=G.defaults();o.battalions.push({id:'gb3',name:'3',companies:[]},{id:'gb4',name:'4',companies:[]},{id:'gb5',name:'5',companies:[]});return G.assign(o,'battalions','gb3','gr1')&&G.assign(o,'battalions','gb4','gr1')&&!G.assign(o,'battalions','gb5','gr1')&&!G.assign(o,'battalions','missing','gr1')&&o.brigades[0].battalions.length===4;})()`);
+  check(`(()=>{const o=G.defaults();G.remove(o,'brigades','gr1');G.remove(o,'battalions','gb1');return o.companies.map(c=>c.id).join()==='gc4,gc5,gc6'&&o.battalions.length===1&&!o.brigades.length;})()`);
   check(`(()=>{const o=G.defaults();G.remove(o,'companies','gc1');return !o.battalions[0].companies.includes('gc1')&&G.sortie(o).fleets.length===5;})()`);
   check(`(()=>{const o=G.defaults();o.battalions[0].companies=['gc1','gc1','missing','gc2','gc3','gc4','gc5'];o.battalions[1].companies=['gc4','gc5'];const n=G.normalize(o);return n.battalions[0].companies.join() === 'gc1,gc2,gc3,gc4'&&n.battalions[1].companies.join()==='gc5';})()`);
   check(`(()=>{const o=G.defaults();o.companies=[o.companies[2],o.companies[0]];o.companies[0].kind='scout';const before=JSON.stringify(o),s=G.sortie(o);return s.fleets[0].companyId==='gc3'&&s.fleets[0].groundKind==='scout'&&s.fleets[1].companyId==='gc1'&&JSON.stringify(o)===before;})()`);
+  // 小隊の数（2026-11-18）: 無い・範囲外は直す。どの大隊にも入っていない中隊は新しい大隊へ。行の追加・兵科・小隊の数。
+  check(`(()=>{const o=G.defaults();o.companies.forEach(c=>delete c.platoons);o.companies[1].platoons=9;o.companies[2].platoons=0;const n=G.normalize(o);return n.companies[0].platoons===4&&n.companies[1].platoons===4&&n.companies[2].platoons===1;})()`);
+  check(`(()=>{const o=G.defaults();o.companies.push({id:'gc7',name:'迷子',kind:'scout'},{id:'gc8',name:'迷子2',kind:'artillery',platoons:2});const n=G.normalize(o),b=n.battalions.find(b=>b.companies.includes('gc7'));return n.battalions.length===3&&b&&b.companies.join()==='gc7,gc8'&&b.name==='第3 大隊'&&!n.brigades[0].battalions.includes(b.id)&&n.companies.find(c=>c.id==='gc8').platoons===2;})()`);
+  check(`(()=>{const o=G.defaults(),c=G.addCompany(o,'gb1','artillery'),first={platoons:c.platoons,name:c.name};const full=G.addCompany(o,'gb1','infantry');const kind=G.setKind(o,c.id,'guidedRocket'),pl=G.setPlatoons(o,c.id,2);return !full&&first.platoons===4&&first.name==='第7 自走砲中隊'&&c.name==='第7 無誘導ロケット中隊'&&kind&&pl&&c.platoons===2&&o.battalions[0].companies.length===4&&G.platoonsOf(G.companiesOf(o,'brigades','gr1'))===26;})()`);
+  check(`(()=>{const o=G.defaults();G.setKind(o,'gc1','scout');return o.companies[0].name==='第1 戦車中隊'&&o.companies[0].kind==='scout';})()`);
   for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
     check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
   }
@@ -30,7 +35,7 @@ function nodeChecks(){
   run(state.slice(state.indexOf('function groupOrder('),state.indexOf('function openSelectedRoster(')));
   run(state.split('\n').find(line=>line.startsWith('function orderTargets(')));
   run(hud.slice(hud.indexOf('function order(f,o)'),hud.indexOf('\nconst ray=')));
-  Object.assign(ctx,{op:{ground:'exercise2'},selGroup:null,selMulti:[],fleets:[],dropArrow:()=>{},makeArrow:()=>null,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),saveUndo:()=>{},tutorialOrder:()=>{},speedOf:f=>f.speed});
+  Object.assign(ctx,{op:{ground:'exercise2'},selGroup:null,selMulti:[],fleets:[],dropArrow:()=>{},makeArrow:()=>null,TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),saveUndo:()=>{},npcAutoPlayer:()=>{},tutorialOrder:()=>{},speedOf:f=>f.speed});
   ctx.setSel=list=>{ctx.selMulti=list;};
   run(`const spec=G.sortie(G.defaults());fleets=spec.fleets.map((f,i)=>({...f,id:i,team:0,alive:true,speed:2,pos:groundPoint(8+i*.5,27),heading:new THREE.Vector3(),march:new THREE.Vector3(),queue:[],order:null}));groundInitOrg(spec.org);`);
   check(`(()=>{groundSelectUnit('battalions','gb1');groupOrder({type:'move',dest:groundPoint(10,29)});return orderTargets().length===3&&fleets.slice(0,3).every(f=>f.order?.type==='move'&&f.order.path.points.length>1)&&fleets.slice(3).every(f=>!f.order);})()`);
@@ -43,18 +48,29 @@ function nodeChecks(){
 async function checkGroundOrg(page,check){
   const original=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
   const openOrg=async()=>{await page.evaluate(()=>{WOS.openMenu();document.getElementById('forcesOrg').click();});await page.click('[data-org-force="ground"]');};
+  const saved=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg);
   try{
     await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1')||'null');if(s){delete s.groundOrg;localStorage.setItem('wos.save.v1',JSON.stringify(s));}});
     await page.reload();await openOrg();
-    check(await page.locator('[data-ground-pick="companies"]').count()===6,'地上編成: 旧保存から既定の旅団・大隊・中隊を補完');
-    await page.click('[data-ground-pick="companies"][data-id="gc1"]');
-    await page.fill('#groundName','保存確認中隊');await page.locator('#groundName').dispatchEvent('change');
-    await page.selectOption('#groundKind','scout');
-    const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')));
-    await page.reload();await openOrg();await page.click('[data-ground-pick="companies"][data-id="gc1"]');
-    check(await page.inputValue('#groundName')==='保存確認中隊'&&await page.inputValue('#groundKind')==='scout','地上編成: 編集後の保存と再読込');
+    // 大隊のタブ（既定）: 旧保存から既定の2大隊、第1大隊の中隊3行と小隊のマス
+    check(await page.locator('[data-ground-tab]').count()===2&&await page.locator('#orgList [data-ground-unit]').count()===2&&await page.locator('[data-ground-kind]').count()===3&&await page.locator('[data-ground-platoons="gc1"].on').count()===4,'地上編成: 旧保存から既定の旅団・大隊・中隊を補完し、大隊のタブに中隊の行と小隊のマス');
+    await page.selectOption('[data-ground-kind="gc1"]','scout');
+    await page.click('[data-ground-platoons="gc1"][data-n="2"]');
+    await page.fill('#groundName','保存確認大隊');await page.locator('#groundName').dispatchEvent('change');
+    await page.selectOption('#groundAddCompany','artillery');
+    const edited=await saved();
+    check(edited.companies.find(c=>c.id==='gc1').kind==='scout'&&edited.companies.find(c=>c.id==='gc1').platoons===2&&edited.battalions[0].companies.length===4&&edited.companies.at(-1).kind==='artillery','地上編成: 行の兵科・小隊のマス・中隊の追加を保存');
+    await page.reload();await openOrg();
+    check(await page.inputValue('#groundName')==='保存確認大隊'&&await page.inputValue('[data-ground-kind="gc1"]')==='scout'&&await page.locator('[data-ground-platoons="gc1"].on').count()===2&&await page.locator('[data-ground-kind]').count()===4,'地上編成: 編集後の保存と再読込');
+    await page.click('[data-ground-tab="brigades"]');
+    check(await page.locator('.cells.gb').count()===2&&await page.locator('.cells.gb .gco').count()===7,'地上編成: 旅団のタブに大隊の行と中の中隊');
+    await page.click('[data-ground-out="gb2"]');
+    check((await saved()).brigades[0].battalions.join()==='gb1','地上編成: 旅団から大隊を外す');
+    await page.selectOption('#groundAddBattalion','gb2');
+    check((await saved()).brigades[0].battalions.join()==='gb1,gb2','地上編成: 旅団へ大隊を加える');
     await page.click('[data-org-force="space"]');
-    check(await page.locator('#orgList [data-army]').count()===saved.armies.length,'地上編成: 宇宙軍の編集を保持');
+    const space=await page.evaluate(()=>JSON.parse(localStorage.getItem('wos.save.v1')).armies.length);
+    check(await page.locator('#orgList [data-army]').count()===space,'地上編成: 宇宙軍の編集を保持');
     const result=await page.evaluate(()=>{
       WOS.start({op:'groundExercise2'});setSpeed(0);endDeploy();
       const b=groundOrg.battalions[0];document.querySelector(`[data-level="battalions"][data-id="${b.id}"] .grpBtn`).click();
@@ -64,9 +80,9 @@ async function checkGroundOrg(page,check){
       for(let i=0;i<20;i++)step(.05);
       const moved=t.every(f=>f.pos.distanceTo(before[fleets.indexOf(f)])>.1);
       const company=fleets.find(f=>f.companyId==='gc1');
-      const custom=company.name==='保存確認中隊'&&company.groundKind==='scout'&&company.hp===groundRuleSet().unitTypes.scout.hp;
+      const custom=company.groundKind==='scout'&&company.hp===groundRuleSet().unitTypes.scout.hp;
       const parent=document.querySelector('[data-level="brigades"] .ground-fold');parent.click();const folded=!document.querySelector('[data-level="battalions"]');parent.click();
-      return {ordered,other,moved,custom,folded,selected:t.length===3};
+      return {ordered,other,moved,custom,folded,selected:t.length===4};
     });
     for(const [name,ok] of Object.entries(result))check(ok,'地上編成の実画面: '+name);
     check(await page.locator('#roster [data-level="battalions"]').count()===2,'地上編成: 旅団→大隊→中隊を再展開');

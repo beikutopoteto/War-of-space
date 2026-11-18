@@ -55,5 +55,92 @@ const B_IN={
 };
 const B_TICKS={cv:1,ff:1,dd:2,cl:3,bb:4,cvb:4,mas:2,masc:4};
 const svgB=id=>`<svg viewBox="0 0 24 16">${FR}${Array.from({length:B_TICKS[id]},(_,i)=>`<path class="l" d="M${(12-(B_TICKS[id]-1)*1.6+i*3.2).toFixed(1)} 0.5V3"/>`).join('')}${B_IN[id]}</svg>`;
-window.WOS_MARKS={svg:(type,set,fit)=>SIDE[type]?(set==='B'?svgB(type):svgSide(type,fit)):''};
+window.WOS_MARKS={svg:(type,set,fit)=>SIDE[type]?(set==='B'?svgB(type):svgSide(type,fit)):'',ground:groundMark};
+
+/* ---------- 地上の兵科の記号（ユーザー決定 2026-11-18。オプション「地上の兵科記号」: A シルエット（初め）・B NATO 兵科記号）----------
+   シルエットは敵味方で同じ形で、色はチームの色（currentColor）。どれも横2:縦1の白い型（マスク）の画像で、はじめて使うときに一度だけ作る。
+   歩兵の3つは手で描く（40×20 の座標、前は右）: 強化歩兵は戦闘用ヘルメット（横のレール、耳のヘッドセットとマイク、前面に沿う細い暗視
+   ゴーグル）。強化コマンド歩兵は同じヘルメットに 45° の斜めの抜き3本（殻を端まで貫く。ヘッドセットとゴーグルは削らない）。重強化歩兵は
+   ヘルメットに跳ね上げ式の面板（前の薄い鉄板、目の切り欠きは前側だけ、ヘルメットの横の軸まで回る扇形の腕とボルト）と、いちばん手前に
+   首まわりの装甲（首の後ろが高く、前が低い）。ほかはゲームの3Dモデル（地球連合の形）を1色で描いた形: 真横（前が右）、航空機と
+   ドローンハイブは真上。斥候は上に双眼鏡、工兵は上に横向きのシャベルを足す。見本は 2026-11-18 の会話の見本10・19。
+   NATO は Wikipedia「兵科記号（北大西洋条約機構）」の形（味方は横長の四角、敵はひし形）。NATO に無い兵科は Claude の案（承認 2026-11-18）:
+   重強化歩兵＝歩兵＋対戦車（Λ）、強化コマンド歩兵＝歩兵＋SF、機械化突撃兵＝歩兵＋R、陸戦型 W.A.S.＝装甲＋2本の脚、航空隊＝固定翼＋F（戦闘）・A（攻撃）・B（爆撃・支援） */
+function groundMark(kind,set,enemy){
+  if(set==='B'||!groundMasks()||!GM_KINDS.includes(kind)) return `<span class="mk gm">${natoSvg(kind,enemy)}</span>`;
+  return `<span class="mk gm"><i class="gm-${kind}"></i></span>`;
+}
+const GM_KINDS=['infantry','heavyInfantry','commando','mechanicalAssault','vehicle','artillery','guidedRocket','mobileAA','scout','apc','engineer','supply','was','droneHive','fighter','attack','supportAircraft'];
+const GM_TOP=['fighter','attack','supportAircraft','droneHive'];
+let gmState=null;   // null: まだ / true: 作った / false: 作れない（WebGL なし。NATO で出す）
+function groundMasks(){
+  if(gmState!==null) return gmState;
+  gmState=false;
+  if(typeof THREE==='undefined'||typeof groundModelFor!=='function'||typeof document==='undefined'||!document.head) return false;
+  let r; try{ r=new THREE.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true}); }catch(e){ return false; }
+  const W=240,H=120,U=6,scene=new THREE.Scene(),mat=new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide}),rules=[];
+  r.setPixelRatio(1); r.setSize(W,H); r.setClearColor(0,0);
+  // モデルを真横（前が右）か真上（機首が右）から、横2:縦1いっぱいに描く。描いた絵は r.domElement に残る
+  const model=(kind,top)=>{ const spec=groundModelFor(kind,'earth'), geo=spec&&groundShapeGeo(spec.key); if(!geo) return false;
+    geo.computeBoundingBox(); const b=geo.boundingBox, mesh=new THREE.Mesh(geo,mat); scene.add(mesh);
+    const [u0,u1]=[b.min.z,b.max.z], [v0,v1]=top?[b.min.x,b.max.x]:[b.min.y,b.max.y], cu=(u0+u1)/2, cv=(v0+v1)/2, k=Math.max((u1-u0)*1.08/W,(v1-v0)*1.08/H);
+    const cam=new THREE.OrthographicCamera(-W*k/2,W*k/2,H*k/2,-H*k/2,-100,100);
+    if(top){ cam.position.set(cv,50,cu); cam.up.set(-1,0,0); cam.lookAt(cv,0,cu); } else { cam.position.set(-50,cv,cu); cam.lookAt(0,cv,cu); }
+    r.render(scene,cam); scene.remove(mesh); geo.dispose(); return true; };
+  const P=(ctx,pts)=>{ ctx.beginPath(); pts.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y)); ctx.closePath(); ctx.fill(); };
+  const O=(ctx,x,y,rr)=>{ ctx.beginPath(); ctx.ellipse(x,y,rr,rr,0,0,Math.PI*2); ctx.fill(); };
+  const cut=(ctx,fn)=>{ ctx.save(); ctx.globalCompositeOperation='destination-out'; fn(); ctx.restore(); };
+  const SHELL=[[11.4,13.4],[11,9.6],[12.8,6.2],[16.4,3.9],[21,3.2],[25.4,4.1],[28.2,6.4],[29.3,9.2],[27.5,9.5],[26.2,11.2],[23.6,12.4],[18.8,12.4],[17.2,13.8],[13.6,14.2]];
+  const COLLAR=[[9.4,8.8],[12.4,9.4],[13.6,12.6],[19.6,13.8],[26.4,14.4],[29,15.4],[28.4,18.8],[9.8,18.8],[8.8,13.2]];
+  // 殻（横のレールを抜く）→ shellCut（殻だけを削る）→ ヘッドセットとマイク → 暗視ゴーグル（前面の接線に沿う細い筒）
+  const helmet=(ctx,{rail=true,shellCut,gear=true}={})=>{
+    P(ctx,SHELL); if(rail) cut(ctx,()=>P(ctx,[[14.2,9.4],[25,9.2],[25.1,10.3],[14.4,10.5]])); if(shellCut) cut(ctx,shellCut);
+    if(!gear) return;
+    O(ctx,20.6,15.4,3.2); cut(ctx,()=>P(ctx,[[18.6,14.6],[22.6,14.4],[22.7,15.6],[18.7,15.8]])); P(ctx,[[23.4,16.6],[28.6,18],[28.4,18.8],[23.1,17.5]]); O(ctx,29,18.4,.9);
+    const ux=.58,uy=.81,nx=.81,ny=-.58,ox=28.2+nx*.72,oy=6.4+ny*.72,T=.6,a0=-2,a1=4.2;
+    P(ctx,[[ox+ux*a0-nx*T,oy+uy*a0-ny*T],[ox+ux*a1-nx*T,oy+uy*a1-ny*T],[ox+ux*a1+nx*T,oy+uy*a1+ny*T],[ox+ux*a0+nx*T,oy+uy*a0+ny*T]]); };
+  const draw={
+    infantry:ctx=>helmet(ctx),
+    // ＼向き 45° の抜き3本: (c,8) を通り、殻の上から下まで
+    commando:ctx=>helmet(ctx,{rail:false,shellCut:()=>[13.3,17.8,22.3].forEach(c=>P(ctx,[[c-9,-1],[c-6.7,-1],[c+9.8,15.5],[c+7.5,15.5]]))}),
+    heavyInfantry:ctx=>{ helmet(ctx,{gear:false});
+      const vp=new Path2D(); vp.moveTo(31,6.2); vp.lineTo(31.8,16.6); vp.lineTo(29.8,16.8); vp.lineTo(29.6,14.4); vp.lineTo(24.8,12.1);
+      vp.quadraticCurveTo(23.1,11.9,23.2,10.3); vp.quadraticCurveTo(24,7.2,27,6.4); vp.closePath();
+      const line=(w,draw)=>cut(ctx,()=>{ ctx.lineWidth=w; ctx.lineJoin='round'; draw(); });
+      line(.9,()=>ctx.stroke(vp)); ctx.fill(vp); cut(ctx,()=>{ P(ctx,[[30.4,10.8],[33,10.8],[33,12],[30.5,12]]); O(ctx,24.5,10.4,.6); });
+      const cp=new Path2D(); COLLAR.forEach(([x,y],i)=>i?cp.lineTo(x,y):cp.moveTo(x,y)); cp.closePath();
+      line(1.1,()=>ctx.stroke(cp)); ctx.fill(cp); cut(ctx,()=>P(ctx,[[10.4,15],[28.2,16.6],[28.2,17.2],[10.4,15.6]])); },
+    // 双眼鏡（右寄り・車体の上）: こちらを向いた丸いレンズ2つ（縁を細く抜く）、上の真ん中にピントのつまみと橋
+    scout:ctx=>{ if(!model('scout',false)) return false; ctx.drawImage(r.domElement,4,4.4,32,16);
+      P(ctx,[[27.6,3.4],[32.4,3.4],[32.4,5],[27.6,5]]); O(ctx,30,3.1,.75); O(ctx,27.2,6.2,2.3); O(ctx,32.8,6.2,2.3);
+      cut(ctx,()=>{ ctx.lineWidth=.42; for(const x of [27.2,32.8]){ ctx.beginPath(); ctx.arc(x,6.2,1.55,0,Math.PI*2); ctx.stroke(); } }); },
+    // 横向きのシャベル（上、0.82倍）: 左に D の握り（中を抜く）、細い柄、受け口、右に幅のある刃
+    engineer:ctx=>{ if(!model('engineer',false)) return false; ctx.drawImage(r.domElement,5,5.4,30,15);
+      ctx.save(); ctx.translate(18.9,2.5); ctx.scale(.82,.82); ctx.translate(-18.9,-2.5);
+      P(ctx,[[5.6,.5],[8.8,.5],[9.6,1.3],[9.6,3.7],[8.8,4.5],[5.6,4.5]]); cut(ctx,()=>P(ctx,[[6.4,1.3],[8.5,1.3],[8.8,1.7],[8.8,3.3],[8.5,3.7],[6.4,3.7]]));
+      P(ctx,[[9.6,2.1],[22.4,2.1],[22.4,2.9],[9.6,2.9]]); P(ctx,[[22,1.7],[24.4,1],[24.4,4],[22,3.3]]); P(ctx,[[24.2,0],[29,.2],[31,1.1],[32.2,2.5],[31,3.9],[29,4.8],[24.2,5]]);
+      ctx.restore(); },
+  };
+  for(const kind of GM_KINDS){
+    const c=document.createElement('canvas'); c.width=W; c.height=H; const ctx=c.getContext('2d'); ctx.fillStyle=ctx.strokeStyle='#fff'; ctx.scale(U,U);
+    const ok=draw[kind]?draw[kind](ctx)!==false:model(kind,GM_TOP.includes(kind))&&(ctx.drawImage(r.domElement,0,0,40,20),true);
+    if(!ok) continue;
+    const url=c.toDataURL(); rules.push(`.gm-${kind}{-webkit-mask-image:url(${url});mask-image:url(${url})}`);
+  }
+  mat.dispose(); r.dispose(); if(r.forceContextLoss) r.forceContextLoss();
+  const st=document.createElement('style'); st.id='gmMasks'; st.textContent=rules.join('\n'); document.head.appendChild(st);
+  return gmState=true;
+}
+/* NATO 兵科記号（viewBox 0 0 30 20 の四角の中）。敵はひし形の中に縮めて置く */
+const NX='<path d="M1 1L29 19M1 19L29 1"/>', NE='<ellipse cx="15" cy="10" rx="7" ry="3.6"/>', NDOT='<circle cx="15" cy="10" r="2.2" fill="currentColor" stroke="none"/>',
+  NT=(t,y)=>`<text x="15" y="${y}" font-size="6.5" text-anchor="middle" fill="currentColor" stroke="none" font-family="Arial,sans-serif" font-weight="700">${t}</text>`,
+  NWING='<path d="M8.5 10.5a3.3 2.3 0 1 0 6.5 0a3.3 2.3 0 1 0-6.5 0M15 10.5a3.3 2.3 0 1 0 6.5 0a3.3 2.3 0 1 0-6.5 0"/>';
+const NATO={infantry:NX,heavyInfantry:NX+'<path d="M1 19L15 1L29 19"/>',commando:NX+NT('SF',7.5),mechanicalAssault:NX+NT('R',18),
+  vehicle:NE,artillery:NE+NDOT,guidedRocket:NE+NDOT+'<path d="M12 5.4L15 2.6L18 5.4"/>',mobileAA:'<path d="M3 19Q15 4 27 19"/>',
+  scout:'<path d="M1 19L29 1"/>',apc:NX+NE,engineer:'<path d="M8 13V7.5H22V13M15 7.5V13"/>',supply:'<path d="M1 14H29"/>',
+  was:NE+'<path d="M11 13.4L9 18.6M19 13.4L21 18.6"/>',droneHive:'<path d="M6 12.5L15 6.5L24 12.5L15 10Z"/>',
+  fighter:NWING+NT('F',7.2),attack:NWING+NT('A',7.2),supportAircraft:NWING+NT('B',7.2)};
+const natoSvg=(kind,enemy)=>enemy
+  ?`<svg viewBox="-3 -6 36 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M15 -5L32 10L15 25L-2 10Z" stroke-width="1.6"/><g transform="translate(4.5 3.5) scale(.7)">${NATO[kind]||''}</g></svg>`
+  :`<svg viewBox="0 0 30 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="1" width="28" height="18" stroke-width="1.5"/>${NATO[kind]||''}</svg>`;
 })();

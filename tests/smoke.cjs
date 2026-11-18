@@ -326,10 +326,10 @@ function check(ok, label, detail = '') {
     check(savedOpt.mark==='B' && savedOpt.unit==='name' && savedOpt.checked.includes('B') && savedOpt.checked.includes('name'), 'オプション: マークと部隊表示を保存して読み直す', JSON.stringify(savedOpt));
     await page.click('[data-s="opt"] .back');
     const data = await page.evaluate(() => ({ ships: WOS_DATA.ships.length, bonuses: WOS_DATA.bonuses.length, ops: WOS_DATA.operations.length, shown: WOS_DATA.operations.filter(o => !o.hidden).length }));
-    /* before 第一章 第2節 is cleared: 艦隊編集 and 技術ツリー are locked; only the first campaign operation is open */
+    /* before 第一章 第2節 is cleared: 部隊編成 and 技術ツリー are locked; only the first campaign operation is open */
     const lock0 = await page.evaluate(() => ({ org: document.querySelector('#mainNav [data-go="org"]').disabled, tech: document.querySelector('#mainNav [data-go="tech"]').disabled,
       text: document.querySelector('#mainNav [data-go="org"]').textContent }));
-    check(lock0.org && lock0.tech && lock0.text.includes('後退'), 'メニュー: 第2節クリアまで艦隊編集と技術ツリーは鍵付き', lock0.text);
+    check(lock0.org && lock0.tech && lock0.text.includes('後退'), 'メニュー: 第2節クリアまで部隊編成と技術ツリーは鍵付き', lock0.text);
     await shot('01-title');
     await page.click('#mainNav [data-go="mode"]');
     check(await page.isVisible('[data-s="mode"] .modes'), '出撃: オフラインとオンラインの選択');
@@ -428,8 +428,8 @@ function check(ok, label, detail = '') {
 
     /* ship data */
     await page.click('[data-go="data"]');
-    check(await page.locator('#shipTbl tbody tr').count() === data.ships, '艦艇データ: 艦種の表', `${data.ships}艦種`);
-    check(await page.locator('#bonusTbl tbody tr').count() === data.bonuses, '艦艇データ: 編成ボーナスの表', `${data.bonuses}種`);
+    check(await page.locator('#shipTbl tbody tr').count() === data.ships, '兵種別データ: 艦種の表', `${data.ships}艦種`);
+    check(await page.locator('#bonusTbl tbody tr').count() === data.bonuses, '兵種別データ: 編成ボーナスの表', `${data.bonuses}種`);
     await shot('02-data');
     await page.click('[data-s="data"] .back');
 
@@ -507,9 +507,9 @@ function check(ok, label, detail = '') {
     check(+dockAfter > +dockBefore && await page.isDisabled('#forcesBattle'), '軍港: 選択を外すと桟橋が畳まれ、出撃できない', dockBefore + ' → ' + dockAfter);
     await page.locator('#sgList [data-sg]').first().click();
     await page.click('#forcesOrg');
-    check((await page.textContent('[data-s=org] .back')).includes('出撃の準備へ'), '出撃: 艦隊編集から選択画面へ戻れる');
+    check((await page.textContent('[data-s=org] .back')).includes('出撃の準備へ'), '出撃: 部隊編成から選択画面へ戻れる');
     await page.click('[data-s=org] .back');
-    check(await page.locator('#sgList [data-sg][aria-pressed=true]').count() === 1, '出撃: 艦隊編集から戻っても選択が残る');
+    check(await page.locator('#sgList [data-sg][aria-pressed=true]').count() === 1, '出撃: 部隊編成から戻っても選択が残る');
     await shot('04-sortie');
     await page.keyboard.press('Enter');   // Enter decides the sortie (same as the 出撃 button)
     await page.waitForTimeout(1500);
@@ -1074,14 +1074,14 @@ function check(ok, label, detail = '') {
     const rwTalk = await page.evaluate(() => [...document.querySelectorAll('#talkText')].map(e => e.textContent).join(''));
     check(rw.over && rw.outcome && rw.saved, '後退: 船団が撤退地点に着くと勝利', JSON.stringify(rw) + rwTalk);
     await page.click('#talkSkip').catch(() => {});
-    /* clearing 第2節 opens 艦隊編集 and 技術ツリー */
+    /* clearing 第2節 opens 部隊編成 and 技術ツリー */
     await page.waitForTimeout(300);
     const rw2 = await page.textContent('#rp');
     await page.click('#toMenu');
     const open2 = await page.evaluate(() => ({ org: !document.querySelector('#mainNav [data-go="org"]').disabled, tech: !document.querySelector('#mainNav [data-go="tech"]').disabled,
       prog: JSON.parse(localStorage.getItem('wos.save.v1')).prog }));
-    check(rw2.includes('艦隊編集') && open2.org && open2.tech && open2.prog.cleared.join() === 'shinano,retreat',
-      '後退: クリアで艦隊編集と技術ツリーが解放される', rw2 + JSON.stringify(open2.prog));
+    check(rw2.includes('部隊編成') && open2.org && open2.tech && open2.prog.cleared.join() === 'shinano,retreat',
+      '後退: クリアで部隊編成と技術ツリーが解放される', rw2 + JSON.stringify(open2.prog));
     /* the first clear of 第2節 also brings the one-time emergency aid (reward 300 + 400, aid 1000) */
     check(open2.prog.funds === 700 && !open2.prog.flags['aid:retreat'] && !rw2.includes('緊急援助'),
       '後退: 緊急援助は準備の案内まで保留', rw2 + JSON.stringify(open2.prog));
