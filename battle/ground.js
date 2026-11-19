@@ -92,13 +92,16 @@ function groundFireMode(f,t){
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);
   if(groundFireFactor(f,t)>0&&direct>0&&distance<=direct&&groundLineOfSight(f,t))return 'direct';
   const r=groundFireRanges(f).indirect;
-  return ((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
+  return ((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundAutoIndirect(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
 }
 function groundEngagementRange(f,t){
   if(!groundManualTargetAllowed(f,t))return 0;
   const direct=groundTargetRange(f,t),indirect=groundFireRanges(f).indirect;
-  return Math.max(groundFireFactor(f,t)>0?direct:0,((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&groundStrikeWeapon(f)?indirect?.max||0:0);
+  return Math.max(groundFireFactor(f,t)>0?direct:0,((t.band||'ground')==='ground'||f.groundKind==='sea'&&t.band==='sea')&&groundStrikeWeapon(f)&&groundAutoIndirect(f)?indirect?.max||0:0);
 }
+// 直接射撃を主とする兵科（unitTypes の directFirst。W.A.S.）は、間接射撃を地点攻撃の命令のときだけ撃つ。自動交戦・攻撃の命令では撃たず、
+// 攻撃の命令では直接射撃で撃てるところまで近づく（ユーザー決定 2026-11-19「wasは基本直接射撃、攻撃を基本とする」「wasが自動で間接砲撃するのは不要」）
+function groundAutoIndirect(f){ return !groundRuleSet().unitTypes[f.groundKind]?.directFirst; }
 function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','low','high']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':['artillery','guidedRocket','mobileAA','supply'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
 function groundPermissionOnly(f){ return !!groundRuleSet().unitTypes[f.groundKind]?.permissionOnly; }
@@ -866,7 +869,7 @@ function groundStep(dt){
     }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
-    // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）
+    // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）。W.A.S. は直接射撃で撃てるまで（groundAutoIndirect）
     else if(target&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
       f.groundChaseT=(f.groundChaseT||0)-dt;
       if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
@@ -889,7 +892,8 @@ function groundStep(dt){
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
-    if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','was','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
+    // 敵の自動の地点攻撃。W.A.S. は自分からは撃たない（groundAutoIndirect。ユーザー決定 2026-11-19）
+    if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
     if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');}
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
