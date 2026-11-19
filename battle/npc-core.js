@@ -76,7 +76,7 @@ function npcThink(c,sit){
   /* ① 見積もる。持ち主は「今見えている」か「自軍のもの」のときだけ更新し、あとは覚えている値を使う。 */
   for(const z of zones){
     let m=c.zone.get(z.id); if(!m)c.zone.set(z.id,m={owner:z.owner||z.known||'unknown',seenAt:z.owner?t:-1e9,lostAt:-1e9,failAt:-1e9,jit:(c.rng()-.5)*D.vary});
-    if(z.owner==='own'){ if(m.owner!=='own'&&c.posture!==null)c.wonAt=t; m.owner='own'; m.seenAt=t; }
+    if(z.owner==='own'){ if(m.owner!=='own'&&c.posture!==null){ c.wonAt=t; c.won={zone:z.id,ids:(c.tasks.get('seize:'+z.id)||c.tasks.get('cut:'+z.id))?.ids||[]}; } m.owner='own'; m.seenAt=t; }
     else { if(m.owner==='own'){ m.lostAt=t; m.owner=z.owner||'foe'; } if(z.seen&&z.owner){ m.owner=z.owner; m.seenAt=t; } }
   }
   const E=new Map(zones.map(z=>[z.id,{own:0,foe:0,threat:0}])), mem=id=>c.zone.get(id), isOwn=id=>mem(id).owner==='own';
@@ -146,6 +146,8 @@ function npcThink(c,sit){
   const left=G.type==='delay'&&G.until!=null?Math.max(0,Math.min(1,(G.until-t)/Math.max(1e-6,G.until-c.t0))):1;
   // 守り
   let holdNeed=0;
+  const consolidating=!!c.won&&t-c.wonAt<D.consolidate&&isOwn(c.won.zone)&&posture!=='delay'&&G.type!=='withdraw';
+  const wonPower=consolidating?c.won.ids.reduce((s,id)=>s+(byId.get(id)?.free!==false?byId.get(id)?.power||0:0),0):0;
   for(const z of ownZ){
     const e=E.get(z.id), isBase=base&&z.id===base.id, f=front(z.id), keep=isBase||must.has(z.id);
     const eco=posture==='attack'?D.economy:1, gar=S?S.garrison:D.garrison, hr=S?S.holdRatio:D.holdRatio;
@@ -158,8 +160,11 @@ function npcThink(c,sit){
     } else if(posture==='delay'&&!isBase&&e.own<e.threat*D.break_)need=0; // 守りきれない所は捨てて下がる
     const relief=led&&c.leadSeen.has(z.id)&&!leadIn.has(z.id); // 先導が取って離れた拠点
     if(led)need=Math.max(0,need-(leadIn.get(z.id)||0)); // 先導がいる拠点には守備を重ねない。離れたら引き継ぐ
-    if(need>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:isBase?100:(posture==='attack'?45:65)+Math.min(20,thr/avg*5)+(keep?10:0),need,cap:Math.max(need,avg),
-      why:isBase?'本営を守る':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':relief?'引き継いで守る':thr>0?'脅威に備える':'前線を保つ'}); }
+    /* 取った拠点を固める: 取ってから consolidate のあいだは、取った隊をそのまま残す（次の攻撃までに後ろの守りや予備へ歩いて戻らない。
+       ユーザー 2026-11-19「中央の橋を占領した後一斉に本営に向かってます」）。守りの必要には数えない。 */
+    const hold2=consolidating&&z.id===c.won.zone?Math.max(need,wonPower):need;
+    if(hold2>0){ holdNeed+=need; push({type:'hold',zone:z.id,pri:Math.max(isBase?100:(posture==='attack'?45:65)+Math.min(20,thr/avg*5)+(keep?10:0),hold2>need?70:0),need:hold2,cap:Math.max(hold2,avg),
+      why:isBase?'本営を守る':hold2>need?'取った拠点を固める':G.type==='withdraw'?'殿を務める':keep?'ここは渡さない':relief?'引き継いで守る':thr>0?'脅威に備える':'前線を保つ',won:hold2>need}); }
   }
   // 攻め
   const cutSet=new Set();
@@ -315,7 +320,10 @@ function npcThink(c,sit){
     }
   }
   // 火力・打撃・護衛・支援は、いちばん大事な攻めの任務（なければ脅威のある守り）に付ける
-  const anchor=[...tasksOut.values()].filter(k=>k.type==='seize'&&k.units.length)[0]||[...tasksOut.values()].filter(k=>k.type==='hold'&&k.units.length).sort((a,b)=>b.pri-a.pri)[0];
+  // 攻めの任務がなければ、取った拠点を固める守り、次に脅威のある守り（本営の守りがいつも先に来て、支援が本営へ下がるのを防ぐ。2026-11-19）
+  const holds=[...tasksOut.values()].filter(k=>k.type==='hold'&&k.units.length);
+  const anchor=[...tasksOut.values()].filter(k=>k.type==='seize'&&k.units.length)[0]||holds.find(k=>k.won)||
+    holds.sort((a,b)=>(E.get(b.zone).threat>0)-(E.get(a.zone).threat>0)||b.pri-a.pri)[0];
   for(const u of units){ if(assign.has(u.id))continue;
     let escort=null;
     if(u.role==='escort'&&exit==null){
