@@ -3,10 +3,14 @@ function nodeChecks(){
  const {run}=require('./ground-controls.cjs').createControlsContext();
  return run(`(()=>{
   const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok}),f={id:12,name:'中隊',groundKind:'vehicle',bodies:[],groundMovedAt:9.8,groundModel:{userData:{movedAt:9.8}}};
-  for(const deployed of [false,true])for(const moving of [false,true])for(const advance of [false,true]){
-   f.groundDeployed=deployed;f.groundMovedAt=moving?9.8:9;f.order=advance?{type:'move',groundAdvance:1}:null;
-   check('状態 '+[deployed,moving,advance].join('/'),groundFormationState(f,10)===(moving?(advance?'advance':'move'):(deployed?'defend':'idle')));
+  for(const deployed of [false,true])for(const moving of [false,true])for(const o of ['none','move','advance']){
+   f.groundDeployed=deployed;f.groundMovedAt=moving?9.8:9;f.order=o==='advance'?{type:'move',groundAdvance:1}:o==='move'?{type:'move'}:null;
+   check('状態 '+[deployed,moving,o].join('/'),groundFormationState(f,10)===(moving&&o!=='none'?(o==='advance'?'advance':'move'):(deployed?'defend':'idle')));
   }
+  // 命令が終わった直後: 列の体が着く途中（groundTrack.arr）だけ列の形のまま。進撃・追撃のあとは列を挟まずすぐ布陣・待機（2026-11-19）
+  f.order=null;f.groundMovedAt=9.8;f.groundDeployed=false;f.groundTrack={arr:{}};check('着く途中の列は0.4秒のあいだ列のまま',groundFormationState(f,10)==='move');
+  f.groundTrack=null;f.groundDeployed=true;check('進撃が終わった直後は列を挟まず布陣',groundFormationState(f,10)==='defend');
+  f.order={type:'move',groundAdvance:1};
   f.groundMovedAt=0;check('0.4秒の境界で停止',groundFormationState(f,.4)==='defend');
   delete f.groundModel;check('モデルなしでも停止判定',groundFormationState(f,10)==='defend');
   f.pos=new THREE.Vector3();f.groundModel=new THREE.Group();groundFormationDraw(f,10);

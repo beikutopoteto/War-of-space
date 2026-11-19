@@ -188,8 +188,11 @@ document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('c
 document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
 // Formation state follows simulation movement, independently of drawing.
 // 攻撃の命令のあいだ（敵へ向かって動くときも、止まって撃つときも）は追撃の形 'chase'（小隊を 2×2。ユーザー決定 2026-11-19）
+// 命令が終わった直後（動いてから0.4秒）は、列の体が着く途中（groundTrack.arr）のときだけ列の形のまま。進撃・追撃が終わったら、
+// 列の形を挟まずにすぐ布陣・待機の形へ（2026-11-19: 進撃が着いた瞬間に列の前後へ向かい「DNA の複製みたいに二つの集団に」なった）
 function groundFormationState(f,now=gameSec){
-  const s=now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4?f.order?.groundAdvance?'advance':'move':f.groundDeployed?'defend':'idle';
+  const moved=now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4;
+  const s=moved&&(f.order||f.groundTrack?.arr)?f.order?.groundAdvance?'advance':'move':f.groundDeployed?'defend':'idle';
   return f.order?.type==='attack'&&f.groundBodySpec&&(s==='move'||s==='idle')?'chase':s;
 }
 // groundLine（布陣・進撃計画の線。ground-plan.js）: その中隊が使える幅と正面。着いたら正面を向き、その幅で小隊を並べる（2026-11-18）
