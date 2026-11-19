@@ -85,7 +85,7 @@ async function checkGroundStrike(page,check){
   });check(display,'地点攻撃の操作: Bと中心・半径指定で、飛んでいる弾の円と札は出さない');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
-    friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';for(const f of [friend,enemy]){f.groundBodySpec={offsets:f.bodies.map(()=>[0,0]),size:1};f.groundBodyLayouts=null;f.groundBodyGeometry=null;}const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
+    friend.pos.copy(p);enemy.pos.copy(p);friend.band=enemy.band='ground';for(const f of [friend,enemy]){f.groundBodySpec={offsets:f.bodies.map(()=>[0,0]),size:1};f.groundBodyLayouts=null;f.groundBodyGeometry=null;f.groundLastPos.copy(f.pos);}const hp=[friend.hpPool+(friend.groundMorale||0),enemy.hpPool+(enemy.groundMorale||0)];
     let left=Math.max(...groundStrikes.map(s=>s.left));while(left>1e-8){const dt=Math.min(.05,left);step(dt/groundRuleSet().movement.timeScale);left-=dt;}groundDraw();
     const hit=friend.hpPool+(friend.groundMorale||0)<hp[0]&&enemy.hpPool+(enemy.groundMorale||0)<hp[1],impact=groundImpacts.length===friend.bodies0&&document.querySelector('.ground-strike-label').textContent==='着弾';
     reset({op:'groundExercise2'});const clean=!groundStrikes.length&&!groundImpacts.length&&!document.querySelector('.ground-strike-label');

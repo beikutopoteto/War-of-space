@@ -345,8 +345,13 @@ const WAS_POSE=(()=>{
      down to the right) and leaning with the foot of it forward; when firing the right arm's guns rest on its upper edge */
   const G={elL:[-.03,-.13,.06], wrL:[-.2,-.06,.3], shield:[[-.08,-.2,.2],-.36,-Math.PI/2+.2,-.6]}, REST={elR:[.1,-.13,-.02], wrR:[.04,0,.36]};
   const step=(l,r,hy,sw)=>({hy,lean:.34,ank:[l,r],foot:[l[1]>.14&&l[2]<0?.5:0,r[1]>.14&&r[2]<0?.5:0], elR:[-.025,-.13,-.02+sw*.03], wrR:[0,sw*.02,.36], ...G, wrL:[-.2,-.06+sw*.015,.3-sw*.02]});
+  /* the walk with the shield down (user 2026-11-19: the shield is held before the body only in pursuit and advance): the legs of
+     the walk, the upper body and the left arm and shield as when standing, both arms swinging a little against the legs */
+  const march=(l,r,hy,sw)=>({hy,lean:.3,ank:[l,r],foot:[l[1]>.14&&l[2]<0?.5:0,r[1]>.14&&r[2]<0?.5:0], elR:[-.025,-.13,-.02+sw*.05], wrR:[0,sw*.02,.36], elL:[.025,-.13,-.02-sw*.05], wrL:[.03,-.2-sw*.02,.27-sw*.03]});
   return { wasWalk1:step([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasWalk2:step([.22,.13,.03],[-.21,.27,.02],0,.3),
     wasWalk3:step([.22,.17,-.2],[-.22,.13,.24],-.03,-1), wasWalk4:step([.21,.27,.02],[-.22,.13,.03],0,-.3),
+    wasMarch1:march([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasMarch2:march([.22,.13,.03],[-.21,.27,.02],0,.3),
+    wasMarch3:march([.22,.17,-.2],[-.22,.13,.24],-.03,-1), wasMarch4:march([.21,.27,.02],[-.22,.13,.03],0,-.3),
     wasFire:{hy:-.13,lean:.36,ank:[[.28,.13,.22],[-.28,.13,-.26]],foot:[0,.12], ...G, ...REST},
     wasFly:{lean:.22,lean0:.05,ank:[[.2,.1,-.14],[-.2,.1,-.14]],foot:[.75,.75], wrL:[.03,-.24,.22]},
     wasFlyFire:{lean:.3,lean0:.08,ank:[[.4,.26,-.04],[-.4,.26,-.04]],foot:[.45,.45],thr:-.8, ...G, ...REST},
@@ -1229,7 +1234,9 @@ const GROUND_MODELS={
   heavyInfantry:{key:'hinf',size:.32,form:'squad6',move:['hinf','hinf2']},
   mechanicalAssault:{key:'mechA',size:.32,form:'squad6',move:['mechA','mechB']},
   droneHive:{key:'hive',size:.7,form:'one'},
-  was:{key:'was4',size:.75,form:'wedge3'},
+  /* W.A.S. の歩く形（ユーザー 2026-11-19）: 地上で動く体は左右の足を交互に出して歩く（空では歩かない）。前の4こまは盾を下ろした歩き、
+     後の4こまは追撃・進撃の盾を構えた歩き（cycle: 1巡のこまの数）。step: 1歩の間隔は歩兵の 0.6 倍（仮） */
+  was:{key:'was4',size:.75,form:'wedge3',move:['wasMarch1','wasMarch2','wasMarch3','wasMarch4','wasWalk1','wasWalk2','wasWalk3','wasWalk4'],cycle:4,step:.6},
   fighter:{earth:{key:'ftrE',size:.6,form:'flight4'},mars:{key:'ftrM',size:.6,form:'flight4'}},
   attack:{earth:{key:'atkE',size:.6,form:'flight4'},mars:{key:'atkM',size:.6,form:'flight4'}},
   supportAircraft:{earth:{key:'awE',size:1,form:'one'},mars:{key:'awM',size:1,form:'one'}},
@@ -1252,7 +1259,7 @@ const SPACE_MODELS={cv:{earth:'spCV',mars:'spCVM'}, ff:{earth:'spFF',mars:'spFFM
    address joined with +; empty: the same shape always). With two or more, each body of the unit steps through them on its
    own clock (the steps of a walk), starting at a random one, so the bodies are out of step with each other */
 function groundModelFor(kind,side='earth'){
-  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:(Array.isArray(m.move)?m.move:String(m.move||'').split('+')).filter(k=>has(GROUND_SHAPES,k)),size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one'],y:Number.isFinite(+m.y)?+m.y:0}:null;
+  const has=(o,k)=>Object.prototype.hasOwnProperty.call(o,k), done=m=>m&&has(GROUND_SHAPES,m.key)?{key:m.key,move:(Array.isArray(m.move)?m.move:String(m.move||'').split('+')).filter(k=>has(GROUND_SHAPES,k)),size:Number.isFinite(+m.size)&&+m.size>0?+m.size:1,form:has(GROUND_FORMS,m.form)?m.form:'one',offsets:GROUND_FORMS[has(GROUND_FORMS,m.form)?m.form:'one'],y:Number.isFinite(+m.y)?+m.y:0,...(+m.cycle>0?{cycle:+m.cycle}:{}),...(+m.step>0?{step:+m.step}:{})}:null;
   const q=typeof location!=='undefined'&&new URLSearchParams(location.search).get('groundModels');
   if(q) for(const who of [kind+'@'+side,kind]) for(const s of q.split(',')){
     if(!s.startsWith(who+':')) continue;
