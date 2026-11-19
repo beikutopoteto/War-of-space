@@ -1,5 +1,5 @@
 /* 地上の重さの測り（部隊編成の実装の最初の段、2026-11-18。docs/spec.md「地上の部隊編成」の作戦規模の上限を決めるため）。
-   node tools/ground-weight.cjs [--per=4] [--seconds=150] [--seed=1] [--sw] [--today] 16 64 128 192 256
+   node tools/ground-weight.cjs [--per=4] [--seconds=150] [--seed=1] [--sw] [--today] [--profile] [--probe-12] 16 64 128 192 256
    300 km の検証場（field300）の拠点 B と C のあいだに、両軍に同じ数の小隊（引数、1軍あたり）を約14 km 離して並べ、
    両軍の指揮官 AI（地球・共和国、ふつう）で戦わせる。兵科の割合は旅団らしい16個中隊の組（歩兵4・戦車4・重強化歩兵2・
    自走砲2・ロケット・自走対空・斥候・補給 各1）の繰り返し。
@@ -7,7 +7,9 @@
    前はこの道具の中だけで先取りしていた）。--per=1 は1中隊 = 1小隊。
    --today: 比べる基準。今のバイコヌール演習のクイック出撃（決まった部隊。2026-11-18 から各中隊4小隊）を同じ測り方で（小隊の数の引数は要らない）。
    測るもの（1フレームは groundStep 1回 + groundDraw + 描画 + 名札など。battle/loop.js の frame）:
-   - 計算: groundStep(0.05) の平均と95%点（開始から --seconds ゲーム秒まで。撃ち合いの始まりと、撃っている隊の数の平均）
+   - 計算: 中央値・95%点、初回とその後の最大（開始から --seconds ゲーム秒まで。撃ち合いの始まりと、撃っている隊の数の平均）
+   - --profile: 最大規模だけ V8 の CPU サンプリングで groundStep の内訳を出す
+   - --probe-12: 最大規模で歩兵の1小隊を12体にした30ゲーム秒のCPU計測も行う（仮の配備、描画計測なし）
    - 1フレームの仕事: 戦いの最中に速度1で3秒動かし、frame 1回の時間（平均・95%点）と内訳。描画のすぐあとで GPU が描き終わるのを待つ（gl.finish）ので、GPU の仕事を含む
      （計算 groundStep・描く準備 groundDraw・描画 renderer.render（GPU 込み）・その他＝名札や一覧）。60fps には16.7ms、30fps には33ms 以内
    - GPU: 止めた状態で、描画を GPU が描き終わるまで（gl.finish）の時間。広い視点（距離140＝作戦の始めの視点）と近い視点（距離30）、
@@ -21,6 +23,10 @@ const MIX=['infantry','vehicle','infantry','heavyInfantry','vehicle','artillery'
 // ページの中で動く。両軍を並べ、小隊の倍率を入れる。
 function setupWeight(cfg){
   let rng=cfg.seed>>>0||1;Math.random=()=>{rng=(Math.imul(rng,1664525)+1013904223)>>>0;return rng/4294967296;};
+  if(cfg.infantry12){
+    const six=GROUND_FORMS.squad6;
+    GROUND_FORMS.squad6=[...six,...six.map(([x,z])=>[x,z-2])];
+  }
   const base=WOS_DATA.operations.find(o=>o.id===(cfg.today?'baikonur':'groundfield300'));
   const source={...base,npc:{0:{doctrine:'earth',level:'standard'},1:{doctrine:'mars',level:'standard'}},npcSeed:cfg.seed,
     groundStaticEnemies:false,win:{type:'groundHQ',text:'検証: 敵本営占領または敵全滅'}};
@@ -98,28 +104,61 @@ function liveWeight(view){
 }
 function summary(){
   const m=weight,mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
-  return {steps:m.steps.length,stepMedianMs:median(m.steps),stepMeanMs:+mean(m.steps).toFixed(2),stepP95Ms:pct95(m.steps),stepMaxMs:+Math.max(...m.steps).toFixed(1),
+  return {steps:m.steps.length,stepMedianMs:median(m.steps),stepMeanMs:+mean(m.steps).toFixed(2),stepP95Ms:pct95(m.steps),
+    stepFirstMs:m.steps.length?+m.steps[0].toFixed(1):null,stepLaterMaxMs:m.steps.length>1?+Math.max(...m.steps.slice(1)).toFixed(1):null,
     contact:m.contact,firingMean:+mean(m.firing).toFixed(1),alive:[0,1].map(t=>fleets.filter(f=>f.team===t&&f.alive).length),heapMB:performance.memory?Math.round(performance.memory.usedJSHeapSize/1048576):null};
+}
+function summarizeProfile(profile){
+  const nodes=new Map(profile.nodes.map(n=>[n.id,n])),parents=new Map(),self={},inclusive={};
+  for(const n of profile.nodes)for(const child of n.children||[])parents.set(child,n.id);
+  let total=0;
+  for(const [i,sample] of profile.samples.entries()){
+    const stack=new Set();
+    for(let id=sample;id;id=parents.get(id))stack.add(nodes.get(id).callFrame.functionName);
+    if(!stack.has('groundStep'))continue;
+    const ms=profile.timeDeltas[i]/1000,name=nodes.get(sample).callFrame.functionName||'(anonymous)';
+    total+=ms;self[name]=(self[name]||0)+ms;
+    for(const fn of stack)inclusive[fn]=(inclusive[fn]||0)+ms;
+  }
+  const pct=ms=>+(100*ms/total).toFixed(1);
+  return {totalMs:Math.round(total),self:Object.entries(self).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([fn,ms])=>[fn,pct(ms)]),
+    inclusive:Object.fromEntries(['groundPath','groundRiverAt','npcGroundRefitPoint','groundBodyTrack','groundBodyMove','groundUpdateSight','groundRoutStep'].map(fn=>[fn,pct(inclusive[fn]||0)]))};
 }
 async function measure(platoons,opt){
   const {browser,page,errors}=await openGame({width:1600,height:900},{gpu:!opt.sw,scale:2});
   try{
     const gpu=await page.evaluate(()=>{const gl=renderer.getContext(),e=gl.getExtension('WEBGL_debug_renderer_info');return e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):'?';});
-    const setup=await page.evaluate(setupWeight,{platoons,per:opt.per,seed:opt.seed,mix:MIX,today:opt.today});
+    await page.evaluate(()=>{
+      window.weightRiverBuilds=[];
+      if(typeof groundPathRiverTable!=='function')return;
+      const build=groundPathRiverTable;
+      groundPathRiverTable=(d,rivers)=>{
+        const start=performance.now(),table=build(d,rivers);
+        weightRiverBuilds.push({map:d.meta.id,revision:groundBridgeRevision,ms:+(performance.now()-start).toFixed(2)});
+        return table;
+      };
+    });
+    const setup=await page.evaluate(setupWeight,{platoons,per:opt.per,seed:opt.seed,mix:MIX,today:opt.today,infantry12:opt.infantry12});
     for(const fn of [median,pct95,advanceWeight,weightView,renderWeight,liveWeight,summary])await page.evaluate('window.'+fn.name+'='+fn.toString());
+    const cdp=opt.profile?await page.context().newCDPSession(page):null;
+    if(cdp){await cdp.send('Profiler.enable');await cdp.send('Profiler.start');}
     for(let at=10;at<opt.seconds+10;at+=10)if(await page.evaluate(s=>advanceWeight(s),Math.min(at,opt.seconds)))break;
+    const profile=cdp?summarizeProfile((await cdp.send('Profiler.stop')).profile):null;
+    if(cdp)await cdp.detach();
     const sim=await page.evaluate(()=>summary());
+    const result={platoons:opt.today?'今':platoons,per:opt.per,gpu,...setup,sim,profile,riverBuilds:await page.evaluate(()=>weightRiverBuilds)};
+    if(opt.infantry12){if(errors.length)throw new Error(errors.join('\n'));return {...result,infantry12:true};}
     const render={wide:await page.evaluate(()=>renderWeight('wide')),close:await page.evaluate(()=>renderWeight('close'))};
     const live={wide:await page.evaluate(()=>liveWeight('wide')),close:await page.evaluate(()=>liveWeight('close'))};
     if(errors.length)throw new Error(errors.join('\n'));
-    return {platoons:opt.today?'今':platoons,per:opt.today?1:opt.per,gpu,...setup,sim,render,live};
+    return {...result,render,live};
   }finally{await browser.close();}
 }
-const HEAD=['| 小隊/軍 | 中隊 0/1 | 体（両軍） | 計算 中央/平均/95%/最大 ms | 撃つ隊（平均） | 1フレーム 広い 中央/95% ms | 内訳 計算/準備/描画(GPU込み)/その他 ms | 同 近い 中央/95% ms | GPU 広い/近い ms（地形だけ） | 描く回数/三角形（広い） |',
+const HEAD=['| 小隊/軍 | 中隊 0/1 | 体（両軍） | 計算 中央/平均/95%/初回/途中最大 ms | 撃つ隊（平均） | 1フレーム 広い 中央/95% ms | 内訳 計算/準備/描画(GPU込み)/その他 ms | 同 近い 中央/95% ms | GPU 広い/近い ms（地形だけ） | 描く回数/三角形（広い） |',
   '|---:|---|---:|---|---:|---|---|---|---|---|'];
 function row(r){
   const w=r.live.wide,c=r.live.close,s=r.sim;
-  return `| ${r.platoons} | ${r.companies.join('/')} | ${r.bodies[0]+r.bodies[1]} | ${s.stepMedianMs} / ${s.stepMeanMs} / ${s.stepP95Ms} / ${s.stepMaxMs} | ${s.firingMean} | ${w.medianMs} / ${w.p95Ms} | ${w.stepMs} / ${w.drawMs} / ${w.renderMs} / ${w.otherMs} | ${c.medianMs} / ${c.p95Ms} | ${r.render.wide.gpuMs} / ${r.render.close.gpuMs}（${r.render.wide.terrainMs} / ${r.render.close.terrainMs}） | ${r.render.wide.calls} / ${Math.round(r.render.wide.triangles/1e4)}万 |`;
+  return `| ${r.platoons} | ${r.companies.join('/')} | ${r.bodies[0]+r.bodies[1]} | ${s.stepMedianMs} / ${s.stepMeanMs} / ${s.stepP95Ms} / ${s.stepFirstMs} / ${s.stepLaterMaxMs} | ${s.firingMean} | ${w.medianMs} / ${w.p95Ms} | ${w.stepMs} / ${w.drawMs} / ${w.renderMs} / ${w.otherMs} | ${c.medianMs} / ${c.p95Ms} | ${r.render.wide.gpuMs} / ${r.render.close.gpuMs}（${r.render.wide.terrainMs} / ${r.render.close.terrainMs}） | ${r.render.wide.calls} / ${Math.round(r.render.wide.triangles/1e4)}万 |`;
 }
 if(require.main===module){
   const args=process.argv.slice(2),flag=(k,d)=>{const a=args.find(a=>a.startsWith('--'+k+'='));return a?Number(a.split('=')[1]):d;};
@@ -128,7 +167,12 @@ if(require.main===module){
   if(!list.length||list.some(n=>!Number.isInteger(n)||n<0))throw new Error('引数: 1軍あたりの小隊の数（例 16 64 128）、または --today');
   (async()=>{
     console.log(HEAD.join('\n'));
-    for(const n of list){const r=await measure(n,opt);console.log(row(r));console.error(JSON.stringify(r));}
+    for(const n of list){const r=await measure(n,{...opt,profile:args.includes('--profile')&&n===Math.max(...list)});console.log(row(r));console.error(JSON.stringify(r));}
+    if(!opt.today&&args.includes('--probe-12')){
+      const r=await measure(Math.max(...list),{...opt,seconds:30,profile:true,infantry12:true});
+      console.log(`| 歩兵12体（仮配置） | ${r.platoons} | ${r.bodies[0]+r.bodies[1]}体 | 計算 中央 ${r.sim.stepMedianMs} ms | 体の動き ${r.profile.inclusive.groundBodyTrack}% |`);
+      console.error(JSON.stringify(r));
+    }
   })().catch(e=>{console.error(e);process.exitCode=1;});
 }
 module.exports={measure,setupWeight,advanceWeight,MIX,HEAD,row,median,pct95};

@@ -584,6 +584,36 @@ function groundSeaLeg(a,b){
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
 const groundPathGrids=new WeakMap();
+function groundPathRiverBlocked(x,y,river,d,cell){
+  const r=groundRiverAt(x,y,river);
+  if(r.dist>=r.width/2+.12)return false;
+  const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
+  const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+cell)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+cell);
+  return !bridge&&!ford;
+}
+// 中心は従来と同じ座標で渡河判定を済ませる。中心以外は、川が届き得るセルだけ実座標を検査する。
+function groundPathRiverTable(d,rivers){
+  const {cols,rows}=d.terrain,cell=d.meta.cellKm,table=new Uint8Array(cols*rows);
+  const mark=(minX,minY,maxX,maxY)=>{
+    const left=Math.max(0,Math.floor(minX/cell)),right=Math.min(cols-1,Math.floor(maxX/cell));
+    for(let y=Math.max(0,Math.floor(minY/cell));y<=Math.min(rows-1,Math.floor(maxY/cell));y++){
+      if(left<=right)table.fill(1,y*cols+left,y*cols+right+1);
+    }
+  };
+  for(const box of rivers){
+    const {points}=box.river,pad=box.pad;
+    for(let i=1;i<points.length;i++){
+      const [ax,ay]=points[i-1],[bx,by]=points[i];
+      mark(Math.min(ax,bx)-pad,Math.min(ay,by)-pad,Math.max(ax,bx)+pad,Math.max(ay,by)+pad);
+    }
+  }
+  for(let i=0;i<table.length;i++)if(table[i]){
+    const x=(i%cols+.5)*cell,y=(Math.floor(i/cols)+.5)*cell;
+    if(rivers.some(box=>groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell)))table[i]=2;
+  }
+  return table;
+}
+function groundPathWithin(x,y,b,pad=0){return x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;}
 function groundPath(from,to,kind='vehicle',dryOnly=false){
   const d=groundData(),rules=groundRuleSet(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   if(kind==='air'){
@@ -600,7 +630,6 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     gridCache={fingerprint,revision:groundBridgeRevision,profiles:new Map(),geometry:null};groundPathGrids.set(d,gridCache);groundRoadGeometry.delete(d);
   }
   const bounds=poly=>{let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;for(const [x,y] of poly){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);}return {poly,minX,minY,maxX,maxY};};
-  const within=(x,y,b,pad=0)=>x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;
   if(!gridCache.geometry){
     const board=bounds(d.display.board),sea=bounds(d.water.sea),ponds=d.water.ponds.map(bounds);
     const rivers=d.water.rivers.map(river=>({...bounds(river.points),river,pad:Math.max(...river.widths)/2+.12+1e-10}));
@@ -612,34 +641,31 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
         for(let y=Math.max(0,Math.floor(Math.min(a[1],b[1])/cell));y<=Math.min(rows-1,Math.floor(Math.max(a[1],b[1])/cell));y++)for(let x=Math.max(0,Math.floor(Math.min(a[0],b[0])/cell));x<=Math.min(cols-1,Math.floor(Math.max(a[0],b[0])/cell));x++)box.boundary.add(y*cols+x);
       }
     }
-    gridCache.geometry={board,sea,ponds,rivers};
+    gridCache.geometry={board,sea,ponds,rivers,riverTable:null};
   }
   const {board,sea,ponds,rivers}=gridCache.geometry;
+  const riverTable=kind!=='sea'||dryOnly?(gridCache.geometry.riverTable??=groundPathRiverTable(d,rivers)):null;
   const inside=(x,y,box)=>{
-    if(!within(x,y,box))return false;
+    if(!groundPathWithin(x,y,box))return false;
     const i=index(x,y);if(box.boundary.has(i)||i<0||i>=cols*rows)return groundInside(x,y,box.poly);
     let value=box.inside[i];if(!value)box.inside[i]=value=groundInside(x,y,box.poly)?1:-1;return value===1;
   };
-  function riverFactor(x,y){
-    let factor=1;
-    for(const box of rivers){
-      if(!within(x,y,box,box.pad))continue;
-      const river=box.river,r=groundRiverAt(x,y,river);
-      if(r.dist>=r.width/2+.12)continue;
-      const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
-      const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+cell)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+cell);
-      if(!bridge&&!ford)factor=Math.min(factor,rules.movement.river[kind]??0);
-    }
-    return factor;
+  const crossingFactor=Math.min(1,rules.movement.river[kind]??0);
+  function riverFactor(x,y,centerIndex){
+    if(centerIndex!==undefined)return riverTable[centerIndex]===2?crossingFactor:1;
+    const col=Math.floor(x/cell),row=Math.floor(y/cell);
+    if(col>=0&&col<cols&&row>=0&&row<rows&&!riverTable[row*cols+col])return 1;
+    for(const box of rivers)if(groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell))return crossingFactor;
+    return 1;
   }
   // A leg needs both passability and speed at the exact same sample. Evaluate
   // water once, retaining the original fine sampling and endpoint checks.
-  function waterFactor(x,y){
+  function waterFactor(x,y,centerIndex){
     if(!inside(x,y,board))return 0;
     const wet=inside(x,y,sea);
-    if(kind==='sea')return wet&&(!dryOnly||riverFactor(x,y)===1)?1:0;
+    if(kind==='sea')return wet&&(!dryOnly||riverFactor(x,y,centerIndex)===1)?1:0;
     if(wet||ponds.some(p=>inside(x,y,p)))return 0;
-    const factor=riverFactor(x,y);
+    const factor=riverFactor(x,y,centerIndex);
     return dryOnly&&factor!==1?0:factor;
   }
   const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'?1:Math.max(1,rules.movement.roadFactor,...Object.values(rules.movement.marsh),...Object.values(rules.movement.river));
@@ -681,7 +707,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   let profile=gridCache.profiles.get(profileKey);
   if(!profile){profile={edgeCosts:new Float64Array(cols*rows*4).fill(NaN),centerWater:new Float64Array(cols*rows).fill(NaN),centers:new Map()};gridCache.profiles.set(profileKey,profile);}
   const {edgeCosts,centerWater}=profile;
-  const centerPass=(x,y)=>{const i=y*cols+x;let value=centerWater[i];if(Number.isNaN(value))centerWater[i]=value=waterFactor((x+.5)*cell,(y+.5)*cell);return value>0;};
+  const centerPass=(x,y)=>{const i=y*cols+x;let value=centerWater[i];if(Number.isNaN(value))centerWater[i]=value=waterFactor((x+.5)*cell,(y+.5)*cell,i);return value>0;};
   const centerCache=profile.centers,center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
   // 最大速度で割った距離を下限にし、道路のある盤でも過大評価しない。
   function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols))/maxFactor;let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
