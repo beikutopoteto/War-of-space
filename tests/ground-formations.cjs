@@ -33,7 +33,11 @@ function nodeChecks(){
   const idle=layout('vehicle','idle'),radius=Math.max(...spec.offsets.map(([x,z])=>Math.hypot(x,z)))*spec.size*1.3;
   check('待機は円内で向き±60度',idle.every(p=>Math.hypot(p.x,p.z)<=radius&&Math.abs(p.yaw)<=Math.PI/3)&&new Set(idle.map(p=>p.yaw)).size===4);
   check('別中隊は別の待機位置',JSON.stringify(idle)!==JSON.stringify(groundFormationLayout({...f,id:13},spec,'idle')));
-  check('防衛と侵攻は元の隊形',JSON.stringify(layout('vehicle','defend'))===JSON.stringify(layout('vehicle','advance'))&&layout('vehicle','defend').every((p,i)=>p.x===spec.offsets[i][0]*spec.size&&p.z===spec.offsets[i][1]*spec.size));
+  // 進撃・布陣はずらす（2026-11-19）: 進撃は小隊と体ごとにずれ、布陣は同じずれを GROUND_ADVANCE_RANDOM.defend 倍に縮めた位置。ゆらぎは進撃だけ
+  {const R=GROUND_ADVANCE_RANDOM,adv=layout('vehicle','advance'),def=layout('vehicle','defend'),o=spec.offsets.map(([x,z])=>({x:x*spec.size,z:z*spec.size})),lim=(R.platoonX+R.bodyX)*spec.size+1e-9,limZ=(R.platoonZ+R.bodyZ)*spec.size+1e-9;
+   check('進撃は元の隊形からずれる（幅の内）',adv.some((p,i)=>Math.abs(p.x-o[i].x)>1e-6||Math.abs(p.z-o[i].z)>1e-6)&&adv.every((p,i)=>Math.abs(p.x-o[i].x)<=lim&&Math.abs(p.z-o[i].z)<=limZ&&Math.abs(p.yaw)<=R.yaw+1e-9&&p.wa>0));
+   check('布陣は進撃のずれを縮めた位置で、ゆらがない',def.every((p,i)=>Math.abs((p.x-o[i].x)-(adv[i].x-o[i].x)*R.defend)<1e-9&&Math.abs((p.z-o[i].z)-(adv[i].z-o[i].z)*R.defend)<1e-9&&!p.wa));
+   check('同じ中隊は毎回同じずれ、別中隊は別',JSON.stringify(adv)===JSON.stringify(layout('vehicle','advance'))&&JSON.stringify(adv)!==JSON.stringify(groundFormationLayout({...f,id:13,groundKind:'vehicle'},spec,'advance')));}
   check('1体と航空の隊形は固定',layout('droneHive','idle',{offsets:GROUND_FORMS.one,size:.7})[0].x===0&&JSON.stringify(layout('fighter','idle'))===JSON.stringify(layout('fighter','defend')));
   for(const o of [{type:'move'},{type:'attack'}]){f.groundDeployed=true;groundFormationOrder(f,o);check(o.type+'で防衛解除',!f.groundDeployed);}
   for(const flag of ['groundDeploy','groundAdvance']){f.groundDeployed=true;groundFormationOrder(f,{type:'move',[flag]:true});check(flag+'は保持',f.groundDeployed);f.groundDeployed=false;f.order={type:'move',[flag]:true};groundFormationArrive(f);check(flag+'到着で防衛',f.groundDeployed);}

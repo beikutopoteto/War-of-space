@@ -249,8 +249,16 @@ function groundFormationLayout(f,spec,state){
     const radius=Math.max(...base.map(p=>Math.hypot(p.x,p.z)))*1.3;
     return base.map((p,i)=>{const random=groundBodyRandom(f,i),a=random()*Math.PI*2,r=Math.sqrt(random())*radius;return {...p,x:Math.cos(a)*r,z:Math.sin(a)*r,yaw:(random()*2-1)*Math.PI/3};});
   }
-  return base;
+  // 進撃と布陣（ユーザー 2026-11-19「進撃する時、列が綺麗すぎます…全体的にランダムに」「到着したらもう少し規則的に並び直す」）
+  const R=GROUND_ADVANCE_RANDOM,per=Math.max(1,Math.round(n/p)),s=spec.size,sp=Math.max(.15,s*.5),k=state==='defend'?R.defend:1;
+  return base.map((o,i)=>{const rp=groundBodyRandom(f,13000+Math.floor(i/per)),r=groundBodyRandom(f,14000+i),pz=(rp()*2-1)*R.platoonZ,px=(rp()*2-1)*R.platoonX;
+    const q={...o,x:o.x+(px+(r()*2-1)*R.bodyX)*s*k,z:o.z+(pz+(r()*2-1)*R.bodyZ)*s*k,yaw:(r()*2-1)*R.yaw*k};
+    return state==='advance'?{...q,wa:sp*(.4+r()*.4),ww:2*Math.PI/(6+r()*6),wp:r()*6.3,wb:sp*(.5+r()*.5),wv:2*Math.PI/(7+r()*6),wq:r()*6.3}:q;});
 }
+/* 進撃・布陣のずれ（形の単位。数値はすべて仮。見本 2026-11-19 でユーザー承認）: 小隊ごとに前後 platoonZ・左右 platoonX、体ごとに前後 bodyZ・
+   左右 bodyX・向き yaw（ラジアン）の幅でずらす。進撃で動いているあいだは追撃と同じように前後左右にゆっくりゆらぐ。布陣（着いたあと）は
+   同じずれを defend 倍に縮めた位置へ並び直す（少し規則的に） */
+const GROUND_ADVANCE_RANDOM={platoonZ:1.5,platoonX:.4,bodyZ:1,bodyX:.45,yaw:.25,defend:.3};
 /* 動くときの列（ユーザー承認 2026-11-18。見本は千鳥の2列・曲線・ずれ）。体ごとに、列の先頭からの道筋の上の距離 s と横のずれ lat を決め、
    描くときと当たり判定のときに、中隊の道筋（groundMarchPositions）の上へ置く。
    - 歩兵: 基本は2列、3割ほどの横並びは3人。車両: 左右交互の千鳥の2列（最大2列）。小隊のあいだは少しあける。
@@ -423,7 +431,7 @@ function groundFormationTargets(f,L,state){
   const lay=L[state];
   if(lay.march){const m=groundMarchPositions(f,lay,gameSec);return m.map(p=>({x:p.x-f.pos.x,z:p.z-f.pos.z,yaw:p.yaw}));}
   const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a),now=gameSec,mv=now-(f.groundMovedAt??-Infinity)<.4;
-  return lay.map(p=>{let x=p.x,z=p.z;if(state==='chase'&&mv&&p.wa){x+=p.wa*Math.sin(p.ww*now+p.wp);z+=p.wb*Math.sin(p.wv*now+p.wq);}
+  return lay.map(p=>{let x=p.x,z=p.z;if((state==='chase'||state==='advance')&&mv&&p.wa){x+=p.wa*Math.sin(p.ww*now+p.wp);z+=p.wb*Math.sin(p.wv*now+p.wq);}
     return {x:x*cos+z*sin,z:-x*sin+z*cos,yaw:a+(p.yaw||0)};});
 }
 // 体の世界の位置からずれ（T.off）を作り直す。中隊が一度に大きく動いたとき（置き直し・乗り降り）は、体も並びのまま一緒に動かす
