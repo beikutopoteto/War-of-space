@@ -81,12 +81,12 @@
     standard: { think: 3,   react: 5,  memory: 60,  horizon: 0.5,  tasks: 2, error: 0.2 },
     hard:     { think: 1.5, react: 2,  memory: 120, horizon: 0.8,  tasks: 3, error: 0.05 },
   };
-  /* 兵科の役（モードに依らない7つ）。line=線を張り拠点を取る　shock=突破　fires=間接火力　screen=対空・護衛
-     recon=偵察　strike=航空・W.A.S. の打撃　support=補給・工兵・輸送 */
+  /* 兵科の役。line=線を張り拠点を取る　shock=突破　fires=間接火力　screen=対空・護衛
+     recon=偵察　strike=航空・W.A.S. の打撃　support=補給・工兵　escort=歩兵・戦車の随伴 */
   const roles = {
     ground: { infantry: 'line', heavyInfantry: 'line', commando: 'line', vehicle: 'shock', was: 'shock', mechanicalAssault: 'shock',
       artillery: 'fires', guidedRocket: 'fires', mobileAA: 'screen', scout: 'recon', droneHive: 'recon',
-      fighter: 'screen', attack: 'strike', supportAircraft: 'strike', apc: 'support', engineer: 'support', supply: 'support', sea: 'fires' },
+      fighter: 'screen', attack: 'strike', supportAircraft: 'strike', apc: 'escort', engineer: 'support', supply: 'support', sea: 'fires' },
     space: { bb: 'shock', cl: 'line', dd: 'screen', ff: 'screen', cv: 'strike', cvb: 'strike', mas: 'strike', masc: 'strike' },
   };
   window.WOS_DATA = window.WOS_DATA || {};

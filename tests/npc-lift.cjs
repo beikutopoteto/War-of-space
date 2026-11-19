@@ -53,14 +53,32 @@ function liftCases(){
  fleets=originalFleets;
  // 輸送車の実コマンドと、降車後30秒の再乗車禁止。
  const infantry=fleets.find(f=>f.team===1&&f.groundKind==='infantry'&&!f.embarked),truck=fleets.find(f=>f.team===1&&f.groundKind==='apc');
- fleets=[infantry,truck];for(const f of fleets){groundClearOrders(f);f.pos.copy(groundPoint(26,20));f.pos.y=groundUnitHeight(f);f.groundRout=null;}
- npcGroundInit();const cc=npcGroundState.commanders.get(1),k={key:'seize:H',type:'seize',zone:'H',from:'D',stage:'advance',units:[{id:infantry.id,as:'main'},{id:truck.id,as:'support'}]};
- npcGroundLiftOrders(cc,npcGroundSituation(cc),{tasks:[k]});let state=npcGroundLiftState(),ride=state.trucks.get(truck.id);
- check('同じ任務で残り経路6km以上なら実際の搭乗命令',!!ride&&infantry.order?.type==='board');
- if(ride){groundCancelWork(infantry);groundClearOrders(infantry);truck.groundPassenger=infantry;infantry.embarked=truck;truck.pos.copy(ride.dest);
-  npcGroundLiftOrders(cc,npcGroundSituation(cc),{tasks:[k]});check('到着した輸送車から実際に降ろし30秒の待ちを記録',!infantry.embarked&&!truck.groundPassenger&&state.cooldown.get(infantry.id)===gameSec+30);
-  const now=gameSec;infantry.pos.copy(groundPoint(26,20));truck.pos.copy(infantry.pos);gameSec=now+29.99;npcGroundLiftOrders(cc,npcGroundSituation(cc),{tasks:[k]});check('降車から29.99秒では乗り直さない',infantry.order?.type!=='board');
-  gameSec=now+30;npcGroundLiftOrders(cc,npcGroundSituation(cc),{tasks:[k]});check('30秒後も残り6km以上なら乗れる',infantry.order?.type==='board');}
+ fleets=[infantry,truck];
+ const resetRide=()=>{for(const f of fleets){groundClearOrders(f);f.pos.copy(groundPoint(26,20));f.pos.y=groundUnitHeight(f);f.groundRout=null;}};
+ const k={key:'seize:H',type:'seize',zone:'H',from:'D',stage:'advance',units:[{id:infantry.id,as:'main'},{id:truck.id,as:'escort'}]};
+ for(const as of ['support','escort']){
+  resetRide();npcGroundInit();const cc=npcGroundState.commanders.get(1),task={...k,units:[k.units[0],{id:truck.id,as}]};
+  const lift=()=>npcGroundLiftOrders(cc,npcGroundSituation(cc),{tasks:[task]});
+  lift();const state=npcGroundLiftState(),ride=state.trucks.get(truck.id),start=truck.pos.clone();
+  check(as+' は同じ任務で残り経路6km以上なら搭乗命令',!!ride&&infantry.order?.type==='board');
+  groundTransportStep(.05);
+  if(as==='escort'){
+   const sit=npcGroundSituation(cc);
+   check('輸送手順中は両隊を保持し、歩兵は降車後の占領資格で計画に数える',
+    infantry.embarked===truck&&!groundCanCapture(infantry)&&sit.units.find(u=>u.id===infantry.id)?.canHold&&
+    fleets.every(f=>sit.units.some(u=>u.id===f.id&&u.busy&&!u.free)));
+  }
+  for(let i=0;i<3600&&infantry.embarked;i++){
+   if(i%60===0)lift();
+   if(truck.order?.path&&groundFollow(truck,.05))groundClearOrders(truck);
+   groundTransportStep(.05);gameSec+=.05;
+  }
+  check(as+' は歩兵を運んで降ろす（1回）',!!ride&&!infantry.embarked&&!truck.groundPassenger&&start.distanceTo(truck.pos)>6*GROUND_SCALE&&state.cooldown.get(infantry.id)===gameSec-.05+30);
+  if(as==='escort'){
+   const until=state.cooldown.get(infantry.id);resetRide();gameSec=until-.01;lift();check('降車から29.99秒では乗り直さない',infantry.order?.type!=='board');
+   gameSec=until;lift();check('30秒後も残り6km以上なら乗れる',infantry.order?.type==='board');
+  }
+ }
  // 補給は通常のコマンドと実配布で確認。地形や規則の値は変更しない。
  fleets=[infantry,stock];groundCancelWork(infantry);groundClearOrders(infantry);infantry.embarked=null;infantry.pos.copy(groundPoint(34,22));infantry.groundSupply=20;stock.groundSupply=100;
  const dx=31,dy=-4,len=Math.hypot(dx,dy);stock.pos.copy(groundPoint(34-dx/len*.6,22-dy/len*.6));groundClearOrders(stock);

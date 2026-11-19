@@ -154,6 +154,25 @@ function nodeChecks(){
   s.units.slice(1,3).forEach(u=>Object.assign(u,{role:'fires',canPair:true}));
   const k=main(npcThink(commander(),s));assert.deepEqual(k.units.filter(x=>x.as==='main'),[{id:'u0',as:'main'}]);
  });
+ test('随伴は攻めの任務の最寄りの主力を選び、担当任務を維持し、攻めがなければ守りの主力に付く',()=>{
+  const s=fixture();s.captureGroup=2;
+  s.units.forEach((u,i)=>Object.assign(u,{role:'shock',canHold:i===0,canPair:true}));
+  Object.assign(s.units[1],{role:'line',x:0});
+  const apc={...s.units[0],id:'apc',role:N.roles.ground.apc,power:N.power.ground.apc,canHold:false};
+  s.units.push(apc,{...apc,id:'apc2',x:6});
+  const c=commander(),attached=(p,id)=>p.tasks.find(k=>k.units.some(x=>x.id===id&&x.as==='escort'));
+  const p=npcThink(c,s),attack=attached(p,'apc'),guard=attached(p,'apc2');
+  assert.equal(attack?.key,main(p).key,'離れた歩兵より最寄りの戦車に付く');
+  // 攻めの任務があれば、守り（本営の守備など）の近い歩兵より攻めに付く（ユーザー 2026-11-19「戦車の随伴や歩兵の随伴」）
+  assert(guard&&['seize','fix','cut'].includes(guard.type),'守りの歩兵が近くても攻めの任務に付く');
+  apc.x=0;s.time=3;
+  assert.equal(attached(npcThink(c,s),'apc')?.key,attack.key,'近い任務ができても現在の随伴を続ける');
+  s.units.filter(u=>u.role==='shock').forEach(u=>{u.role='fires';});s.time=6;
+  const left=attached(npcThink(c,s),'apc');
+  assert(left?.type==='hold'&&left.units.some(x=>x.id==='u1'&&x.as==='main'),'攻めに随伴の相手がいなくなれば、守りの歩兵に付く');
+  s.units.filter(u=>u.role==='line').forEach(u=>{u.role='fires';});s.time=9;
+  assert(npcThink(c,s).tasks.some(k=>k.type==='reserve'&&k.units.some(x=>x.id==='apc')),'随伴の相手がどこにもいなければ予備へ');
+ });
  test('2隊の確保は近い非武装支援より武装のある隊を優先する',()=>{
   const s=pairFixture();s.units.slice(0,2).forEach(u=>Object.assign(u,{role:'support',canPair:true}));
   s.units.slice(2,4).forEach(u=>Object.assign(u,{role:'fires',canPair:true,x:-20}));

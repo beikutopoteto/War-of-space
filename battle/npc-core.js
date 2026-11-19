@@ -274,9 +274,9 @@ function npcThink(c,sit){
     if(h){ give(w,h.u,'main'); pre.set(w.key,{got:h.u.power,n:1}); }
     else if(sit.captureGroup){
       const need=Math.max(0,sit.captureGroup-mains.filter(u=>u.canPair).length);
-      const pair=units.filter(u=>!assign.has(u.id)&&u.canPair)
+      const pair=units.filter(u=>!assign.has(u.id)&&u.canPair&&!(u.role==='escort'&&c.unit.get(u.id).as==='escort'))
         .map(u=>({u,cost:eta(u,targetOf(w))-(c.unit.get(u.id).task===w.key?D.sticky:0)+(u.worn?1e6:0)}))
-        .sort((a,b)=>(a.u.role==='support')-(b.u.role==='support')||a.cost-b.cost).slice(0,need);
+        .sort((a,b)=>(a.u.role==='support')-(b.u.role==='support')||(a.u.role==='escort')-(b.u.role==='escort')||a.cost-b.cost).slice(0,need);
       if(pair.length===need){ for(const {u} of pair)give(w,u,'main'); pre.set(w.key,{got:pair.reduce((s,x)=>s+x.u.power,0),n:pair.length}); }
     } }
   for(const w of want2){
@@ -300,12 +300,41 @@ function npcThink(c,sit){
     for(const k of tasksOut.values()){ if(k.type==='refit'||k.type==='reserve'||k.type==='retire')continue;
       const v=k.units.reduce((s,x)=>s+(x.as==='main'?1-(byId.get(x.id).supply??1):0),0)*(k.type==='seize'?1.5:1); if(v>bv){ bv=v; best=k; } }
     if(best)give(best,u,'supply'); }
+  const exit=G.type==='withdraw'?(G.zones||[]).find(id=>zById.has(id))??home:null;
+  const escortMains=new Map();
+  if(units.some(u=>u.role==='escort'))for(const k of tasksOut.values()){
+    if(!['seize','fix','cut','hold'].includes(k.type))continue;
+    const mains=k.units.filter(x=>x.as==='main').map(x=>byId.get(x.id)).filter(u=>u.canPair&&['line','shock'].includes(u.role));
+    if(mains.length)escortMains.set(k.key,mains);
+    else if(k.units.some(x=>x.as==='escort')){ // 輸送中に主力が消えたら、橋渡しが輸送を中止してから予備にできる。
+      k.units=k.units.filter(x=>{
+        if(x.as!=='escort')return true;
+        assign.set(x.id,null);return false;
+      });
+      if(!k.units.length)tasksOut.delete(k.key);
+    }
+  }
   // 火力・打撃・護衛・支援は、いちばん大事な攻めの任務（なければ脅威のある守り）に付ける
   const anchor=[...tasksOut.values()].filter(k=>k.type==='seize'&&k.units.length)[0]||[...tasksOut.values()].filter(k=>k.type==='hold'&&k.units.length).sort((a,b)=>b.pri-a.pri)[0];
-  const exit=G.type==='withdraw'?(G.zones||[]).find(id=>zById.has(id))??home:null;
   for(const u of units){ if(assign.has(u.id))continue;
+    let escort=null;
+    if(u.role==='escort'&&exit==null){
+      // 攻めの任務（seize・fix・cut）があればそちらに付く（本営の守備に付いたまま攻めに加わらない、を防ぐ）。守りに付いていても攻めの任務ができたら移る
+      const previous=c.unit.get(u.id),attack=key=>['seize','fix','cut'].includes(tasksOut.get(key)?.type),keys=[...escortMains.keys()],att=keys.filter(attack);
+      if(previous.as==='escort'&&escortMains.has(previous.task)&&(attack(previous.task)||!att.length))escort=previous.task;
+      else{
+        let nearest=Infinity,foot=null,footKm=Infinity;
+        for(const key of att.length?att:keys)for(const m of escortMains.get(key)){
+          const km=Math.hypot(u.x-m.x,u.z-m.z);
+          if(km<nearest){nearest=km;escort=key;}
+          if(m.role==='line'&&km<footKm){footKm=km;foot=key;}
+        }
+        if(foot!=null&&footKm<=nearest+3)escort=foot; // 仮3km差までは歩兵輸送を優先
+      }
+    }
     if(exit!=null)give({key:'retire:'+exit,type:'retire',zone:exit,from:null,pri:10,why:'退く'},u,'main'); // 逃がす: 殿のほかは退避点へ
-    else if(u.role==='line'||u.role==='shock'||u.role==='recon'||!anchor){ if(spot!=null)give({key:'reserve:'+spot,type:'reserve',zone:spot,from:null,pri:10,why:'予備'},u,'main'); else assign.set(u.id,null); }
+    else if(escort!=null)give(tasksOut.get(escort),u,'escort');
+    else if(u.role==='line'||u.role==='shock'||u.role==='recon'||u.role==='escort'||!anchor){ if(spot!=null)give({key:'reserve:'+spot,type:'reserve',zone:spot,from:null,pri:10,why:'予備'},u,'main'); else assign.set(u.id,null); }
     else give(anchor,u,'support'); }
   if(mainZone&&!tasksOut.has('seize:'+mainZone))mainZone=null;
 
