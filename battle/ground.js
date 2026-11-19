@@ -184,9 +184,10 @@ document.querySelectorAll('#groundCommand button').forEach(b=>b.addEventListener
 document.querySelectorAll('#groundView button').forEach(b=>b.addEventListener('click',()=>groundSetView(b.dataset.band)));
 document.querySelectorAll('#groundStrike').forEach(b=>b.addEventListener('click',groundStrikeToggle));
 // Formation state follows simulation movement, independently of drawing.
+// 攻撃の命令のあいだ（敵へ向かって動くときも、止まって撃つときも）は追撃の形 'chase'（小隊を 2×2。ユーザー決定 2026-11-19）
 function groundFormationState(f,now=gameSec){
-  if(now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4)return f.order?.groundAdvance?'advance':'move';
-  return f.groundDeployed?'defend':'idle';
+  const s=now-(f.groundMovedAt??(!f.bodies?f.groundModel?.userData.movedAt:undefined)??-Infinity)<.4?f.order?.groundAdvance?'advance':'move':f.groundDeployed?'defend':'idle';
+  return f.order?.type==='attack'&&f.groundBodySpec&&(s==='move'||s==='idle')?'chase':s;
 }
 // groundLine（布陣・進撃計画の線。ground-plan.js）: その中隊が使える幅と正面。着いたら正面を向き、その幅で小隊を並べる（2026-11-18）
 function groundFormationOrder(f,o){
@@ -222,11 +223,17 @@ function groundBodiesPerPlatoon(f){return Math.max(1,(f.bodies0||1)/(f.groundPla
 function groundLayouts(f,spec=f.groundBodySpec){
   const width=f.groundLine?.width??Infinity,c=f.groundBodyLayouts;
   if(c&&c.spec===spec&&c.width===width)return c;
-  const out={spec,width};for(const st of ['idle','defend','advance','move'])out[st]=groundFormationLayout(f,spec,st);
+  const out={spec,width};for(const st of ['idle','defend','advance','move','chase'])out[st]=groundFormationLayout(f,spec,st);
   return f.groundBodyLayouts=out;
 }
 function groundFormationLayout(f,spec,state){
-  const p=spec.platoons||1,width=f.groundLine?.width,cols=p<=1?1:state==='idle'?Math.min(2,p):Number.isFinite(width)?Math.floor(width/groundPlatoonWidth(spec)):p;
+  const p=spec.platoons||1,width=f.groundLine?.width,cols=p<=1?1:state==='idle'||state==='chase'?Math.min(2,p):Number.isFinite(width)?Math.floor(width/groundPlatoonWidth(spec)):p;
+  // 追撃の形: 小隊を 2×2 に並べた塊（1小隊なら布陣と同じ）。体は前を向き、動いているあいだは前後左右に少しゆらぐ（wa/ww/wp は横、wb/wv/wq は前後の幅・速さ・位相。仮）
+  if(state==='chase'){
+    const sp=Math.max(.15,spec.size*.5);
+    return groundPlatoonOffsets(spec,cols).map(([x,z],i)=>{const r=groundBodyRandom(f,12000+i);
+      return {x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0,wa:sp*(.5+r()*.5),ww:2*Math.PI/(6+r()*6),wp:r()*6.3,wb:sp*(.4+r()*.4),wv:2*Math.PI/(7+r()*6),wq:r()*6.3};});
+  }
   const base=groundPlatoonOffsets(spec,cols).map(([x,z])=>({x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0})),n=base.length;
   if(n<2)return base;
   const vehicles=['vehicle','apc','artillery','guidedRocket','mobileAA','scout','engineer','supply'],foot=['infantry','heavyInfantry','commando','mechanicalAssault','was'];
@@ -337,6 +344,212 @@ function groundMarchPositions(f,lay,now){
     return {x:p.x+tz*lat,z:p.z-tx*lat,yaw:Math.atan2(tx,tz)+b.ya*Math.sin(b.lw*now+b.lp+1.2)};
   });
 }
+/* 体ごとの動き（ユーザー承認 2026-11-19。見本は「兵種の動き方」のページ）。体は自分の世界の位置・向き・速さを持ち（f.groundTrack）、
+   行き先（並びの位置。動いていれば行き先の動きも）へ、自分の足回り（GROUND_DRIVE）で近づく。中隊の印（f.pos）が動いても、体は勝手には動かない。
+   - ふつうの移動: 列は道のとおりに進み、体の1つ1つが目的地の近く（R 以内）まで来たら、その体だけ列を離れて、空いている中でいちばん近い
+     自分の位置へ行く（先に着いた体から順に位置につく）。部隊の印が止まったあとも、列に残った体は通った道を進み続ける。
+     列の半分より短い動き直しは、列を作らず全員がそのまま近い順に新しい位置へ向かう。
+   - 攻撃の命令のあいだは追撃の形（groundFormationLayout の 'chase'）。
+   - 装軌: 前と後ろにだけ進み、向きが pivot 度より大きくずれていれば進まずにその場で回る（超信地旋回）。装輪: その場では回れず、進みながら
+     曲がる（着いたら、そのときの向きのまま止まる）。二足歩行（W.A.S.）: その場で回れ、前後へ歩く。徒歩: どの向きにも歩けるが横と後ろは遅い。
+   - 前後の判定: 行き先がすぐ後ろ（revMax 体ぶん以内）で、止まる並びの向きが今の向きに近いときは、向きを変えずに後ろへ下がる。
+   - 止まる位置のすぐそば（park 体ぶん）では止まる向きへ回り（装輪は回らない）、前後だけで合わせる。動いているあいだは同じ中隊の体どうしでよける。
+   数はすべて仮（docs/menu.md）。turn: 体の長さ1つを部隊の速さで進むあいだに回るラジアン、cap: 回る速さの上限（ラジアン/秒）、rev: 後ろへの速さ
+   （部隊の速さに対して）、radius: 装輪の回る半径（体の長さ）、minFwd: 装輪が曲がるあいだも保つ前への速さ、side/back: 徒歩の横・後ろへの速さ、accel: 加速 */
+const GROUND_DRIVE={tankE:'track',tankM:'track',spgE:'track',spgM:'track',aaE:'track',aaM:'track',engE:'track',engM:'track',mlrsM:'track',
+  apcE:'wheel',apcM:'wheel',scoutE:'wheel',scoutM:'wheel',supE:'wheel',supM:'wheel',mlrsE:'wheel',was4:'walk'};
+const GROUND_MOVE={
+  gain:1.6,
+  track:{turn:.6,cap:4,pivot:55,rev:.4,revMax:3,accel:3,park:.6},
+  wheel:{radius:1.5,rev:.3,revMax:3,accel:2.5,minFwd:.3,park:.6},
+  walk:{turn:.8,cap:4,pivot:45,rev:.5,revMax:3,accel:3,park:.6},
+  foot:{turn:3,cap:9,side:.6,back:.45,accel:8}
+};
+function groundDriveKind(spec){return GROUND_DRIVE[spec?.key]||'foot';}
+const groundWrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+// 体の位置を1つにまとめて扱う隊（体が1つ、航空機、空の W.A.S.）
+function groundBodyCentered(f){return !f.bodies||f.bodies0===1||!f.groundBodySpec||['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&f.band!=='ground';}
+// 体と位置の組み合わせ: 近い組から順に決める
+function groundAssign(cur,tg){
+  const n=cur.length,pairs=[];
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++)pairs.push([Math.hypot(cur[i].x-tg[j].x,cur[i].z-tg[j].z),i,j]);
+  pairs.sort((a,b)=>a[0]-b[0]);
+  const slot=new Array(n).fill(-1),used=new Array(n).fill(false);let left=n;
+  for(const [,i,j] of pairs){if(slot[i]>=0||used[j])continue;slot[i]=j;used[j]=true;if(!--left)break;}
+  return slot;
+}
+// 今の組み合わせ（prev）のまま動く場合と、近い組から決め直す場合で、動く距離の合計の短い方（並びをそのままずらすとき、前と後ろの列が入れ替わらない）
+function groundAssignBest(cur,tg,prev){
+  const g=groundAssign(cur,tg),n=cur.length;
+  if(!prev||prev.length!==n||prev.some(j=>!(j>=0&&j<tg.length))||new Set(prev).size!==n)return g;
+  const cost=sl=>sl.reduce((a,j,i)=>a+Math.hypot(cur[i].x-tg[j].x,cur[i].z-tg[j].z),0);
+  return cost(prev)<=cost(g)?prev.slice():g;
+}
+// 道筋（center から前は ahead、後ろは behind）を細かく取り、幅 smooth でならす。返す関数 at(u) は center から u 進んだ所（groundMarchPositions と同じ取り方）
+function groundPathSampler(center,dir,aheadPts,behindPts,lo,hi,smooth){
+  const ahead=[{x:center.x,z:center.z,dx:dir.x,dz:dir.z},...aheadPts],behind=[{x:center.x,z:center.z,dx:-dir.x,dz:-dir.z},...behindPts];
+  const H=GROUND_MARCH_STEP,back=Math.ceil(-lo/H),fwd=Math.ceil(hi/H),K=back+fwd+1,L0=-back*H,sx=new Float64Array(K+1),sz=new Float64Array(K+1);
+  const q={x:0,z:0},wb=groundPolyWalker(behind),wa=groundPolyWalker(ahead),xs=new Float64Array(K),zs=new Float64Array(K);
+  for(let k=back;k>=0;k--){wb((back-k)*H,q);xs[k]=q.x;zs[k]=q.z;}
+  for(let k=back+1;k<K;k++){wa((k-back)*H,q);xs[k]=q.x;zs[k]=q.z;}
+  for(let k=0;k<K;k++){sx[k+1]=sx[k]+xs[k];sz[k+1]=sz[k]+zs[k];}
+  const w=Math.round(smooth/H),sm=k=>{k=Math.max(0,Math.min(K-1,k));const a=Math.max(0,k-w),b=Math.min(K-1,k+w),c=b-a+1;return {x:(sx[b+1]-sx[a])/c,z:(sz[b+1]-sz[a])/c};};
+  return u=>{const t=(u-L0)/H,k=Math.floor(t),e=t-k,a=sm(k),b=sm(k+1);return {x:a.x+(b.x-a.x)*e,z:a.z+(b.z-a.z)*e};};
+}
+// 列の中の体の位置（shift: 道筋の中心からさらに進んだ距離）。a は道筋の中心からの距離
+function groundMarchBody(at,half,b,shift,now){
+  const x=half-(b.s+b.sa*Math.sin(b.sw*now+b.sp))+shift,p=at(x),q=at(x+.3),r=at(x-.3);
+  let tx=q.x-r.x,tz=q.z-r.z;const tl=Math.hypot(tx,tz)||1;tx/=tl;tz/=tl;const lat=b.lat+b.la*Math.sin(b.lw*now+b.lp);
+  return {x:p.x+tz*lat,z:p.z-tx*lat,yaw:Math.atan2(tx,tz)+b.ya*Math.sin(b.lw*now+b.lp+1.2),a:x};
+}
+// 着いたあとの並び（目的地 D と最後の向き）。R: 体がこの距離まで近づいたら列を離れる
+function groundArrival(f,L,o,aheadPts){
+  const last=aheadPts[aheadPts.length-1]||f.pos,prev=aheadPts.length>1?aheadPts[aheadPts.length-2]:f.pos;
+  let dir={x:last.x-prev.x,z:last.z-prev.z};const dl=Math.hypot(dir.x,dir.z);dir=dl>1e-6?{x:dir.x/dl,z:dir.z/dl}:{x:f.heading.x,z:f.heading.z};
+  const face=o.groundDeploy&&f.groundLine?.face&&Math.hypot(f.groundLine.face.x,f.groundLine.face.z)>1e-6?f.groundLine.face:dir;
+  const state=o.groundDeploy?'defend':'idle',a=Math.atan2(face.x,face.z),cos=Math.cos(a),sin=Math.sin(a);
+  const slots=L[state].map(p=>({x:last.x+p.x*cos+p.z*sin,z:last.z-p.x*sin+p.z*cos,yaw:a+(p.yaw||0)}));
+  const far=Math.max(...slots.map(s=>Math.hypot(s.x-last.x,s.z-last.z)));
+  return {order:o,D:{x:last.x,z:last.z},dir,slots,used:slots.map(()=>false),R:Math.max(1.5,Math.min(4,far*.4)),dist:0,behind:null,at:null};
+}
+// 並びの位置（中隊の位置からのずれ、世界の向き）と向き
+function groundFormationTargets(f,L,state){
+  const lay=L[state];
+  if(lay.march){const m=groundMarchPositions(f,lay,gameSec);return m.map(p=>({x:p.x-f.pos.x,z:p.z-f.pos.z,yaw:p.yaw}));}
+  const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a),now=gameSec,mv=now-(f.groundMovedAt??-Infinity)<.4;
+  return lay.map(p=>{let x=p.x,z=p.z;if(state==='chase'&&mv&&p.wa){x+=p.wa*Math.sin(p.ww*now+p.wp);z+=p.wb*Math.sin(p.wv*now+p.wq);}
+    return {x:x*cos+z*sin,z:-x*sin+z*cos,yaw:a+(p.yaw||0)};});
+}
+// 体の世界の位置からずれ（T.off）を作り直す。中隊が一度に大きく動いたとき（置き直し・乗り降り）は、体も並びのまま一緒に動かす
+function groundTrackSync(f,T,dt){
+  const n=T.off.length,jx=f.pos.x-T.px,jz=f.pos.z-T.pz,jump=Math.hypot(jx,jz)>Math.max(3,Math.max(.5,f.speed||1)*dt*4);
+  for(let i=0;i<n;i++){if(jump){T.ax[i]+=jx;T.az[i]+=jz;T.v[i]=0;T.vx[i]=0;T.vz[i]=0;}
+    T.off[i].x=T.ax[i]-f.pos.x;T.off[i].z=T.az[i]-f.pos.z;}
+}
+function groundBodyMove(f,T,tgt,dt){
+  const spec=f.groundBodySpec,kind=groundDriveKind(spec),M=GROUND_MOVE[kind],GAIN=GROUND_MOVE.gain,n=tgt.length,{len,wid}=groundBodyDims(spec);
+  const vU=Math.max(.5,f.speed||1),L=Math.max(len,.05),sepR=wid*1.6;   // よける距離: 体の幅の1.6倍（並びの横の間隔より狭く）
+  for(let i=0;i<n;i++){
+    const p=tgt[i],Px=f.pos.x+p.x,Pz=f.pos.z+p.z,id=T.mode[i]+(T.mode[i]==='s'?T.arrSlot[i]:T.slot[i])+'|'+T.key;
+    // 行き先の動き（並びの位置が中隊と一緒に動いていれば、その速さで先回りする）
+    let vtx=0,vtz=0;
+    if(T.ps[i]===id&&T.pp[i]){vtx=(Px-T.pp[i].x)/dt;vtz=(Pz-T.pp[i].z)/dt;const m=Math.hypot(vtx,vtz),cap=vU*1.3;if(m>cap){vtx*=cap/m;vtz*=cap/m;}}
+    T.pp[i]={x:Px,z:Pz};T.ps[i]=id;
+    const ex=Px-T.ax[i],ez=Pz-T.az[i],e=Math.hypot(ex,ez),vmax=(p.walk?1:1.5)*vU,still=Math.hypot(vtx,vtz)<.08*vU;
+    const arrive=kind==='foot'?.02:kind==='wheel'?Math.max(.05,L*.3):Math.max(.04,L*.12);
+    let dx=vtx+ex*GAIN,dz=vtz+ez*GAIN;
+    // よける（同じ中隊の体どうし）。よける向きのうち行き先から遠ざかる分は捨て、横へよけるだけにする（隣の体に押し返されて行き先へ着けなくならない）
+    if(!(still&&e<arrive*3)){let px=0,pz=0;for(let j=0;j<n;j++){if(j===i)continue;const sx=T.ax[i]-T.ax[j],sz=T.az[i]-T.az[j],d=Math.hypot(sx,sz);if(d>1e-6&&d<sepR){const k=(sepR-d)/sepR*vU*.8/d;px+=sx*k;pz+=sz*k;}}
+      if(e>1e-6){const back=(px*ex+pz*ez)/e;if(back<0){px-=back*ex/e;pz-=back*ez/e;}}dx+=px;dz+=pz;}
+    let dm=Math.hypot(dx,dz);if(dm>vmax){dx*=vmax/dm;dz*=vmax/dm;dm=vmax;}
+    if(still&&e<arrive){dx=dz=0;dm=0;}
+    const yaw=T.yaw[i];let moved=false,turned=0;
+    if(kind==='foot'){
+      // 遠くへ進む（中隊について行く）ときは進む向きを向く。止まった並びの近くの動き直しは、並びの向きのまま横・後ろへ歩く
+      const travel=dm>1e-6&&(!still||e>4*L),want=travel?Math.atan2(dx,dz):p.yaw;
+      const om=Math.min(M.cap,M.turn*vU/L)*dt,dy=groundWrap(want-yaw),t=Math.max(-om,Math.min(om,dy));T.yaw[i]=yaw+t;turned=Math.abs(t);
+      let lim=vmax;if(dm>1e-6){const c=(dx*Math.sin(T.yaw[i])+dz*Math.cos(T.yaw[i]))/dm;lim*=c>=0?M.side+(1-M.side)*c:M.side+(M.back-M.side)*(-c);}
+      let wx=dx,wz=dz;if(dm>lim){wx*=lim/dm;wz*=lim/dm;}
+      const a=M.accel*vU*dt,ddx=wx-T.vx[i],ddz=wz-T.vz[i],dd=Math.hypot(ddx,ddz),k=dd>a?a/dd:1;
+      T.vx[i]+=ddx*k;T.vz[i]+=ddz*k;T.ax[i]+=T.vx[i]*dt;T.az[i]+=T.vz[i]*dt;
+      moved=Math.hypot(T.vx[i],T.vz[i])>.05*vU;
+    }else if(still&&e<M.park*L&&(kind==='wheel'||Math.abs(ex*Math.cos(p.yaw)-ez*Math.sin(p.yaw))<M.park*L*.4)){
+      // 止まる位置のすぐそば: 止まる向きへ回り（装輪は回れない）、前後だけで位置を合わせる。横の少しのずれ（体の長さの0.24倍まで）は直さない。
+      // それより横にずれていれば（装軌・二足歩行）、下の動きでその場で回って少し進み、着いてから止まる向きへ回り直す
+      const want=kind==='wheel'?yaw:p.yaw,om=Math.min(M.cap||4,(M.turn||1)*vU/L)*dt,dy=groundWrap(want-yaw),t=kind==='wheel'?0:Math.max(-om,Math.min(om,dy));T.yaw[i]=yaw+t;turned=Math.abs(t);
+      const along=ex*Math.sin(T.yaw[i])+ez*Math.cos(T.yaw[i]),goal=Math.abs(along)<arrive*.5||Math.abs(groundWrap(want-T.yaw[i]))>.35?0:Math.max(-M.rev*vU,Math.min(vmax,along*GAIN)),a=M.accel*vU*dt;
+      T.v[i]+=Math.max(-a,Math.min(a,goal-T.v[i]));T.gear[i]=T.v[i]<0?-1:1;
+      T.ax[i]+=Math.sin(T.yaw[i])*T.v[i]*dt;T.az[i]+=Math.cos(T.yaw[i])*T.v[i]*dt;moved=Math.abs(T.v[i])>.05*vU;
+    }else{
+      let g=T.gear[i],want=yaw,spd=0;
+      if(dm>1e-6){
+        const dir=Math.atan2(dx,dz),err=groundWrap(dir-yaw);
+        // 前か後ろか: 行き先がすぐ後ろで、止まる並びの向きが今の向きに近いときは、向きを変えずに後ろへ下がる
+        const near=still&&e<M.revMax*L&&Math.abs(groundWrap(p.yaw-yaw))<Math.PI/3;
+        if(g===1&&near&&Math.abs(err)>Math.PI*.6)g=-1;else if(g===-1&&(!near||Math.abs(err)<Math.PI*.35))g=1;
+        // 装輪は、近くで真横の行き先へは回り込めないので、そこで止まる
+        if(kind==='wheel'&&g===1&&still&&e<L*.6&&Math.abs(err)>Math.PI*.4){dm=0;}
+        else{T.gear[i]=g;want=g===1?dir:dir+Math.PI;spd=g===1?dm:Math.min(dm,M.rev*vU);}
+      }
+      if(dm<=1e-6){T.gear[i]=1;want=kind==='wheel'?yaw:p.yaw;spd=0;}
+      const om=kind==='wheel'?Math.abs(T.v[i])/(M.radius*L)*dt:Math.min(M.cap,M.turn*vU/L)*dt;   // 装輪は進んでいるときだけ曲がれる
+      const dy=groundWrap(want-yaw),t=Math.max(-om,Math.min(om,dy));T.yaw[i]=yaw+t;turned=Math.abs(t);
+      const e2=Math.abs(groundWrap(want-T.yaw[i]));
+      if(kind==='wheel'){if(spd>0)spd*=Math.max(M.minFwd,Math.cos(Math.min(e2,Math.PI/2)));}
+      else{const c0=Math.cos(M.pivot*Math.PI/180);spd*=Math.max(0,Math.min(1,(Math.cos(e2)-c0)/(1-c0)));}   // 向きが大きくずれていれば進まずに、その場で回る
+      const goal=T.gear[i]*spd,a=M.accel*vU*dt;T.v[i]+=Math.max(-a,Math.min(a,goal-T.v[i]));
+      T.ax[i]+=Math.sin(T.yaw[i])*T.v[i]*dt;T.az[i]+=Math.cos(T.yaw[i])*T.v[i]*dt;
+      moved=Math.abs(T.v[i])>.05*vU;
+    }
+    T.moving[i]=moved||turned>.5*dt;
+    T.off[i].x=T.ax[i]-f.pos.x;T.off[i].z=T.az[i]-f.pos.z;
+  }
+}
+/* 体ごとの動きを返す。体を1つにまとめて扱う隊は null。
+   advance: 今の時刻まで進める（groundStep の中で、中隊が動いた直後に1回だけ）。進めるとき、体は世界の位置のまま中隊の動きを追う
+   （体が中隊ごと平行に動いて横すべりしない）。進めないあいだに中隊が置き直されたら（台本・テスト・乗り降り・1ステップの中）、体は並びのまま一緒に動く */
+function groundBodyTrack(f,advance=false){
+  if(groundBodyCentered(f)){f.groundTrack=null;return null;}
+  const spec=f.groundBodySpec,L=groundLayouts(f,spec),n=spec.offsets.length,state=groundFormationState(f),width=f.groundLine?.width??Infinity;
+  // 止まっているあいだに向きが変わったら（布陣の正面を変えたとき）、体と位置の組み合わせを近い順に決め直す
+  const key=state+'|'+width+(state==='idle'||state==='defend'?'|'+Math.round(Math.atan2(f.heading.x,f.heading.z)/(Math.PI/6)):'');
+  let T=f.groundTrack;
+  if(!T||T.spec!==spec||T.off.length!==n){
+    const tg=groundFormationTargets(f,L,state),z=()=>tg.map(()=>0);
+    return f.groundTrack={spec,key,t:gameSec,px:f.pos.x,pz:f.pos.z,slot:tg.map((_,i)=>i),off:tg.map(p=>({x:p.x,z:p.z})),yaw:tg.map(p=>p.yaw),moving:tg.map(()=>false),mode:tg.map(()=>'f'),arrSlot:tg.map(()=>-1),arr:null,
+      ax:tg.map(p=>f.pos.x+p.x),az:tg.map(p=>f.pos.z+p.z),v:z(),vx:z(),vz:z(),gear:tg.map(()=>1),pp:[],ps:[]};
+  }
+  const dt=gameSec-T.t;
+  if(!advance||!(dt>0))return T;
+  groundTrackSync(f,T,dt);
+  const o=f.order,plain=state==='move'&&o?.type==='move'&&o.path?.points,tgt=new Array(n);
+  if(T.arr&&o&&T.arr.order!==o){T.arr=null;T.mode.fill('f');T.key=null;}   // 新しい命令: 着く途中の並びをやめる
+  const peel=i=>{const A=T.arr,bx=f.pos.x+T.off[i].x,bz=f.pos.z+T.off[i].z;let best=-1,bd=Infinity;
+    A.slots.forEach((s,j)=>{if(A.used[j])return;const d=Math.hypot(s.x-bx,s.z-bz);if(d<bd){bd=d;best=j;}});
+    A.used[best]=true;T.arrSlot[i]=best;T.mode[i]='s';};
+  const slotTgt=i=>{const s=T.arr.slots[T.arrSlot[i]];return {x:s.x-f.pos.x,z:s.z-f.pos.z,yaw:s.yaw,walk:true};};
+  if(plain){
+    const lay=L.move,half=lay.L/2,p=o.path,aheadPts=[];for(let i=p.atIndex||0;i<p.points.length;i++)aheadPts.push(p.points[i]);
+    const at=groundPathSampler(f.pos,f.heading,aheadPts,(f.groundTrail||[]).slice(1),-(half+1+lay.smooth),half+1+lay.smooth,lay.smooth);
+    const march=lay.map(b=>groundMarchBody(at,half,b,0,gameSec)),limit=half+6,rem=groundPolyLength([{x:f.pos.x,z:f.pos.z},...aheadPts],limit),known=rem<=limit;
+    if(known&&!T.arr){T.arr=groundArrival(f,L,o,aheadPts);
+      // 列の半分より短い動き直し: 列を作らず、全員がそのまま近い順に新しい位置へ向かう
+      if(rem<half){const A=T.arr,sl=groundAssignBest(T.off,A.slots.map(q=>({x:q.x-f.pos.x,z:q.z-f.pos.z})),T.slot);for(let i=0;i<n;i++){T.arrSlot[i]=sl[i];A.used[sl[i]]=true;T.mode[i]='s';}}}
+    if(T.key!==key&&!T.arr){T.slot=groundAssignBest(T.off,march.map(m=>({x:m.x-f.pos.x,z:m.z-f.pos.z})),T.slot);T.key=key;}
+    if(T.arr){T.arr.behind=(f.groundTrail||[]).slice(1);T.arr.dir={x:f.heading.x,z:f.heading.z};T.arr.at=null;}
+    for(let i=0;i<n;i++){
+      if(T.mode[i]!=='s'){const m=march[T.slot[i]];if(T.arr&&known&&m.a-rem>=-T.arr.R)peel(i);else{T.mode[i]='m';tgt[i]={x:m.x-f.pos.x,z:m.z-f.pos.z,yaw:m.yaw};continue;}}
+      tgt[i]=slotTgt(i);
+    }
+  }else if(T.arr&&T.mode.some(m=>m==='m')){
+    // 部隊の印は止まった。列に残った体は、通った道を進み続ける
+    const A=T.arr,lay=L.move,half=lay.L/2;A.dist+=(f.speed||1)*dt;
+    const at=A.at||(A.at=groundPathSampler(A.D,A.dir,[],A.behind||[],-(half+1+lay.smooth),1+lay.smooth,lay.smooth));
+    for(let i=0;i<n;i++){
+      if(T.mode[i]!=='s'){const m=groundMarchBody(at,half,lay[T.slot[i]],A.dist,gameSec);if(m.a>=-A.R)peel(i);else{tgt[i]={x:m.x-f.pos.x,z:m.z-f.pos.z,yaw:m.yaw};continue;}}
+      tgt[i]=slotTgt(i);
+    }
+  }else{
+    if(T.arr&&state!=='move'){T.slot=T.arrSlot.slice();T.key=key;T.arr=null;T.mode.fill('f');}   // 全員が位置についた
+    if(T.arr){for(let i=0;i<n;i++)tgt[i]=slotTgt(i);}
+    else{
+      const tg=groundFormationTargets(f,L,state);
+      if(T.key!==key){T.slot=groundAssignBest(T.off,tg,T.slot);T.key=key;}
+      for(let i=0;i<n;i++)tgt[i]=tg[T.slot[i]];
+    }
+  }
+  groundBodyMove(f,T,tgt,dt);
+  T.t=gameSec;T.px=f.pos.x;T.pz=f.pos.z;
+  return T;
+}
+/* W.A.S. の歩く形の使い分け（ユーザー 2026-11-19）: 盾を前に構えて歩くのは追撃（攻撃の命令）と進撃のときだけ。命令が終わっても
+   （着いた・相手が倒れた）、位置へ歩き終えるまでは構えたまま。別の命令が来たら下ろす */
+function groundWasGuard(f){
+  const o=f.order,g=o?.type==='attack'||!!o?.groundAdvance;
+  if(g)f.groundWasGuarded=o;else if(o&&o!==f.groundWasGuarded)f.groundWasGuarded=null;
+  if(!g&&f.groundTrack&&!f.groundTrack.moving.some(Boolean))f.groundWasGuarded=null;
+  return g||!!f.groundWasGuarded;
+}
 function groundAircraftCombat(f){
   const target=f.order?.type==='attack'?f.order.target:null;
   return !!(f.fireTarget||target?.alive&&groundDistanceTo(f,target)<=groundTargetRange(f,target)*1.5);
@@ -350,6 +563,17 @@ function groundFormationDraw(f,now){
   data.last.copy(f.pos);
   if(!form)return;
   const state=groundFormationState(f,now),air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
+  // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
+  if(!air&&!groundBodyCentered(f)){
+    const g=groundBodyPositions(f),a1=Math.atan2(f.heading.x,f.heading.z),c1=Math.cos(a1),s1=Math.sin(a1);data.drawYaw=a1;
+    form.bodies.forEach((body,i)=>{
+      const p=g.positions[i]||g.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;
+      body.position.x=wx*c1-wz*s1;body.position.z=wx*s1+wz*c1;body.position.y=0;
+      body.rotation.y=(g.yaws?.[i]??a1)-a1;body.rotation.z=0;
+      for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
+    });
+    return;
+  }
   const combat=air&&groundAircraftCombat(f),targets=groundLayouts(f,form.spec)[air?'defend':state],k=1-Math.exp(-4*dt);
   /* 地上の体は世界の向きでならす: 隊の向きが経路の角で急に変わっても、体がいっせいに振られない（2026-11-18）。
      a0 は前の描画のモデルの向き、a1 は今の向き。動くときの列は道筋の上の位置（groundBodyPositions）へ寄せる */
@@ -379,20 +603,14 @@ function groundFormationDraw(f,now){
 }
 function groundAliveBodies(f){return f.bodies?f.bodies.reduce((n,b)=>n+(b.alive?1:0),0):f.ships.length;}
 // Cache only geometry. HP and living-body choices are read afresh after every hit.
+// 体の位置と向きは体ごとの動き（groundBodyTrack）から。同じ時刻・同じ位置なら作り直さない
 function groundBodyPositions(f){
-  const state=groundFormationState(f),spec=f.groundBodySpec,c=f.groundBodyGeometry;
-  const width=f.groundLine?.width??Infinity;
-  if(c&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.hx===f.heading?.x&&c.hz===f.heading?.z&&c.band===f.band&&c.state===state&&c.spec===spec&&c.width===width&&(state!=='move'||c.t===gameSec))return c;
-  const centered=!f.bodies||f.bodies0===1||!spec||['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&f.band!=='ground';
-  let positions,yaws=null;
-  if(centered)positions=[f.pos.clone()];
-  else{
-    const lay=groundLayouts(f,spec)[state];
-    // 動くときの列は道筋の上（ゆらぎは時計で変わるので、動いているあいだは毎回作り直す）
-    if(lay.march){const m=groundMarchPositions(f,lay,gameSec);positions=m.map(p=>new THREE.Vector3(p.x,f.pos.y,p.z));yaws=m.map(p=>p.yaw);}
-    else{const a=Math.atan2(f.heading.x,f.heading.z),cos=Math.cos(a),sin=Math.sin(a);positions=lay.map(p=>new THREE.Vector3(f.pos.x+p.x*cos+p.z*sin,f.pos.y,f.pos.z-p.x*sin+p.z*cos));}
-  }
-  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,hx:f.heading?.x,hz:f.heading?.z,band:f.band,state,spec,width,t:gameSec,positions,yaws};
+  const spec=f.groundBodySpec,c=f.groundBodyGeometry,centered=groundBodyCentered(f);
+  if(c&&c.t===gameSec&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.band===f.band&&c.spec===spec&&c.centered===centered&&(centered||c.track===f.groundTrack&&c.ht===f.groundTrack?.t))return c;
+  let positions,yaws=null;const T=centered?null:groundBodyTrack(f);
+  if(!T)positions=[f.pos.clone()];
+  else{positions=T.off.map(o=>new THREE.Vector3(f.pos.x+o.x,f.pos.y,f.pos.z+o.z));yaws=T.yaw.slice();}
+  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,band:f.band,t:gameSec,spec,centered,track:T,ht:T?.t,positions,yaws};
 }
 function groundBodyPosition(f,i){const positions=groundBodyPositions(f).positions;return (positions[i]||positions[0]).clone();}
 function groundBodySync(f){f.hpPool=f.bodies.reduce((n,b)=>n+(b.alive?b.hp:0),0);}
@@ -458,7 +676,7 @@ function groundInitUnit(f){
   f.groundMaxHp=f.hpPool;
   const one=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
   const bodySpec=one&&f.groundPlatoons>1?{...one,platoon:one.offsets,platoons:f.groundPlatoons,offsets:groundPlatoonOffsets({...one,platoon:one.offsets,platoons:f.groundPlatoons},f.groundPlatoons)}:one;
-  f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;
+  f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;f.groundTrack=null;f.groundWasGuarded=null;
   f.groundBodySpec=bodySpec;f.bodies0=f.groundKind==='sea'?1:(bodySpec?.offsets.length||1);
   f.bodies=Array.from({length:f.bodies0},(_,i)=>({hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:groundBodyRandom(f,i)()*groundRules().fireEvery,aaT:groundBodyRandom(f,i)()*groundRules().fireEvery}));
   groundBodySync(f);f.groundMovedAt=-Infinity;
@@ -497,7 +715,8 @@ function groundInitUnit(f){
       if(spec.move.length){
         // Stable body-local seed: drawing or rebuilding this fleet must not reshuffle its steps.
         const random=groundBodyRandom(f,i);
-        const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)};
+        // step: 1歩の間隔の倍率（W.A.S. は歩兵の 0.6 倍、仮）
+        const clock={start:Math.floor(random()*spec.move.length),phase:random(),stepSec:.45*(.8+random()*.45)*(spec.step||1)};
         const moves=spec.move.map(key=>{
           const moving=new THREE.Mesh(geos.get(key),mat); moving.scale.copy(body.scale); moving.position.copy(body.position); moving.visible=false; model.add(moving);return moving;
         });
@@ -580,11 +799,15 @@ function groundDraw(){
       // Orders can wait at obstacles; actual displacement also covers pursuit and aircraft.
       if(pose.last.distanceToSquared(f.pos)>1e-10)pose.movedAt=now;
       pose.last.copy(f.pos);
-      const moving=now-(f.bodies?f.groundMovedAt:pose.movedAt)<.4;
-      pose.stand.forEach((body,i)=>body.visible=!moving&&(!f.bodies||f.bodies[i]?.alive));
+      // 歩く形は体ごと（体ごとの動きで動いている体・その場で回っている体だけ歩く）。体ごとの動きのない隊は隊が動いているかで決める。
+      // 空の W.A.S. は歩かない。cycle: 歩く形の1巡のこまの数。move がその2巡ぶんあれば、後の巡は追撃・進撃の形（W.A.S. の盾を構えた歩き）
+      const T=f.groundTrack,unit=now-(f.bodies?f.groundMovedAt:pose.movedAt)<.4,air=f.groundKind==='was'&&f.band!=='ground';
+      const spec=model.userData.formation?.spec,cyc=spec?.cycle||0,base=cyc&&f.groundKind==='was'&&groundWasGuard(f)?cyc:0;
       pose.move.forEach((moves,i)=>{
-        const clock=pose.clocks[i],at=(clock.start+Math.floor(now/clock.stepSec+clock.phase))%moves.length;
-        moves.forEach((body,j)=>body.visible=moving&&j===at&&(!f.bodies||f.bodies[i]?.alive));
+        const alive=!f.bodies||!!f.bodies[i]?.alive,moving=!air&&(T?!!T.moving[i]:unit),clock=pose.clocks[i];
+        const at=base+(clock.start+Math.floor(now/clock.stepSec+clock.phase))%(cyc||moves.length);
+        pose.stand[i].visible=!moving&&alive;
+        moves.forEach((body,j)=>body.visible=moving&&j===at&&alive);
       });
     }
     if(!pose&&model.userData.formation)model.userData.formation.bodies.forEach((body,i)=>body.visible=!f.bodies||!!f.bodies[i]?.alive);
@@ -652,6 +875,8 @@ function groundStep(dt){
   }
   for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
   for(const f of fleets)if(f.alive&&f.bodies)groundTrailMark(f);
+  // 体ごとの動きを、中隊が動いたあとの位置で進める（このあとの視界・射撃は進めた体の位置を使う）
+  for(const f of fleets)if(f.alive&&f.bodies)groundBodyTrack(f,true);
   groundTransportSync();
   groundBombStep();
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
