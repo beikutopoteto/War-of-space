@@ -20,8 +20,16 @@ if(baselineArg){
 }
 const evaluate=(c,code)=>vm.runInContext(code,c.ctx,{timeout:20000});
 for(const c of contexts){
+  evaluate(c,c.read('data/terrain/wide-fields.js'));
   c.dataset=evaluate(c,'JSON.stringify([WOS_TERRAIN,WOS_DATA])');
   evaluate(c,`
+    globalThis.riverBuilds=[];
+    const buildRiverTable=groundPathRiverTable;
+    groundPathRiverTable=(...args)=>{
+      const start=performance.now(),table=buildRiverTable(...args);
+      riverBuilds.push({map:args[0].meta.id,revision:groundBridgeRevision,ms:performance.now()-start});
+      return table;
+    };
     globalThis.pathSnapshot=p=>{
       if(!p)return null;
       if(p.curve.curves){
@@ -96,11 +104,56 @@ assert(bridgePaths[1].cost<bridgePaths[0].cost,'completed bridge is faster');
 assert.equal(JSON.stringify(bridgePaths[0]),JSON.stringify(bridgePaths[3]),'reset cannot reuse completed bridge');
 assert.equal(bridgePaths[2].cost,bridgePaths[0].cost,'destroyed bridge restores detour');
 const current=contexts[0];
+const bridgeBuilds=evaluate(current,'riverBuilds.filter(r=>r.map==="exercise2").map(r=>r.revision).join(",")');
+assert.equal(bridgeBuilds,'0,1,2,0','river table is rebuilt for changed bridges and reset, and reused between searches');
 assert(evaluate(current,`(()=>{
   const start=groundPoint(8,27),dest=groundPoint(12,27),path=groundPath(start,dest,'vehicle');
   const f={pos:start.clone(),heading:new THREE.Vector3(),march:new THREE.Vector3(),groundKind:'vehicle',speed:1,order:{path}};
   let done=false;for(let i=0;i<2000&&!done;i++){done=groundFollow(f,.05);if(!groundPass(f.pos.x/4+24,18-f.pos.z/4,'vehicle'))return false;}
   return done&&f.pos.distanceTo(dest)<1e-6;
 })()`),'actual movement arrives safely on displayed path');
+if(baselineArg){
+  for(const map of ['baikonur2','field300']){
+    for(const c of contexts){
+      c.ctx.__map=map;
+      evaluate(c,'groundTerrainId=__map');
+    }
+    // 25組は地図全体、25組は川の周辺。地図ごとの同じ50組を車両と歩兵で探索する。
+    const pairs=evaluate(current,`(()=>{
+      const d=groundData(),pairs=[];let seed=461;
+      const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+      const cell=d.meta.cellKm,pass=p=>groundPass(...p,'vehicle')&&groundPass(...p.map(v=>(Math.floor(v/cell)+.5)*cell),'vehicle');
+      for(let i=0;i<5000&&pairs.length<50;i++){
+        const nearRiver=pairs.length>=25,r=d.water.rivers[Math.floor(rand()*d.water.rivers.length)];
+        const segment=Math.floor(rand()*(r.points.length-1)),a=r.points[segment],b=r.points[segment+1],t=rand();
+        const x=nearRiver?a[0]+(b[0]-a[0])*t:rand()*d.meta.widthKm;
+        const y=nearRiver?a[1]+(b[1]-a[1])*t:rand()*d.meta.heightKm;
+        const angle=rand()*2*Math.PI,span=2+rand()*12,dx=Math.cos(angle)*span/2,dy=Math.sin(angle)*span/2;
+        const from=[x-dx,y-dy],to=[x+dx,y+dy];
+        if(pass(from)&&pass(to))pairs.push([from,to]);
+      }
+      return pairs;
+    })()`);
+    assert.equal(pairs.length,50,map+' random pairs');
+    for(const kind of ['vehicle','infantry']){
+      let found=0;const ms=[0,0];
+      for(const [i,[from,to]] of pairs.entries()){
+        const paths=contexts.map((c,j)=>{
+          c.ctx.__case={from,to,kind};const start=performance.now();
+          const p=evaluate(c,'pathSnapshot(groundPath(groundPoint(...__case.from),groundPoint(...__case.to),__case.kind))');
+          ms[j]+=performance.now()-start;
+          return p;
+        });
+        assert.equal(JSON.stringify(paths[0]),JSON.stringify(paths[1]),map+' '+kind+' pair '+(i+1)+': exact baseline path');
+        if(paths[0])found++;
+      }
+      assert(found>=25,map+' '+kind+' has sufficient successful routes: '+found);
+      console.log(`| ${map} | ${kind} | 50/50 一致（経路あり ${found}） | ${ms[1].toFixed(1)} → ${ms[0].toFixed(1)} ms |`);
+    }
+  }
+}
+for(const {map,revision,ms} of evaluate(current,'riverBuilds')){
+  console.log(`| 川の表 | ${map} | 橋の版 ${revision} | ${ms.toFixed(2)} ms |`);
+}
 for(const c of contexts)assert.equal(evaluate(c,'JSON.stringify([WOS_TERRAIN,WOS_DATA])'),c.dataset,'datasets and unit stats preserved');
 console.log(`PASS ${checked} path/bridge cases, arrow geometry, actual movement, unchanged datasets${baselineArg?', exact before/after comparison':''}`);
