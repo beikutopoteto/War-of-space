@@ -250,6 +250,7 @@ function groundFormationLayout(f,spec,state){
     return base.map((p,i)=>{const random=groundBodyRandom(f,i),a=random()*Math.PI*2,r=Math.sqrt(random())*radius;return {...p,x:Math.cos(a)*r,z:Math.sin(a)*r,yaw:(random()*2-1)*Math.PI/3};});
   }
   // 進撃と布陣（ユーザー 2026-11-19「進撃する時、列が綺麗すぎます…全体的にランダムに」「到着したらもう少し規則的に並び直す」）
+  if(!spec.key)return base;   // モデルのない手組みの並び（テストなど）はずらさない
   const R=GROUND_ADVANCE_RANDOM,per=Math.max(1,Math.round(n/p)),s=spec.size,sp=Math.max(.15,s*.5),k=state==='defend'?R.defend:1;
   return base.map((o,i)=>{const rp=groundBodyRandom(f,13000+Math.floor(i/per)),r=groundBodyRandom(f,14000+i),pz=(rp()*2-1)*R.platoonZ,px=(rp()*2-1)*R.platoonX;
     const q={...o,x:o.x+(px+(r()*2-1)*R.bodyX)*s*k,z:o.z+(pz+(r()*2-1)*R.bodyZ)*s*k,yaw:(r()*2-1)*R.yaw*k};
