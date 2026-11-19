@@ -5,7 +5,9 @@ const assert=require('node:assert/strict'),vm=require('node:vm');
 function checks(){
   const {ctx}=require('./ground-landing.cjs').createGroundContext();
   const run=s=>vm.runInContext(s,ctx,{timeout:20000});
-  run(legacySource.replaceAll('groundInfluenceAt','legacyGroundInfluenceAt').replaceAll('groundPaintTerritory','legacyGroundPaintTerritory'));
+  // 拠点の陣地は斜線でなく、占領の進みのモザイク（2026-11-20）。基準の写しにも同じ決まりを入れて、キャッシュの同一性だけを比べる
+  const legacyMosaic="const known=s.circle||s,site=groundSites.includes(known),stripe=!site&&known.knownContested&&(px+py)%12<3,pr=known.knownProgress||[0,0],sec=site?groundCaptureSeconds(known,known.knownOwner):1,cell=Math.max(1,Math.round(GROUND_MOSAIC_KM*480/d.meta.widthKm)),h=groundTerritoryCellHash(Math.floor(px/cell),Math.floor(py/cell)),q0=known.knownOwner===0?0:pr[0]/sec,q1=known.knownOwner===1?0:pr[1]/sec, color=stripe?[238,225,183]:colors[site?(h<q0?0:h>=1-q1?1:known.knownOwner??2):known.knownOwner??2]";
+  run(legacySource.replace('const known=s.circle||s,stripe=known.knownContested&&(px+py)%12<3, color=stripe?[238,225,183]:colors[known.knownOwner??2]',legacyMosaic).replaceAll('groundInfluenceAt','legacyGroundInfluenceAt').replaceAll('groundPaintTerritory','legacyGroundPaintTerritory'));
   run(`
     op={ground:'exercise2',groundHQ:{0:'A',1:'B'}};
     globalThis.__realTerrain=WOS_TERRAIN.exercise2;
@@ -48,6 +50,12 @@ function checks(){
   ok('known ownership reuses membership',run('groundTerritoryPixels===__pixels'));
   run('groundSites[0].knownOwner=undefined;groundSites[0].knownContested=undefined;groundSupplyNet.edges[0].knownOwner=undefined;groundSupplyNet.edges[0].knownContested=undefined');
   equivalent('unknown ownership stays neutral without hatching');
+  // 占領の進みに合わせて、進めている軍の色のマスが増える
+  run('groundSites[1].captureSec=30;groundSites[1].knownOwner=1;groundSites[1].knownProgress=[15,0]');
+  equivalent('capture progress mosaic matches the reference');
+  {const img=image(),count=c=>{let n=0;for(let py=110;py<250;py++)for(let px=40;px<100;px++){const k=(py*480+px)*4;if(img[k]===c[0]&&img[k+1]===c[1]&&img[k+2]===c[2])n++;}return n;},blue=count([75,160,225]),red=count([230,85,72]);
+   ok('half progress paints about half of the site in the capturing colour',blue>0&&red>0&&Math.abs(blue/(blue+red)-.5)<.15);}
+  run('groundSites[1].knownProgress=[0,0]');
   run('groundBridgeRevision++;groundTerritory.key=null;groundPaintTerritory()');
   ok('bridge revision does not invalidate spatial geometry',run('groundTerritoryPixels===__pixels&&groundInfluenceCache===__spatial'));
   // Warm repaints must not perform any spatial distance/mask searches.

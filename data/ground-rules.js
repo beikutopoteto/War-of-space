@@ -68,7 +68,7 @@ window.WOS_GROUND_RULES = {
   },
   // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
   combat: { damageScale:1.3, tankInfantry:2, heavyTank:3, mobileAAAir:2, infantryCover:.8, commandoCoverBonus:1.5, urbanMargin:.8, townMargin:.4, mechanicalWearPerSec:.001 }, // 町の余白は仮に0.1km（0.4 world）。消耗は最大耐久の毎秒0.1%。森と建物周辺の被弾軽減は重ねない。
-  capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25, decayPerSec:1, decayDelay:2 },
+  capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25, decayPerSec:1, decayDelay:2, contestedRate:.5 }, // group: ほかの兵科は1隊 1/group 点。contestedRate: 拠点の競合中の速さ（ユーザー決定 2026-11-20）
   movement: { timeScale:1.2, roadFactor:1.75, marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
 };
 
