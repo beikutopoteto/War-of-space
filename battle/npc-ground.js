@@ -210,9 +210,38 @@ function npcGroundPassPoint(f,x,y,region=()=>true){
   }
   if(!best)return null;const p=groundPoint(...best);p.y=f.pos.y;return p;
 }
+function npcGroundEscortPoint(f,sit,k,z,from){
+  const x=groundMapX(f.pos.x),y=groundMapY(f.pos.z);
+  let main=null,nearest=Infinity;
+  for(const a of k.units){
+    if(a.as!=='main')continue;
+    const m=sit.units.find(u=>u.id===a.id);
+    if(!m?.canPair||!['line','shock'].includes(m.role))continue;
+    const km=Math.hypot(x-m.x,y-m.z);
+    if(km<nearest){main=m;nearest=km;}
+  }
+  if(!main)return null;
+  let enemy=null,enemyKm=Infinity;
+  for(const e of sit.contacts){
+    if(e.age!==0)continue;
+    const km=Math.hypot(main.x-e.x,main.z-e.z);
+    if(km>0&&km<enemyKm){enemy=e;enemyKm=km;}
+  }
+  const front=from.id===z.id?(sit.zones.find(s=>s.base==='foe')||z):z;
+  const dx=enemy?enemy.x-main.x:front.x-from.x,dy=enemy?enemy.z-main.z:front.z-from.z;
+  const rear=Math.atan2(-dy,-dx),kind=groundMoveKind(f);
+  for(const turn of [0,-Math.PI/4,Math.PI/4]){
+    const a=main.x+Math.cos(rear+turn)*.4,b=main.z+Math.sin(rear+turn)*.4; // 随伴距離は仮0.4km
+    if(groundPass(a,b,kind)){const point=groundPoint(a,b);point.y=f.pos.y;return point;}
+  }
+  return npcGroundPassPoint(f,main.x,main.z); // 背後が通れなければ主力のそばの通行可能点へ
+}
 function npcGroundDestination(c,sit,k,x,index,count){
   const z=sit.zones.find(z=>z.id===k.zone),from=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own')||z;
   const f=fleets.find(f=>f.id===x.id),u=sit.units.find(u=>u.id===x.id);if(!z||!f||!u)return null;
+  if(x.as==='escort')return npcGroundEscortPoint(f,sit,k,z,from);
+  const formation=k.units.filter(a=>a.as!=='escort');
+  if(formation.length!==k.units.length){index=formation.indexOf(x);count=formation.length;}
   const len=Math.hypot(z.x-from.x,z.z-from.z),dx=len?(z.x-from.x)/len:1,dy=len?(z.z-from.z)/len:0;
   // 直接射撃を主とする兵科（W.A.S.）は、助攻でも直接射撃の距離で構える（ユーザー決定 2026-11-19）
   const ranges=groundFireRanges(f),direct=!groundAutoIndirect(f)&&ranges.direct,range=(direct||ranges.indirect?.max||ranges.direct||ranges.ground||ranges.air||f.range||0)/GROUND_SCALE;
@@ -276,7 +305,7 @@ function npcGroundRoadOrders(c,sit,plan){
   let work=state.roadWork.get(c.key??c.team);
   const visible=sit.contacts.some(e=>e.age===0),byId=new Map(fleets.map(f=>[f.id,f]));
   const eligible=plan.tasks.filter(k=>k.type==='reserve'||k.type==='hold'&&k.stage==='wait');
-  const candidates=eligible.flatMap(k=>k.units.map(x=>({k,f:byId.get(x.id)}))).filter(({f})=>f&&npcGroundRoadUnit(f));
+  const candidates=eligible.flatMap(k=>k.units.filter(x=>x.as!=='escort').map(x=>({k,f:byId.get(x.id)}))).filter(({f})=>f&&npcGroundRoadUnit(f));
   if(work&&(visible||!candidates.some(({f})=>f.id===work.id))){state.last.delete(work.id);state.roadWork.delete(c.key??c.team);work=null;}
   if(!visible){
     const home=groundSites.find(s=>s.id===op.groundHQ?.[c.team]&&s.owner===c.team),tree=home&&npcGroundRoadTree(home),edges=new Set();
@@ -304,7 +333,7 @@ function npcGroundRoadOrders(c,sit,plan){
     const from=groundSites.find(s=>s.id===k.from),to=groundSites.find(s=>s.id===k.zone),tree=from&&npcGroundRoadTree(from);
     const edge=tree&&tree.path(to).find(e=>!e.circle&&e.owner!==c.team&&e.open!==false);
     if(!edge){const id=state.roadRear.get(key);state.last.delete(id);state.roadRear.delete(key);continue;}
-    const pool=k.units.map(x=>byId.get(x.id)).filter(f=>f&&npcGroundRoadUnit(f)&&!overrides.has(f.id)&&npcGroundRoadPoint(f,edge));
+    const pool=k.units.filter(x=>x.as!=='escort').map(x=>byId.get(x.id)).filter(f=>f&&npcGroundRoadUnit(f)&&!overrides.has(f.id)&&npcGroundRoadPoint(f,edge));
     if(pool.length<2){state.roadRear.delete(key);continue;} // 地上の先頭が1隊だけなら止めない。
     let f=pool.find(f=>f.id===state.roadRear.get(key));
     if(!f)f=pool.sort((a,b)=>groundDistanceTo(b,to)-groundDistanceTo(a,to))[0];
@@ -353,7 +382,7 @@ function npcGroundRefitPoint(f,z){
 }
 
 // 輸送・工作・補給は武装隊として突入させない。
-function npcGroundArmed(f){return !['apc','engineer','supply'].includes(f.groundKind)&&Object.values(groundFireRanges(f)).some(r=>typeof r==='number'?r>0:r?.max>0);}
+function npcGroundArmed(f){return !['engineer','supply'].includes(f.groundKind)&&Object.values(groundFireRanges(f)).some(r=>typeof r==='number'?r>0:r?.max>0);}
 function npcGroundFires(f){return npcGroundActive(f.team)&&['artillery','guidedRocket'].includes(f.groundKind);}
 function npcGroundVisibleEnemy(team,t){return t.team!==team&&t.alive&&t.hpPool>0&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(team,t);}
 function npcGroundInZone(t,z,scale=1){return Math.hypot(groundMapX(t.pos.x)-z.x,groundMapY(t.pos.z)-z.z)<=z.r*scale;}
@@ -389,7 +418,8 @@ function npcGroundHoldStep(){
 function npcGroundSync(c,plan){
   for(const f of npcGroundState.synced)if(f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))){f.syncSpeed=null;npcGroundState.synced.delete(f);}
   for(const k of plan.tasks.filter(k=>k.type==='seize'&&k.stage==='advance')){
-    const group=k.units.map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&!npcAutoPlayerUnit(f)&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f))&&!(npcGroundLiftActive()&&['apc','supply','engineer'].includes(f.groundKind)));
+    // 随伴は後ろから追いつけるよう、主力の足並み同期から外す。
+    const group=k.units.filter(x=>x.as!=='escort').map(x=>fleets.find(f=>f.id===x.id)).filter(f=>f&&!npcAutoPlayerUnit(f)&&npcGroundFree(f)&&!['air','sea'].includes(groundMoveKind(f))&&!(npcGroundLiftActive()&&['apc','supply','engineer'].includes(f.groundKind)));
     if(!group.length)continue;
     // syncSpeed は補給による速度倍率の前の値。前回の同期値を使って減速を累積させない。
     const slow=Math.min(...group.map(f=>f.speed*groundSupplySpeedFactor(f)));
@@ -407,11 +437,11 @@ function npcGroundApply(c,sit,plan){
       const z=sit.zones.find(z=>z.id===k.zone),special=road.has(f.id)||k.type==='refit';
       if(k.type!=='refit')npcGroundState.refit?.delete(f.id);
       const dest=road.get(f.id)||(k.type==='refit'?(z&&npcGroundRefitPoint(f,z)):npcGroundDestination(c,sit,k,x,i,k.units.length));if(!dest)continue;
-      const mode=k.key+':'+k.stage,changed=npcGroundState.modes.get(f.id)!==mode,precision=(special||k.type==='hold'||k.type==='seize'&&k.stage==='assault') ? .001 : 1;
+      const mode=k.key+':'+k.stage+(x.as==='escort'?':escort':''),changed=npcGroundState.modes.get(f.id)!==mode,precision=(special||x.as==='escort'||k.type==='hold'||k.type==='seize'&&k.stage==='assault') ? .001 : 1;
       const last=npcGroundState.last.get(f.id),distance=p=>Math.hypot(p.x-dest.x,p.z-dest.z)/GROUND_SCALE;
       let target=null;
       if(!special&&z){
-        const assault=k.type==='seize'&&k.stage==='assault'&&npcGroundArmed(f)&&!(x.as==='support'&&npcGroundFires(f));
+        const assault=(k.type==='seize'||k.type==='cut'&&x.as==='escort')&&k.stage==='assault'&&npcGroundArmed(f)&&!(x.as==='support'&&npcGroundFires(f));
         const defend=k.type==='hold'&&k.stage==='defend'&&npcGroundArmed(f);
         if(k.type==='hold')npcGroundState.holds.set(f.id,{z,dest:dest.clone()});
         const eligible=t=>npcGroundVisibleEnemy(c.team,t)&&groundManualTargetAllowed(f,t)&&
@@ -460,11 +490,15 @@ function npcGroundLiftState(){
   return s.lift;
 }
 function npcGroundLiftUnit(f){
-  const boats=npcGroundLiftState().boats,trip=boats.get(f.id);
+  const state=npcGroundLiftState(),boats=state.boats,trip=boats.get(f.id);
   const waiting=[...boats.values()].some(t=>t.crew?.includes(f.id)&&['land','done'].includes(t.phase)&&[...npcGroundState.commanders.values()].some(c=>c.plan?.tasks.some(k=>k.key===t.key&&k.stage==='assemble')));
-  const busy=!!(waiting||trip&&['sail','land'].includes(trip.phase)||f.embarked||f.groundBuilding||f.groundUnloading||['board','bridge'].includes(f.order?.type)||npcGroundLiftState().crossing.has(f.id));
+  const trucking=state.trucks.get(f.id),riding=f.embarked&&state.trucks.get(f.embarked.id)?.passenger===f.id;
+  const busy=!!(waiting||trip&&['sail','land'].includes(trip.phase)||trucking||f.embarked||f.groundBuilding||f.groundUnloading||['board','bridge'].includes(f.order?.type)||state.crossing.has(f.id));
+  // 輸送中の占領担当は、降車後に占領できる隊として任務の計画に残す。
+  const onFoot=riding?{...f,embarked:null}:null;
   return {can:f.groundKind==='engineer'?'bridge':groundLandingShip(f)?'ferry':f.groundKind==='supply'?'supply':null,
     ...(groundLandingShip(f)?{lift:groundLandingRules().capacity}:{}),busy,
+    ...(onFoot?{canHold:groundCanCapture(onFoot),canPair:groundCaptureCounts(onFoot)}:{}),
     ...(busy?{free:false}:{})};
 }
 function npcGroundSegmentDistance(x,y,a,b){
