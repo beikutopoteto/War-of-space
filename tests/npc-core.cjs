@@ -439,6 +439,20 @@ function nodeChecks(){
   const c=styled(),s=defenseFixture();s.goal.style='mobile';assert.equal(main(npcThink(c,s)).why,'空いた所を取る');
   s.time=3;s.goal.style='delay';assert(!main(npcThink(c,s)));
  });
+ test('拠点を取ったら次の攻撃まで、取った隊はその拠点を固め、火力も本営へ下がらない',()=>{
+  const c=commander('earth'),s=fixture();
+  s.units.push({id:'g1',role:'fires',power:1,x:10,z:0,speed:.3,canHold:false,health:1,morale:1,supply:1,free:true});
+  let p=npcThink(c,s);const k=main(p),z=s.zones.find(z=>z.id===k.zone),ids=k.units.filter(x=>x.as==='main').map(x=>x.id);
+  s.units.forEach(u=>{if(ids.includes(u.id)){u.x=z.x;u.z=z.z;}delete u.zone;}); // 橋渡しは毎回 zone を付け直す
+  z.owner='own';s.contacts=s.contacts.filter(e=>Math.hypot(e.x-z.x,e.z-z.z)>1);s.time=6;p=npcThink(c,s);
+  const h=p.tasks.find(t=>t.type==='hold'&&t.zone===z.id);
+  assert.equal(h?.why,'取った拠点を固める');
+  assert(ids.every(id=>h.units.some(x=>x.id===id&&x.as==='main')),'取った隊は全部その拠点に残る');
+  assert(h.units.some(x=>x.id==='g1'&&x.as==='support'),'火力は取った拠点に付く（本営の守りではない）');
+  s.time=6+c.D.consolidate+1;p=npcThink(c,s);
+  assert(!p.tasks.some(t=>t.why==='取った拠点を固める'),'固めるのは consolidate のあいだだけ');
+  assert(main(p),'固め終わったら次の攻撃');
+ });
  return rows;
 }
 module.exports={nodeChecks,fixture,commander};
