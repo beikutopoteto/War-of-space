@@ -1208,6 +1208,9 @@ const GROUND_FORMS={
   line4:[[-2,0],[-.67,0],[.67,0],[2,0]],
   box4:[[.7,1.25],[-.7,1.25],[.7,-1.25],[-.7,-1.25]],
   squad6:[[0,.8],[-.9,.3],[.9,.3],[-1.8,-.2],[1.8,-.2],[0,-.5]],
+  /* 歩兵系の1小隊12人（ユーザー決定 2026-11-19「歩兵は12」）: 4人の組（先頭・左右・後ろのひし形）を3つ。前に2組、後ろに1組で縦深を取る
+     （同日「横に広すぎ、縦深を少し取る形で」→ 見本の B 案）。幅2.9・奥行き2.3。人の間は約0.6 */
+  squad12:[[-1,.95],[-1.45,.5],[-.55,.5],[-1,.05], [1,.95],[.55,.5],[1.45,.5],[1,.05], [0,-.45],[-.45,-.9],[.45,-.9],[0,-1.35]],
   flight4:[[0,1.2],[-1.9,-.4],[1.9,-.4],[3.7,-2]],
 };
 /* ground unit kind (f.groundKind, or sea:<naval model> for ships) → the model the game draws. A value is one spec
@@ -1229,10 +1232,10 @@ const GROUND_MODELS={
   scout:{earth:{key:'scoutE',size:.45,form:'wedge3'},mars:{key:'scoutM',size:.45,form:'wedge3'}},
   engineer:{earth:{key:'engE',size:.5,form:'line3'},mars:{key:'engM',size:.48,form:'line3'}},
   supply:{earth:{key:'supE',size:.5,form:'box4'},mars:{key:'supM',size:.5,form:'box4'}},
-  infantry:{key:'infF',size:.32,form:'squad6',move:['infW','infW2']},
-  commando:{key:'cmdF',size:.32,form:'squad6',move:['cmdW','cmdW2']},
-  heavyInfantry:{key:'hinf',size:.32,form:'squad6',move:['hinf','hinf2']},
-  mechanicalAssault:{key:'mechA',size:.32,form:'squad6',move:['mechA','mechB']},
+  infantry:{key:'infF',size:.32,form:'squad12',move:['infW','infW2']},
+  commando:{key:'cmdF',size:.32,form:'squad12',move:['cmdW','cmdW2']},
+  heavyInfantry:{key:'hinf',size:.32,form:'squad12',move:['hinf','hinf2']},
+  mechanicalAssault:{key:'mechA',size:.32,form:'squad12',move:['mechA','mechB']},
   droneHive:{key:'hive',size:.7,form:'one'},
   /* W.A.S. の歩く形（ユーザー 2026-11-19）: 地上で動く体は左右の足を交互に出して歩く（空では歩かない）。前の4こまは盾を下ろした歩き、
      後の4こまは追撃・進撃の盾を構えた歩き（cycle: 1巡のこまの数）。step: 1歩の間隔は歩兵の 0.6 倍（仮） */
