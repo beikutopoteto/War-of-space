@@ -55,8 +55,9 @@ function nodeChecks(){
 function bodyScene(kind='vehicle',pair=false){
  reset({op:'groundExercise2',fleets:[{name:'体の確認小隊',kind,at:[12,27],stance:'evade',platoons:1}]});if(talking)endTalk();if(deploying)endDeploy();setSpeed(0);
  for(const f of fleets){f.stance='evade';groundClearOrders(f);if(f.name!=='体の確認小隊')f.alive=false;}
- const f=fleets.find(f=>f.alive);f.groundDeployed=true;f.heading.set(0,0,1);
- if(pair){op={...op,groundStaticEnemies:false};const t=makeFleet(1,groundUnitSpec({name:'対向歩兵小隊',kind,at:[12,27.5],stance:'evade',platoons:1}));fleets.push(t);groundInitUnit(t);t.groundDeployed=true;f.stance=t.stance='engage';}
+ // 布陣した形で置き直す（体ごとの動きの体は、布陣の位置から始める）
+ const f=fleets.find(f=>f.alive);f.groundDeployed=true;f.heading.set(0,0,1);f.groundTrack=null;
+ if(pair){op={...op,groundStaticEnemies:false};const t=makeFleet(1,groundUnitSpec({name:'対向歩兵小隊',kind,at:[12,27.5],stance:'evade',platoons:1}));fleets.push(t);groundInitUnit(t);t.groundDeployed=true;t.groundTrack=null;f.stance=t.stance='engage';}
  setSel([f]);groundUpdateSight();return f.name;
 }
 async function checkGroundBodies(page,check){
