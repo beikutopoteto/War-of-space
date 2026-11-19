@@ -116,15 +116,29 @@ function tacticsCases(){
  const advance=task('seize','advance',[tank,inf,heavy]);
  const destinations=advance.units.map((x,i)=>npcGroundDestination(c,sit,advance,x,i,3));
  check('前進は手前r+1kmを中心に横1.5km間隔、全隊が影響円外',destinations.every(p=>near(groundMapX(p.x),15)&&groundDistanceTo({pos:p},groundSites[1])>2*GROUND_SCALE)&&near(destinations[0].distanceTo(destinations[1])/GROUND_SCALE,1.5)&&near(destinations[1].distanceTo(destinations[2])/GROUND_SCALE,1.5));
+ const [apc,...support]=trucks,escort={id:apc.id,as:'escort'};
+ const escorted={...advance,units:[...advance.units,escort]};
+ const escortPoint=npcGroundDestination(c,sit,escorted,escort,3,4);
+ check('随伴の輸送車は最寄りの主力の現在地から0.4km後ろへ進み、主力の隊形を広げない',
+   near(groundMapX(escortPoint.x),7.6)&&near(groundMapY(escortPoint.z),28)&&
+   npcGroundDestination(c,sit,escorted,escorted.units[0],0,4).equals(destinations[0]));
+ npcGroundApply(c,sit,{tasks:[escorted]});
+ const firstEscort=apc.order;
+ const moved={...sit,units:sit.units.map(u=>u.id===heavy.id?{...u,x:u.x+.2}:u)};
+ npcGroundApply(c,moved,{tasks:[escorted]});
+ check('前進の随伴は主力の移動を追い、速度同期で減速しない',apc.order!==firstEscort&&near(groundMapX(apc.order.dest.x),7.8)&&apc.syncSpeed==null);
+ const threatened={...sit,contacts:[{x:8,z:29,age:0}]};
+ const behindEnemy=npcGroundDestination(c,threatened,escorted,escort,3,4);
+ check('敵が見えているときは最寄り主力の敵と反対側へ付く',near(groundMapX(behindEnemy.x),8)&&near(groundMapY(behindEnemy.z),27.6));
  const diagonal={...sit,zones:sit.zones.map(z=>z.id==='H'?{...z,x:10,z:21}:z)},dp=npcGroundDestination(c,diagonal,advance,advance.units[1],1,3);
  check('斜めの前進もfromから目標への向きで手前に置く',near(groundMapX(dp.x),18-3/Math.sqrt(2))&&near(groundMapY(dp.z),29-3/Math.sqrt(2)));
  groundPass=(x,y)=>x>=17.5;const corrected=npcGroundDestination(c,sit,advance,advance.units[1],1,3);check('通行補正でも前進先を影響円内へ入れない',corrected&&groundMapX(corrected.x)>=17.5&&groundDistanceTo({pos:corrected},groundSites[1])>2*GROUND_SCALE);groundPass=()=>true;
  const fix=task('fix','pin',[heavy]),fp=npcGroundDestination(c,sit,fix,fix.units[0],0,1);
  check('助攻は拘束でも直射射程の8割で止まる',near(groundMapX(fp.x),18-groundFireRanges(heavy).direct/GROUND_SCALE*.8));
  let calls=0;const original=order;order=(...args)=>{calls++;return original(...args);};
- const assault=task('seize','assault',[tank,inf,heavy,...trucks]);npcGroundApply(c,sit,{tasks:[assault]});
- check('突入では占拠担当を含む武装全隊が最寄りの敵を攻撃', [tank,inf,heavy].every(f=>f.order?.type==='attack'&&f.order.target===enemy));
- check('輸送車・工兵・補給は突入でも攻撃の位置に残る',trucks.every(f=>f.order?.type==='move'&&near(groundMapX(f.order.dest.x),15)));
+ const assault=task('seize','assault',[tank,inf,heavy,...support]);assault.units.push(escort);npcGroundApply(c,sit,{tasks:[assault]});
+ check('突入では占拠担当と随伴の輸送車を含む武装全隊が最寄りの敵を攻撃', [tank,inf,heavy,apc].every(f=>f.order?.type==='attack'&&f.order.target===enemy));
+ check('工兵・補給は突入でも攻撃の位置に残る',support.every(f=>f.order?.type==='move'&&near(groundMapX(f.order.dest.x),15)));
  const first=calls;enemy2.pos.copy(groundPoint(16,29));npcGroundApply(c,sit,{tasks:[assault]});
  check('より近い敵が来ても生存・可視の攻撃命令を出し直さない',calls===first&&tank.order.target===enemy);
  enemy.groundVisible[1]=false;npcGroundApply(c,sit,{tasks:[assault]});check('見失った攻撃先から次の見える敵へ切り替える',tank.order.target===enemy2&&inf.order.target===enemy2);
