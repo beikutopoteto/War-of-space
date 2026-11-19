@@ -106,7 +106,7 @@ function groundScriptApply(a){
   if(a.setWin!==undefined)r.overrides.win=a.setWin;
   if(a.setLose!==undefined)r.overrides.lose=a.setLose;
   if(a.intent)r.intents[a.intent.team]={...a.intent,zones:a.intent.zones&&[...a.intent.zones]};
-  if(a.owner){const s=groundSites.find(s=>s.id===a.owner.site);if(s){s.owner=a.owner.team;s.progress=[0,0];s.contested=false;s.capturingTeam=null;groundScriptSnapshot();}}
+  if(a.owner){const s=groundSites.find(s=>s.id===a.owner.site);if(s){s.owner=a.owner.team;s.progress=[0,0];s.contested=false;s.supplyContested=false;s.capturingTeam=null;s.leading=null;groundScriptSnapshot();}}
   if(a.flag!==undefined)r.flags[a.flag]=true;
   if(a.mark)groundScriptAddMark(a.mark);
   if(a.exit){const ex={...a.exit,at:[...a.exit.at]};r.exits.push(ex);groundScriptAddMark({...ex,label:'出口 '+ex.id});}

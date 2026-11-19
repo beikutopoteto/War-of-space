@@ -34,8 +34,8 @@ function supplyCases(){
     check('味方が道を再占領すれば再接続',groundRoadAt(15,29).owner===0&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===1);
     groundSites[0].owner=1;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営喪失で全網停止',groundSupplyAt(blue).rate===0);
     groundSites[0].owner=0;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営奪還で供給再開',groundSupplyAt(blue).rate===1);
-    groundSites[0].contested=true;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営競合も下流へ半速を通す',groundSupplyAt(blue).rate===.5);
-    groundSites[0].contested=false;groundSupplyRoadCapture(0);groundSupplyRefresh();
+    groundSites[0].supplyContested=true;groundSupplyRoadCapture(0);groundSupplyRefresh();check('本営競合も下流へ半速を通す',groundSupplyAt(blue).rate===.5);
+    groundSites[0].supplyContested=false;groundSupplyRoadCapture(0);groundSupplyRefresh();
     // Two contested segments never compound to a quarter.
     const red2=unit(1,'infantry',16.5),blue2=unit(0,'infantry',16.5);red.pos.copy(blue.pos);fleets=[blue,red,blue2,red2];groundSupplyRoadCapture(0);groundSupplyRefresh();
     check('複数の競合でも半速を重ね掛けしない',groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===.5);

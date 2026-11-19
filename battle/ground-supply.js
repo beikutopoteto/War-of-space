@@ -88,7 +88,7 @@ function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
   const troops=fleets.filter(groundCanCaptureRoad),width=groundRuleSet().capture.roadWidthKm/2;
   for(const e of groundSupplyNet.edges){
-    if(e.circle){e.owner=e.circle.owner;e.contested=e.circle.contested;continue;}
+    if(e.circle){e.owner=e.circle.owner;e.contested=!!e.circle.supplyContested;continue;}   // 補給の競合は拠点の supplyContested（両軍とも1点以上）
     const present=[false,false];for(const f of troops)if(groundDistance(groundMapX(f.pos.x),groundMapY(f.pos.z),e.path)<=width+1e-8)present[f.team]=true;
     e.contested=present[0]&&present[1];e.capturingTeam=e.contested?null:present[0]?0:present[1]?1:null;if(e.contested)continue;
     const team=present[0]?0:present[1]?1:null;if(groundCaptureDecay(e,team,dt))continue;
@@ -110,13 +110,13 @@ function groundSupplyRoadOpen(e){
 }
 function groundSupplyRefresh(){
   const net=groundSupplyNet;if(!net)return;
-  const key=groundSites.map(s=>s.owner+':'+s.contested).join('|')+'/'+net.edges.map(e=>e.owner+':'+e.contested).join('|')+'/'+groundBridgeRevision;
+  const key=groundSites.map(s=>s.owner+':'+!!s.supplyContested).join('|')+'/'+net.edges.map(e=>e.owner+':'+e.contested).join('|')+'/'+groundBridgeRevision;
   if(net.key===key)return;net.key=key;
   net.nodes.forEach(n=>n.rates=[0,0]);net.edges.forEach(e=>{e.rates=[0,0];e.open=groundSupplyRoadOpen(e);});
   for(const team of [0,1]){
     const hq=groundSites.find(s=>s.id===op.groundHQ?.[team]);if(!hq||hq.owner!==team)continue;
     const start=net.sites.get(hq);if(start===undefined)continue;
-    const queue=[start];net.nodes[start].rates[team]=hq.contested?.5:1;
+    const queue=[start];net.nodes[start].rates[team]=hq.supplyContested?.5:1;
     for(let at=0;at<queue.length;at++){
       const i=queue[at],n=net.nodes[i];
       for(const ei of n.edges){const e=net.edges[ei];if(!e.open||!e.contested&&e.owner!==team)continue;
@@ -128,7 +128,7 @@ function groundSupplyRefresh(){
 }
 function groundSupplyAt(f){
   const x=groundMapX(f.pos.x),y=groundMapY(f.pos.z),s=groundCircleAt(x,y),net=groundSupplyNet;
-  if(s){const hq=s.id===op.groundHQ?.[f.team]&&s.owner===f.team,rate=hq?(s.contested?.5:1):net?.nodes[net.sites.get(s)]?.rates[f.team]||0;return {owner:s.owner,contested:s.contested,rate:(s.owner===f.team||s.contested)?rate:0,site:s};}
+  if(s){const hq=s.id===op.groundHQ?.[f.team]&&s.owner===f.team,rate=hq?(s.supplyContested?.5:1):net?.nodes[net.sites.get(s)]?.rates[f.team]||0;return {owner:s.owner,contested:!!s.supplyContested,rate:(s.owner===f.team||s.supplyContested)?rate:0,site:s};}
   const e=groundRoadAt(x,y);return {owner:e?.owner??null,contested:e?.contested||false,rate:e?.rates[f.team]||0,edge:e};
 }
 function groundSupplyInit(){
@@ -228,7 +228,7 @@ function groundSupplyAI(f){
   const r=groundSupplyRules();
   if(f.groundRecover){if(f.groundSupply>=r.aiResume&&f.groundMorale>=r.aiResume){f.groundRecover=false;groundSupplyInternalMove(f,f.groundRecoverPost);return;}if(f.order)return;}
   else if(f.groundSupply>r.aiSupply&&f.groundMorale>r.aiMorale)return;
-  const places=groundSites.filter(s=>s.owner===f.team&&!s.contested&&(f.groundMorale<=r.aiMorale||groundSupplyAt({...f,pos:s.pos}).rate>0));
+  const places=groundSites.filter(s=>s.owner===f.team&&!s.supplyContested&&(f.groundMorale<=r.aiMorale||groundSupplyAt({...f,pos:s.pos}).rate>0));
   const best=groundNearestRoute(f,places);if(!best)return;
   if(!f.groundRecover)f.groundRecoverPost=f.post.clone();f.groundRecover=true;
   if(groundDistanceTo(f,best.target)>GROUND_SCALE)groundSupplyInternalMove(f,best.target.pos,best.path);

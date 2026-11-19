@@ -949,15 +949,17 @@ function groundMechanicalWear(f,dt){
 let groundSites=[], groundTerritory=null;
 function groundCanCapture(f){ return !groundAbsent(f)&&!groundScriptDescending(f)&&f.alive&&f.hpPool>0&&f.band==='ground'&&['infantry','was'].includes(f.groundKind)&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
 function groundCaptureCounts(f){ return !groundAbsent(f)&&!groundScriptDescending(f)&&f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&f.groundKind!=='sea'&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0); }
-function groundCapturePresent(s,team){
-  let count=0;
+/* 拠点の占領の点（ユーザー決定 2026-11-20）: 1隊で占領できる兵科（強化歩兵・地上の W.A.S.）は1点、ほかの占領に数える隊は
+   1/capture.group 点（0.5点）。円の中の点の多い軍が優勢。占領が進むのは優勢で1点以上のときだけ（戦車1隊の0.5点では進まない）。 */
+function groundCapturePoints(s,team){
+  let points=0;const part=1/groundRuleSet().capture.group;
   for(const f of fleets){
     if(f.team!==team||groundDistanceTo(f,s)>s.captureRadius)continue;
-    if(groundCanCapture(f))return true;
-    if(groundCaptureCounts(f)&&++count>=groundRuleSet().capture.group)return true;
+    if(groundCanCapture(f))points+=1;else if(groundCaptureCounts(f))points+=part;
   }
-  return false;
+  return points;
 }
+function groundCapturePresent(s,team){return groundCapturePoints(s,team)>=1-1e-9;}
 function groundCaptureSeconds(s,owner=s.owner){return owner===null?groundRuleSet().capture.neutralSeconds:s.captureSec;}
 // 途中の占領は残り続けない（ユーザー決定 2026-11-15）: 持ち主が踏むとすぐ戻り、いない軍の進みは、離れて decayDelay 秒たつと
 // 占領と同じ速さで減る（道路の端をかすめて一瞬出入りしただけでは減らさない）。視界の外で「中断」と見たままの進みも、
@@ -976,11 +978,25 @@ function groundCaptureDecay(s,team,dt){
 }
 function groundCaptureStep(dt){
   if(over) return;
+  const rate=groundRuleSet().capture.contestedRate??.5;
   for(const s of groundSites){
-    const present=[groundCapturePresent(s,0),groundCapturePresent(s,1)];
-    s.contested=present[0]&&present[1];s.capturingTeam=s.contested?null:present[0]?0:present[1]?1:null;
-    if(s.contested) continue;
-    const team=present[0]?0:present[1]?1:null;
+    const points=[groundCapturePoints(s,0),groundCapturePoints(s,1)],lead=points[0]>points[1]?0:points[1]>points[0]?1:null;
+    const team=lead!==null&&points[lead]>=1-1e-9?lead:null;   // 進められる軍（優勢で1点以上）
+    s.points=points;s.leading=lead;s.contested=points[0]>0&&points[1]>0;   // 競合: 両軍とも円の中に1隊でもいる
+    s.supplyContested=points[0]>=1-1e-9&&points[1]>=1-1e-9;   // 補給と士気の競合は前の決め方（両軍とも1点以上。ユーザー 2026-11-20「案2」）
+    s.capturingTeam=team!==null&&team!==s.owner?team:null;
+    if(!s.progress)s.progress=[0,0];if(!s.away)s.away=[0,0];
+    if(s.contested){
+      // 競合中は半分の速さ（ユーザー決定 2026-11-20「競合中はそうでない時の半分の速度で占領が進みます（奪還側も同じ）」）。
+      // 優勢な軍は、まず相手の進みを押し戻し（持ち主の奪還も同じ速さ）、なくなってから自分の進みを足す。拮抗・1点未満なら止まる
+      s.away=[0,0];if(team===null)continue;
+      const step=dt*rate,other=1-team;
+      if(s.progress[other]>0){s.progress[other]=Math.max(0,s.progress[other]-step);continue;}
+      if(team===s.owner)continue;
+      const seconds=groundCaptureSeconds(s);s.progress[team]=Math.min(seconds,s.progress[team]+step);
+      if(s.progress[team]>=seconds-1e-8){s.owner=team;s.progress=[0,0];}
+      continue;
+    }
     if(groundCaptureDecay(s,team,dt)) continue;
     const seconds=groundCaptureSeconds(s);
     s.progress[team]=Math.min(seconds,s.progress[team]+dt);
@@ -1078,10 +1094,13 @@ function groundInfluenceAt(x,y,cache=null){
   for(const source of cache.roadBins.get(key)||[]){const dist=groundDistance(x,y,source.path);if(dist<distance){site=cache.supply?source:source.site;distance=dist;}}
   return site;
 }
+// 拠点のモザイクのマスの大きさ（km。ユーザー 2026-11-20「モザイクは一つ一つ大きめでも構いません（建物と同じかそれ以上）」。町の建物は0.1〜0.2km。仮）
+const GROUND_MOSAIC_KM=.8;
+function groundTerritoryCellHash(x,y){let h=Math.imul(x,374761393)+Math.imul(y,668265263)|0;h=Math.imul(h^h>>>13,1274126177);return ((h^h>>>16)>>>0)/4294967296;}
 function groundPaintTerritory(){
   const t=groundTerritory;if(!t)return;
   // Validate once per paint, not once per pixel. Bridge state does not change spatial membership.
-  const spatial=groundInfluenceAt(null,null),key=groundSites.map(s=>`${s.knownOwner}:${s.knownContested}`).join('|')+'/'+(groundSupplyActive()?groundSupplyNet?.edges.map(e=>`${e.knownOwner}:${e.knownContested}`).join('|'):'');
+  const spatial=groundInfluenceAt(null,null),key=groundSites.map(s=>`${s.knownOwner}:${(s.knownProgress||[0,0]).map(p=>Math.round(p/groundCaptureSeconds(s,s.knownOwner)*50)).join(',')}`).join('|')+'/'+(groundSupplyActive()?groundSupplyNet?.edges.map(e=>`${e.knownOwner}:${e.knownContested}`).join('|'):'');
   const width=t.canvas.width,height=t.canvas.height,d=WOS_TERRAIN[op.ground];
   let pixels=groundTerritoryPixels;
   const rebuild=!pixels||pixels.spatial!==spatial||pixels.territory!==t;
@@ -1097,10 +1116,18 @@ function groundPaintTerritory(){
     pixels=groundTerritoryPixels={spatial,territory:t,mask,members};
   }
   const ctx=t.canvas.getContext('2d'),img=ctx.createImageData(width,height),raw=img.data,colors=[[75,160,225],[230,85,72],[160,168,165]];
+  const sites=new Set(groundSites),cell=Math.max(1,Math.round(GROUND_MOSAIC_KM*width/d.meta.widthKm));
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
     const i=py*width+px,s=pixels.members[i];if(pixels.mask[i]!==2||!s)continue;
-    const known=s.circle||s,stripe=known.knownContested&&(px+py)%12<3,color=stripe?[238,225,183]:colors[known.knownOwner??2],k=i*4;
-    raw[k]=color[0];raw[k+1]=color[1];raw[k+2]=color[2];raw[k+3]=stripe?190:102;
+    const known=s.circle||s,k=i*4;let color,alpha=102;
+    if(sites.has(known)){
+      /* 拠点（ユーザー決定 2026-11-20）: 占領の進みに合わせて、進めている軍の色のマスがまだらに増える（モザイク）。占領し切るまでは持ち主の陣地のまま。
+         競合の黄色の斜線は使わない（競合は札の「〇〇優勢・競合」で見せる）。マスは GROUND_MOSAIC_KM 四方、マスごとの乱数が進みの割合より小さければ塗る */
+      const p=known.knownProgress||[0,0],sec=groundCaptureSeconds(known,known.knownOwner),h=groundTerritoryCellHash(Math.floor(px/cell),Math.floor(py/cell));
+      const q0=known.knownOwner===0?0:p[0]/sec,q1=known.knownOwner===1?0:p[1]/sec;
+      color=colors[h<q0?0:h>=1-q1?1:known.knownOwner??2];
+    }else{const stripe=known.knownContested&&(px+py)%12<3;color=stripe?[238,225,183]:colors[known.knownOwner??2];if(stripe)alpha=190;}   // 道路は今まで通り
+    raw[k]=color[0];raw[k+1]=color[1];raw[k+2]=color[2];raw[k+3]=alpha;
   }
   ctx.putImageData(img,0,0);t.texture.needsUpdate=true;t.key=key;
 }
@@ -1115,7 +1142,7 @@ function groundCaptureDraw(){
     s.el.style.visibility=p.z>1?'hidden':'visible'; s.el.style.transform=`translate(${p.x}px,${top-6}px) translate(-50%,-100%)`;
     const owner=s.knownOwner===0?'地球連合':s.knownOwner===1?'惑星共和国':'中立',progress=(s.knownProgress||[0,0]).map(n=>Math.floor(n/groundCaptureSeconds(s,s.knownOwner)*100));
     // 青と赤の進み具合は札のゲージで見せ、文字には出さない（札を小さくするため）。
-    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundCaptureReadout(s,groundCaptureSeconds(s,s.knownOwner))}${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
+    s.el.querySelector('small').textContent=`${s.knownOwner!==null&&s.knownOwner!==undefined&&Object.values(op.groundHQ||{}).includes(s.id)?'本営 / ':''}${owner} / ${groundSiteReadout(s)}${groundSupplyActive()&&s.owner===0&&s.knownOwner===0?' / '+(groundSupplyAt({pos:s.pos,team:0}).rate===1?'接続':groundSupplyAt({pos:s.pos,team:0}).rate===.5?'半速':'切断'):''}`;
     s.el.querySelectorAll('i').forEach((bar,i)=>bar.style.width=`${progress[i]}%`);
   }
 }
@@ -1251,6 +1278,16 @@ function groundCaptureReadout(s,seconds){
   const remaining=Math.max(0,Math.ceil(seconds-p[team]));
   // 視界の外では残り秒を出さない（最後に見たときの秒数は今の値ではないため。ユーザー 2026-11-16）
   return prefix+(s.knownCapturingTeam===team?'占領中':'中断')+' '+(team===0?'青':'赤')+(s.observed===false?'':' あと'+remaining+'秒');
+}
+// 拠点の札（道路の札は groundCaptureReadout のまま）
+function groundSiteReadout(s){
+  // 残り秒は出さない（ユーザー決定 2026-11-20「残り秒数表示は廃止でゲージと〇〇優勢」）。進みは札のゲージで見せる
+  const prefix=s.observed===false?'最終確認：':'',name=t=>t===0?'青':'赤',lead=s.knownLeading??null;
+  if(s.knownContested)return prefix+(lead===null?'競合・拮抗':name(lead)+'優勢・競合');
+  if(s.knownCapturingTeam!=null)return prefix+name(s.knownCapturingTeam)+'優勢';
+  const p=s.knownProgress||[0,0],team=[0,1].filter(t=>p[t]>0&&s.knownOwner!==t).sort((a,b)=>p[b]-p[a])[0]??null;
+  if(team!==null)return prefix+'中断 '+name(team);
+  return prefix+(s.knownOwner==null?'未占領':'占領済み');
 }
 
 // 工兵選択時の架橋不可帯。地形ごとに初回選択で生成し、groundSetup から破棄する。

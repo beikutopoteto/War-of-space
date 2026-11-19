@@ -18,6 +18,10 @@ function readoutCases(){
  fleets=[tank];tank.embarked={};check('搭乗中は道路占領しない',!groundCanCaptureRoad(tank));tank.embarked=null;tank.groundRout='routing';check('敗走中は道路占領しない',!groundCanCaptureRoad(tank));tank.groundRout=null;
  const s={knownOwner:1,knownContested:false,knownProgress:[12,0],knownCapturingTeam:0,observed:true};
  check('拠点は30秒の残り時間',groundCaptureReadout(s,30).includes('あと18秒'));
+ // 拠点の札（2026-11-20）: 残り秒は出さず「〇〇優勢」。競合は「〇〇優勢・競合」か「競合・拮抗」
+ check('拠点の札は残り秒を出さず優勢',groundSiteReadout(s)==='青優勢');
+ check('拠点の札: 競合',groundSiteReadout({...s,knownContested:true,knownLeading:1})==='赤優勢・競合'&&groundSiteReadout({...s,knownContested:true,knownLeading:null})==='競合・拮抗');
+ check('拠点の札: 離れたら中断、視界の外は最終確認',groundSiteReadout({...s,knownCapturingTeam:null})==='中断 青'&&groundSiteReadout({...s,observed:false})==='最終確認：青優勢');
  s.knownCapturingTeam=null;check('部隊が離れた進捗は中断表示',groundCaptureReadout(s,30).includes('中断'));
  s.observed=false;s.progress=[29,0];check('視界外は最終確認の進捗を維持し、残り秒は出さない',groundCaptureReadout(s,30).includes('最終確認')&&!groundCaptureReadout(s,30).includes('秒')&&s.knownProgress[0]===12);
  check('視界の外の占領は残り秒を出さない',(r=>r==='最終確認：占領中 赤')(groundCaptureReadout({observed:false,knownOwner:null,knownProgress:[0,5],knownCapturingTeam:1},30)));check('双方の進捗が残っても現在占領中の軍を優先',groundCaptureReadout({knownOwner:null,knownProgress:[20,5],knownCapturingTeam:1},30).includes('赤 あと25秒'));

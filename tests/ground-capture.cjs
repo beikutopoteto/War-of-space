@@ -26,16 +26,23 @@ function captureCases() {
     }
     fleets=[unit(0,'was',0,'low')];groundCaptureStep(40);check('低空 W.A.S. は占拠しない',s.owner===null);
     fleets[0].band='ground';fleets[0].bandTo='low';groundCaptureStep(30);check('地上 W.A.S. は遷移中も元の段で占領',s.owner===0);
-    s.owner=null;s.progress=[0,0];fleets=[unit(0),unit(1,'vehicle')];groundCaptureStep(30);check('敵戦車は歩兵の占拠を止めない',s.owner===0&&!s.contested);
+    s.owner=null;s.progress=[0,0];fleets=[unit(0),unit(1,'vehicle')];groundCaptureStep(30);check('敵戦車1隊（0.5点）でも競合になり、強化歩兵（1点）が優勢で占領する',s.owner===0&&s.contested);
     const capture=(group,seconds=30)=>{over=false;s.owner=1;s.progress=[0,0];fleets=group;groundCaptureStep(seconds);};
     capture([unit(0,'vehicle')]);check('戦車1隊では進まない',s.owner===1&&s.progress[0]===0);
     capture([unit(0,'vehicle'),unit(0,'vehicle')],12);check('戦車2隊でも敵拠点は12秒だけ進む',s.owner===1&&s.progress[0]===12);
     groundCaptureStep(18);check('戦車2隊で30秒かけて占領する',s.owner===0);
     capture([unit(0,'vehicle'),unit(0,'artillery')]);check('戦車1隊と自走砲1隊で占領する',s.owner===0);
     capture([unit(0,'vehicle'),unit(0)]);check('戦車1隊と強化歩兵1隊は今までどおり占領する',s.owner===0);
-    capture([unit(0),unit(1,'vehicle'),unit(1,'vehicle')]);check('敵戦車2隊なら競合して歩兵の占領を止める',s.owner===1&&s.contested&&s.progress.every(x=>x===0));
-    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle')]);check('敵戦車1隊は混成2隊の占領も止めない',s.owner===0&&!s.contested);
-    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle'),unit(1,'heavyInfantry')]);check('両軍の混成2隊なら競合する',s.contested&&s.progress.every(x=>x===0));
+    capture([unit(0),unit(1,'vehicle'),unit(1,'vehicle')]);check('1点対1点は拮抗して止まる',s.owner===1&&s.contested&&s.leading===null&&s.progress.every(x=>x===0));
+    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle')],30);check('競合中は半分の速さ（1点対0.5点で30秒→15秒ぶん）',s.owner===1&&s.contested&&s.leading===0&&Math.abs(s.progress[0]-15)<1e-8);
+    groundCaptureStep(30);check('競合のまま60秒で占領する',s.owner===0);
+    capture([unit(0,'vehicle'),unit(1,'vehicle')]);check('0.5点対0.5点は拮抗',s.contested&&s.leading===null&&s.progress[0]===0);
+    check('補給と士気の競合は前の決め方（両軍とも1点以上）: 0.5点対0.5点では競合しない',!s.supplyContested);
+    capture([unit(0),unit(1,'vehicle'),unit(1,'vehicle')]);check('1点対1点なら補給と士気も競合',s.supplyContested);
+    capture([unit(0),unit(0,'vehicle'),unit(1)],10);check('1.5点対1点は優勢な軍が半分の速さで進む',s.leading===0&&Math.abs(s.progress[0]-5)<1e-8);
+    fleets=[unit(0,'vehicle'),unit(1,'vehicle'),unit(1)];s.progress=[6,0];groundCaptureStep(4);check('持ち主が優勢な競合では、相手の進みを半分の速さで押し戻す',s.owner===1&&s.leading===1&&Math.abs(s.progress[0]-4)<1e-8);
+    fleets=[unit(0,'vehicle'),unit(1,'scout')];s.progress=[6,0];groundCaptureStep(4);check('拮抗なら押し戻さない',Math.abs(s.progress[0]-6)<1e-8);
+    capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle'),unit(1,'heavyInfantry')]);check('両軍の混成2隊（1点対1点）は競合して止まる',s.contested&&s.progress.every(x=>x===0));
     for(const kind of Object.keys(groundRuleSet().unitTypes).filter(k=>!['infantry','was'].includes(k))){
       capture([unit(0,kind),unit(0,kind)]);
       const counts=groundBands(fleets[0]).includes('ground')&&kind!=='sea';
@@ -87,8 +94,9 @@ async function checkGroundCapture(page, check) {
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();
-    const contestedSite=groundSites.find(s=>s.contested), raw=groundTerritory.canvas.getContext('2d').getImageData(0,0,480,360).data;
-    const hatch=!!contestedSite&&contestedSite.owner===1&&contestedSite.el.textContent.includes('競合中')&&raw.some((n,i)=>i%4===3&&n===190);
+    const contestedSite=groundSites.find(s=>s.contested);
+    // 拠点の競合は札の「〇〇優勢・競合／競合・拮抗」で見せ、陣地に黄色の斜線は描かない（2026-11-20。斜線は道路だけ）
+    const contestedLabel=!!contestedSite&&contestedSite.owner===1&&contestedSite.el.textContent.includes('競合')&&!contestedSite.el.textContent.includes('秒');
     for(const f of fleets){f.stance='evade';if(f.team===1)f.alive=false;}
     // 敵全滅だけでは勝たず、3拠点を1つずつ実際に占領する。
     step(.05);const noWipeWin=!over;
@@ -103,7 +111,7 @@ async function checkGroundCapture(page, check) {
     const pixels=groundTerritory.canvas.getContext('2d').getImageData(0,0,480,360).data;
     for(let i=3;i<pixels.length;i+=4)if(pixels[i])alpha.add(pixels[i]);
     const union=alpha.size===1&&alpha.has(102);
-    return {stats,matchup,hatch,noWipeWin,victory,gauge,labelAbove,road,union};
+    return {stats,matchup,contestedLabel,noWipeWin,victory,gauge,labelAbove,road,union};
   });
   // 結果表示の既存タイマーを待ってから次の作戦へ。後続の宇宙テストに残さない。
   await page.waitForSelector('#result:not([hidden])');
