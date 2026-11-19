@@ -114,6 +114,21 @@ function controlsCases(){
     groundFireMode=()=>null;groundStep(.125);check('射程の内側でも射線がなければ追う',chases===1&&closer.order?.type==='attack');
     closer.groundChaseT=0;groundFireMode=()=>'direct';groundStep(.125);check('撃てる位置では追わない',chases===1);
   }finally{groundPath=realPath;groundUpdateSight=realSight;groundSeenBy=realSeen;groundFireMode=realMode;}
+  // W.A.S. は間接射撃を地点攻撃の命令のときだけ撃つ。攻撃の命令では直接射撃で撃てるまで近づき、自動では間接射撃を撃たない。自走砲は今までどおり（ユーザー決定 2026-11-19）
+  const was=unit('was',8,27),howitzer=unit('artillery',8,29),far=unit('vehicle',16,27,1);fleets=[was,howitzer,far];groundSites=[];
+  order(was,{type:'attack',target:far});order(howitzer,{type:'attack',target:far});
+  const realCan=groundAnyBodyCanFire,realIn=groundStrikeInRange,realLos=groundLineOfSight,realAI=groundStrikeAI;let movers=[];const strikes=[];
+  groundPath=(a,b,kind)=>{movers.push(kind);return null;};groundUpdateSight=()=>{};groundSeenBy=()=>true;groundAnyBodyCanFire=()=>true;groundStrikeInRange=()=>true;
+  try{
+    check('8km の敵へ W.A.S. は間接射撃の形にならず、自走砲はなる',groundFireMode(was,far)===null&&groundFireMode(howitzer,far)==='indirect'&&groundEngagementRange(was,far)===groundTargetRange(was,far));
+    groundStep(.125);check('8km の敵: W.A.S. は追い、自走砲は追わない',movers.join()==='was');
+    was.pos.copy(groundPoint(14,27));was.groundChaseT=0;movers=[];groundLineOfSight=()=>false;groundStep(.125);check('2km でも射線がなければ W.A.S. は追う',movers.join()==='was');
+    was.groundChaseT=0;movers=[];groundLineOfSight=()=>true;groundStep(.125);check('直接射撃で撃てる 2km では W.A.S. も止まる',!movers.length&&groundFireMode(was,far)==='direct');
+    groundClearOrders(was);was.stance='engage';was.pos.copy(groundPoint(8,27));was.groundShotT=0;groundStep(.125);
+    check('自動交戦の W.A.S. は8km の敵へ間接射撃を撃たない',!was.fireTarget&&!was.groundVolley);
+    const foe=unit('was',8,24,1),foeGun=unit('artillery',8,23,1);foe.stance=foeGun.stance='engage';groundStrikeAI=f=>strikes.push(f.groundKind);groundStep(.125);
+    check('敵の W.A.S. は自分から地点攻撃を撃たず、敵の自走砲は撃つ',strikes.includes('artillery')&&!strikes.includes('was'));
+  }finally{groundPath=realPath;groundUpdateSight=realSight;groundSeenBy=realSeen;groundAnyBodyCanFire=realCan;groundStrikeInRange=realIn;groundLineOfSight=realLos;groundStrikeAI=realAI;}
   // 手動の対空指定を拒否しても、移動・予約経路・undo履歴と自動迎撃は独立。
   const guard=unit('vehicle',8,27),air=unit('fighter',8.2,27,1);fleets=[guard,air];groundSites=[];groundForests=[];groundBuildings=[];
   guard.stance=air.stance='evade';select(guard);groupOrder({type:'move',dest:groundPoint(9,27)});groupOrder({type:'move',dest:groundPoint(9,29),queue:true});

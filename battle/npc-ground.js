@@ -214,7 +214,8 @@ function npcGroundDestination(c,sit,k,x,index,count){
   const z=sit.zones.find(z=>z.id===k.zone),from=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own')||z;
   const f=fleets.find(f=>f.id===x.id),u=sit.units.find(u=>u.id===x.id);if(!z||!f||!u)return null;
   const len=Math.hypot(z.x-from.x,z.z-from.z),dx=len?(z.x-from.x)/len:1,dy=len?(z.z-from.z)/len:0;
-  const ranges=groundFireRanges(f),range=(ranges.indirect?.max||ranges.direct||ranges.ground||ranges.air||f.range||0)/GROUND_SCALE;
+  // 直接射撃を主とする兵科（W.A.S.）は、助攻でも直接射撃の距離で構える（ユーザー決定 2026-11-19）
+  const ranges=groundFireRanges(f),direct=!groundAutoIndirect(f)&&ranges.direct,range=(direct||ranges.indirect?.max||ranges.direct||ranges.ground||ranges.air||f.range||0)/GROUND_SCALE;
   // 後方距離の固定値は仮（docs/menu.md）。
   let region=null,px=z.x,py=z.z,back=0,offset=(index-(count-1)/2)*1.5;
   const capture=groundSites.find(s=>s.id===z.id).captureRadius/GROUND_SCALE;
