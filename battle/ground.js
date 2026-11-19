@@ -983,6 +983,7 @@ function groundCaptureStep(dt){
     const points=[groundCapturePoints(s,0),groundCapturePoints(s,1)],lead=points[0]>points[1]?0:points[1]>points[0]?1:null;
     const team=lead!==null&&points[lead]>=1-1e-9?lead:null;   // 進められる軍（優勢で1点以上）
     s.points=points;s.leading=lead;s.contested=points[0]>0&&points[1]>0;   // 競合: 両軍とも円の中に1隊でもいる
+    s.supplyContested=points[0]>=1-1e-9&&points[1]>=1-1e-9;   // 補給と士気の競合は前の決め方（両軍とも1点以上。ユーザー 2026-11-20「案2」）
     s.capturingTeam=team!==null&&team!==s.owner?team:null;
     if(!s.progress)s.progress=[0,0];if(!s.away)s.away=[0,0];
     if(s.contested){

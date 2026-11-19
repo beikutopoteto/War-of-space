@@ -37,6 +37,8 @@ function captureCases() {
     capture([unit(0,'vehicle'),unit(0,'artillery'),unit(1,'vehicle')],30);check('競合中は半分の速さ（1点対0.5点で30秒→15秒ぶん）',s.owner===1&&s.contested&&s.leading===0&&Math.abs(s.progress[0]-15)<1e-8);
     groundCaptureStep(30);check('競合のまま60秒で占領する',s.owner===0);
     capture([unit(0,'vehicle'),unit(1,'vehicle')]);check('0.5点対0.5点は拮抗',s.contested&&s.leading===null&&s.progress[0]===0);
+    check('補給と士気の競合は前の決め方（両軍とも1点以上）: 0.5点対0.5点では競合しない',!s.supplyContested);
+    capture([unit(0),unit(1,'vehicle'),unit(1,'vehicle')]);check('1点対1点なら補給と士気も競合',s.supplyContested);
     capture([unit(0),unit(0,'vehicle'),unit(1)],10);check('1.5点対1点は優勢な軍が半分の速さで進む',s.leading===0&&Math.abs(s.progress[0]-5)<1e-8);
     fleets=[unit(0,'vehicle'),unit(1,'vehicle'),unit(1)];s.progress=[6,0];groundCaptureStep(4);check('持ち主が優勢な競合では、相手の進みを半分の速さで押し戻す',s.owner===1&&s.leading===1&&Math.abs(s.progress[0]-4)<1e-8);
     fleets=[unit(0,'vehicle'),unit(1,'scout')];s.progress=[6,0];groundCaptureStep(4);check('拮抗なら押し戻さない',Math.abs(s.progress[0]-6)<1e-8);
