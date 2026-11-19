@@ -50,7 +50,9 @@ window.WOS_GROUND_RULES = {
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2,fireRangesKm:{ground:0,air:2}},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2,fireRangesKm:{ground:10,air:15}},
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
-    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
+    // directFirst: 直接射撃を主とする。間接射撃は地点攻撃の命令のときだけ撃ち（自動交戦・攻撃の命令・敵の自動の地点攻撃では撃たない）、
+    // 攻撃の命令と NPC の助攻では直接射撃の距離まで近づく（ユーザー決定 2026-11-19）
+    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:80,dmg:2,directFirst:true,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
   },
   // 地上・海上専用の仮射程（km）。既存の艦種IDを使い、宇宙側の艦種・性能は変更しない。
   navalFireRangesKm: {
