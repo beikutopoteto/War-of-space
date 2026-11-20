@@ -195,10 +195,108 @@ function planCases(){
  air.order.path.atIndex++;
  check('航空隊が実際に経由地に着くと矢印とUndoの経路から外れる',groundPlanArrows(flight)[0].pts.length===2&&!copyOrder(air.order,air).via.length);
  op={};groundPlanToggle('plan');check('宇宙では起動しない',!groundWorkAiming);
+
+ fresh();select(null);
+ groundPlanToggle('edit');groundPlanHud([]);
+ check('前線がないと編集・削除は押せない',document.getElementById('groundEdit').disabled&&!groundWorkAiming);
+ const own=four(),target=draw('deploy',own,a,b),lead=own[0];
+ finish(own);tick();draw('plan',own,c,d);select(null);
+ groundPlanToggle('edit');groundPlanHud([]);
+ check('部隊選択なしでも編集・削除を開始',groundWorkAiming==='edit'&&!document.getElementById('groundEdit').disabled);
+ const click=(hit,id)=>groundEditActions(hit).find(a=>a[0]===id)[2]();
+ click({kind:'plan',front:target},'redraw');groundPlanTap(p(8,31));groundPlanTap(p(14,31));
+ check('計画の編集ボタンで引き直して編集・削除へ戻る',target.plan.pts[0].equals(p(8,31))&&groundWorkAiming==='edit');
+ click({kind:'front',front:target},'redraw');groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
+ check('前線の編集ボタンで向きを指定して編集・削除へ戻る',!!target.plan&&groundWorkAiming==='edit');
+ finish(own);tick();
+ const viaPoint=p(8.5,28);
+ click({kind:'arrow',front:target,f:lead},'location');hitPoint=viaPoint;groundEditTap(0,0);
+ const hit=groundPlanPickAt(viaPoint,.01);
+ check('矢印の追加ボタンで前線上に○ができ、線より先に当たる',hit?.kind==='via'&&hit.front===target&&hit.f===lead&&hit.i===0);
+ const movedVia=p(7,29);
+ click(hit,'location');hitPoint=movedVia;groundEditTap(0,0);
+ check('○の編集ボタンが移動を行い、確定前の曲線も通る',
+   groundWorkAiming==='edit'&&target.via.get(lead)[0].equals(movedVia)&&
+   groundPlanNearest(groundPlanLine(groundPlanArrows(target).find(a=>a.f===lead).shape),movedVia).d<1e-6);
+ const preview=groundPlanPreview(target),shape=groundPlanRouteShape(preview[0].path,0);
+ groundPlanArrows(target);
+ check('計画の経路と曲線は入力が変わるまで再利用する',groundPlanPreview(target)===preview&&groundPlanRouteShape(preview[0].path,0)===shape);
+ setSel(own);groundPlanExecute();
+ check('移動した○を実際の進撃経路が通る',groundPlanNearest(groundPlanLine(lead.order.path.points),movedVia).d<1e-6);
+ groundPlanToggle('edit');click({kind:'via',front:target,f:lead,i:0},'delete');
+ check('○の削除ボタンで進撃から経由地を外し、編集・削除は続く',
+   !target.via.has(lead)&&groundWorkAiming==='edit'&&groundPlanNearest(groundPlanLine(lead.order.path.points),movedVia).d>GROUND_SCALE);
+ const prevPos=lead.pos.clone();groundFollow(lead,1);
+ const rest=groundPlanArrows(target).find(a=>a.f===lead).shape;
+ check('進撃の矢印は現在地から始まり、通過した道は消える',
+   rest[0]===lead.pos&&groundPlanNearest(groundPlanLine(rest),prevPos).d>1e-6);
+ click({kind:'plan',front:target},'delete');
+ check('計画の削除ボタンは前線を残して編集・削除を続ける',!target.plan&&groundFronts.includes(target)&&groundWorkAiming==='edit');
+ pressEscape();check('Escは編集・削除を解除し、ポーズを開かない',!groundWorkAiming&&!pauseOpened);
+ groundPlanToggle('edit');groundPlanToggle('edit');check('編集・削除は同じボタンで解除',!groundWorkAiming);
+
+ const savedOrg={companies:[],brigades:[{id:'g',battalions:['one','two']}],battalions:[
+   {id:'one',companies:['c0','c1']},{id:'two',companies:['c2','c3']}],};
+ groundOrg=JSON.parse(JSON.stringify(savedOrg));own.forEach((f,i)=>f.companyId='c'+i);
+ const [one,two]=groundOrg.battalions,g=groundOrg.brigades[0],green=GROUND_PLAN_COLORS[9],pink=GROUND_PLAN_COLORS[3];
+ groundPlanSetColor('battalions',two,pink);groundPlanSetColor('brigades',g,green);
+ check('旅団の変更で配下の個別色を解除し、準備の編成には書かない',
+   !one.planColor&&!two.planColor&&own.every(f=>groundPlanUnitColor(f)===green)&&!savedOrg.brigades[0].planColor);
+ groundPlanSetColor('battalions',two,pink);
+ const colors=groundPlanSectionColors(target);
+ check('前列の受け持ち順で大隊色を付ける',colors.join()=== [green,green,pink,pink].join()&&groundPlanUnitColor(own[0])===green);
+ const vertices=[],rgb=[];
+ groundPlanFront(vertices,target.pts,target.side,1,0,0,1,colors,rgb);
+ const expected=[green,pink].map(c=>groundPlanPaints.get(c).toArray());
+ check('帯の各半分と全体で等間隔の歯を対応する色で描く',vertices.length===rgb.length&&
+   rgb.length>0&&rgb.every((v,i)=>{
+     const x=vertices[i-i%3]-p(11,28).x;
+     return Math.abs(x)<1e-6||expected[x<0?0:1][i%3]===v;
+   }));
+ groundPlanToggle('edit');click({kind:'front',front:target},'delete');
+ check('前線の削除ボタンで前線を消し、編集・削除は続く',!groundFronts.length&&groundWorkAiming==='edit');
+ groundPlanToggle('edit');groundPlanHud([]);
+ check('最後の前線を消したあとも同じボタンで解除でき、解除すると押せない',
+   !groundWorkAiming&&document.getElementById('groundEdit').disabled);
+
+ fresh();groundBridges=[];
+ const data=groundData(),fords=data.objects.fords;
+ const north=p(23.5,29),central=p(22.5,21),rivers=data.water.rivers.map(r=>({id:r.id,points:r.points.map(([x,y])=>p(x,y))}));
+ const crossing=(path,sites)=>groundFrontCrossed(path,rivers,sites)?.pos;
+ try{
+  data.objects.fords=[];
+  const sites=groundFrontCrossings(data);
+  const tanks=Array.from({length:4},(_,i)=>unit(20,25+i*.35,'vehicle'));
+  const slots=tanks.map((f,i)=>({f,dest:p(26,25.5+i*.35)}));
+  const count=(routes,at)=>routes.filter(r=>crossing(r.path,sites)?.equals(at)).length;
+  const shortest=slots.map(s=>({...s,path:groundMovePath(s.f.pos,[s.dest],'vehicle')}));
+  const spread=groundFrontRoutes(null,slots,false);
+  check('最短路では4隊とも北橋、前線への整列では北橋と中央橋に2隊ずつ',
+   count(shortest,north)===4&&count(spread,north)===2&&count(spread,central)===2);
+  const estimate=(s,p)=>groundPlanDistance(s.f.pos,p)+groundPlanDistance(p,s.dest);
+  const centralGain=slots.map(s=>estimate(s,central)-estimate(s,north)).sort((a,b)=>a-b);
+  const best=slots.reduce((sum,s)=>sum+estimate(s,north),0)+centralGain[0]+centralGain[1];
+  check('2対2のうち直線見積もりの合計が最短になる組を選ぶ',
+   Math.abs(spread.reduce((sum,s)=>sum+estimate(s,s.path.pts[0]),0)-best)<1e-6);
+  const routeFront={via:new Map([[tanks[3],[p(21,21)]]]),passed:new Map()};
+  const pinned=groundFrontRoutes(routeFront,slots,true);
+  check('中継地点の隊を中央橋の1隊に数え、残りを割り振って2隊ずつ',count(pinned,north)===2&&count(pinned,central)===2&&
+   crossing(pinned[3].path,sites)?.equals(central)&&pinned[3].path.pts.length===2);
+  for(const [i,f] of tanks.entries())f.pos.copy(p(21,29+i*.15));
+  const near=slots.map((s,i)=>({...s,dest:p(25,29+i*.15)}));
+  check('最短路の2倍を超える橋は使わない',count(groundFrontRoutes(null,near,false),north)===4);
+  setSel(tanks);const common=p(26,26);groupOrder({type:'move',dest:common});
+  check('通常移動は割り振らず全隊が同じ目的地へ最短路で進む',
+   tanks.every(f=>f.order?.dest.equals(common)&&crossing(f.order.path,sites)?.equals(north)&&f.order.path.pts.length===1));
+  const bridge={river:'main',pos:p(23,26),hp:1,complete:true};
+  groundBridges=[bridge,{...bridge,complete:false},{...bridge,hp:0}];
+  check('完成して耐久が残っている工兵の橋だけを渡河候補に含める',groundFrontCrossings(data).filter(c=>c.pos===bridge.pos).length===1);
+ }finally{data.objects.fords=fords;groundBridges=[];}
  return rows;
 }
 function nodeChecks(){
- const {run}=require('./ground-controls.cjs').createControlsContext();
+ const {ctx,run}=require('./ground-controls.cjs').createControlsContext();
+ ctx.pauseOpened=false;
  return run(`(${planCases.toString()})()`);
 }
 module.exports={nodeChecks};

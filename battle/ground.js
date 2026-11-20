@@ -19,6 +19,7 @@ function groundMembers(level,id){
 }
 function groundSelectUnit(level,id){ const list=groundMembers(level,id); if(list.length) setSel(list); }
 function groundBuildRoster(mk){
+  groundPlanClosePalette();
   groundRosterNodes=[];fleets.forEach(f=>{f.btn=null;f.stBtn=null;});
   const branch=(level,item,parent)=>{
     const node=document.createElement('div'); node.className='ground-rnode';node.dataset.level=level;node.dataset.id=item.id;
@@ -26,7 +27,7 @@ function groundBuildRoster(mk){
     const fold=document.createElement('button');fold.className='ground-fold';fold.textContent=item.open===false?'＋':'−';fold.setAttribute('aria-expanded',String(item.open!==false));fold.setAttribute('aria-label',item.name+'を開閉');
     fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
     const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
-    const meters=document.createElement('small');meters.className='ground-summary';head.append(fold,pick,meters);node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters});
+    const meters=document.createElement('small');meters.className='ground-summary';head.append(fold,pick,meters,groundPlanRosterSwatch(level,item));node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters});
     head.addEventListener('pointerenter',()=>showGroundSummaryTip(level,item,head));head.addEventListener('pointerleave',hideTip);
     if(item.open===false)return;
     const body=document.createElement('div');body.className='ground-rbody';node.append(body);

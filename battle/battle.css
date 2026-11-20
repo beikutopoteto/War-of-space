@@ -263,10 +263,10 @@ body.incut #labels{display:none}
 #talk p{margin:3px 0 4px;font-size:14px;line-height:1.6;color:var(--ink)}
 #talk .ctl{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-dim)}
 #talk button{font-family:var(--f-ui);font-size:11px;background:transparent;color:var(--ink-dim);border:1px solid var(--line);padding:2px 8px;cursor:pointer}
-#pick{position:fixed;left:0;top:0;display:grid;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px);z-index:5}
-#pick button{font-family:var(--f-ui);font-size:12px;text-align:left;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);padding:4px 10px;cursor:pointer}
-#pick button[data-pk="attack"]{border-color:rgba(255,106,69,.6)}
-#pick button:hover:not(:disabled),#pick button:focus-visible{background:rgba(127,200,255,.15);outline:none}
+#pick,#groundEditPick{position:fixed;left:0;top:0;display:grid;gap:3px;padding:4px;background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(6px);z-index:5}
+#pick button,#groundEditPick button{font-family:var(--f-ui);font-size:12px;text-align:left;white-space:nowrap;background:transparent;color:var(--ink);border:1px solid var(--line);padding:4px 10px;cursor:pointer}
+#pick button[data-pk="attack"],#groundEditPick button[data-action="delete"]{border-color:rgba(255,106,69,.6)}
+#pick button:hover:not(:disabled),#pick button:focus-visible,#groundEditPick button:hover,#groundEditPick button:focus-visible{background:rgba(127,200,255,.15);outline:none}
 #pick button:disabled{opacity:.4;cursor:default}
 #cursorAlt{position:fixed;left:0;top:0;pointer-events:none;font-family:var(--f-num);font-size:11px;color:var(--blue);background:var(--panel);padding:1px 5px;white-space:nowrap;z-index:4}
 
@@ -552,6 +552,16 @@ body.nolabels .ground-site{display:none}
 #roster .ground-tile-meters{display:block;width:100%;align-self:start}
 #roster .ground-summary{grid-column:1/-1;display:block;padding:2px 3px;min-width:0}
 #roster.ground-roster .ground-rhead{grid-template-columns:25px minmax(0,1fr)}
+#roster .ground-rhead{position:relative}
+#roster .ground-rhead .grpBtn{padding-right:30px}
+#roster .ground-rhead .ground-plan-swatch{position:absolute;right:8px;top:7px;width:18px;height:18px;padding:0;border:1px solid rgba(255,255,255,.55);cursor:pointer}
+.ground-plan-swatch.own::after{content:'';display:block;width:6px;height:6px;margin:auto;background:rgba(8,14,26,.85);border-radius:50%}
+.ground-plan-palette{position:fixed;z-index:9;background:var(--panel);border:1px solid var(--line);padding:8px 9px;backdrop-filter:blur(6px);font:600 11px var(--f-ui);color:var(--ink)}
+.ground-plan-palette b{display:block;margin-bottom:6px;color:var(--brass)}
+.ground-plan-palette div{display:grid;grid-template-columns:repeat(8,22px);gap:5px}
+.ground-plan-palette button{box-sizing:border-box;width:22px;height:22px;padding:0;border:1px solid rgba(255,255,255,.35);cursor:pointer}
+.ground-plan-palette button[aria-pressed="true"],.ground-plan-palette button:focus-visible{outline:2px solid #fff;outline-offset:1px}
+.ground-plan-palette small{display:block;margin-top:6px;color:var(--ink-dim);font-weight:400}
 #rtip.ground-tip{white-space:pre-line;overflow-wrap:anywhere}
 #groundSupplyStatus{display:block;white-space:normal;font-size:10px}
 .ground-supply-point{position:absolute;left:0;top:0;pointer-events:none;color:#8bdfff;background:rgba(5,14,24,.55);padding:1px 3px;font-size:10px;white-space:nowrap}
