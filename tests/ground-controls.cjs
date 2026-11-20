@@ -137,6 +137,13 @@ function controlsCases(){
   check('敵航空への手動攻撃は予約移動とundo履歴を変えない',guard.order===move&&guard.order.path.pts.length===2&&guard.queue===queued&&undoStack.length===history);
   guard.groundAATimer=0;const airHP=air.hpPool;groundStep(.05);
   check('交戦回避でも移動と予約を保って別対象として自動迎撃',air.hpPool<airHP&&guard.groundAATarget===air&&!guard.fireTarget&&guard.order===move&&guard.order.path.pts.length===2&&guard.queue===queued&&guard.pos.distanceTo(at)>0);
+  // 複数の隊の移動は、全隊が指示した一点へ（ユーザーの指示 2026-11-20「位置関係は維持しないようにして」）。予約の移動も同じ一点
+  const many=[unit('infantry',7,27),unit('vehicle',9,27),unit('infantry',11,26)];fleets=many;setSel(many);
+  const point=groundPoint(9,29),near=(f,p)=>Math.hypot(f.order.dest.x-p.x,f.order.dest.z-p.z)<GROUND_SCALE*.15;
+  groupOrder({type:'move',dest:point.clone()});
+  check('複数の隊の移動は全隊が同じ一点へ',many.every(f=>f.order?.type==='move'&&near(f,point)));
+  const later=groundPoint(10,31);groupOrder({type:'move',dest:later.clone(),queue:true});
+  check('予約の移動も全隊が同じ一点へ（今の移動に続けて）',many.every(f=>f.order?.type==='move'&&near(f,later)&&f.order.path.pts.length===2));
   return rows;
 }
 function nodeChecks(){const {ctx,run}=createControlsContext();ctx.pauseOpened=false;return run(`(${controlsCases.toString()})()`);}
