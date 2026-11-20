@@ -388,7 +388,9 @@ function groupOrder(o){
        with formation off, every army goes to the point itself. Several fleets picked one by one keep how they stand */
     /* with formation on, every army heads straight for its own place around the point (it does not chase the flagship);
        the formation is turned so that ahead is the way the flagship goes from where it is (or from its last point) */
-    const formation=g&&g.form&&groupFlag(g), point=g&&!g.form;
+    /* 地上戦（ユーザーの指示 2026-11-20「それぞれの速度でその一点に向かってください。陣形というか位置関係は維持しないようにして」）:
+       選んだ隊はどう選んでも、全隊が指示した一点へそれぞれの速さで向かう */
+    const formation=!op.ground&&g&&g.form&&groupFlag(g), point=op.ground||g&&!g.form;
     const base=f=>{ const x=tail(f); if(!x) return f.pos; if(x.type==='move'){ const l=pathLeft(x); return l[l.length-1]||x.dest; } return x.type==='bridge'?f.pos:x.target.pos; };
     const c=new THREE.Vector3(); t.forEach(f=>c.add(base(f))); c.divideScalar(t.length);
     const dir=formation?o.dest.clone().sub(base(formation)):null; if(dir&&dir.x*dir.x+dir.z*dir.z<1e-4) dir.copy(formation.march);
