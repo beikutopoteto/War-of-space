@@ -334,7 +334,7 @@ function groundTransportDraw(){
       const el=document.createElement('div');el.className='ground-site ground-landing';el.innerHTML='<b>上陸中</b><small></small><span class="capture-track"><i></i></span>';labelsEl.appendChild(el);f.groundLandingVisual=el;
     }
     const el=f.groundLandingVisual,at=proj(f.pos.clone().add(new THREE.Vector3(0,3,0)));
-    el.hidden=at.z>1||!(f.team===0||groundSeenBy(0,f));el.style.transform=`translate(${at.x}px,${at.y}px) translate(-50%,-100%)`;
+    el.hidden=at.z>1||!(f.team===0||groundSeenBy(0,f)||typeof revealMode!=='undefined'&&revealMode);el.style.transform=`translate(${at.x}px,${at.y}px) translate(-50%,-100%)`;
     el.querySelector('small').textContent=`${f.groundUnloading.progress.toFixed(1)} / ${groundLandingRules().seconds}秒・被弾${groundLandingRules().damageFactor}倍`;
     el.querySelector('i').style.width=`${100*f.groundUnloading.progress/groundLandingRules().seconds}%`;
   }

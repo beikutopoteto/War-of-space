@@ -101,6 +101,15 @@ async function checkGroundTempo(page,check){
     const before=await page.evaluate(()=>autoMode);await page.click('#pause [data-pm="auto"]',{noWaitAfter:true});
     check(await page.evaluate(before=>{const b=document.querySelector('#pause [data-pm="auto"]'),saved=JSON.parse(localStorage.getItem('wos.debug'));return autoMode===!before&&document.body.classList.contains('dbg-auto')===autoMode&&saved.auto===autoMode&&b.getAttribute('aria-pressed')===String(autoMode)&&b.textContent.includes(autoMode?'オン':'オフ')&&paused&&speed===0;},before),id+' メニューでオートを切替・表示・保存');
    }
+   // デバッグ「敵を常に表示」（2026-11-20）: 見つけていない敵も描くが、見つけたかの規則（seen・クリックで狙えるか）は変えない
+   for(const on of [true,false]){
+    await page.click('#pause [data-pm="reveal"]',{noWaitAfter:true});
+    check(await page.evaluate(on=>{const b=document.querySelector('#pause [data-pm="reveal"]'),saved=JSON.parse(localStorage.getItem('wos.debug'));
+     const hidden=fleets.filter(f=>f.team===1&&f.alive&&!spotted(f)&&!(op.ground&&(f.embarked||groundAbsent(f)))),seen=hidden.map(f=>f.seen);if(op.ground)groundDraw();
+     const drawn=f=>shown(f)&&(!op.ground||f.groundModel.visible);
+     return hidden.length>0&&revealMode===on&&document.body.classList.contains('dbg-reveal')===on&&saved.reveal===on&&b.getAttribute('aria-pressed')===String(on)&&b.textContent.includes(on?'オン':'オフ')
+      &&hidden.every(f=>drawn(f)===on&&!spotted(f))&&hidden.every((f,i)=>f.seen===seen[i]);},on),id+' 敵を常に表示'+(on?'オン: 見つけていない敵も描く（規則は不変）':'オフ: 見つけていない敵は隠す'));
+   }
    await page.keyboard.press('Escape');
   }
   check(errors.length===0,'テンポとオート切替でページ例外なし');

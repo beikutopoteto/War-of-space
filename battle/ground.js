@@ -807,7 +807,7 @@ function groundDraw(){
   const boardTargets=groundWorkAiming==='board'&&picked.length===1?groundBoardTargets(picked[0]):[];
   for(const f of fleets){
     groundSelectionDraw(f,picked.includes(f),boardTargets.includes(f));
-    const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f));
+    const model=f.groundModel; if(!model)continue; model.visible=f.alive&&!f.embarked&&!groundAbsent(f)&&(f.team===0||groundSeenBy(0,f)||typeof revealMode!=='undefined'&&revealMode);
     groundFormationDraw(f,now);
     const pose=model.userData.pose;
     if(pose){
@@ -829,7 +829,7 @@ function groundDraw(){
     model.position.copy(f.pos); if(f.band==='ground')model.position.y+=.15; model.rotation.y=Math.atan2(f.heading.x,f.heading.z)+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const dim=groundView!=='all'&&groundView!==f.band, k=dim?groundRules().dimOpacity:1;
     model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
-    f.el.style.opacity=String(k*(f.team===1&&!f.seen?.42:1)); // 表示を薄くしても選択と射撃の規則は変えない。
+    f.el.style.opacity=String(k*(f.team===1&&!f.seen&&!(typeof revealMode!=='undefined'&&revealMode)?.42:1)); // 表示を薄くしても選択と射撃の規則は変えない。
     for(const s of f.ships)s.pos.copy(f.pos);
   }
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
