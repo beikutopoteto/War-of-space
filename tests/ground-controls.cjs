@@ -7,7 +7,7 @@ function createControlsContext(){
   Object.assign(ctx,{selected:null,selGroup:null,selMulti:[],selAlt:0,deploying:false,labelEnemy:null,
     document:{getElementById:id=>{if(!elements.has(id))elements.set(id,element());return elements.get(id);},querySelectorAll:()=>[]},
     hideGhost(){},closePick(){ctx.pickCtx=null;},openSelectedRoster(){},setAlt(){},hideHint(){},tutorialOrder(){},
-    pick:()=>({best:ctx.hitUnit||null,fort:false}),groundAt:()=>ctx.hitPoint||null,shown:()=>true,
+    pick:()=>({best:ctx.hitUnit||null,fort:false}),groundAt:()=>ctx.hitPoint||null,shown:()=>true,spotted:()=>true,
     openPick:(x,y,target,dest,queue)=>{ctx.pickCtx={target,dest,queue};},
     openPause:()=>{ctx.pauseOpened=true;},addEventListener:(name,fn)=>{if(name==='keydown')keys.push(fn);},
     detours:()=>[],groundHud(){},paused:false,performance:{now:()=>0}});

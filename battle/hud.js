@@ -95,7 +95,7 @@ function order(f,o){
   if(o.type==='move'&&!o.path){ f.order=null; return; }
   if(op.ground&&o.type==='move') o.dest=o.path.points[o.path.points.length-1].clone();
   if(op.groundDrill)groundDrillEvent(o.type,f,o.type==='move'?o.dest:o.target);
-  if(f.team===1&&!f.seen) return;
+  if(f.team===1&&!f.seen&&!(typeof revealMode!=='undefined'&&revealMode)) return;
   if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
   else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
 }
@@ -188,7 +188,7 @@ addEventListener('keydown',e=>{ if(e.code==='KeyV') cycleView(); if(e.code==='Ke
 /* what is under the pointer: the nearest visible fleet, and whether the fortress is there */
 function pick(x,y){
   let best=null,bd=34;
-  for(const f of fleets){ if(!f.alive||op.ground&&(f.embarked||groundAbsent(f))||!shown(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
+  for(const f of fleets){ if(!f.alive||op.ground&&(f.embarked||groundAbsent(f))||!spotted(f)||f.ward||thrOff(f)) continue; const s=proj(f.pos); const d=Math.hypot(s.x-x,s.y-y); if(d<bd){bd=d;best=f;} }
   const fs=proj(fortress.pos.clone().setY(7));
   return {best, fort:fortress.alive&&fortress.team===1&&Math.hypot(fs.x-x,fs.y-y)<46};   // our own station is not a target
 }
@@ -220,7 +220,7 @@ function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(op.ground&&groundStrikeAiming){
     const hit=groundAt(x,y); if(hit){if(typeof groundAreaTap!=='function'||!groundAreaTap(hit,queue))groundStrikeCommand(orderTargets(),hit);} return;
   }
-  const found=pick(x,y), best=labelTarget&&shown(labelTarget)&&!labelTarget.ward?labelTarget:found.best, fort=labelTarget?false:found.fort;
+  const found=pick(x,y), best=labelTarget&&spotted(labelTarget)&&!labelTarget.ward?labelTarget:found.best, fort=labelTarget?false:found.fort;
   if(labelEnemy) labelEnemy.el.classList.remove('label-picked');
   labelEnemy=best&&best.team===1?best:null; if(labelEnemy) labelEnemy.el.classList.add('label-picked');
   /* the deploy step: a click on one of ours picks its army group; a click on the plane puts the selection there */
@@ -357,7 +357,7 @@ document.querySelectorAll('#speed button').forEach(b=>b.addEventListener('click'
    With the debug switch on (prep.js, body.dbg-battle) it also offers an instant win or defeat */
 const pauseEl=document.getElementById('pause'); let paused=false, pausedSpeed=1;
 function pauseAutoDraw(){
-  for(const [key,label,value] of [['auto','オートモード',autoMode],['autoReturn','自動で指揮官に戻す',npcAutoReturn]]){
+  for(const [key,label,value] of [['auto','オートモード',autoMode],['autoReturn','自動で指揮官に戻す',npcAutoReturn],['reveal','敵を常に表示',revealMode]]){
     const b=pauseEl.querySelector('[data-pm="'+key+'"]');b.textContent=label+'：'+(value?'オン':'オフ');b.setAttribute('aria-pressed',String(value));
   }
 }
@@ -367,6 +367,7 @@ pauseEl.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   const a=b.dataset.pm;
   if(a==='auto'){autoMode=!autoMode;npcAutoToggle();window.WOS_MENU.setAuto(autoMode);pauseAutoDraw();updateRoster();}
   if(a==='autoReturn'){npcAutoReturn=!npcAutoReturn;window.WOS_MENU.setAutoReturn(npcAutoReturn);pauseAutoDraw();}
+  if(a==='reveal'){revealMode=!revealMode;window.WOS_MENU.setReveal(revealMode);pauseAutoDraw();}
   if(a==='resume') closePause();
   if(a==='retry'){ closePause(); talkDone=null; endTalk(); reset(); setSpeed(1); startOp(); }
   if(a==='quit'){ closePause(); talkDone=null; endTalk(); end(false,true); }
@@ -396,6 +397,7 @@ window.WOS={ start(cfg){
   if(cfg&&OPS.some(o=>o.id===cfg.op&&o.ground)&&cfg.groundOrg===undefined&&!cfg.fleets&&window.WOS_MENU) cfg=window.WOS_MENU.groundConfig(cfg);
   autoMode=document.body.classList.contains('dbg-auto');   // the debug auto mode (prep.js; sim.js autoAI)
   npcAutoReturn=window.WOS_MENU?.autoReturn()!==false;
+  revealMode=document.body.classList.contains('dbg-reveal');   // デバッグ「敵も常に表示」（prep.js）
   menuOpen=false; document.body.classList.remove('inmenu'); document.getElementById('menu').hidden=true;
   reset(cfg||null); setSpeed(1); startOp();
   /* the opening view: op.view {target:[x,z], dist, dir?:[x,y,z]} or the whole field (the tutorial: op.tutorialView) */

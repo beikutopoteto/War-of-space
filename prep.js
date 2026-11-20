@@ -112,10 +112,11 @@ const prog=()=>save.prog;
 
 /* ---------- debug switches (kept apart from the save, so resetting the progress keeps them) ---------- */
 const DKEY='wos.debug';
-let dbg={free:false, battle:false, auto:false, autoReturn:true};
+let dbg={free:false, battle:false, auto:false, autoReturn:true, reveal:false};
 try{ Object.assign(dbg,JSON.parse(localStorage.getItem(DKEY)||'{}')); }catch(e){}
-function persistDbg(){ try{ localStorage.setItem(DKEY,JSON.stringify(dbg)); }catch(e){} document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classList.toggle('dbg-auto',!!dbg.auto); }
-document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classList.toggle('dbg-auto',!!dbg.auto);
+function dbgClasses(){ document.body.classList.toggle('dbg-battle',!!dbg.battle); document.body.classList.toggle('dbg-auto',!!dbg.auto); document.body.classList.toggle('dbg-reveal',!!dbg.reveal); }
+function persistDbg(){ try{ localStorage.setItem(DKEY,JSON.stringify(dbg)); }catch(e){} dbgClasses(); }
+dbgClasses();
 
 /* ---------- options (the settings screen; kept apart from the save like the debug switches) ----------
    story: the conversations before and after an operation (off by default, user decision 2026-10-08). battle/hud.js reads window.WOS_OPT */
@@ -456,6 +457,7 @@ function renderDebug(){
     <label class="toggle"><input type="checkbox" data-dbg="battle" ${dbg.battle?'checked':''}> 戦闘中のメニューに即勝利・即敗北・オート切替</label>
     <label class="toggle"><input type="checkbox" data-dbg="auto" ${dbg.auto?'checked':''}> オートモード（会話と配置を自動で進める。NPC演習では指揮官が自軍を動かす。ほかの宇宙戦は従来の自動操縦）</label>
     <label class="toggle"><input type="checkbox" data-dbg="autoReturn" ${dbg.autoReturn?'checked':''}> 自動で指揮官に戻す（オートモードの試験用）</label>
+    <label class="toggle"><input type="checkbox" data-dbg="reveal" ${dbg.reveal?'checked':''}> 敵も味方と同じく常に表示（見た目だけ。射撃・AI・クリックで狙えるかは、見つけた敵だけのまま）</label>
     <div class="dbgr"><button data-dbga="one" title="まだクリアしていない最初の節を、勝ったときと同じに扱う（報酬も入り、緊急援助は準備の案内で届く）。チュートリアルを終えていなければ、先にチュートリアルを飛ばす">一節だけクリア</button><button data-dbga="skip" title="演習のチュートリアル、チュートリアル2（バイコヌール演習も開く）と準備画面の案内（第2節のあと）を済みにする。準備画面の案内は「とばす」と同じで、巡洋艦の打撃群を戦区軍に置き、緊急援助を渡す（第2節の前なら、援助は第2節のクリアで入る）">チュートリアルスキップ</button><button data-dbga="all">全作戦クリア</button><button data-dbga="funds">資金 +1000</button><button data-dbga="branches" title="物語でまだ開いていない兵科（戦艦・母艦・W.A.S. 部隊）を、研究はせずに開く">全兵科解放</button><button data-dbga="tech">全研究（全兵科を解放）</button><button data-dbga="reset" class="danger" title="進行（クリア・資金・研究）と、艦隊（支隊・打撃群・戦区軍）を最初の状態に戻す">${dbgConfirm?'もう一度押すと戻します':'進行を最初に戻す'}</button></div>
     <p class="dim small">進行を戻しても、編成はそのまま残ります。</p>`;
   b.querySelectorAll('[data-dbg]').forEach(x=>x.onchange=()=>{ dbg[x.dataset.dbg]=x.checked; persistDbg(); renderTitle(); });
@@ -1006,7 +1008,7 @@ function onKey(e){
   const b=screen==='sortie'?document.getElementById('goBattle'):screen==='forces'?document.getElementById('forcesBattle'):screen==='tech'?document.getElementById('tRes'):null;
   if(b&&!b.disabled){ e.preventDefault(); b.click(); }
 }
-window.WOS_MENU={ autoReturn:()=>dbg.autoReturn, setAutoReturn(value){dbg.autoReturn=!!value;persistDbg();renderDebug();}, setAuto(value){dbg.auto=!!value;persistDbg();renderDebug();}, open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
+window.WOS_MENU={ autoReturn:()=>dbg.autoReturn, setAutoReturn(value){dbg.autoReturn=!!value;persistDbg();renderDebug();}, setAuto(value){dbg.auto=!!value;persistDbg();renderDebug();}, setReveal(value){dbg.reveal=!!value;persistDbg();renderDebug();}, open(){ menu.hidden=false; show('title'); }, onEnd, onKey,
   groundConfig(cfg){ return {...cfg,groundOrg:GROUND.normalize(save.groundOrg)}; } };
 render();
 {const groundPreview=new URLSearchParams(location.search).get('ground'),previewOps={exercise2:'groundExercise2',field150:'groundfield150',field300:'groundfield300'};if(previewOps[groundPreview])window.WOS.start({op:previewOps[groundPreview]});}

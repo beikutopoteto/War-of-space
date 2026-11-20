@@ -52,7 +52,11 @@ function detour(p,q,key){ if(!op.body) return null; _sg.set(p,q); const t=_sg.cl
 function detours(p,q,depth=2){ const w=depth>0&&detour(p,q); return w?[...detours(p,w,depth-1),w,...detours(w,q,depth-1)]:[]; }
 function inDebris(u){ for(const c of debris) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
 function inCloud(u){ for(const c of clouds) if(u.pos.distanceTo(c.c)<c.r) return true; return false; }
-function shown(u){ if(op.ground)return !u.groundExited&&(u.team===0||groundSeenBy(0,u)); return u.team===0||u.seen; }   // 出口から出た隊（地上の台本）は見せない
+function spotted(u){ if(op.ground)return !u.groundExited&&(u.team===0||groundSeenBy(0,u)); return u.team===0||u.seen; }   // 出口から出た隊（地上の台本）は見せない
+/* デバッグ「敵も常に表示」（prep.js の dbg.reveal、body.dbg-reveal。ユーザー決定 2026-11-20）: 見つけていない敵も味方と同じに描く。
+   描くだけで、見つけたかの規則（seen・射撃・AI・クリックで狙えるか＝spotted）は変えない */
+let revealMode=false;
+function shown(u){ return spotted(u)||revealMode&&!(op.ground&&u.groundExited); }
 let fogTimer=0; const FOG_DT=.25;
 function updateFog(){
   if(op.ground){ groundUpdateSight(); return; }
