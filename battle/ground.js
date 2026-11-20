@@ -199,11 +199,10 @@ function groundFormationState(f,now=gameSec){
 function groundFormationOrder(f,o){
   if(['move','attack'].includes(o.type)&&!o.groundDeploy&&!o.groundAdvance)f.groundDeployed=false;
   if(o.groundDeploy||o.groundAdvance)f.groundLine=o.groundLine?{width:o.groundLine.width,face:{...o.groundLine.face}}:null;
-  // 陣地の線の絵（ground-plan.js groundPlanDraw）: 布陣・進撃の線を、守っているあいだ残す。ほかの命令で消える
-  f.groundFront=(o.groundDeploy||o.groundAdvance)&&o.groundLine?.pts?{pts:o.groundLine.pts,side:o.groundLine.side}:null;
 }
 function groundFormationArrive(f){
   if(!(f.order?.groundDeploy||f.order?.groundAdvance))return;
+  if(typeof groundFrontRememberVia==='function')groundFrontRememberVia(f);
   f.groundDeployed=true;const face=f.groundLine?.face;if(face&&Math.hypot(face.x,face.z)>1e-6)f.heading.set(face.x,0,face.z).normalize();
 }
 function groundBodyRandom(f,i){
@@ -848,7 +847,10 @@ function groundStep(dt){
   groundStrikeStep(dt);
   groundTransportStep(dt);
   groundUpdateSight();
-  if(op.npc&&!op.groundDrill)npcGroundStep();
+  if(op.npc&&!op.groundDrill){
+    if(typeof groundFrontKeepPlayer==='function')groundFrontKeepPlayer();
+    npcGroundStep();
+  }
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10)f.groundMovedAt=gameSec;
@@ -871,7 +873,7 @@ function groundStep(dt){
     if(f.groundKind==='was') f.speed= groundRuleSet().unitTypes.was.speed*(f.band==='high'?8/3:f.band==='low'?2:1);
     if(!groundFlyingAircraft(f)||groundTrainingEnemy(f)||groundStaticTarget(f))f.pos.y=groundUnitHeight(f);
     if(groundFlyingAircraft(f)){
-      if(f.order?.type==='attack'&&(!f.order.target.alive||!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
+      if(f.order?.type==='attack'&&(!f.order.target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
       groundAirMotion(f,dt);continue;
     }
     // 進撃（共有命令の実行）の途中で撃てる敵がいれば、自動交戦の隊は止まって撃ち合う。命令優先の隊は進む（ユーザー決定 2026-11-14）。fireTarget は前のステップの値
@@ -882,9 +884,9 @@ function groundStep(dt){
       if(allowed)order(f,{type:'attack',target:allowed});
     }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
-    if(target&&(!target.alive||!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+    if(target&&(!target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
     // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）。W.A.S. は直接射撃で撃てるまで（groundAutoIndirect）
-    else if(target&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
+    else if(target&&groundSeenBy(f.team,target)&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
       f.groundChaseT=(f.groundChaseT||0)-dt;
       if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
       if(f.order.path&&(!op.npc||npcGroundHoldChase(f,target))) groundFollow(f,dt);
@@ -920,6 +922,7 @@ function groundStep(dt){
   groundAutoAAStep(dt);
   groundCaptureStep(dt);
   groundSupplyAfter(dt);
+  if(typeof groundFrontStep==='function')groundFrontStep();
   if(op.groundDrill)groundDrillTick();
 }
 
@@ -1176,13 +1179,15 @@ document.getElementById('groundMove').addEventListener('click',()=>{
   const aiming=groundWorkAiming!=='move';
   groundClearAiming();groundWorkAiming=aiming?'move':null;groundHud();
 });
-document.getElementById('groundHold').addEventListener('click',()=>{
+function groundHoldCommand(){
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
   npcAutoPlayer(list);saveUndo(list);
-  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.groundDeployed=true;f.groundFront=null;f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
+  groundFrontRemoveMembers(list);
+  for(const f of list)groundFrontDefend(f);
   groundClearAiming();groundHud();updateRoster();
-});
+}
+document.getElementById('groundHold').addEventListener('click',groundHoldCommand);
 document.getElementById('groundCommandExpand').addEventListener('click',e=>{
   const button=e.currentTarget,expanded=button.getAttribute('aria-expanded')!=='true';
   button.setAttribute('aria-expanded',String(expanded));

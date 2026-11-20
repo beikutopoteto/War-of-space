@@ -353,33 +353,58 @@ function orderTargets(){ return selGroup?groupAlive(selGroup):selMulti.filter(f=
    Several fleets keep their formation around a point */
 /* undo: every order given from the HUD first saves what the fleets it touches were doing; 戻す (Ctrl+Z / Backspace) restores the last one */
 const UNDO_MAX=30; let undoStack=[];
-function copyOrder(o){
+function copyOrder(o,f=null){
   if(!o||op.ground&&['board','bridge'].includes(o.type)) return null;
-  if(o.type!=='move') return {type:o.type,target:o.target};
-  const left=o.path?pathLeft(o):[...(o.via||[]),o.dest], pts=left.length?left:[o.dest];   // the points still ahead
-  return {type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
+  const front=o.groundFrontId?{groundFrontId:o.groundFrontId,groundFrontEngage:o.groundFrontEngage}:null;
+  if(o.type!=='move') return {type:o.type,target:o.target,...front};
+  const left=o.path?(front&&f&&groundFlyingAircraft(f)?groundFrontAirWaypoints(o):pathLeft(o)):[...(o.via||[]),o.dest];
+  const pts=left.length?left:[o.dest];   // the points still ahead
+  const move={type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
+  return front?{...move,...front,groundAdvance:o.groundAdvance,groundDeploy:o.groundDeploy,groundLine:o.groundLine}:move;
 }
 function saveUndo(t){
-  undoStack.push(t.map(f=>({f,order:copyOrder(f.order),queue:f.queue.map(copyOrder),strike:f.strike,sync:f.syncSpeed,groundPlan:op.ground&&typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,groundPost:op.ground?f.post.clone():null,groundStance:op.ground?f.stance:null,groundAreaSalvo:op.ground&&f.groundAreaSalvo?{...f.groundAreaSalvo}:null,groundVolley:op.ground&&typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null,groundBombRun:op.ground?groundCopyBombRun(f.groundBombRun):null})));
+  const front=op.ground&&typeof groundFrontSnapshot==='function'?groundFrontSnapshot(t):null;
+  const units=(front?.units||t).map(f=>({
+    f,order:copyOrder(f.order,f),queue:f.queue.map(o=>copyOrder(o)),strike:f.strike,sync:f.syncSpeed,
+    ...(op.ground?{
+      groundFrontAway:f.groundFrontAway,groundFrontEngagement:f.groundFrontEngagement?{...f.groundFrontEngagement}:null,
+      groundLine:f.groundLine,groundDeployed:f.groundDeployed,groundPost:f.post.clone(),groundStance:f.stance,
+      groundAreaSalvo:f.groundAreaSalvo?{...f.groundAreaSalvo}:null,
+      groundVolley:typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null,groundBombRun:groundCopyBombRun(f.groundBombRun)
+    }:null)
+  }));
+  undoStack.push({units,front});
   if(undoStack.length>UNDO_MAX) undoStack.shift(); updateUndo();
 }
 function undo(){
   if(op.ground)groundClearAiming();
-  const u=undoStack.pop(); updateUndo(); if(!u||over) return;
-  for(const s of u){ const f=s.f; if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo'))) continue;
+  const entry=undoStack.pop(); updateUndo(); if(!entry||over) return;
+  const {units,front}=entry;
+  if(front)groundFrontRestore(front,units);
+  for(const s of units){
+    const f=s.f;
+    if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo')))continue;
     npcAutoPlayer([f]);
     if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;}
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
-    if(o) order(f,o); else { f.order=null; dropArrow(f.arrow); f.arrow=null; }
-    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive)); f.strike=s.strike; f.syncSpeed=s.sync;if(op.ground&&typeof groundCopyPlan==='function'){f.groundPlan=groundCopyPlan(s.groundPlan);f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;f.groundVolley=typeof groundRestoreVolley==='function'?groundRestoreVolley(f,s.groundVolley):null;f.groundBombRun=groundRestoreBombRun(f,s.groundBombRun);if(s.groundPost)f.post.copy(s.groundPost);if(s.groundStance)f.stance=s.groundStance;} }
-  updateRoster(); logEvent('指示を取り消し',`${u.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
+    if(o)order(f,o);
+    else{f.order=null;dropArrow(f.arrow);f.arrow=null;}
+    f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive));f.strike=s.strike;f.syncSpeed=s.sync;
+    if(op.ground){
+      f.groundLine=s.groundLine;f.groundDeployed=s.groundDeployed;
+      f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;
+      f.groundVolley=typeof groundRestoreVolley==='function'?groundRestoreVolley(f,s.groundVolley):null;
+      f.groundBombRun=groundRestoreBombRun(f,s.groundBombRun);
+      f.post.copy(s.groundPost);f.stance=s.groundStance;
+    }
+  }
+  updateRoster();logEvent('指示を取り消し',`${units.filter(s=>s.f.alive).map(s=>s.f.name).join('・')}の一つ前の指示を取り消した。`);
 }
 function updateUndo(){ document.querySelectorAll('.undo').forEach(b=>b.disabled=!undoStack.length); }
 function groupOrder(o){
   const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'){groundStrikeMessage=groundAirTarget(o.target)&&orderTargets().some(f=>groundAutoAASource(f)&&groundAARange(f)>0)?'対空は装備部隊が自動迎撃':'攻撃不可：対応兵器・高度を確認';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
   npcAutoPlayer(t);saveUndo(t);
-  if(op.ground)t.forEach(f=>f.groundPlan=null);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
   const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;
