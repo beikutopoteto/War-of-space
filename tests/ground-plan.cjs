@@ -17,6 +17,8 @@ function planCases(){
  check('検証済み経路は注文へ使い一時フィールドを除去',units.every(f=>!f.order.groundPreparedPath));
  undo();check('戻すで実行前の計画を復元',units.every(f=>!f.order&&f.groundPlan));
  groundPlanToggle('deploy');groundPlanTap(a);groundPlanTap(b);
+ check('布陣は終点のあと前の側を待つ',groundWorkAiming==='deploy'&&!!groundLinePts&&units.every(f=>!f.order||!f.order.groundDeploy));
+ groundPlanTap(groundPoint(10,31));
  check('布陣は実行を待たず一列への移動を開始',units.every(f=>f.order?.type==='move'&&!f.groundPlan));
  groundPlanToggle('plan');groundPlanTap(a);select(units[0]);
  check('途中の線は選択変更で取り消す',!groundLineStart&&!groundWorkAiming);
@@ -47,7 +49,7 @@ function planCases(){
   setSel([slowTank,slowGun]);groundPlanToggle('plan');groundPlanTap(groundPoint(13,31));groundPlanTap(groundPoint(15,31));groundPlanExecute();
   check('進撃の組は同じ組を持ち、速さはいちばん遅い隊',slowTank.order?.groundAdvance===slowGun.order?.groundAdvance&&groundAdvanceSpeed(slowTank)===speedOf(slowGun)&&speedOf(slowTank)>speedOf(slowGun));
   slowGun.alive=false;check('遅い隊が倒れたら残りの隊は自分の速さに戻る',groundAdvanceSpeed(slowTank)===speedOf(slowTank));slowGun.alive=true;
-  setSel([slowTank]);groundPlanToggle('deploy');groundPlanTap(groundPoint(13,30));groundPlanTap(groundPoint(14,30));check('布陣や通常の移動は自分の速さ',!slowTank.order?.groundAdvance&&groundAdvanceSpeed(slowTank)===speedOf(slowTank));
+  setSel([slowTank]);groundPlanToggle('deploy');groundPlanTap(groundPoint(13,30));groundPlanTap(groundPoint(14,30));groundPlanTap(groundPoint(13.5,32));check('布陣や通常の移動は自分の速さ',!slowTank.order?.groundAdvance&&groundAdvanceSpeed(slowTank)===speedOf(slowTank));
  }
  op={};groundPlanToggle('plan');check('宇宙では起動しない',!groundWorkAiming);
  return rows;

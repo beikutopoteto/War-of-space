@@ -96,7 +96,7 @@ function order(f,o){
   if(op.ground&&o.type==='move') o.dest=o.path.points[o.path.points.length-1].clone();
   if(op.groundDrill)groundDrillEvent(o.type,f,o.type==='move'?o.dest:o.target);
   if(f.team===1&&!f.seen&&!(typeof revealMode!=='undefined'&&revealMode)) return;
-  if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
+  if(o.type==='move'&&!(op.ground&&o.groundAdvance&&f.team===0)) f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});   // 自軍の進撃は ground-plan.js の点滅する矢印
   else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
 }
 

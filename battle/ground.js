@@ -199,6 +199,8 @@ function groundFormationState(f,now=gameSec){
 function groundFormationOrder(f,o){
   if(['move','attack'].includes(o.type)&&!o.groundDeploy&&!o.groundAdvance)f.groundDeployed=false;
   if(o.groundDeploy||o.groundAdvance)f.groundLine=o.groundLine?{width:o.groundLine.width,face:{...o.groundLine.face}}:null;
+  // 陣地の線の絵（ground-plan.js groundPlanDraw）: 布陣・進撃の線を、守っているあいだ残す。ほかの命令で消える
+  f.groundFront=(o.groundDeploy||o.groundAdvance)&&o.groundLine?.pts?{pts:o.groundLine.pts,side:o.groundLine.side}:null;
 }
 function groundFormationArrive(f){
   if(!(f.order?.groundDeploy||f.order?.groundAdvance))return;
@@ -1178,7 +1180,7 @@ document.getElementById('groundHold').addEventListener('click',()=>{
   const list=orderTargets().filter(f=>!f.locked&&!f.embarked&&groundCommandAllowed(f,'move'));
   if(!list.length||over)return;
   npcAutoPlayer(list);saveUndo(list);
-  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.groundDeployed=true;f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
+  for(const f of list){groundCancelWork(f);groundClearOrders(f);f.groundDeployed=true;f.groundFront=null;f.fireTarget=null;f.post.copy(f.pos);f.stance='engage';}
   groundClearAiming();groundHud();updateRoster();
 });
 document.getElementById('groundCommandExpand').addEventListener('click',e=>{
