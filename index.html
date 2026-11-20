@@ -7,6 +7,7 @@
 <div id="labels"></div>
 <div id="cursorAlt" hidden></div>
 <div id="pick" hidden role="menu" aria-label="敵をクリックしたときの命令"><button data-pk="attack" role="menuitem">攻撃</button><button data-pk="move" role="menuitem">ここへ移動</button></div>
+<div id="groundEditPick" hidden role="menu" aria-label="前線と進撃計画の編集・削除"></div>
 
 <div id="tl" class="hud">
   <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧"><i>MENU</i>メニュー Esc</button></div>
@@ -85,6 +86,7 @@
       <button data-command-icon="deploy" id="groundDeploy" title="前線：線の両端と前の側を指定" aria-pressed="false" disabled>前線</button>
       <button data-command-icon="plan" id="groundPlan" title="進撃計画：線の両端を指定し実行で開始" aria-pressed="false" disabled>進撃計画</button>
       <button data-command-icon="execute" id="groundExecute" title="選択部隊の進撃計画を実行" disabled>実行</button>
+      <button data-command-icon="edit" id="groundEdit" title="編集・削除" aria-pressed="false" aria-haspopup="menu" disabled>編集・削除</button>
       <button data-command-icon="hold" id="groundHold" title="停止・防衛">停止・防衛</button>
     </div>
     <span class="command-divider" aria-hidden="true"></span><span class="command-group">固有</span>
