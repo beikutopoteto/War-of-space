@@ -1,40 +1,125 @@
+/* node tools/ground-plan-check.cjs: 前線の操作と到着を確かめ、.shots/ に保存する。 */
 const {openGame,ROOT}=require('./browser.cjs');
-const fs=require('fs'),path=require('path'),assert=require('assert/strict');
-(async()=>{
- const {browser,page,errors}=await openGame({width:1600,height:900});
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+
+function shotSetup(mobile){
+ WOS.start({op:'groundExercise2',fleets:[
+  {name:'第1強化歩兵中隊',kind:'infantry',at:[8.6,27],stance:'evade'},
+  {name:'第2強化歩兵中隊',kind:'infantry',at:[10,27],stance:'evade'},
+  {name:'戦車中隊',kind:'vehicle',at:[11.6,27],stance:'evade'},
+  {name:'重強化歩兵中隊',kind:'heavyInfantry',at:[13.1,27],stance:'evade'}
+ ]});
+ if(talking)endTalk();if(deploying)endDeploy();setSpeed(0);
+ for(const f of fleets)if(f.team!==0||f.groundKind==='sea'||f.embarked)f.alive=false;
+ hideHint();
+ setSel(fleets.filter(f=>f.team===0&&f.alive));
+ groundUpdateSight();
+ camAnim=null;
+ const center=groundPoint(11,29.5);
+ controls.target.copy(center);
+ camera.position.copy(center).add(mobile?new THREE.Vector3(0,63,36):new THREE.Vector3(0,48,29));
+ camera.lookAt(center);controls.update();camera.updateMatrixWorld(true);
+}
+function shotTick(until,limit=120){
+ for(let n=0;!until()&&n<limit*10;n++){gameSec+=.1;groundStep(.1);}
+ if(!until())throw Error('撮影条件まで進まない');
+}
+const drawFrame=p=>p.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+const frontReady=()=>groundFronts.length===1&&groundFronts[0].members.length===4&&groundFronts[0].members.every(f=>!f.order&&f.groundDeployed);
+
+async function main(){
+ fs.mkdirSync(path.join(ROOT,'.shots'),{recursive:true});
+ const {browser,page,errors}=await openGame({width:1100,height:760});
  try{
-  await page.goto('file://'+path.join(ROOT,'index.html')+'?ground=exercise2');await page.waitForFunction(()=>window.WOS,{timeout:60000});
-  await page.evaluate(()=>{
-   window.requestAnimationFrame=()=>0;reset({op:'baikonur',fleets:OPS.find(o=>o.id==='baikonur').quick});if(talking)endTalk();endDeploy();setSpeed(0);
-   setSel(fleets.filter(f=>f.team===0&&['infantry','vehicle','heavyInfantry'].includes(f.groundKind)&&!f.embarked));
-   camAnim=null;const p=groundPoint(12,29);controls.target.copy(p);camera.position.copy(p).add(new THREE.Vector3(0,75,50));camera.lookAt(p);controls.update();camera.updateMatrixWorld(true);frame(performance.now());
-  });
-  async function line(button,coords){
-   await page.click(button,{noWaitAfter:true});
-   for(const [x,y] of coords){const p=await page.evaluate(([x,y])=>{const p=groundPoint(x,y);p.y=groundSurfaceHeight(p.x,p.z);return proj(p);},[x,y]);await page.mouse.move(p.x,p.y);await page.mouse.click(p.x,p.y);}
-   await page.evaluate(()=>frame(performance.now()));
+  const functions=`window.shotSetup=${shotSetup};window.shotTick=${shotTick};window.frontReady=${frontReady};`;
+  await page.evaluate(functions);
+  await page.evaluate(()=>shotSetup(false));await drawFrame(page);
+  async function point([x,y]){
+   return page.evaluate(([x,y])=>{const p=groundPoint(x,y);p.y=groundSurfaceHeight(p.x,p.z);return proj(p);},[x,y]);
   }
-  await line('#groundDeploy',[[8,31],[17,31]]);
-  const deploy=await page.evaluate(()=>orderTargets().map(f=>({name:f.name,move:f.order?.type==='move'})));
-  assert.equal(deploy.length,3);assert(deploy.every(f=>f.move));
-  await page.evaluate(()=>{for(const f of orderTargets()){for(let i=0;i<1000&&f.order;i++)if(groundFollow(f,.5)){dropArrow(f.arrow);f.arrow=null;f.order=null;}}frame(performance.now());});
-  const formation=await page.evaluate(()=>orderTargets().map(f=>({x:f.pos.x,z:f.pos.z,done:!f.order})));
-  assert(formation.every(f=>f.done));assert(Math.max(...formation.map(f=>f.z))-Math.min(...formation.map(f=>f.z))<.1);
-  fs.mkdirSync(path.join(ROOT,'.shots'),{recursive:true});await page.screenshot({path:path.join(ROOT,'.shots','ground-deploy.png')});
-  const before=await page.evaluate(()=>orderTargets().map(f=>[f.pos.x,f.pos.z]));
-  await line('#groundPlan',[[8,28],[17,28]]);
-  const planned=await page.evaluate(()=>({all:orderTargets().every(f=>f.groundPlan&&!f.order),positions:orderTargets().map(f=>[f.pos.x,f.pos.z]),enabled:!document.getElementById('groundExecute').disabled,preview:groundPlanVisual?.visible}));
-  assert(planned.all&&planned.enabled&&planned.preview);assert.deepEqual(planned.positions,before);
-  await page.screenshot({path:path.join(ROOT,'.shots','ground-plan-ready.png')});
-  await page.click('#groundExecute',{noWaitAfter:true});
-  const executing=await page.evaluate(()=>{const valid=orderTargets().every(f=>f.order?.type==='move'&&!f.groundPlan);for(const f of orderTargets())groundFollow(f,1);frame(performance.now());return valid;});assert(executing);
-  await page.screenshot({path:path.join(ROOT,'.shots','ground-plan-execute.png')});
-  const stances=await page.evaluate(()=>orderTargets().map(f=>f.stance));
-  await page.click('#groundHold',{noWaitAfter:true});
-  assert(await page.evaluate(()=>orderTargets().every(f=>!f.order&&!f.groundPlan&&f.stance==='engage'&&f.post.equals(f.pos))));
-  await page.keyboard.press('Control+z');
-  assert(await page.evaluate(expected=>orderTargets().every((f,i)=>f.order?.type==='move'&&f.stance===expected[i]),stances));
-  const icons=await page.evaluate(require('../tests/command-icons.cjs').commandIconCases);assert(icons.identical&&icons.shared);
-  assert.deepEqual(errors,[]);console.log(JSON.stringify({deploy,formation,planned,executing,hold:true,iconsUnchanged:true}));
+  async function tap(coords){
+   const {x,y}=await point(coords);
+   await page.mouse.click(x,y);
+  }
+  async function shot(page,name){
+   await page.waitForTimeout(260);
+   await drawFrame(page);
+   assert.deepEqual(errors,[],'ページ例外');
+   const file=path.join(ROOT,'.shots','ground-front-'+name+'.png');
+   await page.screenshot({path:file,timeout:120000});
+   assert.deepEqual(errors,[],'ページ例外');
+   console.log(file);
+  }
+
+  await page.click('#groundDeploy');
+  const start=await point([8,29]);
+  await page.mouse.move(start.x,start.y);
+  await page.mouse.down({button:'right'});
+  await page.waitForFunction(()=>groundPlanPress?.drawing);
+  for(const coords of [[9,29.2],[10.3,29.55],[11.6,29.6],[12.9,29.3],[14,29]]){
+   const {x,y}=await point(coords);
+   await page.mouse.move(x,y,{steps:5});
+  }
+  await page.mouse.up({button:'right'});
+  assert(await page.evaluate(()=>groundLinePts?.length>2&&groundWorkAiming==='deploy'),'実際の長押しで曲線を引き前の側を待つ');
+  await tap([11,31]);await page.evaluate(()=>shotTick(frontReady));
+  await shot(page,'01-hold');
+
+  await page.click('#groundPlan');await tap([8,32.5]);await tap([14,32.5]);
+  assert(await page.evaluate(()=>groundFronts[0].plan&&frontReady()));
+  await page.click('#groundExecute');
+  const progress=await page.evaluate(()=>{
+   const front=groundFronts[0];
+   shotTick(()=>front.advance?.t>.34);
+   return {t:front.advance.t,curvePoints:front.pts.length,
+    stop:document.getElementById('groundExecute').getAttribute('aria-label')==='停止'&&document.getElementById('groundExecute').title.includes('停止')};
+  });
+  assert(progress.stop);
+  await shot(page,'02-advance');
+
+  const departure=await page.evaluate(()=>{
+   const front=groundFronts[0],f=front.members[1];
+   const group=f.order?.groundAdvance;select(f);
+   if(!group||f.order?.groundAdvance!==group)throw Error('選び直して進撃が途切れた');
+   groupOrder({type:'move',dest:groundPoint(10,26)});
+   shotTick(()=>f.groundFrontAway&&front.slots.length===3);
+   shotTick(()=>f.pos.z>groundPoint(10,28).z);
+   return {members:front.members.length,slots:front.slots.map(s=>s.fraction)};
+  });
+  assert.deepEqual(departure,{members:4,slots:[1/6,3/6,5/6]});
+  await shot(page,'03-departure');
+
+  const arrival=await page.evaluate(()=>{
+   const front=groundFronts[0],target=front.plan.pts;
+   const f=front.members[1];
+   shotTick(()=>!front.advance&&!f.groundFrontAway&&frontReady());
+   setSel(front.members);
+   return {arrived:front.pts===target&&!front.plan&&front.members.every(f=>f.groundDeployed),
+    execute:document.getElementById('groundExecute').getAttribute('aria-label')==='実行'};
+  });
+  assert(arrival.arrived&&arrival.execute);
+  await shot(page,'04-arrived');
+
+  const mobile=await browser.newPage({viewport:{width:390,height:780},deviceScaleFactor:3,isMobile:true,hasTouch:true});
+  mobile.on('pageerror',e=>errors.push(e.message));
+  const three=path.dirname(require.resolve('three/package.json'));
+  await mobile.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/,r=>{
+   const u=r.request().url(),rel=u.includes('cdnjs')?'build/three.min.js':u.split('three@0.128.0/')[1];
+   return r.fulfill({path:path.join(three,rel),contentType:'application/javascript'});
+  });
+  await mobile.route(/fonts\.(googleapis|gstatic)\.com/,r=>r.fulfill({body:''}));
+  await mobile.goto('file://'+path.join(ROOT,'index.html'));await mobile.waitForFunction(()=>window.WOS);
+  await mobile.evaluate(functions);
+  await mobile.evaluate(()=>{
+   shotSetup(true);
+   groundPlanToggle('deploy');
+   for(const q of [[8,29],[14,29],[11,31]])groundPlanTap(groundPoint(...q));
+   shotTick(frontReady);
+   groundPlanToggle('plan');groundPlanTap(groundPoint(8,32.5));groundPlanTap(groundPoint(14,32.5));groundPlanExecute();
+   shotTick(()=>groundFronts[0].advance?.t>.4);
+  });
+  await shot(mobile,'05-mobile');
+  console.log(JSON.stringify({progress,departure,arrival,pageErrors:errors.length}));
  }finally{await browser.close();}
-})().catch(e=>{console.error(e);process.exitCode=1;});
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

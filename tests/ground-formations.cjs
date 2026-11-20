@@ -58,7 +58,7 @@ function formationTick(seconds,simulate=false){
 function formationCases(){
  const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});formationScene();
  const units=orderTargets(),a=groundPoint(8,29),b=groundPoint(14,29);
- groundPlanToggle('deploy');groundPlanTap(a);groundPlanTap(b);
+ groundPlanToggle('deploy');groundPlanTap(a);groundPlanTap(b);groundPlanTap(groundPoint(11,31));
  check('布陣命令に旗',units.every(f=>f.order?.groundDeploy));
  for(let i=0;i<2000&&units.some(f=>f.order);i++)formationTick(.05,true);
  formationTick(2);check('布陣到着で防衛',units.every(f=>!f.order&&f.groundDeployed&&groundFormationState(f)==='defend'));
@@ -67,6 +67,7 @@ function formationCases(){
  formationTick(20,true);
  check('防衛は見本の位置',units.every(f=>{const form=f.groundModel.userData.formation,lay=groundLayouts(f,form.spec).defend,tol=Math.max(.15,groundBodyDims(form.spec).len*.6),used=new Set();
    return lay.every(t=>{let best=-1,bd=Infinity;form.bodies.forEach((p,i)=>{if(used.has(i))return;const d=Math.hypot(p.position.x-t.x,p.position.z-t.z);if(d<bd){bd=d;best=i;}});used.add(best);return bd<tol;});}));
+ document.getElementById('groundHold').click();
  for(const f of units)order(f,{type:'move',dest:f.pos.clone().add(new THREE.Vector3(0,0,4))});
  formationTick(.15,true);check('通常移動は移動隊形',units.every(f=>groundFormationState(f)==='move'&&!f.groundDeployed));
  for(let i=0;i<2000&&units.some(f=>f.order);i++)formationTick(.05,true);

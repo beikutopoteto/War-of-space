@@ -70,12 +70,12 @@ function groundAirCopyOrder(o){
  const points=o.path?.points?.slice(o.path.atIndex)||[...(o.via||[]),o.dest];
  return {type:'move',via:points.slice(0,-1).map(p=>p.clone()),dest:(points[points.length-1]||o.dest).clone()};
 }
-function groundCopyAirTask(f){return {order:groundAirCopyOrder(f.order),queue:(f.queue||[]).map(groundAirCopyOrder),strike:f.strike,
- plan:typeof groundCopyPlan==='function'?groundCopyPlan(f.groundPlan):null,salvo:f.groundAreaSalvo?{...f.groundAreaSalvo}:null,volley:groundCopyVolley(f.groundVolley),bomb:groundCopyBombRun(f.groundBombRun)};}
+function groundCopyAirTask(f){return {order:f.order?.groundFrontId?null:groundAirCopyOrder(f.order),queue:(f.queue||[]).map(groundAirCopyOrder),strike:f.strike,
+ salvo:f.groundAreaSalvo?{...f.groundAreaSalvo}:null,volley:groundCopyVolley(f.groundVolley),bomb:groundCopyBombRun(f.groundBombRun)};}
 function groundRestoreAirTask(f,task){
  if(!task)return;
  if(task.order&&(task.order.type!=='attack'||task.order.target?.alive&&groundSeenBy(f.team,task.order.target)))order(f,groundAirCopyOrder(task.order));
  f.queue=task.queue.filter(o=>o&&(o.type!=='attack'||o.target?.alive)).map(groundAirCopyOrder);f.strike=task.strike;
- f.groundPlan=typeof groundCopyPlan==='function'?groundCopyPlan(task.plan):null;f.groundAreaSalvo=groundRestoreSalvo(f,task.salvo);f.groundVolley=groundRestoreVolley(f,task.volley);f.groundBombRun=groundRestoreBombRun(f,task.bomb);
+ f.groundAreaSalvo=groundRestoreSalvo(f,task.salvo);f.groundVolley=groundRestoreVolley(f,task.volley);f.groundBombRun=groundRestoreBombRun(f,task.bomb);
  if(!f.order&&!f.groundAreaSalvo&&!f.groundBombRun)nextOrder(f);
 }

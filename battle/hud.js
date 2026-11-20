@@ -88,7 +88,7 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   if(op.ground&&o.type==='attack'&&!groundManualTargetAllowed(f,o.target))return;
-  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;groundFormationOrder(f,o);groundCancelWork(f);f.groundPlan=null;f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
+  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;if(f.groundFrontOf&&o.groundFrontId!==f.groundFrontOf.id)groundFrontRememberVia(f);groundFormationOrder(f,o);groundCancelWork(f);f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?(o.groundPreparedPath?.bridgeRevision===groundBridgeRevision&&o.groundPreparedPath.s===0&&Math.hypot(o.groundPreparedPath.points[0].x-f.pos.x,o.groundPreparedPath.points[0].z-f.pos.z)<1e-6?o.groundPreparedPath:groundMovePath(f.pos,[...(o.via||[]),o.dest],groundMoveKind(f))):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(op.ground)delete o.groundPreparedPath;
@@ -96,7 +96,7 @@ function order(f,o){
   if(op.ground&&o.type==='move') o.dest=o.path.points[o.path.points.length-1].clone();
   if(op.groundDrill)groundDrillEvent(o.type,f,o.type==='move'?o.dest:o.target);
   if(f.team===1&&!f.seen&&!(typeof revealMode!=='undefined'&&revealMode)) return;
-  if(o.type==='move') f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});
+  if(o.type==='move'&&!(op.ground&&o.groundAdvance&&f.team===0)) f.arrow=makeArrow(f.pos,o.dest,TEAM_COL[f.team],{curve:o.path.curve});   // 自軍の進撃は ground-plan.js の点滅する矢印
   else if(f.team===1) makeArrow(f.pos,o.target.pos,TEAM_COL[1],{life:3.5}); /* own fleets: a chase arrow that follows the target (loop.js) */
 }
 
