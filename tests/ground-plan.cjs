@@ -531,8 +531,12 @@ async function checkGroundPlanDrag(page,check){
  const planDone=await state(),sideAt={x:start.x+160,y:start.y};
  await page.mouse.move(sideAt.x,sideAt.y);
  const preview=await page.evaluate(()=>groundLinePts&&groundPlanSide(groundLinePts,groundLinePointer));
+ // ここで見るのは入力（前の側の選び方）だけ。引いた線が画面によって川に掛かり、道が見つからず確定しないことがある（CI）ので、
+ // この確かめのあいだは道を空の直線にする
+ await page.evaluate(()=>{window.__groundMovePath=groundMovePath;window.groundMovePath=(from,pts,kind,straight)=>window.__groundMovePath(from,pts,'air',straight);});
  await page.mouse.click(sideAt.x,sideAt.y);
  const committed=await page.evaluate(({x,y})=>{
+  window.groundMovePath=window.__groundMovePath;
   const plan=groundPlanUnits()[0]?.groundFrontOf?.plan;
   return {chosen:!!plan&&plan.side===groundPlanSide(plan.pts,groundAt(x,y)),message:groundPlanMessage};
  },sideAt);
