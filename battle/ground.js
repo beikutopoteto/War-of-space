@@ -23,6 +23,75 @@ function groundMembers(level,id){
   return fleets.filter(f=>f.team===0&&!f.ward&&f.alive&&!f.groundExited&&ids.includes(f.companyId));
 }
 function groundSelectUnit(level,id){ const list=groundMembers(level,id); if(list.length) setSel(list); }
+function groundCanReorganize(f){
+  return f.alive&&!f.groundExited&&f.groundKind!=='sea'&&!groundPermissionOnly(f)&&groundOrg.companies.some(c=>c.id===f.companyId);
+}
+function groundOrgSelection(targets){
+  const companies=[...new Set(targets.filter(groundCanReorganize).map(f=>f.companyId))];
+  const battalions=groundOrg.battalions.filter(b=>b.companies.some(id=>companies.includes(id))).map(b=>b.id);
+  return {companies,battalions};
+}
+function groundRefreshOrg(){
+  const empty=new Set(groundOrg.battalions.filter(b=>!b.companies.length).map(b=>b.id));
+  groundOrg.battalions=groundOrg.battalions.filter(b=>!empty.has(b.id));
+  for(const brigade of groundOrg.brigades)brigade.battalions=brigade.battalions.filter(id=>!empty.has(id));
+  groundOrg.brigades=groundOrg.brigades.filter(b=>b.battalions.length);
+  groundPlanColorRevision++; // 同じ中隊が前線に残っていても、所属が変われば色を引き直す。
+  buildRoster();updateRoster();
+}
+function groundNewFormation(level){
+  if(over)return;
+  const rules=window.WOS_GROUND_ORG, battalion=level==='battalions';
+  const children=battalion?'companies':'battalions', label=battalion?'大隊':'旅団', childLabel=battalion?'中隊':'大隊';
+  const max=battalion?rules.MAX_COMPANIES:rules.MAX_BATTALIONS, ids=groundOrgSelection(orderTargets())[children];
+  if(!ids.length)return;
+  if(ids.length>max){
+    logEvent(`${label}は${max}個${childLabel}まで`,`選んでいる${ids.length}個のうち、${max}個までにしてください。`);
+    return;
+  }
+  const items=groundOrg[level], usedNumbers=new Set(items.map(item=>unitNo(item.name)));
+  let number=1;while(usedNumbers.has(number))number++;
+  const prefix=battalion?'gb':'gr';
+  const usedIds=new Set(Object.values(groundOrg).flatMap(list=>list.map(item=>item.id)));
+  let serial=items.length+1;while(usedIds.has(prefix+serial))serial++;
+  const item={id:prefix+serial,name:`第${number} ${label}`,[children]:[]};
+  items.push(item);
+  for(const id of ids)rules.assign(groundOrg,children,id,item.id);
+  groundRefreshOrg();
+  groundSelectUnit(level,item.id);
+  logEvent(`${item.name} 編成`,`${ids.length}個の${childLabel}で${label}を作った。`);
+}
+function groundDisbandFormation(level,item){
+  if(over)return;
+  const battalion=level==='battalions';
+  if(battalion)window.WOS_GROUND_ORG.assign(groundOrg,'battalions',item.id,null);
+  groundOrg[level]=groundOrg[level].filter(x=>x!==item);
+  groundRefreshOrg();
+  logEvent(`${item.name} 解散`,battalion?'各中隊は独立中隊に戻った。':'各大隊は独立の大隊に戻った。');
+}
+function groundRosterDropZone(e,level){
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  if(!rosterEl.contains(el))return null;
+  if(level==='companies')return el.closest('.ground-rnode[data-level="battalions"], .ground-rfree');
+  return el.closest('.ground-rnode[data-level="brigades"]')||el.closest('.ground-rnode, .ground-rfree, .gnew')||rosterEl;
+}
+function groundRosterMove(level,source,zone){
+  if(over)return;
+  const company=level==='companies', id=company?source.companyId:source.id;
+  if(company&&!groundCanReorganize(source))return;
+  const parents=groundOrg[company?'battalions':'brigades'], parentId=zone.dataset.level===(company?'battalions':'brigades')?zone.dataset.id:null;
+  const from=parents.find(p=>p[level].includes(id)), to=parents.find(p=>p.id===parentId);
+  if(from===to)return;
+  const rules=window.WOS_GROUND_ORG, parentLabel=company?'大隊':'旅団', childLabel=company?'中隊':'大隊';
+  if(!rules.assign(groundOrg,level,id,parentId)){
+    const max=company?rules.MAX_COMPANIES:rules.MAX_BATTALIONS;
+    logEvent(`${parentLabel}は満員です`,`${parentLabel}に入れられる${childLabel}は${max}個までです。`);
+    return;
+  }
+  groundRefreshOrg();
+  logEvent(to?`${source.name} ${to.name}へ`:`${source.name} 独立行動へ`,
+    to?`${source.name}が${to.name}の指揮下に入った。`:`${source.name}が${from.name}を離れ、独立${childLabel}になった。`);
+}
 function groundBuildRoster(mk){
   groundPlanClosePalette();
   groundRosterNodes=[];fleets.forEach(f=>{f.btn=null;f.stBtn=null;});
@@ -32,11 +101,14 @@ function groundBuildRoster(mk){
     const fold=document.createElement('button');fold.className='ground-fold';fold.textContent=item.open===false?'＋':'−';fold.setAttribute('aria-expanded',String(item.open!==false));fold.setAttribute('aria-label',item.name+'を開閉');
     fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
     const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
+    if(level==='battalions')dragSource(pick,item,level);
+    const disband=document.createElement('button');disband.className='st rgDel';disband.textContent='解散';disband.setAttribute('aria-label',item.name+'を解散');
+    disband.onclick=()=>groundDisbandFormation(level,item);
     const meters=document.createElement('small');meters.className='ground-summary';
     /* 旅団・大隊の全隊の自動交戦/命令優先（宇宙の戦区軍の「全自動／全命令」と同じ。ユーザーの指示 2026-11-21） */
     const stance=document.createElement('button');stance.className='st rgStance';stance.title=item.name+'の全隊の自動交戦/命令優先をまとめて切り替える';
     stance.onclick=()=>{const m=groundStanceMembers(level,item.id);if(m.length)applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',item.name+' 全隊');};
-    head.append(fold,pick,meters,stance,groundPlanRosterSwatch(level,item));node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters,stance});
+    head.append(fold,pick,meters,disband,stance,groundPlanRosterSwatch(level,item));node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters,stance});
     head.addEventListener('pointerenter',()=>showGroundSummaryTip(level,item,head));head.addEventListener('pointerleave',hideTip);
     if(item.open===false)return;
     const body=document.createElement('div');body.className='ground-rbody';node.append(body);
@@ -50,7 +122,15 @@ function groundBuildRoster(mk){
   groundOrg.brigades.forEach(b=>branch('brigades',b,rosterEl));
   groundOrg.battalions.filter(b=>!groundOrg.brigades.some(p=>p.battalions.includes(b.id))).forEach(b=>branch('battalions',b,rosterEl));
   const free=groundOrg.companies.filter(c=>!groundOrg.battalions.some(b=>b.companies.includes(c.id)));
-  if(free.length){const title=document.createElement('small');title.textContent='独立中隊';rosterEl.append(title);companies(free.map(c=>c.id),rosterEl);}
+  const loose=document.createElement('div');loose.className='ground-rfree';
+  const title=document.createElement('small');title.textContent='独立中隊';loose.append(title);
+  if(free.length)companies(free.map(c=>c.id),loose);
+  rosterEl.append(loose);
+  const create=document.createElement('div');create.className='gnew';
+  create.innerHTML='<button type="button">＋大隊</button><button type="button">＋旅団</button><span></span>';
+  create.children[0].onclick=()=>groundNewFormation('battalions');
+  create.children[1].onclick=()=>groundNewFormation('brigades');
+  rosterEl.append(create);
 }
 function groundOpenSelected(list){
   if(list.some(f=>f.groundExited)){setSel(list.filter(f=>!f.groundExited));return;}
@@ -64,6 +144,11 @@ function groundUpdateRoster(targets){
   for(const {level,item,pick,meters,stance} of groundRosterNodes){const m=groundMembers(level,item.id);groundSupplyUpdateMeters(meters,m);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));
     const s=groundStanceMembers(level,item.id),ev=s.filter(f=>f.stance==='evade').length;
     stance.textContent='全'+(!s.length?'—':ev===s.length?'命令':ev?'混在':'自動');stance.dataset.st=s.length&&ev===s.length?'evade':ev?'mixed':'engage';stance.disabled=!s.length;}
+  const [battalion,brigade,count]=rosterEl.querySelector('.gnew').children;
+  const {companies,battalions}=groundOrgSelection(targets);
+  battalion.disabled=over||!companies.length;
+  brigade.disabled=over||!battalions.length;
+  count.textContent=`${companies.length}隊を選択中`;
 }
 function groundRules(){ return groundRuleSet().bands; }
 // 元の艦種の完成値を通常の換算式で読む。研究・陣営差・編成ボーナス・共通倍率は掛けない。
