@@ -614,7 +614,10 @@ function groundPathRiverTable(d,rivers){
   return table;
 }
 function groundPathWithin(x,y,b,pad=0){return x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;}
-function groundPath(from,to,kind='vehicle',dryOnly=false){
+/* straight: 道路を速い道として選ばない（進撃の道。ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。
+   道路は沼地の遅さを打ち消すだけ（倍率1）。海・池・川・沼地の扱いは同じ。実際に動く速さは、足元の道路で今までどおり上がる */
+function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
+  const roadFactor=straight?1:groundRuleSet().movement.roadFactor;
   const d=groundData(),rules=groundRuleSet(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
@@ -668,7 +671,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     const factor=riverFactor(x,y,centerIndex);
     return dryOnly&&factor!==1?0:factor;
   }
-  const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'?1:Math.max(1,rules.movement.roadFactor,...Object.values(rules.movement.marsh),...Object.values(rules.movement.river));
+  const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'?1:Math.max(1,roadFactor,...Object.values(rules.movement.marsh),...Object.values(rules.movement.river));
   if(a.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||b.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
   const centers=i=>new THREE.Vector3(groundWorldX((i%cols+.5)*cell),0,groundWorldZ((Math.floor(i/cols)+.5)*cell));
   // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
@@ -685,12 +688,12 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     if(kind==='sea'&&!groundSeaLeg(p,q))return Infinity;
     const length=Math.hypot(q.x-p.x,q.z-p.z),n=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/8)));
     let sum=0;const ax=p.x/GROUND_SCALE+halfWidth,ay=halfHeight-p.z/GROUND_SCALE,dx=(q.x-p.x)/GROUND_SCALE,dy=-(q.z-p.z)/GROUND_SCALE;
-    if(kind!=='sea'&&onRoad.coversLeg(ax,ay,ax+dx,ay+dy)&&dryRoadLeg(ax,ay,ax+dx,ay+dy))return length/(cell*GROUND_SCALE*rules.movement.roadFactor);
+    if(kind!=='sea'&&onRoad.coversLeg(ax,ay,ax+dx,ay+dy)&&dryRoadLeg(ax,ay,ax+dx,ay+dy))return length/(cell*GROUND_SCALE*roadFactor);
     for(let k=0;k<=n;k++){
       const t=k/n,gx=ax+dx*t,gy=ay+dy*t,water=waterFactor(gx,gy);
       if(water<=0)return Infinity;
       const marsh=kind!=='sea'&&terrainCells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?marshSpeed:1;
-      const factor=(kind!=='sea'&&onRoad(gx,gy)?rules.movement.roadFactor:marsh)*water;if(factor<=0)return Infinity;
+      const factor=(kind!=='sea'&&onRoad(gx,gy)?roadFactor:marsh)*water;if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
     return length/(cell*GROUND_SCALE)*sum/n;
@@ -703,7 +706,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
     return {cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
   }
   const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
-  const profileKey=JSON.stringify([kind==='sea',dryOnly,rules.movement.marsh[kind]??1,rules.movement.river[kind]??0]);
+  const profileKey=JSON.stringify([kind==='sea',dryOnly,rules.movement.marsh[kind]??1,rules.movement.river[kind]??0,straight]);
   let profile=gridCache.profiles.get(profileKey);
   if(!profile){profile={edgeCosts:new Float64Array(cols*rows*4).fill(NaN),centerWater:new Float64Array(cols*rows).fill(NaN),centers:new Map()};gridCache.profiles.set(profileKey,profile);}
   const {edgeCosts,centerWater}=profile;
@@ -770,23 +773,23 @@ function groundPath(from,to,kind='vehicle',dryOnly=false){
   // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
   // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
   if(!dryOnly&&kind!=='sea'&&rules.movement.river[kind]>0&&points.some(p=>riverFactor(groundMapX(p.x),groundMapY(p.z))<1)){
-    const detour=groundPath(from,to,kind,true);
+    const detour=groundPath(from,to,kind,true,straight);
     if(detour&&detour.cost<cost)return detour;
   }
   return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L,s:0,pts:[points[points.length-1]],at:[L]};
 }
-// 地形の迂回点とユーザーの経由地を分け、矢印と実移動には同じ経路を使う。
-function groundMovePath(from,waypoints,kind){
+// 地形の迂回点とユーザーの経由地を分け、矢印と実移動には同じ経路を使う。straight は groundPath と同じ（橋が変わって引き直すときも保つ）
+function groundMovePath(from,waypoints,kind,straight=false){
   const points=[from.clone()],pts=[],at=[],curve=new THREE.CurvePath();let cost=0,length=0;
   for(const dest of waypoints){
-    const leg=groundPath(points[points.length-1],dest,kind);if(!leg)return null;
+    const leg=groundPath(points[points.length-1],dest,kind,false,straight);if(!leg)return null;
     for(const p of leg.points.slice(1)){
       const prev=points[points.length-1];length+=Math.hypot(p.x-prev.x,p.z-prev.z);
       curve.add(new THREE.LineCurve3(prev,p));points.push(p);
     }
     pts.push(points[points.length-1].clone());at.push(length);cost+=leg.cost||0;
   }
-  return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L:curve.getLength(),s:0,pts,at};
+  return {bridgeRevision:groundBridgeRevision,cost,curve,points,atIndex:1,L:curve.getLength(),s:0,pts,at,...(straight?{straight}:{})};
 }
 /* 進撃（共有命令の実行）の組は、まだ進撃中の生きている地上の隊のうち、いちばん遅い隊の今の速さで進む（ユーザー決定 2026-11-14）。
    航空は数えない。地形・道路の速さの倍率は各隊の足元で今までどおり掛かる */
@@ -795,7 +798,7 @@ function groundAdvanceSpeed(f){
   let slowest=own;for(const u of g.units)if(u!==f&&u.alive&&u.order?.groundAdvance===g&&groundMoveKind(u)!=='air')slowest=Math.min(slowest,speedOf(u));
   return slowest;
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f));if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=groundAdvanceSpeed(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
+function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f),p.straight);if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=groundAdvanceSpeed(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
     /* 経路は検査点（セルの1/8ごと）で確かめるので、検査点のあいだに細い水際が残ることがある（橋の端の角など）。
        そこで止まったままにしない: 今いる所が通れなければ次の点の速さで抜け、進んだ先が細い水際なら、その先の通れる所まで（検査点の間隔の2倍まで）進める。
        それより広い水は今までどおり手前で止まる（2026-11-14、戦車が橋の上で止まる不具合） */

@@ -263,20 +263,24 @@ function planCases(){
  const data=groundData(),fords=data.objects.fords;
  const north=p(23.5,29),central=p(22.5,21),rivers=data.water.rivers.map(r=>({id:r.id,points:r.points.map(([x,y])=>p(x,y))}));
  const crossing=(path,sites)=>groundFrontCrossed(path,rivers,sites)?.pos;
+ // 進撃の道は道路の速さで選ばない（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）
+ const roadA=p(10,24),roadB=p(30,24),fastRoad=groundMovePath(roadA,[roadB],'vehicle'),straightRoad=groundMovePath(roadA,[roadB],'vehicle',true);
+ check('短い道は道路に寄らず、早く着く道より短く、直線の1.05倍以内',straightRoad.straight&&!fastRoad.straight&&
+  straightRoad.L<fastRoad.L&&straightRoad.L<=1.05*groundPlanDistance(roadA,roadB));
  try{
   data.objects.fords=[];
   const sites=groundFrontCrossings(data);
   const tanks=Array.from({length:4},(_,i)=>unit(20,25+i*.35,'vehicle'));
   const slots=tanks.map((f,i)=>({f,dest:p(26,25.5+i*.35)}));
   const count=(routes,at)=>routes.filter(r=>crossing(r.path,sites)?.equals(at)).length;
-  const shortest=slots.map(s=>({...s,path:groundMovePath(s.f.pos,[s.dest],'vehicle')}));
+  const shortest=slots.map(s=>({...s,path:groundMovePath(s.f.pos,[s.dest],'vehicle',true)}));
   const corridor=(lo,hi)=>({
    pts:[p(20,lo),p(20,hi)],plan:{pts:[p(26,lo),p(26,hi)]},via:new Map(),passed:new Map()
   });
   const one=corridor(20,27),two=corridor(20,30),none=corridor(24,28);
   const single=groundFrontRoutes(one,slots,true),spread=groundFrontRoutes(two,slots,true);
   check('回廊外の北橋が4隊の最短路でも、回廊内の中央橋に全隊を通す',
-   count(shortest,north)===4&&count(single,central)===4);
+   count(shortest,north)===4&&count(single,central)===4&&single.every(r=>r.path.straight));
   check('回廊に橋が2つあれば進撃を2隊ずつに分ける',count(spread,north)===2&&count(spread,central)===2);
   const fallback=groundFrontRoutes(none,slots,true);
   check('回廊に橋が無いときは各隊が最短路をそのまま使う',fallback.every(({path},i)=>
@@ -305,8 +309,9 @@ function planCases(){
   check('近い端につなぐと交差する場合は、交差しない端へ結ぶ',groundFrontCorridor(short,long)[2]===long[1]);
 
   const align=[p(26,14),p(26,27)],alignSlots=groundPlanSlots(tanks,align,1);
-  check('前線への整列も現在地と前線の凸包に橋が1つなら4隊ともそこを渡る',
-   count(groundFrontRoutes({pts:align},alignSlots,false),central)===4);
+  const aligned=groundFrontRoutes({pts:align},alignSlots,false);
+  check('前線への整列も現在地と前線の凸包に橋が1つなら4隊ともそこを渡る（道は今までどおり早く着く道）',
+   count(aligned,central)===4&&aligned.every(r=>!r.path.straight));
   for(const [i,f] of tanks.entries())f.pos.copy(p(21,29+i*.15));
   setSel(tanks);const common=p(26,26);groupOrder({type:'move',dest:common});
   check('通常移動は割り振らず全隊が同じ目的地へ最短路で進む',
