@@ -70,6 +70,7 @@ function runMenuChecks(){
   assert.equal(node('goQuick').hidden,false);count++;
   node('goQuick').onclick();
   assert.equal(calls.at(-1).fleets.length,11);count++;
+  assert.equal(calls.at(-1).quickOrg,true);count++;
   check("onEnd('baikonur',true)===''&&!cleared('baikonur')&&prog().funds===167",'クイックは報酬・クリア記録なし');
   node('goBattle').onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),{op:'baikonur'});count++;

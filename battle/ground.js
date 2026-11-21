@@ -2,9 +2,14 @@
 const GROUND_BAND_NAMES={ground:'地上',low:'低',high:'高',sea:'海面'};
 let groundView='all', groundVisuals=null, groundGrids={};
 let groundOrg=null, groundRosterNodes=[];
+// org: 出撃の編成。null なら全隊が独立中隊。'quick' はクイック出撃で、兵科で旅団・大隊にまとめる（WOS_GROUND_ORG.quickOrg）。
 function groundInitOrg(org){
+  const quick=org==='quick';if(quick)org=null;
   groundOrg=org?JSON.parse(JSON.stringify(org)):{companies:fleets.filter(f=>f.team===0&&f.groundKind!=='sea').map(f=>({id:'unit'+f.id,name:f.name,kind:f.groundKind})),battalions:[],brigades:[]};
   if(org)fleets.filter(f=>f.team===0&&f.groundFixed).forEach(f=>groundOrg.companies.push({id:'unit'+f.id,name:f.name,kind:f.groundKind}));
+  // 固定配備の地上隊は、保存の編成で出るときと同じく独立中隊のまま。
+  if(quick){const fixed=new Set(fleets.filter(f=>f.team===0&&f.groundFixed).map(f=>'unit'+f.id));
+    Object.assign(groundOrg,window.WOS_GROUND_ORG.quickOrg(groundOrg.companies.filter(c=>!fixed.has(c.id))));}
   // 固定配備の艦は独立部隊として加える。保存中の中隊・大隊には混ぜない。
   fleets.filter(f=>f.team===0&&f.groundKind==='sea').forEach(f=>groundOrg.companies.push({id:'sea'+f.id,name:f.name,kind:'sea'}));
   const mine=fleets.filter(f=>f.team===0);

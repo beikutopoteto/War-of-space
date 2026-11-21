@@ -27,6 +27,16 @@ function nodeChecks(){
   check(`(()=>{const o=G.defaults();o.companies.push({id:'gc7',name:'迷子',kind:'scout'},{id:'gc8',name:'迷子2',kind:'artillery',platoons:2});const n=G.normalize(o),b=n.battalions.find(b=>b.companies.includes('gc7'));return n.battalions.length===3&&b&&b.companies.join()==='gc7,gc8'&&b.name==='第3 大隊'&&!n.brigades[0].battalions.includes(b.id)&&n.companies.find(c=>c.id==='gc8').platoons===2;})()`);
   check(`(()=>{const o=G.defaults(),c=G.addCompany(o,'gb1','artillery'),first={platoons:c.platoons,name:c.name};const full=G.addCompany(o,'gb1','infantry');const kind=G.setKind(o,c.id,'guidedRocket'),pl=G.setPlatoons(o,c.id,2);return !full&&first.platoons===4&&first.name==='第7 自走砲中隊'&&c.name==='第7 無誘導ロケット中隊'&&kind&&pl&&c.platoons===2&&o.battalions[0].companies.length===4&&G.platoonsOf(G.companiesOf(o,'brigades','gr1'))===26;})()`);
   check(`(()=>{const o=G.defaults();G.setKind(o,'gc1','scout');return o.companies[0].name==='第1 戦車中隊'&&o.companies[0].kind==='scout';})()`);
+  // クイック出撃の編成（ユーザーの指示 2026-11-21）: 歩兵と自走砲／戦車・補給・重歩兵・APC／それ以外 の3大隊を1旅団に。あふれは次の大隊・旅団へ。
+  check(`(()=>{const q=WOS_DATA.operations.find(o=>o.id==='baikonur').quick.map((u,i)=>({id:'u'+i,kind:u.kind})),o=G.quickOrg(q),k=b=>b.companies.map(id=>q.find(c=>c.id===id).kind).sort().join();
+    return o.brigades.length===1&&o.brigades[0].name==='第1 旅団'&&o.brigades[0].battalions.join()==='qb1,qb2,qb3'&&o.battalions.map(b=>b.name).join()==='第1 大隊,第2 大隊,第3 大隊'&&
+      k(o.battalions[0])==='artillery,heavyInfantry,infantry'&&k(o.battalions[1])==='apc,infantry,supply,vehicle'&&k(o.battalions[2])==='attack,engineer,mobileAA,scout'&&
+      o.battalions[1].companies.includes('u'+WOS_DATA.operations.find(o=>o.id==='baikonur').quick.findLastIndex(u=>u.kind==='infantry'));})()`);
+  check(`(()=>{const o=G.quickOrg([{id:'i',kind:'infantry'},{id:'a',kind:'artillery'},{id:'h',kind:'heavyInfantry'},{id:'t',kind:'vehicle'}]);
+    return o.battalions[0].companies.join()==='i,a'&&o.battalions[1].companies.join()==='h,t';})()`);
+  check(`(()=>{const q=[...Array(6)].map((_,i)=>({id:'i'+i,kind:'infantry'})).concat({id:'t',kind:'vehicle'}),o=G.quickOrg(q);
+    return o.battalions.map(b=>b.companies.length).join()==='4,2,1'&&o.battalions[2].companies[0]==='t'&&o.brigades.length===1&&o.brigades[0].battalions.length===3;})()`);
+  check(`(()=>{const o=G.quickOrg([...Array(17)].map((_,i)=>({id:'i'+i,kind:'infantry'})));return o.battalions.length===5&&o.brigades.map(b=>b.battalions.length).join()==='4,1'&&o.brigades[1].name==='第2 旅団';})()`);
   for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
     check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
   }
