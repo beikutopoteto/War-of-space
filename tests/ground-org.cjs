@@ -1,4 +1,4 @@
-/* node tests/ground-org.cjs: ブラウザ不要。npm test では実画面の編集・再読込・一括命令も確認。 */
+/* node tests/ground-org.cjs: ブラウザ不要。npm test では保存・一括命令・戦闘中の編成変更も確認。 */
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert/strict');
 const ROOT=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(ROOT,p),'utf8');
@@ -114,10 +114,129 @@ async function checkGroundOrg(page,check){
       return r;
     });
     for(const [name,ok] of Object.entries(stance))check(ok,'地上編成の全自動／全命令: '+name);
+    await checkBattleOrg(page,check);
+    await openOrg();
+    assert.deepEqual(await saved(),edited,'戦闘から戻った準備画面で保存編成が同じ');
+    check(await page.locator('#orgList [data-ground-unit]').count()===1,'戦闘中の編成変更: 準備画面に戻っても保存編成は同じ');
   }finally{
     await page.evaluate(s=>{if(s===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',s);},original);
     await page.reload();
   }
+}
+async function checkBattleOrg(page,check){
+  const initial=await page.evaluate(()=>{
+    const exercise=OPS.find(o=>o.id==='groundExercise2');
+    WOS.start({op:exercise.id,fleets:exercise.quick,quickOrg:true});
+    if(talking)endTalk();
+    if(deploying)endDeploy();
+    setSpeed(0);
+    renderer.setPixelRatio(.5); // 一覧は等倍のまま、ソフトウェア描画での待ち時間を減らす。
+    const mine=fleets.filter(f=>f.team===0);
+    return {
+      order:mine.filter(f=>f.groundKind!=='sea').map(f=>f.companyId),
+      free:mine.filter(f=>f.groundFixed&&f.groundKind!=='sea').map(f=>f.companyId),
+      sea:mine.find(f=>f.groundKind==='sea').companyId,
+      tiles:Object.fromEntries(mine.map(f=>[f.companyId,f.btn.id])),
+      battalions:groundOrg.battalions,
+      brigade:groundOrg.brigades[0].id,
+      companyCount:groundOrg.companies.length
+    };
+  });
+  const {order,free,sea,tiles,battalions,brigade,companyCount}=initial;
+  const [infantry,,air]=battalions;
+  const node=(level,id)=>page.locator(`#roster [data-level="${level}"][data-id="${id}"]`);
+  const head=(level,id,part)=>node(level,id).locator('> .ground-rhead '+part);
+  const tile=id=>page.locator('#roster #'+tiles[id]);
+  const picked=()=>page.evaluate(()=>orderTargets().map(f=>f.companyId));
+  const org=()=>page.evaluate(()=>groundOrg);
+  const log=()=>page.locator('#bh').textContent();
+  const addBattalion=page.getByRole('button',{name:'＋大隊',exact:true});
+  const addBrigade=page.getByRole('button',{name:'＋旅団',exact:true});
+  const loose=page.locator('#roster .ground-rfree');
+  const drag=async(source,target)=>{
+    const center=async locator=>{
+      const {x,y,width,height}=await locator.boundingBox();
+      return [x+width/2,y+height/2];
+    };
+    const start=await center(source),end=await center(target);
+    await page.mouse.move(...start);
+    await page.mouse.down();
+    await page.mouse.move(...end,{steps:2});
+    assert.equal(await page.locator('.dragGhost').count(),1,'8pxを超えるとドラッグを開始');
+    assert.equal(await page.locator('#roster .drop').count(),1,'ドラッグ先を強調');
+    await page.mouse.up();
+    assert.equal(await page.locator('.dragGhost, #roster .drop').count(),0,'ドラッグ終了で影と強調表示を解除');
+  };
+
+  await tile(sea).click();
+  check(await addBattalion.isDisabled()&&await addBrigade.isDisabled()&&await page.locator('#roster .gnew span').textContent()==='0隊を選択中','戦闘中の編成変更: 海の艦は数えない');
+  await tile(free[0]).click();
+  check((await picked()).join()===free[0],'戦闘中の編成変更: 中隊のマスをクリックすると選択');
+  await tile(free[1]).click({modifiers:['Shift']});
+  check(await addBrigade.isDisabled()&&await page.locator('#roster .gnew span').textContent()==='2隊を選択中','戦闘中の編成変更: 独立中隊2つを選択すると＋大隊が使える');
+  await addBattalion.click();
+  const made=(await org()).battalions.at(-1);
+  const members=(level,id)=>page.evaluate(([level,id])=>groundMembers(level,id).map(f=>f.companyId),[level,id]);
+  check(made.name==='第4 大隊'&&(await members('battalions',made.id)).join()===free.join()&&
+    (await picked()).join()===free.join()&&!(await org()).brigades.some(b=>b.battalions.includes(made.id)),
+  '戦闘中の編成変更: 独立中隊2つから独立大隊を作り、配下を選択');
+  await addBrigade.click();
+  const formed=(await org()).brigades.at(-1);
+  check(formed.name==='第2 旅団'&&formed.battalions.join()===made.id&&(await picked()).join()===free.join(),
+    '戦闘中の編成変更: 新しい旅団の配下を選択');
+
+  await head('brigades',brigade,'.grpBtn').click({position:{x:10,y:10}});
+  await addBrigade.click();
+  const reorganized=(await org()).brigades.at(-1);
+  check(reorganized.name==='第3 旅団'&&reorganized.battalions.join()===battalions.map(b=>b.id).join()&&
+    !(await org()).brigades.some(b=>b.id===brigade),'戦闘中の編成変更: 大隊を移し、空の旅団を削除');
+  for(const [i,id] of order.slice(0,5).entries())await tile(id).click(i?{modifiers:['Shift']}:{});
+  const before=await org();
+  await addBattalion.click();
+  check(JSON.stringify(await org())===JSON.stringify(before)&&await log()==='大隊は4個中隊まで','戦闘中の編成変更: 5個中隊では作らず上限を記録');
+
+  const [moving]=infantry.companies;
+  const colors=await page.evaluate(([id,from,to])=>{
+    groundPlanSetColor('battalions',groundOrg.battalions.find(b=>b.id===from),GROUND_PLAN_COLORS[3]);
+    groundPlanSetColor('battalions',groundOrg.battalions.find(b=>b.id===to),GROUND_PLAN_COLORS[9]);
+    window.orgTestFront={members:[fleets.find(f=>f.companyId===id)]};
+    return {first:groundPlanSectionColors(window.orgTestFront)[0],expected:GROUND_PLAN_COLORS[9]};
+  },[moving,infantry.id,air.id]);
+  await drag(tile(moving),head('battalions',air.id,'.grpBtn'));
+  const filled=await org();
+  check(filled.battalions.find(b=>b.id===air.id).companies.length===4&&
+    (await members('battalions',air.id)).includes(moving)&&!filled.battalions.some(b=>b.id===infantry.id)&&
+    !filled.brigades.some(b=>b.battalions.includes(infantry.id)),
+  '戦闘中の編成変更: 中隊を移し、空の大隊と旅団内の参照を削除');
+  const colorAfter=await page.evaluate(()=>groundPlanSectionColors(window.orgTestFront)[0]);
+  check(colors.first!==colors.expected&&colorAfter===colors.expected,'戦闘中の編成変更: 既設の前線にも移動先の大隊色を反映');
+  const selectionBefore=await picked();
+  await drag(tile(free[0]),head('battalions',air.id,'.grpBtn'));
+  check(JSON.stringify(await org())===JSON.stringify(filled)&&await log()==='大隊は満員です'&&
+    (await picked()).join()===selectionBefore.join(),'戦闘中の編成変更: 満員の大隊へは移せず、ドラッグで選択も変わらない');
+  await tile(free[0]).click();
+  check((await picked()).join()===free[0],'戦闘中の編成変更: ドラッグ直後の通常クリックも選択');
+  await drag(head('battalions',made.id,'.grpBtn'),head('brigades',reorganized.id,'.grpBtn'));
+  const movedBattalion=await org();
+  check(movedBattalion.brigades.find(b=>b.id===reorganized.id).battalions.includes(made.id)&&
+    !movedBattalion.brigades.some(b=>b.id===formed.id)&&(await picked()).join()===free[0],
+  '戦闘中の編成変更: 大隊を別の旅団へ移し、空の旅団を削除');
+  await drag(tile(free[1]),loose.getByText('独立中隊',{exact:true}));
+  check(!(await org()).battalions.some(b=>b.companies.includes(free[1]))&&await loose.locator('#'+tiles[free[1]]).count()===1,
+    '戦闘中の編成変更: 独立中隊の見出しへ落とすと独立行動');
+  await drag(head('battalions',made.id,'.grpBtn'),loose.locator('.tiles'));
+  check(!(await org()).brigades.some(b=>b.battalions.includes(made.id))&&(await org()).battalions.some(b=>b.id===made.id),
+    '戦闘中の編成変更: 旅団の外に落とすと独立の大隊');
+  await head('brigades',reorganized.id,'.rgDel').click();
+  const dispersed=await org();
+  check(!dispersed.brigades.length&&dispersed.battalions.length===movedBattalion.battalions.length,
+    '戦闘中の編成変更: 旅団を解散しても配下の大隊は残る');
+  await head('battalions',made.id,'.rgDel').click();
+  const disbanded=await org();
+  check(disbanded.companies.length===companyCount&&!disbanded.battalions.some(b=>b.id===made.id||b.companies.includes(free[0]))&&
+    await loose.locator('#'+tiles[free[0]]).count()===1,'戦闘中の編成変更: 大隊を解散しても中隊は独立で残る');
+  await page.evaluate(()=>{delete window.orgTestFront;end(false,true);});
+  await page.click('#toMenu');
 }
 module.exports={checkGroundOrg};
 if(require.main===module){try{nodeChecks();}catch(e){console.error(e);process.exitCode=1;}}

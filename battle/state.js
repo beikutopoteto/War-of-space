@@ -257,16 +257,48 @@ function fillTip(){
   const types=[...new Set([...(f.types0||[]),...Object.keys(by)])].sort((a,b)=>NAME_RANK.indexOf(b)-NAME_RANK.indexOf(a)), set=window.WOS_OPT&&WOS_OPT.markSet;
   rosterTip.innerHTML=`<b>${f.name}</b><small>${f.n}隻のうち${f.ships.length}隻・耐久${Math.round(100*f.ships.length/f.n)}%・${f.stance==='evade'?'命令優先':'自動交戦'}</small>`+
     types.map(t=>`<div class="r${by[t]?'':' z'}"><span class="mk">${window.WOS_MARKS?WOS_MARKS.svg(t,set):''}</span><span>${shipLabel(t)}</span><em>×${by[t]||0}</em></div>`).join(''); }
-function dragSource(b,f){
-  let st=null,ghost=null;
-  b.addEventListener('pointerdown',e=>{ st={x:e.clientX,y:e.clientY,id:e.pointerId}; });
-  b.addEventListener('pointermove',e=>{ if(!st||e.pointerId!==st.id||!groups.length) return;
+function dragSource(b,f,level='companies'){
+  const ground=!!op.ground;
+  if(ground&&level==='companies'&&!groundCanReorganize(f)) return;
+  let st=null,ghost=null,drop=null;
+  const target=ground?window:b;
+  const findZone=ground?e=>groundRosterDropZone(e,level):zoneAt;
+  const move=e=>{ if(!st||e.pointerId!==st.id||(ground?!b.isConnected:!groups.length)) return;
     if(!ghost&&Math.hypot(e.clientX-st.x,e.clientY-st.y)>8){ b.setPointerCapture(e.pointerId); ghost=document.createElement('div'); ghost.className='dragGhost'; ghost.textContent=f.name; document.body.appendChild(ghost); b.classList.add('dragging'); }
-    if(ghost){ ghost.style.transform=`translate(${e.clientX+10}px,${e.clientY+6}px)`; const z=zoneAt(e); rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.toggle('drop',x===z)); } });
-  const end=e=>{ if(ghost){ const z=zoneAt(e); ghost.remove(); ghost=null; b._dragged=true; b.classList.remove('dragging');
-      if(z&&f.alive) moveToGroup(f,z.dataset.zone==='group'?groups[+z.dataset.g]:null); }
-    st=null; rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.remove('drop')); };
-  b.addEventListener('pointerup',end); b.addEventListener('pointercancel',end);
+    if(ghost){ ghost.style.transform=`translate(${e.clientX+10}px,${e.clientY+6}px)`; const z=findZone(e);
+      if(ground){ hideTip();drop?.classList.remove('drop');z?.classList.add('drop');drop=z; }
+      else rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.toggle('drop',x===z)); } };
+  const end=e=>{
+    if(ground&&(!st||e.pointerId!==st.id)) return;
+    const z=ghost&&(!ground||e.type==='pointerup'&&b.isConnected)?findZone(e):null;
+    if(ghost){ ghost.remove();ghost=null;b._dragged=true;b.classList.remove('dragging'); }
+    st=null;
+    if(ground){
+      target.removeEventListener('pointermove',move);target.removeEventListener('pointerup',end);target.removeEventListener('pointercancel',end);
+      drop?.classList.remove('drop');drop=null;
+      if(z)groundRosterMove(level,f,z);
+    }else{
+      if(z&&f.alive) moveToGroup(f,z.dataset.zone==='group'?groups[+z.dataset.g]:null);
+      rosterEl.querySelectorAll('.rzone').forEach(x=>x.classList.remove('drop'));
+    }
+  };
+  b.addEventListener('pointerdown',e=>{
+    if(ground){
+      if(st||e.button!==0) return;
+      b._dragged=false;
+      target.addEventListener('pointermove',move);target.addEventListener('pointerup',end);target.addEventListener('pointercancel',end);
+    }
+    st={x:e.clientX,y:e.clientY,id:e.pointerId};
+  });
+  if(ground){
+    b.addEventListener('click',e=>{
+      if(!b._dragged) return;
+      b._dragged=false;
+      if(e.detail){ e.preventDefault();e.stopImmediatePropagation(); }
+    },true);
+  }else{
+    target.addEventListener('pointermove',move);target.addEventListener('pointerup',end);target.addEventListener('pointercancel',end);
+  }
 }
 function zoneAt(e){ const el=document.elementFromPoint(e.clientX,e.clientY); return el&&el.closest?el.closest('.rzone'):null; }
 function groupOf(f){ return groups.find(g=>g.members.has(f))||null; }
