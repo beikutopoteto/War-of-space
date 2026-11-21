@@ -165,14 +165,55 @@ function groundFrontRememberVia(f){
   if(front?.advance&&f.order?.groundAdvance===front.advance.group&&front.via.has(f))
     front.passed.set(f,groundFrontViaIndex(front,f));
 }
-const GROUND_FRONT_CROSS_DETOUR=2,GROUND_FRONT_CROSS_NEAR_KM=.9;
+const GROUND_FRONT_CORRIDOR_MARGIN_KM=.3,GROUND_FRONT_CROSS_NEAR_KM=.9;
+const groundFrontTurn=(a,b,c)=>(b.x-a.x)*(c.z-a.z)-(b.z-a.z)*(c.x-a.x);
+function groundFrontEdgesCross(a,b,c,d){
+  return groundFrontTurn(a,b,c)*groundFrontTurn(a,b,d)<0&&groundFrontTurn(c,d,a)*groundFrontTurn(c,d,b)<0;
+}
+function groundFrontCorridor(from,to){
+  const a=from[0],b=from[from.length-1],c=to[0],d=to[to.length-1];
+  // 近い端を先に試す。つなぎが互いに、または曲線の途中で交差するときはもう一方を試す。
+  const crosses=(start,end)=>{
+    if(groundFrontEdgesCross(b,start,end,a))return true;
+    return [from,to].some(line=>line.some((p,i)=>i&&(
+      groundFrontEdgesCross(b,start,line[i-1],p)||groundFrontEdgesCross(end,a,line[i-1],p)
+    )));
+  };
+  let reverse=groundPlanDistance(b,d)<=groundPlanDistance(b,c);
+  const [start,end]=reverse?[d,c]:[c,d];
+  if(crosses(start,end)&&!crosses(end,start))reverse=!reverse;
+  return [...from,...(reverse?[...to].reverse():to)];
+}
+function groundFrontHull(points){
+  const sorted=[...points].sort((a,b)=>a.x-b.x||a.z-b.z);
+  const chain=list=>{
+    const edge=[];
+    for(const p of list){
+      while(edge.length>=2&&groundFrontTurn(edge[edge.length-2],edge[edge.length-1],p)<=0)edge.pop();
+      edge.push(p);
+    }
+    return edge.slice(0,-1);
+  };
+  return sorted.length<2?sorted:[...chain(sorted),...chain(sorted.reverse())];
+}
+function groundFrontInCorridor(p,polygon){
+  const margin=(GROUND_FRONT_CORRIDOR_MARGIN_KM*GROUND_SCALE)**2;
+  let inside=false;
+  for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+    const a=polygon[j],b=polygon[i],dx=b.x-a.x,dz=b.z-a.z,x=p.x-a.x,z=p.z-a.z;
+    const l2=dx*dx+dz*dz,t=l2?Math.max(0,Math.min(1,(x*dx+z*dz)/l2)):0;
+    if((x-t*dx)**2+(z-t*dz)**2<=margin)return true;
+    if((a.z>p.z)!==(b.z>p.z)&&x<dx*z/dz)inside=!inside;
+  }
+  return inside;
+}
 function groundFrontCrossings(data){
   const {bridges,fords}=data.objects;
   return [...bridges,...fords,...groundBridges.filter(b=>b.complete&&b.hp>0)]
     .map(b=>({river:b.river,pos:b.pos||groundPoint(b.x,b.y)}));
 }
-// 最初に川の中心線を横切った地点を見る。岸に沿う経路や、橋のない場所での渡河は数えない。
-function groundFrontCrossed(path,rivers,crossings){
+// 最初に横切った川を調べる。橋や浅瀬以外から渡れる隊にも回廊の候補を出す。
+function groundFrontFirstCrossing(path,rivers){
   for(let i=1;i<path.points.length;i++){
     const a=path.points[i-1],b=path.points[i],dx=b.x-a.x,dz=b.z-a.z;
     let first=null;
@@ -182,17 +223,20 @@ function groundFrontCrossed(path,rivers,crossings){
       const x=p.x-a.x,z=p.z-a.z,t=(x*ez-z*ex)/den,u=(x*dz-z*dx)/den;
       if(t>=0&&t<=1&&u>=0&&u<=1&&(!first||t<first.t))first={id,t};
     }
-    if(!first)continue;
-    const at={x:a.x+dx*first.t,z:a.z+dz*first.t};
-    let nearest=null,distance=GROUND_FRONT_CROSS_NEAR_KM*GROUND_SCALE;
-    for(const c of crossings){
-      if(c.river!==first.id)continue;
-      const d=groundPlanDistance(at,c.pos);
-      if(d<=distance){nearest=c;distance=d;}
-    }
-    return nearest;
+    if(first)return {river:first.id,x:a.x+dx*first.t,z:a.z+dz*first.t};
   }
   return null;
+}
+function groundFrontCrossed(path,rivers,crossings){
+  const at=groundFrontFirstCrossing(path,rivers);
+  if(!at)return null;
+  let nearest=null,distance=GROUND_FRONT_CROSS_NEAR_KM*GROUND_SCALE;
+  for(const c of crossings){
+    if(c.river!==at.river)continue;
+    const d=groundPlanDistance(at,c.pos);
+    if(d<=distance){nearest=c;distance=d;}
+  }
+  return nearest;
 }
 // 単位容量の最小費用流。渡河点の使用数の二乗和を先に最小にし、同じ均等さなら道の見積もりの合計を最小にする。
 // すでに中継地点で指定された隊も、各渡河点の初期の使用数に含める。
@@ -239,6 +283,12 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
   if(!routes.length)return routes;
   const data=groundData(),crossings=groundFrontCrossings(data);
   if(!crossings.length)return routes;
+  const from=front.advance?.from||front.pts;
+  const corridor=advance?groundFrontCorridor(from,front.plan.pts):groundFrontHull([
+    ...from,...(front.members?groundFrontPresent(front):slots.map(({f})=>f)).map(f=>f.pos)
+  ]);
+  const eligible=crossings.filter(({pos})=>groundFrontInCorridor(pos,corridor));
+  if(!eligible.length)return routes;
   const rivers=data.water.rivers.map(r=>({id:r.id,points:r.points.map(([x,y])=>({x:groundWorldX(x),z:groundWorldZ(y)}))}));
   const loads=new Map(),pending=new Map(),count=c=>loads.set(c,(loads.get(c)||0)+1);
   for(const {f,path} of fixed){
@@ -249,18 +299,23 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
   for(const route of routes){
     const {f,dest,path}=route;
     if(!path||['air','sea'].includes(groundMoveKind(f)))continue;
-    const crossed=groundFrontCrossed(path,rivers,crossings);
+    if(advance&&front.via.has(f)){
+      const crossed=groundFrontCrossed(path,rivers,crossings);
+      if(crossed)count(crossed);
+      continue;
+    }
+    const crossed=groundFrontFirstCrossing(path,rivers);
     if(!crossed)continue;
-    if(advance&&front.via.has(f)){count(crossed);continue;}
-    const choices=crossings.filter(c=>c.river===crossed.river)
-      .map(crossing=>({crossing,cost:groundPlanDistance(f.pos,crossing.pos)+groundPlanDistance(crossing.pos,dest)}))
-      .filter(c=>c.cost<=path.L*GROUND_FRONT_CROSS_DETOUR);
-    if(!choices.length){count(crossed);continue;}
+    const choices=eligible.filter(c=>c.river===crossed.river)
+      .map(crossing=>({crossing,cost:groundPlanDistance(f.pos,crossing.pos)+groundPlanDistance(crossing.pos,dest)}));
+    if(!choices.length)continue;
     if(!pending.has(crossed.river))pending.set(crossed.river,[]);
     pending.get(crossed.river).push({route,choices});
   }
   for(const [river,list] of pending){
-    const assigned=groundFrontAssignCrossings(list.map(r=>r.choices),crossings.filter(c=>c.river===river),loads);
+    const candidates=eligible.filter(c=>c.river===river);
+    const assigned=candidates.length===1?list.map(()=>candidates[0]):
+      groundFrontAssignCrossings(list.map(r=>r.choices),candidates,loads);
     list.forEach(({route},i)=>{
       route.path=groundMovePath(route.f.pos,[assigned[i].pos,route.dest],groundMoveKind(route.f))||route.path;
     });
@@ -434,7 +489,7 @@ function groundPlanFinish(pts,frontAt){
   if(mode==='deploy'){
     if(front?.plan)line=groundFrontAlign(pts,line.side,front.plan.pts[0]);
     sorted=groundFrontSort(editing?editing.members:list,groundPlanLine(line.pts));
-    routes=groundFrontRoutes(null,groundPlanSlots(sorted.filter(f=>list.includes(f)),line.pts,line.side),false);
+    routes=groundFrontRoutes(line,groundPlanSlots(sorted.filter(f=>list.includes(f)),line.pts,line.side),false);
   }else{
     const current=list[0]?.groundFrontOf;
     front=editing||(current&&list.every(f=>f.groundFrontOf===current)&&groundFrontPresent(current).every(f=>list.includes(f))?current:null);
@@ -442,7 +497,8 @@ function groundPlanFinish(pts,frontAt){
     plan=groundFrontPlan(front||{...line,members:list},pts);
     const members=front?groundFrontPresent(front):groundFrontSort(list,groundPlanLine(line.pts));
     // 引き直した計画を実行中なら、現在地から新しい線までの全経路を確かめる。
-    const routeFront=front||{via:new Map(),passed:new Map()};
+    const routeFront=front?{...front,plan}:{...line,plan,via:new Map(),passed:new Map()};
+    if(front?.advance)routeFront.advance={...front.advance,from:groundFrontPosition(front,groundFrontProgress(front))};
     routes=groundFrontRoutes(routeFront,groundPlanSlots(members,plan.pts,plan.side),true);
   }
   const blocked=routes.find(r=>!r.path);
@@ -628,7 +684,7 @@ function groundPlanArrows(front){
     const shape=[f.pos,...(front.advance?curve.tail:curve.tail.slice(1))];
     const markers=via.map((p,i)=>({p:path.pts[path.pts.length-1-via.length+i]||p,i:passed+i}));
     if(front.via.has(f))markers.push({p:final,i:null});
-    return [{f,pts:[f.pos,...via,dest],shape,markers,key:curve.key+'|'+groundPlanQ(f.pos.x)+','+groundPlanQ(f.pos.z)}];
+    return [{f,pts:[f.pos,...via,dest],shape,markers,curve,key:curve.key+'|'+groundPlanQ(f.pos.x)+','+groundPlanQ(f.pos.z)}];
   });
 }
 function groundPlanSetVia(front,f,via,passed=via.length?groundFrontViaIndex(front,f):0){
@@ -636,7 +692,8 @@ function groundPlanSetVia(front,f,via,passed=via.length?groundFrontViaIndex(fron
   const slots=front.advance?front.slots.filter(s=>s.f.order?.groundAdvance===front.advance.group):
     groundPlanSlots(groundFrontPresent(front),front.plan.pts,front.plan.side);
   if(!slots.some(s=>s.f===f)&&via.length)return false;
-  const draft={...front,advance:null,via:new Map(front.via),passed:new Map(front.passed)};
+  const pts=front.advance?.from||front.pts;
+  const draft={...front,pts,advance:null,via:new Map(front.via),passed:new Map(front.passed)};
   for(const s of slots)draft.passed.set(s.f,groundFrontViaIndex(front,s.f));
   if(via.length)draft.via.set(f,via);else draft.via.delete(f);
   draft.passed.set(f,passed);
@@ -891,7 +948,10 @@ function groundPlanZoom(){
 }
 function groundPlanVertex(P,x,z,lift=0){P.push(x,groundSurfaceHeight(x,z)+GROUND_PLAN_LOOK.lift+lift,z);}
 function groundPlanQuad(P,q,lift){ // q: 4 点 [x,z]。2つの三角形
-  for(const i of [0,1,2,0,2,3])groundPlanVertex(P,q[i][0],q[i][1],lift);
+  const start=P.length;
+  for(let i=0;i<3;i++)groundPlanVertex(P,q[i][0],q[i][1],lift);
+  for(const i of [0,2])P.push(P[start+i*3],P[start+i*3+1],P[start+i*3+2]);
+  groundPlanVertex(P,q[3][0],q[3][1],lift);
 }
 // g: 縁取りのぶん太らせる幅（縁取りは同じ形を少し太く、少し下に暗く描く）。曲線は 0.6 ごとに区切り、区切りごとの向きで帯をつなぐ
 function groundPlanFront(P,pts,side,k,g=0,lift=0,scale=1,colors=null,C=null){
@@ -934,27 +994,48 @@ function groundPlanArrow(P,from,to,k,g=0,lift=0){
   for(let i=0;i<n;i++){const s0=body*i/n-(i?0:g),s1=body*(i+1)/n;groundPlanQuad(P,[at(s0,-w),at(s1,-w),at(s1,w),at(s0,w)],lift);}
   const hw=(L.arrow*k/2)*3+g*2.4;for(const q of [at(body-g,-hw),at(body-g,hw),at(len+g*2.4,0)])groundPlanVertex(P,q[0],q[1],lift);
 }
-function groundPlanBentArrow(P,pts,k,g,lift){
-  const L=groundPlanLine(pts),look=GROUND_PLAN_LOOK;
-  if(L.len<look.head*k*.6)return;
-  const head=Math.min(look.head*k,L.len);
-  const end=L.len-head,part=L.cum.filter(s=>s<end);
-  if(part.length)part.push(end);
-  const frame=s=>{
-    const p=groundPlanAt(L,s),d=groundPlanDir(L,s,.15);
-    return (along,across)=>[p.x+d.x*along-d.z*across,p.z+d.z*along+d.x*across];
+const GROUND_PLAN_ARROW_TURN=.15;
+function groundPlanBentBody(P,L,part,k,g,lift){
+  const w=GROUND_PLAN_LOOK.arrow*k/2+g;
+  const edge=(s,along=0)=>{
+    const p=groundPlanAt(L,s),d=groundPlanDir(L,s,GROUND_PLAN_ARROW_TURN);
+    const x=p.x+d.x*along,z=p.z+d.z*along,points=[];
+    groundPlanVertex(points,x+d.z*w,z-d.x*w,lift);
+    groundPlanVertex(points,x-d.z*w,z+d.x*w,lift);
+    return points;
   };
-  const w=look.arrow*k/2+g;
+  let A=edge(part[0],part[0]===0?-g:0);
   for(let j=1;j<part.length;j++){
     const a=part[j-1],b=part[j],n=Math.ceil((b-a)/.6);
     for(let i=0;i<n;i++){
-      const A=frame(a+(b-a)*i/n),B=frame(a+(b-a)*(i+1)/n),grow=j===1&&i===0?-g:0;
-      groundPlanQuad(P,[A(grow,-w),B(0,-w),B(0,w),A(grow,w)],lift);
+      const B=edge(a+(b-a)*(i+1)/n);
+      P.push(A[0],A[1],A[2],...B,A[0],A[1],A[2],B[3],B[4],B[5],A[3],A[4],A[5]);
+      A=B;
     }
   }
+}
+function groundPlanBentHead(P,L,end,k,g,lift){
+  const look=GROUND_PLAN_LOOK;
   const a=groundPlanAt(L,end),b=groundPlanAt(L,L.len),length=groundPlanDistance(a,b),hw=look.arrow*k/2*3+g*2.4;
-  const d=length>1e-6?{x:(b.x-a.x)/length,z:(b.z-a.z)/length}:groundPlanDir(L,L.len,.15);
+  const d=length>1e-6?{x:(b.x-a.x)/length,z:(b.z-a.z)/length}:groundPlanDir(L,L.len,GROUND_PLAN_ARROW_TURN);
   for(const [p,u,v] of [[a,-g,-hw],[a,-g,hw],[b,g*2.4,0]])groundPlanVertex(P,p.x+u*d.x-v*d.z,p.z+u*d.z+v*d.x,lift);
+}
+function groundPlanBentArrow(P,pts,k,g,lift){
+  const L=groundPlanLine(pts),head=GROUND_PLAN_LOOK.head*k;
+  if(L.len<head*.6)return;
+  const end=Math.max(0,L.len-head);
+  if(end>0)groundPlanBentBody(P,L,[...L.cum.filter(s=>s<end),end],k,g,lift);
+  groundPlanBentHead(P,L,end,k,g,lift);
+}
+function groundPlanBentTail(arrow,k,g,lift){
+  const line=groundPlanLine(arrow.slice(1)),end=line.len-GROUND_PLAN_LOOK.head*k;
+  const split=line.cum.findIndex(s=>s>=GROUND_PLAN_ARROW_TURN&&s<end);
+  if(split<0)return null;
+  // この点以降の向きも幅も、動く始点に依存しない。固定部分は地形高度まで一度だけ計算する。
+  const P=[];
+  groundPlanBentBody(P,line,[...line.cum.slice(split).filter(s=>s<end),end],k,g,lift);
+  groundPlanBentHead(P,line,end,k,g,lift);
+  return {line,split,P:Float32Array.from(P)};
 }
 function groundPlanMesh(name,color,opacity,order){
   const m=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial({color,transparent:true,opacity,depthWrite:false,side:THREE.DoubleSide}));
@@ -986,6 +1067,30 @@ function groundPlanLineMesh(item,k,g,lift,fill){
   if(fixed){if(!cache){cache={};groundPlanLineMeshes.set(pts,cache);}cache[lift]=mesh;}
   return mesh;
 }
+function groundPlanArrowMesh(V,item,k,g,lift){
+  const {f,arrow,curve}=item,{x,z}=arrow[0];
+  let styles=V.arrows.get(f);
+  if(!styles){styles=new Map();V.arrows.set(f,styles);}
+  const old=styles.get(lift);
+  const same=old?.curve===curve&&old.k===k&&old.g===g;
+  if(same&&old.x===x&&old.z===z)return old.parts;
+  const P=[],grow=g*k,tail=same?old.tail:groundPlanBentTail(arrow,k,grow,lift);
+  const offset=tail?groundPlanDistance(arrow[0],tail.line.pts[0]):0;
+  let suffix=null;
+  if(offset>=1e-6){
+    const {line,split}=tail,cum=[0,...line.cum.map(s=>s+offset)];
+    const L={pts:[arrow[0],...line.pts],cum,len:line.len+offset};
+    groundPlanBentBody(P,L,cum.slice(0,split+2),k,grow,lift);
+    suffix=tail.P;
+  }else{
+    if(arrow.length===2)groundPlanArrow(P,...arrow,k,grow,lift);
+    else groundPlanBentArrow(P,arrow,k,grow,lift);
+  }
+  const parts=[Float32Array.from(P)];
+  if(suffix)parts.push(suffix);
+  styles.set(lift,{curve,k,g,x,z,tail,parts});
+  return parts;
+}
 function groundPlanDraw(){
   if(!groundVisuals)return;
   const L=GROUND_PLAN_LOOK,now=performance.now(),k=groundPlanZoom();
@@ -999,7 +1104,7 @@ function groundPlanDraw(){
     meshes.highlight=groundPlanMesh('groundPlanHighlight',L.highlight,L.highlightOpacity,4);
     meshes.ringEdge=groundPlanMesh('groundPlanRingEdge',L.edge,L.edgeOpacity,7);
     meshes.ring=groundPlanMesh('groundPlanRing',0xffffff,1,8);
-    groundPlanVisual={meshes,key:{},movingAt:-Infinity,advances:[],movingColors:[]};
+    groundPlanVisual={meshes,key:{},movingAt:-Infinity,advances:[],movingColors:[],arrows:new WeakMap()};
   }
   const V=groundPlanVisual,still=[],blink=[],moving=[],rings=[];
   const hover=groundEditChoice||groundEditHover;
@@ -1019,8 +1124,8 @@ function groundPlanDraw(){
       const item=lineItem(front.plan.pts,front.plan.side,L.planScale,true,colors);still.push(item);
       if(selected&&hover.kind==='plan')highlight=item;
     }
-    for(const {f,shape,markers,key} of groundPlanArrows(front)){
-      const color=groundPlanUnitColor(f),item={arrow:shape,color,key:key+'>'+color};
+    for(const {f,shape,markers,key,curve} of groundPlanArrows(front)){
+      const color=groundPlanUnitColor(f),item={f,arrow:shape,curve,color,key:key+'>'+color};
       (front.advance?blink:still).push(item);
       if(selected&&hover.f===f&&hover.kind==='arrow')highlight=item;
       for(const {p,i} of markers){
@@ -1036,24 +1141,32 @@ function groundPlanDraw(){
   const build=(name,items,g,lift,fill=false)=>{
     const key=k+'|'+items.map(x=>x.key).join('|'),mesh=V.meshes[name];
     if(V.key[name]===key)return;
-    const P=[],C=[];
+    const parts=[];
     for(const it of items){
-      if(it.ring)groundPlanRing(P,it.ring,k,g,lift,name==='ringEdge');
-      else if(it.arrow){
-        const start=P.length;
-        if(it.arrow.length===2)groundPlanArrow(P,...it.arrow,k,g*k,lift);
-        else groundPlanBentArrow(P,it.arrow,k,g*k,lift);
-        if(fill)groundPlanVertexColors(C,it.color,(P.length-start)/3);
-      }else{
-        const line=groundPlanLineMesh(it,k,g,lift,fill);
-        for(const p of line.P)P.push(p);
-        if(fill)for(const c of line.C)C.push(c);
+      if(it.ring){
+        const P=[];groundPlanRing(P,it.ring,k,g,lift,name==='ringEdge');parts.push({P});
       }
+      else if(it.arrow){
+        for(const P of groundPlanArrowMesh(V,it,k,g,lift))parts.push({P,paint:fill?groundPlanPaints.get(it.color):null});
+      }else parts.push(groundPlanLineMesh(it,k,g,lift,fill));
+    }
+    const length=parts.reduce((sum,{P})=>sum+P.length,0);
+    const positions=new Float32Array(length),colors=fill?new Float32Array(length):null;
+    let offset=0;
+    for(const {P,C,paint} of parts){
+      positions.set(P,offset);
+      if(C)colors.set(C,offset);
+      else if(paint){
+        for(let i=offset;i<offset+P.length;i+=3){
+          colors[i]=paint.r;colors[i+1]=paint.g;colors[i+2]=paint.b;
+        }
+      }
+      offset+=P.length;
     }
     mesh.geometry.dispose();mesh.geometry=new THREE.BufferGeometry();
-    mesh.geometry.setAttribute('position',new THREE.Float32BufferAttribute(P,3));
-    if(fill)mesh.geometry.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
-    mesh.visible=P.length>0;V.key[name]=key;
+    mesh.geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+    if(fill)mesh.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+    mesh.visible=length>0;V.key[name]=key;
   };
   const draw=(name,items)=>{build(name,items,0,.02,true);build(name+'Edge',items,L.grow,0);};
   draw('still',still);draw('blink',blink);

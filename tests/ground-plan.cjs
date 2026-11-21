@@ -270,21 +270,44 @@ function planCases(){
   const slots=tanks.map((f,i)=>({f,dest:p(26,25.5+i*.35)}));
   const count=(routes,at)=>routes.filter(r=>crossing(r.path,sites)?.equals(at)).length;
   const shortest=slots.map(s=>({...s,path:groundMovePath(s.f.pos,[s.dest],'vehicle')}));
-  const spread=groundFrontRoutes(null,slots,false);
-  check('最短路では4隊とも北橋、前線への整列では北橋と中央橋に2隊ずつ',
-   count(shortest,north)===4&&count(spread,north)===2&&count(spread,central)===2);
+  const corridor=(lo,hi)=>({
+   pts:[p(20,lo),p(20,hi)],plan:{pts:[p(26,lo),p(26,hi)]},via:new Map(),passed:new Map()
+  });
+  const one=corridor(20,27),two=corridor(20,30),none=corridor(24,28);
+  const single=groundFrontRoutes(one,slots,true),spread=groundFrontRoutes(two,slots,true);
+  check('回廊外の北橋が4隊の最短路でも、回廊内の中央橋に全隊を通す',
+   count(shortest,north)===4&&count(single,central)===4);
+  check('回廊に橋が2つあれば進撃を2隊ずつに分ける',count(spread,north)===2&&count(spread,central)===2);
+  const fallback=groundFrontRoutes(none,slots,true);
+  check('回廊に橋が無いときは各隊が最短路をそのまま使う',fallback.every(({path},i)=>
+   path.points.length===shortest[i].path.points.length&&path.points.every((q,j)=>q.equals(shortest[i].path.points[j]))));
   const estimate=(s,p)=>groundPlanDistance(s.f.pos,p)+groundPlanDistance(p,s.dest);
   const centralGain=slots.map(s=>estimate(s,central)-estimate(s,north)).sort((a,b)=>a-b);
   const best=slots.reduce((sum,s)=>sum+estimate(s,north),0)+centralGain[0]+centralGain[1];
   check('2対2のうち直線見積もりの合計が最短になる組を選ぶ',
    Math.abs(spread.reduce((sum,s)=>sum+estimate(s,s.path.pts[0]),0)-best)<1e-6);
-  const routeFront={via:new Map([[tanks[3],[p(21,21)]]]),passed:new Map()};
-  const pinned=groundFrontRoutes(routeFront,slots,true);
+  two.via.set(tanks[3],[p(21,21)]);
+  const pinned=groundFrontRoutes(two,slots,true);
   check('中継地点の隊を中央橋の1隊に数え、残りを割り振って2隊ずつ',count(pinned,north)===2&&count(pinned,central)===2&&
    crossing(pinned[3].path,sites)?.equals(central)&&pinned[3].path.pts.length===2);
+  one.via.set(tanks[3],[north]);
+  const outside=groundFrontRoutes(one,slots,true);
+  check('回廊外の中継地点を指定した隊は北橋、他の3隊は中央橋を通る',count(outside,central)===3&&
+   crossing(outside[3].path,sites)?.equals(north)&&outside[3].path.pts[0].equals(north));
+
+  const curve=[p(20,19),p(21,23),p(20,27)],planCurve=[p(26,27),p(24,23),p(26,19)];
+  const curved=groundFrontCorridor(curve,planCurve);
+  check('曲線の全点を保持し、逆から引いた計画も端をねじらず結ぶ',curved.every((q,i)=>q===[...curve,...planCurve][i])&&
+   groundFrontInCorridor(central,curved)&&!groundFrontInCorridor(p(20.4,23),curved));
+  check('回廊の縁から0.3 km以内を含める',groundFrontInCorridor(p(19.75,23),one.pts.concat([...one.plan.pts].reverse()))&&
+   !groundFrontInCorridor(p(19.65,23),one.pts.concat([...one.plan.pts].reverse())));
+  const short=[p(15,15),p(15,20)],long=[p(18,21),p(18,32)];
+  check('近い端につなぐと交差する場合は、交差しない端へ結ぶ',groundFrontCorridor(short,long)[2]===long[1]);
+
+  const align=[p(26,14),p(26,27)],alignSlots=groundPlanSlots(tanks,align,1);
+  check('前線への整列も現在地と前線の凸包に橋が1つなら4隊ともそこを渡る',
+   count(groundFrontRoutes({pts:align},alignSlots,false),central)===4);
   for(const [i,f] of tanks.entries())f.pos.copy(p(21,29+i*.15));
-  const near=slots.map((s,i)=>({...s,dest:p(25,29+i*.15)}));
-  check('最短路の2倍を超える橋は使わない',count(groundFrontRoutes(null,near,false),north)===4);
   setSel(tanks);const common=p(26,26);groupOrder({type:'move',dest:common});
   check('通常移動は割り振らず全隊が同じ目的地へ最短路で進む',
    tanks.every(f=>f.order?.dest.equals(common)&&crossing(f.order.path,sites)?.equals(north)&&f.order.path.pts.length===1));
@@ -292,6 +315,22 @@ function planCases(){
   groundBridges=[bridge,{...bridge,complete:false},{...bridge,hp:0}];
   check('完成して耐久が残っている工兵の橋だけを渡河候補に含める',groundFrontCrossings(data).filter(c=>c.pos===bridge.pos).length===1);
  }finally{data.objects.fords=fords;groundBridges=[];}
+
+ const curve={tail:[p(11,25),p(13,26),p(14,29),p(18,28)]},visual={arrows:new WeakMap()};
+ const arrowFleet={};
+ const arrowAt=start=>({f:arrowFleet,arrow:[start,...curve.tail],curve});
+ const arrowMesh=item=>groundPlanArrowMesh(visual,item,1,GROUND_PLAN_LOOK.grow,0);
+ const matchesWhole=(item,parts)=>{
+  const whole=[];
+  groundPlanBentArrow(whole,item.arrow,1,GROUND_PLAN_LOOK.grow,0);
+  const combined=parts.flatMap(part=>Array.from(part));
+  return whole.length===combined.length&&whole.every((x,i)=>Math.abs(x-combined[i])<1e-5);
+ };
+ const firstArrow=arrowAt(p(9,25)),firstParts=arrowMesh(firstArrow);
+ const movedArrow=arrowAt(p(10,25)),movedParts=arrowMesh(movedArrow);
+ check('動く矢印は同じ形で描き、始点を動かしても固定部分の頂点を再利用する',
+  firstParts.length===2&&firstParts[1]===movedParts[1]&&arrowMesh(movedArrow)===movedParts&&
+  matchesWhole(firstArrow,firstParts)&&matchesWhole(movedArrow,movedParts));
  return rows;
 }
 function nodeChecks(){

@@ -1,4 +1,5 @@
-/* 作業票 #472。node tools/ground-front-shots.cjs */
+/* 作業票 #472。node tools/ground-front-shots.cjs
+   作業票 #480 の比較写真: node tools/ground-front-shots.cjs --corridor before|after */
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -105,10 +106,58 @@ async function capture({page,errors},name){
   console.log(name);
 }
 
+async function captureCorridor(browser,version){
+  assert(['before','after'].includes(version),'before または after を指定してください');
+  const desktop=await open(browser,{viewport:{width:1100,height:760}}),{page,errors}=desktop;
+  await page.evaluate(()=>{
+    const companies=Array.from({length:4},(_,i)=>({id:'cross'+i,name:'第'+(i+1)+' 戦車中隊',kind:'vehicle'}));
+    const groundOrg={companies,battalions:[],brigades:[]};
+    WOS.start({op:'groundExercise2',groundOrg});
+    if(talking)endTalk();
+    if(deploying)endDeploy();
+    window.WOS_NO_NPC=true;setSpeed(0);hideHint();
+    const units=fleets.filter(f=>f.team===0&&companies.some(c=>c.name===f.name));
+    if(units.length!==4)throw Error('撮影用の4隊を置けませんでした');
+    for(const f of fleets)if(!units.includes(f))f.alive=false;
+    const p=groundPoint,line=[p(14,19),p(14,25.5)],plan=[p(33,19),p(33,27)];
+    for(const {f,dest} of groundPlanSlots(units,line,1)){
+      f.pos.copy(dest);f.pos.y=groundUnitHeight(f);f.post.copy(f.pos);f.stance='evade';
+    }
+    groundUpdateSight();
+    setSel(units);groundPlanToggle('deploy');groundPlanLineDone(line,null);groundPlanFinish(line,p(24,22));
+    for(let i=0;i<100&&units.some(f=>f.order);i++)step(.05);
+    groundPlanToggle('plan');groundPlanLineDone(plan,null);
+    if(!units[0].groundFrontOf?.plan)throw Error('進撃計画を作れませんでした: '+groundPlanMessage);
+    window.demo={units};
+    const brief=document.querySelector('[data-tab="brief"]');
+    if(brief.getAttribute('aria-expanded')==='true')brief.click();
+    setSel([]);
+  });
+  await view(page,23.5,23.5,85);
+  await page.locator('#hint').waitFor({state:'hidden'});
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.join(out,'front-480-'+version+'.png')});
+  const used=await page.evaluate(()=>{
+    setSel(window.demo.units);document.getElementById('groundExecute').click();
+    const data=groundData(),sites=groundFrontCrossings(data);
+    const rivers=data.water.rivers.map(r=>({id:r.id,points:r.points.map(([x,y])=>groundPoint(x,y))}));
+    return window.demo.units.map(f=>{
+      const c=f.order?.groundAdvance&&f.order.path&&groundFrontCrossed(f.order.path,rivers,sites);
+      return c?[groundMapX(c.pos.x),groundMapY(c.pos.z)].join(','):null;
+    });
+  });
+  const central='22.5,21';
+  assert(used.every(Boolean),JSON.stringify(used));
+  assert(version==='after'?used.every(c=>c===central):used.includes(central)&&used.some(c=>c!==central),JSON.stringify(used));
+  assert.deepEqual(errors,[]);
+  console.log(version,'進撃の渡河点',used.join(' / '));
+}
+
 (async()=>{
   fs.mkdirSync(out,{recursive:true});
   const browser=await chromium.launch(process.platform==='darwin'?{args:['--use-angle=metal','--enable-gpu','--ignore-gpu-blocklist']}:{});
   try{
+    if(process.argv[2]==='--corridor')return await captureCorridor(browser,process.argv[3]);
     const desktop=await open(browser,{viewport:{width:1100,height:760}}),{page}=desktop;
     await setup(page);await view(page,11.5,26.5,54);
     await page.locator('#groundEdit').click();
@@ -134,19 +183,24 @@ async function capture({page,errors},name){
     await capture(desktop,'palette');
     await page.keyboard.press('Escape');
     await setup(page,true);await view(page,23,25,75);
-    const used=await page.evaluate(()=>{
-      setSel(window.demo.units);document.getElementById('groundExecute').click();
+    const {used,shortest}=await page.evaluate(()=>{
+      const {units,front}=window.demo;
       const data=groundData(),sites=groundFrontCrossings(data);
       const rivers=data.water.rivers.map(r=>({id:r.id,points:r.points.map(([x,y])=>groundPoint(x,y))}));
-      const used=window.demo.units.map(f=>{
-        const c=f.order?.path&&groundFrontCrossed(f.order.path,rivers,sites);
+      const at=path=>{
+        const c=path&&groundFrontCrossed(path,rivers,sites);
         return c?`${groundMapX(c.pos.x)},${groundMapY(c.pos.z)}`:null;
-      });
+      };
+      const byUnit=new Map(groundPlanSlots(groundFrontPresent(front),front.plan.pts,front.plan.side)
+        .map(({f,dest})=>[f,at(groundMovePath(f.pos,[dest],groundMoveKind(f)))]));
+      setSel(units);document.getElementById('groundExecute').click();
+      const used=units.map(f=>at(f.order?.path));
       setSel([]);
       for(let i=0;i<20;i++)step(.05);
-      groundDraw();return used;
+      groundDraw();return {used,shortest:units.map(f=>byUnit.get(f))};
     });
-    assert(used.includes('23.5,29')&&used.includes('22.5,21'),JSON.stringify(used));
+    assert(used.every(Boolean),JSON.stringify(used));
+    assert.deepEqual(used,shortest);
     console.log('進撃の渡河点',used.join(' / '));
     await capture(desktop,'crossings');
     await page.setViewportSize({width:1600,height:900});await view(page,23,25,75);await capture(desktop,'overview');
