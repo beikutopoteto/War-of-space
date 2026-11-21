@@ -343,6 +343,23 @@ function planCases(){
  check('動く矢印は同じ形で描き、始点を動かしても固定部分の頂点を再利用する',
   firstParts.length===2&&firstParts[1]===movedParts[1]&&arrowMesh(movedArrow)===movedParts&&
   matchesWhole(firstArrow,firstParts)&&matchesWhole(movedArrow,movedParts));
+
+ // ユーザーの指示 2026-11-22「侵攻ラインが前線に対して直角やった場合、ちゃんと弧を描いて曲がるか」
+ const ax=p(8,28),bx=p(14,28),up=[p(14,28.2),p(14,34.2)];
+ const aligned=groundFrontAlign(up,1,[ax,bx]);
+ check('直角の計画は両端の近さで向きを合わせ、軸の側の端どうしを結ぶ',groundPlanDistance(aligned.pts[0],up[1])<1e-6&&aligned.side===-1);
+ const w=groundFrontWheel([ax,bx],aligned.pts);
+ check('右端を軸に90°回る計画は、回転の中心が右端の近くになる',!!w&&Math.abs(Math.abs(w.phi)-Math.PI/2)<.05&&groundPlanDistance(w.O,bx)<.3*GROUND_SCALE);
+ const half=groundFrontWheelAt(w,ax,.5);
+ check('回る途中も線の長さを保つ（左端は中心から同じ距離）',Math.abs(groundPlanDistance(half,w.O)-groundPlanDistance(ax,w.O))<1e-6);
+ check('向きがほとんど変わらない計画は回さず、平行に進む',!groundFrontWheel([ax,bx],[p(8,32),p(14,32.5)]));
+ fresh();
+ const turn=four();draw('deploy',turn,a,b);finish(turn);tick();
+ setSel(turn);groundPlanToggle('plan');groundPlanTap(up[0]);groundPlanTap(up[1]);
+ const tf=turn[0].groundFrontOf;setSel(turn);groundPlanExecute();
+ const outer=tf.slots.find(s=>s.f===turn[0]),inner=tf.slots.find(s=>s.f===turn[3]);
+ check('回る進撃は外側の隊が弧の中継点を通り、内側の隊ほど遅い',!!tf.advance?.wheel&&outer.f.order?.path?.pts.length>2&&
+  !(outer.f.order.groundAdvancePace<1)&&inner.f.order?.groundAdvancePace<1&&groundAdvanceSpeed(inner.f)<groundAdvanceSpeed(outer.f));
  return rows;
 }
 function nodeChecks(){

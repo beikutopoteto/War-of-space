@@ -106,15 +106,18 @@ function groundFrontFromUnits(list,planLine){
   const line=groundPlanLine(pts),mid=groundPlanAt(planLine,planLine.len/2);
   return {pts,side:groundPlanNearest(line,mid).side||-groundFrontDefaultSide(line,list)};
 }
-function groundFrontAlign(pts,side,start){
-  const reverse=groundPlanDistance(start,pts[pts.length-1])<groundPlanDistance(start,pts[0]);
+/* ref は元の線の点の並び（両端の近さの合計で合わせる。前線に直角な計画でも隊が入れ違わない）か、始点1つ */
+function groundFrontAlign(pts,side,ref){
+  const a=Array.isArray(ref)?ref[0]:ref,b=Array.isArray(ref)?ref[ref.length-1]:null,first=pts[0],last=pts[pts.length-1];
+  const reverse=b?groundPlanDistance(a,last)+groundPlanDistance(b,first)<groundPlanDistance(a,first)+groundPlanDistance(b,last):
+    groundPlanDistance(a,last)<groundPlanDistance(a,first);
   return {pts:reverse?[...pts].reverse():pts,side:reverse?-side:side};
 }
 function groundFrontPlan(front,pts){
   const L=groundPlanLine(pts),from=groundPlanLine(front.advance?groundFrontNow(front):front.pts);
   const center=groundPlanAt(from,from.len/2);
   const side=-groundPlanNearest(L,center).side||groundFrontDefaultSide(L,front.members);
-  return groundFrontAlign(pts,side,from.pts[0]);
+  return groundFrontAlign(pts,side,from.pts);
 }
 function groundFrontCreate(line,list){
   const front={id:groundFrontNextId++,pts:line.pts,side:line.side,members:groundFrontSort(list,groundPlanLine(line.pts)),
@@ -277,11 +280,18 @@ function groundFrontAssignCrossings(candidates,crossings,loads){
   return edges.map(list=>list.find(({edge})=>!edge.cap).crossing);
 }
 function groundFrontRoutes(front,slots,advance,fixed=[]){
+  const wheel=advance&&front.plan?groundFrontWheel(front.advance?.from||front.pts,front.plan.pts):null;
   const routes=slots.map(s=>{
     const via=advance?(front.via.get(s.f)||[]).slice(groundFrontViaIndex(front,s.f)):[];
     // 進撃は道路に寄らない短い道（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。前線への整列は今までどおり早く着く道
-    return {...s,path:groundMovePath(s.f.pos,[...via,s.dest],groundMoveKind(s.f),advance)};
+    const arc=wheel&&!via.length&&groundMoveKind(s.f)!=='air'?groundFrontWheelVia(wheel,s.f,s.dest):[];
+    const path=arc.length&&groundMovePath(s.f.pos,[...arc,s.dest],groundMoveKind(s.f),advance)||groundMovePath(s.f.pos,[...via,s.dest],groundMoveKind(s.f),advance);
+    return {...s,path};
   });
+  if(wheel){
+    const length=r=>r.path?groundPolyLength(r.path.points):0,longest=Math.max(0,...routes.map(length));
+    for(const r of routes)r.pace=longest>1e-6?Math.max(GROUND_FRONT_WHEEL_MIN_PACE,length(r)/longest):1;
+  }
   if(!routes.length)return routes;
   const data=groundData(),crossings=groundFrontCrossings(data);
   if(!crossings.length)return routes;
@@ -324,10 +334,10 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
   }
   return routes;
 }
-function groundFrontIssue(front,{f,dest,path,line}){
+function groundFrontIssue(front,{f,dest,path,line,pace}){
   f.queue=[];
   order(f,{type:'move',dest,groundPreparedPath:path,groundFrontId:front.id,groundLine:line,
-    ...(front.advance?{groundAdvance:front.advance.group}:{groundDeploy:true})});
+    ...(front.advance?{groundAdvance:front.advance.group,...(pace<1?{groundAdvancePace:pace}:{})}:{groundDeploy:true})});
 }
 function groundFrontRefresh(front,force=false){
   const line=front.advance?front.plan:front;
@@ -349,13 +359,51 @@ function groundFrontRefresh(front,force=false){
     else if(groundFrontOwnOrder(r.f,front))groundFrontStopOrder(r.f);
   }
 }
+/* 向きを変える進撃（ユーザーの指示 2026-11-22「侵攻ラインが前線に対して直角やった場合、ちゃんと弧を描いて曲がるか」）:
+   元の線の両端を計画の線の両端へ移す回転（伸び縮みを含む）の中心 O・角度 phi・倍率 k。
+   向きの変わりが GROUND_FRONT_WHEEL_DEG より小さいか、ほぼ裏返し（150°より大きい）なら null で、今までどおり平行に進む */
+const GROUND_FRONT_WHEEL_DEG=20,GROUND_FRONT_WHEEL_STEP_DEG=15,GROUND_FRONT_WHEEL_MIN_PACE=.15; // 仮
+function groundFrontWheel(fromPts,toPts){
+  const A=fromPts[0],B=fromPts[fromPts.length-1],C=toPts[0],D=toPts[toPts.length-1];
+  const ux=B.x-A.x,uz=B.z-A.z,vx=D.x-C.x,vz=D.z-C.z,lu=Math.hypot(ux,uz),lv=Math.hypot(vx,vz);
+  if(lu<1e-6||lv<1e-6)return null;
+  let phi=Math.atan2(vz,vx)-Math.atan2(uz,ux);phi=Math.atan2(Math.sin(phi),Math.cos(phi));
+  if(Math.abs(phi)<GROUND_FRONT_WHEEL_DEG*Math.PI/180||Math.abs(phi)>150*Math.PI/180)return null;
+  const k=lv/lu,zr=k*Math.cos(phi),zi=k*Math.sin(phi);
+  // C = O + z(A-O) から O = (C - zA)/(1 - z)（複素数で x が実部、z が虚部）
+  const nx=C.x-(zr*A.x-zi*A.z),nz=C.z-(zr*A.z+zi*A.x),dr=1-zr,di=-zi,d2=dr*dr+di*di;
+  return {O:{x:(nx*dr+nz*di)/d2,z:(nz*dr-nx*di)/d2},phi,k};
+}
+// p を回転の s（0〜1）だけ回した点
+function groundFrontWheelAt(w,p,s){
+  const a=w.phi*s,m=Math.pow(w.k,s),c=Math.cos(a)*m,n=Math.sin(a)*m,dx=p.x-w.O.x,dz=p.z-w.O.z;
+  return {x:w.O.x+c*dx-n*dz,z:w.O.z+n*dx+c*dz};
+}
+// p から dest への弧: 回した点に、終わりのずれ（dest と回し切った点の差）を進み具合で足す
+function groundFrontWheelPoint(w,p,dest,s){
+  const q=groundFrontWheelAt(w,p,s),e=groundFrontWheelAt(w,p,1);
+  return {x:q.x+(dest.x-e.x)*s,z:q.z+(dest.z-e.z)*s};
+}
+// 弧の上の中継点: 今いる所から行き先まで、回転の中心のまわりを回る（15°ごと。通れない点は飛ばす）。
+// 途中で道を引き直すときも、今いる所から残りの角度だけ回る
+function groundFrontWheelVia(w,f,dest){
+  const O=w.O,a0=Math.atan2(f.pos.z-O.z,f.pos.x-O.x),r0=Math.hypot(f.pos.x-O.x,f.pos.z-O.z),r1=Math.hypot(dest.x-O.x,dest.z-O.z);
+  let d=Math.atan2(dest.z-O.z,dest.x-O.x)-a0;d=Math.atan2(Math.sin(d),Math.cos(d));
+  if(r0<1e-6||Math.sign(d)!==Math.sign(w.phi))return [];
+  const n=Math.ceil(Math.abs(d)/(GROUND_FRONT_WHEEL_STEP_DEG*Math.PI/180)),kind=groundMoveKind(f),out=[];
+  for(let i=1;i<n;i++){
+    const a=a0+d*i/n,r=r0+(r1-r0)*i/n,q=new THREE.Vector3(O.x+Math.cos(a)*r,0,O.z+Math.sin(a)*r);
+    if(groundPass(groundMapX(q.x),groundMapY(q.z),kind))out.push(q);
+  }
+  return out;
+}
 function groundFrontSample(pts){
   const L=groundPlanLine(pts);
   return Array.from({length:GROUND_FRONT_SAMPLES},(_,i)=>groundPlanAt(L,L.len*i/(GROUND_FRONT_SAMPLES-1)));
 }
 function groundFrontStart(front,routes,from=front.pts){
   front.advance={from:groundFrontSample(from),to:groundFrontSample(front.plan.pts),
-    lengthFrom:groundPlanLine(from),group:{units:front.members},t:0};
+    lengthFrom:groundPlanLine(from),group:{units:front.members},t:0,wheel:groundFrontWheel(from,front.plan.pts)};
   front.slots=routes.map(({f,dest,fraction,offset,line})=>({f,dest,fraction,offset,line}));
   front.retryRevision=null;
   for(const route of routes)groundFrontIssue(front,route);
@@ -382,7 +430,11 @@ function groundFrontProfile(front){
   if(!sample.length)return Array(n).fill(a.t);
   const marks=sample.map(({f,fraction,offset,dest})=>{
     const s=a.lengthFrom.len*fraction,p=groundPlanAt(a.lengthFrom,s),face=groundPlanFace(a.lengthFrom,s,front.side);
-    const x=p.x-face.x*offset,z=p.z-face.z*offset,dx=dest.x-x,dz=dest.z-z,l2=dx*dx+dz*dz;
+    const x=p.x-face.x*offset,z=p.z-face.z*offset,dx=dest.x-x,dz=dest.z-z,l2=dx*dx+dz*dz,w=a.wheel;
+    if(w){ // 回る進撃は、中心から見た角度の進み
+      let d=Math.atan2(f.pos.z-w.O.z,f.pos.x-w.O.x)-Math.atan2(z-w.O.z,x-w.O.x);d=Math.atan2(Math.sin(d),Math.cos(d));
+      return {u:fraction,t:Math.max(0,Math.min(1,d/w.phi))};
+    }
     return {u:fraction,t:l2<1e-12?1:Math.max(0,Math.min(1,((f.pos.x-x)*dx+(f.pos.z-z)*dz)/l2))};
   }).sort((p,q)=>p.u-q.u);
   let T=Array.from({length:n},(_,i)=>{
@@ -402,8 +454,12 @@ function groundFrontProfile(front){
 // t は線全体で1つの割合か、64点ごとの割合の並び
 function groundFrontPosition(front,t=front.advance?.t){
   if(!front.advance)return front.pts;
-  const {from,to}=front.advance;
-  return from.map((p,i)=>new THREE.Vector3(p.x,p.y,p.z).lerp(to[i],Array.isArray(t)?t[i]:t));
+  const {from,to,wheel}=front.advance;
+  return from.map((p,i)=>{
+    const s=Array.isArray(t)?t[i]:t,v=new THREE.Vector3(p.x,p.y,p.z).lerp(to[i],s);
+    if(wheel){const q=groundFrontWheelPoint(wheel,p,to[i],s);v.x=q.x;v.z=q.z;}
+    return v;
+  });
 }
 // 進撃中は隊の進み具合で曲がった今の前線。止まっていれば前線そのもの
 function groundFrontNow(front){return front.advance?groundFrontPosition(front,groundFrontProfile(front)):front.pts;}
@@ -521,7 +577,7 @@ function groundPlanFinish(pts,frontAt){
   let front=editing,routes,plan,sorted;
   let line={pts,side:groundPlanSide(pts,frontAt)||groundFrontDefaultSide(L,list)};
   if(mode==='deploy'){
-    if(front?.plan)line=groundFrontAlign(pts,line.side,front.plan.pts[0]);
+    if(front?.plan)line=groundFrontAlign(pts,line.side,front.plan.pts);
     sorted=groundFrontSort(editing?editing.members:list,groundPlanLine(line.pts));
     routes=groundFrontRoutes(line,groundPlanSlots(sorted.filter(f=>list.includes(f)),line.pts,line.side),false);
   }else{
