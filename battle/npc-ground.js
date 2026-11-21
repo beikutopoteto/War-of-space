@@ -157,13 +157,14 @@ function npcGroundLinks(){
 }
 function npcGroundSituation(c){
   const team=c.team,N=window.WOS_DATA.npc,max=groundSupplyRules().max;
+  const counters=N.counters.ground,armorKinds=new Set(Object.values(counters).flat());
   const relative=owner=>owner===team?'own':owner==null?'none':'foe';
   const zones=groundSites.map(s=>{
     const seen=s.owner===team||groundPointSeenBy(team,s.pos),base=s.id===op.groundHQ?.[team]?'own':s.id===op.groundHQ?.[1-team]?'foe':null;
     return {id:s.id,name:s.name||s.id,x:s.x,z:s.y,r:s.radiusKm,owner:seen?relative(s.owner):null,seen,known:relative(npcGroundState.initial.get(s.id)),
       base,goal:base==='foe',final:base==='foe',supply:s.owner===team?groundSupplyAt({pos:s.pos,team}).rate:0};
   });
-  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),
+  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),antiArmor:!!counters[f.groundKind]?.length,
     x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),speed:speedOf(f)/GROUND_SCALE,health:Math.max(0,f.hpPool/(f.groundMaxHp||f.n*f.hp)),
     canHold:groundCanCapture(f),canPair:groundCaptureCounts(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&(f.groundKind!=='sea'||npcGroundLiftActive()&&groundLandingShip(f)),
     ...(npcGroundLiftActive()?npcGroundLiftUnit(f):{}),
@@ -171,7 +172,7 @@ function npcGroundSituation(c){
   // 死亡・現在の耐久・現在位置を視界外から読まない。最後に見たときの記録だけ。
   const contacts=[];
   for(const f of fleets){if(f.team===team||!f.alive||f.groundExited)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
-    contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
+    contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,armor:armorKinds.has(k.kind),age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
   const sit={time:gameSec,captureGroup:groundRuleSet().capture.group,zones,links:[...npcGroundLinks(),...(npcGroundLiftActive()?npcGroundLiftLinks():[])],units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
   if(c.side==='ally'&&!c.debugAuto){
@@ -450,7 +451,7 @@ function npcGroundApply(c,sit,plan){
         // 突入では生きて見えている既存目標を維持し、近い敵が現れても出し直さない。
         const old=f.order?.type==='attack'?f.order.target:null;
         if((assault&&!changed&&old&&npcGroundVisibleEnemy(c.team,old)&&groundManualTargetAllowed(f,old))||(defend&&old&&eligible(old)))target=old;
-        else if(assault||defend)target=fleets.filter(eligible).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
+        else if(assault||defend)target=groundSelectEnemy(f,eligible,groundFireSolution);
       }
       if(target){
         if(f.order?.type!=='attack'||f.order.target!==target)order(f,{type:'attack',target});

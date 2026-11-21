@@ -17,12 +17,13 @@ function bridgeCases(){
  red.hpPool=full/2;check('兵科の重み×残存耐久',Math.abs(npcGroundPower(red)-1)<1e-8);red.hpPool=full;
  const flags=['groundRout','groundRecover','embarked','groundAirState','groundBuilding','groundUnloading','locked'];
  check('敗走・再集結・搭乗・帰投・架橋・上陸は命令不可',flags.every(key=>{const old=red[key];red[key]=true;const blocked=!npcGroundFree(red);red[key]=old;return blocked;}));
- // 既知の接触を固定し、見えない相手の位置と耐久を変更してもsituは記録値を使う。
- const oldContact=blue.groundContacts[1],oldVisible=blue.groundVisible[1],oldPos=blue.pos.clone(),oldHp=blue.hpPool;
- blue.groundContacts[1]={pos:groundPoint(14,20),at:gameSec-12,power:.75,role:'shock'};blue.groundVisible[1]=false;blue.pos.copy(groundPoint(5,10));blue.hpPool=1;
+ // 既知の接触を固定し、見えない相手の兵科・位置・耐久を替えても記録値を使う。
+ const oldContact=blue.groundContacts[1],oldVisible=blue.groundVisible[1],oldPos=blue.pos.clone(),oldHp=blue.hpPool,oldKind=blue.groundKind;
+ blue.groundContacts[1]={pos:groundPoint(14,20),at:gameSec-12,power:.75,role:'shock',kind:'vehicle'};
+ blue.groundVisible[1]=false;blue.pos.copy(groundPoint(5,10));blue.hpPool=1;blue.groundKind='infantry';
  const contact=npcGroundSituation(c).contacts.find(e=>e.id===blue.id);
- check('視界外は記録した位置・力・経過秒だけ',contact.x===14&&contact.z===20&&contact.power===.75&&contact.age===12);
- blue.pos.copy(oldPos);blue.hpPool=oldHp;blue.groundContacts[1]=oldContact;blue.groundVisible[1]=oldVisible;
+ check('視界外は記録した兵科・位置・力・経過秒を渡す',contact.armor&&contact.x===14&&contact.z===20&&contact.power===.75&&contact.age===12);
+ blue.pos.copy(oldPos);blue.hpPool=oldHp;blue.groundKind=oldKind;blue.groundContacts[1]=oldContact;blue.groundVisible[1]=oldVisible;
  const savedNet=groundSupplyNet;
  const fakeSites=groundSites.slice(0,3),nodes=[0,1,2].map(x=>({x:x*3,y:0,edges:[]})),edges=[{a:0,b:1,open:true},{a:1,b:2,open:false}];
  edges.forEach((e,i)=>{nodes[e.a].edges.push(i);nodes[e.b].edges.push(i);});groundSupplyNet={nodes,edges,sites:new Map(fakeSites.map((s,i)=>[s,i]))};
@@ -253,6 +254,58 @@ function autoCases(){
  autoMode=false;npcGroundReset();op={...op,npc:{1:op.npc[1]},npcAuto:{doctrine:'mars',level:'hard'}};autoMode=true;npcAutoPlayer([f]);check('作戦のnpcAuto上書きと最初のステップ前の手動命令',npcGroundState.commanders.get(0).D===WOS_DATA.npc.doctrines.mars&&npcGroundState.commanders.get(0).L===WOS_DATA.npc.levels.hard&&npcAutoPlayerUnit(f));
  autoMode=originalAuto;npcAutoReturn=originalReturn;npcGroundReset();return rows;
 }
+function counterCombatCases(){
+ const data=WOS_DATA.operations.find(o=>o.id==='groundExercise2');
+ reset({op:data.id,fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();
+ const saved={groundHeight,groundBuildings,groundForests};
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
+ try{
+  groundHeight=()=>0;groundBuildings=[];groundForests=[];
+  op={...op,groundHQ:null,npc:{0:{doctrine:'earth',level:'standard'}}};
+  const heavy=fleets.find(f=>f.team===0&&f.groundKind==='heavyInfantry');
+  const tank=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
+  const enemy=fleets.find(f=>f.team===1&&f.groundKind==='infantry');
+  const site=groundSites.find(s=>s.id==='B');
+  const place=(f,offset)=>{f.pos.copy(groundPoint(site.x+offset,site.y));f.groundTrack=null;};
+  fleets=[heavy,enemy,tank];
+  place(heavy,0);place(enemy,1);place(tank,2);
+  for(const f of fleets){groundClearOrders(f);f.stance=f===heavy?'engage':'evade';}
+  npcGroundInit();const c=npcGroundState.commanders.get(0);c.nextThink=Infinity;
+  groundUpdateSight();const sit=npcGroundSituation(c);
+  check('見えた戦車を記録し、自軍の重強化歩兵に対戦車の印を渡す',
+    tank.groundContacts[0]?.kind==='vehicle'&&sit.contacts.find(u=>u.id===tank.id)?.armor&&
+    sit.contacts.find(u=>u.id===enemy.id)?.armor===false&&sit.units.find(u=>u.id===heavy.id)?.antiArmor);
+  const fire=()=>{
+   const hp=fleets.map(f=>f.hpPool);
+   for(const b of heavy.bodies)b.shotT=0;
+   step(.05);
+   return fleets.filter((f,i)=>f.hpPool<hp[i]);
+  };
+  check('近い歩兵より射程内の戦車を自動で撃つ',groundCanFire(heavy,enemy)&&groundCanFire(heavy,tank)&&
+    groundDistanceTo(heavy,enemy)<groundDistanceTo(heavy,tank)&&fire()[0]===tank&&heavy.fireTarget===tank);
+  place(tank,5);
+  check('戦車が射程外なら近い歩兵を撃つ',fire()[0]===enemy&&heavy.fireTarget===enemy);
+  fleets=[heavy,enemy];
+  check('戦車がいないときも近い歩兵を撃つ',fire()[0]===enemy&&heavy.fireTarget===enemy);
+  fleets.push(tank);place(tank,2);groundUpdateSight();
+  order(heavy,{type:'attack',target:enemy});
+  check('攻撃命令の歩兵を優先して撃つ',fire()[0]===enemy&&heavy.fireTarget===enemy&&heavy.order?.target===enemy);
+  groundClearOrders(heavy);heavy.stance='evade';
+  check('命令優先は自分で目標を選ばない',fire().length===0&&heavy.fireTarget===null);
+  heavy.stance='engage';
+  for(const [type,stage] of [['hold','defend'],['seize','assault']]){
+   groundClearOrders(heavy);
+   const task={key:type+':'+site.id,type,stage,zone:site.id,units:[{id:heavy.id,as:'main'}]};
+   const apply=()=>npcGroundApply(c,sit,{tasks:[task]});
+   apply();check(type+'の新しい攻撃先は撃てる戦車を優先',heavy.order?.target===tank);
+   order(heavy,{type:'attack',target:enemy});
+   apply();check(type+'はすでに命じた攻撃先を維持',heavy.order?.target===enemy);
+  }
+  return rows;
+ }finally{
+  ({groundHeight,groundBuildings,groundForests}=saved);
+ }
+}
 function nodeChecks(){
  const {run}=require('./ground-drill.cjs').createDrillContext(false);
  const movement=run(`(()=>{
@@ -285,6 +338,7 @@ async function checkNpcGround(page,check){
  for(const r of await page.evaluate(autoCases))check(r.ok,'NPCオート: '+r.name);
  await page.evaluate(()=>{reset({op:'baikonur',fleets:op.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
  for(const r of await page.evaluate(bridgeCases))check(r.ok,'NPC橋渡し: '+r.name);
+ for(const r of await page.evaluate(counterCombatCases))check(r.ok,'地上対戦車: '+r.name);
  for(const id of ['groundExercise2','shinano']){
   const ok=await page.evaluate(id=>{reset({op:id});if(talking)endTalk();setSpeed(0);if(deploying)endDeploy();let calls=0;const original=npcThink;npcThink=(...args)=>{calls++;return original(...args);};for(let i=0;i<80&&!over;i++)step(.05);npcThink=original;return calls===0&&Object.keys(npcDebug()).length===0;},id);
   check(ok,'NPC無効: '+id+'で頭を呼ばずdebugが空');

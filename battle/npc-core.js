@@ -79,7 +79,7 @@ function npcThink(c,sit){
     if(z.owner==='own'){ if(m.owner!=='own'&&c.posture!==null){ c.wonAt=t; c.won={zone:z.id,ids:(c.tasks.get('seize:'+z.id)||c.tasks.get('cut:'+z.id))?.ids||[]}; } m.owner='own'; m.seenAt=t; }
     else { if(m.owner==='own'){ m.lostAt=t; m.owner=z.owner||'foe'; } if(z.seen&&z.owner){ m.owner=z.owner; m.seenAt=t; } }
   }
-  const E=new Map(zones.map(z=>[z.id,{own:0,foe:0,threat:0}])), mem=id=>c.zone.get(id), isOwn=id=>mem(id).owner==='own';
+  const E=new Map(zones.map(z=>[z.id,{own:0,foe:0,threat:0,armor:0}])), mem=id=>c.zone.get(id), isOwn=id=>mem(id).owner==='own';
   let own=0; for(const u of units){ own+=u.power; E.get(u.zone).own+=u.power; }
   for(const [id,v] of leadIn)E.get(id).own+=v; // 先導がいる拠点は、その力も味方として数える
   const avg=units.length?own/units.length:1;
@@ -97,7 +97,11 @@ function npcThink(c,sit){
   const ratio=(own+leadP+(sit.friendPower||0))/Math.max(foe,avg*.25), horizon=L.horizon*g.span; // friendPower: この指揮官が動かさない味方の力（力の比にだけ数える）
   c.foe0=Math.max(c.foe0||0,known); const quiet=led&&c.foe0>0&&known<A.finish*c.foe0; // 敵が残りわずか: とどめは先導に残す
   for(const z of zones){ if(!isOwn(z.id))continue; const e=E.get(z.id);
-    for(const k of contacts)e.threat+=k.est*Math.max(0,1-g.dist(k.zone,z.id)/horizon)**2; }
+    for(const k of contacts){
+      const threat=k.est*Math.max(0,1-g.dist(k.zone,z.id)/horizon)**2;
+      e.threat+=threat;
+      if(k.armor)e.armor+=threat;
+    } }
   const others=zones.filter(z=>!isOwn(z.id)), ownZ=zones.filter(z=>isOwn(z.id));
   const info=others.length?others.filter(z=>t-mem(z.id).seenAt<=L.memory).length/others.length:1;
   const base=zones.find(z=>z.base==='own'&&isOwn(z.id)), foeBase=zones.find(z=>z.base==='foe');
@@ -284,11 +288,19 @@ function npcThink(c,sit){
         .sort((a,b)=>(a.u.role==='support')-(b.u.role==='support')||(a.u.role==='escort')-(b.u.role==='escort')||a.cost-b.cost).slice(0,need);
       if(pair.length===need){ for(const {u} of pair)give(w,u,'main'); pre.set(w.key,{got:pair.reduce((s,x)=>s+x.u.power,0),n:pair.length}); }
     } }
+  const armorHold=w=>w.type==='hold'&&E.get(w.zone).armor>0;
+  let armorHolds=D.counterBias?want2.filter(armorHold).length:0;
   for(const w of want2){
     const fit=w.fit||NPC_FIT[w.type], target=targetOf(w); let got=(pre.get(w.key)?.got||0)+(kept.get(w.key)?.got||0), n=(pre.get(w.key)?.n||0)+(kept.get(w.key)?.n||0);
     const attackTask=w.type==='seize'||w.type==='fix'||w.type==='cut';
+    // 先に処理する本営などの守りでも、後に対戦車の守りがあればそちらに対戦車の隊を譲りやすくする。
+    let counterCost=0;
+    if(armorHolds&&w.type==='hold'){
+      if(armorHold(w)){ counterCost=-D.counterBias; armorHolds--; }
+      else counterCost=D.counterBias;
+    }
     const pool=units.filter(u=>!assign.has(u.id)&&fit[u.role]>0) // 傷んだ隊は攻めでは最後に回す（元気な隊が足りないときだけ使う）
-      .map(u=>({u,cost:eta(u,target)-(c.unit.get(u.id).task===w.key?D.sticky:0)-fit[u.role]*D.roleBias+(attackTask&&u.worn?1e6:0)})).sort((a,b)=>a.cost-b.cost);
+      .map(u=>({u,cost:eta(u,target)-(c.unit.get(u.id).task===w.key?D.sticky:0)-fit[u.role]*D.roleBias+(attackTask&&u.worn?1e6:0)+(u.antiArmor?counterCost:0)})).sort((a,b)=>a.cost-b.cost);
     for(const {u} of pool){ if(n>=w.max||n>0&&got>=w.need||got+u.power>w.cap&&n>0)break; give(w,u,'main'); got+=u.power; n++; }
     if(tasksOut.has(w.key))tasksOut.get(w.key).got=got; // 隊を1つも取れなかった任務は立てない
   }

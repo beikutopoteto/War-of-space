@@ -1005,7 +1005,7 @@ function groundStep(dt){
     if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;if(f.bodies)groundBodyIdleClock(f,'shotT');continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
-    f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:fleets.filter(t=>groundCanFire(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
+    f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:groundSelectEnemy(f,t=>groundCanFire(f,t));
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
     // 敵の自動の地点攻撃。W.A.S. は自分からは撃たない（groundAutoIndirect。ユーザー決定 2026-11-19）
     if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
@@ -1023,6 +1023,20 @@ function groundStep(dt){
   groundSupplyAfter(dt);
   if(typeof groundFrontStep==='function')groundFrontStep();
   if(op.groundDrill)groundDrillTick();
+}
+
+// 自動交戦は撃てる敵だけが候補。指揮官は追撃先も選べるが、対戦車の優先は今撃てる相手にだけ付ける。
+function groundSelectEnemy(f,eligible,canCounter){
+  const counters=window.WOS_DATA?.npc?.counters?.ground[f.groundKind];
+  let target=null,bestDistance=Infinity,bestCounter=false;
+  for(const t of fleets){
+    if(!eligible(t))continue;
+    const counter=!!counters?.includes(t.groundKind)&&(!canCounter||canCounter(f,t)),distance=groundDistanceTo(f,t);
+    if(!target||counter&&!bestCounter||counter===bestCounter&&distance<bestDistance){
+      target=t;bestDistance=distance;bestCounter=counter;
+    }
+  }
+  return target;
 }
 
 function groundMatchup(f,t){
