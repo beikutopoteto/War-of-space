@@ -19,11 +19,44 @@ function defenseFixture(){
  s.units.forEach((u,i)=>Object.assign(u,{role:'line',canHold:true,x:i<10?20:10,z:i<5?12:0}));
  s.contacts=[];s.goal={type:'hold'};return s;
 }
+function counterFixture(){
+ const p=N.power.ground;
+ const unit=(id,kind,x,extra)=>({id,role:N.roles.ground[kind],power:p[kind],x,z:0,speed:.375,canPair:true,...extra});
+ return {time:0,captureGroup:2,goal:{type:'hold',zones:['B']},links:[{a:'A',b:'B',len:12}],
+   zones:['A','B'].map((id,i)=>({id,x:12*i,z:0,r:2,owner:'own',seen:true,base:i===0?'own':null})),
+   units:[unit('heavy','heavyInfantry',0,{antiArmor:true,canHold:false}),unit('inf','infantry',5,{canHold:true})],
+   contacts:[{id:'e1',x:0,z:0,power:p.infantry,age:0},{id:'e2',x:12,z:0,power:p.vehicle,age:0,armor:true}]};
+}
 const main=p=>p.tasks.find(k=>k.type==='seize');
 const holds=p=>p.tasks.filter(k=>k.type==='hold');
 const count=(p,type)=>p.tasks.filter(k=>k.type===type).reduce((n,k)=>n+k.units.length,0);
 function nodeChecks(){
  const rows=[],test=(name,fn)=>{try{fn();rows.push({name,ok:true});}catch(e){rows.push({name,ok:false,detail:e.message});}};
+ const guards=p=>Object.fromEntries(holds(p).map(k=>[k.zone,k.units.map(u=>u.id)]));
+ const counterOff=c=>{c.D={...c.D,counterBias:0};return c;};
+ test('戦車のいるBを重強化歩兵、歩兵だけのAを強化歩兵が守る',()=>{
+  assert.deepEqual(guards(npcThink(styled(),counterFixture())),{A:['inf'],B:['heavy']});
+ });
+ test('後ろの守りにいた重強化歩兵は任務の継続より戦車の守りを優先',()=>{
+  const c=styled(),s=counterFixture(),tank=s.contacts[1];
+  s.contacts=[{...tank,armor:false}];
+  assert.deepEqual(guards(npcThink(c,s)),{A:['heavy'],B:['inf']});
+  s.time=3;s.contacts=[tank];
+  assert.equal(c.unit.get('heavy').task,'hold:A');
+  assert.deepEqual(guards(npcThink(c,s)),{A:['inf'],B:['heavy']});
+ });
+ test('予備の重強化歩兵も戦車の来る守りへ入る',()=>{
+  const c=styled(),s=counterFixture(),tank=s.contacts[1];
+  s.contacts=[];s.units[0].x=4;s.units[1].x=0;
+  npcThink(c,s);assert.match(c.unit.get('heavy').task,/^reserve:/);
+  s.time=3;s.contacts=[tank];assert.deepEqual(guards(npcThink(c,s)),{A:['inf'],B:['heavy']});
+ });
+ test('歩兵だけ、または戦車の接触記録が期限切れなら従来と同じ割り当て',()=>{
+  for(const values of [{armor:false,power:N.power.ground.infantry},{age:N.levels.standard.memory}]){
+   const s=counterFixture();Object.assign(s.contacts[1],values);
+   assert.deepEqual(npcThink(styled(),structuredClone(s)),npcThink(counterOff(styled()),structuredClone(s)));
+  }
+ });
  test('力の比で攻撃・防御・遅滞が変わる',()=>{
   const post=power=>{const s=fixture();s.contacts.forEach(e=>e.power=power);return npcThink(commander(),s).posture;};
   assert.equal(post(1),'attack');assert.equal(post(15),'defend');assert.equal(post(50),'delay');

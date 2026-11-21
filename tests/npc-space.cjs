@@ -24,6 +24,19 @@ function createSpaceContext(){
 }
 function nodeChecks(){
   const rows=[],test=(name,fn)=>{fn();rows.push({name,ok:true});};
+  test('宇宙の状況には対戦車の印がなく、割り当ても同じ',()=>{
+    const {run,unit}=createSpaceContext();unit(0,86,0,{seen:true});unit(1,86,10);unit(1,30,0);
+    const [sit,withCounter,withoutCounter]=run(`(()=>{
+      npcSpaceInit();npcSpaceObserve();
+      const c=npcSpaceState.commanders.get(1),s=npcSpaceSituation(c);
+      const baseline=npcCommander({team:c.team,side:c.side,doctrine:{...c.D,counterBias:0},level:c.L,styles:c.styles,seed:c.seed});
+      const copy=()=>JSON.parse(JSON.stringify(s));
+      return [s,npcThink(c,copy()),npcThink(baseline,copy())];
+    })()`);
+    assert(sit.contacts.length&&sit.units.length);
+    assert(sit.contacts.every(e=>!('armor' in e))&&sit.units.every(u=>!('antiArmor' in u)));
+    assert.deepEqual(withCounter,withoutCounter);
+  });
   test('自軍オートの生成・手動除外・初期戦力・20秒復帰・解除と再生成',()=>{
     const {box:b,run,unit}=createSpaceContext();const f=unit(0,0,120),other=unit(0,10,120);unit(1,0,0,{seen:true});
     run('npcSpaceInit()');assert.equal(run('npcSpaceState.commanders.has(0)'),false);
