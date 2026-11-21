@@ -115,7 +115,7 @@ async function main(){
    groundPlanToggle('deploy');
    for(const q of [[8,29],[14,29],[11,31]])groundPlanTap(groundPoint(...q));
    shotTick(frontReady);
-   groundPlanToggle('plan');groundPlanTap(groundPoint(8,32.5));groundPlanTap(groundPoint(14,32.5));groundPlanExecute();
+   groundPlanToggle('plan');groundPlanTap(groundPoint(8,32.5));groundPlanTap(groundPoint(14,32.5));groundPlanTap(groundPoint(11,33.5));groundPlanExecute();
    shotTick(()=>groundFronts[0].advance?.t>.4);
   });
   await shot(mobile,'05-mobile');

@@ -11,9 +11,9 @@ function planCases(){
  };
  const four=()=>[unit(8.5),unit(10),unit(12),unit(13.5)];
  const a=p(8,28),b=p(14,28),c=p(8,32),d=p(14,32),forward=p(11,30);
- const draw=(mode,units,start,end,at=forward)=>{
+ const draw=(mode,units,start,end,at=mode==='deploy'?forward:start)=>{
   setSel(units);groundPlanToggle(mode);groundPlanTap(start);groundPlanTap(end);
-  if(mode==='deploy')groundPlanTap(at);
+  groundPlanTap(at);
   return units[0].groundFrontOf;
  };
  const tick=(seconds=.5)=>{gameSec+=seconds;groundFrontStep();};
@@ -65,6 +65,7 @@ function planCases(){
   finish(units);
  }
 
+ groundPlanDelete(front);
  const split=draw('plan',[units[1]],d,c);
  check('一部で引くと現在位置が中心の1kmの前線を作る',split!==front&&groundFronts.length===2&&
    groundPlanDistance(groundPlanAt(groundPlanLine(split.pts),GROUND_SCALE/2),units[1].pos)<1e-6);
@@ -75,6 +76,7 @@ function planCases(){
  const mixed=draw('plan',[units[0],idle],c,d);
  check('前線のない隊を含めて引くと両隊の現在位置を結んだ別の前線',mixed!==front&&mixed.members.length===2&&
   Math.abs(groundPlanLine(mixed.pts).len-2*groundPlanDistance(units[0].pos,idle.pos))<1e-6);
+ undo();
  undo();
  select(units[1]);groundHoldCommand();
  check('停止・防衛で前線から抜けて現在地で守る',!units[1].groundFrontOf&&!units[1].order&&units[1].stance==='engage'&&at(front,[units[0],units[2],units[3]],third));
@@ -162,7 +164,7 @@ function planCases(){
  check('前線の引き直しで計画を保持し、選択に関係なく所属隊を並べ直す',edit.plan===originalPlan&&edit.members.length===4);
  finish(editors);tick();
  const editedLine=edit.pts;
- select(null);groundPlanRedraw(edit);groundPlanTap(p(8,31));groundPlanTap(p(14,31));
+ select(null);groundPlanRedraw(edit);groundPlanTap(p(8,31));groundPlanTap(p(14,31));groundPlanTap(p(11,32));
  check('計画の引き直しで前線を保持',edit.pts===editedLine&&edit.plan!==originalPlan);
  const f=editors[0],v=p(8.9,29),v2=p(9.2,30);
  check('当たり判定は前線と計画線を識別',groundPlanPickAt(p(11,28),.1)?.kind==='front'&&groundPlanPickAt(p(11,31),.1)?.kind==='plan');
@@ -181,7 +183,7 @@ function planCases(){
  check('Undoで中継地点・進撃の組・進撃命令を復元',edit.via.get(f)?.length===2&&f.order?.groundAdvance===edit.advance.group);
  for(const u of editors)groundFollow(u,1);tick();
  const instant=groundFrontNow(edit),oldFixedLine=edit.pts;
- groundPlanRedraw(edit);groundPlanTap(p(8,33));groundPlanTap(p(14,33));
+ groundPlanRedraw(edit);groundPlanTap(p(8,33));groundPlanTap(p(14,33));groundPlanTap(p(11,34));
  check('進撃中の計画の引き直しは現在の線から新しい計画へ進む',edit.advance&&edit.pts===oldFixedLine&&
    groundPlanDistance(edit.advance.from[0],instant[0])<1e-6&&editors.every(u=>Math.abs(u.order?.dest.z-p(8,33).z)<1e-6));
  groundPlanDelete(edit);
@@ -209,7 +211,7 @@ function planCases(){
  groundPlanToggle('edit');groundPlanHud([]);
  check('部隊選択なしでも編集・削除を開始',groundWorkAiming==='edit'&&!document.getElementById('groundEdit').disabled);
  const click=(hit,id)=>groundEditActions(hit).find(a=>a[0]===id)[2]();
- click({kind:'plan',front:target},'redraw');groundPlanTap(p(8,31));groundPlanTap(p(14,31));
+ click({kind:'plan',front:target},'redraw');groundPlanTap(p(8,31));groundPlanTap(p(14,31));groundPlanTap(p(11,32));
  check('計画の編集ボタンで引き直して編集・削除へ戻る',target.plan.pts[0].equals(p(8,31))&&groundWorkAiming==='edit');
  click({kind:'front',front:target},'redraw');groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
  check('前線の編集ボタンで向きを指定して編集・削除へ戻る',!!target.plan&&groundWorkAiming==='edit');
@@ -355,11 +357,101 @@ function planCases(){
  check('向きがほとんど変わらない計画は回さず、平行に進む',!groundFrontWheel([ax,bx],[p(8,32),p(14,32.5)]));
  fresh();
  const turn=four();draw('deploy',turn,a,b);finish(turn);tick();
- setSel(turn);groundPlanToggle('plan');groundPlanTap(up[0]);groundPlanTap(up[1]);
+ draw('plan',turn,...up);
  const tf=turn[0].groundFrontOf;setSel(turn);groundPlanExecute();
  const outer=tf.slots.find(s=>s.f===turn[0]),inner=tf.slots.find(s=>s.f===turn[3]);
  check('回る進撃は外側の隊が弧の中継点を通り、内側の隊ほど遅い',!!tf.advance?.wheel&&outer.f.order?.path?.pts.length>2&&
   !(outer.f.order.groundAdvancePace<1)&&inner.f.order?.groundAdvancePace<1&&groundAdvanceSpeed(inner.f)<groundAdvanceSpeed(outer.f));
+
+ fresh();const flank=four(),facing=draw('deploy',flank,a,b);
+ finish(flank);tick();
+ const flankStart=p(9,32);
+ groundPlanToggle('plan');groundPlanTap(flankStart);groundPlanTap(d);groundPlanHover(forward);
+ check('計画は前の側を待ち、ポインタの側を歯の側にする',groundWorkAiming==='plan'&&!facing.plan&&
+  groundLinePts.length===2&&groundPlanSide(groundLinePts,groundLinePointer)===groundPlanNearest(groundPlanLine([flankStart,d]),forward).side);
+ groundPlanTap(forward);
+ const facingPlan=facing.plan,flankLine=groundPlanLine(facingPlan.pts);
+ check('計画の前の側はクリックで確定し、計画線を向いた隊がその側にいる',facingPlan.side===groundPlanSide(facingPlan.pts,forward)&&
+  flank.every(f=>groundPlanNearest(flankLine,f.pos).side===facingPlan.side));
+ const vias=[p(7.5,33.5),p(15.5,33.5)];
+ const pass=groundPass;
+ groundPass=(x,y,...args)=>!(Math.abs(x-7.5)<1e-8&&Math.abs(y-33.5)<1e-8)&&pass(x,y,...args);
+ try{
+  const nearby=groundFrontRoutes(facing,prepared(facing),true)[0].detourVia;
+  check('回り込みの中継点に入れない場合は近くの通れる点を使う',nearby&&groundPlanDistance(nearby,vias[0])>1e-6&&
+   groundPlanDistance(nearby,vias[0])<groundData().meta.cellKm*2*GROUND_SCALE);
+ }finally{groundPass=pass;}
+ groundMovePath=(from,waypoints,...args)=>waypoints.length===1?realPath(from,waypoints,...args):null;
+ try{
+  check('通れる中継点がなければ従来の経路を使う',groundFrontRoutes(facing,prepared(facing),true).every(r=>r.path&&!r.detourVia));
+ }finally{groundMovePath=realPath;}
+ groundPlanExecute();
+ check('向かい合う計画には各隊が担当する端を外と後ろに1.5kmずつ回り、後ろ側から着く',facing.advance?.detour&&
+  flank.every((f,i)=>{const path=f.order?.path;return path?.pts.length===2&&groundPlanDistance(path.pts[0],vias[i<2?0:1])<1e-6&&
+   groundPlanNearest(flankLine,path.points.at(-2)).side===-facingPlan.side&&f.order.groundAdvancePace===undefined;}));
+ for(const f of flank)groundFollow(f,2);
+ const intruder=unit(10,27,'infantry',1);
+ check('回り込み中は前線を越えた敵に迎撃命令を出さない',!groundFrontBreach(facing,[intruder])&&flank.every(f=>!f.groundFrontEngagement));
+ groundPlanDraw();
+ check('回り込み中は計画線と矢印を描き、動く前線は描かない',groundPlanVisual.meshes.still.visible&&
+  groundPlanVisual.meshes.blink.visible&&!groundPlanVisual.meshes.moving.visible);
+ const atStop=groundFrontFromUnits(flank,flankLine);
+ groundPlanExecute();
+ check('回り込みの停止で隊の現在位置から前線を作る',!facing.advance&&facing.plan===facingPlan&&
+  facing.side===atStop.side&&facing.pts.every((q,i)=>q.equals(atStop.pts[i])));
+ undo();
+ groundPlanRedraw(facing);groundPlanTap(flankStart);groundPlanTap(d);groundPlanTap(p(11,31));
+ check('回り込み中の引き直しも隊の現在位置から進む',facing.advance?.detour&&
+  groundPlanDistance(facing.advance.from[0],atStop.pts[0])<1e-6);
+ const destinations=new Map(facing.slots.map(s=>[s.f,s.dest]));
+ intruder.alive=false;finish(flank);tick();
+ check('回り込みが終わると、各隊が持ち場で停止する',!facing.advance&&!facing.plan&&flank.every(f=>
+  !f.order&&f.groundDeployed&&groundPlanDistance(f.pos,destinations.get(f))<1e-6));
+
+ fresh();const crossingTank=unit(20,25,'vehicle'),crossingPlan=[p(18,27),p(28,27)];
+ const bank={pts:[p(18,31),p(28,31)],plan:{pts:crossingPlan,side:groundPlanSide(crossingPlan,crossingTank.pos)},via:new Map(),passed:new Map()};
+ const crossingRoute=groundFrontRoutes(bank,[{f:crossingTank,dest:p(25.5,27),fraction:.75}],true)[0];
+ check('回り込みの渡河は中継点・渡河点・持ち場の順を保つ',crossingRoute.path?.pts.length===3&&
+  crossingRoute.path.pts.every((q,i)=>groundPlanDistance(q,[p(29.5,28.5),north,p(25.5,27)][i])<1e-6));
+
+ fresh();const queued=four(),queue=draw('deploy',queued,a,b);
+ const firstStart=p(8,31),firstEnd=p(14,31),thirdStart=p(8,33),thirdEnd=p(14,33);
+ finish(queued);tick();draw('plan',queued,firstStart,firstEnd);
+ const firstPlan=queue.plan;
+ check('計画の線の上を選ぶと出発する前線の反対側を使う',firstPlan.side===-groundPlanSide(firstPlan.pts,forward)&&
+  groundPlanNearest(groundPlanLine(firstPlan.pts),queued[0].pos).side!==firstPlan.side);
+ draw('plan',[queued[0]],d,c,p(11,33));const secondPlan=queue.nextPlans[0];
+ check('同じ前線の1隊でも次の計画を追加でき、前の計画と端を揃えて前の側を保つ',queue.plan===firstPlan&&
+  secondPlan?.pts[0].equals(c)&&secondPlan.side===groundPlanSide(secondPlan.pts,p(11,33))&&queued.every(f=>!f.order));
+ groundPlanExecute();const running=queue.advance,orders=queued.map(f=>f.order);
+ draw('plan',queued,thirdStart,thirdEnd,p(11,34));const thirdPlan=queue.nextPlans[1];
+ check('実行中も計画を順に追加し、現在の命令や矢印の行き先を保つ',queue.plan===firstPlan&&queue.advance===running&&
+  queue.nextPlans.length===2&&queued.every((f,i)=>f.order===orders[i])&&groundPlanArrows(queue).every(a=>a.pts.at(-1).z===firstStart.z));
+ const queuedHit=groundPlanPickAt(p(11,33),.1);
+ check('待機中の計画線を順番つきで選べる',queuedHit?.kind==='plan'&&queuedHit.index===2&&queuedHit.plan===thirdPlan);
+ click(queuedHit,'redraw');groundPlanTap(thirdStart);groundPlanTap(thirdEnd);groundPlanTap(p(11,32));
+ const edited=queue.nextPlans[1];
+ check('次の計画の引き直しは選んだ1本だけを変える',queue.plan===firstPlan&&queue.nextPlans[0]===secondPlan&&
+  edited?.side===-thirdPlan.side&&queue.advance===running&&groundWorkAiming==='edit');
+ click(groundPlanPickAt(p(11,33),.1),'delete');
+ check('次の計画の削除で選んだ1本だけを消す',queue.plan===firstPlan&&queue.nextPlans.length===1&&queue.nextPlans[0]===secondPlan);
+ undo();
+ check('戻すで削除前の計画の並びと進撃を復元する',queue.nextPlans[0]===secondPlan&&queue.nextPlans[1]===edited&&
+  queued.every(f=>f.order?.groundAdvance===queue.advance.group));
+ groundPlanDelete(queue);
+ check('実行中の計画を削除すると停止し、次の計画を繰り上げる',!queue.advance&&queue.plan===secondPlan&&queue.nextPlans[0]===edited);
+ undo();
+ check('今の計画の削除を戻すと、繰り上げる前の計画と並びに戻る',queue.plan===firstPlan&&queue.nextPlans[0]===secondPlan&&queue.nextPlans[1]===edited);
+ finish(queued);tick();
+ check('到着後は前線で止まり、次の計画を表示して実行を待つ',queue.pts===firstPlan.pts&&!queue.advance&&
+  queue.plan===secondPlan&&queue.nextPlans[0]===edited&&queued.every(f=>!f.order&&f.groundDeployed)&&
+  groundPlanMessage==='計画に到着。実行で次の計画へ');
+ groundPlanExecute();
+ check('もう一度実行すると繰り上がった計画に向かう',queue.advance&&queued.every(f=>f.order?.dest.z===c.z));
+ groundFrontDelete(queue);
+ check('前線を削除すると待機中の計画も消える',!groundFronts.includes(queue)&&!queue.nextPlans.length&&!queue.plan);
+ undo();
+ check('前線の削除を戻すと今の計画と次の計画が戻る',queue.plan===secondPlan&&queue.nextPlans[0]===edited);
  return rows;
 }
 function nodeChecks(){
@@ -405,7 +497,7 @@ async function checkGroundPlanDrag(page,check){
  await page.mouse.up();
  const side=await state(),rotated=await view();
  check(side.pts===done.pts&&!side.stroke&&rotated!==after,'前線のドラッグ: 前の側を待つあいだの左ドラッグはカメラを回す',JSON.stringify({side,camera:rotated!==after}));
- const fresh=()=>page.evaluate(()=>{groundClearAiming();groundPlanToggle('deploy');});
+ const fresh=(mode='deploy')=>page.evaluate(mode=>{groundClearAiming();groundPlanToggle(mode);},mode);
  // 回した惰性（減衰）も消してから、初めの視点へ戻す
  const restore=()=>page.evaluate(()=>{controls.enableDamping=false;controls.update();controls.enableDamping=true;
   camera.position.fromArray(window.__planDragView[0]);controls.target.fromArray(window.__planDragView[1]);controls.update();});
@@ -432,6 +524,20 @@ async function checkGroundPlanDrag(page,check){
  await page.mouse.up({button:'right'});
  const held=await state();
  check(held.pts>2&&held.aiming==='deploy','前線のドラッグ: 右は長押ししてから動かすと曲線を引く',JSON.stringify(held));
+ await restore();await fresh('plan');
+ await page.mouse.move(start.x,start.y);await page.mouse.down();
+ for(let i=1;i<=8;i++)await page.mouse.move(start.x+40*i,start.y+Math.sin(i/8*Math.PI)*30);
+ await page.mouse.up();
+ const planDone=await state(),sideAt={x:start.x+160,y:start.y};
+ await page.mouse.move(sideAt.x,sideAt.y);
+ const preview=await page.evaluate(()=>groundLinePts&&groundPlanSide(groundLinePts,groundLinePointer));
+ await page.mouse.click(sideAt.x,sideAt.y);
+ const committed=await page.evaluate(({x,y})=>{
+  const plan=groundPlanUnits()[0]?.groundFrontOf?.plan;
+  return {chosen:!!plan&&plan.side===groundPlanSide(plan.pts,groundAt(x,y)),message:groundPlanMessage};
+ },sideAt);
+ check(planDone.aiming==='plan'&&planDone.pts>2&&!!preview&&committed.chosen,
+  '進撃計画のドラッグ: 曲線を引いたあと前の側をクリックして確定する',JSON.stringify({planDone,preview,committed}));
  await page.evaluate(()=>{groundClearAiming();document.getElementById('labels').style.display='';});
 }
 module.exports={nodeChecks,checkGroundPlanDrag};

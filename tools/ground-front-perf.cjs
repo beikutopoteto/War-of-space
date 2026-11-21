@@ -33,7 +33,7 @@ function setupFrontPerf(mode){
     for(let i=0;i<100&&units.some(f=>f.order);i++)step(.05);
     if(units.some(f=>f.order))throw Error('前線への整列が終わりませんでした');
     groundPlanToggle('plan');
-    let t=performance.now();groundPlanLineDone(plan,null);commandMs.plan=performance.now()-t;
+    let t=performance.now();groundPlanLineDone(plan,null);groundPlanTap(plan[0]);commandMs.plan=performance.now()-t;
     if(!front.plan)throw Error('計画を作れませんでした: '+groundPlanMessage);
     if(mode==='advance'){
       t=performance.now();document.getElementById('groundExecute').click();commandMs.execute=performance.now()-t;

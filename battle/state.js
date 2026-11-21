@@ -392,7 +392,7 @@ function copyOrder(o,f=null){
   const left=o.path?(front&&f&&groundFlyingAircraft(f)?groundFrontAirWaypoints(o):pathLeft(o)):[...(o.via||[]),o.dest];
   const pts=left.length?left:[o.dest];   // the points still ahead
   const move={type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
-  return front?{...move,...front,groundAdvance:o.groundAdvance,groundDeploy:o.groundDeploy,groundLine:o.groundLine}:move;
+  return front?{...move,...front,groundAdvance:o.groundAdvance,groundAdvancePace:o.groundAdvancePace,groundDeploy:o.groundDeploy,groundLine:o.groundLine}:move;
 }
 function saveUndo(t){
   const front=op.ground&&typeof groundFrontSnapshot==='function'?groundFrontSnapshot(t):null;
