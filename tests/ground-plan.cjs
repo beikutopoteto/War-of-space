@@ -100,7 +100,12 @@ function planCases(){
  check('動く前線の絵は実時間で250ms待ってから描き直す',deferred&&mesh.geometry!==first);
  performance.now=realNow;tick();
 
- const stopped=groundFrontPosition(front,front.advance.t);
+ // ユーザーの指示 2026-11-21: 速さの違いで先に出た隊の所は、前線が前へ張り出す
+ const ahead=units[1];for(let i=0;i<3;i++)groundFollow(ahead,1);tick();
+ const prof=groundFrontProfile(front),at64=s=>prof[Math.round(s.fraction*(GROUND_FRONT_SAMPLES-1))];
+ const leadSlot=front.slots.find(s=>s.f===ahead),others=front.slots.filter(s=>s.f!==ahead&&!s.offset).map(at64);
+ check('先に出た隊の所で前線が前へ張り出し、ほかは元の深さのまま',at64(leadSlot)>Math.max(...others)+.02&&prof.length===GROUND_FRONT_SAMPLES);
+ const stopped=groundFrontNow(front);
  groundPlanExecute();
  check('停止はその瞬間の線を前線にし、計画を残す',!front.advance&&front.plan===plan&&front.pts!==from&&
    front.pts.every((q,i)=>groundPlanDistance(q,stopped[i])<1e-6)&&units.every(f=>f.order?.groundDeploy));
@@ -175,7 +180,7 @@ function planCases(){
  undo();
  check('Undoで中継地点・進撃の組・進撃命令を復元',edit.via.get(f)?.length===2&&f.order?.groundAdvance===edit.advance.group);
  for(const u of editors)groundFollow(u,1);tick();
- const instant=groundFrontPosition(edit,groundFrontProgress(edit)),oldFixedLine=edit.pts;
+ const instant=groundFrontNow(edit),oldFixedLine=edit.pts;
  groundPlanRedraw(edit);groundPlanTap(p(8,33));groundPlanTap(p(14,33));
  check('進撃中の計画の引き直しは現在の線から新しい計画へ進む',edit.advance&&edit.pts===oldFixedLine&&
    groundPlanDistance(edit.advance.from[0],instant[0])<1e-6&&editors.every(u=>Math.abs(u.order?.dest.z-p(8,33).z)<1e-6));
@@ -245,13 +250,15 @@ function planCases(){
  groundPlanSetColor('battalions',two,pink);
  const colors=groundPlanSectionColors(target);
  check('前列の受け持ち順で大隊色を付ける',colors.join()=== [green,green,pink,pink].join()&&groundPlanUnitColor(own[0])===green);
+ // 色の切れ目は線の長さの真ん中（進撃を止めた線は隊の進み具合で少し曲がる）
+ const targetLine=groundPlanLine(target.pts),mid=groundPlanAt(targetLine,targetLine.len/2);
  const vertices=[],rgb=[];
  groundPlanFront(vertices,target.pts,target.side,1,0,0,1,colors,rgb);
  const expected=[green,pink].map(c=>groundPlanPaints.get(c).toArray());
  check('帯の各半分と全体で等間隔の歯を対応する色で描く',vertices.length===rgb.length&&
    rgb.length>0&&rgb.every((v,i)=>{
-     const x=vertices[i-i%3]-p(11,28).x;
-     return Math.abs(x)<1e-6||expected[x<0?0:1][i%3]===v;
+     const x=vertices[i-i%3]-mid.x;
+     return Math.abs(x)<1e-2||expected[x<0?0:1][i%3]===v;   // 切れ目の点は両方の色を持つ
    }));
  groundPlanToggle('edit');click({kind:'front',front:target},'delete');
  check('前線の削除ボタンで前線を消し、編集・削除は続く',!groundFronts.length&&groundWorkAiming==='edit');
