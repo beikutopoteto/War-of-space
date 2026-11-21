@@ -78,7 +78,7 @@ function groundResolveForces(operation,cfg){
   const sortie=operation.ground&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg):null;
   const spec=operation.groundDrill?operation.quick:sortie?sortie.fleets:cfg?.fleets?.length?cfg.fleets:operation.quick;
   return {fleets:operation.ground?spec.map(groundUnitSpec):spec,
-    enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,org:sortie?.org||null};
+    enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,org:sortie?.org||(operation.ground&&cfg?.quickOrg?'quick':null)};
 }
 function groundSetupCoordinates(){
   if(op.view?.targetKm)op.view.target=op.view.targetKm.map((v,i)=>i?groundWorldZ(v):groundWorldX(v));

@@ -667,7 +667,7 @@ function renderSortie(){
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),choose);
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
-  if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick}:{op:op.id}); } };
+  if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick,quickOrg:true}:{op:op.id}); } };
   const groundLimits=op.ground&&!fixedOp?[(op.groundSortie?.maxCompanies!=null?'中隊は '+op.groundSortie.maxCompanies+' 個まで。':''),...(op.groundSortie?.bannedKinds||[]).map(k=>(GROUND.types()[k]?.name||k)+' は出撃できません。')].filter(Boolean).join(''):'';
   document.getElementById('fixedNote').textContent=op.ground&&!fixedOp?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。${groundLimits}`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
   const btn=document.getElementById('goBattle'); btn.disabled=false;

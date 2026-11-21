@@ -181,6 +181,13 @@ async function checkGroundDrill(page,check){
     const beforeQuick=await page.evaluate(()=>localStorage.getItem('wos.save.v1'));
     await page.click('#goQuick');await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
     check(await page.evaluate(()=>!tutorial&&!op.groundDrill&&op.ground==='baikonur2'&&groundSites.length===9&&fleets.filter(f=>f.team===1).length===10&&fleets.some(f=>f.team===0&&f.groundKind==='supply')&&fleets.some(f=>f.name==='第2 主力戦車中隊')),'バイコヌール演習: クイックは既定部隊・案内なし');
+    // クイック出撃の編成（ユーザーの指示 2026-11-21）: 歩兵と自走砲／戦車・補給・重歩兵・APC／それ以外 の3大隊を1旅団に。艦は独立のまま
+    check(await page.evaluate(()=>{
+      const kinds=b=>groundMembers('battalions',b.id).map(f=>f.groundKind).sort().join(),bs=groundOrg.battalions,[g]=groundOrg.brigades;
+      return groundOrg.brigades.length===1&&g.name==='第1 旅団'&&g.battalions.join()===bs.map(b=>b.id).join()&&bs.length===3&&
+        kinds(bs[0])==='artillery,heavyInfantry,infantry'&&kinds(bs[1])==='apc,infantry,supply,vehicle'&&kinds(bs[2])==='attack,engineer,mobileAA,scout'&&
+        document.querySelectorAll('#roster [data-level="battalions"]').length===3&&fleets.filter(f=>f.team===0&&f.groundKind==='sea').every(f=>!bs.some(b=>b.companies.includes(f.companyId)));
+    }),'バイコヌール演習: クイックは兵科で1旅団・3大隊、艦は独立');
     check(await page.locator('#training').isHidden()&&await page.locator('#talkText').isHidden(),'バイコヌール演習: 案内のUIなし');
     await page.evaluate(()=>{
       window.baikonurHits=0;const realDamage=damage;damage=(t,n,src,...rest)=>{if(src?.team===1&&n>0)baikonurHits++;return realDamage(t,n,src,...rest);};

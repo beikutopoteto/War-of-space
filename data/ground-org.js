@@ -71,11 +71,31 @@ window.WOS_GROUND_ORG=(()=>{
     return ids.map(c=>org.companies.find(y=>y.id===c)).filter(Boolean);
   }
   const platoonsOf=list=>list.reduce((n,c)=>n+(c.platoons||1),0);
+  /* クイック出撃の編成（ユーザーの指示 2026-11-21「大体は 歩兵と自走砲／戦車と補給、重歩兵、APC／それ以外の計三つ」）:
+     兵科で3つの大隊に分け（強化歩兵1つは重強化歩兵と入れ替え。下）、1つの旅団に入れる。空の組は大隊を作らない。大隊は中隊4つまでなので、あふれた分は同じ組の次の大隊へ。
+     旅団は大隊4つまでで、あふれたら次の旅団へ。companies は {id,kind} の並び（並びの順で大隊に入る） */
+  const QUICK_GROUPS=[['infantry','artillery'],['vehicle','supply','heavyInfantry','apc']];
+  function quickOrg(companies){
+    const group=c=>{const i=QUICK_GROUPS.findIndex(g=>g.includes(c.kind));return i<0?QUICK_GROUPS.length:i;};
+    const battalions=[],brigades=[],lists=[...Array(QUICK_GROUPS.length+1)].map((_,g)=>companies.filter(c=>group(c)===g));
+    // ユーザーの指示 2026-11-21「第一大隊の歩兵中隊一つを第二大隊の重歩兵中隊を入れ替えて」: 強化歩兵が2つ以上なら、
+    // 最後の強化歩兵1つと重強化歩兵1つを入れ替える（強化歩兵が1つだけなら第1 大隊に残す）。
+    const [infantry,armor]=lists,light=infantry.filter(c=>c.kind==='infantry'),heavy=armor.find(c=>c.kind==='heavyInfantry');
+    if(light.length>=2&&heavy){const moved=light[light.length-1];infantry[infantry.indexOf(moved)]=heavy;armor[armor.indexOf(heavy)]=moved;}
+    for(const list of lists){
+      const ids=list.map(c=>c.id);
+      for(let i=0;i<ids.length;i+=MAX_COMPANIES)
+        battalions.push({id:'qb'+(battalions.length+1),name:`第${battalions.length+1} 大隊`,companies:ids.slice(i,i+MAX_COMPANIES)});
+    }
+    for(let i=0;i<battalions.length;i+=MAX_BATTALIONS)
+      brigades.push({id:'qr'+(brigades.length+1),name:`第${brigades.length+1} 旅団`,battalions:battalions.slice(i,i+MAX_BATTALIONS).map(b=>b.id)});
+    return {battalions,brigades};
+  }
   function sortie(value){
     let org=normalize(value); if(!org.companies.length) org=defaults();
     const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,groundPlatoons:c.platoons,companyId:c.id,vis:9,stl:0,
       band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground'}));
     return {org,fleets};
   }
-  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortie};
+  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortie,QUICK_GROUPS,quickOrg};
 })();
