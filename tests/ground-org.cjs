@@ -86,6 +86,24 @@ async function checkGroundOrg(page,check){
     });
     for(const [name,ok] of Object.entries(result))check(ok,'地上編成の実画面: '+name);
     check(await page.locator('#roster [data-level="battalions"]').count()===2,'地上編成: 旅団→大隊→中隊を再展開');
+    // 旅団・大隊の見出しの「全自動／全命令／全混在」（宇宙の戦区軍と同じ。ユーザーの指示 2026-11-21）
+    const stance=await page.evaluate(()=>{
+      fleets.forEach(f=>f.stance='engage');buildRoster();updateRoster();
+      const brigade=groundOrg.brigades[0],[b1,b2]=brigade.battalions,mine=groundMembers('brigades',brigade.id);
+      const btn=(level,id)=>document.querySelector(`[data-level="${level}"][data-id="${id}"] > .ground-rhead .rgStance`);
+      const text=()=>[btn('brigades',brigade.id),btn('battalions',b1),btn('battalions',b2)].map(b=>b.textContent).join();
+      const r={start:text()==='全自動,全自動,全自動'};
+      btn('battalions',b2).click();
+      r.battalion=text()==='全混在,全自動,全命令'&&groundMembers('battalions',b2).every(f=>f.stance==='evade')&&groundMembers('battalions',b1).every(f=>f.stance==='engage')&&
+        btn('brigades',brigade.id).dataset.st==='mixed';
+      btn('brigades',brigade.id).click();
+      r.brigadeEvade=text()==='全命令,全命令,全命令'&&mine.every(f=>f.stance==='evade')&&btn('battalions',b1).dataset.st==='evade';
+      btn('brigades',brigade.id).click();
+      r.brigadeEngage=text()==='全自動,全自動,全自動'&&mine.every(f=>f.stance==='engage');
+      r.others=fleets.filter(f=>f.team===0&&!mine.includes(f)).every(f=>f.stance==='engage');
+      return r;
+    });
+    for(const [name,ok] of Object.entries(stance))check(ok,'地上編成の全自動／全命令: '+name);
   }finally{
     await page.evaluate(s=>{if(s===null)localStorage.removeItem('wos.save.v1');else localStorage.setItem('wos.save.v1',s);},original);
     await page.reload();
