@@ -312,7 +312,7 @@ menu.innerHTML=`
 <section class="scr sortie-screen" data-s="sortie" hidden>
   <button class="back plate" data-go="mode">← 出撃</button><h2 class="sortie-heading"><b>OFFLINE</b><span>作戦を選ぶ</span></h2>
   <div id="opList" class="ops"></div><p id="where" class="where"></p>
-  <div class="plate det"><div id="opDetail"></div><div id="fixedNote"></div><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
+  <div class="plate det"><div id="opDetail"></div><div id="fixedNote"></div><div id="groundSortieLoad"></div><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
 </section>
 <section class="scr sortie-screen forces-screen" data-s="forces" hidden>
   <canvas id="dockCanvas"></canvas><button class="back plate" data-go="sortie">← 作戦を選ぶ</button>
@@ -662,15 +662,23 @@ function renderSortie(){
   ol.querySelectorAll('[data-op]').forEach(b=>b.onclick=()=>{ choose(b.dataset.op); ol.querySelector(`[data-op="${b.dataset.op}"]`).focus({preventScroll:true}); });
   ol.scrollTop=scroll;
   const op=list.find(o=>o.id===sortieOp), done=opDone(op);
-  document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${scaleText(op)}${esc(op.threat)}</p>`;
+  document.getElementById('opDetail').innerHTML=`<span class="ch">${esc(op.tag||op.chapter||'演習　架空の宙域')}</span><h3>${esc(op.name)}</h3>${op.chapter||op.tag?`<span class="when">${esc(op.date)}　${esc(op.start)} 開始</span>`:''}<p>${esc(op.summary)}</p><p class="thr">${op.ground?'':scaleText(op)}${esc(op.threat)}</p>`;
   document.getElementById('opReward').innerHTML=op===TUT?'報酬　なし':`報酬　資金 <b>${op.reward||0}</b>${done?`（再戦は${Math.round((op.reward||0)*replayRate(op))}）`:''}`;
   WOS_BG.focus(op,list.filter(o=>o.place&&opOpen(o)),choose);
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick,quickOrg:true}:{op:op.id}); } };
-  const groundLimits=op.ground&&!fixedOp?[(op.groundSortie?.maxCompanies!=null?'中隊は '+op.groundSortie.maxCompanies+' 個まで。':''),...(op.groundSortie?.bannedKinds||[]).map(k=>(GROUND.types()[k]?.name||k)+' は出撃できません。')].filter(Boolean).join(''):'';
-  document.getElementById('fixedNote').textContent=op.ground&&!fixedOp?`地上軍の全${save.groundOrg.companies.length}個中隊で出撃します。編成が空なら初期部隊を使います。${groundLimits}`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
-  const btn=document.getElementById('goBattle'); btn.disabled=false;
+  const load=op.ground&&!fixedOp&&!op.groundDrill?GROUND.sortie(save.groundOrg,op).load:null;
+  const bannedNote=load?(op.groundSortie?.bannedKinds||[]).map(k=>(GROUND.types()[k]?.name||k)+' は出撃できません。').join(''):'';
+  document.getElementById('fixedNote').textContent=load?`地上軍の編成から${load.companies.length}個中隊で出撃します。${save.groundOrg.companies.length?'':'初期部隊を使います。'}${bannedNote}`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
+  const scaleBlocked=!!load?.scaleOver&&!dbg.free;
+  document.getElementById('groundSortieLoad').innerHTML=load&&(load.scale||load.supplyLimit!==null)?`
+    <table class="load"><tbody>
+      ${load.scale?`<tr class="${load.scaleOver?'over':''}"><th>作戦規模（${esc(load.scale.name)}）</th><td>${load.platoons}/${load.scale.cap}小隊</td></tr>`:''}
+      ${load.supplyLimit!==null?`<tr class="${load.excess?'over':''}"><th>補給限界</th><td>${load.supplyUsed}/${load.supplyLimit}（基本${load.supplyBase}＋補給中隊${load.supplyPlatoons}小隊）${load.excess?`<br>補給・士気の上限 −${load.penaltyPercent}%`:''}</td></tr>`:''}
+    </tbody></table>
+    ${load.scaleOver?`<p class="warn">${scaleBlocked?'出撃できません。部隊編成で小隊を減らしてください。':'デバッグ：出撃上限を無視して出撃できます。'}</p>`:''}`:'';
+  const btn=document.getElementById('goBattle'); btn.disabled=scaleBlocked;
   btn.onclick=()=>{ if(op===TUT2){ running={op:TUT2_BASE.id,progress:TUT2.id};window.WOS.start({op:TUT2_BASE.id,tutorial:true}); } else if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
 function renderForces(){
@@ -768,9 +776,9 @@ function groundArms(list){ const by={}; list.forEach(c=>by[c.kind]=(by[c.kind]||
 function renderGroundOrg(){
   const org=save.groundOrg, level=GROUND_LEVELS[groundTab]?groundTab:'battalions', label=GROUND_LEVELS[level], items=org[level];
   if(!items.some(x=>x.id===selGround)) selGround=items[0]?.id||null;
-  const list=document.getElementById('orgList'), det=document.getElementById('orgDetail'), all=org.companies;
+  const list=document.getElementById('orgList'), det=document.getElementById('orgDetail'), total=GROUND.sortie(org).load;
   document.getElementById('tabNote').textContent=level==='battalions'?'中隊の行を足し、マスを押して小隊の数を変えます。中隊は戦闘で動かす最小の単位です。大隊を解散すると中の中隊も消えます。':'大隊を4つまで入れます。旅団を解散しても大隊は残ります。';
-  document.getElementById('orgCap').innerHTML=`<b>地上軍</b><span>大隊は中隊${GROUND.MAX_COMPANIES}つ・中隊は小隊${GROUND.MAX_PLATOONS}つ・旅団は大隊${GROUND.MAX_BATTALIONS}つまで</span><span>出撃：全${all.length}個中隊・${GROUND.platoonsOf(all)}小隊${all.length?'':'（空なら初期部隊）'}</span>`;
+  document.getElementById('orgCap').innerHTML=`<b>地上軍</b><span>大隊は中隊${GROUND.MAX_COMPANIES}つ・中隊は小隊${GROUND.MAX_PLATOONS}つ・旅団は大隊${GROUND.MAX_BATTALIONS}つまで</span><span>出撃：全${total.companies.length}個中隊・${total.platoons}小隊・補給値 ${total.supplyUsed}${org.companies.length?'':'（初期部隊）'}</span>`;
   list.innerHTML=listHtml(items.map(x=>{ const cs=GROUND.companiesOf(org,level,x.id);
     return {id:x.id,name:x.name,meta:level==='battalions'?`${x.companies.length}個中隊・${GROUND.platoonsOf(cs)}小隊・${esc(groundOwner(org,x.id)?.name||'未所属')}`:`${x.battalions.length}個大隊・${cs.length}個中隊・${GROUND.platoonsOf(cs)}小隊`}; }),selGround,`＋ ${label}を作る`,'data-ground-unit');
   list.querySelector('[data-new]').onclick=()=>{
@@ -780,14 +788,14 @@ function renderGroundOrg(){
   };
   list.querySelectorAll('[data-ground-unit]').forEach(b=>b.onclick=()=>{selGround=b.dataset.groundUnit;confirmDel=null;renderOrg();});
   const x=items.find(x=>x.id===selGround);if(!x){det.innerHTML=`<p class="empty">${label}を作ってください。</p>`;return;}
-  const cs=GROUND.companiesOf(org,level,x.id);
+  const cs=GROUND.companiesOf(org,level,x.id), load=GROUND.sortieLoad(cs);
   const head=`<div class="dzh"><div class="tg">${esc(x.name)}</div><label class="fld">名前<input id="groundName" maxlength="40" value="${esc(x.name)}"></label>${level==='battalions'?'<button data-ground-copy>複製</button>':''}${delBtn('ground:'+x.id,'解散')}</div>`;
   if(level==='battalions'){
     const options=k=>Object.entries(GROUND.types()).map(([id,u])=>`<option value="${id}" ${id===k?'selected':''}>${esc(u.name)}</option>`).join('');
     const rows=Array.from({length:GROUND.MAX_COMPANIES},(_,i)=>{ const c=cs[i];
       if(!c) return `<div class="tr empty"><div class="th">${i===cs.length?`<select id="groundAddCompany" aria-label="中隊を加える"><option value="">＋ 中隊を加える</option>${options(null)}</select>`:'空き'}</div></div>`;
       return `<div class="tr"><div class="th"><span class="no">${esc(c.name)}</span><select data-ground-kind="${esc(c.id)}" aria-label="兵科">${options(c.kind)}</select><button class="x" data-ground-rm="${esc(c.id)}" aria-label="この中隊を消す">×</button></div><div class="cells g">${Array.from({length:GROUND.MAX_PLATOONS},(_,k)=>`<button class="sc ${k<c.platoons?'on':''}" data-ground-platoons="${esc(c.id)}" data-n="${k+1}" aria-label="${k+1}小隊にする">${k<c.platoons?groundMark(c.kind):'＋'}</button>`).join('')}</div><span class="ct">${c.platoons}<small>/${GROUND.MAX_PLATOONS}</small></span></div>`; }).join('');
-    det.innerHTML=head+`<div class="dzb"><div><h4>中隊　<span class="dim">マスを押して小隊の数を変える</span></h4>${rows}</div><div class="dpanel"><h4>大隊の中身</h4><p>中隊 ${cs.length}/${GROUND.MAX_COMPANIES}　小隊 ${GROUND.platoonsOf(cs)}/${GROUND.MAX_COMPANIES*GROUND.MAX_PLATOONS}</p><p>所属 ${esc(groundOwner(org,x.id)?.name||'未所属')}</p><h4>兵科</h4><div class="garms">${groundArms(cs)}</div><p class="dim small">1小隊は今の地図の駒1つぶん。小隊の数は、まだ戦闘の強さに効きません（編成の作り直しの途中）。</p></div></div>`;
+    det.innerHTML=head+`<div class="dzb"><div><h4>中隊　<span class="dim">マスを押して小隊の数を変える</span></h4>${rows}</div><div class="dpanel"><h4>大隊の中身</h4><p>中隊 ${cs.length}/${GROUND.MAX_COMPANIES}　小隊 ${load.platoons}/${GROUND.MAX_COMPANIES*GROUND.MAX_PLATOONS}</p><p>補給値 ${load.supplyUsed}</p><p>所属 ${esc(groundOwner(org,x.id)?.name||'未所属')}</p><h4>兵科</h4><div class="garms">${groundArms(cs)}</div><p class="dim small">1小隊は今の地図の駒1つぶん。小隊の数は、まだ戦闘の強さに効きません（編成の作り直しの途中）。</p></div></div>`;
     const add=det.querySelector('#groundAddCompany'); if(add) add.onchange=()=>{ if(add.value&&GROUND.addCompany(org,x.id,add.value)){persist();renderOrg();} };
     det.querySelectorAll('[data-ground-kind]').forEach(s=>s.onchange=()=>{GROUND.setKind(org,s.dataset.groundKind,s.value);persist();renderOrg();});
     det.querySelectorAll('[data-ground-platoons]').forEach(b=>b.onclick=()=>{GROUND.setPlatoons(org,b.dataset.groundPlatoons,+b.dataset.n);persist();renderOrg();});
@@ -802,7 +810,7 @@ function renderGroundOrg(){
         return `<div class="tr empty"><div class="th">${i===bs.length?`<select id="groundAddBattalion" aria-label="大隊を加える" ${free.length?'':'disabled'}><option value="">${free.length?'＋ 大隊を加える':'＋ 大隊を加える（空いた大隊なし）'}</option>${free.map(y=>`<option value="${esc(y.id)}">${esc(y.name)}（${esc(groundOwner(org,y.id)?.name?groundOwner(org,y.id).name+'から移す':'未所属')}）</option>`).join('')}</select>`:'空き'}</div></div>`; }
       const bc=GROUND.companiesOf(org,'battalions',b.id);
       return `<div class="tr"><div class="th"><button class="no link" data-ground-open="${esc(b.id)}" title="大隊のタブで開く">${esc(b.name)}</button><span class="gsub">${bc.length}個中隊</span><button class="x" data-ground-out="${esc(b.id)}" aria-label="この大隊を旅団から外す">×</button></div><div class="cells gb">${bc.map(c=>`<span class="gco" title="${esc(c.name)}　${c.platoons}小隊">${groundMark(c.kind)}<i>${c.platoons}</i></span>`).join('')||'<span class="dim">中隊なし</span>'}</div><span class="ct">${GROUND.platoonsOf(bc)}</span></div>`; }).join('');
-    det.innerHTML=head+`<div class="dzb"><div><h4>大隊　<span class="dim">記号の横と右の数は小隊の数。大隊の名前を押すと大隊のタブで開く</span></h4>${rows}</div><div class="dpanel"><h4>旅団の中身</h4><p>大隊 ${bs.length}/${GROUND.MAX_BATTALIONS}　中隊 ${cs.length}　小隊 ${GROUND.platoonsOf(cs)}</p><h4>兵科</h4><div class="garms">${groundArms(cs)}</div><h4>編成ボーナス</h4><p class="dim small">旅団の編成ボーナスは準備中です。</p></div></div>`;
+    det.innerHTML=head+`<div class="dzb"><div><h4>大隊　<span class="dim">記号の横と右の数は小隊の数。大隊の名前を押すと大隊のタブで開く</span></h4>${rows}</div><div class="dpanel"><h4>旅団の中身</h4><p>大隊 ${bs.length}/${GROUND.MAX_BATTALIONS}　中隊 ${cs.length}　小隊 ${load.platoons}</p><p>補給値 ${load.supplyUsed}<br>補給中隊 ${load.supplyPlatoons}小隊（限界 +${load.supplyBonus}）</p><h4>兵科</h4><div class="garms">${groundArms(cs)}</div><h4>編成ボーナス</h4><p class="dim small">旅団の編成ボーナスは準備中です。</p></div></div>`;
     const add=det.querySelector('#groundAddBattalion'); if(add) add.onchange=()=>{ if(add.value&&GROUND.assign(org,'battalions',add.value,x.id)){persist();renderOrg();} };
     det.querySelectorAll('[data-ground-out]').forEach(b=>b.onclick=()=>{GROUND.assign(org,'battalions',b.dataset.groundOut,'');persist();renderOrg();});
     det.querySelectorAll('[data-ground-open]').forEach(b=>b.onclick=()=>{groundTab='battalions';selGround=b.dataset.groundOpen;confirmDel=null;renderOrg();});

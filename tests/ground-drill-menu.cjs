@@ -62,9 +62,11 @@ function runMenuChecks(){
   check("onEnd('baikonur',true).includes('資金 +67')&&prog().funds===167",'チュートリアル2再戦は67');
   run("sortieOp='baikonur';renderSortie()");
   const originalNote=node('fixedNote').textContent;
-  assert.equal(originalNote,`地上軍の全6個中隊で出撃します。編成が空なら初期部隊を使います。`);count++;
-  run("var originalSortie=TUT2_BASE.groundSortie;TUT2_BASE.groundSortie={...originalSortie,maxCompanies:2,bannedKinds:['was']};renderSortie()");
-  assert.ok(node('fixedNote').textContent.includes('中隊は 2 個まで')&&node('fixedNote').textContent.includes('W.A.S.')&&node('fixedNote').textContent.includes('は出撃できません'));count++;
+  assert.equal(originalNote,'地上軍の編成から6個中隊で出撃します。');count++;
+  assert.match(node('groundSortieLoad').innerHTML,/24\/64小隊[\s\S]*60\/100/);count++;
+  run("var originalSortie=TUT2_BASE.groundSortie;TUT2_BASE.groundSortie={...originalSortie,bannedKinds:['was']};renderSortie()");
+  assert.equal(node('fixedNote').textContent,'地上軍の編成から5個中隊で出撃します。陸戦型 W.A.S. は出撃できません。');count++;
+  assert.match(node('groundSortieLoad').innerHTML,/20\/64小隊[\s\S]*48\/100/);count++;
   run('TUT2_BASE.groundSortie=originalSortie;renderSortie()');
   assert.equal(node('fixedNote').textContent,originalNote);count++;
   assert.equal(node('goQuick').hidden,false);count++;

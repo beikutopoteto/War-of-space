@@ -18,7 +18,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   - `WOS_DATA.sides`（`ships.js`）: 両陣営の艦種の表（2026-10-20）。作戦データで `hp` を書いていない戦う艦隊は、陣営の表と作戦の `stage`（技術の段階）から `battle/state.js` の `techFleet` で値を出す（`makeFleet` の最初）
 - `battle/`: 戦闘画面。一番外側の名前はファイル間で共有される（名前を変えるときは全ファイルを検索する）。読み込み時に呼ぶ処理は `loop.js` に置く。読み込み順:
   1. `scene.js` シーン・要塞・ステーション
-  1.5 `terrain.js` 地上演習の盤と地表高度・マス経路・通行（`?ground=exercise2`）。`groundUnitSpec(u)` は `{name,kind,at:[xKm,yKm],band?}` と搭載中隊を艦隊の形へ変換し、`at` がなければそのまま返す。`groundSortieForces(op,org)` は作戦の `groundSortie`（`slots` または `site`・`radiusKm`、任意の `maxCompanies`・`bannedKinds`）で編成を制限・配置する。`groundResolveForces(op,cfg)` が既存の部隊選択をまとめ、宇宙は従来の仕様を返す。`groundSetupCoordinates()` は視点の `targetKm` と案内の `at` を再変換する（併設されたチュートリアルの印はその地図の座標を使う）。
+  1.5 `terrain.js` 地上演習の盤と地表高度・マス経路・通行（`?ground=exercise2`）。`groundUnitSpec(u)` は `{name,kind,at:[xKm,yKm],band?}` と搭載中隊を艦隊の形へ変換し、`at` がなければそのまま返す。`groundSortieForces(op,org)` は `WOS_GROUND_ORG.sortie()` で禁止兵科を除いた編成と出撃集計を取得し、作戦の `groundSortie` の `slots` または `site`・`radiusKm` で配置する。`groundResolveForces(op,cfg)` が部隊選択と地上戦の補給・士気の低下率を返す。`groundSetupCoordinates()` は視点の `targetKm` と案内の `at` を再変換する（併設されたチュートリアルの印はその地図の座標を使う）。
   2. `effects.js` 粒子・曳光弾・矢印
   2.5 `base.js` 第5節の総基地のゲート（八角形のふた、状態の帯、塞いだ瓦礫）と強化歩兵の点・撃つ見た目（2026-10-16。共和国の強化歩兵の赤い点 `drawTroops` は 2026-10-18。描くだけ。シールド・塞ぐ・守備隊の仕組みは `sim.js`）。地表の砲台の案I（`pitBuild`・`pitDraw`: 竪穴をステンシルで岩に見せる、向きと仰角、砲台の強化歩兵。2026-10-17。仰角の制限 `pitCan` と砲台の歩兵の射撃は `sim.js`。後処理の描画先にステンシルを持たせたのは `scene.js`）
   3. `shapes.js` 艦と小型機と地表の砲台・推進器の形（艦の古い形は、地上の画面の海の戦闘母艦・突撃揚陸艦がまだ使う。準備画面のドックは 2026-11-14 から新しい形）

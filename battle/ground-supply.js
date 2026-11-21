@@ -1,5 +1,5 @@
 /* 地上専用。道路の所有と本営からの流量、補給、士気、航空の基地帰投。 */
-let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='';
+let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='', groundSupplyPenalty=0;
 function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
 function groundSupplyLand(f){return !!f&&!['sea','was','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
@@ -7,8 +7,8 @@ function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].i
 function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
 function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
 function groundSupplyInitUnit(f){
-  if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
-  if(groundSupplyLand(f))f.groundMorale=groundMoraleMax(f);
+  if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyUnitMax(f);
+  if(groundSupplyLand(f))f.groundMorale=groundMoraleUnitMax(f);
   f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
 }
 function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
@@ -195,14 +195,15 @@ function groundSupplyGive(dt,netGains){
     if(used.has(t)||f.order||f.groundSupply<=0||groundDistanceTo(f,t)>r.giveKm*GROUND_SCALE)continue;
     const path=groundPath(f.pos,t.pos,groundMoveKind(f),true);
     if(!path||path.L>r.giveKm*GROUND_SCALE||groundBuildingsBlock({x:f.pos.x,y:groundHeight(f.pos.x,f.pos.z)+.35,z:f.pos.z},{x:t.pos.x,y:groundHeight(t.pos.x,t.pos.z)+.35,z:t.pos.z}))continue;
-    const prior=netGains.get(t)||0,gain=Math.min(r.give*dt,r.max-t.groundSupply+prior,f.groundSupply);
+    const room=groundSupplyUnitMax(t)-t.groundSupply;
+    const prior=netGains.get(t)||0,gain=Math.min(r.give*dt,room+prior,f.groundSupply);
     // 網による補充を超えたときだけ、従来どおり物資を分配する。
-    const extra=Math.min(gain-prior,r.max-t.groundSupply);
+    const extra=Math.min(gain-prior,room);
     if(extra>0){
       t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;f.groundStockGiving=true;
     }
     // 物資分配と独立して士気も回復。残った補給で賄える実回復量だけ消費する。
-    const morale=Math.max(0,Math.min(r.give*dt,groundMoraleMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
+    const morale=Math.max(0,Math.min(r.give*dt,groundMoraleUnitMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
     if(morale>0){t.groundMorale+=morale;f.groundSupply-=morale*r.moraleGiveCost;f.groundMoraleGiving=true;}
     if(f.groundStockGiving||f.groundMoraleGiving){used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};}
   }
@@ -210,7 +211,7 @@ function groundSupplyGive(dt,netGains){
 function groundAirStep(f,dt){
   const r=groundSupplyRules();
   if(f.groundAirState==='base'){
-    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
+    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=groundSupplyUnitMax(f);f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
     return;
   }
   groundSupplySpend(f,r.airIdle*dt);
@@ -244,10 +245,13 @@ function groundSupplyBefore(dt){
     if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);if(!op.npc?.[f.team]||op.groundDrill)groundSupplyAI(f);}
   }
 }
-// 味方の占領色は100%、それ以外は80%。現在値を上限へ切り下げない。
-// 士気の最大は兵科ごと（歩兵は高い）。割合（攻撃の倍率・回復と分配の上限・一覧の棒）はこの最大に対して測り、敗走・再編などの点は士気の数のまま。
+// 攻撃・速度の倍率と棒は、補給限界の超過を掛ける前の最大に対して測る。敗走・再集結も従来の数で判定する。
 function groundMoraleMax(f){const r=groundSupplyRules();return r.max*(r.moraleMax?.[f?.groundKind]??1);}
-function groundMoraleCap(f,at){return groundMoraleMax(f)*(at.owner===f.team&&!at.contested?1:.8);}
+function groundSupplyCapFactor(f){return f.team===0?1-groundSupplyPenalty/100:1;}
+function groundSupplyUnitMax(f){return groundSupplyRules().max*groundSupplyCapFactor(f);}
+function groundMoraleUnitMax(f){return groundMoraleMax(f)*groundSupplyCapFactor(f);}
+// 味方の占領色は上限まで、それ以外は上限の80%。現在値を切り下げずに回復を止める。
+function groundMoraleCap(f,at){return groundMoraleUnitMax(f)*(at.owner===f.team&&!at.contested?1:.8);}
 function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
@@ -255,7 +259,7 @@ function groundSupplyAfter(dt){
   for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||!groundSupplyLand(f))continue;
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
-    const gain=Math.min(r.max-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
+    const gain=Math.min(groundSupplyUnitMax(f)-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
     f.groundSupply+=gain;netGains.set(f,gain);
     if(gain>0)f.groundSupplySource=at.site?{site:at.site}:{edge:at.edge};
     if(f.groundBuilding)groundSupplySpend(f,r.build*dt);
@@ -303,7 +307,9 @@ function groundSupplyHud(list){
   if(button.disabled)groundSupplyAiming=false;
   button.setAttribute('aria-pressed',String(groundSupplyAiming));
   const net=groundSupplyNet,counts=net?[1,.5,0].map(k=>net.edges.filter(e=>e.owner===0&&e.rates[0]===k).length):[0,0,0],hq=groundSites.find(s=>s.id===op.groundHQ?.[0]);
-  status.textContent=groundSupplyAiming?'補給先の味方中隊をクリック（Escで取消）':`${hq?'本営：'+hq.name:'本営なし'} / 接続${counts[0]} 半速${counts[1]} 切断${counts[2]}${list.length===1?' / '+groundSupplyStatus(list[0]):''}`;
+  const penalty=groundSupplyPenalty?`補給限界 超過 −${groundSupplyPenalty}% / `:'';
+  const detail=groundSupplyAiming?'補給先の味方中隊をクリック（Escで取消）':`${hq?'本営：'+hq.name:'本営なし'} / 接続${counts[0]} 半速${counts[1]} 切断${counts[2]}${list.length===1?' / '+groundSupplyStatus(list[0]):''}`;
+  status.textContent=penalty+detail;
 }
 document.querySelectorAll('#groundSupply').forEach(b=>b.addEventListener('click',()=>{
   const list=orderTargets();if(list.length!==1||list[0].groundKind!=='supply'||!groundCommandAllowed(list[0],'give'))return;

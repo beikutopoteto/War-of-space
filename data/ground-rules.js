@@ -32,6 +32,16 @@ window.WOS_GROUND_RULES = {
   // fireRangesKm は武器到達距離（km）の仮値。索敵距離とは独立。
   // direct / indirect:{min,max} は地上・海上、ground / air は航空の対地・対空。
   // aa は航空機以外の自動対空用、airborne は空中 W.A.S. の対地・対空。未指定・0は能力なし。
+  // 出撃する1小隊あたりの補給値（仮、#485）。海の艦は対象外。
+  supplyWeight: {
+    infantry:1,scout:1,engineer:1,commando:1,apc:1,supply:1,
+    heavyInfantry:2,mobileAA:2,mechanicalAssault:2,droneHive:2,
+    vehicle:3,artillery:3,guidedRocket:3,was:3,fighter:3,attack:3,supportAircraft:3
+  },
+  sortieLimits: {
+    scales:{division:{name:'師団規模',cap:64}},supplyPerPlatoon:4, // 仮（#485）
+    penaltyPerPoint:2,maxPenalty:50 // %（ユーザー決定 2026-11-18）
+  },
   // 旧 range（戦闘単位）は旧データとの互換用に維持し、新しい射撃判定は fireRangesKm を使う。
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2,fireRangesKm:{direct:0.8,aa:0.5}},
