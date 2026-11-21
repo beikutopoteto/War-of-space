@@ -580,15 +580,15 @@ function groundSeaLeg(a,b){
   return cuts.slice(1).every((t,i)=>groundPass(x+dx*(t+cuts[i])/2,y+dy*(t+cuts[i])/2,'sea'));
 }
 const groundPathGrids=new WeakMap();
-function groundPathRiverBlocked(x,y,river,d,cell){
+function groundPathRiverBlocked(x,y,river,d,cell,bridgesOnly){
   const r=groundRiverAt(x,y,river);
   if(r.dist>=r.width/2+.12)return false;
   const bridge=d.objects.bridges.some(b=>b.river===river.id&&Math.hypot(x-b.x,y-b.y)<.9)||groundBuiltBridgeAt(x,y,river.id);
-  const ford=d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+cell)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+cell);
+  const ford=!bridgesOnly&&d.objects.fords.some(f=>f.river===river.id&&Math.abs((x-f.x)*r.tx+(y-f.y)*r.ty)<=(f.widthKm+cell)/2&&Math.hypot(x-f.x,y-f.y)<r.width/2+cell);
   return !bridge&&!ford;
 }
 // 中心は従来と同じ座標で渡河判定を済ませる。中心以外は、川が届き得るセルだけ実座標を検査する。
-function groundPathRiverTable(d,rivers){
+function groundPathRiverTable(d,rivers,bridgesOnly){
   const {cols,rows}=d.terrain,cell=d.meta.cellKm,table=new Uint8Array(cols*rows);
   const mark=(minX,minY,maxX,maxY)=>{
     const left=Math.max(0,Math.floor(minX/cell)),right=Math.min(cols-1,Math.floor(maxX/cell));
@@ -605,15 +605,15 @@ function groundPathRiverTable(d,rivers){
   }
   for(let i=0;i<table.length;i++)if(table[i]){
     const x=(i%cols+.5)*cell,y=(Math.floor(i/cols)+.5)*cell;
-    if(rivers.some(box=>groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell)))table[i]=2;
+    if(rivers.some(box=>groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell,bridgesOnly)))table[i]=2;
   }
   return table;
 }
 function groundPathWithin(x,y,b,pad=0){return x>=b.minX-pad&&x<=b.maxX+pad&&y>=b.minY-pad&&y<=b.maxY+pad;}
 /* straight: 道路を速い道として選ばない（進撃の道。ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。
    道路は沼地の遅さを打ち消すだけ（倍率1）。海・池・川・沼地の扱いは同じ。実際に動く速さは、足元の道路で今までどおり上がる */
-function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
-  const roadFactor=straight?1:groundRuleSet().movement.roadFactor;
+function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false,{bridgesOnly=false,shortest=false,maxKm=Infinity}={}){
+  const roadFactor=straight||shortest?1:groundRuleSet().movement.roadFactor;
   const d=groundData(),rules=groundRuleSet(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
@@ -640,21 +640,21 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
         for(let y=Math.max(0,Math.floor(Math.min(a[1],b[1])/cell));y<=Math.min(rows-1,Math.floor(Math.max(a[1],b[1])/cell));y++)for(let x=Math.max(0,Math.floor(Math.min(a[0],b[0])/cell));x<=Math.min(cols-1,Math.floor(Math.max(a[0],b[0])/cell));x++)box.boundary.add(y*cols+x);
       }
     }
-    gridCache.geometry={board,sea,ponds,rivers,riverTable:null};
+    gridCache.geometry={board,sea,ponds,rivers,riverTables:[]};
   }
-  const {board,sea,ponds,rivers}=gridCache.geometry;
-  const riverTable=kind!=='sea'||dryOnly?(gridCache.geometry.riverTable??=groundPathRiverTable(d,rivers)):null;
+  const {board,sea,ponds,rivers,riverTables}=gridCache.geometry;
+  const tableIndex=Number(bridgesOnly),riverTable=kind!=='sea'||dryOnly?(riverTables[tableIndex]??=groundPathRiverTable(d,rivers,bridgesOnly)):null;
   const inside=(x,y,box)=>{
     if(!groundPathWithin(x,y,box))return false;
     const i=index(x,y);if(box.boundary.has(i)||i<0||i>=cols*rows)return groundInside(x,y,box.poly);
     let value=box.inside[i];if(!value)box.inside[i]=value=groundInside(x,y,box.poly)?1:-1;return value===1;
   };
-  const crossingFactor=Math.min(1,rules.movement.river[kind]??0);
+  const crossingFactor=bridgesOnly?0:Math.min(1,rules.movement.river[kind]??0);
   function riverFactor(x,y,centerIndex){
     if(centerIndex!==undefined)return riverTable[centerIndex]===2?crossingFactor:1;
     const col=Math.floor(x/cell),row=Math.floor(y/cell);
     if(col>=0&&col<cols&&row>=0&&row<rows&&!riverTable[row*cols+col])return 1;
-    for(const box of rivers)if(groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell))return crossingFactor;
+    for(const box of rivers)if(groundPathWithin(x,y,box,box.pad)&&groundPathRiverBlocked(x,y,box.river,d,cell,bridgesOnly))return crossingFactor;
     return 1;
   }
   // A leg needs both passability and speed at the exact same sample. Evaluate
@@ -667,7 +667,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
     const factor=riverFactor(x,y,centerIndex);
     return dryOnly&&factor!==1?0:factor;
   }
-  const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'?1:Math.max(1,roadFactor,...Object.values(rules.movement.marsh),...Object.values(rules.movement.river));
+  const pass=(x,y)=>waterFactor(x,y)>0,onRoad=kind==='sea'?null:groundRoadQuery(d),maxFactor=kind==='sea'||shortest?1:Math.max(1,roadFactor,...Object.values(rules.movement.marsh),...Object.values(rules.movement.river));
   if(a.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||b.some((v,i)=>v<0||v>=[d.meta.widthKm,d.meta.heightKm][i])||!pass(...a)||!pass(...b)||start<0||end<0||start>=cols*rows||end>=cols*rows)return null;
   const centers=i=>new THREE.Vector3(groundWorldX((i%cols+.5)*cell),0,groundWorldZ((Math.floor(i/cols)+.5)*cell));
   // コストはセル1辺ぶんの移動時間。端点も検査し、表示と実移動に同じ線を使う。
@@ -689,7 +689,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
       const t=k/n,gx=ax+dx*t,gy=ay+dy*t,water=waterFactor(gx,gy);
       if(water<=0)return Infinity;
       const marsh=kind!=='sea'&&terrainCells[Math.floor(gy/cell)*cols+Math.floor(gx/cell)]==='沼地'?marshSpeed:1;
-      const factor=(kind!=='sea'&&onRoad(gx,gy)?roadFactor:marsh)*water;if(factor<=0)return Infinity;
+      const factor=shortest?1:(kind!=='sea'&&onRoad(gx,gy)?roadFactor:marsh)*water;if(factor<=0)return Infinity;
       sum+=(k===0||k===n?.5:1)/factor;
     }
     return length/(cell*GROUND_SCALE)*sum/n;
@@ -699,23 +699,25 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
   const direct=leg(from,to),lower=Math.hypot(to.x-from.x,to.z-from.z)/(cell*GROUND_SCALE*maxFactor);
   if(Number.isFinite(direct)&&Math.abs(direct-lower)<=1e-9*Math.max(1,lower)){
     const endPoint=to.clone();endPoint.y=groundHeight(endPoint.x,endPoint.z);const points=[from.clone(),endPoint],curve=new THREE.LineCurve3(points[0],points[1]),L=curve.getLength();
-    return {cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
+    return {bridgeRevision:groundBridgeRevision,cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
   }
   const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
-  const profileKey=JSON.stringify([kind==='sea',dryOnly,rules.movement.marsh[kind]??1,rules.movement.river[kind]??0,straight]);
+  const profileKey=JSON.stringify([kind==='sea',dryOnly,marshSpeed,rules.movement.river[kind]??0,straight,bridgesOnly,shortest]);
   let profile=gridCache.profiles.get(profileKey);
   if(!profile){profile={edgeCosts:new Float64Array(cols*rows*4).fill(NaN),centerWater:new Float64Array(cols*rows).fill(NaN),centers:new Map()};gridCache.profiles.set(profileKey,profile);}
   const {edgeCosts,centerWater}=profile;
   const centerPass=(x,y)=>{const i=y*cols+x;let value=centerWater[i];if(Number.isNaN(value))centerWater[i]=value=waterFactor((x+.5)*cell,(y+.5)*cell,i);return value>0;};
   const centerCache=profile.centers,center=i=>{if(!centerCache.has(i))centerCache.set(i,centers(i));return centerCache.get(i);};
   // 最大速度で割った距離を下限にし、道路のある盤でも過大評価しない。
-  function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols))/maxFactor;let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
+  // 短距離の分配では、端のセル中心による回り込み一つ分だけ余裕を取る。
+  const searchLimit=maxKm/cell+2;
+  function push(i,v){const priority=v+Math.hypot(i%cols-end%cols,Math.floor(i/cols)-Math.floor(end/cols))/maxFactor;if(priority>searchLimit)return;let k=heap.length;heap.push([i,v,priority]);while(k){let p=(k-1)>>1;if(heap[p][2]<=priority)break;heap[k]=heap[p];k=p;}heap[k]=[i,v,priority];}
   function pop(){const out=heap[0],last=heap.pop();if(heap.length){let k=0;while(k*2+1<heap.length){let c=k*2+1;if(c+1<heap.length&&heap[c+1][2]<heap[c][2])c++;if(heap[c][2]>=last[2])break;heap[k]=heap[c];k=c;}heap[k]=last;}return out;}
   // セル内の端点を中心へ結ぶ部分も、通れない川岸をまたがない。
   const first=leg(from,center(start));if(!Number.isFinite(first)||!Number.isFinite(leg(center(end),to)))return null;
-  dist[start]=first;push(start,first);
+  dist[start]=first;push(start,first);let reached=false;
   while(heap.length){
-    const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end)break;
+    const [i,cost]=pop();if(cost!==dist[i])continue;if(i===end){reached=true;break;}
     const x=i%cols,y=Math.floor(i/cols),p=center(i);
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
       const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=cols||yy>=rows)continue;
@@ -727,7 +729,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
       if(n<dist[j]){dist[j]=n;prev[j]=i;push(j,n);}
     }
   }
-  if(!Number.isFinite(dist[end]))return null;
+  if(!reached)return null;
   const ids=[];for(let i=end;i!==start;i=prev[i])ids.push(i);ids.reverse();
   const raw=[from.clone(),center(start),...ids.map(center),groundPoint(...b)];
   const costs=[0];for(let i=1;i<raw.length;i++)costs.push(costs[i-1]+leg(raw[i-1],raw[i]));
@@ -768,7 +770,8 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false){
   const L=curve.getLength();
   // 近道・角丸で橋への迂回時間も縮む。格子上では渡河が速かった場合も、
   // 同じ兵科で橋・浅瀬だけを使う候補を整形し、最終的な移動時間で比べる。
-  if(!dryOnly&&kind!=='sea'&&rules.movement.river[kind]>0&&points.some(p=>riverFactor(groundMapX(p.x),groundMapY(p.z))<1)){
+  if(shortest&&!Number.isFinite(cost))return null;
+  if(!shortest&&!dryOnly&&kind!=='sea'&&rules.movement.river[kind]>0&&points.some(p=>riverFactor(groundMapX(p.x),groundMapY(p.z))<1)){
     const detour=groundPath(from,to,kind,true,straight);
     if(detour&&detour.cost<cost)return detour;
   }

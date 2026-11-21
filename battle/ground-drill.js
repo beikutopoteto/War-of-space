@@ -25,6 +25,10 @@ function groundDrillEvent(kind,f,value){
   if(!row||over||!f||f.team!==0||f.name!==row.actor)return;
   const g=tutorial.ground;
   if(kind==='supplyPlace'&&row.condition==='groundSupplyDeploy'){g.placed=true;return;}
+  if(row.condition==='groundSupplyGive'){
+    if(kind==='supplyFocus'&&value.name===row.target)g.issued=true;
+    if(kind==='supplyFocusGain'&&g.issued&&value.target.name===row.target)g.focusGain=(g.focusGain||0)+value.amount;
+  }
   if(kind==='move'&&['groundMove','groundCapture','groundSight','groundSupplyRoad','groundSupplyRecapture','groundSupplyHalf','groundSupplyRout','groundSupplyRally'].includes(row.condition)){
     const m=row.marks[0];if(m&&Math.hypot(value.x-m.pos[0],value.z-m.pos[1])<=6)g.issued=true;
   }else if(kind==='attack'&&row.condition==='groundAttack'&&value.name===row.target)g.issued=true;
@@ -94,8 +98,8 @@ function groundSupplyDrillEnter(row){
     red.pos.copy(groundPoint(18.5,29.5));f.groundSupply=40;
   }
   if(row.condition==='groundSupplyGive'){
-    const panel=document.getElementById('groundSupply')?.parentElement;if(panel)panel.open=true;
-    f.pos.copy(groundPoint(16,26));truck.pos.copy(groundPoint(16.6,26));groundClearOrders(f);groundClearOrders(truck);f.groundSupply=40;truck.groundSupply=100;truck.groundSupplyGiven=0;f.groundSupplyReceived=0;
+    const panel=document.getElementById('groundSupplyStatus')?.parentElement;if(panel)panel.open=true;
+    f.pos.copy(groundPoint(16,26));truck.pos.copy(groundPoint(16.6,26));groundClearOrders(f);groundClearOrders(truck);f.groundSupply=40;truck.groundSupply=groundSupplyUnitMax(truck);truck.groundSupplyCheckLeft=0;
   }
   if(row.condition==='groundSupplyRout'){
     f.groundMorale=20;truck.pos.copy(groundPoint(17,26));groundClearOrders(f);groundClearOrders(truck);
@@ -115,7 +119,7 @@ function groundSupplyDrillTick(row,f,g,dt){
     const at=groundSupplyAt(actor),down=groundSupplyAt({team:0,pos:groundPoint(16.5,29.786)});
     return g.issued&&at.rate===.5&&down.rate===.5&&actor.groundSupply>g.initialSupply+1;
   }
-  if(row.condition==='groundSupplyGive')return groundDrillUnit('第12 補給中隊').groundSupplyGiven>=5&&actor.groundSupplyReceived>=5;
+  if(row.condition==='groundSupplyGive')return g.issued&&(g.focusGain>=5||!groundSupplyNeeds(actor,groundSupplyRules(),true));
   if(row.condition==='groundSupplyRout'){
     const shooter=groundDrillUnit('補給訓練 射撃班');
     // 敵の発砲や耐久の変更を使わず、既存の士気・敗走処理を体験する。

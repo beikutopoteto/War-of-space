@@ -397,10 +397,10 @@ function copyOrder(o,f=null){
 function saveUndo(t){
   const front=op.ground&&typeof groundFrontSnapshot==='function'?groundFrontSnapshot(t):null;
   const units=(front?.units||t).map(f=>({
-    f,order:copyOrder(f.order,f),queue:f.queue.map(o=>copyOrder(o)),strike:f.strike,sync:f.syncSpeed,
+    f,order:copyOrder(f.order?.groundSupplyMove?null:f.order,f),queue:f.queue.map(o=>copyOrder(o)),strike:f.strike,sync:f.syncSpeed,
     ...(op.ground?{
       groundFrontAway:f.groundFrontAway,groundFrontEngagement:f.groundFrontEngagement?{...f.groundFrontEngagement}:null,
-      groundLine:f.groundLine,groundDeployed:f.groundDeployed,groundPost:f.post.clone(),groundStance:f.stance,
+      groundLine:f.groundLine,groundDeployed:f.groundDeployed,groundPost:f.post.clone(),groundStance:f.stance,groundGiving:f.groundGiving,
       groundAreaSalvo:f.groundAreaSalvo?{...f.groundAreaSalvo}:null,
       groundVolley:typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null,groundBombRun:groundCopyBombRun(f.groundBombRun)
     }:null)
@@ -417,12 +417,13 @@ function undo(){
     const f=s.f;
     if(!f.alive||op.ground&&(f.embarked||!groundCommandAllowed(f,'undo')))continue;
     npcAutoPlayer([f]);
-    if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;}
+    if(op.ground){groundCancelWork(f);f.groundAreaSalvo=null;f.groundGiving=null;f.groundSupplyTrip=null;}
     const o=s.order&&(s.order.type!=='attack'||s.order.target.alive)?s.order:null;
     if(o)order(f,o);
     else{f.order=null;dropArrow(f.arrow);f.arrow=null;}
     f.queue=s.queue.filter(q=>q&&(q.type!=='attack'||q.target.alive));f.strike=s.strike;f.syncSpeed=s.sync;
     if(op.ground){
+      if(groundSupplyCanGive(f,s.groundGiving)){f.groundGiving=s.groundGiving;f.groundSupplyCheckLeft=0;}
       f.groundLine=s.groundLine;f.groundDeployed=s.groundDeployed;
       f.groundAreaSalvo=typeof groundRestoreSalvo==='function'?groundRestoreSalvo(f,s.groundAreaSalvo):null;
       f.groundVolley=typeof groundRestoreVolley==='function'?groundRestoreVolley(f,s.groundVolley):null;
@@ -437,6 +438,7 @@ function groupOrder(o){
   const t=orderTargets().filter(f=>!f.locked&&(!op.ground||!f.embarked&&groundCommandAllowed(f,o.type)&&(o.type!=='attack'||groundManualTargetAllowed(f,o.target)))); if(!t.length){ if(op.ground&&o.type==='attack'){groundStrikeMessage=groundAirTarget(o.target)&&orderTargets().some(f=>groundAutoAASource(f)&&groundAARange(f)>0)?'対空は装備部隊が自動迎撃':'攻撃不可：対応兵器・高度を確認';groundHud();} if(opCarrier&&opCarrier.locked&&orderTargets().includes(opCarrier)) logEvent(`${opCarrier.name} 収容中`,'収容が終わるまで動けない。'); return; }
   if(op.ground)groundClearAiming();
   npcAutoPlayer(t);saveUndo(t);
+  if(op.ground)t.forEach(groundSupplyStopMove);
   const g=selGroup, sync=g&&g.sync?Math.min(...t.map(f=>f.speed)):null;
   if(!o.queue) t.forEach(f=>f.queue=[]);
   const tail=f=>o.queue?(f.queue.length?f.queue[f.queue.length-1]:f.order):null;

@@ -30,7 +30,11 @@ function advanceLiftCheck(seconds){
       const old=before.get(f.id);
       if(old?.embarked&&!f.embarked&&f.alive&&f.hpPool>0)m.events.push({time:+gameSec.toFixed(2),action:'disembarked',unit:f.name,carrier:fleets.find(c=>c.id===old.embarked)?.name,carrierKind:fleets.find(c=>c.id===old.embarked)?.groundKind,at:[groundMapX(f.pos.x),groundMapY(f.pos.z)]});
       if(f.embarked&&!old?.embarked)m.events.push({time:+gameSec.toFixed(2),action:'boarded',unit:f.name,carrier:f.embarked.name,carrierKind:f.embarked.groundKind});
-      if((f.groundSupplyGiven||0)>(old?.given||0)){if(m.giving.get(f.id)!==f.groundGiving?.id)m.events.push({time:+gameSec.toFixed(2),action:'supplyGiven',unit:f.name,target:f.groundGiving?.name});m.giving.set(f.id,f.groundGiving?.id);}else m.giving.delete(f.id);
+      if((f.groundSupplyGiven||0)>(old?.given||0)){
+        const recipients=fleets.filter(t=>t.groundSupplySource?.unit===f),key=recipients.map(t=>t.id).join(',');
+        if(m.giving.get(f.id)!==key)m.events.push({time:+gameSec.toFixed(2),action:'supplyGiven',unit:f.name,target:recipients.map(t=>t.name).join('・')});
+        m.giving.set(f.id,key);
+      }else m.giving.delete(f.id);
       for(const b of groundBridges.filter(b=>b.complete)){
         const start=m.positions.get(f.id),key=f.id+':'+b.x+':'+b.y;if(!start||f.embarked||m.crossed.has(key))continue;
         const side=p=>-(groundMapX(p.x)-b.x)*b.ty+(groundMapY(p.z)-b.y)*b.tx;
