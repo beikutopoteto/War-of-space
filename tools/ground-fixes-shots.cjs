@@ -92,7 +92,7 @@ if(process.argv.includes('--sim')){
       const src=shipMeshes[0].cv,mat=src.material.clone();mat.userData.baseOpacity=1;t.groundModel=new THREE.Group();const mesh=new THREE.Mesh(src.geometry.clone(),mat);mesh.scale.setScalar(SHIP_SIZE.cv);t.groundModel.add(mesh);groundVisuals.add(t.groundModel);
       t.companyId='fixesSupply';groundOrg.companies.push({id:t.companyId,name:t.name,kind:'supply'});buildRoster();select(t);
     });await view(15.35,26,25,1.5);
-    await page.locator('#groundSupply').evaluate(el=>{el.parentElement.open=true;});
+    await page.locator('#groundSupplyStatus').evaluate(el=>{el.parentElement.open=true;});
     await page.getByRole('button',{name:/^補給$/}).click();
     const pos=await page.evaluate(()=>{
       const f=fleets.find(f=>f.team===0&&f.groundKind==='infantry'),p=proj(f.pos),el=document.elementFromPoint(p.x,p.y);
@@ -102,7 +102,7 @@ if(process.argv.includes('--sim')){
     await view(15.35,26,25,1.5);await shot('f');
     await page.evaluate(()=>{
       const f=selected.groundGiving;f.groundSupply=100;groundSupplyAfter(1);groundSupplyLinksDraw();if(groundSupplyLinks.size)throw new Error('満タンでも受給線が残る');
-      groundClearOrders(selected);f.groundSupply=30;groundSupplyAfter(1);groundSupplyLinksDraw();if(groundSupplyLinks.size)throw new Error('補給網外で受給線が残る');
+      f.groundSupply=30;groundSupplyAfter(1);groundSupplyLinksDraw();if(!groundSupplyLinks.has(f)||selected.groundGiving)throw new Error('集中終了後に自動分配へ戻らない');
     });fail();
     console.log('| 写真 | .shots/直し-a.png ～ 直し-f.png（6枚、1600×900） |');
   }finally{await browser.close();}

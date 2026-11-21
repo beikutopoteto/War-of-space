@@ -977,7 +977,14 @@ function groundStep(dt){
     }
     // 進撃（共有命令の実行）の途中で撃てる敵がいれば、自動交戦の隊は止まって撃ち合う。命令優先の隊は進む（ユーザー決定 2026-11-14）。fireTarget は前のステップの値
     const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive&&groundAnyBodyCanFire(f,f.fireTarget);
-    if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){ groundFormationArrive(f);f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
+    if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){
+      groundFormationArrive(f);
+      if(f.order.groundSupplyMove){
+        if(f.order.groundSupplyMove==='follow')f.groundSupplyServing=f.order.groundSupplyMoveTarget;
+        f.groundSupplyCheckLeft=0;
+      }
+      f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);
+    }
     if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
       const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
       if(allowed)order(f,{type:'attack',target:allowed});
