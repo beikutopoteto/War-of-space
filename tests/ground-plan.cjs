@@ -343,5 +343,72 @@ function nodeChecks(){
  ctx.pauseOpened=false;
  return run(`(${planCases.toString()})()`);
 }
-module.exports={nodeChecks};
+// 本物のマウスで: 線が決まるまでは左ドラッグですぐ曲線を引き、カメラは回さない（ユーザーの指示 2026-11-21「0.3秒なしで」）
+async function checkGroundPlanDrag(page,check){
+ const start=await page.evaluate(()=>{
+  const exercise=OPS.find(o=>o.id==='groundExercise2');
+  WOS.start({op:exercise.id,fleets:exercise.quick});
+  if(talking)endTalk();if(deploying)endDeploy();setSpeed(0);hideHint();
+  renderer.setPixelRatio(.5);camAnim=null;   // 出撃のカメラの動きを止め、操作で動いたかだけを見る
+  window.__planDragView=[camera.position.toArray(),controls.target.toArray()];
+  document.getElementById('labels').style.display='none';   // 名札を押すと選択になるので、地図だけを押す
+  setSel(groundPlanUnits(fleets).filter(f=>f.team===0&&f.groundKind!=='sea').slice(0,2));
+  groundPlanToggle('deploy');
+  // 部品に当たらない、地図の上の横の帯を探す
+  const r=renderer.domElement.getBoundingClientRect(),cx=r.left+r.width/2;
+  const free=(x,y)=>{const hit=pick(x,y);return document.elementFromPoint(x,y)===renderer.domElement&&!!groundAt(x,y)&&!hit.best&&!hit.fort;};
+  for(let y=r.top+r.height*.3;y<r.top+r.height*.75;y+=12)
+   if([-160,-80,0,80,160].every(dx=>free(cx+dx,y)&&free(cx+dx,y+30)))return {x:cx-160,y};
+  return null;
+ });
+ if(!start){check(false,'前線のドラッグ: 地図の上に空いた帯が見つからない');return;}
+ const view=()=>page.evaluate(()=>[...camera.position.toArray(),...controls.target.toArray()].map(v=>+v.toFixed(4)).join(','));
+ const state=()=>page.evaluate(()=>({aiming:groundWorkAiming,drawing:!!groundPlanPress?.drawing,stroke:groundLineStroke?.length||0,
+  pts:groundLinePts?.length||0,lineStart:!!groundLineStart}));
+ const before=await view();
+ await page.mouse.move(start.x,start.y);await page.mouse.down();
+ await page.mouse.move(start.x+12,start.y+2);
+ const early=await state();   // 長押しを待たずに、動かしたところで引き始める
+ for(let i=1;i<=8;i++)await page.mouse.move(start.x+40*i,start.y+Math.sin(i/8*Math.PI)*30);
+ const mid=await state();
+ await page.mouse.up();
+ const done=await state(),after=await view();
+ check(early.drawing&&mid.stroke>2&&done.pts>2&&done.aiming==='deploy'&&before===after,
+  '前線のドラッグ: 左ドラッグはすぐ曲線を引き、カメラは動かさず、前の側を待つ',JSON.stringify({early,mid,done,camera:before===after}));
+ // 前の側を待つあいだの左ドラッグは、いつものカメラ
+ await page.mouse.move(start.x,start.y+30);await page.mouse.down();
+ for(let i=1;i<=4;i++)await page.mouse.move(start.x+30*i,start.y+30);
+ await page.mouse.up();
+ const side=await state(),rotated=await view();
+ check(side.pts===done.pts&&!side.stroke&&rotated!==after,'前線のドラッグ: 前の側を待つあいだの左ドラッグはカメラを回す',JSON.stringify({side,camera:rotated!==after}));
+ const fresh=()=>page.evaluate(()=>{groundClearAiming();groundPlanToggle('deploy');});
+ // 回した惰性（減衰）も消してから、初めの視点へ戻す
+ const restore=()=>page.evaluate(()=>{controls.enableDamping=false;controls.update();controls.enableDamping=true;
+  camera.position.fromArray(window.__planDragView[0]);controls.target.fromArray(window.__planDragView[1]);controls.update();});
+ // 動かさないクリックは今までどおり始点
+ await restore();await fresh();await page.mouse.click(start.x+160,start.y+30);
+ const clicked=await state();
+ check(clicked.lineStart&&!clicked.pts,'前線のドラッグ: 動かさないクリックは今までどおり始点',JSON.stringify(clicked));
+ // 右のすぐのドラッグはカメラ。押してから動くまでの時刻の差で見るので、ゆっくりした描画に左右されないよう1つの処理で出す
+ await restore();await fresh();const beforeRight=await view();
+ const right=await page.evaluate(({x,y})=>{
+  const el=renderer.domElement,ev=(type,dx,button,buttons)=>new PointerEvent(type,{bubbles:true,cancelable:true,composed:true,
+   pointerId:7,pointerType:'mouse',isPrimary:true,button,buttons,clientX:x+dx,clientY:y});
+  el.dispatchEvent(ev('pointerdown',0,2,2));
+  for(let i=1;i<=4;i++)el.dispatchEvent(ev('pointermove',30*i,-1,2));
+  el.dispatchEvent(ev('pointerup',120,2,0));
+  return {stroke:groundLineStroke?.length||0,pts:groundLinePts?.length||0};
+ },start);
+ const afterRight=await view();
+ check(!right.stroke&&!right.pts&&afterRight!==beforeRight,'前線のドラッグ: 右のすぐのドラッグはカメラ',JSON.stringify({right,camera:afterRight!==beforeRight}));
+ // 右を長押ししてから動かすと引く
+ await restore();await fresh();
+ await page.mouse.move(start.x,start.y);await page.mouse.down({button:'right'});await page.waitForTimeout(400);
+ for(let i=1;i<=8;i++)await page.mouse.move(start.x+40*i,start.y+Math.sin(i/8*Math.PI)*30);
+ await page.mouse.up({button:'right'});
+ const held=await state();
+ check(held.pts>2&&held.aiming==='deploy','前線のドラッグ: 右は長押ししてから動かすと曲線を引く',JSON.stringify(held));
+ await page.evaluate(()=>{groundClearAiming();document.getElementById('labels').style.display='';});
+}
+module.exports={nodeChecks,checkGroundPlanDrag};
 if(require.main===module){const rows=nodeChecks(),bad=rows.filter(r=>!r.ok);console.log(`共有命令 ${rows.length-bad.length}/${rows.length}`);assert.equal(bad.length,0,JSON.stringify(bad));}
