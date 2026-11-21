@@ -35,19 +35,14 @@ function groundUnitSpec(u){
     pos:[groundWorldX(at[0]),groundWorldZ(at[1])],
     ...(u.groundCargo?{groundCargo:u.groundCargo.map(groundUnitSpec)}:{})};
 }
-// 編成は位置を持たない。出撃制限を適用してから、作戦の枠または拠点周辺へ置く。
+// 編成は位置を持たない。出撃する中隊を作戦の枠または拠点周辺へ置く。
 function groundSortieForces(operation,value){
   const config=operation.groundSortie;
   if(!config)throw new Error(operation.id+': groundSortie がありません');
-  const sortie=window.WOS_GROUND_ORG.sortie(value),max=config.maxCompanies;
-  if(max!=null&&(!Number.isInteger(max)||max<0))throw new Error('groundSortie.maxCompanies は0以上の整数です');
-  const companies=sortie.org.companies.filter(c=>!(config.bannedKinds||[]).includes(c.kind)).slice(0,max??Infinity);
-  const ids=new Set(companies.map(c=>c.id));
-  const org=window.WOS_GROUND_ORG.normalize({...sortie.org,companies});
-  const units=sortie.fleets.filter(f=>ids.has(f.companyId));
+  const {org,fleets:units,load}=window.WOS_GROUND_ORG.sortie(value,operation);
   if(config.slots){
     if(!config.slots.length)throw new Error('groundSortie.slots が空です');
-    return {org,fleets:units.map((f,i)=>{const slot=config.slots[i%config.slots.length];
+    return {org,load,fleets:units.map((f,i)=>{const slot=config.slots[i%config.slots.length];
       return groundUnitSpec({...f,kind:f.groundKind,at:[slot[0]+Math.floor(i/config.slots.length)*.6,slot[1]]});})};
   }
   const center=groundData().sites.find(s=>s.id===config.site),radius=config.radiusKm;
@@ -71,14 +66,15 @@ function groundSortieForces(operation,value){
     if(!slot)throw new Error(operation.id+': '+f.name+' の出撃地点が半径'+radius*2+'km以内にありません');
     used.add(slot);return groundUnitSpec({...f,kind:f.groundKind,at:slot.at});
   });
-  return {org,fleets};
+  return {org,fleets,load};
 }
 // 宇宙の部隊選択も従来どおり返す。state.js に地上用の分かれ目を増やさない。
 function groundResolveForces(operation,cfg){
-  const sortie=operation.ground&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg):null;
+  const sortie=operation.ground&&!operation.groundDrill&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg):null;
   const spec=operation.groundDrill?operation.quick:sortie?sortie.fleets:cfg?.fleets?.length?cfg.fleets:operation.quick;
   return {fleets:operation.ground?spec.map(groundUnitSpec):spec,
-    enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,org:sortie?.org||(operation.ground&&cfg?.quickOrg?'quick':null)};
+    enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,
+    org:sortie?.org||(operation.ground&&cfg?.quickOrg?'quick':null),supplyPenalty:sortie?.load.penaltyPercent??0};
 }
 function groundSetupCoordinates(){
   if(op.view?.targetKm)op.view.target=op.view.targetKm.map((v,i)=>i?groundWorldZ(v):groundWorldX(v));

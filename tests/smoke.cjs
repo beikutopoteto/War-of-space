@@ -41,7 +41,7 @@ const {nodeChecks:groundVolleyChecks}=require('./ground-volley.cjs');
 const {nodeChecks:groundDimensionChecks}=require('./ground-dimensions.cjs');
 const {nodeChecks:groundRuleChecks}=require('./ground-rules.cjs');
 const {nodeChecks:groundScriptChecks,checkGroundScript}=require('./ground-script.cjs');
-const {nodeChecks:groundForceChecks,checkGroundForces}=require('./ground-forces.cjs');
+const {nodeChecks:groundForceChecks,checkGroundForces,checkGroundSupplyLimit}=require('./ground-forces.cjs');
 const {nodeChecks:terrainCheckChecks}=require('./terrain-check.cjs');
 const {nodeChecks:baikonurMapChecks}=require('./baikonur-map.cjs');
 const {nodeChecks:groundWideChecks}=require('./ground-wide-fields.cjs');
@@ -230,6 +230,7 @@ function check(ok, label, detail = '') {
     await checkGroundFormations(page, check);
     await checkGroundBodies(page, check);
     await checkGroundForces(page, check);
+    await checkGroundSupplyLimit(page, check);
     await checkGroundScript(page, check);
     await checkGroundSight(page, check);
     await checkGroundStrike(page, check);

@@ -1738,7 +1738,8 @@ WOS_DATA.operations.push((()=>{
     groundHQ:{0:'A',1:'F'},groundSupportSites:['B','E','G','I'],
     groundSites:[{site:'A',owner:0},{site:'B',owner:0},{site:'C',owner:null},{site:'D',owner:null},{site:'E',owner:1},{site:'F',owner:1},{site:'G',owner:0},{site:'H',owner:null},{site:'I',owner:1}],
     view:{targetKm:[12,54],dist:145,dir:[0,1,.65],max:650},
-    groundSortie:{site:'A',radiusKm:4}, // 半径4kmは仮。格子間隔1.5km、最大8kmまで広げる。
+    groundScale:'division',
+    groundSortie:{site:'A',radiusKm:4,supplyBase:100}, // 半径4km・補給の基本100は仮。格子間隔1.5km、最大8kmまで広げる。
     // 広域演習専用の仮配備。チュートリアル2は地形・本営・海上を含め従来配置を保持。
     quick:[unit(names.inf,'infantry',9,55),unit(names.tank,'vehicle',12,56),unit(names.heavy,'heavyInfantry',11,58),unit(names.scout,'scout',13,55),unit(names.air,'attack',10,54,'high'),unit(names.aa,'mobileAA',8,57),unit(names.gun,'artillery',9,58),unit(names.apc,'apc',10,55.5),unit(names.eng,'engineer',11,54),unit('第11 強化歩兵中隊','infantry',8,54),unit('第12 補給中隊','supply',10,57)],
     groundSea:[sea(names.ship,'cl',23,12),{...sea(names.landing,'dd',23,14),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',23,14)]}],
