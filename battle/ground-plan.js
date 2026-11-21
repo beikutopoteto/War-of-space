@@ -1,4 +1,4 @@
-/* 地上作戦の共有命令。線はクリック2回の直線か、長押ししてから引く曲線（ユーザーの指示 2026-11-20）。保存形式は変えず作戦中だけ保持。
+/* 地上作戦の共有命令。線はクリック2回の直線か、ドラッグで引く曲線（ユーザーの指示 2026-11-20・11-21）。保存形式は変えず作戦中だけ保持。
    線は点の並び（pts）で持つ。直線は [始点, 終点] の2点。side は前の側（線の向きの左の法線 (-tz,tx) の側なら +1、反対なら -1） */
 let groundLineStart=null,groundLinePts=null,groundLinePointer=null,groundLineStroke=null,groundPlanMessage='',groundPlanVisual=null;
 let groundFronts=[],groundFrontNextId=1,groundFrontCheckAt=0,groundFrontEditing=null;
@@ -523,9 +523,11 @@ function groundPlanFinish(pts,frontAt){
   groundPlanReport(mode==='plan'?(front.advance?'進撃中の行き先を変更':list.length+'隊の進撃計画を準備（実行で開始）'):list.length+'隊が前線へ移動を開始');
 }
 function groundPlanReport(message){groundPlanMessage=message;groundHud();}
-/* 曲線（ユーザーの指示 2026-11-20「右クリック長押しで、ひいて行く」）: 前線・進撃計画の入力中に、ボタン（右でも左でも）か指を
-   GROUND_PLAN_HOLD_MS のあいだ動かさずに押し続けると線を引き始め、離すと決まる。すぐ動かせば今までどおりカメラが動く */
-const GROUND_PLAN_HOLD_MS=300,GROUND_PLAN_STROKE_MIN_KM=.3;
+/* 曲線（ユーザーの指示 2026-11-20「右クリック長押しで、ひいて行く」、2026-11-21「0.3秒なしで」→ 左ドラッグを選んだ）:
+   前線・進撃計画の線が決まるまでは、左ボタンか1本指で押して GROUND_PLAN_DRAG_PX 動かすと、押した所から線を引き始め、離すと決まる。
+   そのあいだ左ドラッグ・1本指ではカメラを回さない（右ドラッグ・ホイール・視点のスティック・2本指で動かす）。
+   右ボタンは GROUND_PLAN_HOLD_MS 以上押してから動かしたときだけ線を引き、すぐ動かせば今までどおりカメラが動く */
+const GROUND_PLAN_HOLD_MS=300,GROUND_PLAN_STROKE_MIN_KM=.3,GROUND_PLAN_DRAG_PX=8;
 function groundPlanStrokeStart(p){
   if(!op.ground||!['deploy','plan'].includes(groundWorkAiming)||!p)return false;
   groundLineStroke=[p.clone()];groundLinePointer=p.clone();groundHud();return true;
@@ -543,20 +545,26 @@ function groundPlanStrokeEnd(){
 let groundPlanPress=null;
 if(typeof renderer!=='undefined'&&renderer?.domElement){
   renderer.domElement.addEventListener('pointerdown',e=>{
-    if(groundPlanPress){clearTimeout(groundPlanPress.timer);if(groundPlanPress.drawing)groundLineStroke=null;groundPlanPress=null;groundHud();return;}   // 2本目の指: つまむ・回すに任せる
+    if(groundPlanPress){if(groundPlanPress.drawing)groundLineStroke=null;groundPlanPress=null;groundHud();return;}   // 2本目の指: つまむ・回すに任せる
     if(!op.ground||deploying||!['deploy','plan'].includes(groundWorkAiming))return;
-    const press={id:e.pointerId,x:e.clientX,y:e.clientY,drawing:false};
-    press.timer=setTimeout(()=>{if(groundPlanPress===press)press.drawing=groundPlanStrokeStart(groundAt(press.x,press.y));},GROUND_PLAN_HOLD_MS);
-    groundPlanPress=press;
+    // 左ボタン・1本指・ペンは、線が決まるまでドラッグですぐ引く。前の側を待つあいだの左はカメラ。右は長押ししてから動かすと引く
+    const drag=e.button===0&&!groundLinePts;
+    if(drag||e.button===2)groundPlanPress={id:e.pointerId,x:e.clientX,y:e.clientY,t:e.timeStamp,drawing:false,drag};
   });
-  // 引いているあいだは、カメラ（OrbitControls）へ動きを渡さない
+  // 引いているあいだ（左ドラッグは押した時から）は、カメラ（OrbitControls）へ動きを渡さない
   addEventListener('pointermove',e=>{
     const press=groundPlanPress;if(!press||e.pointerId!==press.id)return;
-    if(press.drawing){e.stopPropagation();groundPlanStrokeMove(groundAt(e.clientX,e.clientY));return;}
-    if(Math.hypot(e.clientX-press.x,e.clientY-press.y)>=8){clearTimeout(press.timer);groundPlanPress=null;}
+    if(!press.drawing){
+      if(press.drag)e.stopPropagation();
+      if(Math.hypot(e.clientX-press.x,e.clientY-press.y)<GROUND_PLAN_DRAG_PX)return;
+      // 長押しは、押した時刻と動いた時刻の差で見る（重いフレームでタイマーが遅れても、すぐのドラッグを取り違えない）
+      if(press.drag||e.timeStamp-press.t>=GROUND_PLAN_HOLD_MS)press.drawing=groundPlanStrokeStart(groundAt(press.x,press.y));
+      if(!press.drawing){groundPlanPress=null;return;}   // 右のすぐのドラッグ、地図の外から押したときはカメラへ
+    }
+    e.stopPropagation();groundPlanStrokeMove(groundAt(e.clientX,e.clientY));
   },{capture:true});
-  addEventListener('touchmove',e=>{if(groundPlanPress?.drawing){e.stopPropagation();e.preventDefault();}},{capture:true,passive:false});
-  const release=e=>{const press=groundPlanPress;if(!press||e.pointerId!==press.id)return;clearTimeout(press.timer);groundPlanPress=null;if(press.drawing)groundPlanStrokeEnd();};
+  addEventListener('touchmove',e=>{const press=groundPlanPress;if(press&&(press.drawing||press.drag)){e.stopPropagation();e.preventDefault();}},{capture:true,passive:false});
+  const release=e=>{const press=groundPlanPress;if(!press||e.pointerId!==press.id)return;groundPlanPress=null;if(press.drawing)groundPlanStrokeEnd();};
   addEventListener('pointerup',release,{capture:true});addEventListener('pointercancel',release,{capture:true});
 }
 function groundPlanSelected(list){
@@ -599,7 +607,7 @@ function groundPlanHud(list){
     edit.disabled=!op.ground||over||deploying||!active&&!groundFronts.length;
     edit.setAttribute('aria-pressed',String(active));
   }
-  const step=groundLineStroke?'線を引いています（離すと決定）':groundLinePts?'前の側をクリック':groundLineStart?'終点をクリック':'始点をクリック、または長押しして線を引く';
+  const step=groundLineStroke?'線を引いています（離すと決定）':groundLinePts?'前の側をクリック':groundLineStart?'終点をクリック':'始点をクリック、またはドラッグして線を引く';
   document.getElementById('groundPlanStatus').textContent=label?label+'：'+step+'（Escで取消）'+(groundPlanMessage?'　'+groundPlanMessage:''):
     mode==='edit'?groundEditStatus():groundPlanMessage||(moving?'進撃中（停止で現在地を前線にする）':fronts.length?'進撃計画あり（実行で開始）':'');
 }
