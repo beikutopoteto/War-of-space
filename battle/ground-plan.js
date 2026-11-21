@@ -111,7 +111,7 @@ function groundFrontAlign(pts,side,start){
   return {pts:reverse?[...pts].reverse():pts,side:reverse?-side:side};
 }
 function groundFrontPlan(front,pts){
-  const L=groundPlanLine(pts),from=groundPlanLine(front.advance?groundFrontPosition(front,groundFrontProgress(front)):front.pts);
+  const L=groundPlanLine(pts),from=groundPlanLine(front.advance?groundFrontNow(front):front.pts);
   const center=groundPlanAt(from,from.len/2);
   const side=-groundPlanNearest(L,center).side||groundFrontDefaultSide(L,front.members);
   return groundFrontAlign(pts,side,from.pts[0]);
@@ -369,15 +369,47 @@ function groundFrontProgress(front){
     return sum+(length<1e-6?1:Math.max(0,Math.min(1,1-groundPlanDistance(f.pos,dest)/length)));
   },0)/sample.length;
 }
+/* 進撃中の前線の形（ユーザーの指示 2026-11-21「速度の違いでどれかの部隊が突出しても変わらなくないですか形」）:
+   隊ごとに、出発の線の受け持ちの点から行き先へ、どこまで進んだか（進む向きへの深さ。0〜1）を測る。
+   線の上の受け持ちの位置どうしを直線でつなぎ、ならして丸い張り出しにする。両端は端の隊と同じ。
+   交戦などで列を離れた隊は数えない（隣の隊のあいだでつなぐ）。前の列がいなければ後ろの列で測る */
+const GROUND_FRONT_BULGE_SMOOTH=4,GROUND_FRONT_BULGE_PASSES=2; // ならしの幅（64点のうち前後の点の数）と回数（仮）
+function groundFrontProfile(front){
+  const a=front.advance;if(!a)return null;
+  const n=GROUND_FRONT_SAMPLES,slots=front.slots.filter(({f})=>!f.groundFrontAway&&!groundFrontBusy(f,front));
+  const row=slots.filter(s=>!s.offset),sample=row.length?row:slots;
+  if(!sample.length)return Array(n).fill(a.t);
+  const marks=sample.map(({f,fraction,offset,dest})=>{
+    const s=a.lengthFrom.len*fraction,p=groundPlanAt(a.lengthFrom,s),face=groundPlanFace(a.lengthFrom,s,front.side);
+    const x=p.x-face.x*offset,z=p.z-face.z*offset,dx=dest.x-x,dz=dest.z-z,l2=dx*dx+dz*dz;
+    return {u:fraction,t:l2<1e-12?1:Math.max(0,Math.min(1,((f.pos.x-x)*dx+(f.pos.z-z)*dz)/l2))};
+  }).sort((p,q)=>p.u-q.u);
+  let T=Array.from({length:n},(_,i)=>{
+    const u=i/(n-1);
+    if(u<=marks[0].u)return marks[0].t;
+    for(let j=1;j<marks.length;j++)if(u<=marks[j].u){
+      const p=marks[j-1],q=marks[j];return p.t+(q.t-p.t)*(q.u-p.u>1e-9?(u-p.u)/(q.u-p.u):1);
+    }
+    return marks[marks.length-1].t;
+  });
+  const w=GROUND_FRONT_BULGE_SMOOTH;
+  for(let pass=0;pass<GROUND_FRONT_BULGE_PASSES;pass++)T=T.map((_,i)=>{
+    let sum=0,count=0;for(let j=Math.max(0,i-w);j<=Math.min(n-1,i+w);j++){sum+=T[j];count++;}return sum/count;
+  });
+  return T;
+}
+// t は線全体で1つの割合か、64点ごとの割合の並び
 function groundFrontPosition(front,t=front.advance?.t){
   if(!front.advance)return front.pts;
   const {from,to}=front.advance;
-  return from.map((p,i)=>new THREE.Vector3(p.x,p.y,p.z).lerp(to[i],t));
+  return from.map((p,i)=>new THREE.Vector3(p.x,p.y,p.z).lerp(to[i],Array.isArray(t)?t[i]:t));
 }
+// 進撃中は隊の進み具合で曲がった今の前線。止まっていれば前線そのもの
+function groundFrontNow(front){return front.advance?groundFrontPosition(front,groundFrontProfile(front)):front.pts;}
 function groundFrontStop(front){
   if(!front.advance)return;
   for(const f of front.members)groundFrontRememberVia(f);
-  front.pts=groundFrontPosition(front,groundFrontProgress(front));
+  front.pts=groundFrontNow(front);
   front.advance=null;groundFrontRefresh(front,true);
 }
 function groundFrontArrive(front){
@@ -407,7 +439,7 @@ function groundFrontTrack(front){
   return changed;
 }
 function groundFrontBreach(front,enemies){
-  const present=groundFrontPresent(front),L=groundPlanLine(groundFrontPosition(front));
+  const present=groundFrontPresent(front),L=groundPlanLine(groundFrontNow(front));
   const engaged=new Set(front.members.map(f=>f.order?.type==='attack'?f.order.target:null));let changed=false;
   for(const target of enemies){
     if(engaged.has(target))continue;
@@ -499,7 +531,7 @@ function groundPlanFinish(pts,frontAt){
     const members=front?groundFrontPresent(front):groundFrontSort(list,groundPlanLine(line.pts));
     // 引き直した計画を実行中なら、現在地から新しい線までの全経路を確かめる。
     const routeFront=front?{...front,plan}:{...line,plan,via:new Map(),passed:new Map()};
-    if(front?.advance)routeFront.advance={...front.advance,from:groundFrontPosition(front,groundFrontProgress(front))};
+    if(front?.advance)routeFront.advance={...front.advance,from:groundFrontNow(front)};
     routes=groundFrontRoutes(routeFront,groundPlanSlots(members,plan.pts,plan.side),true);
   }
   const blocked=routes.find(r=>!r.path);
@@ -513,7 +545,7 @@ function groundPlanFinish(pts,frontAt){
     front.slots=routes.map(({path,...slot})=>slot);
     for(const route of routes)groundFrontIssue(front,route);
   }else{
-    const from=front.advance&&groundFrontPosition(front,groundFrontProgress(front));
+    const from=front.advance&&groundFrontNow(front);
     if(from)for(const f of front.members)groundFrontRememberVia(f);
     front.plan=plan;
     if(from)groundFrontStart(front,routes,from);
@@ -754,7 +786,7 @@ function groundPlanPickAt(p,radius,project=q=>q){
     if(d<=radius&&(!best||d<distance)){best=hit;distance=d;}
   };
   for(const [front,items] of arrows){
-    pick(front.advance?groundFrontPosition(front,groundFrontProgress(front)):front.pts,{kind:'front',front});
+    pick(front.advance?groundFrontNow(front):front.pts,{kind:'front',front});
     if(front.plan)pick(front.plan.pts,{kind:'plan',front});
     for(const {f,shape} of items)pick(shape,{kind:'arrow',front,f});
   }
@@ -1128,7 +1160,7 @@ function groundPlanDraw(){
       if(selected&&hover.kind==='front')highlight=item;
     }
     if(front.advance&&selected&&hover.kind==='front')
-      highlight=lineItem(groundFrontPosition(front,groundFrontProgress(front)),front.side,1,false,colors);
+      highlight=lineItem(groundFrontNow(front),front.side,1,false,colors);
     if(front.plan){
       const item=lineItem(front.plan.pts,front.plan.side,L.planScale,true,colors);still.push(item);
       if(selected&&hover.kind==='plan')highlight=item;
@@ -1183,7 +1215,7 @@ function groundPlanDraw(){
   build('ringEdge',rings,0,.03);build('ring',rings,0,.04);
   // 矢印の点滅と隊の位置は毎フレーム。上がる線は実時間の250msごと。
   if(now-V.movingAt>=250||moving.length!==V.advances.length||moving.some(({front,colors},i)=>front.advance!==V.advances[i]||colors!==V.movingColors[i])){
-    draw('moving',moving.map(({front,colors})=>lineItem(groundFrontPosition(front,groundFrontProgress(front)),front.side,1,false,colors)));
+    draw('moving',moving.map(({front,colors})=>lineItem(groundFrontNow(front),front.side,1,false,colors)));
     V.advances=moving.map(({front})=>front.advance);V.movingColors=moving.map(({colors})=>colors);V.movingAt=now;
   }
   const on=.5+.5*Math.cos(now/1000/L.blinkSec*Math.PI*2);
