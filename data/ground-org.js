@@ -91,11 +91,31 @@ window.WOS_GROUND_ORG=(()=>{
       brigades.push({id:'qr'+(brigades.length+1),name:`第${brigades.length+1} 旅団`,battalions:battalions.slice(i,i+MAX_BATTALIONS).map(b=>b.id)});
     return {battalions,brigades};
   }
-  function sortie(value){
+  // 作戦で禁止された兵科は出撃する編成と集計の両方から除く。大隊・旅団の集計では作戦を指定しない。
+  function sortieLoad(companies,operation){
+    const {supplyWeight,sortieLimits}=window.WOS_GROUND_RULES;
+    const config=operation?.groundSortie;
+    const banned=config?.bannedKinds||[];
+    const allowed=companies.filter(c=>c.kind!=='sea'&&!banned.includes(c.kind));
+    const platoons=platoonsOf(allowed);
+    const supplyUsed=allowed.reduce((n,c)=>n+(supplyWeight[c.kind]??0)*(c.platoons||1),0);
+    const supplyPlatoons=platoonsOf(allowed.filter(c=>c.kind==='supply'));
+    const supplyBonus=supplyPlatoons*sortieLimits.supplyPerPlatoon;
+    const scale=sortieLimits.scales[operation?.groundScale];
+    const scaleOver=!!scale&&platoons>scale.cap;
+    const supplyBase=config?.supplyBase;
+    const supplyLimit=supplyBase==null?null:supplyBase+supplyBonus;
+    const excess=supplyLimit===null?0:Math.max(0,supplyUsed-supplyLimit);
+    const penaltyPercent=Math.min(sortieLimits.maxPenalty,sortieLimits.penaltyPerPoint*excess);
+    return {companies:allowed,platoons,scale,scaleOver,supplyUsed,supplyPlatoons,supplyBonus,supplyBase,supplyLimit,excess,penaltyPercent};
+  }
+  function sortie(value,operation){
     let org=normalize(value); if(!org.companies.length) org=defaults();
+    const load=sortieLoad(org.companies,operation);
+    if(load.companies.length!==org.companies.length) org=normalize({...org,companies:load.companies});
     const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,groundPlatoons:c.platoons,companyId:c.id,vis:9,stl:0,
       band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground'}));
-    return {org,fleets};
+    return {org,fleets,load};
   }
-  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortie,QUICK_GROUPS,quickOrg};
+  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortie,QUICK_GROUPS,quickOrg};
 })();

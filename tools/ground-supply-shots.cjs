@@ -21,7 +21,7 @@ if(process.argv.includes('--sim')){
     fleets.forEach((f,i)=>{f.stance='evade';groundClearOrders(f);if(!f.embarked)f.pos.copy(groundPoint(5+i%8*2,33));});
     for(const s of groundSites)s.owner=s.id==='F'?1:0;
     groundSupplyBuild();for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=0;
-    groundSupplyRefresh();document.getElementById('groundSupply').parentElement.open=true;
+    groundSupplyRefresh();document.getElementById('groundSupplyStatus').parentElement.open=true;
   });
   try{
     fs.mkdirSync(path.join(ROOT,'.shots'),{recursive:true});

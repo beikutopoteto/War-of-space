@@ -88,7 +88,15 @@ function panCamera(dt){
 addEventListener('keydown',e=>{ if(!selected||e.target===altTrack) return; if(e.key==='q'||e.key==='Q') setAlt(selAlt+5); if(e.key==='e'||e.key==='E') setAlt(selAlt-5); });
 function order(f,o){
   if(op.ground&&o.type==='attack'&&!groundManualTargetAllowed(f,o.target))return;
-  if(op.ground){if(f.embarked||!groundCommandAllowed(f,o.type))return;if(f.groundFrontOf&&o.groundFrontId!==f.groundFrontOf.id)groundFrontRememberVia(f);groundFormationOrder(f,o);groundCancelWork(f);f.groundAreaSalvo=null;f.groundGiving=null;if(o.type==='attack')f.groundChaseT=0;}
+  if(op.ground){
+    if(f.embarked||!groundCommandAllowed(f,o.type))return;
+    if(f.groundFrontOf&&o.groundFrontId!==f.groundFrontOf.id)groundFrontRememberVia(f);
+    groundFormationOrder(f,o);groundCancelWork(f);f.groundAreaSalvo=null;
+    if(!f.groundSupplyTrip?.front||f.groundSupplyTrip.front.id!==o.groundFrontId){f.groundSupplyTrip=null;f.groundGiving=null;}
+    f.groundSupplyServing=null;
+    if(!npcIssuing)f.groundSupplyNpcUnsafe=false;
+    if(o.type==='attack')f.groundChaseT=0;
+  }
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */
   if(o.type==='move') o.path=op.ground?(o.groundPreparedPath?.bridgeRevision===groundBridgeRevision&&o.groundPreparedPath.s===0&&Math.hypot(o.groundPreparedPath.points[0].x-f.pos.x,o.groundPreparedPath.points[0].z-f.pos.z)<1e-6?o.groundPreparedPath:groundMovePath(f.pos,[...(o.via||[]),o.dest],groundMoveKind(f))):makePath(f.pos,[...(o.via||[]),o.dest]);
   if(op.ground)delete o.groundPreparedPath;
@@ -310,13 +318,14 @@ const groundKeys='<tbody>'+[
   ['高度','左下の高度の段から地上・低高度・高高度を選ぶ。航空機と W.A.S. は対応する段だけに切り替えられる'],
   ['自動交戦・命令優先','R、左下の方針ボタン、右下の部隊一覧（中隊のマスの三角。旅団・大隊の見出しの「全自動／全命令」で配下をまとめて）。命令優先は通常攻撃を命じた敵だけに行う。航空機以外の対空装備は発見・射程・射線を満たすと、どちらの方針でも独立して自動迎撃'],
   ['戦闘中の部隊編成','右下の一覧で Shift＋クリックして中隊を選び、「＋大隊」／「＋旅団」で編成。見出しで解散し、中隊のマスや大隊の名前をドラッグして所属を変更'],
+  ['補給','補給部隊は停止中、補給が8割を切った大隊の中隊へ自動で分配。ボタンを押して味方1隊を選ぶと集中補給し、満タンで自動に戻る。補給切れでは拠点で補充して大隊へ戻る'],
   ['停止・帰投','停止で未投下の任務を解除。発射・投下済みの弾は消えない。帰投補給は未発射の命令・予約を保存し、復帰後に再開'],
   ['戻す','Ctrl+Z / Backspace、または「戻す」で一つ前の指示を取り消す。砲撃・爆撃は未発射分だけを復元し、発射済み弾・消費した補給・再装填時間は巻き戻さない'],
   ['視点','ドラッグで回転、ホイールで拡大、WASD で平行移動。十字キーか下の視点のスティックで回転、V で斜め/真上/真横'],
   ['時間','Space で一時停止、停止・1×・2×・4×'],
   ['表示','H でパネル、L で名札'],
   ['会話','クリックか Enter で次へ、Ctrl 長押しで早送り、「とばす」で最後まで。オプションでストーリーをオフにすると会話を出さない'],
-  ['メニュー・取消','Esc で地点指定などの入力待ちを取消。それ以外は Esc か左上の「メニュー」で開く・閉じる']
+  ['メニュー・取消','Esc で地点指定などの入力待ちや、選択中の補給部隊の集中補給を取消。それ以外は Esc か左上の「メニュー」で開く・閉じる']
 ].map(([name,text])=>`<tr><th>${name}</th><td>${text}</td></tr>`).join('')+'</tbody>';
 let hintGone=false, hintTimer=null, hintFadeTimer=null;
 function hideHint(){ if(hintGone) return; hintGone=true; hintEl.classList.add('gone'); hintFadeTimer=setTimeout(()=>hintEl.hidden=true,800); }
@@ -384,7 +393,11 @@ addEventListener('keydown',e=>{ if(!paused) return; if(e.code==='Escape'){ e.pre
 /* PC keys: Space pauses, 1–9 pick a fleet in roster order, G picks an army group (again for the next one), Esc opens the menu, Ctrl+Z or Backspace undoes the last order */
 addEventListener('keydown',e=>{ if(e.target.tagName==='INPUT'||e.repeat) return;
   if(e.code==='Space'){ e.preventDefault(); if(!over) setSpeed(speed>0?0:runSpeed); return; }
-  if(e.code==='Escape'){ if(op.ground&&(groundSupplyAiming||groundWorkAiming||groundStrikeAiming)){groundClearAiming();groundHud();return;} openPause(); return; }
+  if(e.code==='Escape'){
+    if(op.ground&&(groundSupplyAiming||groundWorkAiming||groundStrikeAiming)){groundClearAiming();groundHud();return;}
+    if(op.ground&&orderTargets().filter(f=>f.team===0).map(groundSupplyCancelFocus).some(Boolean)){groundHud();return;}
+    openPause();return;
+  }
   if(e.code==='KeyB'&&op.ground&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); groundStrikeToggle(); return; }
   if(e.code==='Backspace'||e.code==='KeyZ'&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); if(!over) undo(); return; }
   if(e.code==='Enter'&&talking){ e.preventDefault(); nextTalk(); return; }

@@ -1738,7 +1738,8 @@ WOS_DATA.operations.push((()=>{
     groundHQ:{0:'A',1:'F'},groundSupportSites:['B','E','G','I'],
     groundSites:[{site:'A',owner:0},{site:'B',owner:0},{site:'C',owner:null},{site:'D',owner:null},{site:'E',owner:1},{site:'F',owner:1},{site:'G',owner:0},{site:'H',owner:null},{site:'I',owner:1}],
     view:{targetKm:[12,54],dist:145,dir:[0,1,.65],max:650},
-    groundSortie:{site:'A',radiusKm:4}, // 半径4kmは仮。格子間隔1.5km、最大8kmまで広げる。
+    groundScale:'division',
+    groundSortie:{site:'A',radiusKm:4,supplyBase:100}, // 半径4km・補給の基本100は仮。格子間隔1.5km、最大8kmまで広げる。
     // 広域演習専用の仮配備。チュートリアル2は地形・本営・海上を含め従来配置を保持。
     quick:[unit(names.inf,'infantry',9,55),unit(names.tank,'vehicle',12,56),unit(names.heavy,'heavyInfantry',11,58),unit(names.scout,'scout',13,55),unit(names.air,'attack',10,54,'high'),unit(names.aa,'mobileAA',8,57),unit(names.gun,'artillery',9,58),unit(names.apc,'apc',10,55.5),unit(names.eng,'engineer',11,54),unit('第11 強化歩兵中隊','infantry',8,54),unit('第12 補給中隊','supply',10,57)],
     groundSea:[sea(names.ship,'cl',23,12),{...sea(names.landing,'dd',23,14),groundLanding:true,groundCargo:[unit(names.cargo,'infantry',23,14)]}],
@@ -1770,7 +1771,7 @@ WOS_DATA.operations.push((()=>{
       row(10,'⑩ 道路で補充','groundSupplyRoad','inf','本営からつながる道で補充します。第11 補給訓練歩兵中隊を「補充」の輪へ進めてください。士気は味方の道と拠点で100%、その外では80%まで回復します。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('補充',18.5,29.5)]}),
       row(10,'⑩ 道路を奪還','groundSupplyRecapture','inf','訓練敵が道路を占領しました。敵が去っても補給は切れたままです。「奪還」の輪へ進め、5秒で道を取り戻してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('奪還',16,29.857)]}),
       row(10,'⑩ 競合の先も半速','groundSupplyHalf','inf','道路の競合を照合します……。第11 補給訓練歩兵中隊を「競合」の輪へ進めてください。補充はその先へも半分の速さで流れます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('競合',18.5,29.5)]}),
-      row(10,'⑩ 補給部隊から分配','groundSupplyGive','inf','道路外での補給です。第12 補給中隊を選び、「補給」を押して第11 補給訓練歩兵中隊を指定してください。分けた量だけ補給中隊自身の残量も減ります。',{actor:'第12 補給中隊',target:'第11 補給訓練歩兵中隊',targets:['#groundSupply']}),
+      row(10,'⑩ 補給を集中','groundSupplyGive','inf','道路外では、近くの補給中隊が残量8割未満の隊へ自動で補給します。第12 補給中隊を選び、「補給」を押して第11 補給訓練歩兵中隊を指定してください。選んだ1隊に補給を集中できます。',{actor:'第12 補給中隊',target:'第11 補給訓練歩兵中隊',targets:['#groundSupply']}),
       row(10,'⑩ 士気と敗走','groundSupplyRout','inf','敵の射撃を使わず、士気が尽きた状態を再現します。第11 補給訓練歩兵中隊を「敗走」の輪へ動かしてください。士気が尽きると、操作を受け付けず最寄りの味方へ逃げ続けます。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('敗走',15,26)]}),
       row(10,'⑩ 味方の道で再集結','groundSupplyRally','inf','敗走先へ着きました。移動と搭乗だけ操作できます。「回復」の輪へ進め、味方の道で士気30まで回復してください。',{actor:'第11 補給訓練歩兵中隊',marks:[mark('回復',18.5,29.5)]})
     ],

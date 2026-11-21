@@ -145,7 +145,7 @@ async function checkGroundFixes(page,check){
     observer.pos.copy(home.pos);groundUpdateSight();groundDraw();groundFogDraw(true);
     const remembered=!s.observed&&s.knownOwner===1&&color([230,85,72]);
     observer.pos.add(new THREE.Vector3(4,0,0));observer.groundSupply=40;observer.groundSupplyWait=0;
-    document.getElementById('groundSupply').parentElement.open=false;
+    document.getElementById('groundSupplyStatus').parentElement.open=false;
     groundSupplyAfter(3);groundDraw();const line=groundSupplyLinks.get(observer);
     const supplied=!!line&&line.parent===groundVisuals&&line.geometry.attributes.position.count>1&&line.material.isLineDashedMaterial;
     observer.groundSupply=100;groundSupplyAfter(1);groundDraw();const full=!groundSupplyLinks.has(observer);

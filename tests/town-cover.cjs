@@ -45,15 +45,16 @@ function townCases(){
   set([box(0,0,1,1,2,undefined)]);delete groundBuildings[0].settlement;
   check('settlementなしの箱は従来のurbanMarginで軽減',near(groundDamageFactor(unit('infantry',1)),groundRuleSet().combat.infantryCover));
   check('settlementなしの箱は町を作らず個別に遮る',groundTownZones().length===0&&!groundClearLine(point(-2),point(2)));
-  // 補給は資格だけでなく実経路とgroundBuildingsBlockを通して分配量を確認。
+  // 分配は通行経路を使い、射線を遮る建物があっても届く。
   set([box(-.8,0,1,1),box(.8,0,1,1)]);
   const truck=unit('supply',0,-.5),recipient=unit('infantry',0,.5);truck.groundGiving=recipient;fleets=[truck,recipient];
+  recipient.groundMorale=groundMoraleUnitMax(recipient);
   groundSupplyGive(1,new Map());
   check('同じ町内の通りで補給を実際に渡せる',recipient.groundSupply>40&&truck.groundSupply<40&&truck.groundSupplyGiving);
   truck.pos.copy(point(0,-1.5,0));recipient.pos.copy(point(0,1.5,0));truck.groundSupply=40;recipient.groundSupply=40;
   const path=groundPath(truck.pos,recipient.pos,groundMoveKind(truck),true);
   groundSupplyGive(1,new Map());
-  check('町を挟む補給は届く距離と経路でも渡せない',!!path&&path.L<=groundSupplyRules().giveKm*GROUND_SCALE&&recipient.groundSupply===40&&truck.groundSupply===40&&!truck.groundSupplyGiving);
+  check('町を挟んでも範囲内の通行経路で補給できる',!!path&&path.L<=groundSupplyRules().giveKm*GROUND_SCALE&&recipient.groundSupply===42&&truck.groundSupply===38&&truck.groundSupplyGiving);
   // 配列の交換・回転した底面・偶数棟の中央値も確認。
   set([box(0,0,2,4,1,'rotated',Math.PI/4),box(0,0,2,4,3,'rotated',Math.PI/4)]);
   const rotated=groundTownZones()[0],extent=3/Math.sqrt(2)+groundRuleSet().combat.townMargin;

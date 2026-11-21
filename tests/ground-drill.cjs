@@ -162,6 +162,13 @@ async function checkGroundDrill(page,check){
     const times=[];
     for(let i=0;i<(await page.evaluate(()=>op.tutorial.length));i++){
       check(await page.evaluate(()=>{const before=tutorial.step;step(.05);return tutorial.step===before&&!over;}),'チュートリアル2: 無操作で手順'+(i+1)+'を飛ばさない');
+      const autoSupply=await page.evaluate(()=>{
+        const row=groundDrillRow();if(row.condition!=='groundSupplyGive')return null;
+        const before=tutorial.step,t=groundDrillUnit(row.target),received=t.groundSupplyReceived;
+        for(let j=0;j<70;j++)step(.05);
+        return t.groundSupplyReceived-received>5&&tutorial.step===before;
+      });
+      if(autoSupply!==null)check(autoSupply,'チュートリアル2: 自動分配で5以上届いても集中補給の手順は進まない');
       if(!await performDrillAction(page))throw new Error('案内の操作が失敗: '+i);
       times.push(await page.evaluate(()=>drillAdvance()));
     }

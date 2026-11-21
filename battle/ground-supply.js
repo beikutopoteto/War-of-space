@@ -1,5 +1,5 @@
 /* 地上専用。道路の所有と本営からの流量、補給、士気、航空の基地帰投。 */
-let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='';
+let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='', groundSupplyPenalty=0;
 function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
 function groundSupplyLand(f){return !!f&&!['sea','was','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
@@ -7,9 +7,10 @@ function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].i
 function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
 function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
 function groundSupplyInitUnit(f){
-  if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyRules().max;
-  if(groundSupplyLand(f))f.groundMorale=groundMoraleMax(f);
+  if(groundSupplyLand(f)||groundSupplyAir(f))f.groundSupply=groundSupplyUnitMax(f);
+  if(groundSupplyLand(f))f.groundMorale=groundMoraleUnitMax(f);
   f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
+  f.groundSupplyDemand=false;f.groundSupplyTrip=null;f.groundSupplyTargets=null;f.groundSupplyCheckLeft=0;f.groundSupplyServing=null;
 }
 function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
 function groundCircleAt(x,y){
@@ -182,35 +183,225 @@ function groundRoutStep(f,dt){
   f.groundRoutTarget=best.target;f.groundRoutRepath=r.routRepath;groundSupplyInternalMove(f,best.target.pos,best.path);
 }
 function groundSupplyCanGive(f,t){
-  if(!groundSupplyActive()||!f||!t||f===t||f.groundExited||t.groundExited||f.groundKind!=='supply'||!f.alive||f.embarked||f.groundRout||!t.alive||t.embarked||t.team!==f.team||!groundSupplyLand(t)||t.groundKind==='supply')return false;
+  if(!groundSupplyActive()||!f||!t||f===t||f.groundExited||t.groundExited||f.groundKind!=='supply'||!f.alive||f.locked||f.embarked||f.groundRout||!t.alive||t.embarked||t.team!==f.team||!groundSupplyLand(t)||t.groundKind==='supply'||groundStaticTarget(t))return false;
+  return true;
+}
+function groundSupplyStopMove(f){
+  if(!f.order?.groundSupplyMove)return;
+  f.order=null;dropArrow(f.arrow);f.arrow=null;
+}
+function groundSupplyCancelFocus(f){
+  if(!f.groundGiving)return false;
+  f.groundGiving=null;
+  if(f.order?.groundSupplyMove==='focus')groundSupplyStopMove(f);
+  f.groundSupplyCheckLeft=0;
   return true;
 }
 function groundSupplyCommand(list,t){
   const f=list.length===1?list[0]:null;if(!groundSupplyCanGive(f,t))return false;
-  npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;groundClearAiming();groundSupplyMessage='補給先：'+t.name;return true;
+  if(!npcIssuing&&typeof saveUndo==='function')saveUndo([f]);
+  if(!npcIssuing)f.groundSupplyNpcUnsafe=false;
+  npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;f.groundSupplyCheckLeft=0;
+  groundClearAiming();groundSupplyMessage='補給先：'+t.name;
+  if(op.groundDrill)groundDrillEvent('supplyFocus',f,t);
+  return true;
+}
+function groundSupplyDemand(t,r){
+  const max=groundSupplyUnitMax(t);
+  if(t.groundSupply>=max)t.groundSupplyDemand=false;
+  else if(t.groundSupply<max*r.giveStart)t.groundSupplyDemand=true;
+  return t.groundSupplyDemand;
+}
+function groundSupplyNeeds(t,r,focus){
+  return (focus?t.groundSupply<groundSupplyUnitMax(t):groundSupplyDemand(t,r))||t.groundMorale<groundMoraleUnitMax(t)*r.moraleGiveMax;
+}
+function groundSupplyBattalion(f){
+  return f.team===0&&f.companyId&&groundOrg?.battalions.find(b=>b.companies.includes(f.companyId));
+}
+function groundSupplyPeers(f,battalion=groundSupplyBattalion(f)){
+  return fleets.filter(t=>groundSupplyCanGive(f,t)&&(!battalion||battalion.companies.includes(t.companyId)));
+}
+function groundSupplyInReach(f,pos,r){
+  const range=r.giveKm*GROUND_SCALE;
+  if(groundDistanceTo(f,{pos})>range)return false;
+  const path=groundPath(f.pos,pos,groundMoveKind(f),true,true,{bridgesOnly:true,shortest:true,maxKm:r.giveKm});
+  return !!path&&groundPolyLength(path.points,range)<=range+1e-8;
+}
+function groundSupplyIdle(f,allowFront=false){
+  const frontOrder=allowFront&&f.groundFrontOf&&f.order?.groundFrontId===f.groundFrontOf.id;
+  return !f.locked&&!f.embarked&&!f.groundRout&&!f.groundBuilding&&!f.groundUnloading&&!f.pending&&!f.bandTo&&
+    !f.queue?.length&&!f.groundPlan&&!f.groundAreaSalvo&&!f.groundVolley&&!f.groundBombRun&&
+    (!f.order||f.order.groundSupplyMove||frontOrder);
+}
+function groundSupplyStartTrip(f){
+  if(f.groundKind!=='supply'||!f.alive||f.groundExited||f.groundSupply!==0||f.team===1&&groundTrainingEnemy(f)||
+    f.groundSupplyTrip?.phase==='out'||f.groundSupplyTrip?.phase==='base'||!groundSupplyIdle(f,true))return;
+  if(f.groundFrontOf)groundFrontRememberVia(f);
+  if(f.order){f.order=null;dropArrow(f.arrow);f.arrow=null;}
+  const range=groundSupplyRules().giveKm*GROUND_SCALE;
+  const peers=groundSupplyBattalion(f)?[]:groundSupplyPeers(f).filter(t=>groundDistanceTo(f,t)<=range);
+  f.groundSupplyTrip={phase:'out',site:null,peers};
+  f.groundSupplyCheckLeft=0;
+}
+function groundSupplyMove(f,path,purpose,target=null){
+  f.order={type:'move',dest:path.points.at(-1).clone(),path,groundSupplyMove:purpose,groundSupplyMoveTarget:target};
+}
+function groundSupplyNearSide(f,pos,km){
+  const distance=groundDistanceTo(f,{pos});
+  return distance?pos.clone().lerp(f.pos,Math.min(1,km*GROUND_SCALE/distance)):f.pos.clone();
+}
+function groundSupplyCenter(peers){
+  if(!peers.length)return null;
+  return peers.reduce((p,t)=>p.add(t.pos),new THREE.Vector3()).multiplyScalar(1/peers.length);
+}
+function groundSupplyApproach(f,dest,r,target=null){
+  const kind=groundMoveKind(f),d=groundData(),cell=d.meta.cellKm,x=groundMapX(dest.x),y=groundMapY(dest.z);
+  const points=[dest],cx=Math.floor(x/cell),cy=Math.floor(y/cell),nearby=[];
+  for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)nearby.push(groundPoint((cx+i+.5)*cell,(cy+j+.5)*cell));
+  points.push(...nearby.sort((a,b)=>groundDistanceTo({pos:a},{pos:dest})-groundDistanceTo({pos:b},{pos:dest})));
+  for(const pos of points){
+    if(!groundPass(groundMapX(pos.x),groundMapY(pos.z),kind))continue;
+    if(groundDistanceTo(f,{pos})<1e-6)return null;
+    if(target&&!groundSupplyInReach({...f,pos},target.pos,r))continue;
+    const path=groundPath(f.pos,pos,kind);
+    if(path)return path;
+  }
+  return null;
+}
+function groundSupplyTripStep(f,r,refresh){
+  const trip=f.groundSupplyTrip;
+  if(trip.front&&trip.front===f.groundFrontOf){
+    if(!f.order&&!f.groundFrontAway&&trip.front.slots.some(s=>s.f===f))f.groundSupplyTrip=null;
+    return;
+  }
+  if(!groundSupplyIdle(f))return;
+  if(trip.phase==='return'){
+    if(f.groundFrontOf){trip.front=f.groundFrontOf;return;}
+    if(trip.started&&!f.order){f.groundSupplyTrip=null;return;}
+    if(!refresh)return;
+    const battalion=groundSupplyBattalion(f);
+    const peers=battalion?groundSupplyPeers(f,battalion):trip.peers.filter(t=>groundSupplyCanGive(f,t));
+    const center=groundSupplyCenter(peers),cell=groundData().meta.cellKm*GROUND_SCALE;
+    if(center&&f.order?.groundSupplyMove==='return'&&f.order.path.bridgeRevision===groundBridgeRevision&&groundDistanceTo({pos:center},{pos:f.order.groundSupplyMoveTarget})<cell)return;
+    const path=center&&groundSupplyApproach(f,groundSupplyNearSide(f,center,r.followKm),r);
+    if(path){groundSupplyMove(f,path,'return',center);trip.started=true;}
+    else {groundSupplyStopMove(f);f.groundSupplyTrip=null;}
+    return;
+  }
+  const connected=s=>s?.owner===f.team&&!s.supplyContested&&groundSupplyAt({team:f.team,pos:s.pos}).rate>0;
+  const at=groundSupplyAt(f);
+  if(at.rate>0&&connected(at.site)){
+    groundSupplyStopMove(f);trip.phase='base';trip.site=at.site;
+    if(f.groundSupply>=groundSupplyUnitMax(f)){
+      trip.phase='return';
+      f.groundSupplyCheckLeft=0;
+      trip.front=f.groundFrontOf; // 前線の空いていた持ち場へ既存の命令で復帰する。
+    }
+    return;
+  }
+  trip.phase='out';
+  if(connected(trip.site)&&f.order?.groundSupplyMove==='out'&&f.order.path.bridgeRevision===groundBridgeRevision)return;
+  groundSupplyStopMove(f);
+  if(!refresh)return;
+  let best=null;
+  for(const s of groundSites){
+    if(!connected(s))continue;
+    const path=groundPath(f.pos,s.pos,groundMoveKind(f),false,true,{shortest:true});
+    if(!path)continue;
+    const length=groundPolyLength(path.points);
+    if(!best||length<best.length)best={site:s,path,length};
+  }
+  trip.site=best?.site||null;
+  if(best)groundSupplyMove(f,best.path,'out');
+}
+function groundSupplyPlan(f,dt,r){
+  if(f.groundGiving&&(!groundSupplyCanGive(f,f.groundGiving)||!groundSupplyNeeds(f.groundGiving,r,true)))groundSupplyCancelFocus(f);
+  const focus=f.groundGiving||null;
+  f.groundSupplyCheckLeft=(f.groundSupplyCheckLeft||0)-dt;
+  const revision=groundBridgeRevision,old=f.groundSupplyTargets;
+  const refresh=f.groundSupplyCheckLeft<=1e-8||old?.focus!==focus||old?.revision!==revision;
+  if(refresh){
+    f.groundSupplyCheckLeft=r.giveRepath;
+    f.groundSupplyTargets={focus,revision,targets:[]};
+  }
+  if(f.groundSupplyTrip){groundSupplyTripStep(f,r,refresh);return;}
+  const moving=f.order?.groundSupplyMove;
+  // 前線の移動はそのまま。集中の接近だけは通常の自動追従と区別する。
+  if(!groundSupplyIdle(f)||f.groundSupply<=0||f.groundSupplyNpcUnsafe||f.team===1&&groundTrainingEnemy(f))return;
+  if(!refresh)return;
+  const battalion=groundSupplyBattalion(f);
+  const peers=focus?[focus]:groundSupplyPeers(f,battalion);
+  const range=r.giveKm*GROUND_SCALE,targets=peers.filter(t=>groundSupplyNeeds(t,r,!!focus)&&groundSupplyInReach(f,t.pos,r));
+  f.groundSupplyTargets.targets=targets;
+  if(!focus&&(f.groundFrontOf||!battalion)){groundSupplyStopMove(f);return;}
+  if(moving){
+    const t=f.order.groundSupplyMoveTarget;
+    if(f.order.path.bridgeRevision===revision){
+      if(moving==='rear'){
+        const center=groundSupplyCenter(peers);
+        if(center&&groundDistanceTo({pos:center},{pos:t})<groundData().meta.cellKm*GROUND_SCALE)return;
+      }else if(t&&peers.includes(t)&&groundSupplyNeeds(t,r,!!focus)&&groundSupplyInReach({...f,pos:f.order.dest},t.pos,r))return;
+    }
+    groundSupplyStopMove(f);
+  }
+  // 接近した相手には停車して配り、遠い部隊の間を往復するだけになるのを防ぐ。
+  if(targets.includes(f.groundSupplyServing))return;
+  f.groundSupplyServing=null;
+  const far=focus?[focus]:peers.filter(t=>groundSupplyDemand(t,r)&&groundDistanceTo(f,t)>range);
+  far.sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b));
+  if(far.length&&!targets.includes(far[0])){
+    const t=far[0];
+    const path=groundSupplyApproach(f,groundSupplyNearSide(f,t.pos,r.approachKm),r,t);
+    if(path)groundSupplyMove(f,path,focus?'focus':'follow',t);
+    return;
+  }
+  if(!focus&&peers.length&&peers.every(t=>groundDistanceTo(f,t)>range)){
+    const center=groundSupplyCenter(peers);
+    const path=groundSupplyApproach(f,groundSupplyNearSide(f,center,r.followKm),r);
+    if(path)groundSupplyMove(f,path,'rear',center);
+  }
 }
 function groundSupplyGive(dt,netGains){
-  const r=groundSupplyRules(),used=new Set();
-  for(const f of fleets){f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;const t=f.groundGiving;if(!groundSupplyCanGive(f,t)){f.groundGiving=null;continue;}
-    if(used.has(t)||f.order||f.groundSupply<=0||groundDistanceTo(f,t)>r.giveKm*GROUND_SCALE)continue;
-    const path=groundPath(f.pos,t.pos,groundMoveKind(f),true);
-    if(!path||path.L>r.giveKm*GROUND_SCALE||groundBuildingsBlock({x:f.pos.x,y:groundHeight(f.pos.x,f.pos.z)+.35,z:f.pos.z},{x:t.pos.x,y:groundHeight(t.pos.x,t.pos.z)+.35,z:t.pos.z}))continue;
-    const prior=netGains.get(t)||0,gain=Math.min(r.give*dt,r.max-t.groundSupply+prior,f.groundSupply);
-    // 網による補充を超えたときだけ、従来どおり物資を分配する。
-    const extra=Math.min(gain-prior,r.max-t.groundSupply);
-    if(extra>0){
-      t.groundSupply+=extra;f.groundSupply-=gain;f.groundSupplyGiven+=gain;t.groundSupplyReceived+=gain;f.groundStockGiving=true;
+  const r=groundSupplyRules(),used=new Set(),trucks=fleets.filter(f=>f.alive&&!f.groundExited&&f.groundKind==='supply');
+  for(const f of trucks){
+    f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplyCount=0;
+    groundSupplyPlan(f,dt,r);
+  }
+  // 手動・NPCの集中は自動分配より先に処理する。
+  trucks.sort((a,b)=>Number(!!b.groundGiving)-Number(!!a.groundGiving));
+  for(const f of trucks){
+    if(f.order||f.groundMoved||f.groundSupplyTrip||f.groundSupply<=0||!groundSupplyIdle(f)||f.groundSupplyNpcUnsafe)continue;
+    const focus=f.groundGiving;
+    const targets=f.groundSupplyTargets.targets.filter(t=>!used.has(t)&&groundSupplyCanGive(f,t)&&groundSupplyNeeds(t,r,!!focus)&&groundDistanceTo(f,t)<=r.giveKm*GROUND_SCALE);
+    if(!targets.length)continue;
+    const share=r.give*dt/targets.length,received=new Set();
+    // 先に全隊の物資を配り、その残りで士気を回復する。
+    for(const t of targets){
+      if(!focus&&!t.groundSupplyDemand)continue;
+      const max=groundSupplyUnitMax(t);
+      const extra=Math.min(share-(netGains.get(t)||0),max-t.groundSupply,f.groundSupply);
+      if(extra<=0)continue;
+      t.groundSupply+=extra;f.groundSupply-=extra;f.groundSupplyGiven+=extra;t.groundSupplyReceived+=extra;
+      if(t.groundSupply>=max)t.groundSupplyDemand=false;
+      f.groundStockGiving=true;received.add(t);
+      if(op.groundDrill&&focus)groundDrillEvent('supplyFocusGain',f,{target:t,amount:extra});
     }
-    // 物資分配と独立して士気も回復。残った補給で賄える実回復量だけ消費する。
-    const morale=Math.max(0,Math.min(r.give*dt,groundMoraleMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost));
-    if(morale>0){t.groundMorale+=morale;f.groundSupply-=morale*r.moraleGiveCost;f.groundMoraleGiving=true;}
-    if(f.groundStockGiving||f.groundMoraleGiving){used.add(t);f.groundSupplyGiving=true;t.groundSupplySource={unit:f};}
+    for(const t of targets){
+      const morale=Math.min(share,groundMoraleUnitMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost);
+      if(morale<=0)continue;
+      t.groundMorale+=morale;f.groundSupply-=morale*r.moraleGiveCost;f.groundMoraleGiving=true;received.add(t);
+    }
+    // 割り算の誤差で0にならず、拠点へ戻り始めないのを防ぐ。
+    if(f.groundSupply<1e-6)f.groundSupply=0;
+    for(const t of received){used.add(t);t.groundSupplySource={unit:f};}
+    f.groundSupplyCount=received.size;f.groundSupplyGiving=!!received.size;
+    if(focus&&!groundSupplyNeeds(focus,r,true))groundSupplyCancelFocus(f);
   }
 }
 function groundAirStep(f,dt){
   const r=groundSupplyRules();
   if(f.groundAirState==='base'){
-    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=r.max;f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
+    f.groundAirLeft-=dt;if(f.groundAirLeft<=0){f.groundSupply=groundSupplyUnitMax(f);f.groundAirState='return';const task=f.groundAirTask;groundSupplyInternalMove(f,f.groundAirResume);f.groundAirTask=task;}
     return;
   }
   groundSupplySpend(f,r.airIdle*dt);
@@ -223,7 +414,7 @@ function groundAirStep(f,dt){
   }
 }
 function groundSupplyAI(f){
-  if(f.team!==1||!groundSupplyLand(f)||f.groundRout||f.groundSupplyAITimer>0)return;
+  if(f.team!==1||!groundSupplyLand(f)||f.groundKind==='supply'||f.groundRout||f.groundSupplyAITimer>0)return;
   f.groundSupplyAITimer=groundSupplyRules().routRepath;
   const r=groundSupplyRules();
   if(f.groundRecover){if(f.groundSupply>=r.aiResume&&f.groundMorale>=r.aiResume){f.groundRecover=false;groundSupplyInternalMove(f,f.groundRecoverPost);return;}if(f.order)return;}
@@ -241,22 +432,28 @@ function groundSupplyBefore(dt){
     if((groundSupplyLand(f)||groundSupplyAir(f))&&!Number.isFinite(f.groundSupply))groundSupplyInitUnit(f);
     f.groundHitLeft=Math.max(0,(f.groundHitLeft||0)-dt);f.groundMoved=false;f.groundSupplyAITimer=Math.max(0,(f.groundSupplyAITimer||0)-dt);
     if(groundSupplyAir(f))groundAirStep(f,dt);
-    if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);if(!op.npc?.[f.team]||op.groundDrill)groundSupplyAI(f);}
+    if(groundSupplyLand(f)){if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);groundRoutStep(f,dt);groundSupplyStartTrip(f);if(!op.npc?.[f.team]||op.groundDrill)groundSupplyAI(f);}
   }
 }
-// 味方の占領色は100%、それ以外は80%。現在値を上限へ切り下げない。
-// 士気の最大は兵科ごと（歩兵は高い）。割合（攻撃の倍率・回復と分配の上限・一覧の棒）はこの最大に対して測り、敗走・再編などの点は士気の数のまま。
+// 攻撃・速度の倍率と棒は、補給限界の超過を掛ける前の最大に対して測る。敗走・再集結も従来の数で判定する。
 function groundMoraleMax(f){const r=groundSupplyRules();return r.max*(r.moraleMax?.[f?.groundKind]??1);}
-function groundMoraleCap(f,at){return groundMoraleMax(f)*(at.owner===f.team&&!at.contested?1:.8);}
+function groundSupplyCapFactor(f){return f.team===0?1-groundSupplyPenalty/100:1;}
+function groundSupplyUnitMax(f){return groundSupplyRules().max*groundSupplyCapFactor(f);}
+function groundMoraleUnitMax(f){return groundMoraleMax(f)*groundSupplyCapFactor(f);}
+// 味方の占領色は上限まで、それ以外は上限の80%。現在値を切り下げずに回復を止める。
+function groundMoraleCap(f,at){return groundMoraleUnitMax(f)*(at.owner===f.team&&!at.contested?1:.8);}
 function groundSupplyAfter(dt){
   for(const f of fleets)f.groundSupplySource=null;
   if(!groundSupplyActive())return;
   groundSupplyRoadCapture(dt);groundSupplyRefresh();const r=groundSupplyRules(),netGains=new Map(),d=WOS_TERRAIN[op.ground];
   for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||!groundSupplyLand(f))continue;
+    groundSupplyDemand(f,r);
+    groundSupplyStartTrip(f);
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
-    const gain=Math.min(r.max-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
+    const gain=Math.min(groundSupplyUnitMax(f)-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
     f.groundSupply+=gain;netGains.set(f,gain);
+    if(f.groundSupply>=groundSupplyUnitMax(f))f.groundSupplyDemand=false;
     if(gain>0)f.groundSupplySource=at.site?{site:at.site}:{edge:at.edge};
     if(f.groundBuilding)groundSupplySpend(f,r.build*dt);
     const own=at.owner===f.team&&!at.contested;
@@ -269,12 +466,15 @@ function groundSupplyAfter(dt){
     if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
   }
   groundSupplyGive(dt,netGains);
+  for(const f of fleets)groundSupplyStartTrip(f);
 }
 function groundSupplyStatus(f){
   if(!groundSupplyActive())return '訓練前';
   if(f.groundAirState)return {out:'補給帰投中',base:'基地補給中',return:'戦場へ復帰中'}[f.groundAirState];
   if(f.groundRout)return f.groundRout==='routing'?'敗走中・操作不可':'再集結・移動と搭乗のみ';
-  if(f.groundSupplyGiving)return f.groundMoraleGiving?(f.groundStockGiving?'補給を分配・士気を回復中':'士気を回復中'):'補給を分配中';
+  if(f.groundSupplyTrip)return {out:'補給に戻る途中',base:'拠点で補給中',return:'大隊へ戻る途中'}[f.groundSupplyTrip.phase];
+  if(f.groundGiving)return '集中補給：'+f.groundGiving.name;
+  if(f.groundSupplyGiving)return f.groundStockGiving?`大隊へ補給中（${f.groundSupplyCount}隊）`:'士気を回復中';
   if(!groundSupplyLand(f))return groundSupplyAir(f)?'飛行中':'対象外';
   const at=groundSupplyAt(f),capture=at.edge?.progress[f.team]||0;return (capture&&at.owner!==f.team?`道路占領 ${Math.floor(capture/groundRoadCaptureSeconds(at.edge)*100)}% / `:'')+(at.rate===1?'本営接続':at.rate===.5?'競合・半速補給':'接続なし');
 }
@@ -303,7 +503,9 @@ function groundSupplyHud(list){
   if(button.disabled)groundSupplyAiming=false;
   button.setAttribute('aria-pressed',String(groundSupplyAiming));
   const net=groundSupplyNet,counts=net?[1,.5,0].map(k=>net.edges.filter(e=>e.owner===0&&e.rates[0]===k).length):[0,0,0],hq=groundSites.find(s=>s.id===op.groundHQ?.[0]);
-  status.textContent=groundSupplyAiming?'補給先の味方中隊をクリック（Escで取消）':`${hq?'本営：'+hq.name:'本営なし'} / 接続${counts[0]} 半速${counts[1]} 切断${counts[2]}${list.length===1?' / '+groundSupplyStatus(list[0]):''}`;
+  const penalty=groundSupplyPenalty?`補給限界 超過 −${groundSupplyPenalty}% / `:'';
+  const detail=groundSupplyAiming?'集中補給する味方中隊をクリック（Escで取消）':`${hq?'本営：'+hq.name:'本営なし'} / 接続${counts[0]} 半速${counts[1]} 切断${counts[2]}${list.length===1?' / '+groundSupplyStatus(list[0]):''}`;
+  status.textContent=penalty+detail;
 }
 document.querySelectorAll('#groundSupply').forEach(b=>b.addEventListener('click',()=>{
   const list=orderTargets();if(list.length!==1||list[0].groundKind!=='supply'||!groundCommandAllowed(list[0],'give'))return;
@@ -354,7 +556,7 @@ function groundSupplyLinksClear(){
 function groundSupplyLinkSource(f){
   const s=f.groundSupplySource;
   if(!groundSupplyActive()||!f.alive||f.embarked||f.team!==0||!s)return null;
-  if(s.unit)return groundSupplyCanGive(s.unit,f)&&s.unit.groundGiving===f&&s.unit.groundSupplyGiving?s.unit.pos:null;
+  if(s.unit)return groundSupplyCanGive(s.unit,f)&&s.unit.groundSupplyGiving?s.unit.pos:null;
   const at=groundSupplyAt(f);
   if(!at.rate||s.site!==at.site||s.edge!==at.edge)return null;
   return s.site?s.site.pos:s.edge?groundPoint(s.edge.x,s.edge.y):null;
@@ -378,7 +580,7 @@ function groundSupplyLinksDraw(){
 }
 function groundSupplyDraw(){
   groundSupplyLinksDraw();
-  const panel=document.getElementById('groundSupply')?.parentElement,net=groundSupplyNet;
+  const panel=document.getElementById('groundSupplyStatus')?.parentElement,net=groundSupplyNet;
   if(!net||!panel?.open){groundSupplyMapClear();return;}
   if(groundSupplyMap?.key!==net.key){
     groundSupplyMapClear();groundSupplyMap={key:net.key,lines:[],labels:[]};

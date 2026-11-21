@@ -23,7 +23,7 @@ function npcAutoPlayer(list){
 }
 function npcAutoBusy(f){
   return !!(f.order||f.queue?.length||f.groundPlan||f.groundAreaSalvo||f.groundVolley||f.groundBombRun||
-    f.groundBuilding||f.groundUnloading||f.groundGiving||f.bandTo||f.pending||f.groundAirTask);
+    f.groundBuilding||f.groundUnloading||f.groundGiving||f.groundSupplyTrip||f.bandTo||f.pending||f.groundAirTask);
 }
 function npcAutoSync(state,create,fullPower){
   const enabled=typeof autoMode!=='undefined'&&autoMode&&!op.groundDrill&&(op.ground||!tutorialActive())&&!window.WOS_NO_NPC;
@@ -103,6 +103,7 @@ function npcGroundPower(f){
 }
 function npcGroundFree(f){
   return f.alive&&f.hpPool>0&&!f.locked&&!f.embarked&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&!f.groundBuilding&&!f.groundUnloading&&
+    !f.groundSupplyTrip&&!(f.groundKind==='supply'&&groundSupplyActive()&&f.groundSupply===0)&&
     !['board','bridge','land'].includes(f.order?.type)&&groundCommandAllowed(f,'move');
 }
 function npcGroundInit(){
@@ -643,6 +644,7 @@ function npcGroundLiftOrders(c,sit,plan){
   // 任務が消えたら建設を中止する。搭載した隊は安全な味方の浜へ戻して降ろす。
   for(const f of fleets.filter(ours)){
     const k=tasks.get(f.id);
+    if(f.groundKind==='supply')f.groundSupplyNpcUnsafe=false;
     if(f.order?.type==='bridge'&&k?.type!=='bridge'){order(f,{type:'move',dest:f.pos.clone()});s.works.delete(f.id);}
     if(f.order?.type==='board'&&(!k||tasks.get(f.order.target.id)!==k)){order(f,{type:'move',dest:f.pos.clone()});}
   }
@@ -739,7 +741,9 @@ function npcGroundLiftOrders(c,sit,plan){
       if(groundBoardCommand([f],truck)){handled.add(f.id);handled.add(truck.id);s.trucks.set(truck.id,{passenger:f.id,dest:stop.clone()});}
     }
     for(const {f,x} of group)if(f.groundKind==='supply'&&(x.as==='supply'||x.as==='support')&&!handled.has(f.id)&&npcGroundFree(f)){
-      const candidates=group.filter(a=>a.x.as==='main'&&!a.f.embarked&&groundSupplyCanGive(f,a.f)).sort((a,b)=>(a.f.groundSupply??100)-(b.f.groundSupply??100)).map(a=>a.f);if(!candidates.length)continue;
+      const fraction=t=>(t.groundSupply??groundSupplyUnitMax(t))/groundSupplyUnitMax(t);
+      const candidates=group.filter(a=>a.x.as==='main'&&groundSupplyCanGive(f,a.f)).map(a=>a.f).sort((a,b)=>fraction(a)-fraction(b));
+      if(!candidates.length)continue;
       let main=null,dest=null;
       for(const candidate of candidates){main=candidate;
       const z=sit.zones.find(z=>z.id===k.zone),home=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own');
@@ -752,8 +756,15 @@ function npcGroundLiftOrders(c,sit,plan){
       if(dest)break;
       }
       handled.add(f.id);
-      if(dest){if(f.pos.distanceTo(dest)>.1*GROUND_SCALE)npcGroundLiftMove(f,dest);else if(f.groundGiving!==main)groundSupplyCommand([f],main);}
-      else if(f.order||f.groundGiving)order(f,{type:'move',dest:f.pos.clone()});
+      if(dest){
+        if(f.groundGiving&&candidates.includes(f.groundGiving)&&!npcGroundLiftDanger(f.pos,threats))continue;
+        groundSupplyCancelFocus(f);
+        if(f.pos.distanceTo(dest)>.1*GROUND_SCALE)npcGroundLiftMove(f,dest);
+        else if(fraction(candidates[0])<groundSupplyRules().aiFocusBelow)groundSupplyCommand([f],candidates[0]);
+      }else{
+        f.groundSupplyNpcUnsafe=true;
+        if(f.order||f.groundGiving)order(f,{type:'move',dest:f.pos.clone()});
+      }
     }
   }
   return handled;

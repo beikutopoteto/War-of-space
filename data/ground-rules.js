@@ -25,13 +25,24 @@ window.WOS_GROUND_RULES = {
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   // moraleMax は士気の最大の倍率（max×倍率）。歩兵は他の兵科より士気が高い（ユーザー決定 2026-11-17）。
-  supply: {max:100,moraleMax:{infantry:1.5,heavyInfantry:1.5,commando:1.5,mechanicalAssault:2},refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:1,give:2,moraleGiveMax:.8,moraleGiveCost:.5, // 士気分配の上限・消費比は仮（2026-11-12）
+  supply: {max:100,moraleMax:{infantry:1.5,heavyInfantry:1.5,commando:1.5,mechanicalAssault:2},refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:3,give:2,moraleGiveMax:.8,moraleGiveCost:.5,
+    giveStart:.8,approachKm:1,followKm:1.5,giveRepath:1,aiFocusBelow:.5, // 分配の開始割合はユーザー決定、距離・間隔・NPCの割合は仮（#486）
     terrainMove:{'平地':1,'沼地':3,'山岳':3,'砂漠':2},terrainIdle:['沼地','山岳','砂漠'],idleMorale:.05,
     moraleRefill:2,restWait:5,hitSlow:.65,hitSeconds:2,routArrivalKm:1,routRepath:2,rally:30,
     aiSupply:25,aiMorale:30,aiResume:60,airIdle:.05,airShot:2,airStrike:8,airReturn:15,airBase:20}, // 全て地上試作の仮値
   // fireRangesKm は武器到達距離（km）の仮値。索敵距離とは独立。
   // direct / indirect:{min,max} は地上・海上、ground / air は航空の対地・対空。
   // aa は航空機以外の自動対空用、airborne は空中 W.A.S. の対地・対空。未指定・0は能力なし。
+  // 出撃する1小隊あたりの補給値（仮、#485）。海の艦は対象外。
+  supplyWeight: {
+    infantry:1,scout:1,engineer:1,commando:1,apc:1,supply:1,
+    heavyInfantry:2,mobileAA:2,mechanicalAssault:2,droneHive:2,
+    vehicle:3,artillery:3,guidedRocket:3,was:3,fighter:3,attack:3,supportAircraft:3
+  },
+  sortieLimits: {
+    scales:{division:{name:'師団規模',cap:64}},supplyPerPlatoon:4, // 仮（#485）
+    penaltyPerPoint:2,maxPenalty:50 // %（ユーザー決定 2026-11-18）
+  },
   // 旧 range（戦闘単位）は旧データとの互換用に維持し、新しい射撃判定は fireRangesKm を使う。
   unitTypes: {
     infantry:{name:'強化歩兵',speed:2,range:10,hp:40,dmg:2,fireRangesKm:{direct:0.8,aa:0.5}},

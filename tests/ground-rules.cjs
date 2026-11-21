@@ -5,10 +5,10 @@ function nodeChecks(){
   const run=s=>vm.runInContext(s,ctx),rows=[];
   for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','data/terrain/baikonur2.js','data/terrain/wide-fields.js','data/ground-org.js'])run(fs.readFileSync(path.join(__dirname,'..',file),'utf8'));
   const check=(name,fn)=>{try{fn();rows.push({name,ok:true});}catch(error){rows.push({name,ok:false,error:error.message});}};
-  check('全地形から12規則を除き基本表の値を使う',()=>{
+  check('出撃を含む地上規則は地形に重複させず基本表を使う',()=>{
     for(const id of ['exercise2','baikonur2','field150','field300']){
       run(`op={ground:'${id}'};rebuildGroundRuleSet();`);
-      assert.equal(run(`Object.keys(WOS_GROUND_RULES).length===12&&Object.keys(WOS_GROUND_RULES).every(k=>!Object.hasOwn(WOS_TERRAIN[op.ground],k))`),true);
+      assert.equal(run(`Object.keys(WOS_GROUND_RULES).length===14&&Object.keys(WOS_GROUND_RULES).every(k=>!Object.hasOwn(WOS_TERRAIN[op.ground],k))`),true);
       assert.equal(run('groundRuleSet().engineering.seconds'),20);
       assert.equal(run('groundRuleSet().unitTypes.vehicle.hp'),100);
     }
