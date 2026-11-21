@@ -27,7 +27,11 @@ function groundBuildRoster(mk){
     const fold=document.createElement('button');fold.className='ground-fold';fold.textContent=item.open===false?'＋':'−';fold.setAttribute('aria-expanded',String(item.open!==false));fold.setAttribute('aria-label',item.name+'を開閉');
     fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
     const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
-    const meters=document.createElement('small');meters.className='ground-summary';head.append(fold,pick,meters,groundPlanRosterSwatch(level,item));node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters});
+    const meters=document.createElement('small');meters.className='ground-summary';
+    /* 旅団・大隊の全隊の自動交戦/命令優先（宇宙の戦区軍の「全自動／全命令」と同じ。ユーザーの指示 2026-11-21） */
+    const stance=document.createElement('button');stance.className='st rgStance';stance.title=item.name+'の全隊の自動交戦/命令優先をまとめて切り替える';
+    stance.onclick=()=>{const m=groundStanceMembers(level,item.id);if(m.length)applyStance(m,m.every(f=>f.stance==='evade')?'engage':'evade',item.name+' 全隊');};
+    head.append(fold,pick,meters,stance,groundPlanRosterSwatch(level,item));node.append(head);parent.append(node);groundRosterNodes.push({level,item,pick,meters,stance});
     head.addEventListener('pointerenter',()=>showGroundSummaryTip(level,item,head));head.addEventListener('pointerleave',hideTip);
     if(item.open===false)return;
     const body=document.createElement('div');body.className='ground-rbody';node.append(body);
@@ -49,8 +53,12 @@ function groundOpenSelected(list){
   const open=(items,level)=>items.forEach(item=>{if(item.open===false&&groundMembers(level,item.id).some(f=>list.includes(f))){item.open=true;changed=true;}});
   open(groundOrg.brigades,'brigades');open(groundOrg.battalions,'battalions');if(changed)buildRoster();
 }
+/* 方針を変えられる隊だけ（許可制の隊や、方針の命令を受け付けない隊は数えない） */
+function groundStanceMembers(level,id){return groundMembers(level,id).filter(f=>!groundPermissionOnly(f)&&groundCommandAllowed(f,'stance'));}
 function groundUpdateRoster(targets){
-  for(const {level,item,pick,meters} of groundRosterNodes){const m=groundMembers(level,item.id);groundSupplyUpdateMeters(meters,m);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));}
+  for(const {level,item,pick,meters,stance} of groundRosterNodes){const m=groundMembers(level,item.id);groundSupplyUpdateMeters(meters,m);pick.disabled=!m.length;pick.setAttribute('aria-pressed',String(!!m.length&&m.length===targets.length&&m.every(f=>targets.includes(f))));
+    const s=groundStanceMembers(level,item.id),ev=s.filter(f=>f.stance==='evade').length;
+    stance.textContent='全'+(!s.length?'—':ev===s.length?'命令':ev?'混在':'自動');stance.dataset.st=s.length&&ev===s.length?'evade':ev?'mixed':'engage';stance.disabled=!s.length;}
 }
 function groundRules(){ return groundRuleSet().bands; }
 // 元の艦種の完成値を通常の換算式で読む。研究・陣営差・編成ボーナス・共通倍率は掛けない。

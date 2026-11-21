@@ -553,7 +553,8 @@ body.nolabels .ground-site{display:none}
 #roster .ground-summary{grid-column:1/-1;display:block;padding:2px 3px;min-width:0}
 #roster.ground-roster .ground-rhead{grid-template-columns:25px minmax(0,1fr)}
 #roster .ground-rhead{position:relative}
-#roster .ground-rhead .grpBtn{padding-right:30px}
+#roster .ground-rhead .grpBtn{padding-right:76px}
+#roster .ground-rhead .st.rgStance{position:absolute;right:31px;top:6px;width:40px;height:20px}
 #roster .ground-rhead .ground-plan-swatch{position:absolute;right:8px;top:7px;width:18px;height:18px;padding:0;border:1px solid rgba(255,255,255,.55);cursor:pointer}
 .ground-plan-swatch.own::after{content:'';display:block;width:6px;height:6px;margin:auto;background:rgba(8,14,26,.85);border-radius:50%}
 .ground-plan-palette{position:fixed;z-index:9;background:var(--panel);border:1px solid var(--line);padding:8px 9px;backdrop-filter:blur(6px);font:600 11px var(--f-ui);color:var(--ink)}
