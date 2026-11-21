@@ -278,7 +278,8 @@ function groundFrontAssignCrossings(candidates,crossings,loads){
 function groundFrontRoutes(front,slots,advance,fixed=[]){
   const routes=slots.map(s=>{
     const via=advance?(front.via.get(s.f)||[]).slice(groundFrontViaIndex(front,s.f)):[];
-    return {...s,path:groundMovePath(s.f.pos,[...via,s.dest],groundMoveKind(s.f))};
+    // 進撃は道路に寄らない短い道（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。前線への整列は今までどおり早く着く道
+    return {...s,path:groundMovePath(s.f.pos,[...via,s.dest],groundMoveKind(s.f),advance)};
   });
   if(!routes.length)return routes;
   const data=groundData(),crossings=groundFrontCrossings(data);
@@ -317,7 +318,7 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
     const assigned=candidates.length===1?list.map(()=>candidates[0]):
       groundFrontAssignCrossings(list.map(r=>r.choices),candidates,loads);
     list.forEach(({route},i)=>{
-      route.path=groundMovePath(route.f.pos,[assigned[i].pos,route.dest],groundMoveKind(route.f))||route.path;
+      route.path=groundMovePath(route.f.pos,[assigned[i].pos,route.dest],groundMoveKind(route.f),advance)||route.path;
     });
   }
   return routes;
