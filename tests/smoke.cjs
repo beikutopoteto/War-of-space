@@ -28,7 +28,7 @@ const { checkGroundFixes } = require('./ground-fixes.cjs');
 const { crossingCases } = require('./ground-path.cjs');
 const {nodeChecks:groundControlChecks}=require('./ground-controls.cjs');
 const {nodeChecks:groundReadoutChecks}=require('./ground-readouts.cjs');
-const {nodeChecks:groundPlanChecks}=require('./ground-plan.cjs');
+const {nodeChecks:groundPlanChecks,checkGroundPlanDrag}=require('./ground-plan.cjs');
 const {nodeChecks:groundAreaChecks}=require('./ground-area.cjs');
 const {nodeChecks:groundRangeChecks}=require('./ground-ranges.cjs');
 const {nodeChecks:groundCapabilityChecks}=require('./ground-command-capabilities.cjs');
@@ -226,6 +226,7 @@ function check(ok, label, detail = '') {
     await checkGroundTempo(page,check);
     await checkGroundCapture(page, check);
     await checkGroundOrg(page, check);
+    await checkGroundPlanDrag(page, check);
     await checkGroundFormations(page, check);
     await checkGroundBodies(page, check);
     await checkGroundForces(page, check);
