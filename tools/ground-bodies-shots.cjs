@@ -30,9 +30,9 @@ async function main(){
    bodyScene('infantry',true);const pair=fleets.filter(f=>f.alive);for(const f of pair)f.dmg=.001;
    let captured=false;
    for(let i=0;i<80;i++){
-    gameSec+=.05;groundStep(.05);stepTracers(.05);groundDraw();
-    const active=tracers.filter(t=>t&&t.t<t.dur);
-    if(pair.every(f=>f.fireTarget&&active.some(t=>f.bodies.some((b,j)=>groundBodyShotPosition(f,groundBodyPosition(f,j)).equals(t.a))))&&active.length>=3){captured=true;break;}
+    gameSec+=.05;groundStep(.05);groundDraw();
+    const active=groundFxQueues.direct.filter(e=>e.fx?.group.children[0]?.isGroup);
+    if(pair.every(f=>f.fireTarget&&active.some(e=>f.bodies.some((b,j)=>groundBodyPosition(f,j).distanceTo(e.fx.group.children[0].position)<1)))&&active.length>=3){captured=true;break;}
    }
    if(!captured)throw Error('両小隊の体からの撃ち合いがない');
   });

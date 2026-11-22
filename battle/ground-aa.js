@@ -55,7 +55,7 @@ function groundAutoAAStep(dt){
     f.groundAATimer=groundRules().fireEvery;
     f.groundAAResolving=target;
     try{
-      shoot(f.pos,target.pos,TEAM_COL[f.team],.25);
+      groundVisualDirect(f,0,target,0,f.pos,target.pos,true);
       damage(target,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,target)*groundMatchup(f,target)*groundSupplyAttackFactor(f),f);
       groundSupplyShot(f);
     }finally{f.groundAAResolving=null;}

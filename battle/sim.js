@@ -137,7 +137,7 @@ function damage(t,amt,src,groundImpact=null,groundBody=null){
   if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg)/HP_K,true);   // twice the hit points take twice the fire: the same lives (2026-10-13)
   if(op.ground)amt=groundSupplyHit(t,amt);
   if(op.ground&&t.bodies){
-    const body=groundBody||t.bodies.find(b=>b.alive);groundBodyHit(t,body,amt);
+    const body=groundBody||t.bodies.find(b=>b.alive);groundBodyHit(t,body,amt,!groundImpact);
   }else t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
@@ -157,9 +157,9 @@ function damage(t,amt,src,groundImpact=null,groundBody=null){
     t.n=want; if(want===0){ t.alive=false; t.squad.n=0; t.squad.state='lost'; }
   } else if(t.kind==='fleet'){
     const want=op.ground&&t.bodies?(groundAliveBodies(t)?1:0):Math.max(0,Math.ceil(t.hpPool/t.hp)), had=t.ships.length;
-    while(t.ships.length>want){ const s=t.ships.pop(); burst(s.pos,TEAM_COL[t.team],16,7,.9); }
+    while(t.ships.length>want){ const s=t.ships.pop(); if(!op.ground)burst(s.pos,TEAM_COL[t.team],16,7,.9); }
     if(t.convoy&&want<had&&want>0) logEvent('輸送船 撃沈',`${src.name}の攻撃で輸送船を失った。残り${want}隻。`);
-    if(want===0) destroyFleet(t,src); else if(t.rot) rotHurt(t);   // 第5節 (2026-10-23): a unit that comes and goes starts to go at once
+    if(want===0) destroyFleet(t,src,!groundImpact); else if(t.rot) rotHurt(t);   // 第5節 (2026-10-23): a unit that comes and goes starts to go at once
   } else if(t.defend){
     /* the station we defend: its armour slows the evacuation (stepDefend); at 0 it falls and the operation is lost */
     const pct=t.hpPool/t.max;
@@ -173,10 +173,11 @@ function damage(t,amt,src,groundImpact=null,groundBody=null){
     if(t.hpPool<=0){ t.alive=false; for(let i=0;i<14;i++) burst(randShip(t),HOT,40,14,1.6); if(tutorialActive()) end(true); else startChase(); }   // the guided exercise is won on the spot, at whatever step (docs/tutorial.md 8)
   }
 }
-function destroyFleet(f,src){
+function destroyFleet(f,src,showGroundLoss=true){
   if(op.ground)groundTransportDestroyed(f,src);
   f.alive=false; f.el.remove(); dropArrow(f.arrow); f.arrow=null;
-  burst(f.pos,TEAM_COL[colOf(f)],40,10,1.3);
+  if(!op.ground)burst(f.pos,TEAM_COL[colOf(f)],40,10,1.3);
+  else if(showGroundLoss&&!f.bodies)groundVisualLoss(f,f.pos);
   unselect(f);
   if(f.team===1&&op.civil&&inZone(f)) civHit(op.civil.perSink,true);   // the wreck falls on the blocks
   if(f===portCarrier && op.body.port.destroyLog) logEvent(...op.body.port.destroyLog);

@@ -50,6 +50,7 @@ const {nodeChecks:groundNavalCombatChecks}=require('./ground-naval-combat.cjs');
 const {nodeChecks:groundAAChecks}=require('./ground-aa.cjs');
 const {nodeChecks:groundFormationChecks,checkGroundFormations}=require('./ground-formations.cjs');
 const {nodeChecks:groundBodyChecks,checkGroundBodies}=require('./ground-bodies.cjs');
+const {checkGroundVisuals}=require('./ground-visuals.cjs');
 const {nodeChecks:groundWeaponsChecks}=require('./ground-weapons.cjs');
 const { checkMasc } = require('../tools/masc-check.cjs');
 
@@ -229,6 +230,7 @@ function check(ok, label, detail = '') {
     await checkGroundPlanDrag(page, check);
     await checkGroundFormations(page, check);
     await checkGroundBodies(page, check);
+    await checkGroundVisuals(page, check);
     await checkGroundForces(page, check);
     await checkGroundSupplyLimit(page, check);
     await checkGroundScript(page, check);

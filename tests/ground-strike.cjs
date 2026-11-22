@@ -81,7 +81,7 @@ async function checkGroundStrike(page,check){
   const display=await page.evaluate(()=>{
     groundDraw();const s=groundStrikes[0];if(!s)return false;
     // 範囲砲撃の飛んでいる弾は、着弾点の円と札を出さない（2026-11-14、ユーザー決定）
-    return !groundStrikeAiming&&!!s.area&&s.visual.ring.parent===groundVisuals&&!s.visual.ring.visible&&s.visual.el.hidden;
+    return !groundStrikeAiming&&!!s.area&&!s.visual.ring&&!s.visual.el;
   });check(display,'地点攻撃の操作: Bと中心・半径指定で、飛んでいる弾の円と札は出さない');
   const state=await page.evaluate(()=>{
     const s=groundStrikes[0],p=s.impact.clone(),friend=fleets.find(f=>f.team===0),enemy=fleets.find(f=>f.team===1);
@@ -113,12 +113,15 @@ function nodeRenderCases(ctx){
       groundStrikeDraw();
       const ring=s.visual.ring,el=s.visual.el;
       check('予告円・秒数の描画 '+kind+(blind?' 未観測':''),ring.parent===groundVisuals&&[...ring.geometry.attributes.position.array].every(Number.isFinite)&&el.textContent.includes(s.left.toFixed(1)+'秒')&&(kind!=='artillery'||s.spread===groundScatterRadius(f,s.aim))&&(!blind||kind!=='artillery'||!el.textContent.includes('散布×2')));
-      groundStrikeStep(s.left);groundStrikeDraw();const effect=groundImpacts[0],effectRing=effect.visual.ring;
-      check('着弾で予告を片付け、実着弾点に輪を描画',!ring.parent&&el.removed&&effect.visual.el.textContent==='着弾');
-      groundStrikeStep(groundRuleSet().strike.effectSec);check('着弾表示は期限後に片付ける',!effectRing.parent&&!groundImpacts.length);
+      groundStrikeStep(s.left);groundStrikeDraw();groundFxDraw(gameSec);
+      const effect=groundImpacts[0],blast=groundFxQueues.blast[0]?.fx?.group;
+      check('着弾で予告を片付け、実着弾点に爆風を描画',!ring.parent&&el.removed&&!effect.visual.ring&&effect.visual.el.textContent==='着弾'&&blast?.parent===groundVisuals&&Math.abs(blast.position.distanceTo(s.impact)-.025)<1e-6);
+      groundStrikeStep(groundRuleSet().strike.effectSec);groundFxDraw(gameSec+7);
+      check('着弾表示は期限後に片付ける',!blast?.parent&&!groundImpacts.length&&!groundFxQueues.blast.length);
     }
     fleets[0].groundStrikeCooldown=0;groundStrikeLaunch(fleets[0],groundPoint(19,27));groundStrikeDraw();
-    const pending=groundStrikes[0];check('再初期化の前に予告円・弾道・砲弾がある',groundStrikes.length===1&&groundVisuals.children.length===3&&[pending.visual.ring,pending.visual.arc,pending.visual.projectile].every(v=>v&&v.parent===groundVisuals));
+    groundFxDraw(gameSec);
+    const pending=groundStrikes[0];check('再初期化の前に予告円・弾道・砲弾がある',groundStrikes.length===1&&[pending.visual.ring,pending.visual.arc,groundFxQueues.flight[0]?.fx?.group].every(v=>v&&v.parent===groundVisuals));
     groundStrikeReset();
     check('再初期化は予告・着弾・指定モードを消す',!groundStrikes.length&&!groundImpacts.length&&!groundStrikeAiming&&groundVisuals.children.length===0);
     return results;
@@ -127,7 +130,7 @@ function nodeRenderCases(ctx){
 if(require.main===module){
   const ctx=vm.createContext({THREE:require('three'),TEAM_COL:['blue','red'].map(c=>new (require('three').Color)(c)),window:{},document:{querySelectorAll:()=>[],getElementById:()=>({addEventListener(){}})},fleets:[],op:{ground:'exercise2'},gameSec:0,over:false,end:()=>{},shoot:()=>{},burst:()=>{},dropArrow:()=>{},nextOrder:()=>{},followPath:()=>false,speedOf:f=>f.speed||0,
     tutorialProtected:()=>false,tutorialDamage:()=>{},patrolHunting:()=>false,umbrellaPack:()=>false,engaged:new Map(),fortress:{defend:false},phaseName:'交戦',logEvent:()=>{},destroyFleet:t=>t.alive=false});
-  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-script.js','battle/ground-volley.js']){
+  for(const file of ['data/ground-rules.js','data/terrain/exercise2.js','battle/terrain.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground-air.js','battle/ground-air-orders.js','battle/ground-air-missions.js','battle/ground-scatter.js','battle/ground-fx.js','battle/ground-visuals.js','battle/ground-aa.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-supply.js','battle/ground-naval.js','battle/ground.js','battle/ground-script.js','battle/ground-volley.js']){
     vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),ctx);ctx.WOS_TERRAIN=ctx.window.WOS_TERRAIN;
   }
   const sim=fs.readFileSync(path.join(__dirname,'../battle/sim.js'),'utf8');vm.runInContext(sim.slice(sim.indexOf('function damage('),sim.indexOf('function destroyFleet(')),ctx);
