@@ -381,6 +381,16 @@ function groundFrontDetourRoute(L,side,{f,dest,offset=0,lane},kind,front){
     const path=groundMovePath(f.pos,[...turn,detourVia,...back,dest],kind,true);
     if(path&&groundPlanNearest(L,path.points.at(-2)).side===-side)return {detourVia,detourTurn:turn,detourBack:back,path};
   }
+  // 深い後ろの点や入口が通れない（地図の端・水）ときも、計画の線を突っ切らない:
+  // 後ろの点を段々浅くして（いちばん浅くて線の0.5km後ろ）、端の外の点 → 後ろの点 → 持ち場 で回る
+  const corners=onFront&&pass(corner)?[corner]:[],destDepth=(end.x-dest.x)*normal.x+(end.z-dest.z)*normal.z;
+  for(const k of [.75,.5,.25,0]){
+    const rd=Math.max(.5*GROUND_SCALE,depth*k),rear=corner.clone().addScaledVector(normal,-rd);
+    if(!pass(rear)||groundPlanNearest(L,rear).side!==-side)continue;
+    const behind=dest.clone().addScaledVector(normal,destDepth-rd),extra=rd>destDepth+1e-6&&pass(behind)?[behind]:[];
+    const path=groundMovePath(f.pos,[...corners,rear,...extra,dest],kind,true);
+    if(path&&groundPlanNearest(L,path.points.at(-2)).side===-side)return {detourVia:rear,detourTurn:corners,detourBack:extra,path};
+  }
   return null;
 }
 function groundPlanSlotsWithEdits(slots,custom){

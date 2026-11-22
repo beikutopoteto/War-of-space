@@ -603,6 +603,21 @@ function planCases(){
  check('前線を削除すると待機中の計画も消える',!groundFronts.includes(queue)&&!queue.nextPlans.length&&!queue.plan);
  undo();
  check('前線の削除を戻すと今の計画と次の計画が戻る',queue.plan===secondPlan&&queue.nextPlans[0]===edited);
+ // 地図の端に近い計画（深い後ろの点が通れない）でも、計画の線を突っ切らず、端の外を回って後ろから着く
+ {
+  fresh();
+  const units=Array.from({length:6},(_,i)=>unit(10+7*(i+.5)/6,23));units.push(unit(13.5,22,'artillery'));
+  const front=draw('deploy',units,p(10,23),p(17,23),p(13.5,25));finish(units);tick();
+  draw('plan',units,p(10,27),p(17,27),p(13.5,25));
+  const pass=groundPass,limit=29.6;   // 計画の線の2.6km後ろより先は通れない
+  groundPass=(x,y,...args)=>y<limit&&pass(x,y,...args);
+  try{groundPlanExecute();}finally{groundPass=pass;}
+  const L=groundPlanLine(front.plan.pts),xs=L.pts.map(q=>q.x),lo=Math.min(...xs),hi=Math.max(...xs);
+  check('深い後ろの点が通れなくても、全隊が線の端の外を回って後ろから着く',units.every(f=>{
+   const path=f.order?.path;
+   return path&&groundPlanNearest(L,path.points.at(-2)).side===-front.plan.side&&path.points.some(q=>q.x<lo-1e-6||q.x>hi+1e-6);
+  }));
+ }
  return rows;
 }
 function nodeChecks(){
