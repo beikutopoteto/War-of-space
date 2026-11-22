@@ -64,6 +64,24 @@ function supplyCases(){
     // 同じ命令・距離・実経路で物資と士気を独立して分配する。
     f.groundSupply=40;f.groundMorale=50;truck.groundSupply=20;groundSupplyGive(2,new Map());
     check('補給4と士気4を同時に渡し補給を4+2消費',near(f.groundSupply,44)&&near(f.groundMorale,54)&&near(truck.groundSupply,14)&&groundSupplyStatus(truck)==='集中補給：'+f.name);
+    const was=unit(0,'was',15,27);
+    check('W.A.S. の補給と士気は100から始まる',was.groundSupply===100&&was.groundMorale===100);
+    truck.groundSupply=30;
+    for(const band of ['ground','cruise','low']){
+      was.band=band;was.groundSupply=40;was.groundMorale=50;
+      groundSupplyMoved(was,was.pos,was.pos.clone().add(new THREE.Vector3(4,0,0)));
+      const moving=was.groundSupply;was.groundMoved=false;
+      fleets=[was];groundSupplyAfter(1);
+      const flying=band!=='ground',idle=was.groundSupply;
+      check('W.A.S. '+band+' の移動・停止時の補給消費',near(moving,flying?36:38)&&near(idle,moving-(flying?.05:0)));
+      fleets=[truck,was];
+      check('W.A.S. '+band+' へ補給と士気を分配',groundSupplyCommand([truck],was));
+      const morale=was.groundMorale;
+      groundSupplyGive(1,new Map());
+      check('W.A.S. '+band+' の物資と士気が各2回復',near(was.groundSupply,idle+2)&&near(was.groundMorale,morale+2));
+      groundSupplyCancelFocus(truck);
+    }
+    fleets=[f,truck];
     f.groundSupply=100;f.groundMorale=79;truck.groundSupply=20;groundSupplyGive(2,new Map());
     check('物資満タンでも士気だけ80まで回復し実回復1の半分を消費',near(f.groundMorale,80)&&near(truck.groundSupply,19.5)&&groundSupplyStatus(truck)==='士気を回復中'&&groundSupplyLinkSource(f)===truck.pos);
     for(const morale of [80,90]){f.groundMorale=morale;groundSupplyGive(1,new Map());check('士気'+morale+'は増減も消費もなし',f.groundMorale===morale&&near(truck.groundSupply,19.5)&&!truck.groundSupplyGiving);}
@@ -143,7 +161,8 @@ function supplyCases(){
     f.groundSupply=24;
     check('マウス用の数値は士気72%・補給24%',groundSupplyRosterText([f],false)==='士気 72%　補給 24%');
     check('航空の棒と数値は補給だけ',groundSupplyReadings([plane]).length===1&&groundSupplyMeters([plane]).includes('data-meter="groundSupply"')&&!groundSupplyMeters([plane]).includes('groundMorale')&&groundSupplyRosterText([plane],false)==='補給 100%');
-    check('船・W.A.S.・ハイブは棒も対象外の文字も置かない',[ship,unit(0,'was',12),unit(0,'droneHive',12)].every(u=>groundSupplyMeters([u])===''&&!groundSupplyTile(u).includes('対象外')));
+    check('船とハイブは棒も対象外の文字も置かない',[ship,unit(0,'droneHive',12)].every(u=>groundSupplyMeters([u])===''&&!groundSupplyTile(u).includes('対象外')));
+    check('W.A.S. の名札に補給と士気の棒を出す',groundSupplyReadings([was]).length===2&&groundSupplyTile(was).includes('士気')&&groundSupplyTile(was).includes('補給'));
     const mixed=[f,{groundMorale:40,groundSupply:80},plane,ship];
     check('見出しの平均は対象部隊のみ、最低値も説明へ残す',groundSupplyRosterText(mixed)==='士気 56%（最低40%）　補給 68%（最低24%）'&&groundSupplyMeters(mixed).includes('data-low="true"'));
     check('空の見出しには棒なし',groundSupplyMeters([])===''&&groundSupplyRosterText([])==='');

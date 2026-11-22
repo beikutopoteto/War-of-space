@@ -83,12 +83,12 @@ async function checkGroundVisuals(page,check){
       single(f,t);
       record('W.A.S. の地上射撃姿勢',pose(f,'wasFire'));
       advance(1.1);
-      const climbs=groundSetBand([f],'low');groundDraw();
+      const climbs=groundWasToggle(f);groundDraw();
       record('W.A.S. の上昇姿勢と背中の噴射',climbs&&pose(f,'wasFlyUp')&&groundFxPlumesUsed===2*f.bodies0&&calls.plume.length>0);
-      f.band='low';f.bandTo=null;f.pos.y=groundUnitHeight(f);advance(.5);
+      groundStepBand(f,groundRuleSet().wasFlight.transitionSec);f.pos.y=groundUnitHeight(f);advance(.5);
       record('W.A.S. の空中待機姿勢',pose(f,'wasFly'));
       f.order={type:'move'};f.pos.x+=.05;advance(.05);
-      record('W.A.S. の通常飛行は盾を下げる',pose(f,'wasFlyMarch'));
+      record('W.A.S. の通常飛行は盾を下げ、機体の位置が有効',pose(f,'wasFlyMarch')&&f.groundModel.userData.pose.stand.every(b=>b.position.toArray().every(Number.isFinite)));
       f.order={type:'move',groundAdvance:true};f.pos.x+=.05;advance(.05);
       record('W.A.S. の進撃飛行は盾を構える',pose(f,'wasFlyMove'));
       f.order={type:'attack',target:t};f.pos.x+=.05;advance(.05);
@@ -97,7 +97,7 @@ async function checkGroundVisuals(page,check){
       record('W.A.S. の空中射撃姿勢',pose(f,'wasFlyFire'));
       advance(.3);
       record('対空射撃は空中で炸裂する',calls.airBurst.at(-1)?.fx.group.position.y>10);
-      const lands=groundSetBand([f],'ground');groundDraw();
+      const lands=groundWasToggle(f);groundDraw();
       record('W.A.S. の下降姿勢',lands&&pose(f,'wasFlyDown'));
 
       ({f,t}=scene('heavyInfantry','vehicle'));

@@ -157,7 +157,7 @@ function groundBallisticSolution(f,p,options={ignoreRange:false}){
   // 航空高度は描画地表からの実オフセット。地表の18倍で割らない。
   const sourceGround=scene.analyticHeight?scene.analyticHeight(f.pos.x,f.pos.z):originH;
   if(!Number.isFinite(sourceGround))return groundBallisticFail('invalid-terrain');
-  const airborne=['low','high'].includes(f.band),altitude=airborne?Math.max(0,f.pos.y-sourceGround)*scene.m:0;
+  const airborne=groundAATargetable(f),altitude=airborne?Math.max(0,f.pos.y-sourceGround)*scene.m:0;
   let originMeters=new THREE.Vector3(f.pos.x*scene.m,originH*scene.m/scene.e+altitude+profile.muzzleHeightM,f.pos.z*scene.m);
   let targetMeters=new THREE.Vector3(p.x*scene.m,targetH*scene.m/scene.e,p.z*scene.m);
   let origin=groundBallisticWorld(scene,originMeters),target=new THREE.Vector3(p.x,targetH,p.z);
@@ -189,7 +189,7 @@ function groundBallisticSolution(f,p,options={ignoreRange:false}){
   if(!Number.isFinite(T)||!(T>0)||!groundBallisticFinite(velocity))return groundBallisticFail('unreachable');
   const solution={clear:true,reason:'clear',mode,origin,target,originMeters,targetMeters,velocityMeters:velocity,
     duration:T/profile.physicalSecondsPerGameSecond,physicalDuration:T,timeScale:profile.physicalSecondsPerGameSecond,
-    gravity:mode==='indirect'?profile.gravity:0,sourceGround:(f.band||'ground')==='ground',scene,impact:target.clone(),collision:null};
+    gravity:mode==='indirect'?profile.gravity:0,sourceGround:!airborne&&(f.band||'ground')==='ground',scene,impact:target.clone(),collision:null};
   if(mode==='legacy-support')return solution;
   // 直射も描画三角形との厳密交差を通す。LOSのサンプル間の細い隆起を抜けない。
   const directClear=mode==='direct'?groundClearLine(origin,target):null;

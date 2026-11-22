@@ -197,7 +197,7 @@ function npcGroundSituation(c){
 }
 // 隊形の位置が川・海・盤外なら、最も近い通行可能セルへ移す。高度段はそのまま。
 function npcGroundPassPoint(f,x,y,region=()=>true){
-  const kind=groundMoveKind(f),d=groundDimensions(),cell=d.data.meta.cellKm;
+  const kind=f.groundKind==='was'?'was':groundMoveKind(f),d=groundDimensions(),cell=d.data.meta.cellKm;
   const valid=(a,b)=>a>=0&&b>=0&&a<=d.widthKm&&b<=d.heightKm&&region(a,b)&&groundPass(a,b,kind);
   if(valid(x,y)){const p=groundPoint(x,y);p.y=f.pos.y;return p;}
   const cx=Math.floor(Math.max(0,Math.min(d.widthKm-cell,x))/cell),cy=Math.floor(Math.max(0,Math.min(d.heightKm-cell,y))/cell);
@@ -413,9 +413,15 @@ function npcGroundHoldStep(){
     const f=fleets.find(f=>f.id===id);if(!f||!npcGroundFree(f)||f.order?.type!=='attack')continue;
     const t=f.order.target;
     if(!npcGroundVisibleEnemy(f.team,t)||groundDistanceTo(f,t)>groundTargetRange(f,t)*1.5){
-      order(f,{type:'move',dest:h.dest.clone()});npcGroundState.last.set(f.id,h.dest.clone());
+      npcGroundMove(f,h.dest.clone());npcGroundState.last.set(f.id,h.dest.clone());
     }
   }
+}
+function npcGroundMove(f,dest){
+  if(f.groundKind==='was'&&f.band==='ground'&&!f.bandTo&&groundDistanceTo(f,{pos:dest})>=groundRuleSet().wasFlight.npcMinKm*GROUND_SCALE&&groundLandable(f,dest)){
+    f.groundWasNpcCruise=groundWasToggle(f);
+  }
+  order(f,{type:'move',dest});
 }
 function npcGroundSync(c,plan){
   for(const f of npcGroundState.synced)if(f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))){f.syncSpeed=null;npcGroundState.synced.delete(f);}
@@ -458,7 +464,7 @@ function npcGroundApply(c,sit,plan){
         if(f.order?.type!=='attack'||f.order.target!==target)order(f,{type:'attack',target});
         npcGroundState.last.set(f.id,dest.clone());
       }else if(changed||!last||distance(last)>=precision||f.order?.type==='attack'||!f.order&&distance(f.pos)>=precision){
-        order(f,{type:'move',dest});npcGroundState.last.set(f.id,dest.clone());
+        npcGroundMove(f,dest);npcGroundState.last.set(f.id,dest.clone());
       }
       npcGroundState.modes.set(f.id,mode);
     }
@@ -469,6 +475,11 @@ function npcGroundStep(){
   if(!op.ground||op.groundDrill||!op.npc)return;
   if(!npcGroundState||npcGroundState.sites!==groundSites)npcGroundInit();
   npcGroundAutoSync();
+  for(const f of fleets){
+    if(!f.groundWasNpcCruise||!npcGroundActive(f.team)||npcAutoPlayerUnit(f))continue;
+    if(!groundWasFlying(f))f.groundWasNpcCruise=false;
+    else if(f.order?.type!=='move')groundWasToggle(f);
+  }
   if(npcGroundLiftActive()){npcIssuing=true;try{npcGroundLiftWatch();}finally{npcIssuing=false;}}
   npcGroundHoldStep();
   for(const f of npcGroundState.synced)if(!npcGroundFree(f)||!npcGroundActive(f.team)){f.syncSpeed=null;npcGroundState.synced.delete(f);}

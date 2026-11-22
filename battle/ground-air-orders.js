@@ -8,7 +8,7 @@ function groundAirForward(f){
  return d.lengthSq()>1e-10?d.normalize():d.set(0,0,1);
 }
 function groundAirInFront(f,t){
- if(!groundFlyingAircraft(f)||!groundAirTarget(t))return true;
+ if(!groundFlyingAircraft(f)||!groundUsesAirRange(f,t))return true;
  const d=t.pos.clone().sub(f.pos);d.y=0;if(d.lengthSq()<1e-10)return true;
  return groundAirForward(f).dot(d.normalize())>=Math.cos(GROUND_AIR_CONTROL.fireCone);
 }
@@ -78,7 +78,7 @@ function groundAirMotion(f,dt){
    if((f.groundStrikeCooldown||0)<=1e-8&&groundBombPrepare(f,{point:groundStrikeTargetPoint(f,0,t)}))return groundBombApproach(f,dt);
    groundAirLoiter(f,dt);return true;
   }
-  if(f.groundKind==='fighter'&&groundAirTarget(t)){
+  if(f.groundKind==='fighter'&&groundUsesAirRange(f,t)){
    const aim=t.pos.clone(),lead=Math.min(1,groundDistanceTo(f,t)/Math.max(1,speedOf(f))*.35);
    if(groundFlyingAircraft(t)&&!groundTrainingEnemy(t))aim.addScaledVector(groundAirForward(t),Math.max(0,speedOf(t))*lead);
    groundAirTurnMove(f,aim,dt);return true;

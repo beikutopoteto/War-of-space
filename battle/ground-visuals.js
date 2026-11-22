@@ -86,8 +86,7 @@ function groundVisualRigDraw(body,aim,heading,moving){
   parts.rotation.y=!rig.hasTurret&&!moving?yaw:0;
 }
 function groundWasVisualPose(f,shot,moving,guard){
-  const heights=groundRules().heights;
-  if(f.bandTo&&heights[f.bandTo]!==heights[f.band])return heights[f.bandTo]>heights[f.band]?'wasFlyUp':'wasFlyDown';
+  if(f.bandTo)return groundBandHeight(f.bandTo)>groundBandHeight(f.band)?'wasFlyUp':'wasFlyDown';
   if(f.band==='ground')return shot?'wasFire':null;
   if(shot)return 'wasFlyFire';
   return moving?(guard?'wasFlyMove':'wasFlyMarch'):'wasFly';
@@ -179,8 +178,8 @@ function groundVisualDirect(f,i,t,j,from,to,aa=false){
     }
   }
   if(seenTarget){
-    const start=gameSec+duration,airborne=t.band==='high'||t.band==='low';
-    if(tank&&t.band==='ground')groundVisualDust(at,tank.impactRadius*GROUND_BODY_SCALE,start,tank.impactSmoke);
+    const start=gameSec+duration,airborne=groundAATargetable(t);
+    if(tank&&t.band==='ground'&&!airborne)groundVisualDust(at,tank.impactRadius*GROUND_BODY_SCALE,start,tank.impactSmoke);
     else groundFxAdd('direct',start,airborne?1.5:.9,()=>groundFxPlace(
       airborne?GFX.airBurst(size*4):GFX.hit(size*1.8,{detail:groundFxDetail(at,size*2,5)}),at));
   }

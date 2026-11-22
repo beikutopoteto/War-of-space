@@ -325,6 +325,38 @@ function nodeChecks(){
  tactics.run(sim.slice(sim.indexOf('function speedOf('),sim.indexOf('function speedOf(')+sim.slice(sim.indexOf('function speedOf(')).indexOf('\n')));
  return [...require('./npc-lift.cjs').nodeChecks(),movement,...auto.run('('+autoCases.toString()+')()'),...bridge,...retire,...logistics,...tactics.run('('+tacticsCases.toString()+')()')];
 }
+function npcWasFlightCase(){
+  const operation=OPS.find(o=>o.id==='baikonur');
+  reset({op:'baikonur',fleets:operation.quick});
+  if(talking)endTalk();setSpeed(0);if(deploying)endDeploy();
+  const target=groundSites.find(s=>s.id===op.groundHQ[1]);
+  const at=target.pos.clone();
+  const was=makeFleet(1,groundUnitSpec({name:'W.A.S. 巡航確認隊',kind:'was',at:[target.x,target.y],platoons:1}));
+  const blue=fleets.find(f=>f.team===0&&f.groundKind==='infantry');
+  blue.pos.copy(groundSites.find(s=>s.id===op.groundHQ[0]).pos);
+  blue.stance='evade';
+  groundClearOrders(blue);
+  fleets=[blue,was];groundInitUnit(was);npcGroundInit();
+  const c=npcGroundState.commanders.get(1);c.nextThink=Infinity;
+  const plan={tasks:[{key:'was-flight',zone:target.id,type:'withdraw',stage:'advance',units:[{id:was.id,as:'main'}]}]};
+  const assign=()=>npcGroundApply(c,npcGroundSituation(c),plan);
+  const short=groundPoint(target.x-1,target.y);
+  was.pos.copy(short);assign();
+  const walked=!!was.order&&!was.bandTo;
+  groundClearOrders(was);
+  const start=groundSites.filter(s=>s!==target&&groundLandable(was,s.pos)&&groundDistanceTo(s,target)>=6*GROUND_SCALE)
+    .sort((a,b)=>groundDistanceTo(a,target)-groundDistanceTo(b,target))[0];
+  was.pos.copy(start.pos);assign();
+  const launched=was.bandTo==='cruise'&&was.order?.type==='move'&&was.groundWasNpcCruise;
+  const distanceKm=groundDistanceTo(was,{pos:was.order?.dest||at})/GROUND_SCALE;
+  let cruised=false;
+  for(let i=0;i<1200;i++){
+    gameSec+=.05;groundStep(.05);
+    if(was.band==='cruise'&&was.order?.type==='move')cruised=true;
+    if(cruised&&was.band==='ground'&&!was.bandTo&&!was.order)break;
+  }
+  return {walked,launched,cruised,landed:was.band==='ground'&&!was.bandTo&&groundCanCapture(was)&&groundDistanceTo(was,{pos:at})<GROUND_SCALE,distanceKm};
+}
 async function checkNpcGround(page,check){
  await page.evaluate(()=>{const data=WOS_DATA.operations.find(o=>o.id==='baikonur');reset({op:'baikonur',fleets:data.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
  const movement=await page.evaluate(()=>{
@@ -335,6 +367,8 @@ async function checkNpcGround(page,check){
   return {moved:moves.length,heading:moves.some(({f,k})=>{const z=sit.zones.find(z=>z.id===k.zone);return groundPoint(z.x,z.z).distanceTo(f.pos)<groundPoint(z.x,z.z).distanceTo(start.get(f.id));}),debug:npcDebug()};
  });
  check(movement.moved>0&&movement.heading,'NPC演習: 敵が動き出し任務の拠点へ近づく',JSON.stringify(movement));
+ const wasFlight=await page.evaluate(npcWasFlightCase);
+ check(wasFlight.walked&&wasFlight.launched&&wasFlight.cruised&&wasFlight.landed,'NPC演習: W.A.S. は短距離を歩き、長距離を巡航して着陸',JSON.stringify(wasFlight));
  for(const r of await page.evaluate(autoCases))check(r.ok,'NPCオート: '+r.name);
  await page.evaluate(()=>{reset({op:'baikonur',fleets:op.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
  for(const r of await page.evaluate(bridgeCases))check(r.ok,'NPC橋渡し: '+r.name);
@@ -374,5 +408,5 @@ async function checkNpcAuto(page,check){
   await page.evaluate(saved=>{window.WOS_NO_NPC=saved.noNpc;autoMode=saved.auto;npcAutoReturn=saved.ret;WOS_MENU.setAuto(saved.auto);WOS_MENU.setAutoReturn(saved.ret);document.body.classList.toggle('dbg-battle',saved.battle);if(saved.debug===null)localStorage.removeItem('wos.debug');else localStorage.setItem('wos.debug',saved.debug);delete window.npcAutoCheckOrder;npcAutoToggle();},saved);
  }
 }
-module.exports={nodeChecks,checkNpcGround,bridgeCases,autoCases,checkNpcAuto};
+module.exports={nodeChecks,checkNpcGround,npcWasFlightCase,bridgeCases,autoCases,checkNpcAuto};
 if(require.main===module){const rows=nodeChecks();for(const r of rows)console.log((r.ok?'✓ ':'✗ ')+r.name);assert(rows.every(r=>r.ok));}

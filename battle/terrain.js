@@ -1,5 +1,13 @@
 /* 地上演習の盤。見本 ground-b.html と同じ地形・水系・高度を使う。座標は 1 km = 4 戦闘単位。 */
 const GROUND_SCALE=4;
+function groundBandHeight(band){
+  const rules=groundRuleSet();
+  return band==='cruise'?rules.wasFlight.heightKm*GROUND_SCALE:rules.bands.heights[band||'ground']||0;
+}
+function groundAirTarget(f){return f.band==='low'||f.band==='high';}
+function groundWasCruising(f){return f.groundKind==='was'&&(f.band==='cruise'||f.band==='ground'&&f.bandTo==='cruise');}
+function groundWasFlying(f){return f.groundKind==='was'&&(groundWasCruising(f)||groundAirTarget(f));}
+function groundAATargetable(f){return groundAirTarget(f)||groundWasCruising(f);}
 const GROUND_MIN_VIEW=7;   // カメラが寄れる最も近い距離（地上。約1.7km。ユーザー決定 2026-11-18「もう少し大きく」で10から。前は宇宙と同じ35）
 let groundBoard=null, groundWaterMaterial=null;
 let groundTerrainId=null, groundDimensionCache=null;

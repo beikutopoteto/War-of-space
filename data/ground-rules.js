@@ -1,6 +1,7 @@
 /* 地上・海上専用の基本規則。地形とは独立し、宇宙の性能表には適用しない。 */
 window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
+  wasFlight: { heightKm:.03, transitionSec:2, speedFactor:2, moveSupplyFactor:2, idleSupplyPerSec:.05, evasion:.3, npcMinKm:6 }, // 速さは従来の低空と同じ。ほかは仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。

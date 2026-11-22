@@ -52,7 +52,7 @@ function groundNavalHeightMeters(f,role='target'){
   if(!Number.isFinite(displayHeight))return null;
   // groundSightHeightは海面を0とする描画高。海抜datum(seaLevelM)を重ねて足し引きしない。
   const terrainM=displayHeight*1000/(scale*e);
-  if(['low','high'].includes(f.band)){
+  if(groundAATargetable(f)){
     // 地表だけ18倍を戻す。航空高度は実際のpos.yから地表の描画高を引いてmへ換算する。
     const base=typeof groundHeight==='function'?groundHeight(f.pos.x,f.pos.z):displayHeight;
     if(!Number.isFinite(base))return null;
