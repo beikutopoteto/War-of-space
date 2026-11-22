@@ -3,7 +3,7 @@
 let groundLineStart=null,groundLinePts=null,groundLinePointer=null,groundLineStroke=null,groundPlanMessage='',groundPlanVisual=null;
 let groundFronts=[],groundFrontNextId=1,groundFrontCheckAt=0,groundFrontEditing=null;
 let groundPlanEditing=null;
-let groundEditHover=null,groundEditChoice=null,groundEditWaypoint=null,groundEditReturn=false,groundEditPress=null;
+let groundEditHover=null,groundEditChoice=null,groundEditDrag=null,groundEditReturn=false,groundEditPress=null;
 function groundFrontAvailable(f){
   return f.alive&&f.team===0&&!f.locked&&!f.embarked&&!f.groundRout&&groundCommandAllowed(f,'move');
 }
@@ -11,7 +11,7 @@ function groundPlanUnits(list=orderTargets()){return list.filter(groundFrontAvai
 function groundPlanCancelInput(){
   groundLineStart=groundLinePts=groundLinePointer=groundLineStroke=groundFrontEditing=null;
   groundPlanEditing=null;
-  groundEditHover=groundEditWaypoint=groundEditPress=null;groundEditReturn=false;
+  groundEditHover=groundEditDrag=groundEditPress=null;groundEditReturn=false;
   groundEditCloseChoice();
   groundPlanClosePalette();
   groundPlanMessage='';
@@ -56,7 +56,7 @@ function groundPlanNearest(L,p){
   for(let i=1;i<L.pts.length;i++){
     const a=L.pts[i-1],b=L.pts[i],dx=b.x-a.x,dz=b.z-a.z,l2=dx*dx+dz*dz,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/l2)):0;
     const d=Math.hypot(p.x-a.x-dx*t,p.z-a.z-dz*t);
-    if(d<best.d-1e-9){const c=-dz*(p.x-a.x)+dx*(p.z-a.z);best={d,s:L.cum[i-1]+Math.sqrt(l2)*t,side:Math.abs(c)<1e-9?0:Math.sign(c)};}
+    if(d<best.d-1e-9){const c=-dz*(p.x-a.x)+dx*(p.z-a.z);best={d,i,t,s:L.cum[i-1]+Math.sqrt(l2)*t,side:Math.abs(c)<1e-9?0:Math.sign(c)};}
   }
   return best;
 }
@@ -120,7 +120,7 @@ function groundFrontAlign(pts,side,ref){
 }
 function groundFrontCreate(line,list){
   const front={id:groundFrontNextId++,pts:line.pts,side:line.side,members:groundFrontSort(list,groundPlanLine(line.pts)),
-    plan:null,nextPlans:[],advance:null,via:new Map(),passed:new Map(),slots:[],retryRevision:null};
+    plan:null,nextPlans:[],advance:null,custom:new Map(),passed:new Map(),slots:[],retryRevision:null};
   groundFronts.push(front);
   for(const f of front.members){groundFrontClearMember(f);f.groundFrontOf=front;}
   return front;
@@ -137,7 +137,7 @@ function groundFrontRemoveMembers(list){
   for(const f of list){
     const front=f.groundFrontOf;if(!front)continue;
     affected.add(front);groundFrontClearMember(f);
-    front.members=front.members.filter(u=>u!==f);front.via.delete(f);front.passed.delete(f);
+    front.members=front.members.filter(u=>u!==f);front.custom.delete(f);front.passed.delete(f);
     if(groundFrontOwnOrder(f,front))groundFrontStopOrder(f);
   }
   for(const front of affected){
@@ -161,11 +161,11 @@ function groundFrontViaIndex(front,f){
   if(!front.advance||o?.groundAdvance!==front.advance.group||!o.path)return passed;
   const remaining=groundFlyingAircraft(f)?groundFrontAirWaypoints(o).length:
     o.path.at.filter(s=>s>o.path.s+1e-8).length;
-  return Math.max(passed,(front.via.get(f)?.length||0)-Math.max(0,remaining-1));
+  return Math.max(passed,(front.custom.get(f)?.points.length||0)-Math.max(0,remaining-1));
 }
 function groundFrontRememberVia(f){
   const front=f.groundFrontOf;
-  if(front?.advance&&f.order?.groundAdvance===front.advance.group&&front.via.has(f))
+  if(front?.advance&&f.order?.groundAdvance===front.advance.group&&front.custom.has(f))
     front.passed.set(f,groundFrontViaIndex(front,f));
 }
 const GROUND_FRONT_CORRIDOR_MARGIN_KM=.3,GROUND_FRONT_CROSS_NEAR_KM=.9;
@@ -281,55 +281,75 @@ function groundFrontAssignCrossings(candidates,crossings,loads){
 // 仮: 計画線の端の外側と後ろにそれぞれ離す距離と、回り込むあいだの隊の間隔（計画の線の上の間隔に掛ける）
 const GROUND_FRONT_DETOUR_KM=1.5,GROUND_FRONT_DETOUR_NARROW=.5;
 // lane: 端の外側へさらに離す距離（隊ごと）。後ろの列の隊は、その列の深さだけ後ろへ離す
-function groundFrontDetourRoute(L,side,{f,dest,fraction,offset=0},via,kind,lane=0){
-  const first=fraction<.5,s=first?0:L.len,end=groundPlanAt(L,s),d=groundPlanDir(L,s,.5*GROUND_SCALE);
-  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+lane,back=distance+offset;
-  // まず線の端の延長の外（corner）まで出てから後ろ（target）へ回る。線の端の内側をかすめない
-  const corner=new THREE.Vector3(end.x+d.x*out*away,0,end.z+d.z*out*away);
-  const target=new THREE.Vector3(corner.x+d.z*side*back,0,corner.z-d.x*side*back);
+function groundFrontDetourRoute(L,side,{f,dest,offset=0},kind,{first,width,approach}){
+  const s=first?0:L.len,end=groundPlanAt(L,s),d=groundPlanDir(L,s,.5*GROUND_SCALE);
+  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+width;
+  const outer=new THREE.Vector3(end.x+d.x*out*away,0,end.z+d.z*out*away);
+  const normal=new THREE.Vector3(-d.z*side,0,d.x*side);
+  const corner=outer.clone().addScaledVector(normal,approach);
+  const target=outer.addScaledVector(normal,approach?approach/2:-distance-offset);
   const turn=groundPass(groundMapX(corner.x),groundMapY(corner.z),kind)?[corner]:[];
   const cell=groundData().meta.cellKm,x=Math.floor(groundMapX(target.x)/cell),y=Math.floor(groundMapY(target.z)/cell);
   const nearby=[];
   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)nearby.push(groundPoint((x+i+.5)*cell,(y+j+.5)*cell));
   nearby.sort((a,b)=>groundPlanDistance(a,target)-groundPlanDistance(b,target));
   for(const detourVia of [target,...nearby]){
-    if(groundPlanNearest(L,detourVia).side!==-side||!groundPass(groundMapX(detourVia.x),groundMapY(detourVia.z),kind))continue;
-    const path=groundMovePath(f.pos,[...turn,detourVia,...via,dest],kind,true);
+    if(groundPlanNearest(L,detourVia).side!==(approach?side:-side)||!groundPass(groundMapX(detourVia.x),groundMapY(detourVia.z),kind))continue;
+    const path=groundMovePath(f.pos,[...turn,detourVia,dest],kind,true);
     if(path)return {detourVia,detourTurn:turn,path};
   }
   return null;
 }
-function groundFrontRoutes(front,slots,advance,fixed=[]){
+function groundPlanSlotsWithEdits(slots,custom){
+  return slots.map(s=>custom.get(s.f)?.dest?{...s,dest:custom.get(s.f).dest}:s);
+}
+function groundFrontRoutes(front,slots,advance,fixed=[],affected=null){
   const wheel=advance&&front.plan?groundFrontWheel(front.advance?.from||front.pts,front.plan.pts):null;
   const planLine=advance&&front.plan?groundPlanLine(front.plan.pts):null;
   // 回り込む隊は、端ごとに並び順と間隔を保つ（ユーザーの指示 2026-11-22「なんで一点で交わるんですか？狭まってもいいけどやりすぎでは？」）。
   // 端に近い隊ほど外側を回る（行きも帰りも隊どうしが交差しない）。間隔は計画の線の上の間隔の GROUND_FRONT_DETOUR_NARROW 倍
   const lanes=new Map();
   if(planLine){
+    // 左右は、出発する前線から計画を見た向き。線の点を逆順に引いても変わらない。
+    const from=groundPlanLine(front.advance?.from||front.pts);
+    const nearSide=groundPlanNearest(planLine,groundPlanAt(from,from.len/2)).side||front.plan.side;
+    const detour=front.plan.detour||'both',firstLeft=nearSide===1;
+    const endFor=s=>detour==='both'?s.fraction<.5:detour==='left'?firstLeft:!firstLeft;
     const turning=slots.filter(s=>groundPlanNearest(planLine,s.f.pos).side===front.plan.side);
     for(const first of [true,false]){
-      const group=turning.filter(s=>(s.fraction<.5)===first);
+      const group=turning.filter(s=>endFor(s)===first);
       const fromEnd=s=>{const along=groundPlanNearest(planLine,s.dest).s;return first?along:planLine.len-along;};
       const far=Math.max(0,...group.map(fromEnd));
-      for(const s of group)lanes.set(s.f,(far-fromEnd(s))*GROUND_FRONT_DETOUR_NARROW);
+      // 同じ端を回る隊が裏側から着くと、外のレーンから手前の持ち場へ戻る道が内のレーンを横切る。
+      // 複数隊は前側の外で並行に曲がり、同じ順に横へ展開する。単独なら後ろから回り込める。
+      const approach=group.length<2?0:Math.min(GROUND_FRONT_DETOUR_KM*GROUND_SCALE,
+        ...group.map(({f})=>groundPlanNearest(planLine,f.pos).d/2));
+      for(const s of group)lanes.set(s.f,{first,width:(far-fromEnd(s))*GROUND_FRONT_DETOUR_NARROW,approach});
     }
   }
-  const routes=slots.map(s=>{
+  let selected=affected?slots.filter(s=>affected.has(s.f)):slots;
+  if(advance)selected=groundPlanSlotsWithEdits(selected,front.custom);
+  const routes=selected.map(s=>{
     const {f,dest}=s,kind=groundMoveKind(f);
-    const via=advance?(front.via.get(f)||[]).slice(groundFrontViaIndex(front,f)):[];
-    const detour=planLine&&groundPlanNearest(planLine,f.pos).side===front.plan.side&&
-      groundFrontDetourRoute(planLine,front.plan.side,s,via,kind,lanes.get(f)||0);
+    const custom=advance&&front.custom.get(f);
+    if(custom){
+      const via=custom.points.slice(groundFrontViaIndex(front,f));
+      return {...s,path:groundMovePath(f.pos,[...via,dest],kind,true)};
+    }
+    const lane=lanes.get(f),detour=lane&&groundFrontDetourRoute(planLine,front.plan.side,s,kind,lane);
     if(detour)return {...s,...detour};
     // 進撃は道路に寄らない短い道（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。前線への整列は今までどおり早く着く道
     const keepsPace=!front.advance?.detouring?.has(f);
-    const arc=wheel&&keepsPace&&!via.length&&kind!=='air'?groundFrontWheelVia(wheel,f,dest):[];
-    const path=arc.length&&groundMovePath(f.pos,[...arc,dest],kind,advance)||groundMovePath(f.pos,[...via,dest],kind,advance);
+    const arc=wheel&&keepsPace&&kind!=='air'?groundFrontWheelVia(wheel,f,dest):[];
+    const path=arc.length&&groundMovePath(f.pos,[...arc,dest],kind,advance)||groundMovePath(f.pos,[dest],kind,advance);
     return {...s,path,keepsPace};
   });
   if(wheel){
     const turning=routes.filter(r=>r.keepsPace);
     const length=r=>r.path?groundPolyLength(r.path.points):0,longest=Math.max(0,...turning.map(length));
-    for(const r of turning)r.pace=longest>1e-6?Math.max(GROUND_FRONT_WHEEL_MIN_PACE,length(r)/longest):1;
+    const longestFixed=Math.max(0,...fixed.filter(r=>r.pace>0).map(r=>length(r)/r.pace));
+    const lengthForPace=Math.max(longest,longestFixed);
+    for(const r of turning)r.pace=lengthForPace>1e-6?Math.max(GROUND_FRONT_WHEEL_MIN_PACE,length(r)/lengthForPace):1;
   }
   if(!routes.length)return routes;
   const data=groundData(),crossings=groundFrontCrossings(data);
@@ -350,7 +370,7 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
   for(const route of routes){
     const {f,dest,path,detourVia}=route;
     if(!path||['air','sea'].includes(groundMoveKind(f)))continue;
-    if(advance&&front.via.has(f)){
+    if(advance&&front.custom.has(f)){
       const crossed=groundFrontCrossed(path,rivers,crossings);
       if(crossed)count(crossed);
       continue;
@@ -387,16 +407,18 @@ function groundFrontRefresh(front,force=false){
   const line=front.advance?front.plan:front;
   const slots=groundPlanSlots(groundFrontPresent(front),line.pts,line.side);
   const previous=new Map(front.slots.map(s=>[s.f,s]));
-  const changed=slots.filter(s=>{
+  const effective=front.advance?groundPlanSlotsWithEdits(slots,front.custom):slots;
+  const changed=effective.filter(s=>{
     const old=previous.get(s.f);
     return force||!old||old.dest.distanceToSquared(s.dest)>1e-12||old.line.width!==s.line.width||
       old.line.face.x!==s.line.face.x||old.line.face.z!==s.line.face.z;
   });
   for(const {f} of changed)groundFrontRememberVia(f);
-  const fixed=slots.filter(s=>!changed.includes(s)&&groundFrontOwnOrder(s.f,front))
+  const affected=new Set(changed.map(s=>s.f));
+  const fixed=slots.filter(s=>!affected.has(s.f)&&groundFrontOwnOrder(s.f,front))
     .map(({f})=>({f,path:f.order.path}));
-  const routes=groundFrontRoutes(front,changed,!!front.advance,fixed);
-  front.slots=slots.filter(s=>!routes.some(r=>r.f===s.f&&!r.path));
+  const routes=groundFrontRoutes(front,slots,!!front.advance,fixed,affected);
+  front.slots=effective.filter(s=>!routes.some(r=>r.f===s.f&&!r.path));
   front.retryRevision=front.slots.length===slots.length?null:groundBridgeRevision;
   for(const r of routes){
     if(r.path)groundFrontIssue(front,r);
@@ -522,7 +544,7 @@ function groundFrontStop(front){
   front.advance=null;groundFrontRefresh(front,true);
 }
 function groundFrontPromotePlan(front){
-  front.plan=front.nextPlans.shift()||null;front.via.clear();front.passed.clear();
+  front.plan=front.nextPlans.shift()||null;front.custom.clear();front.passed.clear();
 }
 function groundFrontArrive(front){
   front.pts=front.plan.pts;front.side=front.plan.side;front.advance=null;groundFrontPromotePlan(front);
@@ -664,7 +686,7 @@ function groundPlanFinish(pts,frontAt){
     const from=groundPlanLine(index?groundPlanAtIndex(front,index-1).pts:departure.pts);
     const side=groundPlanInputSide(pts,frontAt)||-groundPlanNearest(L,groundPlanAt(from,from.len/2)).side||
       groundFrontDefaultSide(L,front?.members||list);
-    plan=groundFrontAlign(pts,side,from.pts);
+    plan={...groundFrontAlign(pts,side,from.pts),detour:groundPlanEditing?.detour||'both'};
     if(index){
       saveUndo(front.members);
       front.nextPlans[index-1]=plan;
@@ -675,8 +697,8 @@ function groundPlanFinish(pts,frontAt){
     }
     const members=front?groundFrontPresent(front):groundFrontSort(list,groundPlanLine(line.pts));
     // 引き直した計画を実行中なら、現在地から新しい線までの全経路を確かめる。
-    const routeFront=front?{...front,plan}:{...line,plan,via:new Map(),passed:new Map()};
-    if(front?.advance)routeFront.advance={...front.advance,from:departure.pts,detouring:null};
+    const routeFront={...(front||line),plan,custom:new Map(),passed:new Map()};
+    if(front?.advance)routeFront.advance={...front.advance,from:departure.pts,detouring:null,group:null};
     routes=groundFrontRoutes(routeFront,groundPlanSlots(members,plan.pts,plan.side),true);
   }
   const blocked=routes.find(r=>!r.path);
@@ -685,13 +707,13 @@ function groundPlanFinish(pts,frontAt){
   npcAutoPlayer(editing?editing.members:list);
   if(!front){groundFrontRemoveMembers(list);front=groundFrontCreate(line,list);
     if(mode==='plan')groundFrontTrack(front);}
+  front.custom.clear();front.passed.clear();
   if(mode==='deploy'){
     front.pts=line.pts;front.side=line.side;front.members=sorted;front.advance=null;front.retryRevision=null;
     front.slots=routes.map(({path,...slot})=>slot);
     for(const route of routes)groundFrontIssue(front,route);
   }else{
     const advancing=!!front.advance;
-    if(advancing)for(const f of front.members)groundFrontRememberVia(f);
     if(front.advance?.detour)Object.assign(front,departure);
     front.plan=plan;
     if(advancing)groundFrontStart(front,routes,departure.pts);
@@ -846,7 +868,7 @@ function groundPlanRouteShape(path,index){
 }
 const groundPlanPreviews=new WeakMap();
 function groundPlanPreviewInputs(front,members){
-  return members.map(f=>[f,f.order,front.via.get(f),front.passed.get(f)]);
+  return members.map(f=>[f,f.order,front.custom.get(f),front.passed.get(f)]);
 }
 function groundPlanRememberPreview(front,routes){
   const members=groundFrontPresent(front);
@@ -868,65 +890,105 @@ function groundPlanArrows(front){
     if(front.advance&&f.order?.groundAdvance!==front.advance.group)return [];
     const path=front.advance?f.order.path:preview;
     if(!path)return [];
-    const passed=groundFrontViaIndex(front,f),via=(front.via.get(f)||[]).slice(passed);
+    const passed=groundFrontViaIndex(front,f),custom=front.custom.get(f);
+    const via=custom?custom.points.slice(passed):front.advance?
+      (groundFlyingAircraft(f)?groundFrontAirWaypoints(f.order):pathLeft(f.order)).slice(0,-1):path.pts.slice(0,-1);
     const final=path.points[path.points.length-1],curve=groundPlanRouteShape(path,front.advance?path.atIndex:0);
     const shape=[f.pos,...(front.advance?curve.tail:curve.tail.slice(1))];
     const markers=via.map((p,i)=>({p:path.pts[path.pts.length-1-via.length+i]||p,i:passed+i}));
-    if(front.via.has(f))markers.push({p:final,i:null});
+    markers.push({p:final,i:null});
     return [{f,pts:[f.pos,...via,dest],shape,markers,curve,key:curve.key+'|'+groundPlanQ(f.pos.x)+','+groundPlanQ(f.pos.z)}];
   });
 }
-function groundPlanSetVia(front,f,via,passed=via.length?groundFrontViaIndex(front,f):0){
+// 指定した隊だけ探索する。残りの道は渡河点の使用数に含め、命令や矢印はそのまま使う。
+function groundPlanUpdateRoutes(front,affected,{plan=front.plan,custom=front.custom,passed=front.passed}={}){
   if(!front?.plan||!groundFronts.includes(front))return false;
-  const slots=front.advance?front.slots.filter(s=>s.f.order?.groundAdvance===front.advance.group):
-    groundPlanSlots(groundFrontPresent(front),front.plan.pts,front.plan.side);
-  if(!slots.some(s=>s.f===f)&&via.length)return false;
-  const pts=front.advance?.from||front.pts;
-  const draft={...front,pts,advance:front.advance&&{...front.advance,group:null},via:new Map(front.via),passed:new Map(front.passed)};
-  for(const s of slots)draft.passed.set(s.f,groundFrontViaIndex(front,s.f));
-  if(via.length)draft.via.set(f,via);else draft.via.delete(f);
-  draft.passed.set(f,passed);
-  const routes=groundFrontRoutes(draft,slots,true);
-  const blocked=routes.find(r=>r.f===f&&!r.path);
-  if(blocked){groundPlanReport(blocked.f.name+'：中継地点を通れる経路がありません');return false;}
-  saveUndo([f]);
-  front.via=draft.via;front.passed=draft.passed;
-  if(front.advance)for(const route of routes.filter(r=>r.path))groundFrontIssue(front,route);
-  else groundPlanRememberPreview(front,routes);
+  const slots=groundPlanSlots(groundFrontPresent(front),plan.pts,plan.side);
+  const existing=front.advance?front.slots.map(s=>{
+    const o=s.f.order;
+    return o?.groundAdvance===front.advance.group?{...s,path:o.path,pace:o.groundAdvancePace}:s;
+  }):groundPlanPreview(front);
+  const fixed=existing.filter(({f})=>!affected.has(f));
+  const draft={...front,plan,custom,passed,advance:front.advance&&{...front.advance,group:null,detouring:null}};
+  const routes=groundFrontRoutes(draft,slots,true,fixed,affected);
+  if(routes.some(r=>!r.path)){groundPlanReport('通れない場所です');return false;}
+  saveUndo(front.members);
+  Object.assign(front,{plan,custom,passed});
+  const updated=new Map([...fixed,...routes].map(r=>[r.f,r]));
+  const ordered=slots.map(({f})=>updated.get(f)).filter(Boolean);
+  if(front.advance){
+    front.slots=ordered.map(({path,...slot})=>slot);
+    front.retryRevision=front.slots.length===slots.length?null:groundBridgeRevision;
+    for(const route of routes)groundFrontIssue(front,route);
+  }else groundPlanRememberPreview(front,ordered);
   return true;
 }
-function groundPlanViaAdd(f,p){
+function groundPlanSetCustom(front,f,edit,passed){
+  const custom=new Map(front.custom),progress=new Map(front.passed);
+  custom.set(f,edit);progress.set(f,passed);
+  return groundPlanUpdateRoutes(front,new Set([f]),{custom,passed:progress});
+}
+function groundPlanEditDraft(front,arrow){
+  const {f,markers,pts}=arrow,old=front.custom.get(f);
+  // 初回に現在の終点も写す。隊が抜けて自動の持ち場がずれても、手直しした道は保つ。
+  return {isCustomEdited:true,points:old?[...old.points]:markers.slice(0,-1).map(m=>m.p),
+    dest:old?.dest||pts.at(-1).clone()};
+}
+function groundPlanViaAdd(f,p,screen=null){
   const front=f.groundFrontOf,arrow=front&&groundPlanArrows(front).find(a=>a.f===f);
   if(!arrow)return false;
-  const via=[...(front.via.get(f)||[])];
-  const line=groundPlanLine(arrow.shape),at=groundPlanNearest(line,p).s;
-  const passed=groundFrontViaIndex(front,f);
-  const before=arrow.markers.filter(m=>m.i!==null&&groundPlanNearest(line,m.p).s<at).length;
-  via.splice(passed+before,0,p.clone());
-  return groundPlanSetVia(front,f,via);
+  const edit=groundPlanEditDraft(front,arrow),passed=groundFrontViaIndex(front,f);
+  const project=screen?q=>({...groundEditProject(q),world:q}):q=>q;
+  const line=groundPlanLine(arrow.shape.map(project));
+  const at=groundPlanNearest(line,screen||p);
+  if(!at.i)return false;
+  let from=0,before=0;
+  for(const {i,p} of arrow.markers){
+    if(i===null)break;
+    // 曲線は制御点を順に通る。折り返して同じ座標を通る道でも、後の点を先の区間に数えない。
+    const index=line.pts.findIndex((q,j)=>j>=from&&groundPlanDistance(q.world||q,p)<1e-6);
+    const s=index<0?groundPlanNearest(line,project(p)).s:line.cum[index];
+    if(index>=0)from=index+1;
+    if(s<at.s)before++;
+  }
+  const point=screen?line.pts[at.i-1].world.clone().lerp(line.pts[at.i].world,at.t):p.clone();
+  edit.points.splice(passed+before,0,point);
+  return groundPlanSetCustom(front,f,edit,passed);
 }
-function groundPlanViaMove(f,i,p){
-  const front=f.groundFrontOf,via=front?.via.get(f);
-  if(!via?.[i]||i<groundFrontViaIndex(front,f))return false;
-  const next=[...via];next[i]=p.clone();
-  return groundPlanSetVia(front,f,next);
+function groundPlanEditHandle(hit,change,p){
+  const {front,f,i,plan}=hit;
+  if(f.groundFrontOf!==front||front.plan!==plan)return false;
+  const arrow=groundPlanArrows(front).find(a=>a.f===f),marker=arrow?.markers.find(m=>m.i===i);
+  if(!marker||change==='delete'&&i===null)return false;
+  // 自動の点がドラッグ中に通過済みになった場合は、別の点を動かさない。
+  if(hit.p&&!front.custom.has(f)&&groundPlanDistance(hit.p,marker.p)>1e-6)return false;
+  if(change==='move'&&!p){groundPlanReport('通れない場所です');return false;}
+  const edit=groundPlanEditDraft(front,arrow),passed=groundFrontViaIndex(front,f);
+  if(change==='delete')edit.points.splice(i,1);
+  else if(i===null)edit.dest=p.clone();
+  else edit.points[i]=p.clone();
+  return groundPlanSetCustom(front,f,edit,passed);
 }
-function groundPlanViaRemove(f,i){
-  const front=f.groundFrontOf,via=front?.via.get(f);
-  if(!via?.[i]||i<groundFrontViaIndex(front,f))return false;
-  return groundPlanSetVia(front,f,via.filter((_,j)=>j!==i),groundFrontViaIndex(front,f));
+function groundPlanResetRoutes(front,units){
+  const affected=new Set(units.filter(f=>front.custom.has(f)));
+  if(!affected.size)return false;
+  const custom=new Map(front.custom),passed=new Map(front.passed);
+  for(const f of affected){custom.delete(f);passed.delete(f);}
+  return groundPlanUpdateRoutes(front,affected,{custom,passed});
 }
-function groundPlanViaClear(f){
-  const front=f.groundFrontOf;
-  return !!front?.via.has(f)&&groundPlanSetVia(front,f,[]);
+function groundPlanSetDetour(front,index,detour){
+  const old=groundPlanAtIndex(front,index);
+  if(!old||(old.detour||'both')===detour)return false;
+  const plan={...old,detour};
+  if(!index)return groundPlanUpdateRoutes(front,new Set(front.members.filter(f=>!front.custom.has(f))),{plan});
+  saveUndo(front.members);front.nextPlans[index-1]=plan;return true;
 }
 function groundPlanPickAt(p,radius,project=q=>q){
   let best=null,distance=radius;
   const arrows=groundFronts.map(front=>[front,groundPlanArrows(front)]);
   for(const [front,items] of arrows)for(const {f,markers} of items)for(const {p:q,i} of markers){
-    if(i===null)continue;
     const d=groundPlanDistance(project(q),p);
-    if(d<=distance){best={kind:'via',front,f,i};distance=d;}
+    if(d<=distance){best={kind:'via',front,f,i,p:q,plan:front.plan};distance=d;}
   }
   if(best)return best;
   const pick=(pts,hit)=>{
@@ -946,8 +1008,8 @@ function groundEditCloseChoice(){
   if(menu)menu.hidden=true;
 }
 function groundEditStatus(){
-  const text=groundEditWaypoint?(groundEditWaypoint.kind==='arrow'?'中継地点を足す場所をクリック':'中継地点を動かす場所をクリック'):
-    '前線・計画の線、矢印、中継地点の○をクリック';
+  const text=groundEditDrag?'○を移動中（離して確定）':
+    '○をドラッグで移動・クリックでメニュー、矢印を左クリックで点を追加・右クリックでメニュー、前線・計画線をクリックで編集';
   return '編集・削除：'+text+'（Escで取消）'+(groundPlanMessage?'　'+groundPlanMessage:'');
 }
 function groundEditActions(hit){
@@ -961,35 +1023,37 @@ function groundEditActions(hit){
           groundEditReturn=true;groundHud();
         }
       }],
+      ...(isFront?[]:[
+        ...[['both','両側'],['left','左だけ'],['right','右だけ']].map(([side,label])=>[
+          'detour-'+side,((plan.detour||'both')===side?'✓ ':'')+'回り込み：'+label,()=>{
+            groundPlanSetDetour(front,groundPlanIndex(front,plan),side);groundHud();
+          }
+        ]),
+        ['reset','全隊を自動に戻す',()=>{if(front.plan===plan)groundPlanResetRoutes(front,front.members);groundHud();}]
+      ]),
       ['delete',isFront?'削除（計画も消える）':'削除',()=>{
         if(isFront)groundFrontDelete(front);else groundPlanDelete(front,groundPlanIndex(front,plan));
         groundWorkAiming='edit';groundHud();
       }]
     ];
   }
-  const location=()=>{groundEditWaypoint=hit;groundPlanMessage='';groundHud();};
-  return kind==='arrow'?[['location','中継地点を足す',location]]:[
-    ['location','編集（動かす）',location],['delete','削除',()=>{groundPlanViaRemove(f,i);groundHud();}]
-  ];
+  const actions=[['reset','自動に戻す',()=>{groundPlanResetRoutes(front,[f]);groundHud();}]];
+  if(kind==='via'&&i!==null)actions.push(['delete','削除',()=>{groundPlanEditHandle(hit,'delete');groundHud();}]);
+  return actions;
+}
+function groundEditProject(p){
+  const q=proj(new THREE.Vector3(p.x,groundSurfaceHeight(p.x,p.z)+GROUND_PLAN_LOOK.lift,p.z));
+  return {x:q.x,z:q.y};
 }
 function groundEditPick(x,y){
-  return groundPlanPickAt({x,z:y},14,p=>{
-    const q=proj(new THREE.Vector3(p.x,groundSurfaceHeight(p.x,p.z)+GROUND_PLAN_LOOK.lift,p.z));
-    return {x:q.x,z:q.y};
-  });
+  return groundPlanPickAt({x,z:y},14,groundEditProject);
 }
-function groundEditTap(x,y){
-  if(groundEditWaypoint){
-    const p=groundAt(x,y),{kind,f,i}=groundEditWaypoint;
-    if(!p)return;
-    groundPlanMessage='';
-    if((kind==='arrow'?groundPlanViaAdd(f,p):groundPlanViaMove(f,i,p))||!f.groundFrontOf?.plan)groundEditWaypoint=null;
-    groundHud();return;
-  }
+function groundEditTap(x,y,button=0){
   groundEditCloseChoice();groundPlanMessage='';
   const hit=groundEditPick(x,y);
   groundEditHover=hit;
   if(!hit){groundHud();return;}
+  if(hit.kind==='arrow'&&button===0){groundPlanViaAdd(hit.f,null,{x,z:y});groundHud();return;}
   const menu=document.getElementById('groundEditPick');
   groundEditChoice=hit;
   menu.replaceChildren(...groundEditActions(hit).map(([id,label,action])=>{
@@ -1006,30 +1070,53 @@ function groundEditTap(x,y){
   menu.style.transform=`translate(${Math.max(0,Math.min(x+12,W-r.width-8))}px,${Math.max(0,Math.min(y+8,H-r.height-8))}px)`;
 }
 if(typeof renderer!=='undefined'&&renderer?.domElement){
-  // 名札・地図より先に編集のタップを受け取る。ドラッグやピンチはいつもの視点操作へ渡す。
+  // 名札・地図より先に編集操作を受け取る。○の外のドラッグと2本指は視点操作へ渡す。
   const mapTarget=e=>e.target===renderer.domElement||e.target.closest?.('#labels .mk2');
   const active=()=>op.ground&&!over&&!deploying&&!paused&&!talking&&!menuOpen&&(groundWorkAiming==='edit'||groundEditReturn);
+  const cancel=()=>{const dragging=!!groundEditDrag;groundEditPress=groundEditDrag=null;if(dragging)groundHud();};
   addEventListener('pointerdown',e=>{
-    if(groundEditPress){groundEditPress=null;return;}
-    if(active()&&mapTarget(e)&&(e.button===0||e.button===2))
-      groundEditPress={id:e.pointerId,x:e.clientX,y:e.clientY,at:performance.now(),mode:groundWorkAiming};
-    else if(groundEditChoice&&!e.target.closest?.('#groundEditPick')){groundEditCloseChoice();groundEditHover=null;}
+    if(groundEditPress){cancel();return;}
+    if(active()&&mapTarget(e)&&(e.button===0||e.button===2)){
+      const hit=groundWorkAiming==='edit'&&e.button===0?groundEditPick(e.clientX,e.clientY):null;
+      groundEditPress={id:e.pointerId,x:e.clientX,y:e.clientY,at:performance.now(),mode:groundWorkAiming,
+        handle:hit?.kind==='via'?hit:null};
+    }else if(groundEditChoice&&!e.target.closest?.('#groundEditPick')){groundEditCloseChoice();groundEditHover=null;}
   },true);
   addEventListener('pointermove',e=>{
-    if(groundEditPress&&Math.hypot(e.clientX-groundEditPress.x,e.clientY-groundEditPress.y)>=8)groundEditPress=null;
-    if(!active()||groundWorkAiming!=='edit'||groundEditChoice||groundEditWaypoint)return;
+    if(!active())return;
+    const press=groundEditPress;
+    if(press?.id===e.pointerId){
+      const moved=Math.hypot(e.clientX-press.x,e.clientY-press.y)>=GROUND_PLAN_DRAG_PX;
+      if(press.handle){
+        e.stopPropagation();
+        if(moved||groundEditDrag){
+          const first=!groundEditDrag;
+          groundEditDrag={...press.handle,point:groundAt(e.clientX,e.clientY)};
+          if(first){groundEditCloseChoice();groundEditHover=press.handle;groundPlanMessage='';groundHud();}
+        }
+        return;
+      }
+      if(moved)groundEditPress=null;
+    }
+    if(groundWorkAiming!=='edit'||groundEditChoice)return;
     groundEditHover=mapTarget(e)&&!e.buttons?groundEditPick(e.clientX,e.clientY):null;
   },true);
-  addEventListener('pointercancel',()=>{groundEditPress=null;},true);
+  addEventListener('touchmove',e=>{
+    if(groundEditPress?.handle&&e.touches.length===1){e.stopPropagation();e.preventDefault();}
+  },{capture:true,passive:false});
+  addEventListener('pointercancel',cancel,true);
   addEventListener('pointerup',e=>{
-    if(!active()||!mapTarget(e))return;
+    const press=groundEditPress,drag=groundEditDrag;
+    if(press?.id===e.pointerId)groundEditPress=groundEditDrag=null;
+    if(!active()||!mapTarget(e)&&!drag)return;
     // OrbitControls にも pointerup を渡し、通常命令のクリックだけ消費する。
     down=labelDown=null;
-    const press=groundEditPress;
-    if(press?.id!==e.pointerId)return;
-    groundEditPress=null;
-    if(press.mode!==groundWorkAiming||performance.now()-press.at>=450||Math.hypot(e.clientX-press.x,e.clientY-press.y)>=8)return;
-    if(groundWorkAiming==='edit')groundEditTap(e.clientX,e.clientY);
+    if(press?.id!==e.pointerId||press.mode!==groundWorkAiming)return;
+    if(drag){
+      groundEditHover=null;groundPlanEditHandle(drag,'move',groundAt(e.clientX,e.clientY));groundHud();return;
+    }
+    if(performance.now()-press.at>=450||Math.hypot(e.clientX-press.x,e.clientY-press.y)>=GROUND_PLAN_DRAG_PX)return;
+    if(groundWorkAiming==='edit')groundEditTap(e.clientX,e.clientY,e.button);
     else {const p=groundAt(e.clientX,e.clientY);if(p)groundPlanTap(p);}
   },true);
 }
@@ -1037,7 +1124,7 @@ if(typeof renderer!=='undefined'&&renderer?.domElement){
 function groundFrontSnapshot(list){
   const fronts=[...new Set(list.map(f=>f.groundFrontOf).filter(Boolean))];
   const units=[...new Set([...list,...fronts.flatMap(front=>front.members)])];
-  return {units,fronts:fronts.map(front=>({front,state:{...front,nextPlans:[...front.nextPlans],via:new Map(front.via),passed:new Map(front.passed),
+  return {units,fronts:fronts.map(front=>({front,state:{...front,nextPlans:[...front.nextPlans],custom:new Map(front.custom),passed:new Map(front.passed),
     advance:front.advance?{...front.advance,detouring:new Set(front.advance.detouring)}:null}}))};
 }
 function groundFrontRestore(snapshot,units){
@@ -1315,11 +1402,16 @@ function groundPlanDraw(){
       const item=lineItem(plan.pts,plan.side,L.planScale,true,colors);still.push(item);
       if(selected&&hover.kind==='plan'&&hover.plan===plan)highlight=item;
     }
-    for(const {f,shape,markers,key,curve} of groundPlanArrows(front)){
+    for(let {f,shape,markers,key,curve} of groundPlanArrows(front)){
+      const drag=groundEditDrag;
+      if(drag?.f===f&&drag.plan===front.plan&&drag.point){
+        markers=markers.map(m=>m.i===drag.i?{...m,p:drag.point}:m);
+        shape=[f.pos,...markers.map(m=>m.p)];key='drag|'+groundPlanKey(shape);curve=drag;
+      }
       const color=groundPlanUnitColor(f),item={f,arrow:shape,curve,color,key:key+'>'+color};
       (front.advance?blink:still).push(item);
       if(selected&&hover.f===f&&hover.kind==='arrow')highlight=item;
-      for(const {p,i} of markers){
+      if(groundWorkAiming==='edit')for(const {p,i} of markers){
         const ring={ring:p,key:groundPlanQ(p.x)+','+groundPlanQ(p.z)};rings.push(ring);
         if(selected&&hover.f===f&&hover.kind==='via'&&hover.i===i)highlight=ring;
       }

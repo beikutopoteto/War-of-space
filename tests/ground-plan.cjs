@@ -170,17 +170,17 @@ function planCases(){
  check('当たり判定は前線と計画線を識別',groundPlanPickAt(p(11,28),.1)?.kind==='front'&&groundPlanPickAt(p(11,31),.1)?.kind==='plan');
  check('当たり判定は部隊別の矢印を返す',groundPlanPickAt(p(8.75,29),.1)?.f===f);
  groundPlanViaAdd(f,v2);groundPlanViaAdd(f,v);
- check('中継地点を近い区間へ挿入し矢印が順に通る',groundPlanArrows(edit).find(a=>a.f===f)?.pts.slice(1,-1).every((p,i)=>p.equals([v,v2][i]))&&edit.via.get(f)?.length===2);
+ check('中継地点を近い区間へ挿入し矢印が順に通る',groundPlanArrows(edit).find(a=>a.f===f)?.pts.slice(1,-1).every((p,i)=>p.equals([v,v2][i]))&&edit.custom.get(f)?.points.length===2);
  setSel(editors);groundPlanExecute();
  check('中継地点を実行の経路に入れる',f.order?.path?.pts.length===3&&f.order.path.pts[0].equals(v)&&f.order.path.pts[1].equals(v2));
  const originalS=f.order.path.s;
  f.order.path.s=f.order.path.at[0]+1e-5;
  check('通過済みの中継地点を矢印から外す',groundPlanArrows(edit).find(a=>a.f===f)?.pts[1].equals(v2));
  f.order.path.s=originalS;
- groundPlanViaClear(f);
- check('進撃中の中継地点の削除は残りの道に反映',!edit.via.has(f)&&f.order?.path?.pts.length===1);
+ groundPlanResetRoutes(edit,[f]);
+ check('進撃中の中継地点の削除は残りの道に反映',!edit.custom.has(f)&&f.order?.path?.pts.length===1);
  undo();
- check('Undoで中継地点・進撃の組・進撃命令を復元',edit.via.get(f)?.length===2&&f.order?.groundAdvance===edit.advance.group);
+ check('Undoで中継地点・進撃の組・進撃命令を復元',edit.custom.get(f)?.points.length===2&&f.order?.groundAdvance===edit.advance.group);
  for(const u of editors)groundFollow(u,1);tick();
  const instant=groundFrontNow(edit),oldFixedLine=edit.pts;
  groundPlanRedraw(edit);groundPlanTap(p(8,33));groundPlanTap(p(14,33));groundPlanTap(p(11,34));
@@ -216,27 +216,35 @@ function planCases(){
  click({kind:'front',front:target},'redraw');groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
  check('前線の編集ボタンで向きを指定して編集・削除へ戻る',!!target.plan&&groundWorkAiming==='edit');
  finish(own);tick();
- const viaPoint=p(8.5,28);
- click({kind:'arrow',front:target,f:lead},'location');hitPoint=viaPoint;groundEditTap(0,0);
+ const viaPoint=p(8.75,29.5);
+ const oldProject=groundEditProject;
+ groundEditProject=p=>({x:p.x*100,z:p.z*100});
+ groundEditTap(viaPoint.x*100,viaPoint.z*100);
+ groundEditProject=oldProject;
  const hit=groundPlanPickAt(viaPoint,.01);
- check('矢印の追加ボタンで前線上に○ができ、線より先に当たる',hit?.kind==='via'&&hit.front===target&&hit.f===lead&&hit.i===0);
+ check('矢印の左クリックで○ができ、線より先に当たる',hit?.kind==='via'&&hit.front===target&&hit.f===lead&&hit.i===0);
  const movedVia=p(7,29);
- click(hit,'location');hitPoint=movedVia;groundEditTap(0,0);
- check('○の編集ボタンが移動を行い、確定前の曲線も通る',
-   groundWorkAiming==='edit'&&target.via.get(lead)[0].equals(movedVia)&&
+ groundPlanEditHandle(hit,'move',movedVia);
+ check('○を動かすと確定前の曲線もその点を通る',
+   groundWorkAiming==='edit'&&target.custom.get(lead)?.points[0].equals(movedVia)&&
    groundPlanNearest(groundPlanLine(groundPlanArrows(target).find(a=>a.f===lead).shape),movedVia).d<1e-6);
  const preview=groundPlanPreview(target),shape=groundPlanRouteShape(preview[0].path,0);
  groundPlanArrows(target);
  check('計画の経路と曲線は入力が変わるまで再利用する',groundPlanPreview(target)===preview&&groundPlanRouteShape(preview[0].path,0)===shape);
  setSel(own);groundPlanExecute();
  check('移動した○を実際の進撃経路が通る',groundPlanNearest(groundPlanLine(lead.order.path.points),movedVia).d<1e-6);
- groundPlanToggle('edit');click({kind:'via',front:target,f:lead,i:0},'delete');
+ groundPlanToggle('edit');const peerOrders=own.slice(1).map(f=>f.order);
+ click(groundPlanPickAt(movedVia,.01),'delete');
  check('○の削除ボタンで進撃から経由地を外し、編集・削除は続く',
-   !target.via.has(lead)&&groundWorkAiming==='edit'&&groundPlanNearest(groundPlanLine(lead.order.path.points),movedVia).d>GROUND_SCALE);
+   target.custom.get(lead)?.points.length===0&&groundWorkAiming==='edit'&&
+   own.slice(1).every((f,i)=>f.order===peerOrders[i])&&groundPlanNearest(groundPlanLine(lead.order.path.points),movedVia).d>GROUND_SCALE);
  const prevPos=lead.pos.clone();groundFollow(lead,1);
  const rest=groundPlanArrows(target).find(a=>a.f===lead).shape;
  check('進撃の矢印は現在地から始まり、通過した道は消える',
    rest[0]===lead.pos&&groundPlanNearest(groundPlanLine(rest),prevPos).d>1e-6);
+ undo();
+ check('中間点の削除は1回の戻すで取り消せる',target.custom.get(lead)?.points[0].equals(movedVia));
+ groundPlanToggle('edit');
  click({kind:'plan',front:target},'delete');
  check('計画の削除ボタンは前線を残して編集・削除を続ける',!target.plan&&groundFronts.includes(target)&&groundWorkAiming==='edit');
  pressEscape();check('Escは編集・削除を解除し、ポーズを開かない',!groundWorkAiming&&!pauseOpened);
@@ -284,7 +292,7 @@ function planCases(){
   const count=(routes,at)=>routes.filter(r=>crossing(r.path,sites)?.equals(at)).length;
   const shortest=slots.map(s=>({...s,path:groundMovePath(s.f.pos,[s.dest],'vehicle',true)}));
   const corridor=(lo,hi)=>({
-   pts:[p(20,lo),p(20,hi)],plan:{pts:[p(26,lo),p(26,hi)]},via:new Map(),passed:new Map()
+   pts:[p(20,lo),p(20,hi)],plan:{pts:[p(26,lo),p(26,hi)]},custom:new Map(),passed:new Map()
   });
   const one=corridor(20,27),two=corridor(20,30),none=corridor(24,28);
   const single=groundFrontRoutes(one,slots,true),spread=groundFrontRoutes(two,slots,true);
@@ -299,11 +307,11 @@ function planCases(){
   const best=slots.reduce((sum,s)=>sum+estimate(s,north),0)+centralGain[0]+centralGain[1];
   check('2対2のうち直線見積もりの合計が最短になる組を選ぶ',
    Math.abs(spread.reduce((sum,s)=>sum+estimate(s,s.path.pts[0]),0)-best)<1e-6);
-  two.via.set(tanks[3],[p(21,21)]);
+  two.custom.set(tanks[3],{isCustomEdited:true,points:[p(21,21)],dest:null});
   const pinned=groundFrontRoutes(two,slots,true);
   check('中継地点の隊を中央橋の1隊に数え、残りを割り振って2隊ずつ',count(pinned,north)===2&&count(pinned,central)===2&&
    crossing(pinned[3].path,sites)?.equals(central)&&pinned[3].path.pts.length===2);
-  one.via.set(tanks[3],[north]);
+  one.custom.set(tanks[3],{isCustomEdited:true,points:[north],dest:null});
   const outside=groundFrontRoutes(one,slots,true);
   check('回廊外の中継地点を指定した隊は北橋、他の3隊は中央橋を通る',count(outside,central)===3&&
    crossing(outside[3].path,sites)?.equals(north)&&outside[3].path.pts[0].equals(north));
@@ -373,9 +381,9 @@ function planCases(){
  const facingPlan=facing.plan,flankLine=groundPlanLine(facingPlan.pts);
  check('計画の前の側はクリックで確定し、計画線を向いた隊がその側にいる',facingPlan.side===groundPlanSide(facingPlan.pts,forward)&&
   flank.every(f=>groundPlanNearest(flankLine,f.pos).side===facingPlan.side));
- const vias=[p(7.5,33.5),p(15.5,33.5)];
+ const vias=[p(7.5,31.25),p(15.5,31.25)];
  const pass=groundPass;
- groundPass=(x,y,...args)=>!(Math.abs(x-7.5)<1e-8&&Math.abs(y-33.5)<1e-8)&&pass(x,y,...args);
+ groundPass=(x,y,...args)=>!(Math.abs(x-7.5)<1e-8&&Math.abs(y-31.25)<1e-8)&&pass(x,y,...args);
  try{
   const nearby=groundFrontRoutes(facing,prepared(facing),true)[1].detourVia;   // 端からいちばん遠い隊は、外へ離す幅が0
   check('回り込みの中継点に入れない場合は近くの通れる点を使う',nearby&&groundPlanDistance(nearby,vias[0])>1e-6&&
@@ -385,18 +393,40 @@ function planCases(){
  try{
   check('通れる中継点がなければ従来の経路を使う',groundFrontRoutes(facing,prepared(facing),true).every(r=>r.path&&!r.detourVia));
  }finally{groundMovePath=realPath;}
+ const routesCross=(a,b)=>a.some((p,i)=>i&&b.some((q,j)=>j&&groundFrontEdgesCross(a[i-1],p,b[j-1],q)));
+ const disjoint=paths=>paths.every((path,i)=>paths.slice(0,i).every(other=>!routesCross(path,other)));
+ const detourEnds=[facingPlan.pts[0],facingPlan.pts.at(-1)];
+ for(const [mode,first] of [['both',null],['left',true],['right',false]]){
+  const routes=groundFrontRoutes({...facing,plan:{...facingPlan,detour:mode}},prepared(facing),true);
+  const cornerDistances=routes.map((r,i)=>r.detourVia&&Math.abs(r.path.pts[0].x-detourEnds[(first??(i<2))?0:1].x));
+  const outside=routes.every((r,i)=>r.detourVia&&((first??(i<2))?
+   r.path.pts[0].x<detourEnds[0].x:r.path.pts[0].x>detourEnds[1].x));
+  check(mode+'の回り込みは指定側の端の外を通り、道が交差しない',outside&&disjoint(routes.map(r=>r.path.points))&&
+   disjoint(routes.map(r=>groundPlanRouteShape(r.path,0).tail)));
+  if(mode!=='both'){
+   const gap=1.25*.5*GROUND_SCALE*(first?-1:1);
+   check(mode+'の片側指定は端に近い隊ほど外のレーンを通る',
+    cornerDistances.every((d,i)=>!i||Math.abs(d-cornerDistances[i-1]-gap)<1e-6));
+  }
+ }
  groundPlanExecute();
  // ユーザーの指示 2026-11-22「なんで一点で交わるんですか？狭まってもいいけどやりすぎでは？」: 隊ごとに端の外の点と後ろの点を通る。
- // 端に近い隊ほど外側を回り、外へ離す幅は計画の線の上の間隔の半分。いちばん内側の隊は端から外と後ろに1.5kmずつ
+ // 端に近い隊ほど外側を回り、外へ離す幅は計画の線の上の間隔の半分。いちばん内側の隊は端から外へ1.5km
  const ends=[facingPlan.pts[0],facingPlan.pts[facingPlan.pts.length-1]],paths=flank.map(f=>f.order?.path);
- const outAt=i=>groundPlanDistance(paths[i].pts[0],ends[i<2?0:1])/GROUND_SCALE;
+ const outAt=i=>Math.abs(paths[i].pts[0].x-ends[i<2?0:1].x)/GROUND_SCALE;
  const spacing=groundPlanDistance(...prepared(facing).filter(s=>flank.slice(0,2).includes(s.f)).map(s=>s.dest))/GROUND_SCALE;
- check('向かい合う計画には各隊が端の外の点と後ろの点を通り、後ろ側から着く',facing.advance?.detour&&
+ check('向かい合う計画には各隊が端の外で2点を通り、同じ順で横へ展開する',facing.advance?.detour&&
   paths.every((path,i)=>path?.pts.length===3&&groundPlanDistance(path.pts[1],path.pts[0])>1e-6&&
-   groundPlanNearest(flankLine,path.pts[1]).side===-facingPlan.side&&flank[i].order.groundAdvancePace===undefined)&&
+   groundPlanNearest(flankLine,path.pts[1]).side===facingPlan.side&&flank[i].order.groundAdvancePace===undefined)&&
   groundPlanDistance(paths[1].pts[1],vias[0])<1e-6&&groundPlanDistance(paths[2].pts[1],vias[1])<1e-6);
  check('回り込む隊は1点に集まらず、端に近い隊ほど外側を回る（間隔は半分）',
   Math.abs(outAt(0)-outAt(1)-spacing/2)<1e-6&&Math.abs(outAt(3)-outAt(2)-spacing/2)<1e-6&&Math.abs(outAt(1)-1.5)<1e-6);
+ const around=flank[0],aroundPath=around.order.path;
+ for(let i=0;i<2000&&aroundPath.s<aroundPath.at[0];i++)groundFollow(around,.25);
+ const pastCorner=aroundPath.s;
+ const finishedAtCorner=groundFollow(around,.25);
+ check('回り込みは中間点で止まらず次の区間へ進む',
+  pastCorner>=aroundPath.at[0]&&aroundPath.s>pastCorner&&!finishedAtCorner);
  for(const f of flank)groundFollow(f,2);
  const intruder=unit(10,27,'infantry',1);
  check('回り込み中は前線を越えた敵に迎撃命令を出さない',!groundFrontBreach(facing,[intruder])&&flank.every(f=>!f.groundFrontEngagement));
@@ -414,10 +444,60 @@ function planCases(){
  const destinations=new Map(facing.slots.map(s=>[s.f,s.dest]));
  intruder.alive=false;finish(flank);tick();
  check('回り込みが終わると、各隊が持ち場で停止する',!facing.advance&&!facing.plan&&flank.every(f=>
-  !f.order&&f.groundDeployed&&groundPlanDistance(f.pos,destinations.get(f))<1e-6));
+  !f.order&&f.groundDeployed&&groundPlanDistance(f.pos,destinations.get(f))<1e-6&&
+  f.heading.x===f.groundLine.face.x&&f.heading.z===f.groundLine.face.z));
+
+ fresh();const editGroup=four(),editFront=draw('deploy',editGroup,a,b),[editedUnit,otherUnit]=editGroup;
+ finish(editGroup);tick();draw('plan',editGroup,c,d,forward);
+ const automatic=groundPlanPreview(editFront),autoArrow=groundPlanArrows(editFront)[0];
+ const [autoCorner,autoBack,autoEnd]=autoArrow.markers.map(m=>m.p);
+ const autoHit=groundPlanPickAt(autoCorner,.01),newCorner=autoCorner.clone().add(new THREE.Vector3(-1,0,0));
+ groundPlanEditHandle(autoHit,'move',newCorner);
+ const editedRoute=editFront.custom.get(editedUnit);
+ check('自動の○を動かすとその隊だけ手直し済みになり、残りの点と他隊の道を保つ',
+  editFront.custom.size===1&&editedRoute?.isCustomEdited&&editedRoute.points[0].equals(newCorner)&&
+  editedRoute.points[1].equals(autoBack)&&groundPlanDistance(editedRoute.dest,autoEnd)<1e-6&&
+  groundPlanPreview(editFront).slice(1).every((route,i)=>route.path===automatic[i+1].path));
+ const endHit=groundPlanPickAt(autoEnd,.01),undoBefore=undoStack.length;
+ check('終点の○は削除できず、通行不能な位置への移動では手直しもUndoも変えない',
+  !groundEditActions(endHit).some(a=>a[0]==='delete')&&!groundPlanEditHandle(endHit,'move',p(-2,31))&&
+  editFront.custom.get(editedUnit)===editedRoute&&undoStack.length===undoBefore&&groundPlanMessage==='通れない場所です');
+ groundPlanEditHandle(endHit,'move',p(8.8,33));
+ const customEnd=editFront.custom.get(editedUnit);
+ setSel(editGroup);groundPlanExecute();
+ const independentOrder=editedUnit.order;
+ order(otherUnit,{type:'move',dest:p(10,27)});tick();
+ groundBridgeRevision++;groundFollow(editedUnit,.25);
+ check('ほかの隊が離脱して橋が変わっても、手直しの中間点と線外の終点を保持',
+  otherUnit.groundFrontAway&&editFront.custom.get(editedUnit)===customEnd&&
+  groundPlanDistance(editedUnit.order.dest,customEnd.dest)<1e-6&&
+  editedUnit.order.path.pts.slice(0,-1).every((p,i)=>groundPlanDistance(p,customEnd.points[i])<1e-6));
+ finish([otherUnit]);tick();
+ check('ほかの隊が復帰しても線外の終点は変わらない',!otherUnit.groundFrontAway&&
+  groundPlanDistance(editedUnit.order.dest,customEnd.dest)<1e-6);
+ const unchanged=editGroup.slice(1).map(f=>f.order);
+ click({kind:'arrow',front:editFront,f:editedUnit},'reset');
+ check('進撃中に1隊を自動に戻すとその隊だけが自動の回り込みに戻る',
+  !editFront.custom.size&&editedUnit.order.path.pts.length===3&&
+  editGroup.slice(1).every((f,i)=>f.order===unchanged[i])&&editedUnit.order!==independentOrder);
+ undo();
+ check('戻すでリセット前の中間点・終点・進撃が戻る',
+  editFront.custom.get(editedUnit)===customEnd&&editedUnit.order.groundAdvance===editFront.advance.group);
+ const otherArrow=groundPlanArrows(editFront).find(a=>a.f===otherUnit);
+ groundPlanViaAdd(otherUnit,otherArrow.pts[0].clone().lerp(otherArrow.pts[1],.5));
+ click({kind:'plan',front:editFront},'reset');
+ check('計画線の全隊リセットで2隊とも自動に戻る',!editFront.custom.size);
+ undo();
+ check('全隊リセットは1回の戻すで復元する',editFront.custom.size===2);
+ groundPlanRedraw(editFront);groundPlanTap(c);groundPlanTap(d);groundPlanTap(forward);
+ check('計画線の引き直しで全隊の手直しを取り消す',!editFront.custom.size&&!editFront.passed.size);
+ undo();
+ check('計画線引き直しのUndoで手直しも戻る',editFront.custom.size===2);
+ groundFrontRedraw(editFront);groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
+ check('前線の引き直しでも計画の手直しを取り消す',!editFront.custom.size&&!editFront.passed.size);
 
  fresh();const crossingTank=unit(20,25,'vehicle'),crossingPlan=[p(18,27),p(28,27)];
- const bank={pts:[p(18,31),p(28,31)],plan:{pts:crossingPlan,side:groundPlanSide(crossingPlan,crossingTank.pos)},via:new Map(),passed:new Map()};
+ const bank={pts:[p(18,31),p(28,31)],plan:{pts:crossingPlan,side:groundPlanSide(crossingPlan,crossingTank.pos)},custom:new Map(),passed:new Map()};
  const crossingRoute=groundFrontRoutes(bank,[{f:crossingTank,dest:p(25.5,27),fraction:.75}],true)[0];
  check('回り込みの渡河は端の外の点・後ろの点・渡河点・持ち場の順を保つ',crossingRoute.path?.pts.length===4&&
   crossingRoute.path.pts.every((q,i)=>groundPlanDistance(q,[p(29.5,27),p(29.5,28.5),north,p(25.5,27)][i])<1e-6));
@@ -437,10 +517,13 @@ function planCases(){
   queue.nextPlans.length===2&&queued.every((f,i)=>f.order===orders[i])&&groundPlanArrows(queue).every(a=>a.pts.at(-1).z===firstStart.z));
  const queuedHit=groundPlanPickAt(p(11,33),.1);
  check('待機中の計画線を順番つきで選べる',queuedHit?.kind==='plan'&&queuedHit.index===2&&queuedHit.plan===thirdPlan);
- click(queuedHit,'redraw');groundPlanTap(thirdStart);groundPlanTap(thirdEnd);groundPlanTap(p(11,32));
+ click(queuedHit,'detour-left');
+ check('次の計画にだけ片側指定を保存し、今の進撃は保つ',queue.plan===firstPlan&&queue.plan.detour==='both'&&
+  queue.nextPlans[1].detour==='left'&&queued.every((f,i)=>f.order===orders[i]));
+ click(groundPlanPickAt(p(11,33),.1),'redraw');groundPlanTap(thirdStart);groundPlanTap(thirdEnd);groundPlanTap(p(11,32));
  const edited=queue.nextPlans[1];
  check('次の計画の引き直しは選んだ1本だけを変える',queue.plan===firstPlan&&queue.nextPlans[0]===secondPlan&&
-  edited?.side===-thirdPlan.side&&queue.advance===running&&groundWorkAiming==='edit');
+  edited?.side===-thirdPlan.side&&edited.detour==='left'&&queue.advance===running&&groundWorkAiming==='edit');
  click(groundPlanPickAt(p(11,33),.1),'delete');
  check('次の計画の削除で選んだ1本だけを消す',queue.plan===firstPlan&&queue.nextPlans.length===1&&queue.nextPlans[0]===secondPlan);
  undo();
@@ -551,6 +634,96 @@ async function checkGroundPlanDrag(page,check){
  check(planDone.aiming==='plan'&&planDone.pts>2&&!!preview&&committed.chosen,
   '進撃計画のドラッグ: 曲線を引いたあと前の側をクリックして確定する',JSON.stringify({planDone,preview,committed}));
  await page.evaluate(()=>{groundClearAiming();document.getElementById('labels').style.display='';});
+ await checkGroundRouteEdit(page,check);
 }
-module.exports={nodeChecks,checkGroundPlanDrag};
+
+async function setupGroundRouteEdit(page){
+ await page.evaluate(()=>{
+  const companies=['infantry','vehicle','heavyInfantry','infantry'].map((kind,i)=>({
+   id:'route'+i,name:'第'+(i+1)+' 中隊',kind
+  }));
+  const previousNpc=window.WOS_NO_NPC;
+  window.WOS_NO_NPC=true;
+  WOS.start({op:'groundExercise2',groundOrg:{companies,battalions:[],brigades:[]}});
+  window.WOS_NO_NPC=previousNpc;
+  if(talking)endTalk();if(deploying)endDeploy();
+  setSpeed(0);hideHint();
+  const units=companies.map(c=>fleets.find(f=>f.team===0&&f.name===c.name));
+  if(units.some(f=>!f))throw Error('経路確認用の4隊を置けませんでした');
+  const line=[groundPoint(8,27),groundPoint(15,27)],forward=groundPoint(11,29);
+  for(const {f,dest} of groundPlanSlots(units,line,groundPlanSide(line,forward))){
+   f.pos.copy(dest);f.pos.y=groundUnitHeight(f);f.post.copy(f.pos);
+  }
+  setSel(units);groundPlanToggle('deploy');groundPlanTap(line[0]);groundPlanTap(line[1]);groundPlanTap(forward);
+  for(let i=0;i<30&&units.some(f=>f.order);i++)step(.05);
+  groundPlanToggle('plan');groundPlanTap(groundPoint(8.5,30.5));groundPlanTap(groundPoint(14.5,30.5));groundPlanTap(forward);
+  window.routeEditDemo=units[0].groundFrontOf;
+  if(groundPlanArrows(window.routeEditDemo).length!==4)throw Error('経路確認用の矢印を4本置けませんでした');
+  const brief=document.querySelector('[data-tab="brief"]');
+  if(brief.getAttribute('aria-expanded')==='true')brief.click();
+  const center=groundPoint(10,29.6);
+  camAnim=null;controls.enableDamping=false;controls.target.copy(center);
+  camera.position.set(center.x,center.y+43,center.z+19);camera.lookAt(center);controls.update();groundDraw();
+ });
+ await page.locator('#groundEdit').click();
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+}
+
+async function routeEditMapPoints(page){
+ return page.evaluate(()=>{
+  const front=window.routeEditDemo,arrows=groundPlanArrows(front),arrow=arrows[0];
+  const project=p=>{const q=groundEditProject(p);return {x:q.x,y:q.z};};
+  const usable=(q,kind,f)=>document.elementFromPoint(q.x,q.y)===renderer.domElement&&
+   (kind==='free'?!groundEditPick(q.x,q.y)&&!!groundAt(q.x,q.y):
+    groundEditPick(q.x,q.y)?.kind===kind&&(!f||groundEditPick(q.x,q.y)?.f===f));
+  const handle=arrow.markers.filter(m=>m.i!==null).map(m=>project(m.p)).find(q=>usable(q,'via',arrow.f));
+  const line=groundPlanLine(front.plan.pts);
+  const plan=[.5,.25,.75,.375,.625,.05,.95].map(t=>project(groundPlanAt(line,line.len*t))).find(q=>usable(q,'plan'));
+  const arrowPoint=arrow.shape.map(project).find(q=>usable(q,'arrow',arrow.f));
+  const free=[.3,.65,.5].flatMap(x=>[.26,.4,.55].map(y=>({x:W*x,y:H*y}))).find(q=>usable(q,'free'));
+  if(!handle||!plan||!arrowPoint||!free)throw Error('編集用の座標が見つからない '+JSON.stringify({handle,plan,arrowPoint,free}));
+  return {handle,plan,arrowPoint,free};
+ });
+}
+
+async function checkGroundRouteEdit(page,check){
+ await setupGroundRouteEdit(page);
+ const {handle,plan,arrowPoint,free}=await routeEditMapPoints(page);
+ const view=()=>page.evaluate(()=>[...camera.position.toArray(),...controls.target.toArray()].join(','));
+ const before=await view();
+ await page.evaluate(()=>{
+  window.routeEditPathCalls=0;window.originalRouteEditPath=groundMovePath;
+  window.groundMovePath=(...args)=>{window.routeEditPathCalls++;return window.originalRouteEditPath(...args);};
+ });
+ await page.mouse.move(handle.x,handle.y);await page.mouse.down();
+ await page.mouse.move(handle.x-30,handle.y+20,{steps:3});
+ const mid=await page.evaluate(()=>[!!groundEditDrag,window.routeEditDemo.custom.size,window.routeEditPathCalls]);
+ await page.mouse.up();
+ const after=await view();
+ const edited=await page.evaluate(()=>{
+  window.groundMovePath=window.originalRouteEditPath;
+  return window.routeEditDemo.custom.get(window.routeEditDemo.members[0])?.isCustomEdited;
+ });
+ check(mid[0]&&mid[1]===0&&mid[2]===0&&edited&&before===after,
+  '経路編集: 本物のマウスで○をドラッグしている間は探索せず、カメラは動かない',JSON.stringify({mid,edited,sameView:before===after}));
+
+ const arrow=edited?(await routeEditMapPoints(page)).arrowPoint:arrowPoint;
+ await page.mouse.click(arrow.x,arrow.y,{button:'right'});
+ await page.locator('#groundEditPick [data-action="reset"]').click();
+ await page.mouse.click(arrowPoint.x,arrowPoint.y);
+ const added=await page.evaluate(()=>window.routeEditDemo.custom.get(window.routeEditDemo.members[0])?.points.length);
+ check(added===3,'経路編集: 矢印の右クリックで自動に戻し、左クリックで点を追加する',String(added));
+ await page.mouse.click(plan.x,plan.y);
+ const sides=page.locator('#groundEditPick');
+ const both=await sides.locator('[data-action="detour-both"]').textContent();
+ await sides.locator('[data-action="detour-left"]').click();
+ const chosen=await page.evaluate(()=>window.routeEditDemo.plan.detour);
+ check(both.startsWith('✓')&&chosen==='left','経路編集: 計画線のメニューで使う側を変更する');
+ await page.mouse.move(free.x,free.y);await page.mouse.down();
+ await page.mouse.move(free.x+85,free.y+10,{steps:4});await page.mouse.up();
+ const editedCount=await page.evaluate(()=>window.routeEditDemo.custom.size);
+ check(await view()!==after&&editedCount===1,'経路編集: ○の外をドラッグするとカメラが動き、点は増えない');
+ await page.evaluate(()=>{controls.enableDamping=true;groundClearAiming();});
+}
+module.exports={nodeChecks,checkGroundPlanDrag,setupGroundRouteEdit,routeEditMapPoints};
 if(require.main===module){const rows=nodeChecks(),bad=rows.filter(r=>!r.ok);console.log(`共有命令 ${rows.length-bad.length}/${rows.length}`);assert.equal(bad.length,0,JSON.stringify(bad));}
