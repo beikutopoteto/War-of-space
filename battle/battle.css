@@ -588,7 +588,9 @@ body.nolabels .ground-site{display:none}
 #groundCommandBar button:disabled{color:#a4c7d8;--cmd-accent:currentColor;opacity:.5;cursor:default}
 #groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 #groundCommandBar [hidden]{display:none!important}
-#groundEditModes{display:flex;gap:3px;margin:0 0 3px 30px}
+/* 編集・削除を押すと、そのすぐ右に3つのボタンが足される（ユーザー 2026-11-22「追加で出る感じ」） */
+#groundEditModes{display:inline-flex;gap:3px;margin:0 4px 0 2px;vertical-align:middle}
+#groundEditModes[hidden]{display:none}
 #groundEditModes button,#groundFrontRecall{font:11px var(--f-ui);white-space:nowrap}
 #groundCommandBar #groundFrontRecall{width:82px}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
