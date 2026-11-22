@@ -377,7 +377,7 @@ function planCases(){
  const pass=groundPass;
  groundPass=(x,y,...args)=>!(Math.abs(x-7.5)<1e-8&&Math.abs(y-33.5)<1e-8)&&pass(x,y,...args);
  try{
-  const nearby=groundFrontRoutes(facing,prepared(facing),true)[0].detourVia;
+  const nearby=groundFrontRoutes(facing,prepared(facing),true)[1].detourVia;   // 端からいちばん遠い隊は、外へ離す幅が0
   check('回り込みの中継点に入れない場合は近くの通れる点を使う',nearby&&groundPlanDistance(nearby,vias[0])>1e-6&&
    groundPlanDistance(nearby,vias[0])<groundData().meta.cellKm*2*GROUND_SCALE);
  }finally{groundPass=pass;}
@@ -386,9 +386,17 @@ function planCases(){
   check('通れる中継点がなければ従来の経路を使う',groundFrontRoutes(facing,prepared(facing),true).every(r=>r.path&&!r.detourVia));
  }finally{groundMovePath=realPath;}
  groundPlanExecute();
- check('向かい合う計画には各隊が担当する端を外と後ろに1.5kmずつ回り、後ろ側から着く',facing.advance?.detour&&
-  flank.every((f,i)=>{const path=f.order?.path;return path?.pts.length===2&&groundPlanDistance(path.pts[0],vias[i<2?0:1])<1e-6&&
-   groundPlanNearest(flankLine,path.points.at(-2)).side===-facingPlan.side&&f.order.groundAdvancePace===undefined;}));
+ // ユーザーの指示 2026-11-22「なんで一点で交わるんですか？狭まってもいいけどやりすぎでは？」: 隊ごとに端の外の点と後ろの点を通る。
+ // 端に近い隊ほど外側を回り、外へ離す幅は計画の線の上の間隔の半分。いちばん内側の隊は端から外と後ろに1.5kmずつ
+ const ends=[facingPlan.pts[0],facingPlan.pts[facingPlan.pts.length-1]],paths=flank.map(f=>f.order?.path);
+ const outAt=i=>groundPlanDistance(paths[i].pts[0],ends[i<2?0:1])/GROUND_SCALE;
+ const spacing=groundPlanDistance(...prepared(facing).filter(s=>flank.slice(0,2).includes(s.f)).map(s=>s.dest))/GROUND_SCALE;
+ check('向かい合う計画には各隊が端の外の点と後ろの点を通り、後ろ側から着く',facing.advance?.detour&&
+  paths.every((path,i)=>path?.pts.length===3&&groundPlanDistance(path.pts[1],path.pts[0])>1e-6&&
+   groundPlanNearest(flankLine,path.pts[1]).side===-facingPlan.side&&flank[i].order.groundAdvancePace===undefined)&&
+  groundPlanDistance(paths[1].pts[1],vias[0])<1e-6&&groundPlanDistance(paths[2].pts[1],vias[1])<1e-6);
+ check('回り込む隊は1点に集まらず、端に近い隊ほど外側を回る（間隔は半分）',
+  Math.abs(outAt(0)-outAt(1)-spacing/2)<1e-6&&Math.abs(outAt(3)-outAt(2)-spacing/2)<1e-6&&Math.abs(outAt(1)-1.5)<1e-6);
  for(const f of flank)groundFollow(f,2);
  const intruder=unit(10,27,'infantry',1);
  check('回り込み中は前線を越えた敵に迎撃命令を出さない',!groundFrontBreach(facing,[intruder])&&flank.every(f=>!f.groundFrontEngagement));
@@ -411,8 +419,8 @@ function planCases(){
  fresh();const crossingTank=unit(20,25,'vehicle'),crossingPlan=[p(18,27),p(28,27)];
  const bank={pts:[p(18,31),p(28,31)],plan:{pts:crossingPlan,side:groundPlanSide(crossingPlan,crossingTank.pos)},via:new Map(),passed:new Map()};
  const crossingRoute=groundFrontRoutes(bank,[{f:crossingTank,dest:p(25.5,27),fraction:.75}],true)[0];
- check('回り込みの渡河は中継点・渡河点・持ち場の順を保つ',crossingRoute.path?.pts.length===3&&
-  crossingRoute.path.pts.every((q,i)=>groundPlanDistance(q,[p(29.5,28.5),north,p(25.5,27)][i])<1e-6));
+ check('回り込みの渡河は端の外の点・後ろの点・渡河点・持ち場の順を保つ',crossingRoute.path?.pts.length===4&&
+  crossingRoute.path.pts.every((q,i)=>groundPlanDistance(q,[p(29.5,27),p(29.5,28.5),north,p(25.5,27)][i])<1e-6));
 
  fresh();const queued=four(),queue=draw('deploy',queued,a,b);
  const firstStart=p(8,31),firstEnd=p(14,31),thirdStart=p(8,33),thirdEnd=p(14,33);

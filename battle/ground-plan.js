@@ -278,30 +278,47 @@ function groundFrontAssignCrossings(candidates,crossings,loads){
   }
   return edges.map(list=>list.find(({edge})=>!edge.cap).crossing);
 }
-const GROUND_FRONT_DETOUR_KM=1.5; // 仮: 計画線の端の外側と後ろにそれぞれ離す
-function groundFrontDetourRoute(L,side,{f,dest,fraction},via,kind){
+// 仮: 計画線の端の外側と後ろにそれぞれ離す距離と、回り込むあいだの隊の間隔（計画の線の上の間隔に掛ける）
+const GROUND_FRONT_DETOUR_KM=1.5,GROUND_FRONT_DETOUR_NARROW=.5;
+// lane: 端の外側へさらに離す距離（隊ごと）。後ろの列の隊は、その列の深さだけ後ろへ離す
+function groundFrontDetourRoute(L,side,{f,dest,fraction,offset=0},via,kind,lane=0){
   const first=fraction<.5,s=first?0:L.len,end=groundPlanAt(L,s),d=groundPlanDir(L,s,.5*GROUND_SCALE);
-  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1;
-  const target=new THREE.Vector3(end.x+(d.x*out+d.z*side)*distance,0,end.z+(d.z*out-d.x*side)*distance);
+  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+lane,back=distance+offset;
+  // まず線の端の延長の外（corner）まで出てから後ろ（target）へ回る。線の端の内側をかすめない
+  const corner=new THREE.Vector3(end.x+d.x*out*away,0,end.z+d.z*out*away);
+  const target=new THREE.Vector3(corner.x+d.z*side*back,0,corner.z-d.x*side*back);
+  const turn=groundPass(groundMapX(corner.x),groundMapY(corner.z),kind)?[corner]:[];
   const cell=groundData().meta.cellKm,x=Math.floor(groundMapX(target.x)/cell),y=Math.floor(groundMapY(target.z)/cell);
   const nearby=[];
   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)nearby.push(groundPoint((x+i+.5)*cell,(y+j+.5)*cell));
   nearby.sort((a,b)=>groundPlanDistance(a,target)-groundPlanDistance(b,target));
   for(const detourVia of [target,...nearby]){
     if(groundPlanNearest(L,detourVia).side!==-side||!groundPass(groundMapX(detourVia.x),groundMapY(detourVia.z),kind))continue;
-    const path=groundMovePath(f.pos,[detourVia,...via,dest],kind,true);
-    if(path)return {detourVia,path};
+    const path=groundMovePath(f.pos,[...turn,detourVia,...via,dest],kind,true);
+    if(path)return {detourVia,detourTurn:turn,path};
   }
   return null;
 }
 function groundFrontRoutes(front,slots,advance,fixed=[]){
   const wheel=advance&&front.plan?groundFrontWheel(front.advance?.from||front.pts,front.plan.pts):null;
   const planLine=advance&&front.plan?groundPlanLine(front.plan.pts):null;
+  // 回り込む隊は、端ごとに並び順と間隔を保つ（ユーザーの指示 2026-11-22「なんで一点で交わるんですか？狭まってもいいけどやりすぎでは？」）。
+  // 端に近い隊ほど外側を回る（行きも帰りも隊どうしが交差しない）。間隔は計画の線の上の間隔の GROUND_FRONT_DETOUR_NARROW 倍
+  const lanes=new Map();
+  if(planLine){
+    const turning=slots.filter(s=>groundPlanNearest(planLine,s.f.pos).side===front.plan.side);
+    for(const first of [true,false]){
+      const group=turning.filter(s=>(s.fraction<.5)===first);
+      const fromEnd=s=>{const along=groundPlanNearest(planLine,s.dest).s;return first?along:planLine.len-along;};
+      const far=Math.max(0,...group.map(fromEnd));
+      for(const s of group)lanes.set(s.f,(far-fromEnd(s))*GROUND_FRONT_DETOUR_NARROW);
+    }
+  }
   const routes=slots.map(s=>{
     const {f,dest}=s,kind=groundMoveKind(f);
     const via=advance?(front.via.get(f)||[]).slice(groundFrontViaIndex(front,f)):[];
     const detour=planLine&&groundPlanNearest(planLine,f.pos).side===front.plan.side&&
-      groundFrontDetourRoute(planLine,front.plan.side,s,via,kind);
+      groundFrontDetourRoute(planLine,front.plan.side,s,via,kind,lanes.get(f)||0);
     if(detour)return {...s,...detour};
     // 進撃は道路に寄らない短い道（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。前線への整列は今までどおり早く着く道
     const keepsPace=!front.advance?.detouring?.has(f);
@@ -353,7 +370,7 @@ function groundFrontRoutes(front,slots,advance,fixed=[]){
     const assigned=candidates.length===1?list.map(()=>candidates[0]):
       groundFrontAssignCrossings(list.map(r=>r.choices),candidates,loads);
     list.forEach(({route},i)=>{
-      const via=route.detourVia?[route.detourVia,assigned[i].pos]:[assigned[i].pos];
+      const via=route.detourVia?[...route.detourTurn,route.detourVia,assigned[i].pos]:[assigned[i].pos];
       const path=groundMovePath(route.f.pos,[...via,route.dest],groundMoveKind(route.f),advance);
       if(path&&(!route.detourVia||groundPlanNearest(planLine,path.points.at(-2)).side!==front.plan.side))route.path=path;
     });
