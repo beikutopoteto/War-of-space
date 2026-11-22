@@ -68,7 +68,8 @@ function groundPlanSide(pts,p,margin=0){
   const {d,side}=groundPlanNearest(L,p);return d<=margin?null:side||null;
 }
 const GROUND_PLAN_FRONT=new Set(['infantry','heavyInfantry','commando','vehicle','was','mechanicalAssault','scout']);
-const GROUND_PLAN_ROW_KM=1,GROUND_FRONT_SINGLE_KM=1,GROUND_FRONT_BREACH_KM=3,GROUND_FRONT_LOST_SEC=30;
+// 後ろの列（自走砲・補給など）の深さ（ユーザーの指示 2026-11-22「もう少し下げてください」で1kmから2km。仮）
+const GROUND_PLAN_ROW_KM=2,GROUND_FRONT_SINGLE_KM=1,GROUND_FRONT_BREACH_KM=3,GROUND_FRONT_LOST_SEC=30;
 const GROUND_FRONT_CHECK_SEC=.5,GROUND_FRONT_SAMPLES=64;
 const groundPlanDistance=(p,q)=>Math.hypot(p.x-q.x,p.z-q.z);
 function groundFrontPresent(front){return front.members.filter(f=>!f.groundFrontAway&&!groundFrontBusy(f,front));}
@@ -616,7 +617,9 @@ function groundFrontBreach(front,enemies){
     const {d,s,side}=groundPlanNearest(L,target.pos);
     if(side!==-front.side||d>GROUND_FRONT_BREACH_KM*GROUND_SCALE||s<=1e-6||s>=L.len-1e-6)continue;
     let chosen=null,closest=Infinity;
-    for(const f of present){
+    // 後ろの列は、前線が後ろの列だけのときしか迎え撃ちに出さない（ユーザーの指示 2026-11-22「単独のとき以外は前線の判定に入れないでください」）
+    const responders=present.some(f=>GROUND_PLAN_FRONT.has(f.groundKind))?present.filter(f=>GROUND_PLAN_FRONT.has(f.groundKind)):present;
+    for(const f of responders){
       const distance=groundPlanDistance(f.pos,target.pos);
       if(!f.groundFrontAway&&distance<closest&&groundManualTargetAllowed(f,target)){chosen=f;closest=distance;}
     }

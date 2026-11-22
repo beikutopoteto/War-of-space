@@ -122,8 +122,8 @@ function planCases(){
  fresh();const tank=unit(9,27,'vehicle'),inf=unit(12),gun=unit(11,27,'artillery');
  const twoRows=draw('plan',[tank,inf,gun],d,c),slots=prepared(twoRows);
  check('逆向きの計画線を前線と同じ並び向きに揃える',groundPlanDistance(twoRows.pts[0],twoRows.plan.pts[0])<groundPlanDistance(twoRows.pts[0],twoRows.plan.pts.at(-1)));
- check('前列は計画線の上、後列は前の反対側へ1km',slots.filter(s=>s.f!==gun).every(s=>Math.abs(s.dest.z-c.z)<1e-6)&&
-   slots.some(s=>s.f===gun&&Math.abs(s.dest.z-c.z-GROUND_SCALE)<1e-6));
+ check('前列は計画線の上、後列は前の反対側へ2km',slots.filter(s=>s.f!==gun).every(s=>Math.abs(s.dest.z-c.z)<1e-6)&&
+   slots.some(s=>s.f===gun&&Math.abs(s.dest.z-c.z-GROUND_PLAN_ROW_KM*GROUND_SCALE)<1e-6)&&GROUND_PLAN_ROW_KM===2);
  groundPlanExecute();tank.speed=4;gun.speed=1.5;
  check('進撃は同じ組のいちばん遅い隊に速さを合わせる',tank.order?.groundAdvance===gun.order?.groundAdvance&&groundAdvanceSpeed(tank)===speedOf(gun));
  gun.alive=false;check('倒れた隊は進撃の速さに数えない',groundAdvanceSpeed(tank)===speedOf(inf));gun.alive=true;
@@ -642,6 +642,19 @@ function planCases(){
     return x<lo-1e-6||x>hi+1e-6;
    });
   }));
+ }
+ // 後ろの列は、前線が後ろの列だけのときしか前線を越えた敵へ向かわない
+ {
+  fresh();const mixed=[unit(9,27,'artillery'),unit(12,27,'infantry')];
+  const line=draw('deploy',mixed,a,b);finish(mixed);tick();
+  const near=unit(10.5,27.4,'infantry',1);
+  groundFrontBreach(line,[near]);
+  const sentFront=mixed[1].groundFrontEngagement?.target===near&&!mixed[0].groundFrontEngagement;
+  fresh();const alone=[unit(9,27,'artillery'),unit(12,27,'supply')];
+  const back=draw('deploy',alone,a,b);finish(alone);tick();
+  const near2=unit(10.5,27.4,'infantry',1);
+  groundFrontBreach(back,[near2]);
+  check('前線を越えた敵へは前の列が向かい、後ろの列だけの前線なら後ろの列が向かう',sentFront&&alone.some(f=>f.groundFrontEngagement?.target===near2));
  }
  return rows;
 }
