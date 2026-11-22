@@ -74,7 +74,7 @@ function formationCases(){
  formationTick(2);check('通常移動到着後は待機',units.every(f=>!f.order&&groundFormationState(f)==='idle'));
  check('歩く形と立つ形の座標一致',units.filter(f=>f.groundModel.userData.pose).every(f=>{const p=f.groundModel.userData.pose;return p.move.every((m,i)=>m.every(b=>b.position.equals(p.stand[i].position)&&b.rotation.equals(p.stand[i].rotation)));}));
  document.getElementById('groundHold').click();formationTick(.5);check('停止・防衛は防衛',units.every(f=>groundFormationState(f)==='defend'));
- groundPlanToggle('plan');groundPlanTap(groundPoint(8,30));groundPlanTap(groundPoint(14,30));groundPlanExecute();formationTick(.15,true);
+ groundPlanToggle('plan');groundPlanTap(groundPoint(8,30));groundPlanTap(groundPoint(14,30));groundPlanTap(groundPoint(11,31));groundPlanExecute();formationTick(.15,true);
  check('計画実行で侵攻',units.every(f=>f.order?.groundAdvance&&groundFormationState(f)==='advance'));
  for(let i=0;i<2000&&units.some(f=>f.order);i++)formationTick(.05,true);formationTick(.5);
  check('侵攻到着も防衛',units.every(f=>f.groundDeployed&&groundFormationState(f)==='defend'));

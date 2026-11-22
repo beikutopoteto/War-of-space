@@ -32,7 +32,7 @@ async function main(){
   await page.evaluate(()=>{WOS.start({op:'groundExercise2'});formationScene();formationTick(2);});await shot(page,'idle');
   await page.evaluate(()=>{document.getElementById('groundHold').click();formationTick(2);});await shot(page,'defend');
   await page.evaluate(()=>{
-   groundPlanToggle('plan');groundPlanTap(groundPoint(8,32));groundPlanTap(groundPoint(14,32));groundPlanExecute();formationTick(1.2,true);
+   groundPlanToggle('plan');groundPlanTap(groundPoint(8,32));groundPlanTap(groundPoint(14,32));groundPlanTap(groundPoint(11,33));groundPlanExecute();formationTick(1.2,true);
    if(!orderTargets().every(f=>groundFormationState(f)==='advance'))throw Error('侵攻になっていない');
   });await shot(page,'advance');
   await page.evaluate(()=>{

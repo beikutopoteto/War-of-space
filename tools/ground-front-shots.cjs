@@ -51,6 +51,7 @@ async function setup(page,river=false){
     if(!units.every(f=>f.groundFrontOf))throw new Error('前線の作成に失敗');
     for(let i=0;i<4400&&units.some(f=>f.order);i++)step(.05);
     groundPlanToggle('plan');groundPlanLineDone(plan,null);
+    groundPlanTap(plan[0]);
     if(!units[0].groundFrontOf.plan)throw new Error('進撃計画の作成に失敗');
     window.demo={front:units[0].groundFrontOf,units};
     const brief=document.querySelector('[data-tab="brief"]');
@@ -127,6 +128,7 @@ async function captureCorridor(browser,version){
     setSel(units);groundPlanToggle('deploy');groundPlanLineDone(line,null);groundPlanFinish(line,p(24,22));
     for(let i=0;i<100&&units.some(f=>f.order);i++)step(.05);
     groundPlanToggle('plan');groundPlanLineDone(plan,null);
+    groundPlanTap(plan[0]);
     if(!units[0].groundFrontOf?.plan)throw Error('進撃計画を作れませんでした: '+groundPlanMessage);
     window.demo={units};
     const brief=document.querySelector('[data-tab="brief"]');

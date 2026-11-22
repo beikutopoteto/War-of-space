@@ -795,7 +795,7 @@ function groundMovePath(from,waypoints,kind,straight=false){
 function groundAdvanceSpeed(f){
   const g=f.order?.groundAdvance,own=speedOf(f);if(!g?.units)return own;
   let slowest=own;for(const u of g.units)if(u!==f&&u.alive&&u.order?.groundAdvance===g&&groundMoveKind(u)!=='air')slowest=Math.min(slowest,speedOf(u));
-  return slowest;
+  return slowest*(f.order.groundAdvancePace??1); // 前線が向きを変える進撃は、内側の隊ほど遅い（ground-plan.js groundFrontRoutes）
 }
 function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f),p.straight);if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=groundAdvanceSpeed(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
     /* 経路は検査点（セルの1/8ごと）で確かめるので、検査点のあいだに細い水際が残ることがある（橋の端の角など）。
