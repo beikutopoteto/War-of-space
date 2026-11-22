@@ -126,6 +126,8 @@ function exoParts(kind,pose,msl=false){ const heavy=kind===true, cmd=kind==='c',
   else p.push(tone(at(box(.1,.13,.36),G[0],G[1],G[2]+.08),DK), tone(at(tube(.06,.3,6),G[0],G[1],G[2]+.4),.6), tone(at(tube(.04,.5,6),G[0],G[1],G[2]+.78),DK), tone(at(tube(.058,.1,6),G[0],G[1],G[2]+1.06),DK),
     tone(at(box(.03,.03,.24),G[0]+.05,G[1]+.13,G[2]+.18),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.08),DK), tone(at(box(.03,.08,.03),G[0]+.05,G[1]+.09,G[2]+.28),DK),
     tone(segG(W([-.12,.97,-.22]),[G[0],G[1]+.02,G[2]-.06],.03,.03,5),DK));
+  p.muzzle=msl?W([0,1.89,-.06]):rifle?rifle[1]:[G[0],G[1]+(heavy?0:.03),G[2]+(heavy?1.11:cmd?1.01:.62)];
+  if(heavy){for(const g of p)g.scale(1.12,1.12,1.12);p.muzzle=p.muzzle.map(v=>v*1.12);}
   return p; }
 /* a tuft of a ghillie suit: an uneven faceted lump, its shape and tone fixed by where it sits */
 function tuftG(x,y,z,r){ const g=new THREE.IcosahedronGeometry(r,0), q=g.attributes.position; let h=Math.abs(Math.sin(x*91.7+y*57.3+z*33.1+r*17))*1e4;
@@ -348,6 +350,7 @@ const WAS_POSE=(()=>{
   /* the walk with the shield down (user 2026-11-19: the shield is held before the body only in pursuit and advance): the legs of
      the walk, the upper body and the left arm and shield as when standing, both arms swinging a little against the legs */
   const march=(l,r,hy,sw)=>({hy,lean:.3,ank:[l,r],foot:[l[1]>.14&&l[2]<0?.5:0,r[1]>.14&&r[2]<0?.5:0], elR:[-.025,-.13,-.02+sw*.05], wrR:[0,sw*.02,.36], elL:[.025,-.13,-.02-sw*.05], wrL:[.03,-.2-sw*.02,.27-sw*.03]});
+  const flyMove={lean:.58,lean0:.4,ank:[[.17,.3,-.52],[-.17,.3,-.52]],foot:[1.3,1.3]};
   return { wasWalk1:step([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasWalk2:step([.22,.13,.03],[-.21,.27,.02],0,.3),
     wasWalk3:step([.22,.17,-.2],[-.22,.13,.24],-.03,-1), wasWalk4:step([.21,.27,.02],[-.22,.13,.03],0,-.3),
     wasMarch1:march([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasMarch2:march([.22,.13,.03],[-.21,.27,.02],0,.3),
@@ -355,7 +358,7 @@ const WAS_POSE=(()=>{
     wasFire:{hy:-.13,lean:.36,ank:[[.28,.13,.22],[-.28,.13,-.26]],foot:[0,.12], ...G, ...REST},
     wasFly:{lean:.22,lean0:.05,ank:[[.2,.1,-.14],[-.2,.1,-.14]],foot:[.75,.75], wrL:[.03,-.24,.22]},
     wasFlyFire:{lean:.3,lean0:.08,ank:[[.4,.26,-.04],[-.4,.26,-.04]],foot:[.45,.45],thr:-.8, ...G, ...REST},
-    wasFlyMove:{lean:.58,lean0:.4,ank:[[.17,.3,-.52],[-.17,.3,-.52]],foot:[1.3,1.3], ...G},
+    wasFlyMove:{...flyMove, ...G}, wasFlyMarch:flyMove,
     wasFlyUp:{lean:.12,lean0:0,ank:[[.16,.04,-.06],[-.16,.04,-.06]],foot:[1.1,1.1], wrL:[.03,-.27,.17]},
     wasFlyDown:{lean:.05,lean0:-.1,ank:[[.22,.25,.3],[-.22,.25,.3]],foot:[.25,.25], wrL:[.05,-.16,.3]} }; })();
 /* the assault machine: step 1 or -1 says which foot is ahead */
@@ -365,6 +368,7 @@ function mechParts(step){ const p=[], T=.4;
     p.push(segG(hip,knee,.06,.045), segG(knee,ank,.04,.03), tone(discG(hip[0],hip[1],hip[2],.07,.08),DK), tone(discG(knee[0],knee[1],knee[2],.05,.07),DK), tone(discG(ank[0],ank[1],ank[2],.045,.07),DK), at(box(.12,.06,.26),ank[0],ank[1]-.065,ank[2]+.05)); }
   p.push(at(loft([[-.3,.13,.09],[.05,.19,.14],[.42,.1,.07,-.03]],HEX),0,.93,0), tone(at(box(.16,.03,.03),0,.93,.4),GL), tone(at(box(.1,.14,.2),0,1.05,-.18),.6),
     ...pair(at(box(.07,.1,.24),.22,.93,.05)), ...pair(tone(at(tube(.028,.42,5),.22,.92,.38),DK)), tone(at(box(.3,.05,.08),0,.84,-.05),DK), tone(at(box(.02,.3,.02),.035,1.25,-.2),DK));
+  p.muzzle=[.22,.92,.59];
   return p; }
 /* sea ships (docs/models.md 13): the space ships changed a little for the sea. SEA: the hull's cross-section — a flat deck,
    sides that lean in above a knuckle and flare below it, a flat bottom; lofted with half-height .1 and y offset .03 the deck
@@ -699,8 +703,8 @@ const GROUND_SHAPES={
   /* 強化歩兵: about 2 m tall. W: moving, F: standing or fighting */
   infW:()=>exoParts(false,'walk'), infW2:()=>exoParts(false,'walk2'), infF:()=>exoParts(false,'fight'),
   /* 重強化歩兵: the same frame a little bigger, armoured all over (user decision 2026-11-12) */
-  hinfMsl:()=>exoParts(true,'walk',true).map(g=>g.scale(1.12,1.12,1.12)),
-  hinf:()=>exoParts(true,'walk').map(g=>g.scale(1.12,1.12,1.12)), hinf2:()=>exoParts(true,'walk2').map(g=>g.scale(1.12,1.12,1.12)),
+  hinfMsl:()=>exoParts(true,'walk',true),
+  hinf:()=>exoParts(true,'walk'), hinf2:()=>exoParts(true,'walk2'),
   /* 強化コマンド歩兵: the soldier who uses the ground. A ghillie suit instead of the power unit, a long rifle; W: moving in a low
      crouch, F: kneeling to shoot */
   cmdW:()=>exoParts('c','walk'), cmdW2:()=>exoParts('c','walk2'), cmdF:()=>exoParts('c','fight'),
@@ -1333,4 +1337,10 @@ function groundTurretRig(key){ if(!Object.prototype.hasOwnProperty.call(GROUND_S
 const _tp=[new THREE.Matrix4(),new THREE.Matrix4(),new THREE.Matrix4()];
 function groundTurretPose(t,yaw,el,house,gun){ const [R,A,B]=_tp; R.makeRotationY(yaw); house.copy(t.M).multiply(R).multiply(t.Mi);
   gun.copy(t.M).multiply(R).multiply(A.makeTranslation(t.pivot.x,t.pivot.y,t.pivot.z)).multiply(B.makeRotationX(-(el-t.built))).multiply(A.makeTranslation(-t.pivot.x,-t.pivot.y,-t.pivot.z)).multiply(t.Mi); }
-function groundShapeGeo(key,mono=false){ return Object.prototype.hasOwnProperty.call(GROUND_SHAPES,key)?groundJoin(GROUND_SHAPES[key](),mono):null; }
+function groundShapeGeo(key,mono=false){
+  if(!Object.prototype.hasOwnProperty.call(GROUND_SHAPES,key))return null;
+  const parts=GROUND_SHAPES[key](),geo=groundJoin(parts,mono);
+  if(parts.muzzle)geo.userData.muzzle=parts.muzzle;
+  if(parts.nozzles)geo.userData.nozzles=parts.nozzles.slice(-2); // 背中の2基。脚の噴射口は見本用。
+  return geo;
+}

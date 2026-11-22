@@ -183,7 +183,7 @@ function groundTransportDestroyed(f,src){
   groundUnload(f,true);
   groundBodiesSpread(passenger,(passenger.groundMaxHp||passenger.n*passenger.hp)*groundTransportRules().wreckLoss);
   const want=Math.max(0,Math.ceil(passenger.hpPool/passenger.hp));
-  while(passenger.ships.length>want){const s=passenger.ships.pop();burst(s.pos,TEAM_COL[passenger.team],16,7,.9);}
+  while(passenger.ships.length>want){const s=passenger.ships.pop();if(!passenger.bodies)groundVisualLoss(passenger,s.pos);}
   if(!want)destroyFleet(passenger,src);
 }
 function groundTransportSync(){

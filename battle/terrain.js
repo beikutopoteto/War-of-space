@@ -323,7 +323,18 @@ function groundSetup(id){
   if(typeof groundSightReset==='function')groundSightReset();
   if(typeof groundBallisticReset==='function')groundBallisticReset();
   if(groundWaterMaterial){ groundWaterMaterial.uniforms.mask.value.dispose(); groundWaterMaterial=null; }
-  if(groundBoard){ scene.remove(groundBoard); groundBoard.traverse(o=>{if(o.geometry)o.geometry.dispose(); if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose();}}); groundBoard=null; }
+  if(groundBoard){
+    if(typeof groundFxReset==='function')groundFxReset();
+    scene.remove(groundBoard);
+    const geometries=new Set();
+    groundBoard.traverse(o=>{
+      if(o.geometry)geometries.add(o.geometry);
+      for(const g of o.userData.geometries||[])geometries.add(g);
+      if(o.material){if(o.material.map)o.material.map.dispose();o.material.dispose();}
+    });
+    for(const g of geometries)g.dispose();
+    groundBoard=null;
+  }
   groundForests=[]; groundBuildings=[];
   const active=!!id; groundConfigure(active);
   grid.visible=!active; starField.visible=!active; skyObj.visible=!active; fieldRocks.visible=!active; debrisObj.visible=!active; cloudObj.visible=!active; if(active) farPlanet.visible=false;

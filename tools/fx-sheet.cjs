@@ -145,7 +145,8 @@ function fxPage(){
           F.add(GFX.muzzle(1,{smokeK:1.6,life:.16,side:true}),m,V(m.x,m.y+.5,m.z+1),t); F.add(GFX.shot(arc(m,end,10),2,'shell',.22),null,null,t); F.add(GFX.blast(10),end,null,t+2); } }},
       {label:'戦車',text:'直射。砲口の光と砲煙、速い光の筋、当たった所に小さな輪と土ぼこり。',dist:20,pitch:.3,period:3.2,
         setup(){ this.a=place('vehicle',0,-7,1); this.b=place('vehicle',1,7,-1); }, fire(now){ this.a.forEach((u,i)=>{ const t=now+i*.45, m=u.muzzle(.8), tg=this.b[i%this.b.length], end=V(tg.pos.x+rnd(.3),.3,tg.pos.z-.4);
-          F.add(GFX.muzzle(.45,{smokeK:1,side:true}),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.16,'tracer',.12),null,null,t); F.add(GFX.blast(2,{smokeK:.7}),end.clone().setY(0),null,t+.16); }); }},
+          const {muzzleSize,muzzleOptions,tracerSize,duration,impactRadius,impactSmoke}=GFX.tank;
+          F.add(GFX.muzzle(muzzleSize,muzzleOptions),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),duration,'tracer',tracerSize),null,null,t); F.add(GFX.blast(impactRadius,{smokeK:impactSmoke}),end.clone().setY(0),null,t+duration); }); }},
       {label:'歩兵',text:'小銃の細い筋と、当たった所の小さな土ぼこり。',dist:11,pitch:.28,period:1.5,
         setup(){ this.a=place('infantry',0,-3.5,1); this.b=place('infantry',1,3.5,-1); }, fire(now){ for(const u of this.a) for(let k=0;k<3;k++){ const t=now+Math.random()*1.2+k*.09, m=u.muzzle(.8), end=V(rnd(1.6),.05+Math.random()*.3,3.5+rnd(.6));
           F.add(GFX.muzzle(.07),m,V(m.x,m.y,m.z+1),t); F.add(GFX.shot(line(m,end),.12,'tracer',.035),null,null,t); F.add(GFX.hit(.1,{sparks:false}),end.clone().setY(0),null,t+.12); } }},

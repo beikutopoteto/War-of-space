@@ -23,7 +23,7 @@ CLAUDE.md の「ファイルと動かし方」の詳しい版。コードを触�
   2.5 `base.js` 第5節の総基地のゲート（八角形のふた、状態の帯、塞いだ瓦礫）と強化歩兵の点・撃つ見た目（2026-10-16。共和国の強化歩兵の赤い点 `drawTroops` は 2026-10-18。描くだけ。シールド・塞ぐ・守備隊の仕組みは `sim.js`）。地表の砲台の案I（`pitBuild`・`pitDraw`: 竪穴をステンシルで岩に見せる、向きと仰角、砲台の強化歩兵。2026-10-17。仰角の制限 `pitCan` と砲台の歩兵の射撃は `sim.js`。後処理の描画先にステンシルを持たせたのは `scene.js`）
   3. `shapes.js` 艦と小型機と地表の砲台・推進器の形（艦の古い形は、地上の画面の海の戦闘母艦・突撃揚陸艦がまだ使う。準備画面のドックは 2026-11-14 から新しい形）
   3.1 `ground-shapes.js` 地上・航空・海上・宇宙の艦の模型、編隊 `GROUND_FORMS`、陣営別の `groundModelFor(kind, side)` と見本用の `kind[@side]:key:size:form` 差し替え。採用表 `GROUND_MODELS`（地上）と `SPACE_MODELS`（宇宙の艦。地球 `sp*`、共和国 `sp*M`）。表にない兵科は従来の形を使う。W.A.S. の姿勢 `WAS_POSE`、車両の砲塔 `GROUND_RIG`・`groundRig`、艦の砲塔 `groundTurretRig`・`groundTurretPose`（`docs/models.md` 17）。
-  3.2 `ground-fx.js` 地上の効果 `GFX`（爆風・砲口・弾・煙・噴射）。**まだ index.html で読み込んでいない**（見本 `tools/fx-sheet.cjs` だけが使う。次の見た目の作業でつなぐ）。
+  3.2 `ground-fx.js` 地上の効果 `GFX`（爆風・砲口・弾・煙・噴射）。見本 `tools/fx-sheet.cjs` とゲームの両方が使用する。続く `ground-visuals.js` は地上戦の砲口、車両の砲塔、姿勢、効果の表示と破棄を扱う。
   4. `units.js` 名札・メッシュ・軌跡。宇宙の艦の `shipMeshes` は平らな面と頂点の色、共和国の形は `<艦種>@mars` の鍵で、`shipMeshKey(f,type)` が選ぶ。砲塔を持つ艦は `shipRigs`（艦体 `shipHullMeshes`、砲塔 `turretMeshes`。寄った画面で撃っている艦だけ分けて描く。描き方と狙いは `loop.js` の `drawShip`、確かめは `tests/ship-turrets.cjs`）。宇宙の W.A.S. は地上の形の飛行の3姿勢（`wasSpaceGeos`）
   5. `state.js` 状態・艦隊生成・ロスター・`reset()`・戻す
   6. `hud.js` パネル・任務欄・会話・命令・視点・入力・メニュー
