@@ -1,4 +1,4 @@
-/* 作業票 #493: node tools/ground-route-nested-shots.cjs */
+/* 作業票 #494: node tools/ground-route-first-shots.cjs */
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -20,15 +20,24 @@ const {setupGroundRouteEdit,routeEditMapPoints}=require('../tests/ground-plan.cj
   };
   const capture=async name=>{
     await rendered();
-    const file=path.join(out,'route-nested-'+name+'.png');
+    const file=path.join(out,'route-first-'+name+'.png');
     await page.screenshot({path:file});
     assert.deepEqual(errors,[]);
     console.log(file);
   };
+  const groups=()=>page.evaluate(()=>{
+    const routes=groundPlanPreview(window.routeEditDemo),byPoint=new Map();
+    for(const {detourVia:p,path} of routes){
+      if(!p||path?.pts.length!==2)throw Error('中継点が1つの経路を撮影できません');
+      const key=[p.x,p.z].join(',');
+      byPoint.set(key,(byPoint.get(key)||0)+1);
+    }
+    return [...byPoint.values()].sort();
+  });
   try{
     await setupGroundRouteEdit(page,7);
     await frame();
-    assert.equal(await page.evaluate(()=>groundPlanPreview(window.routeEditDemo).filter(r=>r.detourVia).length),7);
+    assert.deepEqual(await groups(),[3,4]);
     await page.locator('#groundEdit').click();
     await capture('both-7');
 
@@ -37,18 +46,10 @@ const {setupGroundRouteEdit,routeEditMapPoints}=require('../tests/ground-plan.cj
     const {plan}=await routeEditMapPoints(page);
     await page.mouse.click(plan.x,plan.y);
     await page.locator('#groundEditPick [data-action="detour-left"]').click();
-    assert.equal(await page.evaluate(()=>groundPlanPreview(window.routeEditDemo).filter(r=>r.lane?.first&&r.detourVia).length),4);
+    assert.equal(await page.evaluate(()=>window.routeEditDemo.plan.detour),'left');
+    assert.deepEqual(await groups(),[4]);
     await page.locator('#groundEdit').click();
     await capture('left-4');
 
-    await page.locator('#groundEdit').click();
-    const {handle,second}=await routeEditMapPoints(page);
-    await page.keyboard.down('Shift');
-    try{
-      for(const p of [handle,second])await page.mouse.click(p.x,p.y);
-    }finally{await page.keyboard.up('Shift');}
-    await page.mouse.move(800,200);
-    assert.equal(await page.evaluate(()=>groundEditSelected.length),2);
-    await capture('selected-2');
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

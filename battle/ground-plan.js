@@ -280,8 +280,7 @@ function groundFrontAssignCrossings(candidates,crossings,loads){
   }
   return edges.map(list=>list.find(({edge})=>!edge.cap).crossing);
 }
-// 仮: 計画線の端の外側と後ろにそれぞれ離す距離と、回り込むあいだの隊の間隔（計画の線の上の間隔に掛ける）
-const GROUND_FRONT_DETOUR_KM=1.5,GROUND_FRONT_DETOUR_NARROW=.5;
+const GROUND_FRONT_DETOUR_KM=1.5; // 仮: 計画線の端の外側と後ろにそれぞれ離す
 function groundPlanAdvanceSlots(front,plan=front.plan,members=groundFrontPresent(front)){
   return groundPlanDetourSlots(front,plan,groundPlanSlots(members,plan.pts,plan.side));
 }
@@ -289,107 +288,55 @@ function groundPlanDetourSlots(front,plan,slots){
   const L=groundPlanLine(plan.pts),from=groundPlanLine(front.advance?.from||front.pts);
   const nearSide=groundPlanNearest(L,groundPlanAt(from,from.len/2)).side||plan.side;
   const mode=plan.detour||'both',firstLeft=nearSide===1;
-  const origin=f=>front.advance?.origins?.get(f)||f.pos;
-  const turning=slots.filter(({f})=>groundPlanNearest(L,origin(f)).side===plan.side);
-  const assignments=new Map(),distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE;
+  const out=slots.map(s=>{
+    const {f,fraction}=s,origin=front.advance?.origins.get(f)||f.pos;
+    if(front.custom.has(f)||groundPlanNearest(L,origin).side!==plan.side)return s;
+    const detourFirst=mode==='both'?fraction<.5:mode==='left'?firstLeft:!firstLeft;
+    return {...s,detourFirst};
+  });
+  // 中継点は1か所に重ねず、少しずつ並べる（ユーザーの指示 2026-11-22「ただ一点で重なるのではなく、少しそこは少し並べてください矢印を」）。
+  // 端に近い持ち場の隊ほど外側（並びの順を保ち、矢印が交差しない）
   for(const first of [true,false]){
-    const group=turning.filter(s=>first===(mode==='both'?s.fraction<.5:mode==='left'?firstLeft:!firstLeft));
-    const end=first?0:L.len,dir=groundPlanDir(L,end,.5*GROUND_SCALE);
-    const fromEnd=s=>Math.abs(s.fraction*L.len-end);
-    const at=p=>p.x*dir.x+p.z*dir.z;
-    const automatic=[];
-    for(const row of new Set(group.map(s=>s.offset))){
-      const seats=group.filter(s=>s.offset===row).sort((a,b)=>fromEnd(b)-fromEnd(a));
-      // 手直しした隊は元の持ち場を予約し、自動の割り当てと幅の計算から外す。
-      const members=seats.filter(({f})=>!front.custom?.has(f));
-      for(const s of seats.filter(({f})=>front.custom?.has(f))){
-        const fraction=front.custom.get(s.f).fraction??s.fraction;
-        const seat=seats.reduce((best,q)=>Math.abs(q.fraction-fraction)<Math.abs(best.fraction-fraction)?q:best);
-        seats.splice(seats.indexOf(seat),1);
-        assignments.set(s.f,{...seat,f:s.f});
-      }
-      members.sort((a,b)=>(first?1:-1)*(at(origin(a.f))-at(origin(b.f))));
-      automatic.push(...members.map(({f},i)=>({...seats[i],f})));
-    }
-    const nearest=Math.min(...automatic.map(fromEnd));
-    const lanes=automatic.sort((a,b)=>fromEnd(b)-fromEnd(a)).map(s=>({
-      ...s,lane:{first,width:(fromEnd(s)-nearest)*GROUND_FRONT_DETOUR_NARROW}
-    }));
-    const frontRow=lanes.filter(s=>!s.offset),mixed=frontRow.length>0&&frontRow.length<lanes.length;
-    if(mixed){
-      // 後列は出発線で自分のレーンに入る。帰りは内側のレーンの曲がり角より後ろを通る。
-      let inner=null;
-      for(const s of [...lanes].reverse()){
-        const {lane,offset}=s;
-        lane.returnDepth=Math.max(distance+lane.width+offset,
-          inner?inner.returnDepth+lane.width-inner.width:0);
-        inner=lane;
-      }
-      const gaps=new Map();
-      for(const s of lanes.filter(s=>s.offset)){
-        const i=frontRow.findIndex(q=>q.lane.width<s.lane.width);
-        if(!gaps.has(i))gaps.set(i,[]);
-        gaps.get(i).push(s);
-      }
-      for(const [i,entries] of gaps){
-        const before=i===0?from.pts[first?0:from.pts.length-1]:origin(frontRow[(i<0?frontRow.length:i)-1].f);
-        const after=i<0?from.pts[first?from.pts.length-1:0]:origin(frontRow[i].f);
-        entries.forEach(({lane},j)=>{
-          lane.entry=new THREE.Vector3().lerpVectors(before,after,(j+1)/(entries.length+1));
-        });
-      }
-    }
-    for(const s of lanes)assignments.set(s.f,s);
+    const group=out.filter(s=>s.detourFirst===first).sort((a,b)=>(first?1:-1)*(b.fraction-a.fraction));
+    group.forEach((s,i)=>{s.detourSpread=i*GROUND_FRONT_DETOUR_SPREAD_KM*GROUND_SCALE;});
   }
-  return slots.map(s=>assignments.get(s.f)||s);
+  return out;
 }
-function groundFrontDetourRoute(L,side,{f,dest,offset=0,lane},kind,front){
-  const {first,width,entry,returnDepth}=lane;
+const GROUND_FRONT_DETOUR_SPREAD_KM=.3; // 仮: 同じ端の中継点どうしの間隔
+function groundFrontDetourPath(L,side,from,via,dest,kind,shallow=false){
+  const path=groundMovePath(from,[...via,dest],kind,true);
+  if(!path||groundPlanNearest(L,path.points.at(-2)).side!==-side)return null;
+  // 浅い中継点を使うときは、最終区間だけでなく手前の区間も計画線を横切らないことを確かめる。
+  if(shallow&&path.points.some((p,i)=>i&&L.pts.some((q,j)=>j&&
+    groundFrontEdgesCross(path.points[i-1],p,L.pts[j-1],q))))return null;
+  return path;
+}
+function groundFrontDetourRoute(L,side,{f,dest,detourFirst:first,detourSpread=0},kind,front){
+  if(groundPlanNearest(L,f.pos).side!==side){
+    const previous=front.advance&&front.slots.find(s=>s.f===f);
+    const order=f.order?.groundAdvance===f.groundFrontOf?.advance?.group?f.order:null;
+    const remaining=order?.path?(groundFlyingAircraft(f)?groundFrontAirWaypoints(order):pathLeft(order)):[];
+    // 中継点を過ぎた隊は、離脱などで持ち場が変わっても引き返さない。
+    if(!previous?.detourVia||!remaining.some(q=>groundPlanDistance(q,previous.detourVia)<1e-6))return null;
+  }
   const s=first?0:L.len,end=groundPlanAt(L,s),d=groundPlanDir(L,s,.5*GROUND_SCALE);
-  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+width;
-  const corner=new THREE.Vector3(end.x+d.x*out*away,0,end.z+d.z*out*away);
-  const normal=new THREE.Vector3(-d.z*side,0,d.x*side);
-  const depth=away+offset,target=corner.clone().addScaledVector(normal,-depth);
-  const previous=front.advance&&front.slots.find(s=>s.f===f);
-  const order=previous&&f.order?.groundAdvance===f.groundFrontOf?.advance?.group?f.order:null;
-  const remaining=order?.path?(groundFlyingAircraft(f)?groundFrontAirWaypoints(order):pathLeft(order)):[];
-  const ahead=p=>p&&remaining.some(q=>groundPlanDistance(p,q)<1e-6);
-  const onFront=groundPlanNearest(L,f.pos).side===side;
-  const pass=p=>groundPass(groundMapX(p.x),groundMapY(p.z),kind);
-  const turn=[];
-  if(onFront&&entry&&(!previous?.lane?.entry||ahead(previous.lane.entry))&&pass(entry))turn.push(entry);
-  if(onFront&&pass(corner))turn.push(corner);
-  const back=[];
-  if(returnDepth){
-    if(returnDepth>depth+1e-6)back.push(corner.clone().addScaledVector(normal,-returnDepth));
-    const destDepth=(end.x-dest.x)*normal.x+(end.z-dest.z)*normal.z;
-    back.push(dest.clone().addScaledVector(normal,destDepth-returnDepth));
-  }
-  if(!onFront&&previous&&!ahead(previous.detourVia)){
-    // 後ろの点を通過した隊は、離脱などで持ち場がずれても外側の角へ引き返さない。
-    const detourBack=(previous.detourBack||[]).filter(ahead);
-    if(detourBack.length&&back.length)detourBack[detourBack.length-1]=back.at(-1);
-    const path=groundMovePath(f.pos,[...detourBack,dest],kind,true);
-    return {detourBack,path};
-  }
-  const cell=groundData().meta.cellKm,x=Math.floor(groundMapX(target.x)/cell),y=Math.floor(groundMapY(target.z)/cell);
-  const nearby=[];
+  const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+detourSpread;
+  const rear=depth=>new THREE.Vector3(end.x+d.x*out*away+d.z*side*depth,0,end.z+d.z*out*away-d.x*side*depth);
+  const target=rear(distance),cell=groundData().meta.cellKm;
+  const x=Math.floor(groundMapX(target.x)/cell),y=Math.floor(groundMapY(target.z)/cell),nearby=[];
   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)nearby.push(groundPoint((x+i+.5)*cell,(y+j+.5)*cell));
   nearby.sort((a,b)=>groundPlanDistance(a,target)-groundPlanDistance(b,target));
-  for(const detourVia of [target,...nearby]){
-    if(groundPlanNearest(L,detourVia).side!==-side||!pass(detourVia))continue;
-    const path=groundMovePath(f.pos,[...turn,detourVia,...back,dest],kind,true);
-    if(path&&groundPlanNearest(L,path.points.at(-2)).side===-side)return {detourVia,detourTurn:turn,detourBack:back,path};
+  const tryPoint=(detourVia,shallow=false)=>{
+    if(groundPlanNearest(L,detourVia).side!==-side||!groundPass(groundMapX(detourVia.x),groundMapY(detourVia.z),kind))return null;
+    const path=groundFrontDetourPath(L,side,f.pos,[detourVia],dest,kind,shallow);
+    return path?{detourVia,path,shallow}:null;
+  };
+  for(const p of [target,...nearby]){
+    const route=tryPoint(p);if(route)return route;
   }
-  // 深い後ろの点や入口が通れない（地図の端・水）ときも、計画の線を突っ切らない:
-  // 後ろの点を段々浅くして（いちばん浅くて線の0.5km後ろ）、端の外の点 → 後ろの点 → 持ち場 で回る
-  const corners=onFront&&pass(corner)?[corner]:[],destDepth=(end.x-dest.x)*normal.x+(end.z-dest.z)*normal.z;
-  for(const k of [.75,.5,.25,0]){
-    const rd=Math.max(.5*GROUND_SCALE,depth*k),rear=corner.clone().addScaledVector(normal,-rd);
-    if(!pass(rear)||groundPlanNearest(L,rear).side!==-side)continue;
-    const behind=dest.clone().addScaledVector(normal,destDepth-rd),extra=rd>destDepth+1e-6&&pass(behind)?[behind]:[];
-    const path=groundMovePath(f.pos,[...corners,rear,...extra,dest],kind,true);
-    if(path&&groundPlanNearest(L,path.points.at(-2)).side===-side)return {detourVia:rear,detourTurn:corners,detourBack:extra,path};
+  // 地図の端や水で通れない場合も、端の外側への距離は保ち、後ろへの距離だけを線の0.5km後ろまで浅くする。
+  for(const depth of [distance*.75,distance*.5,.5*GROUND_SCALE]){
+    const route=tryPoint(rear(depth),true);if(route)return route;
   }
   return null;
 }
@@ -408,7 +355,7 @@ function groundFrontRoutes(front,slots,advance,fixed=[],affected=null){
       const via=custom.points.slice(groundFrontViaIndex(front,f));
       return {...s,path:groundMovePath(f.pos,[...via,dest],kind,true)};
     }
-    const detour=planLine&&s.lane&&groundFrontDetourRoute(planLine,front.plan.side,s,kind,front);
+    const detour=planLine&&s.detourFirst!==undefined&&groundFrontDetourRoute(planLine,front.plan.side,s,kind,front);
     if(detour)return {...s,...detour};
     // 進撃は道路に寄らない短い道（ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。前線への整列は今までどおり早く着く道
     const keepsPace=!front.advance?.detouring?.has(f);
@@ -442,7 +389,7 @@ function groundFrontRoutes(front,slots,advance,fixed=[],affected=null){
   for(const route of routes){
     const {f,dest,path,detourVia}=route;
     if(!path||['air','sea'].includes(groundMoveKind(f)))continue;
-    if(advance&&(front.custom.has(f)||!detourVia&&route.detourBack?.length)){
+    if(advance&&front.custom.has(f)){
       const crossed=groundFrontCrossed(path,rivers,crossings);
       if(crossed)count(crossed);
       continue;
@@ -462,9 +409,10 @@ function groundFrontRoutes(front,slots,advance,fixed=[],affected=null){
     const assigned=candidates.length===1?list.map(()=>candidates[0]):
       groundFrontAssignCrossings(list.map(r=>r.choices),candidates,loads);
     list.forEach(({route},i)=>{
-      const via=route.detourVia?[...route.detourTurn,route.detourVia,assigned[i].pos,...route.detourBack]:[assigned[i].pos];
-      const path=groundMovePath(route.f.pos,[...via,route.dest],groundMoveKind(route.f),advance);
-      if(path&&(!route.detourVia||groundPlanNearest(planLine,path.points.at(-2)).side!==front.plan.side))route.path=path;
+      const {f,dest,detourVia,shallow}=route,kind=groundMoveKind(f),crossing=assigned[i].pos;
+      const path=detourVia?groundFrontDetourPath(planLine,front.plan.side,f.pos,[detourVia,crossing],dest,kind,shallow):
+        groundMovePath(f.pos,[crossing,dest],kind,advance);
+      if(path)route.path=path;
     });
   }
   return routes;
@@ -478,9 +426,7 @@ function groundFrontIssue(front,{f,dest,path,line,pace,detourVia}){
 function groundPlanSlotChanged(s,old){
   if(!old||old.dest.distanceToSquared(s.dest)>1e-12||old.line.width!==s.line.width||
     old.line.face.x!==s.line.face.x||old.line.face.z!==s.line.face.z)return true;
-  const a=s.lane,b=old.lane;
-  return a?.first!==b?.first||a?.width!==b?.width||a?.returnDepth!==b?.returnDepth||
-    (!!a?.entry!==!!b?.entry||a?.entry&&groundPlanDistance(a.entry,b.entry)>1e-6);
+  return s.detourFirst!==old.detourFirst;
 }
 function groundFrontRefresh(front,force=false){
   const slots=front.advance?groundPlanAdvanceSlots(front):
@@ -940,7 +886,7 @@ function groundPlanRouteShape(path,index,exact=false){
     }
   }
   const flat=groundPlanLine(keep).pts.map(p=>new THREE.Vector3(p.x,0,p.z));
-  // 前後列が同じ端を回る帰り道では、曲線のふくらみで隣のレーンに入らないよう実経路を使う。
+  // 地図の端で浅く回る矢印は、計画線を横切らないよう実経路を使う。
   const tail=exact||flat.length<3?flat:new THREE.CatmullRomCurve3(flat,false,'centripetal').getPoints((flat.length-1)*14);
   cached={index,exact,tail,key:groundPlanKey(tail)};
   groundPlanCurves.set(path,cached);return cached;
@@ -965,14 +911,14 @@ function groundPlanPreview(front){
 function groundPlanArrows(front){
   if(!front.plan)return [];
   const slots=front.advance?front.slots:groundPlanPreview(front);
-  return slots.filter(s=>groundFrontAvailable(s.f)&&!s.f.groundFrontAway).flatMap(({f,dest,lane,path:preview})=>{
+  return slots.filter(s=>groundFrontAvailable(s.f)&&!s.f.groundFrontAway).flatMap(({f,dest,shallow,path:preview})=>{
     if(front.advance&&f.order?.groundAdvance!==front.advance.group)return [];
     const path=front.advance?f.order.path:preview;
     if(!path)return [];
     const passed=groundFrontViaIndex(front,f),custom=front.custom.get(f);
     const via=custom?custom.points.slice(passed):front.advance?
       (groundFlyingAircraft(f)?groundFrontAirWaypoints(f.order):pathLeft(f.order)).slice(0,-1):path.pts.slice(0,-1);
-    const final=path.points[path.points.length-1],curve=groundPlanRouteShape(path,front.advance?path.atIndex:0,!!lane?.returnDepth);
+    const final=path.points[path.points.length-1],curve=groundPlanRouteShape(path,front.advance?path.atIndex:0,!!shallow);
     const shape=[f.pos,...(front.advance?curve.tail:curve.tail.slice(1))];
     const markers=via.map((p,i)=>({p:path.pts[path.pts.length-1-via.length+i]||p,i:passed+i}));
     markers.push({p:final,i:null});
@@ -1022,9 +968,8 @@ function groundPlanSetCustom(front,f,edit,passed){
 function groundPlanEditDraft(front,arrow){
   const {f,markers,pts}=arrow,old=front.custom.get(f);
   // 初回に現在の終点も写す。隊が抜けて自動の持ち場がずれても、手直しした道は保つ。
-  const slots=front.advance?front.slots:groundPlanPreview(front);
   return {isCustomEdited:true,points:old?[...old.points]:markers.slice(0,-1).map(m=>m.p),
-    dest:old?.dest||pts.at(-1).clone(),fraction:old?.fraction??slots.find(s=>s.f===f)?.fraction};
+    dest:old?.dest||pts.at(-1).clone()};
 }
 function groundPlanViaAdd(f,p,screen=null){
   const front=f.groundFrontOf,arrow=front&&groundPlanArrows(front).find(a=>a.f===f);
@@ -1111,11 +1056,16 @@ function groundPlanSetDetour(front,index,detour){
   saveUndo(front.members);front.nextPlans[index-1]=plan;return true;
 }
 function groundPlanPickAt(p,radius,project=q=>q){
-  let best=null,distance=radius;
+  let best=null,distance=radius,nearestArrow=null;
   const arrows=groundFronts.map(front=>[front,groundPlanArrows(front)]);
-  for(const [front,items] of arrows)for(const {f,markers} of items)for(const {p:q,i} of markers){
+  const distanceToArrow=arrow=>groundPlanNearest(groundPlanLine(arrow.shape.map(project)),p).d;
+  for(const [front,items] of arrows)for(const arrow of items)for(const {p:q,i} of arrow.markers){
     const d=groundPlanDistance(project(q),p);
-    if(d<=distance){best={kind:'via',front,f,i,p:q,plan:front.plan};distance=d;}
+    if(d>distance)continue;
+    // 中継点が重なる場合も、ポインタに近い矢印の隊を選べる。
+    if(best&&Math.abs(d-distance)<1e-6&&groundPlanDistance(q,best.p)<1e-6&&
+      distanceToArrow(arrow)>=distanceToArrow(nearestArrow))continue;
+    best={kind:'via',front,f:arrow.f,i,p:q,plan:front.plan};distance=d;nearestArrow=arrow;
   }
   if(best)return best;
   const pick=(pts,hit)=>{
