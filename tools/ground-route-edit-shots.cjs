@@ -12,13 +12,15 @@ const {setupGroundRouteEdit,routeEditMapPoints}=require('../tests/ground-plan.cj
   const capture=async name=>{
     await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     assert.deepEqual(errors,[]);
-    const file=path.join(out,'route-edit-'+name+'.png');
+    const file=path.join(out,'route-edit-outer-'+name+'.png');
     await page.screenshot({path:file});console.log(file);
   };
   try{
     await setupGroundRouteEdit(page);
     const {plan}=await routeEditMapPoints(page);
     assert.equal(await page.evaluate(()=>window.routeEditDemo.plan.detour),'both');
+    assert.deepEqual(await page.evaluate(()=>groundPlanArrows(window.routeEditDemo).map(a=>a.markers.map(m=>m.i))),
+      Array.from({length:4},()=>[0,1,null]));
     await capture('both');
 
     await page.mouse.click(plan.x,plan.y);
@@ -33,7 +35,7 @@ const {setupGroundRouteEdit,routeEditMapPoints}=require('../tests/ground-plan.cj
       const front=window.routeEditDemo,custom=front.custom.get(front.members[0]);
       return {count:front.custom.size,edited:custom?.isCustomEdited,points:custom?.points.length};
     });
-    assert.equal(edited.count,1);assert.equal(edited.edited,true);assert(edited.points>0);
+    assert.equal(edited.count,1);assert.equal(edited.edited,true);assert.equal(edited.points,2);
     await capture('drag');
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
