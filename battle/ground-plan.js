@@ -303,6 +303,7 @@ function groundPlanDetourSlots(front,plan,slots){
   return out;
 }
 const GROUND_FRONT_DETOUR_SPREAD_KM=.3; // 仮: 同じ端の中継点どうしの間隔
+const GROUND_FRONT_DETOUR_FRONT_KM=.5; // 仮: 中継点の手前の外側の点を、線の前へ出す距離
 function groundFrontDetourPath(L,side,from,via,dest,kind,shallow=false){
   const path=groundMovePath(from,[...via,dest],kind,true);
   if(!path||groundPlanNearest(L,path.points.at(-2)).side!==-side)return null;
@@ -312,13 +313,13 @@ function groundFrontDetourPath(L,side,from,via,dest,kind,shallow=false){
   return path;
 }
 function groundFrontDetourRoute(L,side,{f,dest,detourFirst:first,detourSpread=0},kind,front){
-  if(groundPlanNearest(L,f.pos).side!==side){
-    const previous=front.advance&&front.slots.find(s=>s.f===f);
-    const order=f.order?.groundAdvance===f.groundFrontOf?.advance?.group?f.order:null;
-    const remaining=order?.path?(groundFlyingAircraft(f)?groundFrontAirWaypoints(order):pathLeft(order)):[];
-    // 中継点を過ぎた隊は、離脱などで持ち場が変わっても引き返さない。
-    if(!previous?.detourVia||!remaining.some(q=>groundPlanDistance(q,previous.detourVia)<1e-6))return null;
-  }
+  const onFront=groundPlanNearest(L,f.pos).side===side;
+  const previous=front.advance&&front.slots.find(s=>s.f===f);
+  const order=f.order?.groundAdvance===f.groundFrontOf?.advance?.group?f.order:null;
+  const remaining=order?.path?(groundFlyingAircraft(f)?groundFrontAirWaypoints(order):pathLeft(order)):[];
+  const hasRemaining=p=>p&&remaining.some(q=>groundPlanDistance(q,p)<1e-6);
+  // 中継点を過ぎた隊は、離脱などで持ち場が変わっても引き返さない。
+  if(!onFront&&!hasRemaining(previous?.detourVia))return null;
   const s=first?0:L.len,end=groundPlanAt(L,s),d=groundPlanDir(L,s,.5*GROUND_SCALE);
   const distance=GROUND_FRONT_DETOUR_KM*GROUND_SCALE,out=first?-1:1,away=distance+detourSpread;
   const rear=depth=>new THREE.Vector3(end.x+d.x*out*away+d.z*side*depth,0,end.z+d.z*out*away-d.x*side*depth);
@@ -326,10 +327,19 @@ function groundFrontDetourRoute(L,side,{f,dest,detourFirst:first,detourSpread=0}
   const x=Math.floor(groundMapX(target.x)/cell),y=Math.floor(groundMapY(target.z)/cell),nearby=[];
   for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++)nearby.push(groundPoint((x+i+.5)*cell,(y+j+.5)*cell));
   nearby.sort((a,b)=>groundPlanDistance(a,target)-groundPlanDistance(b,target));
+  // 中継点の手前に、線の端の外側（線の前の側）の点を通り、外周に沿って回る
+  // （ユーザーの指示 2026-11-22「そこの点以外ももっと外周によらせて」）。通れなければ省く
+  const corner=rear(-GROUND_FRONT_DETOUR_FRONT_KM*GROUND_SCALE);
+  // 同じ端を回る道の引き直しでは、通過済みの外側の点に戻らない。
+  const pastCorner=previous?.detourFirst===first&&hasRemaining(previous.detourVia)&&
+    (previous.pastDetourCorner||previous.detourCorner&&!hasRemaining(previous.detourCorner));
+  const useCorner=onFront&&!pastCorner&&groundPass(groundMapX(corner.x),groundMapY(corner.z),kind);
   const tryPoint=(detourVia,shallow=false)=>{
     if(groundPlanNearest(L,detourVia).side!==-side||!groundPass(groundMapX(detourVia.x),groundMapY(detourVia.z),kind))return null;
+    const around=useCorner&&groundFrontDetourPath(L,side,f.pos,[corner,detourVia],dest,kind,shallow);
+    if(around)return {detourCorner:corner,detourVia,path:around,shallow};
     const path=groundFrontDetourPath(L,side,f.pos,[detourVia],dest,kind,shallow);
-    return path?{detourVia,path,shallow}:null;
+    return path?{detourVia,path,shallow,...(pastCorner?{pastDetourCorner:true}:{})}:null;
   };
   for(const p of [target,...nearby]){
     const route=tryPoint(p);if(route)return route;
@@ -409,8 +419,9 @@ function groundFrontRoutes(front,slots,advance,fixed=[],affected=null){
     const assigned=candidates.length===1?list.map(()=>candidates[0]):
       groundFrontAssignCrossings(list.map(r=>r.choices),candidates,loads);
     list.forEach(({route},i)=>{
-      const {f,dest,detourVia,shallow}=route,kind=groundMoveKind(f),crossing=assigned[i].pos;
-      const path=detourVia?groundFrontDetourPath(planLine,front.plan.side,f.pos,[detourVia,crossing],dest,kind,shallow):
+      const {f,dest,detourCorner,detourVia,shallow}=route,kind=groundMoveKind(f),crossing=assigned[i].pos;
+      const via=detourCorner?[detourCorner,detourVia,crossing]:[detourVia,crossing];
+      const path=detourVia?groundFrontDetourPath(planLine,front.plan.side,f.pos,via,dest,kind,shallow):
         groundMovePath(f.pos,[crossing,dest],kind,advance);
       if(path)route.path=path;
     });
