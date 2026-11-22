@@ -7,7 +7,7 @@
 <div id="labels"></div>
 <div id="cursorAlt" hidden></div>
 <div id="pick" hidden role="menu" aria-label="敵をクリックしたときの命令"><button data-pk="attack" role="menuitem">攻撃</button><button data-pk="move" role="menuitem">ここへ移動</button></div>
-<div id="groundEditPick" hidden role="menu" aria-label="前線と進撃計画の編集・削除"></div>
+<div id="groundEditPick" hidden role="menu" aria-label="進撃経路の編集"></div>
 
 <div id="tl" class="hud">
   <div id="tlBtns"><button id="pmBtn" title="メニュー（Escキー）：続ける・やり直す・やめる・操作の一覧"><i>MENU</i>メニュー Esc</button></div>
@@ -79,6 +79,11 @@
 
 <div id="groundCommandBar" class="hud" hidden aria-label="地上戦の命令">
   <span class="command-cap"><i>COMMAND</i> 命令</span>
+  <div id="groundEditModes" role="group" aria-label="前線と進撃計画の操作" hidden>
+    <button type="button" data-edit-mode="edit" title="クリックした線を引き直す。隊ごとの経路も編集できる" aria-pressed="true">編集</button>
+    <button type="button" data-edit-mode="merge" title="移す隊の前線、統合先の前線の順にクリック" aria-pressed="false">統合</button>
+    <button type="button" data-edit-mode="delete" title="線をクリックで削除、所属する部隊をクリックで前線から外す" aria-pressed="false">削除</button>
+  </div>
   <div class="command-row">
     <span class="command-group">共有</span>
     <div class="command-common" role="group" aria-label="共有命令">
@@ -86,11 +91,12 @@
       <button data-command-icon="deploy" id="groundDeploy" title="前線：線の両端をクリックか、ドラッグで曲線を引き、前の側を指定" aria-pressed="false" disabled>前線</button>
       <button data-command-icon="plan" id="groundPlan" title="進撃計画：線の両端をクリックか、ドラッグで曲線を引き、前の側をクリック。実行で開始" aria-pressed="false" disabled>進撃計画</button>
       <button data-command-icon="execute" id="groundExecute" title="選択部隊の進撃計画を実行" disabled>実行</button>
-      <button data-command-icon="edit" id="groundEdit" title="前線・計画線の編集と削除。矢印を左クリックで点を追加、○をドラッグで移動。○をクリックで削除・リセット。矢印は右クリックでリセット" aria-pressed="false" aria-haspopup="menu" disabled>編集・削除</button>
+      <button data-command-icon="edit" id="groundEdit" title="前線・侵攻線の編集・統合・削除を開く" aria-pressed="false" aria-expanded="false" aria-controls="groundEditModes" disabled>編集・削除</button>
       <button data-command-icon="hold" id="groundHold" title="停止・防衛">停止・防衛</button>
     </div>
     <span class="command-divider" aria-hidden="true"></span><span class="command-group">固有</span>
     <div id="groundUniqueCommands" role="group" aria-label="兵科固有命令">
+      <button id="groundFrontRecall" title="前線を越えた敵の追撃をやめ、自分の持ち場へ戻る" hidden>持ち場へ戻る</button>
       <button data-command-icon="board" id="groundBoard" title="輸送車に乗車・岸の揚陸艦に乗艦" aria-pressed="false">搭乗</button>
       <button data-command-icon="unload" id="groundUnload">降車</button>
       <button data-command-icon="land" id="groundLand">上陸</button>

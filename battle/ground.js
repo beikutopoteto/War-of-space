@@ -22,7 +22,12 @@ function groundMembers(level,id){
     item.battalions.flatMap(id=>org.battalions.find(b=>b.id===id)?.companies||[]);
   return fleets.filter(f=>f.team===0&&!f.ward&&f.alive&&!f.groundExited&&ids.includes(f.companyId));
 }
-function groundSelectUnit(level,id){ const list=groundMembers(level,id); if(list.length) setSel(list); }
+function groundSelectUnit(level,id,toggle=false){
+  const list=groundMembers(level,id);
+  if(!list.length)return;
+  const targets=orderTargets();
+  setSel(toggle&&list.length===targets.length&&list.every(f=>targets.includes(f))?[]:list);
+}
 function groundCanReorganize(f){
   return f.alive&&!f.groundExited&&f.groundKind!=='sea'&&!groundPermissionOnly(f)&&groundOrg.companies.some(c=>c.id===f.companyId);
 }
@@ -100,7 +105,7 @@ function groundBuildRoster(mk){
     const head=document.createElement('div');head.className='ground-rhead ghead';
     const fold=document.createElement('button');fold.className='ground-fold';fold.textContent=item.open===false?'＋':'−';fold.setAttribute('aria-expanded',String(item.open!==false));fold.setAttribute('aria-label',item.name+'を開閉');
     fold.onclick=()=>{item.open=item.open===false;buildRoster();updateRoster();};
-    const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id);
+    const pick=document.createElement('button');pick.className='grpBtn';pick.textContent=item.name;pick.setAttribute('aria-label',item.name+'を一括選択');pick.onclick=()=>groundSelectUnit(level,item.id,true);
     if(level==='battalions')dragSource(pick,item,level);
     const disband=document.createElement('button');disband.className='st rgDel';disband.textContent='解散';disband.setAttribute('aria-label',item.name+'を解散');
     disband.onclick=()=>groundDisbandFormation(level,item);
@@ -1393,11 +1398,13 @@ function groundCommandBarHud(list){
   const flight=groundWasCommandHud(list);
   const visible={board:list.some(f=>groundBoardTargets(f).length>0),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),wasFly:flight,wasLand:flight,strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
   groundBridgeNoGoHud(list);
-  const buttons=[...document.querySelectorAll('#groundUniqueCommands button')];
+  const buttons=[...document.querySelectorAll('#groundUniqueCommands button[data-command-icon]')];
   buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);
+  const recall=document.getElementById('groundFrontRecall');
+  recall.hidden=over||deploying||!list.some(groundFrontCanRecall);
   const expand=document.getElementById('groundCommandExpand');
   document.getElementById('groundStrikeControl').hidden=!visible.strike;
-  expand.hidden=buttons.filter(b=>!b.hidden).length*51+(visible.strike?36:0)<=204;
+  expand.hidden=buttons.filter(b=>!b.hidden).length*51+(visible.strike?36:0)+(recall.hidden?0:85)<=204;
   if(expand.hidden){expand.setAttribute('aria-expanded','false');document.getElementById('groundUniqueCommands').classList.remove('expanded');}
 }
 function groundWasPlayerToggle(){
