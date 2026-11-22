@@ -249,7 +249,7 @@ function setupSupplyUIScene(){
   if(labelEnemy){labelEnemy.el.classList.remove('label-picked');labelEnemy=null;}
   document.body.classList.remove('nolabels');groundView='all';
   fleets.forEach((f,i)=>{f.stance='evade';groundClearOrders(f);if(!f.embarked)f.pos.copy(groundPoint(5+i%8*2,33));if(Number.isFinite(f.groundMorale))f.groundMorale=groundMoraleMax(f);if(Number.isFinite(f.groundSupply))f.groundSupply=100;});
-  const mine=fleets.filter(f=>f.team===0),land=mine.find(f=>f.groundKind==='infantry'),vehicle=mine.find(f=>f.groundKind==='vehicle'),air=mine.find(f=>f.groundKind==='fighter'),exempt=mine.find(f=>f.groundKind==='was');
+  const mine=fleets.filter(f=>f.team===0),land=mine.find(f=>f.groundKind==='infantry'),vehicle=mine.find(f=>f.groundKind==='vehicle'),air=mine.find(f=>f.groundKind==='fighter'),exempt=mine.find(f=>!groundSupplyLand(f)&&!groundSupplyAir(f));   // W.A.S. は #496 から補給の対象
   land.groundMorale=.72*groundMoraleMax(land);land.groundSupply=24;vehicle.groundMorale=.4*groundMoraleMax(vehicle);vehicle.groundSupply=80;air.groundSupply=58;
   [land,air,exempt].forEach((f,i)=>{f.pos.copy(groundPoint(16+i*2,26));f.pos.y=groundUnitHeight(f);});
   // 保存データは触らず、見出しの平均/最低と航空だけの大隊を確かめる。

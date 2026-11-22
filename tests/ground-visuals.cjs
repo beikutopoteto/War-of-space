@@ -110,6 +110,17 @@ async function checkGroundVisuals(page,check){
       record('重強化歩兵は対歩兵射撃で小銃を使う',currentPose(f)===f.groundModel.userData.pose.rest&&calls.shot.at(-1)?.args[2]==='tracer'&&rifleMuzzle.distanceTo(calls.muzzle.at(-1)?.fx.group.position)<1e-6);
       t.band='low';t.pos.y=groundUnitHeight(t);single(f,t,true);
       record('重強化歩兵は対空射撃でも発射機を起こす',pose(f,'hinfMsl')&&calls.shot.at(-1)?.args[2]==='rocket');
+      // ユーザーの指示 2026-11-22: 撃った直後だけ向いて一瞬で戻らない
+      ({f,t}=scene('artillery','vehicle'));
+      // 撃った直後の向きを、撃つ処理と同じ形で置く（自走砲の直接射撃は距離で撃たないことがあるため）
+      f.fireTarget=t;f.bodies[0].look={yaw:Math.atan2(t.pos.x-f.pos.x,t.pos.z-f.pos.z),el:.2,until:gameSec+1};groundDraw();
+      const gunState=f.groundModel.userData.formation.bodies[0].userData.aimParts;
+      advance(3);
+      const kept=!!gunState.parts?.parent&&Math.abs(gunState.yaw)>.5;
+      const realNow=performance.now;let ms=realNow.call(performance);performance.now=()=>ms;
+      t.alive=false;ms+=50;groundDraw();const yaw1=Math.abs(gunState.yaw);ms+=50;groundDraw();const yaw2=Math.abs(gunState.yaw);
+      performance.now=realNow;
+      record('自走砲は撃つ相手がいる間は車体を向けたまま、いなくなるとなめらかに正面へ戻る',kept&&yaw1>.3&&yaw2<yaw1&&!!gunState.parts?.parent);
       reset({op:'charybdis'});setSpeed(0);
       record('作戦切替で効果・噴射を破棄する',Object.values(groundFxQueues).every(q=>!q.length)&&!groundFxPlumes.length&&!groundVisuals);
     }finally{Object.assign(GFX,originals);}

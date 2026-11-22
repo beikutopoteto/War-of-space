@@ -1006,7 +1006,7 @@ function groundDraw(){
       const T=f.groundTrack,unit=now-(f.bodies?f.groundMovedAt:pose.movedAt)<.4,was=special?.has('wasFire');
       const cyc=formation.spec.cycle||0,guard=was&&groundWasGuard(f),base=guard?cyc:0;
       pose.move.forEach((moves,i)=>{
-        const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=b?.look?.until>now?b.look:null;
+        const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now);
         const key=was?groundWasVisualPose(f,aim,now-pose.slidAt<.4,guard):aim?.missile&&special?.has('hinfMsl')?'hinfMsl':null;
         const moving=!key&&moves.length>0&&(T?!!T.moving[i]:unit),clock=pose.clocks[i],body=pose.stand[i];
         const at=moving?base+(clock.start+Math.floor(now/clock.stepSec+clock.phase))%(cyc||moves.length):-1;
@@ -1022,7 +1022,7 @@ function groundDraw(){
     }
     if(!pose&&formation)formation.bodies.forEach((body,i)=>{
       const b=f.bodies?.[i];body.visible=!f.bodies||!!b?.alive;
-      if(rig&&model.visible&&body.visible)groundVisualRigDraw(body,b?.look?.until>now?b.look:null,heading,!!f.groundTrack?.moving[i]);
+      if(rig&&model.visible&&body.visible)groundVisualRigDraw(body,groundVisualKeepAim(f,b,now),heading,!!f.groundTrack?.moving[i]);
     });
     model.position.copy(f.pos); if(f.band==='ground'||f.groundKind==='was')model.position.y+=.15; model.rotation.y=heading+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const k=groundBandOpacity(f);

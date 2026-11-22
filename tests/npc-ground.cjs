@@ -367,9 +367,10 @@ async function checkNpcGround(page,check){
   return {moved:moves.length,heading:moves.some(({f,k})=>{const z=sit.zones.find(z=>z.id===k.zone);return groundPoint(z.x,z.z).distanceTo(f.pos)<groundPoint(z.x,z.z).distanceTo(start.get(f.id));}),debug:npcDebug()};
  });
  check(movement.moved>0&&movement.heading,'NPC演習: 敵が動き出し任務の拠点へ近づく',JSON.stringify(movement));
+ for(const r of await page.evaluate(autoCases))check(r.ok,'NPCオート: '+r.name);
+ // W.A.S. の飛行の確かめは盤を作り直すので、前の盤を使う autoCases のあとに置く
  const wasFlight=await page.evaluate(npcWasFlightCase);
  check(wasFlight.walked&&wasFlight.launched&&wasFlight.cruised&&wasFlight.landed,'NPC演習: W.A.S. は短距離を歩き、長距離を巡航して着陸',JSON.stringify(wasFlight));
- for(const r of await page.evaluate(autoCases))check(r.ok,'NPCオート: '+r.name);
  await page.evaluate(()=>{reset({op:'baikonur',fleets:op.quick});if(talking)endTalk();setSpeed(0);endDeploy();});
  for(const r of await page.evaluate(bridgeCases))check(r.ok,'NPC橋渡し: '+r.name);
  for(const r of await page.evaluate(counterCombatCases))check(r.ok,'地上対戦車: '+r.name);
