@@ -48,7 +48,7 @@ function captureCases() {
       const counts=groundBands(fleets[0]).includes('ground')&&kind!=='sea';
       check(kind+' 2隊の地上占領資格',s.owner===(counts?0:1));
     }
-    for(const band of ['low','high']){
+    for(const band of ['cruise','low','high']){
       capture([unit(0,'fighter',0,band),unit(0,'fighter',0,band)]);check(band+'の戦闘機2隊では占領しない',s.owner===1);
       capture([unit(0,'was',0,band),unit(0,'was',0,band)]);check(band+'の W.A.S. 2隊では占領しない',s.owner===1);
     }

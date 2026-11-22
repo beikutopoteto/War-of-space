@@ -3,7 +3,7 @@ let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMe
 function groundStrikeRules(){ return groundRuleSet().strike; }
 function groundStrikeWeapon(f){
   if(!op.ground||groundTrainingEnemy(f)||!f.alive||f.embarked||f.locked||!groundCommandAllowed(f,'strike')) return null;
-  const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||f.groundKind==='supportAircraft'&&f.band==='high';
+  const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||groundWasCruising(f)||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind==='sea'&&f.type==='bb'?'battleship':f.groundKind]||null:null;
 }
 function groundStrikeRadius(s,t){const armor=groundStrikeRules().armor;return s.radius*(armor[t.groundKind]??armor.default);}
@@ -59,7 +59,7 @@ function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null,entry=
 // damage の入口もここを通す。友軍、霧の中、発射後に射手が移動・撃破された弾も着弾する。
 function groundStrikeHits(s,t,src){
   const radius=groundStrikeRadius(s,t);
-  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&(t.bodies?t.bodies.some((b,i)=>b.alive&&groundDistanceTo({pos:groundBodyPosition(t,i)},{pos:s.impact})<=radius):groundDistanceTo(t,{pos:s.impact})<=radius);
+  return !groundTrainingEnemy(src)&&s.resolving&&s.source===src&&t.alive&&!t.groundExited&&!t.embarked&&(t.band==='ground'&&!groundWasFlying(t)||['sea','supportAircraft'].includes(src?.groundKind)&&t.band==='sea')&&(t.bodies?t.bodies.some((b,i)=>b.alive&&groundDistanceTo({pos:groundBodyPosition(t,i)},{pos:s.impact})<=radius):groundDistanceTo(t,{pos:s.impact})<=radius);
 }
 function groundStrikeStep(dt){
   for(const f of fleets)f.groundStrikeCooldown=Math.max(0,(f.groundStrikeCooldown||0)-dt);
@@ -88,7 +88,7 @@ function groundStrikeStep(dt){
 }
 function groundStrikeAI(f){
   if(groundStaticTarget(f)||!groundStrikeWeapon(f)||(f.groundStrikeCooldown||0)>0)return;
-  const seen=fleets.filter(t=>t.team!==f.team&&t.alive&&!t.embarked&&(t.band==='ground'||f.groundKind==='sea'&&t.band==='sea')&&groundSeenBy(f.team,t));
+  const seen=fleets.filter(t=>t.team!==f.team&&t.alive&&!t.embarked&&(t.band==='ground'&&!groundWasFlying(t)||f.groundKind==='sea'&&t.band==='sea')&&groundSeenBy(f.team,t));
   let best=null,count=0;
   const weapon=groundStrikeWeapon(f),points=seen.flatMap(t=>{
     const radius2=groundStrikeRadius(weapon,t)**2;

@@ -2,7 +2,7 @@
 let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='', groundSupplyPenalty=0;
 function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
-function groundSupplyLand(f){return !!f&&!['sea','was','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
+function groundSupplyLand(f){return !!f&&!['sea','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
 function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
@@ -83,7 +83,7 @@ function groundRoadAt(x,y){
   for(const e of groundSupplyNet.edges){const dist=groundDistance(x,y,e.path);if(dist<best){best=dist;found=e;}}
   return found;
 }
-function groundCanCaptureRoad(f){return !f.groundExited&&f.alive&&f.hpPool>0&&f.band==='ground'&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
+function groundCanCaptureRoad(f){return !f.groundExited&&f.alive&&f.hpPool>0&&f.band==='ground'&&!groundWasFlying(f)&&groundBands(f).includes('ground')&&!f.embarked&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0);}
 function groundRoadCaptureSeconds(e,owner=e?.owner){const r=groundRuleSet().capture;return owner===null?r.neutralSeconds:r.roadSeconds;}
 function groundSupplyRoadCapture(dt){
   if(!groundSupplyNet)return;
@@ -148,11 +148,14 @@ function groundSupplyShot(f,strike=false,share=1){groundSupplySpend(f,(groundSup
 function groundSupplyMoved(f,a,b){
   if(!groundSupplyActive()||f.embarked||!Number.isFinite(f.groundSupply))return;
   if(!groundSupplyLand(f))return;f.groundMoved=true;
-  const km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;groundSupplySpend(f,km*groundSupplyRules().move);
+  const flying=groundWasFlying(f),km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;
+  const r=groundSupplyRules();
+  groundSupplySpend(f,km*r.move*(flying?groundRuleSet().wasFlight.moveSupplyFactor:1));
   if(!Number.isFinite(f.groundMorale)||f.groundRout)return;
-  const d=WOS_TERRAIN[op.ground],r=groundSupplyRules(),n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
+  if(flying){f.groundMorale=Math.max(0,f.groundMorale-km*r.terrainMove['平地']);return;}
+  const d=WOS_TERRAIN[op.ground],n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
   for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=groundMapX(x),gy=groundMapY(z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=groundRuleSet().capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
-  f.groundMorale=Math.max(0,f.groundMorale-spent);f.groundMoved=true;
+  f.groundMorale=Math.max(0,f.groundMorale-spent);
 }
 function groundSupplyHit(f,amount){
   if(!groundSupplyActive()||!(amount>0))return amount;
@@ -165,7 +168,9 @@ function groundSupplyHit(f,amount){
 }
 function groundRoutStart(f){
   if(groundStaticTarget(f))return;
-  groundCancelWork(f);groundClearOrders(f);f.groundGiving=null;f.bandTo=null;f.bandLeft=0;f.groundRout='routing';f.groundRoutRepath=0;f.groundRest=0;
+  groundCancelWork(f);groundClearOrders(f);f.groundGiving=null;
+  if(f.groundKind!=='was'){f.bandTo=null;f.bandLeft=0;}
+  f.groundRout='routing';f.groundRoutRepath=0;f.groundRest=0;
 }
 function groundSupplyInternalMove(f,p,path){groundClearOrders(f);f.order={type:'move',dest:p.clone(),path:path||groundPath(f.pos,p,groundMoveKind(f))};if(!f.order.path)f.order=null;}
 function groundNearestRoute(f,candidates){
@@ -447,6 +452,8 @@ function groundSupplyAfter(dt){
   if(!groundSupplyActive())return;
   groundSupplyRoadCapture(dt);groundSupplyRefresh();const r=groundSupplyRules(),netGains=new Map(),d=WOS_TERRAIN[op.ground];
   for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||!groundSupplyLand(f))continue;
+    const flying=groundWasFlying(f);
+    if(flying&&!f.groundMoved)groundSupplySpend(f,groundRuleSet().wasFlight.idleSupplyPerSec*dt);
     groundSupplyDemand(f,r);
     groundSupplyStartTrip(f);
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
@@ -458,7 +465,7 @@ function groundSupplyAfter(dt){
     if(f.groundBuilding)groundSupplySpend(f,r.build*dt);
     const own=at.owner===f.team&&!at.contested;
     const gx=groundMapX(f.pos.x),gy=groundMapY(f.pos.z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)];
-    if(!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
+    if(!flying&&!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
     const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
     const moraleCap=groundMoraleCap(f,at);
     if(f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));

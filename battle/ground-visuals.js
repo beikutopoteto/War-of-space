@@ -70,24 +70,40 @@ function groundVisualRigParts(body,rig){
   turret.add(gun);
   return {parts,turret,gun};
 }
+// 砲塔・砲身（砲塔のない自走砲などは車体）の回る速さ（ラジアン/実時間の秒。仮）。
+// ユーザーの指示 2026-11-22「自走砲の場合打つ時だけ車体と方針を合わせ、その後一瞬で元に戻ります」: 撃つ相手がいる間は狙い続け、
+// いなくなったらこの速さで正面へ戻す
+const GROUND_RIG_TURN={turret:3,chassis:1.5};
+// 撃った直後の向き（look）に加え、撃つ相手が生きている間はその相手を狙い続ける
+function groundVisualKeepAim(f,b,now){
+  if(b?.look?.until>now)return b.look;
+  const t=f.fireTarget;
+  if(!b?.look||!t?.alive||t.embarked||groundAbsent(t))return null;
+  return {yaw:Math.atan2(t.pos.x-f.pos.x,t.pos.z-f.pos.z),el:b.look.el,missile:b.look.missile};
+}
 function groundVisualRigDraw(body,aim,heading,moving){
-  const state=body.userData.aimParts;
-  if(!aim){
-    if(state.parts?.parent){body.remove(state.parts);body.layers.enable(0);}
+  const state=body.userData.aimParts,now=performance.now()/1000,dt=Math.min(.1,Math.max(0,now-(state.t??now)));state.t=now;
+  const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+  if(!state.parts){
+    if(!aim)return;
+    Object.assign(state,groundVisualRigParts(body,state.rig));state.yaw=wrap(aim.yaw-heading-body.rotation.y);state.el=aim.el;
+  }
+  const {parts,turret,gun,rig}=state;
+  const want=aim?wrap(aim.yaw-heading-body.rotation.y):0,wantEl=aim?aim.el:0;
+  const step=(rig.hasTurret?GROUND_RIG_TURN.turret:GROUND_RIG_TURN.chassis)*dt,clamp=v=>Math.max(-step,Math.min(step,v));
+  state.yaw=wrap(state.yaw+clamp(wrap(want-state.yaw)));state.el+=clamp(wantEl-state.el);
+  if(!aim&&Math.abs(state.yaw)<1e-3&&Math.abs(state.el)<1e-3){
+    if(parts.parent){body.remove(parts);body.layers.enable(0);}
     return;
   }
-  if(!state.parts)Object.assign(state,groundVisualRigParts(body,state.rig));
-  const {parts,turret,gun,rig}=state;
   if(!parts.parent){body.layers.disable(0);body.add(parts);}
-  const yaw=aim.yaw-heading-body.rotation.y;
-  gun.rotation.x=-aim.el;
-  turret.rotation.y=rig.hasTurret?yaw:0;
+  gun.rotation.x=-state.el;
+  turret.rotation.y=rig.hasTurret?state.yaw:0;
   // The fixed launcher turns its displayed chassis when stopped. The track still owns moving bodies.
-  parts.rotation.y=!rig.hasTurret&&!moving?yaw:0;
+  parts.rotation.y=!rig.hasTurret&&!moving?state.yaw:0;
 }
 function groundWasVisualPose(f,shot,moving,guard){
-  const heights=groundRules().heights;
-  if(f.bandTo&&heights[f.bandTo]!==heights[f.band])return heights[f.bandTo]>heights[f.band]?'wasFlyUp':'wasFlyDown';
+  if(f.bandTo)return groundBandHeight(f.bandTo)>groundBandHeight(f.band)?'wasFlyUp':'wasFlyDown';
   if(f.band==='ground')return shot?'wasFire':null;
   if(shot)return 'wasFlyFire';
   return moving?(guard?'wasFlyMove':'wasFlyMarch'):'wasFly';
@@ -179,8 +195,8 @@ function groundVisualDirect(f,i,t,j,from,to,aa=false){
     }
   }
   if(seenTarget){
-    const start=gameSec+duration,airborne=t.band==='high'||t.band==='low';
-    if(tank&&t.band==='ground')groundVisualDust(at,tank.impactRadius*GROUND_BODY_SCALE,start,tank.impactSmoke);
+    const start=gameSec+duration,airborne=groundAATargetable(t);
+    if(tank&&t.band==='ground'&&!airborne)groundVisualDust(at,tank.impactRadius*GROUND_BODY_SCALE,start,tank.impactSmoke);
     else groundFxAdd('direct',start,airborne?1.5:.9,()=>groundFxPlace(
       airborne?GFX.airBurst(size*4):GFX.hit(size*1.8,{detail:groundFxDetail(at,size*2,5)}),at));
   }

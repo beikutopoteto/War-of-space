@@ -30,7 +30,7 @@ function groundSightHeight(x,z){
 }
 // 高度切り替え中の索敵も、射撃と同じく到着までは元の段を使う。
 function groundEye(f){
-  return {x:f.pos.x,z:f.pos.z,y:groundHeight(f.pos.x,f.pos.z)+(groundRules().heights[f.band||'ground']||0)+groundSightRules().eyeHeight};
+  return {x:f.pos.x,z:f.pos.z,y:groundHeight(f.pos.x,f.pos.z)+groundBandHeight(f.band)+groundSightRules().eyeHeight};
 }
 function groundSightRange(f){
   const r=groundSightRules(), base=r[f.groundKind==='droneHive'?'scout':f.groundKind]??r.basic;
@@ -49,7 +49,7 @@ function groundInForest(x,z){
   return !!list&&list.some(p=>Math.hypot(x-p.x,z-p.z)<=p.r);
 }
 function groundConcealment(f){
-  return (f.band||'ground')==='ground'&&groundInForest(f.pos.x,f.pos.z)?groundSightRules().forest:1;
+  return (f.band||'ground')==='ground'&&!groundWasFlying(f)&&groundInForest(f.pos.x,f.pos.z)?groundSightRules().forest:1;
 }
 // 線分と建物の箱の交差。薄い建物もサンプリングの間から透視しない。
 function groundBuildingBlocks(a,b,box){

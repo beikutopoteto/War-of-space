@@ -130,7 +130,8 @@ function damage(t,amt,src,groundImpact=null,groundBody=null){
   if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??40)*HP_K); t.n=Math.max(0,t.n0-infQ(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
   if(t.kind==='block'){ civHit(amt*(op.civil.perRaid||2),false); if(Math.random()<amt*.08) burst(t.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*5,(Math.random()-.5)*8)),HOT,10,6,1); return; }
   if(op.ground) amt*=groundRuleSet().combat.damageScale*groundDamageFactor(t);
-  if(t.eva) amt*=1-t.eva;
+  const evasion=op.ground&&t.groundKind==='was'?(groundWasFlying(t)?groundRuleSet().wasFlight.evasion:0):t.eva;
+  if(evasion) amt*=1-evasion;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
   /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */

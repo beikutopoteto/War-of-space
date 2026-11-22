@@ -13,11 +13,11 @@ function groundAutoAAReady(f){
     !f.silent&&!f.groundHoldFire&&f.groundAAEnabled!==false&&!groundTrainingEnemy(f)&&!groundStaticTarget(f);
 }
 function groundAASolution(f,t){
-  if(!groundAutoAAReady(f)||!t?.alive||f.team===t.team||t.embarked||groundAbsent(t)||!['low','high'].includes(t.band))return false;
+  if(!groundAutoAAReady(f)||!t?.alive||f.team===t.team||t.embarked||groundAbsent(t)||!groundAATargetable(t))return false;
   if(typeof groundDrillAATargetAvailable==='function'&&!groundDrillAATargetAvailable(t))return false;
   if(!f.pos||!t.pos||![f.pos.x,f.pos.y,f.pos.z,t.pos.x,t.pos.y,t.pos.z].every(Number.isFinite))return false;
   const range=groundAARange(f);
-  return range>0&&groundDistanceTo(f,t)<=range&&groundFireFactor(f,t)>0&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t);
+  return range>0&&groundDistanceTo(f,t)<=range&&groundFireFactor(f,t,true)>0&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t);
 }
 // damage側の専用入口。通常射撃の許可や残ったfireTargetからは迎撃を偽装できない。
 function groundAutoAAHit(f,t){return !!f&&f.groundAAResolving===t&&groundAASolution(f,t);}
@@ -27,7 +27,7 @@ function groundAutoAAReset(){
 }
 function groundAutoAAStep(dt){
   if(typeof op==='undefined'||!op.ground||typeof fleets==='undefined'||!Array.isArray(fleets)||!Number.isFinite(dt)||dt<0)return;
-  const air=fleets.filter(t=>t?.alive&&['low','high'].includes(t.band));
+  const air=fleets.filter(t=>t?.alive&&groundAATargetable(t));
   for(const f of fleets){
     if(!f)continue;
     f.groundAATimer=Math.max(0,(Number.isFinite(f.groundAATimer)?f.groundAATimer:0)-dt);
@@ -35,7 +35,7 @@ function groundAutoAAStep(dt){
     if(f.bodies)for(const b of f.bodies)b.aaT=Math.max(0,b.aaT-dt);
     if(!groundAutoAAReady(f)||groundAARange(f)<=0){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
     if(f.bodies){
-      if(f.bodies.every(b=>!b.alive||b.aaT>1e-8)){if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&['low','high'].includes(previous.band)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;continue;}
+      if(f.bodies.every(b=>!b.alive||b.aaT>1e-8)){if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;continue;}
       const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b));
       const target=candidates.find(t=>groundAASolution(f,t));f.groundAATarget=target||null;
       if(target){f.groundAAResolving=target;try{groundBodyFire(f,target,0,true);}finally{f.groundAAResolving=null;}}else groundBodyIdleClock(f,'aaT');
@@ -43,7 +43,7 @@ function groundAutoAAStep(dt){
     }
     // 装填中は射線を全隊ぶん再探索しない。これは表示用の保持だけで、発射時は必ず実射線を確認する。
     if(f.groundAATimer>1e-8){
-      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&['low','high'].includes(previous.band)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;
+      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;
       continue;
     }
     const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).map(t=>({t,d:groundDistanceTo(f,t)})).filter(p=>p.d<=groundAARange(f)).sort((a,b)=>a.d-b.d);
@@ -56,7 +56,7 @@ function groundAutoAAStep(dt){
     f.groundAAResolving=target;
     try{
       groundVisualDirect(f,0,target,0,f.pos,target.pos,true);
-      damage(target,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,target)*groundMatchup(f,target)*groundSupplyAttackFactor(f),f);
+      damage(target,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,target,true)*groundMatchup(f,target,true)*groundSupplyAttackFactor(f),f);
       groundSupplyShot(f);
     }finally{f.groundAAResolving=null;}
   }

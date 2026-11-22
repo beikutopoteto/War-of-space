@@ -83,12 +83,12 @@ async function checkGroundVisuals(page,check){
       single(f,t);
       record('W.A.S. の地上射撃姿勢',pose(f,'wasFire'));
       advance(1.1);
-      const climbs=groundSetBand([f],'low');groundDraw();
+      const climbs=groundWasToggle(f);groundDraw();
       record('W.A.S. の上昇姿勢と背中の噴射',climbs&&pose(f,'wasFlyUp')&&groundFxPlumesUsed===2*f.bodies0&&calls.plume.length>0);
-      f.band='low';f.bandTo=null;f.pos.y=groundUnitHeight(f);advance(.5);
+      groundStepBand(f,groundRuleSet().wasFlight.transitionSec);f.pos.y=groundUnitHeight(f);advance(.5);
       record('W.A.S. の空中待機姿勢',pose(f,'wasFly'));
       f.order={type:'move'};f.pos.x+=.05;advance(.05);
-      record('W.A.S. の通常飛行は盾を下げる',pose(f,'wasFlyMarch'));
+      record('W.A.S. の通常飛行は盾を下げ、機体の位置が有効',pose(f,'wasFlyMarch')&&f.groundModel.userData.pose.stand.every(b=>b.position.toArray().every(Number.isFinite)));
       f.order={type:'move',groundAdvance:true};f.pos.x+=.05;advance(.05);
       record('W.A.S. の進撃飛行は盾を構える',pose(f,'wasFlyMove'));
       f.order={type:'attack',target:t};f.pos.x+=.05;advance(.05);
@@ -97,7 +97,7 @@ async function checkGroundVisuals(page,check){
       record('W.A.S. の空中射撃姿勢',pose(f,'wasFlyFire'));
       advance(.3);
       record('対空射撃は空中で炸裂する',calls.airBurst.at(-1)?.fx.group.position.y>10);
-      const lands=groundSetBand([f],'ground');groundDraw();
+      const lands=groundWasToggle(f);groundDraw();
       record('W.A.S. の下降姿勢',lands&&pose(f,'wasFlyDown'));
 
       ({f,t}=scene('heavyInfantry','vehicle'));
@@ -110,6 +110,17 @@ async function checkGroundVisuals(page,check){
       record('重強化歩兵は対歩兵射撃で小銃を使う',currentPose(f)===f.groundModel.userData.pose.rest&&calls.shot.at(-1)?.args[2]==='tracer'&&rifleMuzzle.distanceTo(calls.muzzle.at(-1)?.fx.group.position)<1e-6);
       t.band='low';t.pos.y=groundUnitHeight(t);single(f,t,true);
       record('重強化歩兵は対空射撃でも発射機を起こす',pose(f,'hinfMsl')&&calls.shot.at(-1)?.args[2]==='rocket');
+      // ユーザーの指示 2026-11-22: 撃った直後だけ向いて一瞬で戻らない
+      ({f,t}=scene('artillery','vehicle'));
+      // 撃った直後の向きを、撃つ処理と同じ形で置く（自走砲の直接射撃は距離で撃たないことがあるため）
+      f.fireTarget=t;f.bodies[0].look={yaw:Math.atan2(t.pos.x-f.pos.x,t.pos.z-f.pos.z),el:.2,until:gameSec+1};groundDraw();
+      const gunState=f.groundModel.userData.formation.bodies[0].userData.aimParts;
+      advance(3);
+      const kept=!!gunState.parts?.parent&&Math.abs(gunState.yaw)>.5;
+      const realNow=performance.now;let ms=realNow.call(performance);performance.now=()=>ms;
+      t.alive=false;ms+=50;groundDraw();const yaw1=Math.abs(gunState.yaw);ms+=50;groundDraw();const yaw2=Math.abs(gunState.yaw);
+      performance.now=realNow;
+      record('自走砲は撃つ相手がいる間は車体を向けたまま、いなくなるとなめらかに正面へ戻る',kept&&yaw1>.3&&yaw2<yaw1&&!!gunState.parts?.parent);
       reset({op:'charybdis'});setSpeed(0);
       record('作戦切替で効果・噴射を破棄する',Object.values(groundFxQueues).every(q=>!q.length)&&!groundFxPlumes.length&&!groundVisuals);
     }finally{Object.assign(GFX,originals);}
