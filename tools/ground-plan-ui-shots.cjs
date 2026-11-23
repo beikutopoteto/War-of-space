@@ -97,13 +97,12 @@ async function frontPoint(page,name){
     await trigger.click();
     await panel.waitFor({state:'visible'});
     const panelBounds=await panel.boundingBox();
-    assert.ok(panelBounds.y+panelBounds.height<commandBounds.y);
+    assert.ok(panelBounds.y<commandBounds.y);
     assert.deepEqual(await commandRow.boundingBox(),commandBounds);
     const triggerBounds=await trigger.boundingBox();
-    const mergeBounds=await panel.locator('[data-edit-mode="merge"]').boundingBox();
-    const centerX=box=>box.x+box.width/2;
-    assert.ok(Math.abs(centerX(mergeBounds)-centerX(triggerBounds))<1);
-    assert.equal(triggerBounds.y-(panelBounds.y+panelBounds.height),8);
+    assert.equal(panelBounds.y+panelBounds.height,triggerBounds.y);
+    assert.equal(panelBounds.x,triggerBounds.x+6);
+    assert.ok(panelBounds.x+panelBounds.width>triggerBounds.x+triggerBounds.width);
     const tabs=panel.locator('button');
     assert.deepEqual(await tabs.allTextContents(),['編集','統合','削除']);
     assert.equal(await tabs.first().getAttribute('aria-pressed'),'true');

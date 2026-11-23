@@ -590,8 +590,8 @@ body.nolabels .ground-site{display:none}
 #groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 #groundCommandBar [hidden]{display:none!important}
 #groundCommandBar .command-edit{position:relative;flex:none;display:flex}
-#groundEditModes{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%);display:flex;gap:3px;padding:4px;background:rgba(8,14,26,.78);border:1px solid var(--line)}
-#groundEditModes::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);width:48px;height:9px;background:var(--blue);clip-path:polygon(0 0,100% 0,calc(100% - 6px) 100%,6px 100%);pointer-events:none}
+#groundEditModes{position:absolute;left:6px;bottom:100%;display:flex;gap:2px;padding:4px 7px 4px 4px;background:rgba(8,14,26,.78);clip-path:polygon(10px 0,100% 0,100% 100%,0 100%)}
+#groundCommandBar #groundEditModes button{clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
 #groundEditModes button,#groundFrontRecall{font:11px var(--f-ui);white-space:nowrap}
 #groundCommandBar #groundFrontRecall{width:82px}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
