@@ -590,10 +590,11 @@ body.nolabels .ground-site{display:none}
 #groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 #groundCommandBar [hidden]{display:none!important}
 #groundCommandBar .command-edit{position:relative;flex:none;display:flex}
-#groundEditModes{position:absolute;left:6px;bottom:calc(100% + 8px);display:flex;gap:3px;padding:10px 8px 4px;background:rgba(8,14,26,.53);clip-path:polygon(0 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%)}
+#groundEditModes{--edit-gap:8px;position:absolute;left:6px;bottom:calc(100% + var(--edit-gap));display:flex;gap:3px;padding:10px 8px 4px;isolation:isolate}
 #groundEditModes::before,#groundEditModes::after{content:'';position:absolute;pointer-events:none}
-#groundEditModes::before{top:0;left:0;right:0;height:4px;background:var(--line)}
-#groundEditModes::after{top:4px;bottom:0;left:0;border-left:1px dotted var(--brass)}
+/* 下のボタンの左辺は高さ25pxで6px傾く。上段の背景と点線もその延長に揃える。 */
+#groundEditModes::before{inset:0;z-index:-1;background:linear-gradient(var(--line) 4px,transparent 4px),rgba(8,14,26,.53);clip-path:polygon(calc((39px + var(--edit-gap)) * .24) 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,calc(var(--edit-gap) * .24) 100%)}
+#groundEditModes::after{top:4px;bottom:calc(-1 * var(--edit-gap));left:0;border-left:1px dotted var(--brass);transform-origin:bottom left;transform:skewX(-13.5deg)}
 #groundEditModes button,#groundFrontRecall{font:11px var(--f-ui);white-space:nowrap}
 #groundCommandBar #groundFrontRecall{width:82px}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
