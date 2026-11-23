@@ -90,14 +90,20 @@ async function frontPoint(page,name){
     await capture('arrows');
 
     const panel=page.locator('#groundEditModes');
+    const trigger=page.locator('#groundEdit');
     const commandRow=page.locator('#groundCommandBar .command-row');
     assert.equal(await panel.isVisible(),false);
     const commandBounds=await commandRow.boundingBox();
-    await page.locator('#groundEdit').click();
+    await trigger.click();
     await panel.waitFor({state:'visible'});
     const panelBounds=await panel.boundingBox();
     assert.ok(panelBounds.y+panelBounds.height<commandBounds.y);
     assert.deepEqual(await commandRow.boundingBox(),commandBounds);
+    const triggerBounds=await trigger.boundingBox();
+    const mergeBounds=await panel.locator('[data-edit-mode="merge"]').boundingBox();
+    const centerX=box=>box.x+box.width/2;
+    assert.ok(Math.abs(centerX(mergeBounds)-centerX(triggerBounds))<1);
+    assert.equal(triggerBounds.y-(panelBounds.y+panelBounds.height),8);
     const tabs=panel.locator('button');
     assert.deepEqual(await tabs.allTextContents(),['編集','統合','削除']);
     assert.equal(await tabs.first().getAttribute('aria-pressed'),'true');
