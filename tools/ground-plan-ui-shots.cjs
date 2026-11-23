@@ -139,7 +139,7 @@ async function frontPoint(page,name){
     const merged=await page.evaluate(()=>{
       const {target,source,plan,next}=window.planDemo;
       const ok=!groundFronts.includes(source)&&target.members.length===6&&target.plan===plan&&target.nextPlans[0]===next;
-      if(!ok)return false;
+      if(!ok||groundPlanSectionColors(target).join()!=='#72d6a3')return false;
       for(let i=0;i<1500&&target.members.some(f=>f.order);i++)step(.05);
       groundDraw();
       return true;

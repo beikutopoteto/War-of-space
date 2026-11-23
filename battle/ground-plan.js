@@ -134,7 +134,7 @@ function groundFrontAlign(pts,side,ref){
 }
 function groundFrontCreate(line,list){
   const front={id:groundFrontNextId++,pts:line.pts,side:line.side,members:groundFrontSort(list,groundPlanLine(line.pts)),
-    plan:null,nextPlans:[],advance:null,custom:new Map(),passed:new Map(),slots:[],retryRevision:null};
+    plan:null,nextPlans:[],advance:null,custom:new Map(),passed:new Map(),slots:[],retryRevision:null,mergedColor:null};
   groundFronts.push(front);
   for(const f of front.members){groundFrontClearMember(f);f.groundFrontOf=front;}
   return front;
@@ -938,6 +938,8 @@ function groundFrontMerge(source,target){
   const routes=groundFrontRoutes(draft,slots,!!advance);
   const blocked=routes.find(r=>!r.path);
   if(blocked){groundPlanReport(blocked.f.name+'：統合先の持ち場まで通れる経路がありません');return false;}
+  const colors=groundPlanSectionColors(target);
+  const mergedColor=colors[Math.floor(colors.length/2)];
   saveUndo(members);npcAutoPlayer(source.members);
   const transferred=source.members;
   groundFrontRemoveMembers(transferred);
@@ -945,7 +947,7 @@ function groundFrontMerge(source,target){
     f.groundFrontOf=target;
     if(present.has(f)){groundCancelWork(f);groundClearOrders(f);}
   }
-  Object.assign(target,{members,passed,advance:draft.advance,slots:routes.map(({path,...slot})=>slot),retryRevision:null});
+  Object.assign(target,{members,passed,advance:draft.advance,slots:routes.map(({path,...slot})=>slot),retryRevision:null,mergedColor});
   for(const route of routes)groundFrontIssue(target,route);
   groundPlanReport('前線を統合しました');
   return true;
@@ -1394,9 +1396,10 @@ function groundPlanSetColor(level,item,color){
 const groundPlanSections=new WeakMap();
 function groundPlanSectionColors(front){
   const members=groundFrontPresent(front).filter(f=>GROUND_PLAN_FRONT.has(f.groundKind)),old=groundPlanSections.get(front);
-  if(old?.revision===groundPlanColorRevision&&members.length===old.members.length&&members.every((f,i)=>f===old.members[i]))return old.colors;
-  const colors=members.length?members.map(groundPlanUnitColor):[GROUND_PLAN_COLORS[0]];
-  groundPlanSections.set(front,{members,colors,revision:groundPlanColorRevision});return colors;
+  const {mergedColor}=front;
+  if(old?.revision===groundPlanColorRevision&&old.mergedColor===mergedColor&&members.length===old.members.length&&members.every((f,i)=>f===old.members[i]))return old.colors;
+  const colors=mergedColor?[mergedColor]:members.length?members.map(groundPlanUnitColor):[GROUND_PLAN_COLORS[0]];
+  groundPlanSections.set(front,{members,colors,mergedColor,revision:groundPlanColorRevision});return colors;
 }
 function groundPlanClosePalette(){
   if(!groundPlanPalette)return;
@@ -1655,7 +1658,7 @@ function groundPlanDraw(){
       if(handles?.length){
         shape=[f.pos,...markers.map(point),shape.at(-1)];key='drag|'+groundPlanKey(shape,false);curve=shape;
       }
-      const color=groundPlanUnitColor(f),item={f,arrow:shape,curve,color,key:key+'>'+color};
+      const color=front.mergedColor||groundPlanUnitColor(f),item={f,arrow:shape,curve,color,key:key+'>'+color};
       arrows.push(item);
       if(selected&&hover.f===f&&hover.kind==='arrow')highlight=item;
       for(const m of markers){

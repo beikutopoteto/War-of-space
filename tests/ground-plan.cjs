@@ -305,6 +305,8 @@ function planCases(){
  for(const advancing of [false,true]){
   fresh();
   const received=[unit(9,28),unit(13,28)],moved=[unit(9,23),unit(13,23,'artillery')];
+  received.forEach((f,i)=>f.companyId='c'+i);
+  moved.forEach((f,i)=>f.companyId='c'+(i+2));
   const to=draw('deploy',received,a,b),from=draw('deploy',moved,p(8,23),p(14,23),p(11,24));
   finish([...received,...moved]);
   draw('plan',moved,p(8,25),p(14,25));
@@ -332,9 +334,12 @@ function planCases(){
    to.slots.length===4&&to.slots.find(s=>s.f===moved[1]).offset===GROUND_PLAN_ROW_KM*GROUND_SCALE&&
    [...received,...moved].every(f=>f.groundFrontOf===to&&(advancing?
     f.order?.groundAdvance===to.advance.group:f.order?.groundDeploy)));
+  check(title+'の統合後は前線の色を統合先に揃え、大隊色を保つ',
+   groundPlanSectionColors(to).join()===green&&moved.every(f=>groundPlanUnitColor(f)===pink));
   undo();
   check(title+'の統合を一度のUndoで元の前線と計画・命令に戻す',groundFronts.length===2&&
-   from.plan===fromPlan&&moved.every(f=>f.groundFrontOf===from&&(!advancing||f.order?.groundAdvance===from.advance.group)));
+   from.plan===fromPlan&&groundPlanSectionColors(from).every(color=>color===pink)&&to.mergedColor===null&&
+   moved.every(f=>f.groundFrontOf===from&&(!advancing||f.order?.groundAdvance===from.advance.group)));
   groundPlanToggle('edit');groundEditSetMode('delete');
   const project=groundEditProject;
   groundEditProject=q=>({x:q.x*100,z:q.z*100});
