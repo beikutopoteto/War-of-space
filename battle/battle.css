@@ -590,8 +590,10 @@ body.nolabels .ground-site{display:none}
 #groundCommandBar button:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 #groundCommandBar [hidden]{display:none!important}
 #groundCommandBar .command-edit{position:relative;flex:none;display:flex}
-#groundEditModes{position:absolute;left:6px;bottom:100%;display:flex;gap:2px;padding:4px 7px 4px 4px;background:rgba(8,14,26,.78);clip-path:polygon(10px 0,100% 0,100% 100%,0 100%)}
-#groundCommandBar #groundEditModes button{clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+#groundEditModes{position:absolute;left:6px;bottom:calc(100% + 8px);display:flex;gap:3px;padding:10px 8px 4px;background:rgba(8,14,26,.53);clip-path:polygon(0 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%)}
+#groundEditModes::before,#groundEditModes::after{content:'';position:absolute;pointer-events:none}
+#groundEditModes::before{top:0;left:0;right:0;height:4px;background:var(--line)}
+#groundEditModes::after{top:4px;bottom:0;left:0;border-left:1px dotted var(--brass)}
 #groundEditModes button,#groundFrontRecall{font:11px var(--f-ui);white-space:nowrap}
 #groundCommandBar #groundFrontRecall{width:82px}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}

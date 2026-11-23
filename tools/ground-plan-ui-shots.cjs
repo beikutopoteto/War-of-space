@@ -100,10 +100,15 @@ async function frontPoint(page,name){
     assert.ok(panelBounds.y<commandBounds.y);
     assert.deepEqual(await commandRow.boundingBox(),commandBounds);
     const triggerBounds=await trigger.boundingBox();
-    assert.equal(panelBounds.y+panelBounds.height,triggerBounds.y);
+    assert.equal(triggerBounds.y-(panelBounds.y+panelBounds.height),8);
     assert.equal(panelBounds.x,triggerBounds.x+6);
     assert.ok(panelBounds.x+panelBounds.width>triggerBounds.x+triggerBounds.width);
     const tabs=panel.locator('button');
+    for(const tab of await tabs.all()){
+      const bounds=await tab.boundingBox();
+      assert.equal(bounds.width,triggerBounds.width);
+      assert.equal(bounds.height,triggerBounds.height);
+    }
     assert.deepEqual(await tabs.allTextContents(),['編集','統合','削除']);
     assert.equal(await tabs.first().getAttribute('aria-pressed'),'true');
     await page.evaluate(()=>{
