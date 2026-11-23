@@ -89,8 +89,16 @@ async function frontPoint(page,name){
     await page.mouse.move(10,450);
     await capture('arrows');
 
+    const panel=page.locator('#groundEditModes');
+    const commandRow=page.locator('#groundCommandBar .command-row');
+    assert.equal(await panel.isVisible(),false);
+    const commandBounds=await commandRow.boundingBox();
     await page.locator('#groundEdit').click();
-    const tabs=page.locator('#groundEditModes button');
+    await panel.waitFor({state:'visible'});
+    const panelBounds=await panel.boundingBox();
+    assert.ok(panelBounds.y+panelBounds.height<commandBounds.y);
+    assert.deepEqual(await commandRow.boundingBox(),commandBounds);
+    const tabs=panel.locator('button');
     assert.deepEqual(await tabs.allTextContents(),['編集','統合','削除']);
     assert.equal(await tabs.first().getAttribute('aria-pressed'),'true');
     await page.evaluate(()=>{
@@ -102,6 +110,10 @@ async function frontPoint(page,name){
     });
     await page.mouse.move(10,450);
     await capture('edit');
+    await page.keyboard.press('Escape');
+    await panel.waitFor({state:'hidden'});
+    await page.locator('#groundEdit').click();
+    await panel.waitFor({state:'visible'});
     await page.evaluate(()=>window.planDemo.addSource());
     await page.locator('#groundEdit').click();
     await tabs.nth(1).click();
