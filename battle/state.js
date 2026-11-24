@@ -191,6 +191,7 @@ function buildRoster(){
     const b=document.createElement('button'); b.id='fl'+i; b.setAttribute('aria-pressed','false'); b.setAttribute('aria-label',f.name);
     b.innerHTML=`<span class="mkw"></span><span class="no"><b></b><small></small></span>${op.ground?groundSupplyTile(f):'<span class="bar"><i></i></span>'}`;
     b.addEventListener('click',e=>{ if(b._dragged){ b._dragged=false; return; } if(!f.alive) return;
+      if(op.ground&&groundWorkAiming==='edit'&&groundEditMode==='delete'&&groundFrontDeleteUnit(f))return;
       if(e.shiftKey) toggleMulti(f); else { const t=orderTargets(); select(t.length===1&&t[0]===f?null:f); } });
     dragSource(b,f);
     /* the corner triangle: 自動交戦/命令優先 for this fleet */
@@ -392,7 +393,7 @@ function copyOrder(o,f=null){
   const left=o.path?(front&&f&&groundFlyingAircraft(f)?groundFrontAirWaypoints(o):pathLeft(o)):[...(o.via||[]),o.dest];
   const pts=left.length?left:[o.dest];   // the points still ahead
   const move={type:'move',via:pts.slice(0,-1).map(v=>v.clone()),dest:pts[pts.length-1].clone()};
-  return front?{...move,...front,groundAdvance:o.groundAdvance,groundAdvancePace:o.groundAdvancePace,groundDeploy:o.groundDeploy,groundLine:o.groundLine}:move;
+  return front?{...move,...front,groundAdvance:o.groundAdvance,groundAdvancePace:o.groundAdvancePace,groundDeploy:o.groundDeploy,groundLine:o.groundLine,groundFrontReturn:o.groundFrontReturn}:move;
 }
 function saveUndo(t){
   const front=op.ground&&typeof groundFrontSnapshot==='function'?groundFrontSnapshot(t):null;
@@ -400,6 +401,7 @@ function saveUndo(t){
     f,order:copyOrder(f.order?.groundSupplyMove?null:f.order,f),queue:f.queue.map(o=>copyOrder(o)),strike:f.strike,sync:f.syncSpeed,
     ...(op.ground?{
       groundFrontAway:f.groundFrontAway,groundFrontEngagement:f.groundFrontEngagement?{...f.groundFrontEngagement}:null,
+      groundFrontRecallTarget:f.groundFrontRecallTarget,
       groundLine:f.groundLine,groundDeployed:f.groundDeployed,groundPost:f.post.clone(),groundStance:f.stance,groundGiving:f.groundGiving,
       groundAreaSalvo:f.groundAreaSalvo?{...f.groundAreaSalvo}:null,
       groundVolley:typeof groundCopyVolley==='function'?groundCopyVolley(f.groundVolley):null,groundBombRun:groundCopyBombRun(f.groundBombRun)

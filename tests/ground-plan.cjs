@@ -50,9 +50,9 @@ function planCases(){
  check('実行は現在の橋で経路を確かめ、準備済み経路をそのまま使う',units.every(f=>f.order?.path?.bridgeRevision===groundBridgeRevision&&!f.order.groundPreparedPath));
  undo();
  check('Undoで実行前の前線・計画・命令に戻る',front.plan&&!front.advance&&units.every(f=>f.groundFrontOf===front&&!f.order&&f.groundDeployed));
- groundPlanToggle('plan');groundPlanTap(a);select(units[1]);
+ setSel(units);groundPlanToggle('plan');groundPlanTap(a);select(units[1]);
  check('選択変更で途中の線だけを取り消す',!groundLineStart&&!groundWorkAiming&&!!front.plan);
- groundPlanToggle('plan');groundPlanTap(a);pressEscape();
+ setSel(units);groundPlanToggle('plan');groundPlanTap(a);pressEscape();
  check('Escで線と入力待ちを取り消す',!groundLineStart&&!groundWorkAiming);
  groundPlanToggle('plan');groundPlanTap(a);groundPlanTap(a);
  check('長さゼロの線は確定せず修正可能',!!groundLineStart&&groundPlanMessage.includes('終点'));
@@ -158,6 +158,29 @@ function planCases(){
   groundSeenBy=realSeen;outside.alive=false;
  }
 
+ for(const [label,y,direction,limit] of [['前',28,1,7],['後ろ',28,-1,35]]){
+  fresh();const defender=unit(11,y),foe=unit(11,y-2,'infantry',1);
+  const defenders=[defender],line=draw('deploy',defenders,p(8,y),p(14,y),p(11,y+1));
+  finish(defenders);
+  groundFrontBreach(line,[foe]);groundFrontRefresh(line);
+  foe.pos.copy(p(11,y+direction*limit));groundFrontTrack(line);
+  check(label+limit+'kmの境界では追撃を続ける',defender.groundFrontEngagement?.target===foe);
+  foe.pos.copy(p(11,y+direction*(limit+.01)));groundFrontTrack(line);groundFrontRefresh(line);
+  check(label+limit+'kmを越えると追撃を切り上げ元の前線へ戻る',!defender.groundFrontEngagement&&defender.order?.groundDeploy);
+ }
+ fresh();const recalled=four(),recallLine=draw('deploy',recalled,a,b);
+ finish(recalled);const recalledUnit=recalled[1],breach=unit(10.25,27,'infantry',1),home=recalledUnit.pos.clone();
+ groundFrontBreach(recallLine,[breach]);groundFrontRefresh(recallLine);
+ recalledUnit.pos.copy(p(10.25,27.5));select(recalledUnit);
+ groundFrontRecall();
+ check('持ち場へ戻るは追撃をやめ、同じ前線の元の持ち場へ向かう',recalledUnit.groundFrontOf===recallLine&&
+  !recalledUnit.groundFrontEngagement&&recalledUnit.order?.groundFrontReturn&&recalledUnit.order.dest.equals(home));
+ finish([recalledUnit]);groundFrontTrack(recallLine);groundFrontBreach(recallLine,[breach]);
+ check('持ち場への復帰後は同じ敵をすぐ追い直さない',recalledUnit.pos.equals(home)&&!recalledUnit.groundFrontAway&&!recalledUnit.groundFrontEngagement);
+ undo();
+ check('持ち場へ戻る操作のUndoは追撃を戻す',recalledUnit.groundFrontEngagement?.target===breach&&
+  recalledUnit.order?.groundFrontEngage&&!recalledUnit.groundFrontRecallTarget);
+
  fresh();const editors=four(),edit=draw('deploy',editors,a,b);
  finish(editors);tick();draw('plan',editors,d,c);
  check('逆から引いた計画は前線方向に反転し前の側を保つ',edit.plan.pts[0].equals(c)&&edit.plan.side===edit.side);
@@ -213,9 +236,10 @@ function planCases(){
  groundPlanToggle('edit');groundPlanHud([]);
  check('部隊選択なしでも編集・削除を開始',groundWorkAiming==='edit'&&!document.getElementById('groundEdit').disabled);
  const click=(hit,id)=>groundEditActions(hit).find(a=>a[0]===id)[2]();
- click({kind:'plan',front:target},'redraw');groundPlanTap(p(8,31));groundPlanTap(p(14,31));groundPlanTap(p(11,32));
+ const lineClick=(kind,front,index=0)=>groundEditLineAction({kind,front,index});
+ lineClick('plan',target);groundPlanTap(p(8,31));groundPlanTap(p(14,31));groundPlanTap(p(11,32));
  check('計画の編集ボタンで引き直して編集・削除へ戻る',target.plan.pts[0].equals(p(8,31))&&groundWorkAiming==='edit');
- click({kind:'front',front:target},'redraw');groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
+ lineClick('front',target);groundPlanTap(a);groundPlanTap(b);groundPlanTap(forward);
  check('前線の編集ボタンで向きを指定して編集・削除へ戻る',!!target.plan&&groundWorkAiming==='edit');
  finish(own);tick();
  const viaPoint=p(8.75,29.5);
@@ -247,7 +271,7 @@ function planCases(){
  undo();
  check('中間点の削除は1回の戻すで取り消せる',target.custom.get(lead)?.points[0].equals(movedVia));
  groundPlanToggle('edit');
- click({kind:'plan',front:target},'delete');
+ groundEditSetMode('delete');lineClick('plan',target);
  check('計画の削除ボタンは前線を残して編集・削除を続ける',!target.plan&&groundFronts.includes(target)&&groundWorkAiming==='edit');
  pressEscape();check('Escは編集・削除を解除し、ポーズを開かない',!groundWorkAiming&&!pauseOpened);
  groundPlanToggle('edit');groundPlanToggle('edit');check('編集・削除は同じボタンで解除',!groundWorkAiming);
@@ -272,11 +296,61 @@ function planCases(){
      const x=vertices[i-i%3]-mid.x;
      return Math.abs(x)<1e-2||expected[x<0?0:1][i%3]===v;   // 切れ目の点は両方の色を持つ
    }));
- groundPlanToggle('edit');click({kind:'front',front:target},'delete');
+ groundPlanToggle('edit');groundEditSetMode('delete');lineClick('front',target);
  check('前線の削除ボタンで前線を消し、編集・削除は続く',!groundFronts.length&&groundWorkAiming==='edit');
  groundPlanToggle('edit');groundPlanHud([]);
  check('最後の前線を消したあとも同じボタンで解除でき、解除すると押せない',
    !groundWorkAiming&&document.getElementById('groundEdit').disabled);
+
+ for(const advancing of [false,true]){
+  fresh();
+  const received=[unit(9,28),unit(13,28)],moved=[unit(9,23),unit(13,23,'artillery')];
+  received.forEach((f,i)=>f.companyId='c'+i);
+  moved.forEach((f,i)=>f.companyId='c'+(i+2));
+  const to=draw('deploy',received,a,b),from=draw('deploy',moved,p(8,23),p(14,23),p(11,24));
+  finish([...received,...moved]);
+  draw('plan',moved,p(8,25),p(14,25));
+  if(advancing)groundPlanExecute();
+  draw('plan',received,p(8,31),p(14,31));
+  draw('plan',received,c,d);
+  if(advancing)groundPlanExecute();
+  const original={pts:to.pts,side:to.side,plan:to.plan,next:to.nextPlans[0]},fromPlan=from.plan;
+  groundPlanToggle('edit');groundEditSetMode('merge');
+  lineClick('plan',to);
+  check('統合では侵攻線を選べない',!groundEditMergeFrom);
+  lineClick('front',from);
+  check('統合の1回目で移す側を選択し、同じ前線を押しても所属は変わらない',
+   groundEditMergeFrom===from&&moved.every(f=>f.groundFrontOf===from));
+  lineClick('front',from);
+  const oldPath=groundMovePath;
+  groundMovePath=()=>null;lineClick('front',to);groundMovePath=oldPath;
+  check('統合先の持ち場に通えない場合は両方の命令・前線・所属を保つ',groundEditMergeFrom===from&&
+   groundFronts.length===2&&moved.every(f=>f.groundFrontOf===from)&&to.members.length===2);
+  lineClick('front',to);
+  const title=advancing?'進撃中':'待機中';
+  check(title+'の統合は受け入れ側の線と現在・次の計画を維持し、2列へ並び直す',
+   groundFronts.length===1&&groundFronts[0]===to&&from.plan===null&&!from.nextPlans.length&&
+   to.pts===original.pts&&to.side===original.side&&to.plan===original.plan&&to.nextPlans[0]===original.next&&
+   to.slots.length===4&&to.slots.find(s=>s.f===moved[1]).offset===GROUND_PLAN_ROW_KM*GROUND_SCALE&&
+   [...received,...moved].every(f=>f.groundFrontOf===to&&(advancing?
+    f.order?.groundAdvance===to.advance.group:f.order?.groundDeploy)));
+  check(title+'の統合後は前線の色を統合先に揃え、大隊色を保つ',
+   groundPlanSectionColors(to).join()===green&&moved.every(f=>groundPlanUnitColor(f)===pink));
+  undo();
+  check(title+'の統合を一度のUndoで元の前線と計画・命令に戻す',groundFronts.length===2&&
+   from.plan===fromPlan&&groundPlanSectionColors(from).every(color=>color===pink)&&to.mergedColor===null&&
+   moved.every(f=>f.groundFrontOf===from&&(!advancing||f.order?.groundAdvance===from.advance.group)));
+  groundPlanToggle('edit');groundEditSetMode('delete');
+  const project=groundEditProject;
+  groundEditProject=q=>({x:q.x*100,z:q.z*100});
+  hitUnit=moved[0];groundEditTap(0,0);hitUnit=null;
+  check(title+'の削除では指定中隊だけが外れその場で停止する',!moved[0].groundFrontOf&&!moved[0].order&&
+   moved[0].post.equals(moved[0].pos)&&from.members[0]===moved[1]&&from.plan===fromPlan&&groundEditMode==='delete');
+  const atLine=groundEditProject(groundFrontDisplayLine(to)[0]);
+  hitUnit=received[0];groundEditTap(atLine.x,atLine.z);hitUnit=null;
+  groundEditProject=project;
+  check(title+'の削除で線を直接押すと、近くの駒より線が優先される',!groundFronts.includes(to)&&received.every(f=>!f.groundFrontOf));
+ }
 
  fresh();groundBridges=[];
  const data=groundData(),fords=data.objects.fords;
@@ -443,22 +517,24 @@ function planCases(){
   !f.order&&f.groundDeployed&&groundPlanDistance(f.pos,destinations.get(f))<1e-6&&
   f.heading.x===f.groundLine.face.x&&f.heading.z===f.groundLine.face.z));
 
- for(const count of [4,7])for(const mode of ['both','left','right']){
+ for(const count of [4,7]){
   fresh();
   const n=count===7?6:4,start=p(10,23),end=p(17,23),target=[p(10,27),p(17,27)],at=p(13.5,25);
   const units=Array.from({length:n},(_,i)=>unit(10+7*(i+.5)/n,23));
   if(count===7)units.push(unit(13.5,22,'artillery'));
   const front=draw('deploy',units,start,end,at);finish(units);tick();
   draw('plan',units,...target,at);
-  if(mode!=='both')groundPlanSetDetour(front,0,mode);
   const slots=prepared(front),preview=groundPlanPreview(front),L=groundPlanLine(front.plan.pts);
+  const arrows=groundPlanSummaryArrows(front);
+  check('回り込みの計画矢印は左右に1本ずつで各端の中継点を通る',arrows.length===2&&arrows.every(({arrow,index},i)=>
+   index===0&&arrow.slice(1,-1).some(q=>preview.some(r=>r.detourFirst===(i===0)&&q===r.detourVia))));
   groundPlanExecute();
-  const label=mode+'・'+count+'隊';
+  const label='両側の回り込み・'+count+'隊';
   check(label+'は自動の持ち場を割り当て直さない',front.slots.length===count&&slots.every(({f,dest,fraction},i)=>
    [preview[i],front.slots[i]].every(s=>s?.f===f&&s.fraction===fraction&&groundPlanDistance(s.dest,dest)<1e-6)&&
    f.order?.path&&groundPlanDistance(f.order.path.points.at(-1),dest)<1e-6));
   check(label+'は外側の点を通り、端ごとの後ろの中継点の近くに集まる',slots.every(({f,fraction,dest},i)=>{
-   const left=mode==='left'||mode==='both'&&fraction<.5,via=left?p(8.5,28.5):p(18.5,28.5);
+   const left=fraction<.5,via=left?p(8.5,28.5):p(18.5,28.5);
    via.x+=(left?-1:1)*(preview[i].detourSpread||0);   // 1点に重ねず、同じ端の隊は0.3kmずつ外へずらす
    const corner=p(groundMapX(via.x),26.5);
    return samePoints(f.order?.path?.pts,[corner,via,dest])&&samePoints(preview[i].path?.pts,[corner,via,dest]);
@@ -486,47 +562,40 @@ function planCases(){
  fresh();const editGroup=four(),editFront=draw('deploy',editGroup,a,b),[editedUnit,otherUnit]=editGroup;
  finish(editGroup);tick();draw('plan',editGroup,p(8,30.5),p(14,30.5),p(11,29));
  const automatic=groundPlanPreview(editFront),autoArrow=groundPlanArrows(editFront)[0];
- const [autoCorner,autoVia,autoEnd]=autoArrow.markers.map(m=>m.p);
- check('待機中の回り込みの○は外側の点と中継点と終点を順に示す',
-  samePoints(autoArrow.markers.map(m=>m.p),automatic[0].path.pts)&&
-  autoArrow.markers.length===3&&autoArrow.markers.every((m,i)=>m.i===[0,1,null][i]));
+ const [autoCorner,autoVia]=autoArrow.markers.map(m=>m.p),autoEnd=automatic[0].path.pts.at(-1);
+ check('回り込みの○は外側の点と中継点だけを示し、線上の終点に○がない',
+  samePoints(autoArrow.markers.map(m=>m.p),automatic[0].path.pts.slice(0,-1))&&
+  autoArrow.markers.length===2&&autoArrow.markers.every((m,i)=>m.i===i)&&
+  groundPlanPickAt(autoEnd,.01)?.kind==='plan');
  const autoHit={kind:'via',front:editFront,plan:editFront.plan,f:editedUnit,...autoArrow.markers[0]};
  const newCorner=autoCorner.clone().add(new THREE.Vector3(-1,0,0));
  groundPlanEditHandle(autoHit,'move',newCorner);
  const editedRoute=editFront.custom.get(editedUnit);
- check('自動の○を動かすとその隊だけ手直し済みになり、残りの点と他隊の道を保つ',
+ check('自動の○を動かすとその隊だけ手直し済みになり、自動の持ち場と他隊の道を保つ',
   editFront.custom.size===1&&editedRoute?.isCustomEdited&&samePoints(editedRoute.points,[newCorner,autoVia])&&
-  groundPlanDistance(editedRoute.dest,autoEnd)<1e-6&&
+  !('dest' in editedRoute)&&groundPlanDistance(groundPlanPreview(editFront)[0].dest,autoEnd)<1e-6&&
   groundPlanPreview(editFront).slice(1).every((route,i)=>route.path===automatic[i+1].path));
- const endHit=groundPlanPickAt(autoEnd,.01),undoBefore=undoStack.length;
- check('終点の○は削除できず、通行不能な位置への移動では手直しもUndoも変えない',
-  !groundEditActions(endHit).some(a=>a[0]==='delete')&&!groundPlanEditHandle(endHit,'move',p(-2,31))&&
-  editFront.custom.get(editedUnit)===editedRoute&&undoStack.length===undoBefore&&groundPlanMessage==='通れない場所です');
- groundPlanEditHandle(endHit,'move',p(8.8,33));
- const customEnd=editFront.custom.get(editedUnit);
  setSel(editGroup);groundPlanExecute();
  const independentOrder=editedUnit.order;
  order(otherUnit,{type:'move',dest:p(10,27)});tick();
  groundBridgeRevision++;groundFollow(editedUnit,.25);
- check('ほかの隊が離脱して橋が変わっても、手直しの中間点と線外の終点を保持',
-  otherUnit.groundFrontAway&&editFront.custom.get(editedUnit)===customEnd&&
-  groundPlanDistance(editedUnit.order.dest,customEnd.dest)<1e-6&&
-  samePoints(editedUnit.order.path.pts.slice(0,-1),customEnd.points));
+ check('ほかの隊が離脱して橋が変わっても、手直しの中間点を通って自動の持ち場に着く',
+  otherUnit.groundFrontAway&&editFront.custom.get(editedUnit)===editedRoute&&
+  groundPlanDistance(editedUnit.order.dest,prepared(editFront)[0].dest)<1e-6&&!editedUnit.order.dest.equals(autoEnd)&&
+  samePoints(editedUnit.order.path.pts.slice(0,-1),editedRoute.points));
  finish([otherUnit]);tick();
- check('ほかの隊が復帰しても線外の終点は変わらない',!otherUnit.groundFrontAway&&
-  groundPlanDistance(editedUnit.order.dest,customEnd.dest)<1e-6);
- const unchanged=editGroup.slice(1).map(f=>f.order);
+ check('ほかの隊が復帰すると手直しした隊も元の持ち場に戻る',!otherUnit.groundFrontAway&&
+  groundPlanDistance(editedUnit.order.dest,autoEnd)<1e-6);
  click({kind:'arrow',front:editFront,f:editedUnit},'reset');
- check('進撃中に1隊を自動に戻すとその隊だけが自動の回り込みに戻る',
-  !editFront.custom.size&&samePoints(editedUnit.order.path.pts,automatic[0].path.pts)&&
-  editGroup.slice(1).every((f,i)=>f.order===unchanged[i])&&editedUnit.order!==independentOrder);
+ check('進撃中に1隊を自動に戻すと自動の回り込みに戻る',
+  !editFront.custom.size&&samePoints(editedUnit.order.path.pts,automatic[0].path.pts)&&editedUnit.order!==independentOrder);
  undo();
- check('戻すでリセット前の中間点・終点・進撃が戻る',
-  editFront.custom.get(editedUnit)===customEnd&&editedUnit.order.groundAdvance===editFront.advance.group&&
-  samePoints(editedUnit.order.path.pts,[...customEnd.points,customEnd.dest]));
+ check('戻すでリセット前の中間点と進撃が戻る',
+  editFront.custom.get(editedUnit)===editedRoute&&editedUnit.order.groundAdvance===editFront.advance.group&&
+  samePoints(editedUnit.order.path.pts,[...editedRoute.points,autoEnd]));
  const otherArrow=groundPlanArrows(editFront).find(a=>a.f===otherUnit);
  groundPlanViaAdd(otherUnit,otherArrow.pts[0].clone().lerp(otherArrow.pts[1],.5));
- click({kind:'plan',front:editFront},'reset');
+ click({kind:'plan',front:editFront,plan:editFront.plan},'reset');
  check('計画線の全隊リセットで2隊とも自動に戻る',!editFront.custom.size);
  undo();
  check('全隊リセットは1回の戻すで復元する',editFront.custom.size===2);
@@ -559,14 +628,10 @@ function planCases(){
  undo();
  check('1回のUndoで複数の前線の点を復元する',plans.every(front=>!front.custom.size)&&
   handles.every(h=>groundEditSameHandle(h,handle(h.front,0))));
- const selectedForDelete=[...handles,...plans.map(front=>handle(front,null))];
- selectedForDelete.forEach(groundEditSelect);
+ handles.forEach(groundEditSelect);
  click(handles[0],'delete-selected');
- check('選んだ点を削除は複数の前線の中間点だけを消す',plans.every(front=>{
-  const {points,dest}=front.custom.get(front.members[0])||{};
-  return samePoints(points,[remainingVia.get(front)])&&
-   groundPlanDistance(dest,selectedForDelete.find(h=>h.front===front&&h.i===null).p)<1e-6;
- })&&groundEditSelected.length===2&&groundEditSelected.every(h=>h.i===null));
+ check('選んだ点を削除は複数の前線の中間点を消す',plans.every(front=>
+  samePoints(front.custom.get(front.members[0])?.points,[remainingVia.get(front)]))&&!groundEditSelected.length);
  undo();
  check('選んだ点を削除も1回のUndoで復元する',plans.every(front=>!front.custom.size)&&!groundEditSelected.length);
 
@@ -583,23 +648,40 @@ function planCases(){
  const firstPlan=queue.plan;
  check('計画の線の上を選ぶと出発する前線の反対側を使う',firstPlan.side===-groundPlanSide(firstPlan.pts,forward)&&
   groundPlanNearest(groundPlanLine(firstPlan.pts),queued[0].pos).side!==firstPlan.side);
- draw('plan',[queued[0]],d,c,p(11,33));const secondPlan=queue.nextPlans[0];
- check('同じ前線の1隊でも次の計画を追加でき、前の計画と端を揃えて前の側を保つ',queue.plan===firstPlan&&
+ setSel([queued[0],unit(16)]);
+ groundPlanHud(orderTargets());groundPlanToggle('plan');groundPlanToggle('deploy');
+ check('計画のある前線の一部を含む選択は前線・進撃計画を押せず、理由が出る',
+  !groundWorkAiming&&['groundDeploy','groundPlan'].every(id=>{
+   const b=document.getElementById(id);return b.disabled&&b.title.includes('全隊');
+  }));
+ draw('plan',queued,d,c,p(11,33));const secondPlan=queue.nextPlans[0];
+ check('全隊を選ぶと次の計画を追加でき、前の計画と端を揃えて前の側を保つ',queue.plan===firstPlan&&
   secondPlan?.pts[0].equals(c)&&secondPlan.side===groundPlanSide(secondPlan.pts,p(11,33))&&queued.every(f=>!f.order));
+ const middle=pts=>{const line=groundPlanLine(pts);return groundPlanAt(line,line.len/2);};
+ const summary=groundPlanSummaryArrows(queue);
+ groundPlanDraw();
+ check('矢印は前線と計画線の中心を1本ずつ結び、待機中の不透明度は0.55で○は出さない',
+  summary.length===2&&samePoints(summary[0].arrow,[middle(queue.pts),middle(firstPlan.pts)])&&
+  samePoints(summary[1].arrow,[middle(firstPlan.pts),middle(secondPlan.pts)])&&
+  groundPlanVisual.meshes.arrows.material.opacity===.55&&!groundPlanVisual.meshes.ring.visible);
  groundPlanExecute();const running=queue.advance,orders=queued.map(f=>f.order);
+ groundFollow(queued[1],2);
+ const now=groundFrontNow(queue);
+ check('進撃中の計画の矢印は曲がった今の前線の中心から出る',
+  groundPlanDistance(middle(now),middle(queue.pts))>1e-6&&
+  groundPlanDistance(groundPlanSummaryArrows(queue)[0].arrow[0],middle(now))<1e-6);
  draw('plan',queued,thirdStart,thirdEnd,p(11,34));const thirdPlan=queue.nextPlans[1];
  check('実行中も計画を順に追加し、現在の命令や矢印の行き先を保つ',queue.plan===firstPlan&&queue.advance===running&&
   queue.nextPlans.length===2&&queued.every((f,i)=>f.order===orders[i])&&groundPlanArrows(queue).every(a=>a.pts.at(-1).z===firstStart.z));
  const queuedHit=groundPlanPickAt(p(11,33),.1);
  check('待機中の計画線を順番つきで選べる',queuedHit?.kind==='plan'&&queuedHit.index===2&&queuedHit.plan===thirdPlan);
- click(queuedHit,'detour-left');
- check('次の計画にだけ片側指定を保存し、今の進撃は保つ',queue.plan===firstPlan&&queue.plan.detour==='both'&&
-  queue.nextPlans[1].detour==='left'&&queued.every((f,i)=>f.order===orders[i]));
- click(groundPlanPickAt(p(11,33),.1),'redraw');groundPlanTap(thirdStart);groundPlanTap(thirdEnd);groundPlanTap(p(11,32));
+ check('計画のメニューに回り込む側の指定がなく、計画にも保持しない',
+  !('detour' in firstPlan)&&!('detour' in thirdPlan)&&!groundEditActions(queuedHit).some(([id])=>id.startsWith('detour')));
+ groundPlanToggle('edit');lineClick('plan',queue,2);groundPlanTap(thirdStart);groundPlanTap(thirdEnd);groundPlanTap(p(11,32));
  const edited=queue.nextPlans[1];
  check('次の計画の引き直しは選んだ1本だけを変える',queue.plan===firstPlan&&queue.nextPlans[0]===secondPlan&&
-  edited?.side===-thirdPlan.side&&edited.detour==='left'&&queue.advance===running&&groundWorkAiming==='edit');
- click(groundPlanPickAt(p(11,33),.1),'delete');
+  edited?.side===-thirdPlan.side&&queue.advance===running&&groundWorkAiming==='edit');
+ groundEditSetMode('delete');lineClick('plan',queue,2);
  check('次の計画の削除で選んだ1本だけを消す',queue.plan===firstPlan&&queue.nextPlans.length===1&&queue.nextPlans[0]===secondPlan);
  undo();
  check('戻すで削除前の計画の並びと進撃を復元する',queue.nextPlans[0]===secondPlan&&queue.nextPlans[1]===edited&&
@@ -759,7 +841,10 @@ async function setupGroundRouteEdit(page,count=4){
   }));
   const previousNpc=window.WOS_NO_NPC;
   window.WOS_NO_NPC=true;
-  WOS.start({op:'groundExercise2',groundOrg:{companies,battalions:[],brigades:[]}});
+  const battalions=[{id:'route-b1',name:'第1 機甲大隊',companies:companies.slice(0,2).map(c=>c.id)},
+   {id:'route-b2',name:'第2 混成大隊',companies:companies.slice(2).map(c=>c.id)}];
+  const brigades=[{id:'route-g1',name:'第1 機甲旅団',battalions:battalions.map(b=>b.id)}];
+  WOS.start({op:'groundExercise2',groundOrg:{companies,battalions,brigades}});
   window.WOS_NO_NPC=previousNpc;
   if(talking)endTalk();if(deploying)endDeploy();
   setSpeed(0);hideHint();
@@ -813,6 +898,23 @@ async function routeEditMapPoints(page){
 
 async function checkGroundRouteEdit(page,check){
  await setupGroundRouteEdit(page);
+ for(const [id,count] of [['route-g1',4],['route-b1',2]]){
+  await page.evaluate(()=>setSel([]));
+  const heading=page.locator('.ground-rnode[data-id="'+id+'"] > .ground-rhead .grpBtn');
+  await heading.click();
+  const selected=await page.evaluate(()=>orderTargets().length);
+  await heading.click();
+  check(selected===count&&await page.evaluate(()=>orderTargets().length===0),'右下の見出しは再クリックで一括選択を解除 '+id);
+ }
+ await page.locator('#groundEdit').click();
+ const tabs=page.locator('#groundEditModes button');
+ check((await tabs.allTextContents()).join()==='編集,統合,削除'&&await tabs.first().getAttribute('aria-pressed')==='true',
+  '編集・削除を開くと3つのタブが出て編集が選ばれる');
+ await tabs.nth(1).click();
+ await page.waitForFunction(()=>!groundPlanVisual.meshes.ring.visible);
+ check(await tabs.nth(1).getAttribute('aria-pressed')==='true'&&await page.evaluate(()=>!groundPlanVisual.meshes.ring.visible),
+  '統合タブを選ぶと中間点の輪を表示しない');
+ await tabs.first().click();
  const {handle,plan,arrowPoint,free}=await routeEditMapPoints(page);
  const view=()=>page.evaluate(()=>[...camera.position.toArray(),...controls.target.toArray()].join(','));
  const before=await view();
@@ -836,16 +938,17 @@ async function checkGroundRouteEdit(page,check){
  await page.mouse.click(arrow.x,arrow.y,{button:'right'});
  await page.locator('#groundEditPick [data-action="reset"]').click();
  const resetMarkers=await page.evaluate(()=>groundPlanArrows(window.routeEditDemo)[0].markers.map(m=>m.i));
- check(JSON.stringify(resetMarkers)==='[0,1,null]','経路編集: 自動に戻すと外側の点・中継点・終点の○が戻る');
+ check(JSON.stringify(resetMarkers)==='[0,1]','経路編集: 自動に戻すと中間の○が2つ戻る');
  await page.mouse.click(arrowPoint.x,arrowPoint.y);
  const added=await page.evaluate(()=>window.routeEditDemo.custom.get(window.routeEditDemo.members[0])?.points.length);
  check(added===3,'経路編集: 矢印を左クリックすると自動の中間点2つに点を追加する',String(added));
+ await page.mouse.click(plan.x,plan.y,{button:'right'});
+ const labels=await page.locator('#groundEditPick button').allTextContents();
+ check(labels.join()==='全隊を自動に戻す','経路編集: 侵攻線の右クリックは全隊を自動に戻す操作を表示');
  await page.mouse.click(plan.x,plan.y);
- const sides=page.locator('#groundEditPick');
- const both=await sides.locator('[data-action="detour-both"]').textContent();
- await sides.locator('[data-action="detour-left"]').click();
- const chosen=await page.evaluate(()=>window.routeEditDemo.plan.detour);
- check(both.startsWith('✓')&&chosen==='left','経路編集: 計画線のメニューで使う側を変更する');
+ check(await page.evaluate(()=>groundWorkAiming==='plan'&&groundEditReturn)&&
+  !await page.locator('#groundEditPick').isVisible(),'経路編集: 侵攻線の左クリックで引き直す');
+ await page.locator('#groundEditModes [data-edit-mode="edit"]').click();
  await page.mouse.move(free.x,free.y);await page.mouse.down();
  await page.mouse.move(free.x+85,free.y+10,{steps:4});await page.mouse.up();
  const editedCount=await page.evaluate(()=>window.routeEditDemo.custom.size);
@@ -874,7 +977,7 @@ async function checkGroundRouteEdit(page,check){
  await page.mouse.move(picks.handle.x-28,picks.handle.y+18,{steps:3});await page.mouse.up();
  const groupMove=await page.evaluate(()=>{
   const changes=window.routeEditSelected.map(({front,f,p,i})=>{
-   const edit=front.custom.get(f),to=i===null?edit?.dest:edit?.points[i];
+   const edit=front.custom.get(f),to=edit?.points[i];
    return edit?.isCustomEdited&&to?to.clone().sub(p):null;
   });
   return {moved:changes.length===2&&changes.every(Boolean)&&changes[0].length()>1e-6&&changes[0].distanceTo(changes[1])<1e-6,
