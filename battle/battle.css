@@ -596,6 +596,19 @@ body.nolabels .ground-site{display:none}
 #groundEditModes::before{inset:0;z-index:-1;background:linear-gradient(var(--line) 4px,transparent 4px),rgba(8,14,26,.53);clip-path:polygon(calc((39px + var(--edit-gap)) * .24) 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,calc(var(--edit-gap) * .24) 100%)}
 #groundEditModes::after{top:4px;bottom:calc(-1 * var(--edit-gap));left:0;border-left:1px dotted var(--brass);transform-origin:bottom left;transform:skewX(-13.5deg)}
 #groundEditModes button,#groundFrontRecall{font:11px var(--f-ui);white-space:nowrap}
+/* 開くときの動き（ユーザー 2026-11-25「元のやつみたいにボタンから点線が出て枠が出てボタンができたみたいな感じ」）:
+   点線がボタンから上へ伸び → 枠が左から右へ広がり → 3つのボタンが順に現れる。時間は仮 */
+#groundEditModes:not([hidden])::after{animation:groundEditLine .14s ease-out both}
+#groundEditModes:not([hidden])::before{animation:groundEditFrame .18s ease-out .12s both}
+#groundEditModes:not([hidden]) button{animation:groundEditButton .14s ease-out both}
+#groundEditModes:not([hidden]) button:nth-child(1){animation-delay:.26s}
+#groundEditModes:not([hidden]) button:nth-child(2){animation-delay:.31s}
+#groundEditModes:not([hidden]) button:nth-child(3){animation-delay:.36s}
+@keyframes groundEditLine{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes groundEditFrame{from{transform:scaleX(0);opacity:.4}to{transform:scaleX(1);opacity:1}}
+#groundEditModes::before{transform-origin:left bottom}
+@keyframes groundEditButton{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){#groundEditModes:not([hidden])::before,#groundEditModes:not([hidden])::after,#groundEditModes:not([hidden]) button{animation:none}}
 #groundCommandBar #groundFrontRecall{width:82px}
 #groundUniqueCommands{max-width:204px;flex-wrap:wrap;max-height:25px;overflow:hidden;align-self:flex-end}
 #groundUniqueCommands.expanded{max-height:none}
