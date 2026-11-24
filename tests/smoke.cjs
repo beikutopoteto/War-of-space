@@ -171,6 +171,9 @@ function check(ok, label, detail = '') {
         arrived=attack.band==='high'&&!attack.bandTo&&hits.length===n&&attack.fireTarget===null;
         // W.A.S. は攻撃命令を維持し、巡航中も低高度へ上昇中も独立して自動迎撃する。
         attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.band='high';
+        // 検証用の仮耐久を置き、高度切替まで対空目標を維持する。
+        for(const b of fighter.bodies)b.hp=b.max=1000;
+        groundBodySync(fighter);fighter.groundMaxHp=fighter.hpPool;
         const target=victim;fleets=[was,target,fighter];target.pos.copy(at);was.band='ground';was.order={type:'attack',target};was.pos.copy(at);was.groundShotT=was.groundAATimer=0;
         select(was);document.getElementById('groundWasFlight').click();
         for(let i=0;i<40;i++)tick(.05);
@@ -188,7 +191,8 @@ function check(ok, label, detail = '') {
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
       const original=damage;
       try{
-        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.speed=0;f.stance='evade';t.stance='evade';t.order=null;
+        // 段別の射撃・減衰を、共通の検証用火力2で比べる。武器選択・貫通は ground-weapons で確かめる。
+        fleets=[f,t];t.groundKind='scout';f.pos.copy(groundPoint(16,25));t.pos.copy(f.pos);f.dmg=2;f.weapons=[];f.speed=0;f.stance='evade';t.stance='evade';t.order=null;
         for(const [kind,band,expected] of rows)for(const [i,targetBand] of ['ground','low','high'].entries()){
           f.groundKind=kind;f.band=band;f.bandTo=null;t.band=targetBand;f.order={type:'attack',target:t};f.fireTarget=t;f.groundShotT=0;f.groundAATimer=0;f.groundAATarget=null;
           // The capability matrix now fires every body once; replenish the target to exclude overkill.

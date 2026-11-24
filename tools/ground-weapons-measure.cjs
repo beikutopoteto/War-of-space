@@ -15,7 +15,7 @@ async function openMeasureGame(phase){
  await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/,route=>{const u=route.request().url(),rel=u.includes('cdnjs')?'build/three.min.js':u.split('three@0.128.0/')[1];return route.fulfill({path:path.join(threeDir,rel),contentType:'application/javascript'});});
  await page.route(/fonts\.(googleapis|gstatic)\.com/,r=>r.fulfill({body:''}));
  if(phase==='before'){
-  const {execFileSync}=require('child_process'),files=['data/ground-rules.js','battle/ground-air-missions.js','battle/ground-air-orders.js','battle/ground-area.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-volley.js','battle/ground.js','battle/npc-ground.js'];
+  const {execFileSync}=require('child_process'),files=['data/ground-rules.js','battle/ground-air-missions.js','battle/ground-air-orders.js','battle/ground-area.js','battle/ground-scatter.js','battle/ground-strike.js','battle/ground-transport.js','battle/ground-volley.js','battle/ground.js','battle/npc-ground.js','battle/sim.js','battle/ground-supply.js','battle/ground-aa.js'];
   const sources=new Map(files.map(f=>[path.join(ROOT,f),execFileSync('git',['show',BASELINE_REVISION+':'+f],{cwd:ROOT,encoding:'utf8'})]));
   await page.route(/file:.*\/(battle|data)\/.*\.js$/,route=>{const source=sources.get(decodeURIComponent(new URL(route.request().url()).pathname));return source===undefined?route.continue():route.fulfill({body:source,contentType:'application/javascript'});});
  }
@@ -46,7 +46,8 @@ function fixture(){
  };
  window.measureReset=f=>{
   groundVolleyCancel(f);f.alive=true;f.groundStrikeCooldown=0;f.groundSupply=groundSupplyRules().max;f.groundMorale=100;
-  for(const b of f.bodies){b.alive=true;b.hp=b.max;}groundBodySync(f);
+  f.groundSpawnAt=gameSec;f.groundMovedAt=-Infinity;f.groundBlastUntil=f.groundMobilityUntil=0;
+  for(const b of f.bodies){b.alive=true;b.hp=b.max;delete b.groundMobility;}groundBodySync(f);
  };
  window.measureClear=()=>{
   groundStrikeReset();for(const f of fleets){f.alive=false;f.groundModel.visible=false;f.el.hidden=true;}fleets=[];

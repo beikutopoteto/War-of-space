@@ -141,7 +141,11 @@ function groundSupplyAttackFactor(f){
   return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.5+.5*f.groundSupply/max:1)*(Number.isFinite(f.groundMorale)?.5+.5*f.groundMorale/groundMoraleMax(f):1);
 }
 function groundSupplySpeedFactor(f){
-  if(!groundSupplyActive())return 1;const r=groundSupplyRules();return (Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.7+.3*f.groundSupply/r.max:1)*(f.groundRout==='routing'||!(f.groundHitLeft>0)?1:r.hitSlow);
+  const blast=f.groundBlastUntil>gameSec||f.groundMobilityUntil>gameSec?groundStrikeSpeedFactor(f):1;
+  if(!groundSupplyActive())return blast;
+  const r=groundSupplyRules(),supply=Number.isFinite(f.groundSupply)&&f.groundKind!=='supply'?.7+.3*f.groundSupply/r.max:1;
+  const direct=f.groundRout!=='routing'&&f.groundHitLeft>0?r.hitSlow:1;
+  return supply*Math.min(direct,blast);
 }
 function groundSupplySpend(f,amount){if(groundSupplyActive()&&Number.isFinite(f.groundSupply))f.groundSupply=Math.max(0,f.groundSupply-amount);}
 function groundSupplyShot(f,strike=false,share=1){groundSupplySpend(f,(groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot))*Math.max(0,Number.isFinite(share)?share:1));}
@@ -157,14 +161,31 @@ function groundSupplyMoved(f,a,b){
   for(let i=0;i<n;i++){const t=(i+.5)/n,x=a.x+(b.x-a.x)*t,z=a.z+(b.z-a.z)*t,gx=groundMapX(x),gy=groundMapY(z),type=d.terrain.cells[Math.floor(gy/d.meta.cellKm)*d.terrain.cols+Math.floor(gx/d.meta.cellKm)]||'平地',road=groundRoadAt(gx,gy)||d.objects.roads.some(p=>groundDistance(gx,gy,p.points)<=groundRuleSet().capture.roadWidthKm/2),cover=groundForests.some(p=>Math.hypot(p.x-x,p.z-z)<=p.r)||d.objects.settlements.some(s=>groundInside(gx,gy,s.polygon));spent+=km/n*(r.terrainMove[type]||1)*(road?.5:cover?.75:1);}
   f.groundMorale=Math.max(0,f.groundMorale-spent);
 }
-function groundSupplyHit(f,amount){
-  if(!groundSupplyActive()||!(amount>0))return amount;
-  f.groundHitLeft=groundSupplyRules().hitSeconds;f.groundRest=0;
-  if(!Number.isFinite(f.groundMorale))return amount;
-  // 士気は1小隊あたり（2026-11-18）: 小隊の数が p の中隊は、士気1あたりダメージ p を受け持つ（小隊の数で火力と耐久が増えても、崩れるまでの時間は同じ）
-  const p=f.groundPlatoons||1,absorbed=Math.min(f.groundMorale,amount/p);f.groundMorale-=absorbed;
-  if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
-  return amount-absorbed*p;
+function groundMoraleHit(f,amount,cover,morale,blast){
+  const damage=amount*cover.h;
+  if(!(amount>0))return damage;
+  if(!groundSupplyActive())return damage;
+  const r=groundSupplyRules();
+  if(!blast)f.groundHitLeft=r.hitSeconds;
+  f.groundRest=0;
+  if(!Number.isFinite(f.groundMorale))return damage;
+  // 小隊数を含む隊の最大耐久で割る。カット率には打撃を受ける直前の士気を使う。
+  const cut=r.moraleCut*Math.min(1,f.groundMorale/groundMoraleMax(f));
+  const maxHp=f.groundMaxHp??f.n*f.hp;
+  if(maxHp>0)groundMoraleLose(f,amount*cover.m*morale*r.moraleLoss*100/maxHp);
+  return damage*(1-cut);
+}
+function groundMoraleBodyLoss(f){
+  if(groundSupplyActive()&&Number.isFinite(f.groundMorale)){
+    groundMoraleLose(f,groundMoraleMax(f)*groundSupplyRules().moraleBodyLoss/f.bodies0);
+  }
+}
+function groundMoraleLose(f,amount){
+  f.groundMorale=Math.max(0,f.groundMorale-amount);
+  if(f.groundMorale===0&&f.hpPool>0&&!f.embarked&&!f.groundRout)groundRoutStart(f);
+}
+function groundForceRout(f){
+  if(Number.isFinite(f.groundMorale))groundMoraleLose(f,f.groundMorale);
 }
 function groundRoutStart(f){
   if(groundStaticTarget(f))return;

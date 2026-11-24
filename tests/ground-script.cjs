@@ -60,11 +60,11 @@ async function checkGroundScript(page,check,{shot}={}){
     const descent=await page.evaluate(()=>{
       scriptTestAdvance(119.99);const before=fleets.length;scriptTestAdvance(120);groundDraw();
       const drops=fleets.filter(f=>f.name.startsWith('降下 ')),f=drops[0],position=f.pos.clone();
-      const factor=groundDamageFactor(f);order(f,{type:'move',dest:groundPoint(15,27)});scriptTestAdvance(125);
+      const factor=groundDamageFactor(f).h;order(f,{type:'move',dest:groundPoint(15,27)});scriptTestAdvance(125);
       const stopped=f.pos.distanceTo(position)<1e-8&&!f.order&&!groundCanFire(f,fleets[0])&&!groundAutoAAReady(f);
-      // 同じ遮蔽・回避・士気の条件で、実damageのhp+士気減少量を比較する。
+      // 同じ遮蔽・回避・士気の条件で、実damageの耐久減少量を比較する。
       const source=fleets.find(u=>u.team===0),saved=groundCanFire;source.pos.copy(f.pos);groundUpdateSight();let hits=[];
-      try{groundCanFire=()=>true;for(const descending of [true,false]){f.groundDescentUntil=descending?gameSec+5:0;f.hpPool=f.groundMaxHp;f.groundMorale=100;f.eva=0;const value=f.hpPool+f.groundMorale;damage(f,1,source);hits.push(value-f.hpPool-f.groundMorale);}}finally{groundCanFire=saved;f.groundDescentUntil=130;}
+      try{groundCanFire=()=>true;const body=f.bodies.find(b=>b.alive),hp=body.hp;for(const descending of [true,false]){f.groundDescentUntil=descending?gameSec+5:0;body.hp=hp;groundBodySync(f);f.groundMorale=100;f.eva=0;damage(f,1,source);hits.push(hp-body.hp);}}finally{groundCanFire=saved;f.groundDescentUntil=130;}
       scriptTestAdvance(130);const ready=!groundScriptDescending(f)&&groundCommandAllowed(f,'move');
       return {before,drops:drops.length,pending:groundScriptState.pending.length,marks:groundScriptState.marks.length,factor,stopped,ready,hitRatio:hits[0]/hits[1]};
     });

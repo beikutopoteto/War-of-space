@@ -76,21 +76,29 @@ async function checkGroundCapture(page, check) {
     const heavy=units.find(f=>f.groundKind==='heavyInfantry'), tank=units.find(f=>f.groundKind==='vehicle'), infantry=units.find(f=>f.groundKind==='infantry');
     const savedFleets=fleets, target=fleets.find(f=>f.team===1&&f.groundKind==='vehicle');
     fleets=[heavy,target];heavy.stance=target.stance='evade';heavy.pos.copy(target.pos);heavy.order={type:'attack',target};
-    // Check the unchanged matchup on each body shot, including its current supply factor.
-    // Give each target enough HP so body overkill cannot hide the multiplier.
-    const matchupHit=(source,victim,multiplier)=>{
+    // 体ごとの実射撃で武器の選択・装甲・補給と士気の倍率を確かめる。過剰打撃は起こらないようにする。
+    const matchupHit=(source,victim,rawPower,pen,plate,moraleFactor)=>{
       for(const b of source.bodies)b.shotT=0;
       for(const b of victim.bodies){b.hp=b.max=1000/victim.bodies0;b.alive=true;}groundBodySync(victim);
-      // 士気は小隊ごとに受ける（groundSupplyHit）。耐久と「士気×小隊の数」の合計が損害だけ減る
-      const morale=()=>victim.groundMorale*(victim.groundPlatoons||1),before=victim.hpPool+morale(),real=damage;let expected=0,calls=0,valid=true;
-      damage=(t,n,src,...rest)=>{if(src===source&&t===victim){calls++;const want=source.dmg*multiplier*groundSupplyAttackFactor(source)/groundBodiesPerPlatoon(source);valid&&=Math.abs(n-want)<1e-7;expected+=want*groundRuleSet().combat.damageScale*groundDamageFactor(victim);}return real(t,n,src,...rest);};
+      const before=victim.hpPool,real=damage,p=1/(1+(plate/pen)**4),armor=p+(1-p)*.03;
+      let expected=0,calls=0,valid=true;
+      damage=(t,n,src,impact,body,weapon)=>{
+        if(src===source&&t===victim){
+          calls++;
+          const want=rawPower*groundSupplyAttackFactor(source)/groundBodiesPerPlatoon(source);
+          const cut=groundSupplyActive()?.5*victim.groundMorale/groundMoraleMax(victim):0;
+          valid&&=Math.abs(n-want)<1e-7&&Math.abs(weapon.armorFactor-armor)<1e-7&&weapon.morale===moraleFactor;
+          expected+=want*groundRuleSet().combat.damageScale*armor*groundDamageFactor(victim).h*(1-cut);
+        }
+        return real(t,n,src,impact,body,weapon);
+      };
       try{groundStep(.05);}finally{damage=real;}
-      return calls>0&&valid&&Math.abs(before-victim.hpPool-morale()-expected)<1e-7;
+      return calls>0&&valid&&Math.abs(before-victim.hpPool-expected)<1e-7;
     };
-    const heavyHit=matchupHit(heavy,target,groundRuleSet().combat.heavyTank);
+    const heavyHit=matchupHit(heavy,target,7,2000,150,1);
     const enemyInfantry=savedFleets.find(f=>f.team===1&&f.groundKind==='infantry');
     fleets=[tank,enemyInfantry];tank.stance=enemyInfantry.stance='evade';tank.pos.copy(enemyInfantry.pos);tank.order={type:'attack',target:enemyInfantry};
-    const tankHit=matchupHit(tank,enemyInfantry,groundRuleSet().combat.tankInfantry);
+    const tankHit=matchupHit(tank,enemyInfantry,8,100,10,1.2);
     fleets=savedFleets;heavy.order=tank.order=null;
     const matchup=heavyHit&&tankHit&&groundMoveKind(heavy)==='infantry';
     infantry.pos.copy(enemyInfantry.pos);groundCaptureStep(.05);groundDraw();

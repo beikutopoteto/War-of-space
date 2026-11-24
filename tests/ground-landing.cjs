@@ -57,7 +57,7 @@ function landingCases(){
     check('降りた中隊は岸の艦へ再乗艦できる',groundBoardCommand([tank],ship));
     tick(Math.ceil(tank.order.path.cost*WOS_TERRAIN[op.ground].meta.cellKm*GROUND_SCALE/tank.speed)+5);
     check('実際の速度と経路に見合う時間で再乗艦が完了',tank.embarked===ship);
-    check('別命令で上陸を中止し搭載を保つ',groundLandCommand([ship])===1&&(tick(2),order(ship,{type:'move',dest:groundPoint(12,5)}),!ship.groundUnloading&&tank.embarked===ship&&groundDamageFactor(ship)===1));
+    check('別命令で上陸を中止し搭載を保つ',groundLandCommand([ship])===1&&(tick(2),order(ship,{type:'move',dest:groundPoint(12,5)}),!ship.groundUnloading&&tank.embarked===ship&&groundDamageFactor(ship).h===1));
     tick(10);ship.pos.copy(groundPoint(12.2,7.4));groundTransportSync();
     inf.pos.copy(groundPoint(12.2,8.2));groundBoardCommand([inf],ship);tick(5);
     check('沈没の確認前に2中隊を再搭載',groundPassengers(ship).length===2);

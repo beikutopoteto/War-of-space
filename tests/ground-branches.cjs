@@ -58,12 +58,13 @@ function branchCases(){
     for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-        check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*groundRuleSet().combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
+        const factor=band==='ground'?(kind==='guidedRocket'?2:groundDirectWeapon(f,t).armorFactor):1;
+        check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*factor*groundRuleSet().combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
       }
     }
     for(const band of ['low','high','ground']){
       const f=unit('mobileAA'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;tick(.05);
-      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,(band==='ground'?2:8)*groundRuleSet().combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
+      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,(band==='ground'?2*groundDirectWeapon(f,t).armorFactor:8)*groundRuleSet().combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
     }
     for(const band of ['ground','low','high']){
       const f=unit('guidedRocket'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
@@ -73,10 +74,10 @@ function branchCases(){
     const hit=f=>{const hp=f.hpPool;damage(f,10,heavy);return hp-f.hpPool;};
     check('開けた場所はコマンドも歩兵も被弾10×損害倍率',near(hit(command),10*groundRuleSet().combat.damageScale)&&near(hit(normal),10*groundRuleSet().combat.damageScale));
     groundForests=[{x:command.pos.x,z:command.pos.z,r:2}];
-    check('森：通常8×損害倍率、コマンド7×損害倍率の実被弾（軽減1.5倍）',near(hit(normal),8*groundRuleSet().combat.damageScale)&&near(hit(command),7*groundRuleSet().combat.damageScale));
+    check('森：通常6×損害倍率、コマンドは0.6の1.5乗',near(hit(normal),6*groundRuleSet().combat.damageScale)&&near(hit(command),10*.6**1.5*groundRuleSet().combat.damageScale));
     groundBuildings=[{minX:command.pos.x-.5,maxX:command.pos.x-.2,minZ:command.pos.z-.2,maxZ:command.pos.z+.2,bottom:0,top:2}];
-    check('森と市街地が重なっても軽減は重複しない',near(hit(command),7*groundRuleSet().combat.damageScale));groundForests=[];
-    check('市街地：通常8×損害倍率、コマンド7×損害倍率の実被弾',near(hit(normal),8*groundRuleSet().combat.damageScale)&&near(hit(command),7*groundRuleSet().combat.damageScale));groundBuildings=[];
+    check('森と市街地が重なっても軽減は重複しない',near(hit(command),10*.5**1.5*groundRuleSet().combat.damageScale));groundForests=[];
+    check('市街地：通常5×損害倍率、コマンドは0.5の1.5乗',near(hit(normal),5*groundRuleSet().combat.damageScale)&&near(hit(command),10*.5**1.5*groundRuleSet().combat.damageScale));groundBuildings=[];
     check('コマンドは占拠しない',!groundCanCapture(command));
     const drone=unit('droneHive'),scout=unit('scout');check('ドローンは低空専用・斥候と同視界',groundBands(drone).join()==='low'&&groundMoveKind(drone)==='air'&&groundSightRange(drone)===groundSightRange(scout));
     const machine=unit('mechanicalAssault');fleets=[machine];const hp=machine.hpPool;tick(10);

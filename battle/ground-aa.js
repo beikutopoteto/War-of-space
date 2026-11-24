@@ -56,7 +56,7 @@ function groundAutoAAStep(dt){
     f.groundAAResolving=target;
     try{
       groundVisualDirect(f,0,target,0,f.pos,target.pos,true);
-      damage(target,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,target,true)*groundMatchup(f,target,true)*groundSupplyAttackFactor(f),f);
+      groundFireDirect(f,target,f.groundPlatoons||1,true);
       groundSupplyShot(f);
     }finally{f.groundAAResolving=null;}
   }

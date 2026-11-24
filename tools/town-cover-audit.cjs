@@ -1,5 +1,5 @@
 /* #440 実地図監査。node tools/town-cover-audit.cjs [before|after|both]
-   before は HEAD の4ファイルをブラウザへの応答だけ差し替える（作業ファイルは戻さない）。
+   before は HEAD の地上戦関連ファイルをブラウザへの応答だけ差し替える（作業ファイルは戻さない）。
    凸包は両版とも現在の groundTownZones。before の判定・倍率・処理時間は HEAD の実関数。
    直射は射程を除いた遮蔽を調べるため ignoreRange:true。時間はウォームアップ後5回の中央値。
    出力: test-results/town-cover/audit-{before,after}.json, audit.md */
@@ -8,7 +8,7 @@ const {execFileSync}=require('node:child_process');
 const {openGame,ROOT}=require('./browser.cjs');
 const OUT=path.join(ROOT,'test-results/town-cover');
 const baseline=execFileSync('git',['rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim();
-const changed=['data/ground-rules.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground.js'];
+const changed=['data/ground-rules.js','battle/ground-sight.js','battle/ground-ballistics.js','battle/ground.js','battle/sim.js','battle/ground-strike.js','battle/ground-supply.js','battle/ground-aa.js','battle/ground-drill.js'];
 const sightSource=fs.readFileSync(path.join(ROOT,'battle/ground-sight.js'),'utf8');
 const zoneSource=sightSource.slice(sightSource.indexOf('let groundTownSource='),sightSource.indexOf('function groundBuildingsBlock('));
 const median=values=>[...values].sort((a,b)=>a-b)[Math.floor(values.length/2)];
@@ -65,7 +65,8 @@ function auditMap(opId){
     if(site)for(let ix=-50;ix<=50;ix++)for(let iz=-50;iz<=50;iz++){
       if(ix*ix+iz*iz>2500)continue;
       const x=site.pos.x+ix/50*site.captureRadius,z=site.pos.z+iz/50*site.captureRadius;samples++;
-      if(groundDamageFactor({band:'ground',groundKind:'infantry',pos:{x,z}})<1)covered++;
+      const cover=groundDamageFactor({band:'ground',groundKind:'infantry',pos:{x,z}});
+      if((cover.h??cover)<1)covered++;
     }
     rows.push({id:zone.settlement,areaKm2:area,roofWorld:zone.roof,roofM:zone.roof*1000/GROUND_SCALE,blockedSight,blockedDirect,
       coverage:samples?100*covered/samples:null,covered,samples,escapes});

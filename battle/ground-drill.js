@@ -124,7 +124,7 @@ function groundSupplyDrillTick(row,f,g,dt){
     const shooter=groundDrillUnit('補給訓練 射撃班');
     // 敵の発砲や耐久の変更を使わず、既存の士気・敗走処理を体験する。
     const m=row.marks[0];
-    if(g.issued&&!g.routed&&!actor.groundRout&&Math.hypot(actor.pos.x-m.pos[0],actor.pos.z-m.pos[1])<=6)groundSupplyHit(actor,actor.groundMorale);
+    if(g.issued&&!g.routed&&!actor.groundRout&&Math.hypot(actor.pos.x-m.pos[0],actor.pos.z-m.pos[1])<=6)groundForceRout(actor);
     if(actor.groundRout==='routing'){g.routed=true;groundClearOrders(shooter);}
     return g.routed&&actor.groundRout==='regroup';
   }
