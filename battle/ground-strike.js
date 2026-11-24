@@ -1,4 +1,4 @@
-/* 地上の地点攻撃。発射時に狙点・散布・威力を確定し、直接射撃の視界・遮蔽から切り離す。 */
+/* 地上の地点攻撃。発射時に狙点・散布・威力を確定し、着弾時に爆風の遮蔽を判定する。 */
 let groundStrikes=[], groundImpacts=[], groundStrikeAiming=false, groundStrikeMessage='', groundFlightPreview=null;
 function groundStrikeRules(){ return groundRuleSet().strike; }
 function groundStrikeWeapon(f){
@@ -6,8 +6,47 @@ function groundStrikeWeapon(f){
   const capable=f.groundKind==='sea'&&f.band==='sea'||['artillery','guidedRocket','was','vehicle'].includes(f.groundKind)&&f.band==='ground'||groundWasCruising(f)||f.groundKind==='supportAircraft'&&f.band==='high';
   return capable?groundStrikeRules()[f.groundKind==='sea'&&f.type==='bb'?'battleship':f.groundKind]||null:null;
 }
-function groundStrikeRadius(s,t){const armor=groundStrikeRules().armor;return s.radius*(armor[t.groundKind]??armor.default);}
+function groundStrikeArmor(t){const armor=groundStrikeRules().armor;return armor[t.groundKind]??armor.default;}
+function groundStrikeRadius(s,t){return s.radius*groundStrikeArmor(t);}
 function groundStrikeFalloff(distance,radius){return distance>radius||!(radius>0)?0:distance<=radius/3?1:(radius/3/distance)**2;}
+function groundStrikeDamageFactor(kind){const table=groundStrikeRules().softTarget;return table[kind]??table.default;}
+function groundStrikeMoraleFactor(s,t,src){
+  return (groundStrikeRules().morale[s.kind??src?.groundKind]??1)*(groundRuleSet().unitTypes[t.groundKind]?.blastMorale??1);
+}
+// 共通の被弾処理から呼ぶ。撃破は通常の体の損失として処理する。
+function groundStrikeEffect(t,body,impact,falloff){
+  const rules=groundStrikeRules().suppress,profile=rules.profiles[t.groundKind];
+  if(!profile)return false;
+  const chances=rules.chances[profile],slow=chances?rules.shock:rules[profile];
+  t.groundBlastUntil=gameSec+slow.seconds;t.groundBlastSpeed=slow.speed;
+  if(!chances||!body?.alive)return false;
+  if(falloff===undefined){
+    const pos=groundBodyPosition(t,t.bodies.indexOf(body));
+    falloff=groundStrikeFalloff(groundDistanceTo({pos},{pos:impact.impact}),groundStrikeRadius(impact,t));
+  }
+  for(const kind of ['runningGear','engine','destroy']){
+    const chance=chances[kind]*falloff;
+    if(!(chance>0&&Math.random()<chance))continue;
+    if(kind==='destroy')return true;
+    const until=gameSec+rules.mobility[kind].seconds;
+    (body.groundMobility??={})[kind]=until;
+    t.groundMobilityUntil=Math.max(t.groundMobilityUntil??0,until);
+    break;
+  }
+  return false;
+}
+function groundStrikeSpeedFactor(t){
+  const shock=t.groundBlastUntil>gameSec?t.groundBlastSpeed:1;
+  if(!(t.groundMobilityUntil>gameSec)||!t.bodies)return shock;
+  const {runningGear,engine}=groundStrikeRules().suppress.mobility;
+  let sum=0,count=0;
+  for(const body of t.bodies)if(body.alive){
+    // 各部位は独立して応急修理し、修理途中はその体で遅い方を使う。
+    sum+=Math.min(body.groundMobility?.runningGear>gameSec?runningGear.speed:1,body.groundMobility?.engine>gameSec?engine.speed:1);
+    count++;
+  }
+  return count?shock*sum/count:shock;
+}
 // 隊の視界と射程判定は従来どおり。照準だけは各射手にいちばん近い生存体へ。
 function groundStrikeTargetPoint(f,index,t){
   if(!t?.alive||t.embarked||!groundSeenBy(f.team,t))return null;
@@ -73,7 +112,7 @@ function groundStrikeStep(dt){
         const radius=groundStrikeRadius(s,t),bodies=t.bodies?t.bodies.map((b,i)=>({b,pos:groundBodyPosition(t,i)})).filter(x=>x.b.alive&&groundDistanceTo({pos:x.pos},{pos:s.impact})<=radius):[{b:null,pos:t.pos}];
         for(const hit of bodies){
           if(!t.alive)break;const falloff=groundStrikeFalloff(groundDistanceTo({pos:hit.pos},{pos:s.impact}),radius);
-          damage(t,s.dmg*falloff/(t.bodies?groundBodiesPerPlatoon(t):1),s.source,s,hit.b);
+          damage(t,s.dmg*falloff/(t.bodies?groundBodiesPerPlatoon(t):1),s.source,s,hit.b,{falloff});
         }
       }
       groundBridgeHit(s);

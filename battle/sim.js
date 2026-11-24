@@ -110,7 +110,7 @@ function civHit(n,ours){ const C=op.civil; if(!C||over||!(n>0)) return; casualti
 function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Math.min(u.n,u.dots.length))|0]||u.pos:u.pos;
   if(u.kind==='fortress'){ const a=Math.random()*Math.PI*2; return new THREE.Vector3(Math.cos(a)*10,3+Math.random()*4,Math.sin(a)*9); } return u.ships.length?u.ships[(Math.random()*u.ships.length)|0].pos:u.pos; }
 
-function damage(t,amt,src,groundImpact=null,groundBody=null){
+function damage(t,amt,src,groundImpact=null,groundBody=null,groundHit=null){
   if(op.ground&&src){
     const allowed=groundImpact?groundStrikeHits(groundImpact,t,src):(typeof groundAutoAAHit==='function'&&groundAutoAAHit(src,t))||groundCanFire(src,t)&&groundFireMode(src,t)==='direct';
     if(!allowed)return;
@@ -129,17 +129,16 @@ function damage(t,amt,src,groundImpact=null,groundBody=null){
   /* ship fire on the enemy's infantry on the rock (第5節, 2026-10-19): op.base.troops.hp a dot (times the hit points multiplier) */
   if(t.troop){ const T=op.base.troops||{}; t.lost+=amt/((T.hp??40)*HP_K); t.n=Math.max(0,t.n0-infQ(t.lost)-t.went); if(t.n<=0) t.alive=false; return; }
   if(t.kind==='block'){ civHit(amt*(op.civil.perRaid||2),false); if(Math.random()<amt*.08) burst(t.pos.clone().add(new THREE.Vector3((Math.random()-.5)*8,(Math.random()-.5)*5,(Math.random()-.5)*8)),HOT,10,6,1); return; }
-  if(op.ground) amt*=groundRuleSet().combat.damageScale*groundDamageFactor(t);
-  const evasion=op.ground&&t.groundKind==='was'?(groundWasFlying(t)?groundRuleSet().wasFlight.evasion:0):t.eva;
-  if(evasion) amt*=1-evasion;
+  if(op.ground) amt=groundDamageAmount(t,amt,src,groundImpact,groundHit);
+  else if(t.eva) amt*=1-t.eva;
   /* ship and fortress guns against small craft: their anti-air aim (data/ships.js WOS_DATA.aa) */
   if(t.kind==='wing'&&src.kind!=='wing') amt*=AA.per*(src.aa??AA.std);
   /* a gun battery on the rock is no one's home: hitting it costs no lives (user decision 2026-10-10) */
   if(op.civil&&src.team===0&&t.team===1&&t.kind==='fleet'&&!t.fixed&&inZone(t)) civHit(amt*(src.kind==='wing'?op.civil.perCraft:op.civil.perDmg)/HP_K,true);   // twice the hit points take twice the fire: the same lives (2026-10-13)
-  if(op.ground)amt=groundSupplyHit(t,amt);
-  if(op.ground&&t.bodies){
-    const body=groundBody||t.bodies.find(b=>b.alive);groundBodyHit(t,body,amt,!groundImpact);
-  }else t.hpPool-=amt;
+  const body=op.ground&&t.bodies?(groundBody||t.bodies.find(b=>b.alive)):null;
+  if(op.ground&&groundImpact&&amt>0&&groundStrikeEffect(t,body,groundImpact,groundHit?.falloff))amt=body.hp;
+  if(op.ground&&t.bodies)groundBodyHit(t,body,amt,!groundImpact);
+  else t.hpPool-=amt;
   const key=Math.min(src.id,t.id)+'-'+Math.max(src.id,t.id), last=engaged.get(key), wingy=t.kind==='wing'||src.kind==='wing';
   if(last===undefined||gameSec-last>40){
     if(last===undefined){

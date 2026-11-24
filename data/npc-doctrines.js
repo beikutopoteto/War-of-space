@@ -89,7 +89,7 @@
       fighter: 'screen', attack: 'strike', supportAircraft: 'strike', apc: 'escort', engineer: 'support', supply: 'support', sea: 'fires' },
     space: { bb: 'shock', cl: 'line', dd: 'screen', ff: 'screen', cv: 'strike', cvb: 'strike', mas: 'strike', masc: 'strike' },
   };
-  // 対戦車の組は ground-rules.js の combat.heavyTank と同じ。
+  // 重強化歩兵は対戦車ミサイルを持つ（ground-rules.js の weapons）。
   const counters = {ground:{heavyInfantry:['vehicle']}};
   window.WOS_DATA = window.WOS_DATA || {};
   // 兵科の力（仮）。残存耐久の割合を掛け、隻数・台数とは別に指揮官の見積もりへ渡す。

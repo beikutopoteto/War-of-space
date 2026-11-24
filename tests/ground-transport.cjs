@@ -14,7 +14,7 @@ function transportCases(){
     op={...op,groundHQ:null};
     fleets=[];groundSites=[];groundBridges=[];groundBridgeRevision=0;groundStrikes=[];groundImpacts=[];groundForests=[];groundBuildings=[];groundFog=null;over=false;end=()=>{};shoot=burst=groundHud=()=>{};groundHeight=()=>0;groundHeightCacheReset();Math.random=()=>0;
     const carrier=unit('apc',10,27),infantry=unit('infantry',8,27),heavy=unit('heavyInfantry',8,28),tank=unit('vehicle',10,28),enemy=unit('infantry',10,27,1);fleets=[carrier,infantry,heavy,tank,enemy];
-    check('輸送車と工兵は独立した兵科データ',carrier.speed===4&&carrier.range===8&&groundRuleSet().unitTypes.engineer.hp===40);
+    check('輸送車と工兵は独立した兵科データ',carrier.speed===4&&carrier.range===8&&carrier.hp===225&&groundRuleSet().unitTypes.engineer.hp===100);
     check('乗車命令で離れた歩兵が輸送車へ向かう',groundBoardCommand([infantry],carrier)&&!infantry.embarked&&infantry.order.type==='board');
     check('輸送車1中隊に2中隊は予約できない',!groundBoardCommand([heavy],carrier));
     check('戦車と敵部隊は乗車不可',!groundBoardCommand([tank],carrier)&&!groundBoardCommand([enemy],carrier));

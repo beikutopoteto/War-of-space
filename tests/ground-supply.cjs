@@ -68,7 +68,7 @@ function supplyCases(){
     check('W.A.S. の補給と士気は100から始まる',was.groundSupply===100&&was.groundMorale===100);
     truck.groundSupply=30;
     for(const band of ['ground','cruise','low']){
-      was.band=band;was.groundSupply=40;was.groundMorale=50;
+      was.band=band;was.groundSupply=40;was.groundMorale=50;was.groundRest=0;
       groundSupplyMoved(was,was.pos,was.pos.clone().add(new THREE.Vector3(4,0,0)));
       const moving=was.groundSupply;was.groundMoved=false;
       fleets=[was];groundSupplyAfter(1);
@@ -81,6 +81,20 @@ function supplyCases(){
       check('W.A.S. '+band+' の物資と士気が各2回復',near(was.groundSupply,idle+2)&&near(was.groundMorale,morale+2));
       groundSupplyCancelFocus(truck);
     }
+    const cell=d.meta.cellKm,cx=Math.floor(15/cell),cy=Math.floor(27/cell),index=cy*d.terrain.cols+cx,terrain=d.terrain.cells[index];
+    const mountain=groundPoint((cx+.25)*cell,(cy+.5)*cell),mountainDest=groundPoint((cx+.75)*cell,(cy+.5)*cell);
+    try{
+      d.terrain.cells[index]='山岳';was.pos.copy(mountain);fleets=[was];
+      for(const band of ['ground','cruise','low']){
+        was.band=band;was.groundRest=0;was.groundMorale=50;
+        groundSupplyMoved(was,mountain,mountainDest);
+        const moved=was.groundMorale;
+        was.groundMoved=false;groundSupplyAfter(1);
+        check('W.A.S. '+band+' の山岳での移動・停止時の士気消耗',band==='ground'?
+          moved<50-cell/2&&near(was.groundMorale,moved-groundSupplyRules().idleMorale):
+          near(moved,50-cell/2)&&near(was.groundMorale,moved));
+      }
+    }finally{d.terrain.cells[index]=terrain;}
     fleets=[f,truck];
     f.groundSupply=100;f.groundMorale=79;truck.groundSupply=20;groundSupplyGive(2,new Map());
     check('物資満タンでも士気だけ80まで回復し実回復1の半分を消費',near(f.groundMorale,80)&&near(truck.groundSupply,19.5)&&groundSupplyStatus(truck)==='士気を回復中'&&groundSupplyLinkSource(f)===truck.pos);
@@ -115,12 +129,12 @@ function supplyCases(){
     truck.groundMorale=50;truck.groundRest=5;truck.groundMoved=false;groundSupplyAfter(1);
     check('分配中も補給部隊自身の士気は休息回復する',near(truck.groundMorale,52)&&truck.groundSupplyGiving);
     truck.groundGiving=null;
-    f.groundMorale=3;const hp=f.hpPool,src=unit(1,'infantry',15,27);fleets.push(src);damage(f,8,src,{source:src,resolving:true,impact:f.pos.clone(),radius:4});
-    check('実damageで士気3を先に削り損害倍率を掛けた超過分だけ耐久へ',f.groundMorale===0&&near(f.hpPool,hp-(8*groundRuleSet().combat.damageScale-3))&&f.groundRout==='routing');
+    f.groundMorale=3;const hp=f.hpPool,src=unit(1,'artillery',15,27);fleets.push(src);damage(f,8,src,{source:src,resolving:true,impact:f.pos.clone(),radius:4});
+    check('実damageで打撃直前の士気で耐久を軽減し、同じ一撃で士気0なら敗走',f.groundMorale===0&&near(f.hpPool,hp-8*groundRuleSet().combat.damageScale*2*(1-.5*3/100))&&f.groundRout==='routing');
     const original=f.order;order(f,{type:'move',dest:groundPoint(10,29)});check('敗走中は命令を拒否',f.order===original&&!groundCanCapture(f)&&!groundStrikeWeapon(f)&&!groundCanBoardAny(f));
-    f.groundSupply=100;f.groundHitLeft=2;check('敗走中は被弾減速なし',near(groundSupplySpeedFactor(f),1)&&near(speedOf(f),f.speed));f.groundRout=null;f.groundMorale=100;check('通常時は被弾で0.65倍',near(groundSupplySpeedFactor(f),.65)&&near(speedOf(f),f.speed*.65));
+    f.groundSupply=100;f.groundBlastUntil=0;f.groundHitLeft=2;check('敗走中は直射の被弾減速なし',near(groundSupplySpeedFactor(f),1)&&near(speedOf(f),f.speed));f.groundRout=null;f.groundMorale=100;check('通常時は被弾で0.65倍',near(groundSupplySpeedFactor(f),.65)&&near(speedOf(f),f.speed*.65));
     f.groundMorale=0;groundRoutStart(f);groundRoutStep(f,.05);check('最寄りの味方へ実経路で自動撤退',f.groundRoutTarget===truck&&f.order?.path&&f.groundRout==='routing');
-    const path=f.order?.path;groundSupplyHit(f,1);check('敗走中に撃たれても退路を保持',f.order?.path===path&&f.groundRout==='routing');
+    const path=f.order?.path;groundMoraleHit(f,1,{h:1,m:1},1,false);check('敗走中に撃たれても退路を保持',f.order?.path===path&&f.groundRout==='routing');
     f.pos.copy(truck.pos);groundRoutStep(f,.05);check('到着で再集結し移動と搭乗のみ操作を返す',f.groundRout==='regroup'&&groundCommandAllowed(f,'move')&&groundCommandAllowed(f,'board')&&!groundCommandAllowed(f,'attack'));
     fleets=[f]; // ここからは補給部隊の支援なしで、通常の休息だけを確かめる。
     f.groundMorale=0;f.groundRest=0;f.groundMoved=false;groundSupplyAfter(30);check('色の外でも停止5秒後から士気回復',near(f.groundMorale,50));
@@ -134,14 +148,14 @@ function supplyCases(){
     f.pos.copy(groundPoint(12,29));f.groundMorale=99;groundSupplyAfter(1);check('味方拠点では士気100まで回復',near(f.groundMorale,100));
     f.pos.copy(groundPoint(15,29));groundRoadAt(15,29).owner=0;f.groundMorale=99;groundSupplyAfter(1);check('味方道路でも士気100まで回復',near(f.groundMorale,100));
     f.pos.copy(groundPoint(15,27));f.groundMorale=50;f.groundMoved=true;groundSupplyAfter(1);check('移動中は領域外回復の停止待ちをリセット',near(f.groundMorale,50)&&f.groundRest===0);
-    f.groundMoved=false;f.groundRest=5;groundSupplyHit(f,1);const afterHit=f.groundMorale;groundSupplyAfter(1);check('被弾後も停止待ちをやり直す',near(f.groundMorale,afterHit)&&f.groundRest===1);
+    f.groundMoved=false;f.groundRest=5;groundMoraleHit(f,1,{h:1,m:1},1,false);const afterHit=f.groundMorale;groundSupplyAfter(1);check('被弾後も停止待ちをやり直す',near(f.groundMorale,afterHit)&&f.groundRest===1);
     truck.groundRest=0;truck.groundMoved=false;truck.groundMorale=50;fleets=[truck];groundSupplyAfter(5);
     check('補給部隊も停止5秒までは士気を回復しない',near(truck.groundMorale,50));groundSupplyAfter(1);
     check('補給部隊も停止5秒後から士気を自己回復する',near(truck.groundMorale,52));
     truck.groundMorale=79;groundSupplyAfter(1);check('補給部隊も味方色外では80まで',near(truck.groundMorale,80));
     truck.pos.copy(groundPoint(12,29));truck.groundMorale=99;groundSupplyAfter(1);check('補給部隊も味方色内では100まで',near(truck.groundMorale,100));
     truck.groundMorale=50;truck.groundMoved=true;groundSupplyAfter(1);check('補給部隊も移動すると休息をリセット',near(truck.groundMorale,50)&&truck.groundRest===0);
-    truck.groundMoved=false;truck.groundRest=5;groundSupplyHit(truck,1);groundSupplyAfter(1);check('補給部隊も被弾すると5秒待ち直す',near(truck.groundMorale,49)&&truck.groundRest===1);
+    truck.groundMoved=false;truck.groundRest=5;groundMoraleHit(truck,1,{h:1,m:1},1,false);groundSupplyAfter(1);check('補給部隊も被弾すると5秒待ち直す',near(truck.groundMorale,48)&&truck.groundRest===1);
     truck.groundMorale=0;truck.groundRout='regroup';truck.groundRest=5;groundSupplyAfter(15);check('補給部隊も再集結から士気30で復帰できる',near(truck.groundMorale,30)&&!truck.groundRout);
     setup();const enemy=unit(1,'infantry',35),enemyFriend=unit(1,'vehicle',34);fleets=[enemy,enemyFriend];
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=1;groundSupplyRefresh();enemy.groundSupply=40;enemy.groundSupplyWait=2;groundSupplyAfter(1);
@@ -162,21 +176,21 @@ function supplyCases(){
     check('マウス用の数値は士気72%・補給24%',groundSupplyRosterText([f],false)==='士気 72%　補給 24%');
     check('航空の棒と数値は補給だけ',groundSupplyReadings([plane]).length===1&&groundSupplyMeters([plane]).includes('data-meter="groundSupply"')&&!groundSupplyMeters([plane]).includes('groundMorale')&&groundSupplyRosterText([plane],false)==='補給 100%');
     check('船とハイブは棒も対象外の文字も置かない',[ship,unit(0,'droneHive',12)].every(u=>groundSupplyMeters([u])===''&&!groundSupplyTile(u).includes('対象外')));
-    check('W.A.S. の名札に補給と士気の棒を出す',groundSupplyReadings([was]).length===2&&groundSupplyTile(was).includes('士気')&&groundSupplyTile(was).includes('補給'));
+    check('W.A.S. の名札は補給と士気の棒を出す',groundSupplyReadings([was]).length===2&&groundSupplyTile(was).includes('士気')&&groundSupplyTile(was).includes('補給'));
     const mixed=[f,{groundMorale:40,groundSupply:80},plane,ship];
     check('見出しの平均は対象部隊のみ、最低値も説明へ残す',groundSupplyRosterText(mixed)==='士気 56%（最低40%）　補給 68%（最低24%）'&&groundSupplyMeters(mixed).includes('data-low="true"'));
     check('空の見出しには棒なし',groundSupplyMeters([])===''&&groundSupplyRosterText([])==='');
-    op={};check('宇宙では補給と士気の処理が無効',!groundSupplyActive()&&groundSupplyAttackFactor(f)===1&&groundSupplySpeedFactor(f)===1&&groundSupplyHit(f,7)===7);
+    op={};check('宇宙では補給と士気の処理が無効',!groundSupplyActive()&&groundSupplyAttackFactor(f)===1&&groundSupplySpeedFactor(f)===1&&groundMoraleHit(f,7,{h:1,m:1},1,false)===7);
     // 歩兵の士気は高い（ユーザー決定 2026-11-17）: 最大は兵科の倍率、割合は自分の最大に対して、敗走などの点は士気の数のまま。
     setMoraleMax(moraleMax);setup();
-    const inf=unit(0,'infantry',15,27),kinds=['heavyInfantry','commando','mechanicalAssault','vehicle','engineer'].map(k=>unit(0,k,15,27));
-    check('歩兵の士気の最大は150、機械化突撃兵は200、ほかは100',inf.groundMorale===150&&kinds.map(f=>f.groundMorale).join()==='150,150,200,100,100');
+    const inf=unit(0,'infantry',15,27),kinds=['heavyInfantry','commando','mechanicalAssault','was','vehicle','engineer'].map(k=>unit(0,k,15,27));
+    check('歩兵の士気の最大は150、機械化突撃兵と W.A.S. は200、ほかは100',inf.groundMorale===150&&kinds.map(f=>f.groundMorale).join()==='150,150,200,200,100,100');
     check('満タンの歩兵の攻撃倍率は1のまま',near(groundSupplyAttackFactor(inf),1));
     inf.groundMorale=75;check('士気の攻撃倍率は自分の最大に対する割合',near(groundSupplyAttackFactor(inf),.75));
     check('一覧の士気の棒は自分の最大に対する割合',groundSupplyReadings([inf]).find(r=>r.key==='groundMorale').value===50);
     fleets=[inf];inf.groundRest=5;inf.groundMoved=false;inf.groundMorale=119;groundSupplyAfter(1);check('味方色の外では歩兵の士気120で回復が止まる',near(inf.groundMorale,120));
     inf.pos.copy(groundPoint(12,29));inf.groundMorale=149;groundSupplyAfter(1);check('味方拠点では歩兵の士気150まで回復',near(inf.groundMorale,150));
-    inf.groundMorale=150;check('歩兵は士気140の被弾を吸収して敗走しない',groundSupplyHit(inf,140)===0&&near(inf.groundMorale,10)&&!inf.groundRout);
+    inf.groundMorale=150;check('歩兵は士気満タンでも耐久への打撃を半分受けて敗走する',groundMoraleHit(inf,140,{h:1,m:1},1,false)===70&&inf.groundMorale===0&&inf.groundRout==='routing');inf.groundRout=null;
     const giver=unit(0,'supply',15.6,27);inf.pos.copy(groundPoint(15,27));fleets=[inf,giver];inf.groundSupply=100;inf.groundMorale=119;giver.groundSupply=100;
     const ordered=groundSupplyCommand([giver],inf);groundSupplyGive(2,new Map());
     check('補給部隊は歩兵の士気を自分の最大の8割（120）まで戻せる',ordered&&near(inf.groundMorale,120)&&near(giver.groundSupply,99.5));

@@ -260,7 +260,7 @@ function groundBridgeRemove(b){
 function groundBridgeHit(s){
   for(const b of [...groundBridges])if(b.complete&&groundDistanceTo(b,{pos:s.impact})<=s.radius){
     const falloff=groundStrikeFalloff(groundDistanceTo(b,{pos:s.impact}),s.radius);
-    b.hp=Math.max(0,b.hp-s.dmg*falloff);if(!b.hp)groundBridgeRemove(b);
+    b.hp=Math.max(0,b.hp-s.dmg*falloff*groundStrikeDamageFactor('bridge'));if(!b.hp)groundBridgeRemove(b);
   }
 }
 function groundTransportStep(dt){

@@ -70,7 +70,7 @@ async function checkGroundSight(page,check){
     enemy.pos.copy(tank.pos).add(new THREE.Vector3(1,0,0));enemy.band='ground';tank.order={type:'attack',target:enemy};tank.groundShotT=0;
     // Prepare the body clocks as well as the legacy squad clock for this immediate-hit check.
     for(const b of tank.bodies)b.shotT=0;
-    let hp=enemy.hpPool+(enemy.groundMorale||0);groundStep(.05);const hit=enemy.hpPool+(enemy.groundMorale||0)<hp;
+    let hp=enemy.hpPool;groundStep(.05);const hit=enemy.hpPool<hp;
     enemy.pos.copy(groundPoint(44,32));tank.groundShotT=0;groundUpdateSight();hp=enemy.hpPool;damage(enemy,1,tank);const blocked=enemy.hpPool===hp;
     reset({op:'groundExercise2'});const fresh=fleets.filter(f=>f.team===1&&!f.seen).every(f=>!f.lastPos)&&groundFog!==fog;
     reset({op:'charybdis'});const space=!groundFog&&groundForests.length===0&&groundBuildings.length===0;

@@ -34,16 +34,22 @@ function townCases(){
   const descending=groundBallisticSolution(unit('artillery',0),point(12));
   check('町内発の曲射も頂点の後は同じ町の目標の屋根に当たる',!descending.clear&&descending.reason==='building'&&near(descending.impact.y,.2)&&descending.impact.x>cx+11);
   set([box(-2),box(2)]);
-  check('建物から0.2kmより離れた町内でも歩兵は軽減',groundBuildings.every(b=>cx<b.minX-.8||cx>b.maxX+.8)&&near(groundDamageFactor(unit('infantry',0)),groundRuleSet().combat.infantryCover));
+  const coverMatches=(f,h,m,blast=false)=>{const result=groundDamageFactor(f,blast);return near(result.h,h)&&near(result.m,m);};
+  check('建物から0.2kmより離れた町内でも歩兵は軽減',groundBuildings.every(b=>cx<b.minX-.8||cx>b.maxX+.8)&&coverMatches(unit('infantry',0),.5,.55));
   for(const kind of ['infantry','heavyInfantry','commando']){
     const f=unit(kind,-2.95),c=groundRuleSet().combat;
-    check(kind+'は町外なら建物から0.2km以内でも軽減なし',f.pos.x>=groundBuildings[0].minX-c.urbanMargin&&!groundInsideTown(f.pos,groundTownZones()[0])&&near(groundDamageFactor(f),1));
-    check(kind+'の町内の倍率を維持',near(groundDamageFactor(unit(kind,0)),1-(1-c.infantryCover)*(kind==='commando'?c.commandoCoverBonus:1)));
+    check(kind+'は町外なら建物から0.2km以内でも軽減なし',f.pos.x>=groundBuildings[0].minX-c.urbanMargin&&!groundInsideTown(f.pos,groundTownZones()[0])&&coverMatches(f,1,1));
+    const power=kind==='commando'?1.5:1;
+    check(kind+'の町内で直射と爆風に別の倍率を使う',coverMatches(unit(kind,0),.5**power,.55**power)&&coverMatches(unit(kind,0),.3**power,.6**power,true));
   }
+  const dug=unit('commando',0);dug.groundSpawnAt=gameSec-60;
+  check('停止60秒で町と陣地を重ね、コマンドは両方に1.5乗',coverMatches(dug,(.5*.7)**1.5,(.55*.8)**1.5)&&coverMatches(dug,(.3*.5)**1.5,(.6*.7)**1.5,true));
+  dug.groundMovedAt=gameSec-59.99;
+  check('移動後60秒未満は町だけを適用',coverMatches(dug,.3**1.5,.6**1.5,true));
   groundForests=[{x:cx-3,z:cz,r:.2}];
-  check('町外でも森の歩兵は軽減',near(groundDamageFactor(unit('infantry',-3)),groundRuleSet().combat.infantryCover));groundForests=[];
+  check('町外でも森の歩兵は軽減',coverMatches(unit('infantry',-3),.6,.7)&&coverMatches(unit('infantry',-3),.6,.85,true));groundForests=[];
   set([box(0,0,1,1,2,undefined)]);delete groundBuildings[0].settlement;
-  check('settlementなしの箱は従来のurbanMarginで軽減',near(groundDamageFactor(unit('infantry',1)),groundRuleSet().combat.infantryCover));
+  check('settlementなしの箱は従来のurbanMarginで軽減',coverMatches(unit('infantry',1),.5,.55));
   check('settlementなしの箱は町を作らず個別に遮る',groundTownZones().length===0&&!groundClearLine(point(-2),point(2)));
   // 分配は通行経路を使い、射線を遮る建物があっても届く。
   set([box(-.8,0,1,1),box(.8,0,1,1)]);

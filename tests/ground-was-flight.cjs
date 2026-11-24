@@ -47,7 +47,7 @@ async function checkWasFlight(page,check){
     damage=(t,n,f,...args)=>{
       const hp=t.hpPool;
       originalDamage(t,n,f,...args);
-      if(t===was&&f===vehicle&&hp>t.hpPool)hits.push({aa:f.groundAAResolving===t,scale:(hp-t.hpPool)/n});
+      if(t===was&&f===vehicle&&hp>t.hpPool)hits.push({aa:f.groundAAResolving===t,scale:(hp-t.hpPool)/(n*args[2].armorFactor)});
     };
     try{
       vehicle.stance='engage';
@@ -64,7 +64,7 @@ async function checkWasFlight(page,check){
       const scale=groundRuleSet().combat.damageScale;
       const counts=hits=>({direct:hits.filter(h=>!h.aa).length,aa:hits.filter(h=>h.aa).length});
       record('敵の車両は巡航を直射と自動対空の両方で撃つ',walking.length>0&&walking.every(h=>!h.aa)&&cruising.some(h=>h.aa)&&cruising.some(h=>!h.aa)&&low.length>0&&low.every(h=>h.aa),JSON.stringify([walking,cruising,low].map(counts)));
-      record('実被弾量は飛行中だけ0.7倍',walking.every(h=>close(h.scale,scale))&&cruising.length>0&&low.length>0&&[...cruising,...low].every(h=>close(h.scale,.7*scale)));
+      record('装甲を除いた実被弾量は地上0.7倍・飛行中0.5倍',walking.every(h=>close(h.scale,.7*scale))&&cruising.length>0&&low.length>0&&[...cruising,...low].every(h=>close(h.scale,.5*scale)));
     }finally{damage=originalDamage;}
 
     vehicle.stance='evade';vehicle.groundHoldFire=true;

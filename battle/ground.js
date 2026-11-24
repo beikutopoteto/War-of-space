@@ -226,7 +226,8 @@ function groundUnitHeight(f){
 // 直接射撃の表（設計案3）。地点攻撃は ground-strike.js で別判定。
 function groundFireFactor(f,t,aa=false){
   const band=f.band||'ground', target=groundWasCruising(t)?(aa||groundUsesAirRange(f,t)?'low':'ground'):t.band||'ground', weak=groundRules().weakFire;
-  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1},droneHive:{ground:1},mechanicalAssault:{ground:1,low:weak,high:weak},mobileAA:{ground:weak,low:1,high:1},scout:{ground:1},artillery:{ground:1},vehicle:{ground:1,low:weak,high:weak},apc:{ground:1,low:weak,high:weak},engineer:{ground:1},
+  // 自走対空砲は武器表に対地専用の威力を持つため、ここでは対地の減衰を掛けない。
+  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1},droneHive:{ground:1},mechanicalAssault:{ground:1,low:weak,high:weak},mobileAA:{ground:1,low:1,high:1},scout:{ground:1},artillery:{ground:1},vehicle:{ground:1,low:weak,high:weak},apc:{ground:1,low:weak,high:weak},engineer:{ground:1},
     sea:{low:1,high:1,sea:1},fighter:{low:1,high:1},attack:band==='low'?{ground:1,low:1,high:1,sea:1}:{low:1,high:1},
     was:{ground:1,low:1,high:1}}[f.groundKind];
   return row&&row[target]||0;
@@ -813,6 +814,7 @@ function groundBodyHit(f,body,amt,showLoss=true){
     if(showLoss){const i=f.bodies.indexOf(body);groundVisualLoss(f,groundVisualBodyPoint(f,i,groundBodyPosition(f,i)));}
   }
   groundBodySync(f);
+  if(!body.alive)groundMoraleBodyLoss(f);
 }
 function groundBodiesSpread(f,amt){
   if(!f.bodies){f.hpPool=Math.max(0,f.hpPool-amt);return;}
@@ -855,7 +857,7 @@ function groundBodyFire(f,t,dt,aa=false){
     b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
     const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
     b[timer]=groundRules().fireEvery;groundVisualDirect(f,i,t,hit.j,hit.from,hit.pos,aa);
-    damage(t,f.dmg*groundFireFactor(f,t,aa)*groundMatchup(f,t,aa)*groundSupplyAttackFactor(f)/groundBodiesPerPlatoon(f),f,null,hit.b);
+    groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b);
     groundSupplyShot(f,false,1/f.bodies0);
   }
 }
@@ -871,7 +873,7 @@ function groundInitUnit(f){
   f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;f.groundTrack=null;f.groundWasGuarded=null;
   f.groundBodySpec=bodySpec;f.bodies0=f.groundKind==='sea'?1:(bodySpec?.offsets.length||1);
   f.bodies=Array.from({length:f.bodies0},(_,i)=>({hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:groundBodyRandom(f,i)()*groundRules().fireEvery,aaT:groundBodyRandom(f,i)()*groundRules().fireEvery}));
-  groundBodySync(f);f.groundMovedAt=-Infinity;
+  groundBodySync(f);f.groundMovedAt=-Infinity;f.groundSpawnAt=gameSec;
   // 古い地上作戦が指定する高高度は、W.A.S. が使える低高度へ収める。
   if(f.groundKind==='was'&&f.band==='high')f.band='low';
   f.band=groundBands(f).includes(f.band)?f.band:groundBands(f)[0]; f.bandTo=null; f.bandLeft=0;
@@ -1113,7 +1115,7 @@ function groundStep(dt){
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
       groundVisualDirect(f,0,f.fireTarget,0,f.pos,f.fireTarget.pos);
-      damage(f.fireTarget,f.dmg*(f.groundPlatoons||1)*groundFireFactor(f,f.fireTarget)*groundMatchup(f,f.fireTarget)*groundSupplyAttackFactor(f),f);
+      groundFireDirect(f,f.fireTarget,f.groundPlatoons||1);
       groundSupplyShot(f);
       f.groundShotT=groundRules().fireEvery;
     }
@@ -1139,19 +1141,58 @@ function groundSelectEnemy(f,eligible,canCounter){
   return target;
 }
 
-function groundMatchup(f,t,aa=false){
-  const c=groundRuleSet().combat;
-  return f.groundKind==='mobileAA'&&(groundAirTarget(t)||aa&&groundWasCruising(t))?c.mobileAAAir:
-    f.groundKind==='vehicle'&&['infantry','commando'].includes(t.groundKind)?c.tankInfantry:
-    f.groundKind==='heavyInfantry'&&t.groundKind==='vehicle'?c.heavyTank:1;
+function groundArmorFactor(armor,pen,rules){
+  const p=1/(1+(armor/pen)**rules.exponent);
+  return p+(1-p)*rules.floor;
 }
-function groundDamageFactor(t){
+function groundDirectWeapon(f,t,aa=false){
+  const rules=groundRuleSet(),air=aa||groundUsesAirRange(f,t);
+  const weapons=f.weapons??rules.unitTypes[f.groundKind]?.weapons;
+  // 地上用の表に対空武器がない場合は既存の対空火力を使う。
+  const fallback={power:f.dmg*(f.groundKind==='mobileAA'&&air?rules.combat.mobileAAAir:1),armorFactor:1,morale:1};
+  if(!weapons)return fallback;
+  const armor=rules.unitTypes[t.groundKind]?.armor,penetration=rules.combat.penetration;
+  const dx=f.pos.x-t.pos.x,dz=f.pos.z-t.pos.z;
+  const front=armor?.front&&t.heading&&dx*t.heading.x+dz*t.heading.z>=Math.hypot(dx,dz)*penetration.frontCos;
+  const ambush=armor?.side&&f.band==='ground'&&['infantry','heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)&&groundTerrainCover(f);
+  const soft=['infantry','commando','mechanicalAssault'].includes(t.groundKind);
+  let best=null;
+  for(const w of weapons){
+    if(air&&!w.air)continue;
+    const plate=typeof armor==='number'?armor:w.top?armor?.top:front&&!ambush?(w.shaped?armor.shapedFront??armor.front:armor.front):armor?.side;
+    const armorFactor=groundArmorFactor(plate??0,w.pen,penetration),power=w.power*(soft?w.soft??1:1);
+    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale};
+  }
+  return best??fallback;
+}
+function groundFireDirect(f,t,share,aa=false,body=null){
+  const weapon=groundDirectWeapon(f,t,aa);
+  const raw=weapon.power*groundFireFactor(f,t,aa)*groundSupplyAttackFactor(f)*share;
+  damage(t,raw,f,null,body,weapon);
+}
+function groundTerrainCover(t){
+  const {x,z}=t.pos,{urbanMargin:m}=groundRuleSet().combat;
+  if(groundTownZones().some(zone=>groundInsideTown(t.pos,zone))||groundBuildings.some(b=>b.settlement==null&&x>=b.minX-m&&x<=b.maxX+m&&z>=b.minZ-m&&z<=b.maxZ+m))return 'town';
+  return groundInForest(x,z)?'forest':null;
+}
+function groundDamageFactor(t,blast=false){
   const descent=groundScriptDescending(t)?1.5:1;
-  if(t.groundUnloading)return groundLandingRules().damageFactor*descent;
-  if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return descent;
-  const c=groundRuleSet().combat,m=c.urbanMargin;
-  const cover=groundInForest(t.pos.x,t.pos.z)||groundTownZones().some(zone=>groundInsideTown(t.pos,zone))||groundBuildings.some(b=>b.settlement==null&&t.pos.x>=b.minX-m&&t.pos.x<=b.maxX+m&&t.pos.z>=b.minZ-m&&t.pos.z<=b.maxZ+m);
-  return descent*(cover?1-(1-c.infantryCover)*(t.groundKind==='commando'?c.commandoCoverBonus:1):1);
+  if(t.groundUnloading)return {h:groundLandingRules().damageFactor*descent,m:1};
+  if(t.band!=='ground'||!['infantry','heavyInfantry','commando'].includes(t.groundKind))return {h:descent,m:1};
+  const {infantryCover,commandoCoverPower}=groundRuleSet().combat,mode=blast?'blast':'direct';
+  const terrain=infantryCover[groundTerrainCover(t)]?.[mode];
+  const stoppedAt=Math.max(t.groundSpawnAt??-Infinity,t.groundMovedAt??-Infinity);
+  const dug=Number.isFinite(stoppedAt)&&gameSec-stoppedAt>=groundSupplyRules().dugSec?infantryCover.dug[mode]:null;
+  const power=t.groundKind==='commando'?commandoCoverPower:1;
+  return {h:descent*((terrain?.h??1)*(dug?.h??1))**power,m:((terrain?.m??1)*(dug?.m??1))**power};
+}
+function groundDamageAmount(t,raw,src,impact,weapon){
+  const rules=groundRuleSet(),cover=groundDamageFactor(t,!!impact);
+  const amount=raw*rules.combat.damageScale*(weapon?.armorFactor??1);
+  const evasion=t.groundKind==='was'?(groundWasFlying(t)?rules.wasFlight.evasion:rules.unitTypes.was.evasion):t.eva??0;
+  const hit=amount*(impact?groundStrikeDamageFactor(t.groundKind):1)*(1-evasion);
+  const morale=impact?groundStrikeMoraleFactor(impact,t,src):weapon?.morale??1;
+  return groundMoraleHit(t,hit,cover,morale,!!impact);
 }
 function groundMechanicalWear(f,dt){
   groundBodiesSpread(f,(f.groundMaxHp||f.n*f.hp)*groundRuleSet().combat.mechanicalWearPerSec*dt);
