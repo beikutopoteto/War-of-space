@@ -25,7 +25,7 @@ function supplyCases(){
     check('本営から道路を経て味方拠点につながる',groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===1);
     groundSupplyRoadCapture(.1);groundSupplyRefresh();
     check('道路競合の地点とその先も半速',groundSupplyAt(blue).rate===.5&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===.5);
-    const downstream=unit(0,'vehicle',18);downstream.groundSupply=40;downstream.groundSupplyWait=2;fleets.push(downstream);groundSupplyAfter(2);check('競合の下流で実補充量も毎秒1',near(downstream.groundSupply,42));
+    const downstream=unit(0,'vehicle',21);/* 拠点の円の外の道路（円の中は補充が2倍） */downstream.groundSupply=40;downstream.groundSupplyWait=2;fleets.push(downstream);groundSupplyAfter(2);check('競合の下流で実補充量も毎秒1',near(downstream.groundSupply,42));
     blue.pos.copy(groundPoint(10,27));groundSupplyRoadCapture(5);groundSupplyRefresh();
     check('敵が道路を5秒で占領し補給を切る',groundRoadAt(15,29).owner===1&&groundSupplyAt({team:0,pos:groundPoint(18,29)}).rate===0);
     red.pos.copy(groundPoint(15,27));groundSupplyRoadCapture(1);groundSupplyRefresh();
@@ -51,6 +51,8 @@ function supplyCases(){
     setup();const f=unit(0,'infantry',15);fleets=[f];f.groundSupply=40;
     groundSupplyAfter(2);check('補充開始の2秒待ち',f.groundSupply===40);groundSupplyAfter(1);check('つながった道で毎秒2補充',near(f.groundSupply,42));
     f.pos.copy(groundPoint(15,27));groundSupplyAfter(5);check('円と帯の外では補充しない',near(f.groundSupply,42)&&f.groundSupplyWait===0);
+    {const g=unit(0,'infantry',12);fleets=[g];g.groundSupply=40;g.groundSupplyWait=2;g.groundMorale=50;g.groundRest=5;g.groundMoved=false;groundSupplyAfter(1);
+      check('味方拠点の円の中は補充が毎秒4・士気回復が毎秒3（道路の2倍・1.5倍）',near(g.groundSupply,44)&&near(g.groundMorale,53),[g.groundSupply,g.groundMorale]);fleets=[f];}
     const a=f.pos.clone(),b=a.clone().add(new THREE.Vector3(4,0,0));groundSupplyMoved(f,a,b);check('実移動1kmで補給2消費',near(f.groundSupply,40));
     groundSupplyShot(f);check('直接射撃の実消費',near(f.groundSupply,39.5));groundSupplyShot(f,true);check('地点攻撃の実消費',near(f.groundSupply,35.5));
     f.groundSupply=0;f.groundMorale=100;check('補給0の攻撃と速度は0.5/0.7',near(groundSupplyAttackFactor(f),.5)&&near(groundSupplySpeedFactor(f),.7));
@@ -156,7 +158,7 @@ function supplyCases(){
     truck.pos.copy(groundPoint(12,29));truck.groundMorale=99;groundSupplyAfter(1);check('補給部隊も味方色内では100まで',near(truck.groundMorale,100));
     truck.groundMorale=50;truck.groundMoved=true;groundSupplyAfter(1);check('補給部隊も移動すると休息をリセット',near(truck.groundMorale,50)&&truck.groundRest===0);
     truck.groundMoved=false;truck.groundRest=5;groundMoraleHit(truck,1,{h:1,m:1},1,false);groundSupplyAfter(1);check('補給部隊も被弾すると5秒待ち直す',near(truck.groundMorale,48)&&truck.groundRest===1);
-    truck.groundMorale=0;truck.groundRout='regroup';truck.groundRest=5;groundSupplyAfter(15);check('補給部隊も再集結から士気30で復帰できる',near(truck.groundMorale,30)&&!truck.groundRout);
+    truck.groundMorale=0;truck.groundRout='regroup';truck.groundRest=5;groundSupplyAfter(10);check('補給部隊も再集結から士気30で復帰できる（拠点の中は毎秒3）',near(truck.groundMorale,30)&&!truck.groundRout);
     setup();const enemy=unit(1,'infantry',35),enemyFriend=unit(1,'vehicle',34);fleets=[enemy,enemyFriend];
     for(const e of groundSupplyNet.edges)if(!e.circle)e.owner=1;groundSupplyRefresh();enemy.groundSupply=40;enemy.groundSupplyWait=2;groundSupplyAfter(1);
     check('敵も自軍本営の接続道路で同じ速度の補充',near(enemy.groundSupply,42));enemy.groundMorale=0;groundRoutStart(enemy);groundRoutStep(enemy,.05);check('敵も士気0で味方へ敗走',enemy.groundRout==='routing'&&enemy.groundRoutTarget===enemyFriend);
