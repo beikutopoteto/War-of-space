@@ -55,8 +55,9 @@ function groundAutoAAStep(dt){
     f.groundAATimer=groundRules().fireEvery;
     f.groundAAResolving=target;
     try{
-      groundVisualDirect(f,0,target,0,f.pos,target.pos,true);
-      groundFireDirect(f,target,f.groundPlatoons||1,true);
+      const weapon=groundDirectWeapon(f,target,true);
+      groundVisualDirect(f,0,target,0,f.pos,target.pos,true,weapon);
+      groundFireDirect(f,target,f.groundPlatoons||1,true,null,weapon);
       groundSupplyShot(f);
     }finally{f.groundAAResolving=null;}
   }

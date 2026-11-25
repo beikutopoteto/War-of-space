@@ -84,7 +84,7 @@ window.WOS_GROUND_RULES = {
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
     // directFirst: 直接射撃を主とする。間接射撃は地点攻撃の命令のときだけ撃ち（自動交戦・攻撃の命令・敵の自動の地点攻撃では撃たない）、
     // 攻撃の命令と NPC の助攻では直接射撃の距離まで近づく（ユーザー決定 2026-11-19）
-    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:150,dmg:2,directFirst:true,armor:{front:250,side:150,top:150},blastMorale:.7,weapons:[{power:5,pen:280,soft:1.5,morale:1.5,air:true},{power:5,pen:800,morale:2},{power:6,pen:2500,soft:.1,morale:1.5,shaped:true}],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
+    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:150,dmg:2,directFirst:true,armor:{front:250,side:150,top:150},blastMorale:.7,weapons:[{power:5,pen:280,soft:1.5,morale:1.5,air:true,fx:'gatling'},{power:5,pen:800,morale:2},{power:6,pen:2500,soft:.1,morale:1.5,shaped:true}],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
   },
   // 地上・海上専用の仮射程（km）。既存の艦種IDを使い、宇宙側の艦種・性能は変更しない。
   navalFireRangesKm: {

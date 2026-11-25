@@ -856,8 +856,10 @@ function groundBodyFire(f,t,dt,aa=false){
   for(const [i,b] of f.bodies.entries()){
     b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
     const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
-    b[timer]=groundRules().fireEvery;groundVisualDirect(f,i,t,hit.j,hit.from,hit.pos,aa);
-    groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b);
+    b[timer]=groundRules().fireEvery;
+    const weapon=groundDirectWeapon(f,t,aa);
+    groundVisualDirect(f,i,t,hit.j,hit.from,hit.pos,aa,weapon);
+    groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b,weapon);
     groundSupplyShot(f,false,1/f.bodies0);
   }
 }
@@ -1031,7 +1033,7 @@ function groundDraw(){
       const b=f.bodies?.[i];body.visible=!f.bodies||!!b?.alive;
       if(rig&&model.visible&&body.visible)groundVisualRigDraw(body,groundVisualKeepAim(f,b,now),heading,!!f.groundTrack?.moving[i]);
     });
-    model.position.copy(f.pos); if(f.band==='ground'||f.groundKind==='was')model.position.y+=.15; model.rotation.y=heading+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
+    model.position.copy(f.pos); if(f.band==='ground'||f.groundKind==='was')model.position.y+=GROUND_BODY_LIFT; model.rotation.y=heading+(!model.userData.groundShape&&['fighter','attack','supportAircraft'].includes(f.groundKind)?Math.PI:0);
     const k=groundBandOpacity(f);
     if(material)material.opacity=material.userData.baseOpacity*k;
     else model.traverse(o=>{if(o.material)o.material.opacity=o.material.userData.baseOpacity*k;});
@@ -1114,8 +1116,9 @@ function groundStep(dt){
     if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');}
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
-      groundVisualDirect(f,0,f.fireTarget,0,f.pos,f.fireTarget.pos);
-      groundFireDirect(f,f.fireTarget,f.groundPlatoons||1);
+      const weapon=groundDirectWeapon(f,f.fireTarget);
+      groundVisualDirect(f,0,f.fireTarget,0,f.pos,f.fireTarget.pos,false,weapon);
+      groundFireDirect(f,f.fireTarget,f.groundPlatoons||1,false,null,weapon);
       groundSupplyShot(f);
       f.groundShotT=groundRules().fireEvery;
     }
@@ -1161,12 +1164,11 @@ function groundDirectWeapon(f,t,aa=false){
     if(air&&!w.air)continue;
     const plate=typeof armor==='number'?armor:w.top?armor?.top:front&&!ambush?(w.shaped?armor.shapedFront??armor.front:armor.front):armor?.side;
     const armorFactor=groundArmorFactor(plate??0,w.pen,penetration),power=w.power*(soft?w.soft??1:1);
-    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale};
+    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale,fx:w.fx};
   }
   return best??fallback;
 }
-function groundFireDirect(f,t,share,aa=false,body=null){
-  const weapon=groundDirectWeapon(f,t,aa);
+function groundFireDirect(f,t,share,aa=false,body=null,weapon=groundDirectWeapon(f,t,aa)){
   const raw=weapon.power*groundFireFactor(f,t,aa)*groundSupplyAttackFactor(f)*share;
   damage(t,raw,f,null,body,weapon);
 }
