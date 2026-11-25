@@ -1,7 +1,8 @@
 /* Ground-battle presentation. Positions here are in groundVisuals coordinates.
    A shot records only drawing state. The simulation still owns firing, flight, hits and movement. */
 const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,plumes:24}; // 同時表示数は仮
-const groundFxQueues={direct:[],flight:[],blast:[]},groundFxPlumes=[];
+const GROUND_BODY_LIFT=.15; // 地上の体と空中の W.A.S. を描くときの持ち上げ幅
+const groundFxQueues={direct:[],flight:[],blast:[]},groundFxPlumes=[],groundGatlingBursts=[];
 const groundFxUp=new THREE.Vector3(0,1,0),groundFxForward=new THREE.Vector3(0,0,1);
 const groundWasPower={wasFly:.6,wasFlyFire:.6,wasFlyMove:1.25,wasFlyMarch:1.25,wasFlyUp:1.5,wasFlyDown:.45};
 let groundFxPlumesUsed=0;
@@ -16,6 +17,7 @@ function groundFxReset(){
   for(const queue of Object.values(groundFxQueues)){for(const e of queue)groundFxRelease(e.fx);queue.length=0;}
   for(const fx of groundFxPlumes)groundFxRelease(fx);
   groundFxPlumes.length=0;
+  groundGatlingBursts.length=0;
   groundFxPlumesUsed=0;
 }
 function groundFxAdd(type,start,life,create,options={}){
@@ -25,6 +27,7 @@ function groundFxAdd(type,start,life,create,options={}){
   queue.push({start,life,create,fx:null,...options});
 }
 function groundFxDraw(now){
+  groundVisualDrawGatling(now);
   for(const queue of Object.values(groundFxQueues)){
     let kept=0;
     for(const e of queue){
@@ -123,18 +126,18 @@ function groundWasPlume(body,key,now){
 // use the displayed body offsets for the picture of the shot.
 function groundVisualBodyPoint(f,i,p){
   const at=p.clone();
-  if(f.band==='ground')at.y+=.15;
+  if(f.band==='ground')at.y+=GROUND_BODY_LIFT;
   const body=f.groundModel?.userData.formation?.bodies[i];
   if(body&&f.bodies0>1&&groundBodyCentered(f))at.add(body.position.clone().applyAxisAngle(groundFxUp,Math.atan2(f.heading.x,f.heading.z)));
   return at;
 }
-function groundVisualAim(f,i,from,to,{missile=false,indirect=false}={}){
+function groundVisualAim(f,i,from,to,{missile=false,indirect=false,gatling=false}={}){
   const data=f.groundModel?.userData,spec=f.groundBodySpec,rig=data?.rig,form=data?.formation;
   const groundMove=!!f.groundTrack?.moving[i],base=groundVisualBodyPoint(f,i,from),size=spec?.body??spec?.size??1;
   const heading=f.heading?Math.atan2(f.heading.x,f.heading.z):0;
   const body=form?.bodies[i],relativeYaw=body?.userData.baseYaw??body?.rotation.y??0;
   const bodyYaw=groundBodyPositions(f).yaws?.[i]??heading+relativeYaw;
-  let yaw=Math.atan2(to.x-base.x,to.z-base.z),el=0,muzzle,direction;
+  let yaw=Math.atan2(to.x-base.x,to.z-base.z),el=0,muzzle,direction,guns;
   if(rig){
     // Solve elevation at the trunnion. Axis offsets follow the turret, or the stopped chassis.
     const pivot=new THREE.Vector3().fromArray(rig.turretAt).multiplyScalar(size);
@@ -156,12 +159,18 @@ function groundVisualAim(f,i,from,to,{missile=false,indirect=false}={}){
     const move=data?.pose?.move[i]?.find(mesh=>mesh.visible);
     const local=(pose||move?.geometry||data?.pose?.rest||body?.geometry)?.userData.muzzle;
     const muzzleYaw=pose&&(key==='hinfMsl'||key==='wasFire'||key==='wasFlyFire')?yaw:bodyYaw;
+    if(gatling&&pose?.userData.guns){
+      // groundDraw lifts the flying W.A.S. model as well as the grounded one.
+      const gunBase=base.clone();
+      if(f.band!=='ground')gunBase.y+=GROUND_BODY_LIFT;
+      guns=pose.userData.guns.map(local=>new THREE.Vector3().fromArray(local).multiplyScalar(size).applyAxisAngle(groundFxUp,muzzleYaw).add(gunBase));
+    }
     muzzle=local?new THREE.Vector3().fromArray(local).multiplyScalar(size).applyAxisAngle(groundFxUp,muzzleYaw).add(base):
       base.add(new THREE.Vector3(Math.sin(bodyYaw)*size*.5,f.band==='ground'?size*.4:0,Math.cos(bodyYaw)*size*.5));
     direction=to.clone().sub(muzzle).normalize();
   }
   if((rig||data?.special?.size)&&f.bodies?.[i])f.bodies[i].look={yaw,el,missile,until:gameSec+(indirect?.7:1.05)};
-  return {muzzle,direction};
+  return {muzzle,direction,guns};
 }
 function groundVisualMuzzle(shot,size,options={}){
   const {muzzle,direction}=shot;
@@ -176,17 +185,57 @@ function groundVisualDust(point,radius,start,smokeK=1){
     surface:(x,z)=>groundSurfaceHeight(at.x+x,at.z+z)-at.y
   }),at));
 }
-function groundVisualDirect(f,i,t,j,from,to,aa=false){
+function groundVisualGatling(guns,at,seenTarget){
+  // Reserving a whole burst in the direct queue would evict rounds before they even start.
+  if(groundGatlingBursts.length===GROUND_FX_LIMIT.direct)groundGatlingBursts.shift();
+  groundGatlingBursts.push({start:gameSec,next:0,guns,at,seenTarget});
+}
+function groundVisualDrawGatling(now){
+  const g=GFX.gatling,spacing=g.burst/g.rounds;
+  let kept=0;
+  for(const burst of groundGatlingBursts){
+    while(burst.next<g.rounds){
+      const start=burst.start+burst.next*spacing;
+      if(start>now)break;
+      groundVisualGatlingRound(burst,burst.next++,start,now);
+    }
+    if(burst.next<g.rounds)groundGatlingBursts[kept++]=burst;
+  }
+  groundGatlingBursts.length=kept;
+}
+function groundVisualGatlingRound({guns,at,seenTarget},k,start,now){
+  const g=GFX.gatling,rnd=GFX.visualRandom;
+  const flash=guns&&now-start<g.flashLife,fly=guns&&seenTarget&&now-start<g.fly;
+  const impact=seenTarget&&k%g.hitEvery===0&&now-start-g.fly<g.hitLife;
+  if(!flash&&!fly&&!impact)return;
+  const hit=at.clone().add(new THREE.Vector3((rnd()-.5)*2*g.spread,(rnd()-g.spreadHeightBias)*g.spread,(rnd()-.5)*2*g.spread));
+  const muzzle=guns?.[k%guns.length];
+  if(flash){
+    const direction=hit.clone().sub(muzzle);
+    const size=g.flash*THREE.MathUtils.lerp(g.flashMin,g.flashMax,rnd());
+    groundFxAdd('direct',start,g.flashLife,()=>groundFxPlace(
+      GFX.muzzle(size,{life:g.flashLife,detail:groundFxDetail(muzzle,g.flash*2,5)}),muzzle,direction));
+  }
+  if(fly)groundFxAdd('direct',start,g.fly,()=>GFX.shot(u=>muzzle.clone().lerp(hit,u),g.fly,'tracer',g.tracer));
+  if(impact)groundFxAdd('direct',start+g.fly,g.hitLife,()=>groundFxPlace(
+    GFX.hit(g.hit,{detail:groundFxDetail(hit,g.hit*1.4,5)}),hit));
+}
+function groundVisualDirect(f,i,t,j,from,to,aa=false,weapon=null){
   if(!groundVisuals)return;
   const seen=groundFxSeen(f),seenTarget=groundFxSeen(t);
   if(!seen&&!seenTarget)return;
   const at=groundVisualBodyPoint(t,j,to);
   if(t.band==='ground')at.y+=(t.groundBodySpec?.body??.4)*.5;
   const missile=f.groundKind==='heavyInfantry'&&(aa||t.groundKind==='vehicle');
+  const gatling=weapon?.fx==='gatling';
+  const shot=seen?groundVisualAim(f,i,from,at,{missile,gatling}):null;
+  if(gatling&&(!seen||shot?.guns?.length)){
+    groundVisualGatling(shot?.guns,at,seenTarget);
+    return;
+  }
   const tank=f.groundKind==='vehicle'?GFX.tank:null,duration=tank?.duration??.25;
   const size=missile?.14:f.groundKind==='was'?.17:f.groundModel?.userData.rig?.13:.085;
   if(seen){
-    const shot=groundVisualAim(f,i,from,at,{missile});
     groundVisualMuzzle(shot,tank?tank.muzzleSize*GROUND_BODY_SCALE:size,tank?.muzzleOptions);
     if(seenTarget){
       const path=u=>shot.muzzle.clone().lerp(at,u);
