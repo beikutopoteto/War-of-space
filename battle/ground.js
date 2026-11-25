@@ -213,7 +213,7 @@ function groundEngagementRange(f,t){
 function groundAutoIndirect(f){ return !groundRuleSet().unitTypes[f.groundKind]?.directFirst; }
 function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','cruise','low']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundBandOpacity(f){return groundView==='all'||groundView===(groundWasCruising(f)?'ground':f.band)?1:groundRules().dimOpacity;}
-function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'&&!groundWasFlying(f)?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':['artillery','guidedRocket','mobileAA','supply'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
+function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'&&!groundWasFlying(f)?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':f.groundKind==='supply'||f.groundKind==='guidedRocket'&&groundDriveKind(f.groundBodySpec)==='wheel'?'wheel':['artillery','guidedRocket','mobileAA'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
 function groundPermissionOnly(f){ return !!groundRuleSet().unitTypes[f.groundKind]?.permissionOnly; }
 function groundBandSeconds(f,band){
   return f.groundKind==='was'&&(f.band==='ground'||band==='ground')?groundRuleSet().wasFlight.transitionSec:groundRules().transitionSec;
@@ -1064,7 +1064,7 @@ function groundStep(dt){
       groundMechanicalWear(f,dt); if(!f.alive)continue;
     }
     if(f.bandTo)groundStepBand(f,dt);
-    if(f.groundKind==='was')f.speed=groundRuleSet().unitTypes.was.speed*(groundWasFlying(f)?groundRuleSet().wasFlight.speedFactor:1);
+    if(f.groundKind==='was'){const rules=groundRuleSet();f.speed=groundWasCruising(f)?rules.wasFlight.speed.cruise:groundWasFlying(f)?rules.wasFlight.speed.low:rules.unitTypes.was.speed;}
     if(!groundFlyingAircraft(f)||groundTrainingEnemy(f)||groundStaticTarget(f))f.pos.y=groundUnitHeight(f);
     if(groundFlyingAircraft(f)){
       if(f.order?.type==='attack'&&(!f.order.target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}

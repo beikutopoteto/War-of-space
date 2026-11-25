@@ -75,9 +75,10 @@ async function checkWasFlight(page,check){
       return t==='沼地'&&groundPass(x,y,'was')&&groundFactor(p.x,p.z,'was')===.6;
     });
     const swamp=groundPoint((i%d.terrain.cols+.5)*cell,(Math.floor(i/d.terrain.cols)+.5)*cell);
-    const travel=()=>{
+    // 行き先は0.1秒で着かない遠さにする（巡航は速さ12で0.1秒に1.2進む。2026-11-25）。
+    const travel=(far=.8)=>{
       was.pos.copy(swamp);
-      const original=swamp.clone(),dest=original.clone().add(new THREE.Vector3(.8,0,0));
+      const original=swamp.clone(),dest=original.clone().add(new THREE.Vector3(far,0,0));
       order(was,{type:'move',dest});
       groundStep(.1);
       const distance=groundDistanceTo(was,{pos:original});
@@ -85,8 +86,8 @@ async function checkWasFlight(page,check){
       return {distance,speed:was.speed};
     };
     const ground=travel();toggle.click();settle();
-    const flight=travel(),sea=groundPoint(12,3);
-    record('巡航速度は歩きの2倍。沼地で減速せず、海上へ経路を引ける',i>=0&&close(flight.speed,2*ground.speed)&&close(ground.distance,.1*.6*ground.speed)&&close(flight.distance,.1*flight.speed)&&!!groundPath(was.pos,sea,groundMoveKind(was)),JSON.stringify({ground,flight}));
+    const flight=travel(3),sea=groundPoint(12,3);
+    record('巡航速度は wasFlight.speed.cruise（歩きと別の値）。沼地で減速せず、海上へ経路を引ける',i>=0&&close(flight.speed,groundRuleSet().wasFlight.speed.cruise)&&close(ground.speed,groundRuleSet().unitTypes.was.speed)&&close(ground.distance,.1*.6*ground.speed)&&close(flight.distance,.1*flight.speed)&&!!groundPath(was.pos,sea,groundMoveKind(was)),JSON.stringify({ground,flight}));
     was.pos.copy(sea);groundHud();
     const waterNoLand=toggle.disabled&&!groundWasToggle(was);
     was.pos.copy(at);groundHud();toggle.click();

@@ -21,13 +21,14 @@ function crossingCases(){
   check('兵科別の渡河: 戦車は通れない川を避けて浅瀬で到着',vehicle.arrived&&vehicle.safe&&vehicle.ford&&!vehicle.river&&!vehicle.bridge,vehicle);
   // 候補を同じ兵科・速度で実際に進め、格子の形や固定の到着秒に期待値を結びつけない。
   // 同じ兵科の橋・浅瀬だけの経路と、川を横切る直線を候補にする。
-  for(const [kind,y] of [['infantry',26],['scout',26],['infantry',24]]){
+  // 渡る側は工兵（川0.5倍・道路1.5倍）。斥候は装輪で道路が2.5倍になり、y=26 でも橋の道路のほうが速い（2026-11-25）。
+  for(const [kind,y] of [['infantry',26],['engineer',26],['infantry',24]]){
     const a=[21,y],b=[26,y],start=groundPoint(...a),dest=groundPoint(...b);
     const chosen=trace(kind,a,b),dry=trace(kind,a,b,groundPath(start,dest,kind,true));
     const direct=trace(kind,a,b,{points:[start,dest],atIndex:1,s:0});
     const valid=[chosen,dry,direct].every(p=>p.arrived&&p.safe);
     check(`兵科別の渡河: ${kind}・y=${y}は到着時間の短い経路を選ぶ`,valid&&direct.river&&!dry.river&&chosen.seconds<=Math.min(dry.seconds,direct.seconds)+.1,{chosen,dry,direct});
-    // 同じ両岸でも遅い歩兵は橋、斥候は渡河。y=24 は整形前後で優劣が変わる回帰例。
+    // 同じ両岸でも遅い歩兵は橋、工兵は渡河。y=24 は整形前後で優劣が変わる回帰例。
     const detour=kind==='infantry';
     check(`兵科別の渡河: ${kind}・y=${y}は${detour?'橋へ迂回':'川を渡る'}`,valid&&(detour?chosen.bridge&&!chosen.river&&dry.seconds<direct.seconds:chosen.river&&!chosen.bridge&&direct.seconds<dry.seconds),{chosen:chosen.seconds,dry:dry.seconds,direct:direct.seconds});
   }
