@@ -47,6 +47,7 @@ window.WOS_GROUND_RULES = {
     giveStart:.8,approachKm:1,followKm:1.5,giveRepath:1,aiFocusBelow:.5, // 分配の開始割合はユーザー決定、距離・間隔・NPCの割合は仮（#486）
     terrainMove:{'平地':1,'沼地':3,'山岳':3,'砂漠':2},terrainIdle:['沼地','山岳','砂漠'],idleMorale:.05,
     moraleCut:.5,moraleLoss:2,moraleBodyLoss:.5,dugSec:60, // #501 の仮値
+    siteRefill:2,siteMoraleRefill:1.5, // 味方拠点の円の中では補充と士気回復をこの倍に（道路は1倍。ユーザー決定 2026-11-25）
     moraleRefill:2,restWait:5,hitSlow:.65,hitSeconds:2,routArrivalKm:1,routRepath:2,rally:30,
     aiSupply:25,aiMorale:30,aiResume:60,airIdle:.05,airShot:2,airStrike:8,airReturn:15,airBase:20}, // 全て地上試作の仮値
   // fireRangesKm は武器到達距離（km）の仮値。索敵距離とは独立。

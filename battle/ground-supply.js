@@ -479,7 +479,7 @@ function groundSupplyAfter(dt){
     groundSupplyStartTrip(f);
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
-    const gain=Math.min(groundSupplyUnitMax(f)-f.groundSupply,r.refill*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
+    const gain=Math.min(groundSupplyUnitMax(f)-f.groundSupply,r.refill*(at.site?r.siteRefill??1:1)*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
     f.groundSupply+=gain;netGains.set(f,gain);
     if(f.groundSupply>=groundSupplyUnitMax(f))f.groundSupplyDemand=false;
     if(gain>0)f.groundSupplySource=at.site?{site:at.site}:{edge:at.edge};
@@ -489,7 +489,7 @@ function groundSupplyAfter(dt){
     if(!flying&&!own&&!f.groundRout&&r.terrainIdle.includes(type))f.groundMorale=Math.max(0,f.groundMorale-r.idleMorale*dt);
     const restBefore=f.groundRest;f.groundRest=!at.contested&&!f.groundMoved&&f.groundRout!=='routing'?restBefore+dt:0;
     const moraleCap=groundMoraleCap(f,at);
-    if(f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*Math.min(dt,f.groundRest-r.restWait));
+    if(f.groundRest>r.restWait&&f.groundMorale<moraleCap)f.groundMorale=Math.min(moraleCap,f.groundMorale+r.moraleRefill*(at.site&&own?r.siteMoraleRefill??1:1)*Math.min(dt,f.groundRest-r.restWait));
     if(f.groundRout==='regroup'&&f.groundMorale>=r.rally)f.groundRout=null;
     if(f.groundMorale<=0&&!f.groundRout)groundRoutStart(f);
   }
