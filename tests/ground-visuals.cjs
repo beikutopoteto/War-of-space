@@ -30,6 +30,42 @@ async function checkGroundVisuals(page,check){
     const currentPose=f=>f.groundModel.userData.pose.stand[0].geometry;
     const pose=(f,key)=>currentPose(f)===f.groundModel.userData.special.get(key);
     const advance=seconds=>{gameSec+=seconds;groundDraw();};
+    const gatlingBurst=(f,t,aa=false)=>{
+      groundDraw();
+      const start=gameSec,before=Object.fromEntries(names.map(name=>[name,calls[name].length]));
+      const target=groundBodyTarget(f,0,t,aa?groundAARange(f):groundTargetRange(f,t));
+      const entries=[],add=groundFxAdd;
+      let initial,guns,shoulder,hitPoint;
+      groundFxAdd=(type,start,life,create,options)=>{
+        entries.push({type,start,life});
+        return add(type,start,life,create,options);
+      };
+      try{
+        single(f,t,aa);
+        if(!target)return false;
+        const body=f.groundModel.userData.pose.stand[0],geo=body.geometry.userData;
+        if(!geo.guns)return false;
+        body.updateWorldMatrix(true,false);
+        const world=local=>groundVisuals.worldToLocal(body.localToWorld(new THREE.Vector3().fromArray(local)));
+        guns=geo.guns.map(world);
+        shoulder=world(geo.muzzle);
+        hitPoint=groundVisualBodyPoint(t,target.j,target.pos);
+        if(t.band==='ground')hitPoint.y+=t.groundBodySpec.body*.5;
+        initial=entries.length;
+        for(let k=1;k<20;k++){gameSec=start+k*.05+.001;groundDraw();}
+      }finally{groundFxAdd=add;}
+      const tracers=calls.shot.slice(before.shot),flashes=calls.muzzle.slice(before.muzzle),hits=calls.hit.slice(before.hit);
+      return initial===3&&entries.length===25&&entries.every(e=>e.type==='direct')&&guns.length===2&&guns[0].distanceTo(guns[1])>0&&
+        tracers.length===10&&flashes.length===10&&hits.length===5&&
+        tracers.every(({args:[path,duration,kind,size]},k)=>{
+          const muzzle=path(0),offset=path(1).sub(hitPoint);
+          return muzzle.distanceTo(guns[k%2])<1e-6&&muzzle.distanceTo(shoulder)>.1&&duration===.14&&kind==='tracer'&&size===.03&&
+            Math.abs(offset.x)<=.18&&Math.abs(offset.z)<=.18&&offset.y>=-.054&&offset.y<=.126;
+        })&&flashes.every(({args:[size,options],fx},k)=>size>=.09*.8&&size<=.09*1.2&&options.life===.06&&fx.group.position.distanceTo(guns[k%2])<1e-6)&&
+        hits.every(({args:[size],fx},k)=>size===.12&&fx.group.position.distanceTo(tracers[k*2].args[0](1))<1e-6)&&
+        entries.filter(e=>e.life===.14).every((e,k)=>Math.abs(e.start-start-k*.05)<1e-6)&&
+        entries.filter(e=>e.life===.5).every((e,k)=>Math.abs(e.start-start-.14-k*.1)<1e-6);
+    };
     try{
       let {f,t}=scene('vehicle','vehicle');
       const heading=f.heading.clone(),position=groundBodyPosition(f,0);
@@ -80,7 +116,10 @@ async function checkGroundVisuals(page,check){
       groundFxReset();
 
       ({f,t}=scene('was','infantry'));
-      single(f,t);
+      const special=f.groundModel.userData.special;
+      record('W.A.S. の地上・飛行射撃の形に右腕の銃口が2つある',
+        ['wasFire','wasFlyFire'].every(key=>special.get(key)?.userData.guns?.length===2));
+      record('W.A.S. の対歩兵射撃は右腕の2本から交互に10発、着弾は5回',gatlingBurst(f,t));
       record('W.A.S. の地上射撃姿勢',pose(f,'wasFire'));
       advance(1.1);
       const climbs=groundWasToggle(f);groundDraw();
@@ -96,9 +135,27 @@ async function checkGroundVisuals(page,check){
       t.band='low';t.pos.y=groundUnitHeight(t);single(f,t,true);
       record('W.A.S. の空中射撃姿勢',pose(f,'wasFlyFire'));
       advance(.3);
-      record('対空射撃は空中で炸裂する',calls.airBurst.at(-1)?.fx.group.position.y>10);
+      record('W.A.S. の対空射撃は空中で炸裂する',calls.hit.at(-1)?.fx.group.position.y>10);
       const lands=groundWasToggle(f);groundDraw();
       record('W.A.S. の下降姿勢',lands&&pose(f,'wasFlyDown'));
+
+      for(const band of ['cruise','low']){
+        ({f,t}=scene('was','infantry'));
+        f.band=band;f.pos.y=groundUnitHeight(f);
+        record('W.A.S. の飛行中の対地射撃も右腕から10発（'+band+'）',gatlingBurst(f,t)&&pose(f,'wasFlyFire'));
+      }
+      ({f,t}=scene('was','fighter','low'));
+      record('W.A.S. の地上からの対空射撃も右腕から10発',gatlingBurst(f,t,true)&&pose(f,'wasFire'));
+
+      ({f,t}=scene('was','vehicle'));
+      const wasTracers=calls.shot.length;
+      single(f,t);advance(.5);
+      const wasBody=f.groundModel.userData.pose.stand[0];
+      wasBody.updateWorldMatrix(true,false);
+      const wasMuzzle=groundVisuals.worldToLocal(wasBody.localToWorld(new THREE.Vector3().fromArray(wasBody.geometry.userData.muzzle)));
+      const wasShot=calls.shot.at(-1)?.args;
+      record('W.A.S. の対戦車射撃は従来どおり左肩から太さ .17 の1発',
+        calls.shot.length===wasTracers+1&&wasShot[3]===.17&&wasShot[0](0).distanceTo(wasMuzzle)<1e-6);
 
       ({f,t}=scene('heavyInfantry','vehicle'));
       single(f,t);
@@ -122,7 +179,7 @@ async function checkGroundVisuals(page,check){
       performance.now=realNow;
       record('自走砲は撃つ相手がいる間は車体を向けたまま、いなくなるとなめらかに正面へ戻る',kept&&yaw1>.3&&yaw2<yaw1&&!!gunState.parts?.parent);
       reset({op:'charybdis'});setSpeed(0);
-      record('作戦切替で効果・噴射を破棄する',Object.values(groundFxQueues).every(q=>!q.length)&&!groundFxPlumes.length&&!groundVisuals);
+      record('作戦切替で効果・噴射を破棄する',Object.values(groundFxQueues).every(q=>!q.length)&&!groundFxPlumes.length&&!groundGatlingBursts.length&&!groundVisuals);
     }finally{Object.assign(GFX,originals);}
     return rows;
   });

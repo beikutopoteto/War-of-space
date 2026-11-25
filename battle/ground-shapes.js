@@ -1341,6 +1341,7 @@ function groundShapeGeo(key,mono=false){
   if(!Object.prototype.hasOwnProperty.call(GROUND_SHAPES,key))return null;
   const parts=GROUND_SHAPES[key](),geo=groundJoin(parts,mono);
   if(parts.muzzle)geo.userData.muzzle=parts.muzzle;
+  if(parts.guns)geo.userData.guns=parts.guns;
   if(parts.nozzles)geo.userData.nozzles=parts.nozzles.slice(-2); // 背中の2基。脚の噴射口は見本用。
   return geo;
 }

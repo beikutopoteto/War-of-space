@@ -125,5 +125,8 @@ const GFX=(()=>{
   }
   // 戦車の直射は見本と同じ値を使い、ゲーム側で車体の表示倍率を掛ける。
   const tank={muzzleSize:.45,muzzleOptions:{smokeK:1,side:true},tracerSize:.12,duration:.16,impactRadius:2,impactSmoke:.7};
-  return {smoke,blast,hit,airBurst,muzzle,shot,plume,tank};
+  // #504 の見本の値（仮）。射撃の間隔・損害は地上戦の規則が持つ。
+  const gatling={rounds:10,burst:.5,tracer:.03,fly:.14,flash:.09,flashLife:.06,flashMin:.8,flashMax:1.2,
+    spread:.18,spreadHeightBias:.3,hit:.12,hitEvery:2,hitLife:.5};
+  return {smoke,blast,hit,airBurst,muzzle,shot,plume,tank,gatling,visualRandom:rnd};
 })();
