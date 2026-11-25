@@ -164,11 +164,13 @@ function groundRoadQuery(d=groundData()){
   }
   return cache.contains;
 }
+// 道路の速さの倍率。移動の種類（groundMoveKind）ごと（2026-11-25）。
+function groundRoadFactor(kind){const m=groundRuleSet().movement;return m.road?.[kind]??m.roadFactor;}
 function groundFactor(x,z,kind){
   if(kind==='air'||kind==='sea')return 1;
   const d=groundData(),gx=groundMapX(x),gy=groundMapY(z),river=groundRiverFactor(gx,gy,kind);
   // 道路でも通行不能な川は渡れない。橋はriver=1なので道路加速を受ける。
-  if(groundRoadQuery(d)(gx,gy))return groundRuleSet().movement.roadFactor*river;
+  if(groundRoadQuery(d)(gx,gy))return groundRoadFactor(kind)*river;
   const c=Math.floor(gx/d.meta.cellKm),r=Math.floor(gy/d.meta.cellKm),marsh=d.terrain.cells[r*d.terrain.cols+c]==='沼地'?(groundRuleSet().movement.marsh[kind]??1):1;
   return marsh*river;
 }
@@ -632,7 +634,7 @@ function groundPathWithin(x,y,b,pad=0){return x>=b.minX-pad&&x<=b.maxX+pad&&y>=b
 /* straight: 道路を速い道として選ばない（進撃の道。ユーザーの指示 2026-11-21「できるだけ最短ルート（直線ルート）」）。
    道路は沼地の遅さを打ち消すだけ（倍率1）。海・池・川・沼地の扱いは同じ。実際に動く速さは、足元の道路で今までどおり上がる */
 function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false,{bridgesOnly=false,shortest=false,maxKm=Infinity}={}){
-  const roadFactor=straight||shortest?1:groundRuleSet().movement.roadFactor;
+  const roadFactor=straight||shortest?1:groundRoadFactor(kind);
   const d=groundData(),rules=groundRuleSet(),cell=d.meta.cellKm,cols=d.terrain.cols,rows=d.terrain.rows,xy=p=>[groundMapX(p.x),groundMapY(p.z)],a=xy(from),b=xy(to),index=(x,y)=>Math.floor(y/cell)*cols+Math.floor(x/cell),start=index(...a),end=index(...b);
   if(kind==='air'){
     const length=Math.hypot(to.x-from.x,to.z-from.z),steps=Math.max(1,Math.ceil(length/(cell*GROUND_SCALE/2)));
@@ -642,7 +644,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false,{bridges
   }
   // 所有・部隊位置はコストに関係しない。地形・道路・橋・規則の変更だけで格子を破棄する。
   // セル配列の内容も比較し、同じ配列への地形編集を次の探索で反映する。
-  const fingerprint=d.terrain.cells.join('|')+JSON.stringify([d.meta.widthKm,d.meta.heightKm,cell,cols,rows,d.display.board,d.water.sea,d.water.ponds,d.water.rivers,d.objects.roads,d.objects.bridges,d.objects.fords,rules.movement.marsh,rules.movement.river,rules.movement.roadFactor,rules.capture.roadWidthKm]);
+  const fingerprint=d.terrain.cells.join('|')+JSON.stringify([d.meta.widthKm,d.meta.heightKm,cell,cols,rows,d.display.board,d.water.sea,d.water.ponds,d.water.rivers,d.objects.roads,d.objects.bridges,d.objects.fords,rules.movement.marsh,rules.movement.river,rules.movement.roadFactor,rules.movement.road,rules.capture.roadWidthKm]);
   let gridCache=groundPathGrids.get(d);
   if(!gridCache||gridCache.fingerprint!==fingerprint||gridCache.revision!==groundBridgeRevision){
     gridCache={fingerprint,revision:groundBridgeRevision,profiles:new Map(),geometry:null};groundPathGrids.set(d,gridCache);groundRoadGeometry.delete(d);
@@ -721,7 +723,7 @@ function groundPath(from,to,kind='vehicle',dryOnly=false,straight=false,{bridges
     return {bridgeRevision:groundBridgeRevision,cost:direct,curve,points,atIndex:1,L,s:0,pts:[endPoint.clone()],at:[L]};
   }
   const dist=new Float64Array(cols*rows).fill(Infinity),prev=new Int32Array(cols*rows).fill(-1),heap=[];
-  const profileKey=JSON.stringify([kind==='sea',dryOnly,marshSpeed,rules.movement.river[kind]??0,straight,bridgesOnly,shortest]);
+  const profileKey=JSON.stringify([kind==='sea',dryOnly,marshSpeed,rules.movement.river[kind]??0,roadFactor,straight,bridgesOnly,shortest]);
   let profile=gridCache.profiles.get(profileKey);
   if(!profile){profile={edgeCosts:new Float64Array(cols*rows*4).fill(NaN),centerWater:new Float64Array(cols*rows).fill(NaN),centers:new Map()};gridCache.profiles.set(profileKey,profile);}
   const {edgeCosts,centerWater}=profile;

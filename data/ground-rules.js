@@ -1,7 +1,9 @@
 /* 地上・海上専用の基本規則。地形とは独立し、宇宙の性能表には適用しない。 */
 window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
-  wasFlight: { heightKm:.03, transitionSec:2, speedFactor:2, moveSupplyFactor:2, idleSupplyPerSec:.05, evasion:.5, npcMinKm:6 }, // 速さは従来の低空と同じ。ほかは仮。
+  // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
+  // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
+  wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 }, moveSupplyFactor:2, idleSupplyPerSec:.05, evasion:.5, npcMinKm:6 }, // ほかは仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
@@ -66,25 +68,27 @@ window.WOS_GROUND_RULES = {
   // 旧 range（戦闘単位）は旧データとの互換用に維持し、新しい射撃判定は fireRangesKm を使う。
   // #501 の耐久・装甲・直射武器・爆風への士気の強さはすべて仮。dmg は地点攻撃や既存の対空などに使う。
   unitTypes: {
-    infantry:{name:'強化歩兵',speed:2,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
-    heavyInfantry:{name:'重強化歩兵',speed:1.5,range:16,hp:200,dmg:4,armor:30,blastMorale:1,weapons:[{power:4,pen:60,morale:1.2},{power:7,pen:2000,soft:.15,morale:1,top:true}],fireRangesKm:{direct:4,aa:6}},
-    commando:{name:'強化コマンド歩兵',speed:2.5,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
-    guidedRocket:{name:'無誘導ロケット',speed:1.5,range:30,hp:100,dmg:4,permissionOnly:true,armor:{front:300,side:50,top:40},blastMorale:.7,fireRangesKm:{indirect:{min:0,max:50}}},
+    // 速さ（ユーザー承認 2026-11-25、値は仮）: 歩く兵科は前の約0.75倍、装甲兵員輸送車 4→3・斥候 4→3.5（装輪は道路で2.5倍）。補給部隊は野原で戦車と並ぶ 2.5→3、無誘導ロケットは自走砲と同じ 1.5→2.5（ユーザー 2026-11-25）。ほかの装軌は前のまま。
+    // W.A.S. の歩きは設定の75〜125 km/h に戦闘中の0.7倍で70 km/h（3→4.7、ユーザー 2026-11-25）。航空は仕様が変わるかもしれないので前のまま（仮）。
+    infantry:{name:'強化歩兵',speed:1.5,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
+    heavyInfantry:{name:'重強化歩兵',speed:1.1,range:16,hp:200,dmg:4,armor:30,blastMorale:1,weapons:[{power:4,pen:60,morale:1.2},{power:7,pen:2000,soft:.15,morale:1,top:true}],fireRangesKm:{direct:4,aa:6}},
+    commando:{name:'強化コマンド歩兵',speed:1.9,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
+    guidedRocket:{name:'無誘導ロケット',speed:2.5,range:30,hp:100,dmg:4,permissionOnly:true,armor:{front:300,side:50,top:40},blastMorale:.7,fireRangesKm:{indirect:{min:0,max:50}}},
     droneHive:{name:'ドローンハイブ',speed:4,range:12,hp:20,dmg:2,permissionOnly:true,fireRangesKm:{direct:10}}, // 送り出す機体の運用範囲（仮）
-    mechanicalAssault:{name:'機械化突撃兵',speed:3,range:10,hp:120,dmg:3,permissionOnly:true,armor:15,blastMorale:1,weapons:[{power:3,pen:25,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:1.2,aa:0.8}},
+    mechanicalAssault:{name:'機械化突撃兵',speed:2.2,range:10,hp:120,dmg:3,permissionOnly:true,armor:15,blastMorale:1,weapons:[{power:3,pen:25,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:1.2,aa:0.8}},
     mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:150,dmg:4,armor:{front:300,side:50,top:40},blastMorale:.7,weapons:[{power:2,pen:90,morale:1.5}],fireRangesKm:{direct:2,aa:4}},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:250,dmg:5,armor:{front:1800,side:500,top:150,shapedFront:2200},blastMorale:.4,weapons:[{power:5,pen:100,soft:1.6,morale:1.2},{power:6,pen:1800,soft:.2,morale:1.2}],fireRangesKm:{direct:3,aa:1}},
-    scout:{name:'斥候',speed:4,range:7,hp:80,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:1,pen:20,morale:1}],fireRangesKm:{direct:0.6}},
-    apc:{name:'装甲兵員輸送車',speed:4,range:8,hp:225,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:3,pen:200,morale:1.2}],fireRangesKm:{direct:1.5,aa:1}},
+    scout:{name:'斥候',speed:3.5,range:7,hp:80,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:1,pen:20,morale:1}],fireRangesKm:{direct:0.6}},
+    apc:{name:'装甲兵員輸送車',speed:3,range:8,hp:225,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:3,pen:200,morale:1.2}],fireRangesKm:{direct:1.5,aa:1}},
     engineer:{name:'工兵',speed:2,range:7,hp:100,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:1,pen:20,morale:1}],fireRangesKm:{direct:0.6}},
-    supply:{name:'補給部隊',speed:2.5,range:0,hp:100,dmg:0,armor:5,blastMorale:1,fireRangesKm:{direct:0}},
+    supply:{name:'補給部隊',speed:3,range:0,hp:100,dmg:0,armor:5,blastMorale:1,fireRangesKm:{direct:0}},
     artillery:{name:'自走砲',speed:2.5,range:45,hp:100,dmg:12,armor:{front:300,side:50,top:40},blastMorale:.7,weapons:[{power:6,pen:150,morale:2}],fireRangesKm:{direct:2,indirect:{min:2,max:30}}},
     fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2,fireRangesKm:{ground:0,air:2}},
     attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2,weapons:[{power:2,pen:60,soft:2,morale:1.5},{power:6,pen:1500,soft:.2,morale:1.5,top:true}],fireRangesKm:{ground:10,air:15}},
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
     // directFirst: 直接射撃を主とする。間接射撃は地点攻撃の命令のときだけ撃ち（自動交戦・攻撃の命令・敵の自動の地点攻撃では撃たない）、
     // 攻撃の命令と NPC の助攻では直接射撃の距離まで近づく（ユーザー決定 2026-11-19）
-    was:{name:'陸戦型 W.A.S.',speed:3,range:12,hp:150,dmg:2,directFirst:true,armor:{front:250,side:150,top:150},blastMorale:.7,weapons:[{power:5,pen:280,soft:1.5,morale:1.5,air:true,fx:'gatling'},{power:5,pen:800,morale:2},{power:6,pen:2500,soft:.1,morale:1.5,shaped:true}],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
+    was:{name:'陸戦型 W.A.S.',speed:4.7,range:12,hp:150,dmg:2,directFirst:true,armor:{front:250,side:150,top:150},blastMorale:.7,weapons:[{power:5,pen:280,soft:1.5,morale:1.5,air:true,fx:'gatling'},{power:5,pen:800,morale:2},{power:6,pen:2500,soft:.1,morale:1.5,shaped:true}],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
   },
   // 地上・海上専用の仮射程（km）。既存の艦種IDを使い、宇宙側の艦種・性能は変更しない。
   navalFireRangesKm: {
@@ -111,7 +115,11 @@ window.WOS_GROUND_RULES = {
     commandoCoverPower:1.5
   },
   capture: { group:2, seconds:30, roadSeconds:5, neutralSeconds:.5, roadSegmentKm:3, radiusKm:2, roadWidthKm:1.25, decayPerSec:1, decayDelay:2, contestedRate:.5 }, // group: ほかの兵科は1隊 1/group 点。contestedRate: 拠点の競合中の速さ（ユーザー決定 2026-11-20）
-  movement: { timeScale:1.2, roadFactor:1.75, marsh: { vehicle: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
+  movement: { timeScale:1.2, roadFactor:1.5,
+    // 道路の速さの倍率は足回りで分ける（ユーザー承認 2026-11-25「速さは出してもらった案でいいですよ」。値は仮）。
+    // 徒歩（infantry）・二足歩行（was）1.2、装軌（vehicle・engineer）1.5、装輪（wheel＝補給部隊・地球の無誘導ロケット、scout、apc）2.5。表にない種類は roadFactor。
+    road: { infantry: 1.2, was: 1.2, vehicle: 1.5, engineer: 1.5, wheel: 2.5, scout: 2.5, apc: 2.5 },
+    marsh: { vehicle: 0.3, wheel: 0.3, infantry: 0.6, was: 0.6, scout: 0.3, apc: 0.3, engineer: 0.6 }, river: { vehicle: 0, wheel: 0, infantry: 0.2, was: 0.5, scout: 0.5, apc: 0.5, engineer: 0.5, air: 1 } }, // 仮の通行速度倍率
 };
 
 /* 既定の6中隊。従来の地上演習と同じ名前・兵科・順番・仮配置。 */
