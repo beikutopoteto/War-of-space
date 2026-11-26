@@ -114,7 +114,7 @@ window.WOS_GROUND_ORG=(()=>{
     const load=sortieLoad(org.companies,operation);
     if(load.companies.length!==org.companies.length) org=normalize({...org,companies:load.companies});
     const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,groundPlatoons:c.platoons,companyId:c.id,vis:9,stl:0,
-      band:['fighter','supportAircraft'].includes(c.kind)?'high':['attack','droneHive'].includes(c.kind)?'low':'ground'}));
+      band:['fighter','supportAircraft'].includes(c.kind)?'high':c.kind==='attack'?'low':'ground'}));
     return {org,fleets,load};
   }
   return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortie,QUICK_GROUPS,quickOrg};

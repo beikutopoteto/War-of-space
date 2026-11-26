@@ -28,7 +28,7 @@ function nodeChecks(){
   check('15kmは直径を滑らかに平方根2倍',`close(groundScatterRadius(unit(),point(15)),.05*Math.SQRT2)&&close(groundScatterRadius(unit('guidedRocket'),point(15)),.6)`);
   check('射手からの水平距離を使い原点・高度に依存しない',`(()=>{const f=unit('artillery',24,32),p=new THREE.Vector3(48,999,64);f.pos.y=-20;return close(groundScatterRadius(f,p),.05);})()`);
   check('現在の射手位置を毎回読み移動に伴い下限が変わる',`(()=>{const f=unit(),p=point(20),a=groundScatterRadius(f,p);f.pos.x=40;return close(a,.1)&&close(groundScatterRadius(f,p),.05);})()`);
-  check('戦車・歩兵・支援機へ距離依存の精度下限を追加しない',`['vehicle','supportAircraft','infantry','droneHive'].every(kind=>groundScatterRadius(unit(kind),point(50))===0)`);
+  check('戦車・歩兵・支援機へ距離依存の精度下限を追加しない',`['vehicle','supportAircraft','infantry'].every(kind=>groundScatterRadius(unit(kind),point(50))===0)`);
   check('単一点でも幅0指定の下限を返す',`close(groundAreaRequiredRadius([unit()],[point(20)],0),.1)`);
   check('複数射手は最も厳しい下限を採用',`close(groundAreaRequiredRadius([unit('artillery',-40),unit('guidedRocket')],[point(20)],0),.8)`);
   check('兵科ごとの基準直径も混成の下限へ反映',`close(groundAreaRequiredRadius([unit(),unit('guidedRocket')],[point(20)],0),.8)`);

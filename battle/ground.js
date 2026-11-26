@@ -171,7 +171,7 @@ function groundFireRanges(f){
   return {direct:(r.direct||0)*GROUND_SCALE,ground:(r.ground||0)*GROUND_SCALE,air:(r.air||0)*GROUND_SCALE,aa:(r.aa||0)*GROUND_SCALE,
     indirect:r.indirect?{min:(r.indirect.min||0)*GROUND_SCALE,max:r.indirect.max*GROUND_SCALE}:null};
 }
-function groundUsesAirRange(f,t){return groundAirTarget(t)||groundWasCruising(t)&&['fighter','attack'].includes(f.groundKind);}
+function groundUsesAirRange(f,t){return groundAirTarget(t)||(groundWasCruising(t)||t.groundKind==='drone')&&['fighter','attack'].includes(f.groundKind);}
 function groundTargetRange(f,t){
   const r=groundFireRanges(f),airborne=['fighter','attack','supportAircraft'].includes(f.groundKind)||f.groundKind==='was'&&['low','high'].includes(f.band);
   const range=groundUsesAirRange(f,t)?(airborne?r.air:r.aa)||0:(airborne?r.ground:r.direct)||0;
@@ -183,11 +183,11 @@ function groundIndirectTarget(f,t){
 }
 function groundManualTargetAllowed(f,t){
   if(!op.ground)return true;
-  if(!f?.groundKind||!t)return false;
+  if(!f?.groundKind||!t||f.groundKind==='drone')return false;
   // 能力だけを調べる。groundFireMode／発射可否／距離／LOSへ戻らない。
   const r=groundFireRanges(f),band=f.band||'ground',target=t.band||'ground',positive=n=>Number.isFinite(n)&&n>0;
   if(groundUsesAirRange(f,t))return !groundAutoAASource(f)&&positive(r.air)&&groundFireFactor(f,t)>0;
-  if(!['ground','sea'].includes(target)&&!groundWasCruising(t))return false;
+  if(!['ground','sea'].includes(target)&&!groundWasCruising(t)&&t.groundKind!=='drone')return false;
   if(groundWasCruising(t)&&f.groundKind==='supportAircraft')return false;
   const rules=groundStrikeRules(),weapon=rules[f.groundKind]||(['guidedRocket','was'].includes(f.groundKind)?rules.artillery:null);
   if(f.groundKind==='supportAircraft')return band==='high'&&!!weapon;
@@ -211,7 +211,7 @@ function groundEngagementRange(f,t){
 // 直接射撃を主とする兵科（unitTypes の directFirst。W.A.S.）は、間接射撃を地点攻撃の命令のときだけ撃つ。自動交戦・攻撃の命令では撃たず、
 // 攻撃の命令では直接射撃で撃てるところまで近づく（ユーザー決定 2026-11-19「wasは基本直接射撃、攻撃を基本とする」「wasが自動で間接砲撃するのは不要」）
 function groundAutoIndirect(f){ return !groundRuleSet().unitTypes[f.groundKind]?.directFirst; }
-function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='droneHive'?['low']:f.groundKind==='was'?['ground','cruise','low']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
+function groundBands(f){ return f.groundKind==='sea'?['sea']:f.groundKind==='drone'?['low']:f.groundKind==='was'?['ground','cruise','low']:['fighter','attack','supportAircraft'].includes(f.groundKind)?['low','high']:['ground']; }
 function groundBandOpacity(f){return groundView==='all'||groundView===(groundWasCruising(f)?'ground':f.band)?1:groundRules().dimOpacity;}
 function groundMoveKind(f){ return f.groundKind==='sea'?'sea':(f.band||'ground')==='ground'&&!groundWasFlying(f)?(['heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)?'infantry':f.groundKind==='supply'||f.groundKind==='guidedRocket'&&groundDriveKind(f.groundBodySpec)==='wheel'?'wheel':['artillery','guidedRocket','mobileAA'].includes(f.groundKind)?'vehicle':f.groundKind):'air'; }
 function groundPermissionOnly(f){ return !!groundRuleSet().unitTypes[f.groundKind]?.permissionOnly; }
@@ -220,14 +220,15 @@ function groundBandSeconds(f,band){
 }
 function groundUnitHeight(f){
   if(f.groundKind==='sea')return 0; // 海面は固定。地表高や高度切り替えから独立。
+  if(f.groundKind==='drone')return groundHeight(f.pos.x,f.pos.z)+groundRuleSet().combat.drone.heightKm*GROUND_SCALE;
   const from=groundBandHeight(f.band);
   return groundHeight(f.pos.x,f.pos.z)+(f.bandTo?from+(groundBandHeight(f.bandTo)-from)*(1-f.bandLeft/groundBandSeconds(f,f.bandTo)):from);
 }
 // 直接射撃の表（設計案3）。地点攻撃は ground-strike.js で別判定。
 function groundFireFactor(f,t,aa=false){
-  const band=f.band||'ground', target=groundWasCruising(t)?(aa||groundUsesAirRange(f,t)?'low':'ground'):t.band||'ground', weak=groundRules().weakFire;
+  const band=f.band||'ground', target=(groundWasCruising(t)||t.groundKind==='drone')?(aa||groundUsesAirRange(f,t)?'low':'ground'):t.band||'ground', weak=groundRules().weakFire;
   // 自走対空砲は武器表に対地専用の威力を持つため、ここでは対地の減衰を掛けない。
-  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1},droneHive:{ground:1},mechanicalAssault:{ground:1,low:weak,high:weak},mobileAA:{ground:1,low:1,high:1},scout:{ground:1},artillery:{ground:1},vehicle:{ground:1,low:weak,high:weak},apc:{ground:1,low:weak,high:weak},engineer:{ground:1},
+  const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1},mechanicalAssault:{ground:1,low:weak,high:weak},mobileAA:{ground:1,low:1,high:1},scout:{ground:1},artillery:{ground:1},vehicle:{ground:1,low:weak,high:weak},apc:{ground:1,low:weak,high:weak},engineer:{ground:1},
     sea:{low:1,high:1,sea:1},fighter:{low:1,high:1},attack:band==='low'?{ground:1,low:1,high:1,sea:1}:{low:1,high:1},
     was:{ground:1,low:1,high:1}}[f.groundKind];
   return row&&row[target]||0;
@@ -241,7 +242,7 @@ function groundStaticTarget(f){return !!(op.ground&&op.groundStaticEnemies&&f.te
 function groundSurfaceHeight(x,z){return Math.max(groundHeight(x,z),groundSightHeight(x,z));}
 function groundCanFire(f,t){ return (!groundPermissionOnly(f)||f.order?.type==='attack'&&f.order.target===t)&&groundFireSolution(f,t); }
 // AI の目標指定も、射程・共有視界・遮蔽の同じ規則で候補を調べる。
-function groundFireSolution(f,t){ return !groundScriptDescending(f)&&!groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundSeenBy(f.team,t)&&!!groundFireMode(f,t); }
+function groundFireSolution(f,t){ return f.groundKind!=='drone'&&!groundScriptDescending(f)&&!groundTrainingEnemy(f)&&f.alive&&t.alive&&!groundAbsent(f)&&!groundAbsent(t)&&!f.groundAirState&&!f.groundRout&&(!groundSupplyActive()||f.groundMorale!==0)&&!f.embarked&&!t.embarked&&!f.groundBuilding&&f.team!==t.team&&groundSeenBy(f.team,t)&&!!groundFireMode(f,t); }
 function groundLandable(f,pos=f.pos){return groundPass(groundMapX(pos.x),groundMapY(pos.z),'was');}
 function groundBandCommandTarget(f,band){
   if(f.groundKind!=='was')return band;
@@ -319,7 +320,7 @@ function groundHud(){
   document.getElementById('groundSelected').textContent=list.length===1?list[0].name:list.length?`${list.length}隊`:'部隊を選択';
   const command=document.getElementById('groundCommand');
   const onlyWas=list.length>0&&list.every(f=>f.groundKind==='was');
-  command.hidden=onlyWas&&!list.every(groundWasFlying);
+  command.hidden=(onlyWas&&!list.every(groundWasFlying))||list.length>0&&list.every(f=>f.groundDrone);
   command.querySelectorAll('button').forEach(b=>{
     const band=b.dataset.band;
     b.hidden=onlyWas&&band==='high';
@@ -344,6 +345,7 @@ function groundConfigure(active){
   document.getElementById('groundCommandExpand').setAttribute('aria-expanded','false');
   document.getElementById('groundUniqueCommands').classList.remove('expanded');
   groundStrikeReset(); groundTransportReset(); groundSupplyReset();
+  if(typeof groundDroneReset==='function')groundDroneReset();
   if(typeof npcGroundReset==='function')npcGroundReset();
   groundInfluenceCache=null;groundTerritoryPixels=null;
   if(typeof fleets!=='undefined')for(const f of fleets||[])if(groundFlyingAircraft(f)){groundBombCancel(f);f.groundFlightVelocity=null;f.groundAirBoundary=null;}
@@ -554,7 +556,7 @@ const GROUND_MOVE={
 function groundDriveKind(spec){return GROUND_DRIVE[spec?.key]||'foot';}
 const groundWrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
 // 体の位置を1つにまとめて扱う隊（体が1つ、航空機、空の W.A.S.）
-function groundBodyCentered(f){return !f.bodies||f.bodies0===1||!f.groundBodySpec||['fighter','attack','supportAircraft'].includes(f.groundKind)||groundWasFlying(f);}
+function groundBodyCentered(f){return !f.bodies||f.bodies0===1||!f.groundBodySpec||['fighter','attack','supportAircraft','drone'].includes(f.groundKind)||groundWasFlying(f);}
 // 体と位置の組み合わせ: 近い組から順に決める
 function groundAssign(cur,tg){
   const n=cur.length,pairs=[];
@@ -747,7 +749,7 @@ function groundFormationDraw(f,now){
   const dt=Math.max(0,now-data.drawnAt);data.drawnAt=now;
   if(data.last.distanceToSquared(f.pos)>1e-10)data.movedAt=now;
   data.last.copy(f.pos);
-  if(!form)return;
+  if(!form||f.groundDrone)return;
   const state=groundFormationState(f,now),air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
   // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
   if(!air&&!groundBodyCentered(f)){
@@ -837,7 +839,7 @@ function groundBodyTarget(f,i,t,range){
   let hit=null;
   if(best>=0&&dist<=range){
     const pos=toGeometry.positions[best]||toGeometry.positions[0],eyeHeight=groundSightRules().eyeHeight;
-    const eye=(unit,p)=>({x:p.x,z:p.z,y:groundHeight(p.x,p.z)+groundBandHeight(unit.band)+eyeHeight});
+    const eye=(unit,p)=>unit.groundKind==='drone'?groundEye(unit):({x:p.x,z:p.z,y:groundHeight(p.x,p.z)+groundBandHeight(unit.band)+eyeHeight});
     if(groundClearLine(eye(f,from),eye(t,pos)))hit={from,pos,b:t.bodies?t.bodies[best]:null,j:best};
   }
   rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,buildings:groundBuildings,hit};return hit;
@@ -1040,6 +1042,7 @@ function groundDraw(){
     f.el.style.opacity=String(k*(f.team===1&&!f.seen&&!(typeof revealMode!=='undefined'&&revealMode)?.42:1)); // 表示を薄くしても選択と射撃の規則は変えない。
     for(const s of f.ships)s.pos.copy(f.pos);
   }
+  for(const f of fleets)if(f.groundDrone)groundDroneDraw(f,picked);
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundFxDraw(now); groundTransportDraw(); groundSupplyDraw(); groundScriptDraw();
@@ -1067,7 +1070,7 @@ function groundStep(dt){
   }
   const movingFront=[[],[]],rear=[];
   for(const f of fleets){
-    if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
+    if(!f.alive||f.groundDrone||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10)f.groundMovedAt=gameSec;
     if(f.groundLastPos)f.groundLastPos.copy(f.pos);
     if(f.groundKind==='mechanicalAssault'){
@@ -1095,13 +1098,15 @@ function groundStep(dt){
   // 体ごとの動きを、中隊が動いたあとの位置で進める（このあとの視界・射撃は進めた体の位置を使う）
   for(const f of fleets)if(f.alive&&f.bodies)groundBodyTrack(f,true);
   groundTransportSync();
+  if(typeof groundDroneStep==='function')groundDroneStep(dt);
   groundBombStep();
   // 両軍とも全隊の移動後の視界を共有し、同じ視線・射程で撃つ。
   groundUpdateSight();
   for(const f of fleets){
-    if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
+    if(!f.alive||f.groundDrone||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.bodies)for(const b of f.bodies)b.shotT=Math.max(0,b.shotT-dt);
-    if(f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;if(f.bodies)groundBodyIdleClock(f,'shotT');continue;}
+    const dronePriority=f.groundKind==='mobileAA'&&fleets.some(t=>t.groundDrone&&groundAASolution(f,t));
+    if(dronePriority||f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;if(f.bodies)groundBodyIdleClock(f,'shotT');continue;}
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
     f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:groundSelectEnemy(f,t=>groundCanFire(f,t));
@@ -1119,6 +1124,7 @@ function groundStep(dt){
     }
   }
   groundAutoAAStep(dt);
+  if(typeof groundDroneCleanup==='function')groundDroneCleanup();
   groundCaptureStep(dt);
   groundSupplyAfter(dt);
   if(typeof groundFrontStep==='function')groundFrontStep();
@@ -1181,10 +1187,10 @@ function groundDirectWeapon(f,t,aa=false){
   const soft=['infantry','commando','mechanicalAssault'].includes(t.groundKind);
   let best=null;
   for(const w of weapons){
-    if(air&&!w.air)continue;
+    if(air&&!w.air||t.groundDrone&&!air&&w.air)continue;
     const plate=typeof armor==='number'?armor:w.top?armor?.top:front&&!ambush?(w.shaped?armor.shapedFront??armor.front:armor.front):armor?.side;
     const armorFactor=groundArmorFactor(plate??0,w.pen,penetration),power=w.power*(soft?w.soft??1:1);
-    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale,fx:w.fx};
+    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale,fx:w.fx,...(w.air?{air:true}:{})};
   }
   return best??fallback;
 }
@@ -1459,7 +1465,7 @@ function groundCommandBarHud(list){
   const kinds=list.map(f=>f.groundKind), carries=list.some(f=>f.embarked||f.groundPassenger||groundLandingShip(f));
   // 搭乗は、今乗れる相手がいる中隊だけ（戦車は岸の揚陸艦がいるときだけ。groundBoardTargets）。
   const flight=groundWasCommandHud(list);
-  const visible={board:list.some(f=>groundBoardTargets(f).length>0),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),wasFly:flight,wasLand:flight,strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
+  const visible={...groundDroneHud(list),board:list.some(f=>groundBoardTargets(f).length>0),unload:carries||kinds.includes('apc'),land:list.some(f=>groundLandingShip(f.embarked||f)),wasFly:flight,wasLand:flight,strike:kinds.some(k=>['artillery','guidedRocket','was','vehicle','sea','supportAircraft'].includes(k)),bridge:kinds.includes('engineer'),supply:kinds.includes('supply')};
   groundBridgeNoGoHud(list);
   const buttons=[...document.querySelectorAll('#groundUniqueCommands button[data-command-icon]')];
   buttons.forEach(b=>b.hidden=!visible[b.dataset.commandIcon]);
@@ -1467,7 +1473,7 @@ function groundCommandBarHud(list){
   recall.hidden=over||deploying||!list.some(groundFrontCanRecall);
   const expand=document.getElementById('groundCommandExpand');
   document.getElementById('groundStrikeControl').hidden=!visible.strike;
-  expand.hidden=buttons.filter(b=>!b.hidden).length*51+(visible.strike?36:0)+(recall.hidden?0:85)<=204;
+  expand.hidden=buttons.filter(b=>!b.hidden).length*51+(visible.strike?36:0)+(visible.launch?37:0)+(recall.hidden?0:85)<=204;
   if(expand.hidden){expand.setAttribute('aria-expanded','false');document.getElementById('groundUniqueCommands').classList.remove('expanded');}
 }
 function groundWasPlayerToggle(){
@@ -1486,7 +1492,7 @@ function groundHoldCommand(){
   if(!list.length||over)return;
   npcAutoPlayer(list);saveUndo(list);
   groundFrontRemoveMembers(list);
-  for(const f of list)groundFrontDefend(f);
+  for(const f of list){if(f.groundDrone)f.groundDrone.npc=false;groundFrontDefend(f);}
   groundClearAiming();groundHud();updateRoster();
 }
 document.getElementById('groundHold').addEventListener('click',groundHoldCommand);

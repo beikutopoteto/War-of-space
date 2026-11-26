@@ -179,7 +179,7 @@ function supplyCases(){
     f.groundSupply=24;
     check('マウス用の数値は士気72%・補給24%',groundSupplyRosterText([f],false)==='士気 72%　補給 24%');
     check('航空の棒と数値は補給だけ',groundSupplyReadings([plane]).length===1&&groundSupplyMeters([plane]).includes('data-meter="groundSupply"')&&!groundSupplyMeters([plane]).includes('groundMorale')&&groundSupplyRosterText([plane],false)==='補給 100%');
-    check('船とハイブは棒も対象外の文字も置かない',[ship,unit(0,'droneHive',12)].every(u=>groundSupplyMeters([u])===''&&!groundSupplyTile(u).includes('対象外')));
+    check('船は棒も対象外の文字も置かない',groundSupplyMeters([ship])===''&&!groundSupplyTile(ship).includes('対象外'));
     check('W.A.S. の名札は補給と士気の棒を出す',groundSupplyReadings([was]).length===2&&groundSupplyTile(was).includes('士気')&&groundSupplyTile(was).includes('補給'));
     const mixed=[f,{groundMorale:40,groundSupply:80},plane,ship];
     check('見出しの平均は対象部隊のみ、最低値も説明へ残す',groundSupplyRosterText(mixed)==='士気 56%（最低40%）　補給 68%（最低24%）'&&groundSupplyMeters(mixed).includes('data-low="true"'));

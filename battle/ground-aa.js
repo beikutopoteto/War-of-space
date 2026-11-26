@@ -25,6 +25,7 @@ function groundAutoAAReset(){
   if(typeof fleets==='undefined'||!Array.isArray(fleets))return;
   for(const f of fleets)if(f){f.groundAATimer=0;f.groundAATarget=null;f.groundAAResolving=null;}
 }
+function groundAAPriority(f,a,b){return f.groundKind==='mobileAA'?Number(b.groundKind==='drone')-Number(a.groundKind==='drone'):0;}
 function groundAutoAAStep(dt){
   if(typeof op==='undefined'||!op.ground||typeof fleets==='undefined'||!Array.isArray(fleets)||!Number.isFinite(dt)||dt<0)return;
   const air=fleets.filter(t=>t?.alive&&groundAATargetable(t));
@@ -36,7 +37,7 @@ function groundAutoAAStep(dt){
     if(!groundAutoAAReady(f)||groundAARange(f)<=0){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
     if(f.bodies){
       if(f.bodies.every(b=>!b.alive||b.aaT>1e-8)){if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;continue;}
-      const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b));
+      const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundAAPriority(f,a,b)||groundDistanceTo(f,a)-groundDistanceTo(f,b));
       const target=candidates.find(t=>groundAASolution(f,t));f.groundAATarget=target||null;
       if(target){f.groundAAResolving=target;try{groundBodyFire(f,target,0,true);}finally{f.groundAAResolving=null;}}else groundBodyIdleClock(f,'aaT');
       continue;
@@ -46,7 +47,7 @@ function groundAutoAAStep(dt){
       if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f))f.groundAATarget=previous;
       continue;
     }
-    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).map(t=>({t,d:groundDistanceTo(f,t)})).filter(p=>p.d<=groundAARange(f)).sort((a,b)=>a.d-b.d);
+    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).map(t=>({t,d:groundDistanceTo(f,t)})).filter(p=>p.d<=groundAARange(f)).sort((a,b)=>groundAAPriority(f,a.t,b.t)||a.d-b.d);
     let target=null;
     for(const candidate of candidates)if(groundAASolution(f,candidate.t)){target=candidate.t;break;}
     f.groundAATarget=target;

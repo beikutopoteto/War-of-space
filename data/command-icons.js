@@ -16,7 +16,14 @@
     <circle cx="14" cy="33.2" r="4.6"/><circle cx="24.5" cy="33.2" r="4.6"/><circle cx="38.5" cy="33.2" r="4.6"/><circle cx="49" cy="33.2" r="4.6"/>
     <g stroke-width="1.2"><circle cx="14" cy="33.2" r="1.3"/><circle cx="24.5" cy="33.2" r="1.3"/><circle cx="38.5" cy="33.2" r="1.3"/><circle cx="49" cy="33.2" r="1.3"/></g>`;
 
+  const quad=(cx,cy,s=1)=>{const p=9*s,r=4*s,bw=3*s,bh=4.5*s,e=p-r*.7071,c=[[1,1],[-1,1],[1,-1],[-1,-1]];
+    return `<g stroke-width="${(1.6*Math.max(s,.8)).toFixed(2)}"><path d="${c.map(([x,y])=>`M${cx+x*bw} ${cy+y*bw}L${cx+x*e} ${cy+y*e}`).join('')}"/>${c.map(([x,y])=>`<circle cx="${cx+x*p}" cy="${cy+y*p}" r="${r}"/>`).join('')}<rect x="${cx-bw}" y="${cy-bh}" width="${2*bw}" height="${2*bh}"/></g>`;};
   const icons = {
+    launch: ['固有', '打ち上げ', '斥候の近くにドローンの駒（3機）を1つ上げる', quad(42,20)+`<path ${a} d="M11 30V12M5.5 17.5l5.5-5.5 5.5 5.5"/>`],
+    recall: ['固有', '帰還', '斥候へ帰還する', quad(46,13,.75)+`<path ${a} d="M37 21C31 29 23 31 13 31M17.5 26.5L13 31l4.5 4.5"/><path stroke-width="1.2" d="M5 37h22"/>`],
+    dive: ['固有', '自爆', '自爆する目標を選択（Escで取消）', quad(15,11,.7)+`<path ${a} d="M24 18L44 29M37.7 29L44 29L40.6 23.7"/><path ${a} d="M53.5 33H57M48.5 33H45M52.3 30.8L54 27.8M49.8 30.8L48 27.8M52.3 35.2L54 38.2M49.8 35.2L48 38.2"/>`],
+    orbit: ['固有', '旋回偵察', '旋回偵察する地点を選択（Escで取消）', quad(34,13,.65)+`<path ${a} d="M43 18A19 8 0 1 1 25 18M20.8 22L25 18L19.4 16.2"/><path stroke-width="1.2" d="M34 23v4M32 25h4"/>`],
+
     move: ['共有', '移動', '指定した地点へ移動', `
       <path d="M9 20h42"/>
       <path ${a} d="M42 10l12 10-12 10"/>`],

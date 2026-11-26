@@ -26,7 +26,7 @@ function nodeChecks(){
  `);
  const check=(name,code)=>{try{run('weaponsFresh()');rows.push({name,ok:!!run('(()=>{'+code+'})()')});}catch(e){rows.push({name,ok:false,error:e.message});}};
  check('最大と初期の爆風・装填・areaRadiusを全兵器が別々に持つ',`const s=groundStrikeRules();return [['vehicle',.4,.2,2,4,6],['was',.4,.2,7,8,12],['artillery',.8,.4,7,8,12],['guidedRocket',1.2,.6,7,30,45],['supportAircraft',2.4,1.2,9,10,15],['battleship',1.2,.6,10,10,15],['sea',.48,.24,10,10,15]].every(([k,r,i,a,t,j])=>s[k].radius===r&&s[k].initial.radius===i&&s[k].areaRadius===a&&s[k].reload===t&&s[k].initial.reload===j)&&groundRules().initial.fireEvery===1.5;`);
- check('装甲倍率の全表と既定値',`const s={radius:10};return [['supply',1.3],['infantry',1],['commando',1],['mechanicalAssault',1],['heavyInfantry',.35],['apc',.35],['scout',.35],['artillery',.35],['mobileAA',.35],['guidedRocket',.35],['engineer',.35],['vehicle',.15],['was',.2],['droneHive',1],['sea',.15],['unknown',1]].every(([groundKind,m])=>weaponsClose(groundStrikeRadius(s,{groundKind}),10*m));`);
+ check('装甲倍率の全表と既定値',`const s={radius:10};return [['supply',1.3],['infantry',1],['commando',1],['mechanicalAssault',1],['heavyInfantry',.35],['apc',.35],['scout',.35],['artillery',.35],['mobileAA',.35],['guidedRocket',.35],['engineer',.35],['vehicle',.15],['was',.2],['sea',.15],['unknown',1]].every(([groundKind,m])=>weaponsClose(groundStrikeRadius(s,{groundKind}),10*m));`);
  check('トラックは元の爆風外・1.3倍の内で実被弾、外では無傷',`const f=weaponsUnit(),t=weaponsUnit('supply',1,1.2),hp=t.hpPool;weaponsLayout(t,t.bodies.map(()=>[0,0]));weaponsBlast(f,new THREE.Vector3());const loss=hp-t.hpPool;if(!(loss>0))return false;t.pos.x=1.301;weaponsBlast(f,new THREE.Vector3());return weaponsClose(t.hpPool,hp-loss);`);
  check('戦車は0.15倍の外で無傷、内なら実被弾',`const f=weaponsUnit(),t=weaponsUnit('vehicle',1,.151);weaponsLayout(t,[[0,0],[0,0],[0,0],[0,0]]);const hp=t.hpPool;weaponsBlast(f,new THREE.Vector3());if(t.hpPool!==hp)return false;t.pos.x=.149;weaponsBlast(f,new THREE.Vector3());return t.hpPool<hp;`);
  check('芯は満額、芯の外は逆二乗、端は1/9、外は0',`const f=weaponsUnit(),t=weaponsUnit('infantry',1,0);weaponsLayout(t,[[0,0],[1/3,0],[.5,0],[1,0],[1.001,0],[2,0]]);const hp=t.bodies.map(b=>b.hp);weaponsBlast(f,new THREE.Vector3());const scale=2*groundRuleSet().combat.damageScale/t.bodies0;return [1,1,4/9,1/9,0,0].every((m,i)=>weaponsClose(hp[i]-t.bodies[i].hp,scale*m));`);
@@ -121,7 +121,7 @@ function nodeChecks(){
    if(!weaponsClose(groundSupplySpeedFactor(t),slow))return false;
    gameSec=seconds;if(groundSupplySpeedFactor(t)!==1)return false;
   }
-  return ['vehicle','was','sea','bridge','droneHive'].every(kind=>groundStrikeDamageFactor(kind)===1);
+  return ['vehicle','was','sea','bridge'].every(kind=>groundStrikeDamageFactor(kind)===1);
  `);
  check('歩兵は再着弾から改めて10秒間0.1倍',`
   const f=weaponsUnit(),t=weaponsUnit('infantry',1,0);

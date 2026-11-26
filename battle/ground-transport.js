@@ -90,7 +90,7 @@ function groundLandStep(ship,dt){
 }
 function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'board')&&f.band==='ground'&&['infantry','heavyInfantry','commando'].includes(f.groundKind);}
 function groundTransportLabel(f){const passengers=groundPassengers(f);return f.name+(passengers.length?' / 搭載：'+passengers.map(p=>p.name).join('・'):'')+(groundPermissionOnly(f)?' / 許可制':'')+(f.groundRout||f.groundAirState||f.groundGiving||f.groundSupplyTrip||f.groundSupplyGiving?' / '+groundSupplyStatus(f):'');}
-function groundClearOrders(f){if(f.groundFrontOf)groundFrontRememberVia(f);groundBombCancel(f);groundVolleyCancel(f);f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;f.groundSupplyTrip=null;}
+function groundClearOrders(f){if(f.groundDrone)f.groundDrone.mission=f.groundDrone.dive=null;if(f.groundFrontOf)groundFrontRememberVia(f);groundBombCancel(f);groundVolleyCancel(f);f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;f.groundSupplyTrip=null;}
 function groundCancelWork(f){
   groundBombCancel(f);
   groundVolleyCancel(f);
@@ -310,7 +310,7 @@ function groundTransportHud(list){
   if(groundWorkAiming==='board'&&board.disabled||groundWorkAiming==='bridge'&&bridge.disabled)groundWorkAiming=null;
   board.setAttribute('aria-pressed',String(groundWorkAiming==='board'));bridge.setAttribute('aria-pressed',String(groundWorkAiming==='bridge'));
   const work=f&&(f.embarked||f).groundUnloading;
-  document.getElementById('groundTransportStatus').textContent=groundWorkAiming==='board'?'味方輸送車か岸の揚陸艦をクリック（Escで取消）':groundWorkAiming==='bridge'?'川をクリック（Escで取消）':work?`上陸中 ${work.progress.toFixed(1)} / ${groundLandingRules().seconds}秒・被弾${groundLandingRules().damageFactor}倍`:groundTransportMessage||(f&&f.embarked?`搭載中：${f.embarked.name}`:'');
+  document.getElementById('groundTransportStatus').textContent=groundWorkAiming==='dive'?'自爆する目標をクリック（Escで取消）':groundWorkAiming==='orbit'?'旋回偵察する地点をクリック（Escで取消）':groundWorkAiming==='board'?'味方輸送車か岸の揚陸艦をクリック（Escで取消）':groundWorkAiming==='bridge'?'川をクリック（Escで取消）':work?`上陸中 ${work.progress.toFixed(1)} / ${groundLandingRules().seconds}秒・被弾${groundLandingRules().damageFactor}倍`:groundTransportMessage||(f?.groundDrone?groundDroneStatus(f):'')||(f&&f.embarked?`搭載中：${f.embarked.name}`:'');
 }
 function groundWorkToggle(mode){
   if(over||!op.ground)return;

@@ -85,7 +85,7 @@
      recon=偵察　strike=航空・W.A.S. の打撃　support=補給・工兵　escort=歩兵・戦車の随伴 */
   const roles = {
     ground: { infantry: 'line', heavyInfantry: 'line', commando: 'line', vehicle: 'shock', was: 'shock', mechanicalAssault: 'shock',
-      artillery: 'fires', guidedRocket: 'fires', mobileAA: 'screen', scout: 'recon', droneHive: 'recon',
+      artillery: 'fires', guidedRocket: 'fires', mobileAA: 'screen', scout: 'recon',
       fighter: 'screen', attack: 'strike', supportAircraft: 'strike', apc: 'escort', engineer: 'support', supply: 'support', sea: 'fires' },
     space: { bb: 'shock', cl: 'line', dd: 'screen', ff: 'screen', cv: 'strike', cvb: 'strike', mas: 'strike', masc: 'strike' },
   };
@@ -94,7 +94,7 @@
   window.WOS_DATA = window.WOS_DATA || {};
   // 兵科の力（仮）。残存耐久の割合を掛け、隻数・台数とは別に指揮官の見積もりへ渡す。
   const power = {ground:{infantry:1,heavyInfantry:1.5,commando:1,vehicle:2,was:2,mechanicalAssault:2,
-    artillery:1.5,guidedRocket:1.5,mobileAA:1,scout:.4,droneHive:.4,fighter:1,attack:1.2,supportAircraft:1.2,
+    artillery:1.5,guidedRocket:1.5,mobileAA:1,scout:.4,fighter:1,attack:1.2,supportAircraft:1.2,
     apc:.2,engineer:.2,supply:.2,sea:2}};
   window.WOS_DATA.npc = { doctrines, levels, roles, counters, power, styles, auto:{returnSec:20} };
 })();

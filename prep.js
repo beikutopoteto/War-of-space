@@ -75,7 +75,10 @@ const OLD_BGS=JSON.stringify([['bg1','第1戦闘団','bb',3],['bg2','第2戦闘�
 const OLD_NAMES={'第41巡洋戦隊':'第9 前衛巡洋 支隊','第11哨戒戦隊':'第12 沿岸哨戒 支隊','第21護衛戦隊':'第18 護送護衛 支隊',
   '第31駆逐戦隊':'第24 駆逐突撃 支隊','第22護衛戦隊':'第19 護送護衛 支隊','ネオ信濃駐屯隊':'第2 ネオ信濃駐屯 戦区軍'};
 /* M.A.S. was renamed: W.A.S., 突撃揚陸艦 and 強襲母艦 */
-function migrate(s){ s.groundOrg=GROUND.normalize(s.groundOrg); s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
+function migrate(s){
+  if(Array.isArray(s.groundOrg?.companies))s.groundOrg.companies=s.groundOrg.companies.map(c=>c?.kind==='droneHive'
+    ?{...c,kind:'scout',name:c.auto&&typeof c.name==='string'?c.name.replace('ドローンハイブ','斥候'):c.name}:c);
+  s.groundOrg=GROUND.normalize(s.groundOrg); s.bgs.forEach(b=>{ b.name=String(b.name).replace(/M\.A\.S\.母艦/g,'強襲母艦').replace(/M\.A\.S\./g,'W.A.S.'); });
   s.sortieMenu={closed:s.sortieMenu?.closed||{},seen:Array.isArray(s.sortieMenu?.seen)?s.sortieMenu.seen:[]};
   s.sortieMenu.seen=[...new Set(s.sortieMenu.seen.map(id=>id==='ch2drill'?'tutorial2':id))];
   /* the first starting fleet (battleships, carriers, W.A.S.) is replaced by the new one while the player has not changed it */

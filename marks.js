@@ -63,15 +63,15 @@ window.WOS_MARKS={svg:(type,set,fit)=>SIDE[type]?(set==='B'?svgB(type):svgSide(t
    ゴーグル）。強化コマンド歩兵は同じヘルメットに 45° の斜めの抜き3本（殻を端まで貫く。ヘッドセットとゴーグルは削らない）。重強化歩兵は
    ヘルメットに跳ね上げ式の面板（前の薄い鉄板、目の切り欠きは前側だけ、ヘルメットの横の軸まで回る扇形の腕とボルト）と、いちばん手前に
    首まわりの装甲（首の後ろが高く、前が低い）。ほかはゲームの3Dモデル（地球連合の形）を1色で描いた形: 真横（前が右）、航空機と
-   ドローンハイブは真上。斥候は上に双眼鏡、工兵は上に横向きのシャベルを足す。見本は 2026-11-18 の会話の見本10・19。
+   ドローンの駒には従来の無人機の記号を使う。斥候は上に双眼鏡、工兵は上に横向きのシャベルを足す。見本は 2026-11-18 の会話の見本10・19。
    NATO は Wikipedia「兵科記号（北大西洋条約機構）」の形（味方は横長の四角、敵はひし形）。NATO に無い兵科は Claude の案（承認 2026-11-18）:
    重強化歩兵＝歩兵＋対戦車（Λ）、強化コマンド歩兵＝歩兵＋SF、機械化突撃兵＝歩兵＋R、陸戦型 W.A.S.＝装甲＋2本の脚、航空隊＝固定翼＋F（戦闘）・A（攻撃）・B（爆撃・支援） */
 function groundMark(kind,set,enemy){
-  if(set==='B'||!groundMasks()||!GM_KINDS.includes(kind)) return `<span class="mk gm">${natoSvg(kind,enemy)}</span>`;
+  if(kind==='drone'||set==='B'||!groundMasks()||!GM_KINDS.includes(kind)) return `<span class="mk gm">${natoSvg(kind,enemy)}</span>`;
   return `<span class="mk gm"><i class="gm-${kind}"></i></span>`;
 }
-const GM_KINDS=['infantry','heavyInfantry','commando','mechanicalAssault','vehicle','artillery','guidedRocket','mobileAA','scout','apc','engineer','supply','was','droneHive','fighter','attack','supportAircraft'];
-const GM_TOP=['fighter','attack','supportAircraft','droneHive'];
+const GM_KINDS=['infantry','heavyInfantry','commando','mechanicalAssault','vehicle','artillery','guidedRocket','mobileAA','scout','apc','engineer','supply','was','fighter','attack','supportAircraft'];
+const GM_TOP=['fighter','attack','supportAircraft'];
 let gmState=null;   // null: まだ / true: 作った / false: 作れない（WebGL なし。NATO で出す）
 function groundMasks(){
   if(gmState!==null) return gmState;
@@ -138,7 +138,7 @@ const NX='<path d="M1 1L29 19M1 19L29 1"/>', NE='<ellipse cx="15" cy="10" rx="7"
 const NATO={infantry:NX,heavyInfantry:NX+'<path d="M1 19L15 1L29 19"/>',commando:NX+NT('SF',7.5),mechanicalAssault:NX+NT('R',18),
   vehicle:NE,artillery:NE+NDOT,guidedRocket:NE+NDOT+'<path d="M12 5.4L15 2.6L18 5.4"/>',mobileAA:'<path d="M3 19Q15 4 27 19"/>',
   scout:'<path d="M1 19L29 1"/>',apc:NX+NE,engineer:'<path d="M8 13V7.5H22V13M15 7.5V13"/>',supply:'<path d="M1 14H29"/>',
-  was:NE+'<path d="M11 13.4L9 18.6M19 13.4L21 18.6"/>',droneHive:'<path d="M6 12.5L15 6.5L24 12.5L15 10Z"/>',
+  was:NE+'<path d="M11 13.4L9 18.6M19 13.4L21 18.6"/>',drone:'<path d="M6 12.5L15 6.5L24 12.5L15 10Z"/>',
   fighter:NWING+NT('F',7.2),attack:NWING+NT('A',7.2),supportAircraft:NWING+NT('B',7.2)};
 const natoSvg=(kind,enemy)=>enemy
   ?`<svg viewBox="-3 -6 36 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M15 -5L32 10L15 25L-2 10Z" stroke-width="1.6"/><g transform="translate(4.5 3.5) scale(.7)">${NATO[kind]||''}</g></svg>`

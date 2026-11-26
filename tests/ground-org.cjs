@@ -37,8 +37,10 @@ function nodeChecks(){
   check(`(()=>{const q=[...Array(6)].map((_,i)=>({id:'i'+i,kind:'infantry'})).concat({id:'t',kind:'vehicle'}),o=G.quickOrg(q);
     return o.battalions.map(b=>b.companies.length).join()==='4,2,1'&&o.battalions[2].companies[0]==='t'&&o.brigades.length===1&&o.brigades[0].battalions.length===3;})()`);
   check(`(()=>{const o=G.quickOrg([...Array(17)].map((_,i)=>({id:'i'+i,kind:'infantry'})));return o.battalions.length===5&&o.brigades.map(b=>b.battalions.length).join()==='4,1'&&o.brigades[1].name==='第2 旅団';})()`);
-  for(const kind of ['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA','supply']){
-    check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='${kind==='droneHive'?'low':'ground'}';})()`);
+  check(`(()=>{const s=S.defaults(),c=s.groundOrg.companies[0];c.kind='droneHive';c.platoons=3;c.name='保存中隊';S.set(s);S.persist();
+    const saved=S.load().groundOrg.companies[0];return saved.kind==='scout'&&saved.platoons===3&&saved.name===c.name&&saved.id===c.id;})()`);
+  for(const kind of ['commando','guidedRocket','mechanicalAssault','mobileAA','supply']){
+    check(`(()=>{const s=S.defaults();s.groundOrg.companies[0].kind='${kind}';S.set(s);S.persist();const loaded=S.load(),f=G.sortie(loaded.groundOrg).fleets[0];return loaded.groundOrg.companies[0].kind==='${kind}'&&f.groundKind==='${kind}'&&f.band==='ground';})()`);
   }
   load('battle/ground-volley.js');load('battle/ground-air.js');load('battle/ground-air-orders.js');load('battle/ground-air-missions.js');load('battle/terrain.js');load('battle/ground-transport.js');load('battle/ground-supply.js');load('battle/ground-naval.js');load('battle/ground.js');load('battle/ground-script.js');
   const state=read('battle/state.js'),hud=read('battle/hud.js');

@@ -6,7 +6,7 @@ let groundPlanEditing=null;
 let groundEditHover=null,groundEditChoice=null,groundEditDrag=null,groundEditReturn=false,groundEditPress=null;
 let groundEditSelected=[],groundEditMode='edit',groundEditMergeFrom=null;
 function groundFrontAvailable(f){
-  return f.alive&&f.team===0&&!f.locked&&!f.embarked&&!f.groundRout&&groundCommandAllowed(f,'move');
+  return f.alive&&!f.groundDrone&&f.team===0&&!f.locked&&!f.embarked&&!f.groundRout&&groundCommandAllowed(f,'move');
 }
 function groundPlanUnits(list=orderTargets()){return list.filter(groundFrontAvailable);}
 function groundPlanPartial(list){

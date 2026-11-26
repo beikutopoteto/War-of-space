@@ -17,7 +17,7 @@ function nodeChecks(){
     run(`WOS_TERRAIN.fixture={overrides:{sight:{basic:41,eyeHeight:2},movement:{river:{vehicle:.1}},supply:{terrainIdle:['平地']}}};
       op={ground:'fixture',groundRuleOverrides:{sight:{basic:42},movement:{river:{vehicle:.2}},supply:{terrainIdle:['森林']}}};
       rebuildGroundRuleSet({sight:{basic:43},movement:{river:{vehicle:.3}},supply:{terrainIdle:['河川']},strike:{vehicle:null}});`);
-    assert.equal(run(`groundRuleSet().sight.basic===43&&groundRuleSet().sight.eyeHeight===2&&groundRuleSet().sight.scout===60&&groundRuleSet().movement.river.vehicle===.3&&groundRuleSet().movement.river.infantry===.2&&groundRuleSet().supply.terrainIdle.join()==='河川'&&groundRuleSet().strike.vehicle===null`),true);
+    assert.equal(run(`groundRuleSet().sight.basic===43&&groundRuleSet().sight.eyeHeight===2&&groundRuleSet().sight.scout===40&&groundRuleSet().movement.river.vehicle===.3&&groundRuleSet().movement.river.infantry===.2&&groundRuleSet().supply.terrainIdle.join()==='河川'&&groundRuleSet().strike.vehicle===null`),true);
   });
   check('繰り返し読む間は同じ結果で入力を読み直さない',()=>{
     run(`var reads=0;Object.defineProperty(op.groundRuleOverrides.sight,'basic',{enumerable:true,get(){reads++;return 42;}});var first=rebuildGroundRuleSet({sight:{basic:43}}),readOnce=reads;`);

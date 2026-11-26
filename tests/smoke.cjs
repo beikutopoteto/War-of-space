@@ -14,6 +14,7 @@ const {nodeChecks:townCoverChecks}=require('./town-cover.cjs');
 const {nodeChecks:shipTurretChecks}=require('./ship-turrets.cjs');
 const { checkGroundStrike } = require('./ground-strike.cjs');
 const { checkGroundTransport } = require('./ground-transport.cjs');
+const { checkGroundDrone } = require('./ground-drone.cjs');
 const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
@@ -256,6 +257,7 @@ function check(ok, label, detail = '') {
     await checkGroundSight(page, check);
     await checkGroundStrike(page, check);
     await checkGroundTransport(page, check);
+    await checkGroundDrone(page, check);
     await checkGroundBranches(page, check);
     await checkGroundSea(page, check);
     await checkGroundLanding(page, check);
