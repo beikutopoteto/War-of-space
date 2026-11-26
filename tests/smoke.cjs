@@ -127,6 +127,15 @@ function check(ok, label, detail = '') {
   const groundPage = () => page.goto('file://' + path.join(ROOT, 'index.html') + '?ground=exercise2');
   try {
     if (on('ground')) {
+    await groundPage();
+    const groundClock=await page.evaluate(()=>{
+      WOS.start({op:'baikonur'}); setSpeed(0); if(talking)endTalk(); if(deploying)endDeploy();
+      const before=clockStr(), start=opClock();
+      for(let i=0;i<60;i++)step(1/groundRuleSet().movement.timeScale);
+      const after=clockStr(), elapsed=opClock()-start, seconds=gameSec;
+      end(false,true); return {before,after,elapsed,seconds,result:document.getElementById('rp').textContent};
+    });
+    check(Math.abs(groundClock.seconds-60)<1e-8&&Math.abs(groundClock.elapsed-60)<1e-8&&groundClock.result.startsWith(groundClock.after), '地上時計: バイコヌールのゲーム60秒は時計60分、結果にも同じ時刻', JSON.stringify(groundClock));
     /* 地上作戦のデバッグ入口、渡河と海・沼地の通行。 */
     await groundPage();
     const ground = await page.evaluate(() => {
@@ -268,6 +277,14 @@ function check(ok, label, detail = '') {
     await checkGroundHint(page, check);
     }
     if (on('space')) {
+    await groundPage();
+    const spaceClock=await page.evaluate(()=>{
+      const read=id=>{WOS.start({op:id});setSpeed(0);if(talking)endTalk();if(deploying)endDeploy();gameSec=60;return {rate:CLOCK_RATE,minutes:opClock(),span:op.span,scale:op.scale,pace:op.pace};};
+      const baseOp={...OPS.find(o=>o.id==='charybdis'),id:'clockBaseTest'}; delete baseOp.span; delete baseOp.clockScale; OPS.push(baseOp);
+      try{return {base:read('clockBaseTest'),span:read('denali')};}finally{OPS.pop();}
+    });
+    check(spaceClock.base.rate===15&&spaceClock.base.minutes===900&&Math.abs(spaceClock.span.rate-630/(1050*.85))<1e-9&&Math.abs(spaceClock.span.minutes-60*spaceClock.span.rate)<1e-9, '宇宙時計: 基本は1秒15分、span指定は従来の速さ', JSON.stringify(spaceClock));
+
     /* 宇宙の艦の砲塔と W.A.S. の形（ブラウザなし、tests/ship-turrets.cjs。#442） */
     try { shipTurretChecks(); check(true, '宇宙砲塔: 静止の形・狙い・遠い艦・砲口・W.A.S. の形（ブラウザなし）'); } catch (e) { check(false, '宇宙砲塔: ' + e.message); }
     /* title. ここから先の宇宙の確認は、要塞の台本（出撃・迎撃）を前提にするので、指揮官を切る（指揮官は checkNpcSpace で確認済み） */
