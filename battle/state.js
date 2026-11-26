@@ -516,9 +516,8 @@ function reset(cfg=lastCfg){
   controls.maxDistance=op.view&&op.view.max||330; gridMat.uniforms.uR.value=FIELD_R;
   /* how close the view may come: the ground board lets it come to GROUND_MIN_VIEW (7, about 1.7 km; user decision 2026-11-18, before 35), space keeps 35 */
   controls.minDistance=op.ground?GROUND_MIN_VIEW:35;
-  /* the clock: an operation that says how long it runs (op.span, operation minutes) is fitted to its scale's length at 1×
-     (user decision 2026-10-12: the clock is slowed, not the ships); otherwise the base rate × op.clockScale */
-  const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)
+  /* Ground uses its own clock rate; space fits span to the scale or uses the base rate × clockScale. */
+  const SC=WOS_DATA.scales&&WOS_DATA.scales[op.scale]; CLOCK_RATE=op.ground?groundRuleSet().clock.minutesPerSecond:op.span&&SC?op.span/(SC.sec*(op.pace||1)):CLOCK_BASE*(op.clockScale||1);   // op.pace: a shorter (or longer) run at 1× (user decision 2026-10-13)
   HP_K=WOS_DATA.balance&&WOS_DATA.balance.hp||1;
   timeWarned=false; gunLostSaid=false;
   casualties=0; civMarks=new Set(); civFirst=false; loseWhy=null; opCarrier=null; shieldSaid=false;
