@@ -1,5 +1,6 @@
 /* 地上・海上専用の基本規則。地形とは独立し、宇宙の性能表には適用しない。 */
 window.WOS_GROUND_RULES = {
+  clock: { minutesPerSecond:1 }, // 地上戦はゲームの1秒で作戦の時計が1分進む（#509）
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
   // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
