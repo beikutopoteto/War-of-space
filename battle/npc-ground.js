@@ -103,7 +103,7 @@ function npcGroundPower(f){
 }
 function npcGroundFree(f){
   return f.alive&&f.hpPool>0&&!f.locked&&!f.embarked&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&!f.groundBuilding&&!f.groundUnloading&&
-    !f.groundSupplyTrip&&!(f.groundKind==='supply'&&groundSupplyActive()&&f.groundSupply===0)&&
+    !f.groundSupplyTrip&&!f.groundSupplyRetreat&&!(f.groundKind==='supply'&&groundSupplyActive()&&f.groundSupply===0)&&
     !['board','bridge','land'].includes(f.order?.type)&&groundCommandAllowed(f,'move');
 }
 function npcGroundInit(){
@@ -575,7 +575,7 @@ function npcGroundLiftLinks(){
 }
 function npcGroundLiftLink(k){return npcGroundLiftLinks().find(l=>l.way===(k.type==='bridge'?'gap':k.via)&&k.link?.includes(l.a)&&k.link?.includes(l.b));}
 function npcGroundLiftMove(f,dest,via){
-  if(!dest||!f?.alive||f.embarked||npcAutoPlayerUnit(f))return false;
+  if(!dest||!f?.alive||f.embarked||f.groundSupplyRetreat||npcAutoPlayerUnit(f))return false;
   const last=npcGroundState.last.get(f.id),routes=npcGroundLiftState().routes,route=via===undefined?null:via.map(p=>p.x.toFixed(3)+','+p.z.toFixed(3)).join(';');
   if(route!==null&&routes.get(f.id)!==route||!last||last.distanceTo(dest)>.05*GROUND_SCALE||!f.order&&f.pos.distanceTo(dest)>.05*GROUND_SCALE||f.order&&f.order.type!=='move'){
     order(f,{type:'move',dest:dest.clone(),...(via?.length?{via:via.map(p=>p.clone())}:{})});
@@ -655,7 +655,6 @@ function npcGroundLiftOrders(c,sit,plan){
   // 任務が消えたら建設を中止する。搭載した隊は安全な味方の浜へ戻して降ろす。
   for(const f of fleets.filter(ours)){
     const k=tasks.get(f.id);
-    if(f.groundKind==='supply')f.groundSupplyNpcUnsafe=false;
     if(f.order?.type==='bridge'&&k?.type!=='bridge'){order(f,{type:'move',dest:f.pos.clone()});s.works.delete(f.id);}
     if(f.order?.type==='board'&&(!k||tasks.get(f.order.target.id)!==k)){order(f,{type:'move',dest:f.pos.clone()});}
   }
@@ -773,7 +772,7 @@ function npcGroundLiftOrders(c,sit,plan){
         if(f.pos.distanceTo(dest)>.1*GROUND_SCALE)npcGroundLiftMove(f,dest);
         else if(fraction(candidates[0])<groundSupplyRules().aiFocusBelow)groundSupplyCommand([f],candidates[0]);
       }else{
-        f.groundSupplyNpcUnsafe=true;
+        // 危険な接近や集中補給を中止。戦闘からの退避・待機中の分配は共通の補給処理に任せる。
         if(f.order||f.groundGiving)order(f,{type:'move',dest:f.pos.clone()});
       }
     }

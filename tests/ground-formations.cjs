@@ -69,8 +69,13 @@ function formationCases(){
    return lay.every(t=>{let best=-1,bd=Infinity;form.bodies.forEach((p,i)=>{if(used.has(i))return;const d=Math.hypot(p.position.x-t.x,p.position.z-t.z);if(d<bd){bd=d;best=i;}});used.add(best);return bd<tol;});}));
  document.getElementById('groundHold').click();
  for(const f of units)order(f,{type:'move',dest:f.pos.clone().add(new THREE.Vector3(0,0,4))});
- formationTick(.15,true);check('通常移動は移動隊形',units.every(f=>groundFormationState(f)==='move'&&!f.groundDeployed));
- for(let i=0;i<2000&&units.some(f=>f.order);i++)formationTick(.05,true);
+ const moving=new Set();
+ // 前列との間隔を取る隊は発進が遅れるので、各隊が実際に動いたフレームで見る。
+ for(let i=0;i<2000&&units.some(f=>f.order);i++){
+  formationTick(.05,true);
+  for(const f of units)if(groundFormationState(f)==='move'&&!f.groundDeployed)moving.add(f);
+ }
+ check('通常移動は移動隊形',units.every(f=>moving.has(f)));
  formationTick(2);check('通常移動到着後は待機',units.every(f=>!f.order&&groundFormationState(f)==='idle'));
  check('歩く形と立つ形の座標一致',units.filter(f=>f.groundModel.userData.pose).every(f=>{const p=f.groundModel.userData.pose;return p.move.every((m,i)=>m.every(b=>b.position.equals(p.stand[i].position)&&b.rotation.equals(p.stand[i].rotation)));}));
  document.getElementById('groundHold').click();formationTick(.5);check('停止・防衛は防衛',units.every(f=>groundFormationState(f)==='defend'));

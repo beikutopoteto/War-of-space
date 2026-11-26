@@ -41,7 +41,7 @@ function setupNpcSim(cfg){
   reset({op:source.id,fleets:source.quick});if(talking)endTalk();setSpeed(0);endDeploy();
   if(cfg.ally>0)npcGroundSplit(cfg.ally);
   window.npcMeasure={ally:{captures:0,totalCaptures:0,finalCaptures:0,aheadTasks:0,seenTasks:new Set(),modeSeconds:{follow:0,quiet:0,rescue:0},previousLead:new Map(),pending:new Map(),relief:[]},cfg,start:gameSec,steps:0,stepMs:0,idle:[0,0],unitTime:[0,0],concentration:[0,0],assaultTime:[0,0],firstContact:null,changes:[0,0],last:[null,null],aborts:[0,0],
-    logs:[],postures:[],lowSupplyMax:[0,0],events:[],initialOwners:groundSites.map(s=>({site:s.id,owner:s.owner})),owners:Object.fromEntries(groundSites.map(s=>[s.id,s.owner])),samples:[]};
+    logs:[],postures:[],lowSupplyMax:[0,0],events:[],losses:[],lossIds:new Set(),initialOwners:groundSites.map(s=>({site:s.id,owner:s.owner})),owners:Object.fromEntries(groundSites.map(s=>[s.id,s.owner])),samples:[]};
   // 中止logは200件のリングを越えても数える。
   const oldLog=npcLog;npcLog=(c,t,what,zone,why)=>{
     const m=npcMeasure,entry={team:c.team,time:+(t-m.start).toFixed(2),what,zone:zone??null,why};
@@ -58,6 +58,9 @@ function advanceNpcSim(seconds){
     const before=performance.now(),at=gameSec;if(window.npcProfile)npcProfile.active=true;
     try{step(dt);}finally{if(window.npcProfile)npcProfile.active=false;}
     m.stepMs+=performance.now()-before;m.steps++;
+    for(const f of fleets)if((!f.alive||f.hpPool<=0)&&!m.lossIds.has(f.id)){
+      m.lossIds.add(f.id);m.losses.push({time:+(gameSec-m.start).toFixed(2),team:f.team,kind:f.groundKind,id:f.id});
+    }
     for(const team of [0,1]){
       const live=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.embarked&&!groundAbsent(f)),plan=npcGroundState?.commanders.get(team)?.plan;
       m.lowSupplyMax[team]=Math.max(m.lowSupplyMax[team],live.filter(f=>Number.isFinite(f.groundSupply)&&f.groundSupply<groundSupplyRules().max*.2).length);
@@ -130,7 +133,7 @@ function npcSimResult(){
     idle:[0,1].map(team=>round(m.idle[team]/Math.max(1e-9,m.unitTime[team]))),mainConcentration:[0,1].map(team=>m.assaultTime[team]?round(m.concentration[team]/m.assaultTime[team]):null),
     firstContact:m.firstContact===null?null:round(m.firstContact),targetChanges:m.changes,aborts:m.aborts,think:{count:t.count,meanMs:round(t.total/Math.max(1,t.count)),maxMs:round(t.max)},step:{count:m.steps,meanMs:round(m.stepMs/Math.max(1,m.steps))},
     ally:m.cfg.ally>0?{captures:m.ally.captures,captureShare:round(m.ally.captures/Math.max(1,m.ally.totalCaptures)),finalCaptures:m.ally.finalCaptures,aheadTasks:m.ally.aheadTasks,reliefCount:m.ally.relief.length,reliefMeanSec:m.ally.relief.length?round(m.ally.relief.reduce((s,x)=>s+x,0)/m.ally.relief.length):null,reliefPending:m.ally.pending.size,modeShare:Object.fromEntries(Object.entries(m.ally.modeSeconds).map(([k,v])=>[k,round(v/Math.max(1e-9,gameSec-m.start))]))}:null,
-    initialOwners:m.initialOwners,sites:m.owners,captures:m.events,postures:m.postures,logs:m.logs,lowSupplyMax:m.lowSupplyMax,
+    initialOwners:m.initialOwners,sites:m.owners,captures:m.events,losses:m.losses,postures:m.postures,logs:m.logs,lowSupplyMax:m.lowSupplyMax,
     units:fleets.map(f=>({id:f.id,team:f.team,groundKind:f.groundKind,alive:f.alive,hp:f.hpPool,supply:f.groundSupply??null,morale:f.groundMorale??null})),
     profile:window.npcProfile?Object.fromEntries(Object.entries(npcProfile.rows).map(([name,v])=>[name,{count:v.count,totalMs:round(v.total),selfMs:round(v.self),meanMs:round(v.total/Math.max(1,v.count))}])):null,
     debug:npcDebug(),samples:m.samples};
@@ -169,6 +172,12 @@ function brief(r){
  const captureLabel=r.config.terrain==='charybdis'?'保有変更':'占領';
  if(!r.captures.length)lines.push(captureLabel+': なし');
  for(const e of r.captures)lines.push(`${captureLabel} ${e.time}秒 ${e.site} → ${owner(e.owner)}`);
+ if(r.config.terrain!=='charybdis'){
+   const losses=[0,1].map(team=>r.units.filter(f=>f.team===team&&f.groundKind==='supply'&&(!f.alive||f.hp<=0)).length);
+   lines.push('補給部隊の撃破: '+losses.map((n,team)=>team+'軍 '+n+'隊').join(' / '));
+   lines.push('残存兵科: '+[0,1].map(team=>team+'軍 '+JSON.stringify(r.units.filter(f=>f.team===team&&f.alive&&f.hp>0).reduce((a,f)=>(a[f.groundKind]=(a[f.groundKind]||0)+1,a),{}))).join(' / '));
+   for(const loss of r.losses)lines.push(`撃破 ${loss.time}秒 ${loss.team}軍 ${loss.kind} ${loss.id}`);
+ }
  for(const e of r.postures)lines.push(`姿勢 ${e.time}秒 ${e.team}軍 ${e.what.slice(8)}`);
  for(const e of r.logs)lines.push(`log ${e.time}秒 ${e.team}軍 ${e.what} ${e.zone??''} ${e.why}`);
  for(const s of r.samples)lines.push(`任務 ${s.time}秒 `+s.tasks.map((v,i)=>i+'軍 '+Object.entries(v).map(([k,n])=>k+':'+n).join(' ')).join(' / '));

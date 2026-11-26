@@ -818,14 +818,56 @@ function groundAdvanceSpeed(f){
   let slowest=own;for(const u of g.units)if(u!==f&&u.alive&&u.order?.groundAdvance===g&&groundMoveKind(u)!=='air')slowest=Math.min(slowest,speedOf(u));
   return slowest*(f.order.groundAdvancePace??1); // 前線が向きを変える進撃は、内側の隊ほど遅い（ground-plan.js groundFrontRoutes）
 }
-function groundFollow(f,dt){let p=f.order.path;if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){if(p.blockedRevision===groundBridgeRevision)return false;const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points[p.points.length-1]],groundMoveKind(f),p.straight);if(!updated){p.blockedRevision=groundBridgeRevision;return false;}f.order.path=updated;p=updated;}if(!p)return true;let remaining=groundAdvanceSpeed(f)*dt;const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;while(remaining>0&&p.atIndex<p.points.length){const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);let factor=groundFactor(f.pos.x,f.pos.z,kind);
-    /* 経路は検査点（セルの1/8ごと）で確かめるので、検査点のあいだに細い水際が残ることがある（橋の端の角など）。
-       そこで止まったままにしない: 今いる所が通れなければ次の点の速さで抜け、進んだ先が細い水際なら、その先の通れる所まで（検査点の間隔の2倍まで）進める。
-       それより広い水は今までどおり手前で止まる（2026-11-14、戦車が橋の上で止まる不具合） */
+function groundFollow(f,dt,front){
+  let p=f.order.path;
+  if(p&&p.bridgeRevision!==undefined&&groundMoveKind(f)!=='air'&&p.bridgeRevision!==groundBridgeRevision){
+    if(p.blockedRevision===groundBridgeRevision)return false;
+    const remaining=p.pts.filter((_,i)=>p.at[i]>p.s+1e-8);
+    const updated=groundMovePath(f.pos,remaining.length?remaining:[p.points.at(-1)],groundMoveKind(f),p.straight);
+    if(!updated){p.blockedRevision=groundBridgeRevision;return false;}
+    f.order.path=p=updated;
+  }
+  if(!p)return true;
+  let remaining=groundAdvanceSpeed(f)*dt;
+  const kind=groundMoveKind(f),gap=groundData().meta.cellKm*GROUND_SCALE/4;
+  const rearGap=front?.length?groundSupplyRules().rearGapKm*GROUND_SCALE:0;
+  while(remaining>0&&p.atIndex<p.points.length){
+    const target=p.points[p.atIndex],dx=target.x-f.pos.x,dz=target.z-f.pos.z,dist=Math.hypot(dx,dz);
+    let limit=dist;
+    if(rearGap&&dist>1e-8){
+      let ahead=-Infinity;
+      for(const t of front)ahead=Math.max(ahead,((t.pos.x-f.pos.x)*dx+(t.pos.z-f.pos.z)*dz)/dist);
+      limit=Math.max(0,Math.min(dist,ahead-rearGap));
+      if(limit===0)return false;
+    }
+    let factor=groundFactor(f.pos.x,f.pos.z,kind);
+    // 検査点の間の細い水際は、次の通れる点まで進む。前列との間隔を越える場合は手前で止まる。
     if(factor<=0&&kind!=='sea')factor=groundFactor(target.x,target.z,kind);
     if(factor<=0)return false;
-    let amount=Math.min(dist,remaining*factor);
-    if(kind!=='sea'&&dist>1e-8&&amount<dist){const wet=a=>groundFactor(f.pos.x+dx/dist*a,f.pos.z+dz/dist*a,kind)<=0;
-      if(wet(amount)){let through=amount;while(through<dist&&through<amount+gap&&wet(through))through=Math.min(dist,through+gap/8);
-        if(!wet(through))amount=through;else{let back=amount;while(back>0&&wet(back))back=Math.max(0,back-gap/8);amount=back;if(amount<=1e-8)return false;}}}
-    if(kind==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;if(dist>1e-8){const before=f.pos.clone();f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);groundSupplyMoved(f,before,f.pos);}f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;if(dist-amount<1e-6)p.atIndex++;else break;}return p.atIndex>=p.points.length;}
+    let amount=Math.min(limit,remaining*factor);
+    if(kind!=='sea'&&dist>1e-8&&amount<dist){
+      const wet=a=>groundFactor(f.pos.x+dx/dist*a,f.pos.z+dz/dist*a,kind)<=0;
+      if(wet(amount)){
+        let through=amount;
+        while(through<limit&&through<amount+gap&&wet(through))through=Math.min(limit,through+gap/8);
+        if(!wet(through))amount=through;
+        else{
+          let back=amount;
+          while(back>0&&wet(back))back=Math.max(0,back-gap/8);
+          amount=back;
+          if(amount<=1e-8)return false;
+        }
+      }
+    }
+    if(kind==='sea'&&dist>1e-8&&!groundSeaLeg(f.pos,new THREE.Vector3(f.pos.x+dx/dist*amount,0,f.pos.z+dz/dist*amount)))return false;
+    if(dist>1e-8){
+      const before=f.pos.clone();
+      f.pos.x+=dx/dist*amount;f.pos.z+=dz/dist*amount;
+      f.heading.set(dx/dist,0,dz/dist);f.march.copy(f.heading);
+      groundSupplyMoved(f,before,f.pos);
+    }
+    f.pos.y=groundUnitHeight(f);remaining-=amount/factor;p.s+=amount;
+    if(dist-amount<1e-6)p.atIndex++;else break;
+  }
+  return p.atIndex>=p.points.length;
+}

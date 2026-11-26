@@ -166,7 +166,7 @@ function groundFrontRemoveMembers(list){
 function groundFrontBusy(f,front){
   return !groundFrontAvailable(f)||f.order&&!groundFrontOwnOrder(f,front)||f.queue?.length||f.pending||
     f.groundAirTask||f.groundBuilding||f.groundUnloading||f.bandTo||
-    (f.groundSupplyTrip?f.groundSupplyTrip.front!==front:!!f.groundGiving)||
+    (f.groundSupplyTrip?f.groundSupplyTrip.front!==front:!!(f.groundGiving||f.groundSupplyRetreat))||
     f.groundAreaSalvo||f.groundBombRun||(f.groundVolley&&!f.groundVolley.ledger?.target);
 }
 // 航空機は旋回中にも距離を積算するので、通過した経由地は飛行側の到達位置で数える。

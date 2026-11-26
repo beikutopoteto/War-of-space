@@ -130,10 +130,10 @@ function planCases(){
  tank.stance='engage';inf.stance='evade';const foe={alive:true};tank.fireTarget=inf.fireTarget=foe;
  const before=tank.pos.clone(),realFire=groundCanFire;
  groundCanFire=()=>false;
- const realFollow=followPath;let moved=new Set();followPath=(f,dt)=>{moved.add(f);return realFollow(f,dt);};
- groundStep(.05);followPath=realFollow;groundCanFire=realFire;
+ const realFollow=groundFollow;let moved=new Set();groundFollow=(f,dt,front)=>{moved.add(f);return realFollow(f,dt,front);};
+ groundStep(.05);groundFollow=realFollow;groundCanFire=realFire;
  check('進撃中、自動交戦の隊は停止、命令優先の隊は続行',tank.order?.groundAdvance&&!moved.has(tank)&&moved.has(inf)&&groundPlanDistance(tank.pos,before)<1e-9);
- tank.fireTarget=null;moved=new Set();followPath=(f,dt)=>{moved.add(f);return realFollow(f,dt);};groundStep(.05);followPath=realFollow;
+ tank.fireTarget=null;moved.clear();groundFollow=(f,dt,front)=>{moved.add(f);return realFollow(f,dt,front);};groundStep(.05);groundFollow=realFollow;
  check('敵がいなくなれば自動交戦の隊も進撃を続ける',moved.has(tank));
 
  for(const advancing of [false,true]){
