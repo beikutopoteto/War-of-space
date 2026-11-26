@@ -459,12 +459,72 @@ function check(ok, label, detail = '') {
     await shot('01c-tech');
     await page.click('[data-s="tech"] .back');
 
-    /* ship data */
-    await page.click('[data-go="data"]');
-    check(await page.locator('#shipTbl tbody tr').count() === data.ships, '兵種別データ: 艦種の表', `${data.ships}艦種`);
-    check(await page.locator('#bonusTbl tbody tr').count() === data.bonuses, '兵種別データ: 編成ボーナスの表', `${data.bonuses}種`);
-    await shot('02-data');
-    await page.click('[data-s="data"] .back');
+    {
+      /* unit database */
+      await page.click('[data-go="data"]');
+      const unitData = page.locator('#unitData');
+      const unitButton = (key, value) => unitData.locator(`[data-unit-${key}="${value}"]`);
+      const lastUnit = () => unitData.locator('[data-unit-id]').last().getAttribute('data-unit-id');
+      const unitStat = code => unitData.locator(`[data-unit-stat="${code}"] > b`).innerText();
+      check(await unitData.locator('[data-unit-id]:not([data-unit-id="bonus"])').count() === data.ships
+        && await lastUnit() === 'bonus', '兵種別データ: 宇宙の一覧は全艦種、最後は編成ボーナス', `${data.ships}艦種`);
+      await unitButton('id', 'bb').click();
+      await unitButton('team', '1').click();
+      const rangeNow = await unitStat('RNG');
+      await unitButton('research', 'max').click();
+      const rangeMax = await unitStat('RNG'), sightMax = await unitStat('VIS'), fleetSpeed = await unitStat('SPD');
+      check(rangeNow === '1,384 km' && rangeMax === '2,280 km' && sightMax === '10,000 km' && fleetSpeed === '0.67 km/s'
+        && await unitStat('STL') === '×0.92',
+        '兵種別データ: 研究で射程が変わる、宇宙の距離は1＝100 km、速度・隠蔽も換算', [rangeNow, rangeMax, sightMax, fleetSpeed].join(' / '));
+      await unitButton('motion', 'fire').click();
+      check((await unitData.locator('.ud-sheet .ud-note').last().innerText()).includes('射撃後 3 秒'), '兵種別データ: 射撃中は位置が見える条件を表示');
+      await unitButton('motion', 'stop').click();
+      const canvas = unitData.locator('.ud-stage canvas'), angles = unitData.locator('.ud-angles');
+      await canvas.dblclick();
+      const initial = await angles.innerText();
+      const box = await canvas.boundingBox(), cx = box.x + box.width/2, cy = box.y + box.height/2;
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.mouse.move(cx + box.width/5, cy + box.height/5, { steps: 5 });
+      await page.mouse.up();
+      const anglesChanged = previous => page.waitForFunction(value => document.querySelector('#unitData .ud-angles').textContent !== value, previous);
+      await anglesChanged(initial);
+      const dragged = await angles.innerText();
+      check(dragged !== initial, '兵種別データ: 模型をドラッグすると向きが変わる', `${initial} → ${dragged}`);
+      await canvas.dblclick();
+      const reset = await page.waitForFunction(value => {
+        const text = document.querySelector('#unitData .ud-angles').textContent;
+        return text === value && text;
+      }, initial, { timeout: 3000 }).then(async result => {
+        const text = await result.jsonValue();
+        await result.dispose();
+        return text;
+      }).catch(error => {
+        if (error.name !== 'TimeoutError') throw error;
+        return null;
+      });
+      check(reset === initial, '兵種別データ: 模型をダブルクリックすると初期位置に戻る', `${reset ?? await angles.innerText()} / 初期値 ${initial}`);
+      await shot('02-data');
+      await unitButton('id', 'bonus').click();
+      check(await page.locator('#bonusTbl tbody tr').count() === data.bonuses && !await canvas.count(),
+        '兵種別データ: 編成ボーナスの表を表示し、模型を外す', `${data.bonuses}種`);
+      await unitButton('force', 'ground').click();
+      check(await lastUnit() === 'bonus' && !await unitButton('id', 'drone').count() && await unitButton('research', 'max').isDisabled(),
+        '兵種別データ: 地上の一覧は編成ボーナスが最後、ドローンの別行なし、研究の最大は無効');
+      await unitButton('id', 'was').click();
+      const walkSpeed = await unitStat('SPD');
+      const walkRings = await unitData.locator('.ud-plot').last().textContent();
+      await unitButton('height', 'low').click();
+      const lowSpeed = await unitStat('SPD');
+      const lowRings = await unitData.locator('.ud-plot').last().textContent();
+      check(walkSpeed === '71 km/h' && lowSpeed === '245 km/h' && walkRings.includes('直接 3 km') && lowRings.includes('対空 15 km'),
+        '兵種別データ: W.A.S. の低高度で速さ・射程図が変わる', `${walkSpeed} → ${lowSpeed}`);
+      await unitButton('id', 'scout').click();
+      check((await unitData.locator('.ud-pairs').innerText()).includes('3両')
+        && (await unitData.locator('.ud-drone').innerText()).includes('電池 60 分'),
+        '兵種別データ: 斥候は1小隊3両で、ドローンの電池も表示する');
+      await page.click('[data-s="data"] .back');
+    }
 
     /* organization: each tab renders */
     await page.click('[data-go="org"]');

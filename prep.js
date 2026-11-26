@@ -274,7 +274,7 @@ function render(){
   if(screen==='forces') renderForces();
   if(screen==='mode') renderMode();
   if(screen==='org') renderOrg();
-  if(screen==='data') renderData();
+  if(screen==='data') renderData(); else dataModel.clear();
   if(screen==='title') renderTitle();
   if(screen==='tech') renderTech();
   if(screen==='opt') renderOpt();
@@ -339,10 +339,7 @@ menu.innerHTML=`
 </section>
 <section class="scr" data-s="data" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>DATA</b><span>兵種別データ</span></h2></header>
-  <p class="tabnote">数値はすべて仮の値です（1〜10）。表の値は技術ツリーの研究をすべて終えた最終形態（最大）で、自分で編成した艦隊は最初その3割から始まります。速度は打撃群の移動速度を決め、打撃群は最も遅い艦に合わせて動きます。視界は敵を見つけられる距離、隠蔽性は敵からの見つかりにくさで、打撃群の視界は最も高い艦、隠蔽性は最も低い艦で決まります。母艦は敵が近づくと艦載機やW.A.S.（Weaponed Armored Shell・武装装甲化外骨格）を自動で発進させます。艦載機は遠くまで届き、W.A.S.は近距離で打たれ強く火力が高い小型ユニットです。</p>
-  <div class="tblwrap"><table class="ships" id="shipTbl"></table></div>
-  <h3 class="sub">編成ボーナス（打撃群単位・仮）</h3>
-  <div class="tblwrap"><table class="ships" id="bonusTbl"></table></div>
+  <div id="unitData"></div>
 </section>
 <section class="scr" data-s="opt" hidden>
   <header class="scrhead"><button class="back" data-go="title">← メニュー</button><h2 class="scrh"><b>OPTIONS</b><span>オプション</span></h2></header>
@@ -996,14 +993,437 @@ const preview=(()=>{
   return {set, get active(){return active;}, set active(v){active=v;}};
 })();
 
-/* ---------- ship data ---------- */
-let dataSort=null;
-function renderData(){
-  const list=[...SHIPS]; if(dataSort) list.sort((a,b)=>b[dataSort]-a[dataSort]);
-  document.getElementById('shipTbl').innerHTML=`<thead><tr><th>艦種</th>${STATS.map(s=>`<th><button data-sort="${s.k}">${s.n}</button></th>`).join('')}<th><button data-sort="spd">速度</button></th><th><button data-sort="max">最大隻数</button></th><th>搭載</th></tr></thead><tbody>${list.map(s=>`<tr><th>${mark(s.id)} ${s.name}<small>${s.note}</small></th>${STATS.map(k=>`<td><span class="seg" style="--v:${s[k.k]*10}%"></span>${s[k.k]}</td>`).join('')}<td>${s.spd}</td><td>${s.max}</td><td>${hangarStr(s.hangar)||'—'}</td></tr>`).join('')}</tbody>`;
-  document.querySelectorAll('#shipTbl [data-sort]').forEach(b=>b.onclick=()=>{dataSort=dataSort===b.dataset.sort?null:b.dataset.sort; renderData();});
-  document.getElementById('bonusTbl').innerHTML=`<thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead><tbody>${BONUSES.map(b=>`<tr><th>${b.name}</th><td>${b.cond}</td><td>${b.eff}</td></tr>`).join('')}</tbody>`;
+/* ---------- unit database ---------- */
+const DATA_TEAMS=[
+  {id:'earth',name:'地球連合',en:'EARTH FED.',color:'var(--blue)'},
+  {id:'mars',name:'惑星共和国',en:'PLANETARY REP.',color:'#ff6a45'}
+];
+const DATA_GROUND=WOS_GROUND_RULES;
+const DATA_GROUPS=[
+  ['I','INFANTRY','歩兵',['infantry','heavyInfantry','commando']],
+  ['A','ARMOR','機甲・砲兵',['vehicle','apc','artillery','guidedRocket','mobileAA']],
+  ['W','W.A.S.','W.A.S.',['was']],
+  ['S','SUPPORT','支援',['scout','engineer','supply']],
+  ['U','UNMANNED','無人',['mechanicalAssault']],
+  ['F','AIR','航空',['fighter','attack','supportAircraft']]
+];
+const DATA_EN={
+  cv:'CORVETTE',ff:'FRIGATE',dd:'DESTROYER',cl:'CRUISER',bb:'BATTLESHIP',cvb:'FLEET CARRIER',mas:'ASSAULT LANDING SHIP',masc:'ASSAULT CARRIER',
+  infantry:'ENHANCED INFANTRY',heavyInfantry:'HEAVY ENHANCED INFANTRY',commando:'ENHANCED COMMANDO',vehicle:'MAIN BATTLE TANK',
+  apc:'ARMORED PERSONNEL CARRIER',artillery:'SELF-PROPELLED ARTILLERY',guidedRocket:'UNGUIDED ROCKETS',mobileAA:'SELF-PROPELLED ANTI-AIRCRAFT GUN',
+  was:'GROUND W.A.S.',scout:'SCOUT',engineer:'ENGINEERS',supply:'SUPPLY',mechanicalAssault:'MECHANIZED ASSAULT',
+  fighter:'FIGHTER',attack:'ATTACK AIRCRAFT',supportAircraft:'STRATEGIC SUPPORT AIRCRAFT'
+};
+const DATA_DESCRIPTIONS={
+  infantry:'小銃を持つ歩兵。地上の拠点を占拠し、森や町で戦う。',
+  heavyInfantry:'重装備の歩兵。発射機を備え、装甲のある相手や空の敵も狙える。',
+  commando:'機動力の高い歩兵。森や町、陣地の遮蔽を生かして戦う。',
+  vehicle:'突破の槍。厚い正面装甲と長い砲で、敵の線を破って奥へ進む。横と上は薄いので、回り込みと上からの攻撃に弱い。',
+  apc:'歩兵を運ぶ装輪車両。道路で機動力を発揮する。',
+  artillery:'離れた場所から間接射撃で味方を支援する。',
+  guidedRocket:'一斉射で広い範囲を砲撃する。',
+  mobileAA:'移動しながら味方に随伴し、空からの攻撃に備える。',
+  was:'突破力と殲滅力。歩き・地表すれすれの巡航・低高度を切り替え、地形を飛び越えて回り込む。',
+  scout:'味方に先んじて進み、敵を見つける。ドローンを打ち上げて先の様子を探れる。',
+  engineer:'橋を架け、味方の渡河を助ける。',
+  supply:'前線の味方に弾薬と燃料を届ける。',
+  mechanicalAssault:'小銃を備えた無人の突撃部隊。',
+  fighter:'空の敵を迎撃する戦闘機。',
+  attack:'低高度から地上の目標を攻撃し、空の敵とも戦う。',
+  supportAircraft:'広い範囲を索敵し、投下進入から爆撃する。'
+};
+const dataEntries=groups=>groups.map(([prefix,en,name,ids])=>({en,name,units:ids.map((id,i)=>({
+  id,group:name,code:`${prefix}-${String(i+1).padStart(2,'0')}`,name:(SHIP[id]||DATA_GROUND.unitTypes[id]).name
+}))}));
+const DATA_LISTS={
+  space:dataEntries([['N','FLEET','艦艇',SHIPS.map(s=>s.id)]]),
+  ground:dataEntries(DATA_GROUPS)
+};
+const dataState={force:'space',space:{unit:'cv',team:0,motion:'stop',height:'low',research:'now'},
+  ground:{unit:'infantry',team:0,motion:'stop',height:'walk',research:'now'}};
+const dataNum=n=>n.toLocaleString('ja-JP',{maximumFractionDigits:2});
+const dataStat=(code,label,value,max,unit='',shown=dataNum(value))=>({code,label,value,max,unit,shown});
+const dataValue=s=>s.unit?`${s.shown} ${s.unit}`:s.shown;
+const dataDistanceMax={}; // 元データの同じ種類の射程の最大をゲージに使う。
+const dataRanges=r=>[['RNG-D',r.ground!==undefined?'対地':'直接',r.ground??r.direct],
+  ['RNG-I','間接',r.indirect?.max,r.indirect?.min],['RNG-AA','対空',r.air??r.aa]];
+const groundTypes=Object.values(DATA_GROUND.unitTypes);
+for(const t of groundTypes){
+  for(const r of [t.fireRangesKm,t.fireRangesKm.airborne].filter(Boolean)){
+    for(const [code,,value=0] of dataRanges(r)) dataDistanceMax[code]=Math.max(value,dataDistanceMax[code]||0);
+  }
 }
+const dataGroundSpeedMax=Math.max(...groundTypes.map(t=>t.speed),...Object.values(DATA_GROUND.wasFlight.speed));
+const dataGroundHpMax=Math.max(...groundTypes.map(t=>t.hp));
+const dataGroundSight=k=>(DATA_GROUND.sight[k]??DATA_GROUND.sight.basic)/GROUND_SCALE;
+const dataGroundSightMax=Math.max(...Object.keys(DATA_GROUND.unitTypes).map(dataGroundSight));
+const dataArmorParts=a=>typeof a==='number'?[a,a,a]:[a?.front,a?.side,a?.top];
+const dataGroundArmorMax=Math.max(...groundTypes.flatMap(t=>dataArmorParts(t.armor).map(v=>v??0)));
+
+function groundDataInfo(id,state,side){
+  const t=DATA_GROUND.unitTypes[id], rules=DATA_GROUND;
+  const wasAir=id==='was'&&state.height!=='walk', lowWas=wasAir&&state.height==='low';
+  const aircraft=DATA_GROUPS.at(-1)[3].includes(id);
+  const speed=wasAir?rules.wasFlight.speed[state.height]:t.speed;
+  // docs/ground-tempo.md。地形・補給・道路の補正が入る前の速さ。
+  const ratedSpeed=dataStat('SPD','速さ',speed,dataGroundSpeedMax,'km/h',String(Math.round(speed*15)));
+  const move=[ratedSpeed,dataStat('HP','耐久',t.hp,dataGroundHpMax)];
+  const armor=dataArmorParts(t.armor).map((v,i)=>dataStat(['ARM-F','ARM-S','ARM-T'][i],
+    '装甲 '+['前','横','上'][i],v??0,dataGroundArmorMax,'',v===undefined?'—':dataNum(v)));
+  if(t.armor!==undefined) move.push(...armor);
+  if(id==='was'){
+    const evasion=wasAir?rules.wasFlight.evasion:t.evasion;
+    move.push(dataStat('EVA','回避',evasion,1,'%',dataNum(evasion*100)));
+  }
+  const sight=dataGroundSight(id);
+  const see=[dataStat('VIS','視界',sight,dataGroundSightMax,'km')];
+  const ranges=dataRanges(lowWas?t.fireRangesKm.airborne:t.fireRangesKm);
+  // 飛行する攻撃機は低高度からのみ対地射撃できる（groundFireFactor）。
+  for(const [code,label,distance,min] of ranges){
+    if(!distance||(aircraft&&state.height==='high'&&label==='対地')) continue;
+    const shown=min===undefined?dataNum(distance):`${dataNum(min)}〜${dataNum(distance)}`;
+    see.push(dataStat(code,label,distance,dataDistanceMax[code],'km',shown));
+  }
+  const rings=[...see];
+  if(id==='scout'){
+    const hide=rules.sight.concealment.scout;
+    see.push(dataStat('STL','隠蔽性',1-hide,1,'',`×${hide.toFixed(2)}`));
+  }
+  const spec=groundModelFor(id,side);
+  const count=spec.offsets.length, people=DATA_GROUPS[0][3].includes(id)||id==='mechanicalAssault';
+  const org=[['1小隊',count+(aircraft||id==='was'?'機':people?'人':'両')],['補給の重さ',rules.supplyWeight[id]],
+    ['士気の最大',Math.round(rules.supply.max*(rules.supply.moraleMax[id]??1))]];
+  const weapons=t.weapons?.map(w=>[w.power,w.pen,`${w.air?'地上・空':'地上'}${w.top?'・上から':''}`])||[];
+  const strikeOnly=id==='guidedRocket'||id==='supportAircraft';
+  if(strikeOnly) weapons.push([t.dmg*(rules.strike[id].dmgScale??1),'—','地点攻撃']);
+  if(id==='fighter') weapons.push([t.dmg,'—','対空']);
+  const model=id==='was'&&wasAir?(state.motion==='fire'?'wasFlyFire':state.motion==='move'?'wasFlyMarch':'wasFly')
+    :state.motion==='move'?spec.move[id==='was'?spec.cycle:0]||spec.key
+    :state.motion==='fire'&&id==='was'?'wasFire':spec.key;
+  let motionNote=state.motion==='move'?`移動中の基準速度 ${dataValue(ratedSpeed)}`:'';
+  if(state.motion==='fire'&&t.dmg){
+    const cost=aircraft?(strikeOnly?rules.supply.airStrike:rules.supply.airShot):(strikeOnly?rules.supply.strike:rules.supply.shot);
+    motionNote=`${strikeOnly?'地点攻撃':'射撃'}の補給消費 ${dataNum(cost)}（1回あたりの基準値）`;
+  }
+  return {desc:DATA_DESCRIPTIONS[id],move,see,rings,armor,org,weapons,model,motionNote};
+}
+
+function spaceDataInfo(id,state,side){
+  const ship=SHIP[id], mars=side==='mars'&&D.sides.mars.ships[id];
+  const current=state.research==='now';
+  const s=current&&side==='earth'?shipNow(id):{...ship};
+  if(mars){
+    // 共和国の艦種表は固定艦隊と同じ。最初の段階は0で、速度は研究段階によらず最大値。
+    const rate=techRate('mars',current?0:1);
+    for(const k of ['atk','def','eva','rng']) s[k]=mars[k]*rate;
+    s.spd=mars.spd;
+  } else if(side==='mars'&&current){
+    // 鹵獲艦は地球の初期値（固定艦隊の techFleet）。地球のプレイヤーの研究は適用しない。
+    for(const k of ['atk','def','eva','rng']) s[k]*=techRate('earth',0);
+  }
+  // 距離1 = 100 km。時計はゲームの1秒で CLOCK_BASE 分。射程は armyToFleet / techFleet と同じ。
+  const kmPerUnit=100;
+  const speed=dataStat('SPD','速度',s.spd,10,'km/s',((2+s.spd)*SPEED_K*kmPerUnit/(CLOCK_BASE*60)).toFixed(2));
+  const move=[speed,dataStat('DEF','防御',s.def,10),dataStat('EVA','回避',s.eva,10)];
+  const sightKm=sightOf(s)*kmPerUnit,rangeKm=(10+s.rng*1.6)*kmPerUnit;
+  const sight=dataStat('VIS','視界',s.vis,10,'km',dataNum(sightKm));
+  const range=dataStat('RNG','射程',s.rng,10,'km',dataNum(rangeKm));
+  const hide=dataStat('STL','隠蔽性',s.stl,10,'',`×${concealOf(s).toFixed(2)}`);
+  const arms=[dataStat('ATK','攻撃',s.atk,10),dataStat('AA','対空照準',s.aa,10)];
+  const hangar=mars?.was?{...ship.hangar,was:mars.was}:ship.hangar;
+  const notes=['※ 視界は、プラズマの雲の中で光学で敵を見分けられる距離'];
+  if(state.motion==='fire') notes.push(`射撃後 ${FIRE_REVEAL} 秒は射線が通る敵に位置が分かる`);
+  if(state.motion==='move') notes.push(`移動中の基準速度 ${dataValue(speed)}`);
+  return {desc:ship.note,move,see:[sight,hide,range],rings:[{...sight,distance:sightKm},{...range,distance:rangeKm}],defense:move.slice(1),arms,
+    org:[['最大隻数',`${ship.max}隻（1支隊）`],['搭載',hangarStr(hangar)||'—']],
+    weapon:ship.weapon,model:SPACE_MODELS[id][side],notes};
+}
+
+const DATA_BLUE='#7fc8ff',DATA_BRASS='#e2c58a',DATA_DIM='rgba(127,200,255,.22)';
+const dataPoint=(radius,degrees)=>[150+radius*Math.cos(degrees*Math.PI/180),82+radius*Math.sin(degrees*Math.PI/180)];
+function dataArc(radius,start,end){
+  const [x,y]=dataPoint(radius,start),[toX,toY]=dataPoint(radius,end);
+  return `M${x} ${y} A${radius} ${radius} 0 ${end-start>180?1:0} 1 ${toX} ${toY}`;
+}
+function dataTag(radius,angle,dir,label,color){
+  const [x,y]=dataPoint(radius,angle), elbow=x+dir*9, end=elbow+dir*12;
+  return `<g stroke="${color}" fill="none"><circle cx="${x}" cy="${y}" r="3.6"/>
+    <path d="M${x-3.6} ${y}h7.2 M${x} ${y-3.6}v7.2"/><path d="M${x+dir*4} ${y-4}L${elbow} ${y-9}H${end}" opacity=".8"/></g>
+    <text x="${end+dir*4}" y="${y-5.5}" fill="${color}" text-anchor="${dir>0?'start':'end'}">${esc(label)}</text>`;
+}
+const dataCircle=(r,style)=>`<circle cx="150" cy="82" r="${r}" ${style}/>`;
+const dataCenter=dataCircle(3.5,`fill="${DATA_BLUE}"`);
+const dataSvg=body=>`<svg viewBox="0 0 300 160" aria-hidden="true">${body}</svg>`;
+function dataRangePlot(rings){
+  const distances=rings.map(s=>s.distance??s.value);
+  const max=Math.max(...distances);
+  const r=distances.map(d=>Math.max(7,66*d/max));
+  // v5 の引き出し線。間接もあるときは左下を使い、左側に並ぶ射程の文字を離す。
+  const angles=[-38,24,-146,120];
+  return dataSvg(r.map((radius,i)=>dataCircle(radius,`fill="none" stroke="${i?DATA_BRASS:DATA_BLUE}" stroke-opacity="${i?.6:.55}" ${i?'stroke-dasharray="2 4"':''}`)).join('')+
+    dataCircle(9,'fill="rgba(127,200,255,.12)"')+dataCenter+
+    rings.map((s,i)=>dataTag(r[i],angles[i],i<2?1:-1,`${s.label} ${dataValue(s)}`,i?DATA_BRASS:DATA_BLUE)).join(''));
+}
+function dataArmorPlot(info,id){
+  if(info.armor){
+    const [front,side,top]=info.armor;
+    // 弧の太さは承認済み v5 の表示尺度。
+    const width=s=>1.2+s.value/2500*8;
+    const arc=(start,end,color,w,opacity=1)=>`<path d="${dataArc(48,start,end)}" fill="none" stroke="${color}" stroke-width="${w}" opacity="${opacity}"/>`;
+    return dataSvg(dataCircle(68,`fill="none" stroke="${DATA_DIM}" stroke-dasharray="2 4"`)+
+      dataCircle(68,`fill="none" stroke="${DATA_BLUE}" stroke-opacity=".5" stroke-width="${width(top)}" stroke-dasharray="1.5 5"`)+
+      arc(-38,38,DATA_BLUE,width(front))+arc(52,128,DATA_BLUE,width(side),.75)+arc(232,308,DATA_BLUE,width(side),.75)+
+      arc(142,218,DATA_DIM,1.2)+dataTag(48,0,1,'前 '+front.shown,DATA_BLUE)+dataTag(48,90,-1,'横 '+side.shown,DATA_BLUE)+
+      dataTag(68,-60,1,'上 '+top.shown,DATA_BRASS))+
+      `<div class="ud-armor-mark">${WOS_MARKS.ground(id,'A',false)}</div>`;
+  }
+  const arcs=info.defense.map((s,i)=>{
+    const r=i?46:64,color=i?DATA_BRASS:DATA_BLUE,end=-225+270*Math.min(1,s.value/s.max);
+    return `<path d="${dataArc(r,-225,45)}" fill="none" stroke="${DATA_DIM}"/>
+      <path d="${dataArc(r,-225,end)}" fill="none" stroke="${color}" stroke-width="5" ${i?'stroke-dasharray="3 3"':''}/>`+
+      dataTag(r,end,i?-1:1,`${s.label} ${s.shown}`,color);
+  }).join('');
+  return dataSvg(arcs+dataCenter);
+}
+
+const dataCaption=(en,ja,tail='')=>`<div class="ud-caption"><span>${en}</span> <b>${ja}</b>${tail?`<span class="ud-caption-end">${tail}</span>`:''}</div>`;
+const dataDot=team=>`<i class="ud-dot" aria-hidden="true" style="--ud-team:${team.color}"></i>`;
+function dataStatRows(stats){
+  return stats.map(s=>`<div class="ud-stat" data-unit-stat="${s.code}">
+    <span class="ud-stat-label">${s.code}<small>${s.label}</small></span>
+    <span class="seg" aria-hidden="true" style="--v:${Math.min(100,s.value/s.max*100)}%"></span>
+    <b${s.code==='STL'?' title="敵に見つかる距離の倍率"':''}>${s.shown}${s.unit?` <small>${s.unit}</small>`:''}</b></div>`).join('');
+}
+function dataSpecs(entry,file,info,ground){
+  const plot=(en,ja,svg)=>`<div>${dataCaption(en,ja)}<div class="ud-plot">${svg}</div></div>`;
+  const weapons=ground?(info.weapons.length?`<table class="ud-weapons"><thead><tr><th>威力</th><th>貫通</th><th>向き</th></tr></thead>
+    <tbody>${info.weapons.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table>`:'—')
+    :`${dataStatRows(info.arms)}${info.weapon?`<dl class="ud-pairs"><dt>主砲</dt><dd>${info.weapon.effect==='beam'?'ビーム':esc(info.weapon.effect)}・${info.weapon.every}秒ごと</dd></dl>`:''}`;
+  const notes=info.notes||[info.motionNote].filter(Boolean);
+  const drone=DATA_GROUND.combat.drone;
+  const scout=entry.id==='scout'?`<div class="ud-drone">${dataCaption('DRONE','ドローン')}
+    <p>生き残った小隊ごとに、光ファイバードローン ${drone.airframes} 機を1駒として打ち上げる。旋回偵察・帰還・自爆を指示できる。</p>
+    <p>行動半径 ${drone.rangeKm} km（将来の研究で最大 ${drone.researchRangeKm} km）・電池 ${drone.batterySec*DATA_GROUND.clock.minutesPerSecond} 分（作戦の時計）</p></div>`:'';
+  return `<section class="ud-plate ud-sheet">
+    ${dataCaption('SPEC','諸元',file)}
+    <div class="ud-english">${entry.code} — ${DATA_EN[entry.id]}</div>
+    <div class="ud-name"><h3>${esc(entry.name)}</h3><span>${entry.group}</span></div>
+    <p class="ud-description">${esc(info.desc)}</p>
+    <div class="ud-columns">
+      ${plot(ground?'ARMOR':'DEFENSE',ground?'装甲':'守り',dataArmorPlot(info,entry.id))}
+      ${plot('RANGE','届く距離',dataRangePlot(info.rings))}
+      <div>${dataCaption('MOBILITY','動きと守り')}${dataStatRows(info.move)}</div>
+      <div>${dataCaption('SENSORS','見る・届く')}${dataStatRows(info.see)}${scout}</div>
+    </div>
+    ${notes.map(note=>`<p class="ud-note">${note}</p>`).join('')}
+    <div class="ud-columns ud-bottom">
+      <div>${dataCaption('ARMAMENT','武器')}${weapons}</div>
+      <div>${dataCaption('ORGANIZATION','編成')}<dl class="ud-pairs">${info.org.map(([label,value])=>`<dt>${label}</dt><dd>${esc(value)}</dd>`).join('')}</dl></div>
+    </div>
+  </section>`;
+}
+function dataBonus(ground){
+  const rows=ground?[{name:'旅団',cond:'大隊の組み合わせ',eff:'種類と効果は未定'}]:BONUSES;
+  return `<section class="ud-plate ud-sheet ud-bonus-sheet">
+    ${dataCaption('BONUS','編成ボーナス')}
+    ${ground?'':'<p class="ud-description">打撃群の中の艦の組み合わせでつく効果（仮）。</p>'}
+    <table id="bonusTbl" class="ud-bonus-table"><thead><tr><th>名前</th><th>条件</th><th>効果</th></tr></thead>
+    <tbody>${rows.map(b=>`<tr><th scope="row">${esc(b.name)}</th><td>${esc(b.cond)}</td><td>${esc(b.eff)}</td></tr>`).join('')}</tbody></table>
+  </section>`;
+}
+function dataModelPanel(entry,state,team,ground){
+  const select=(key,en,ja,choices)=>`<div class="ud-control-label">${en}<small>${ja}</small></div>
+    <div class="ud-choices" role="group" aria-label="${ja}">${choices.map(([value,label,dot,disabled])=>
+      `<button type="button" class="ud-plate" data-unit-${key}="${value}" aria-pressed="${state[key]===value}" ${disabled?'disabled':''}>${dot||''}${label}${disabled?LOCK:''}</button>`).join('')}</div>`;
+  const heights=entry.id==='was'?[['walk','歩き'],['cruise','巡航'],['low','低高度']]
+    :DATA_GROUPS.at(-1)[3].includes(entry.id)?[['low','低高度'],['high','高高度']]:null;
+  return `<aside class="ud-side">
+    <section class="ud-plate ud-model">
+      ${dataCaption('MODEL','模型',dataDot(team)+team.en)}
+      <div class="ud-stage"></div>
+      <div class="ud-telemetry"><span class="ud-angles"></span><span>ドラッグで回す・ホイールで寄る</span></div>
+    </section>
+    <section class="ud-plate ud-state">${dataCaption('STATE','状態')}<div class="ud-controls">
+      ${select('motion','MOTION','動き',[['stop','停止'],['move','移動'],['fire','射撃']])}
+      ${heights?select('height','HEIGHT','高さ',heights):''}
+      ${select('team','SIDE','陣営',DATA_TEAMS.map((t,i)=>[i,t.name,dataDot(t)]))}
+      ${select('research','TECH','研究',[['now','今'],['max','最大','',ground]])}
+      <p class="ud-note">${ground?'地上の研究は第二章から（今は「今」だけ）':'自分で編成した艦は最大の3割から始まる'}</p>
+    </div></section></aside>`;
+}
+
+const dataModel=(()=>{
+  let renderer,scene,camera,controls,objects,model,stage,readout,frame=null,unit,modelKey;
+  let canvas,touchStart,lastTap,interacting=false,idleUntil=0,lastFrame=0;
+  // 仮: 操作を離してから自動回転を再開する待ち時間、ダブルタップの時間と指のずれの許容幅。
+  const idleDelay=1600,tapGap=320,tapSlop=18;
+  // 仮: 見本の初期距離に対するズームの限界。自動回転は編成プレビューと同じ設定値。
+  const zoomMin=.55,zoomMax=2.25;
+  const reset=()=>{
+    controls.autoRotate=false; controls.reset(); idleUntil=performance.now()+idleDelay;
+    updateReadout();
+  };
+  function updateReadout(){
+    const heading=(Math.round(THREE.MathUtils.radToDeg(controls.getAzimuthalAngle()))+360)%360;
+    const elevation=Math.round(90-THREE.MathUtils.radToDeg(controls.getPolarAngle()));
+    const text=`HDG ${String(heading).padStart(3,'0')}°　 ELV ${elevation}°`;
+    if(readout&&readout.textContent!==text) readout.textContent=text;
+  }
+  function init(){
+    renderer=new THREE.WebGLRenderer({antialias:true,alpha:true}); renderer.setPixelRatio(1);
+    canvas=renderer.domElement;
+    canvas.setAttribute('aria-label','模型。ドラッグで回転、ホイールかピンチで拡大・縮小、ダブルクリックかダブルタップで初期位置');
+    canvas.title='ドラッグで回転・ホイールかピンチで拡大縮小・ダブルクリックかダブルタップで戻す';
+    scene=new THREE.Scene(); camera=new THREE.PerspectiveCamera(28,1,.01,100);
+    scene.add(new THREE.HemisphereLight(0xdde8ff,0x223044,.9));
+    const light=new THREE.DirectionalLight(0xffffff,.8); light.position.set(3,5,4); scene.add(light);
+    objects=new THREE.Group(); scene.add(objects);
+    controls=new THREE.OrbitControls(camera,canvas); controls.enablePan=false; controls.autoRotateSpeed=.8;
+    controls.addEventListener('start',()=>{ interacting=true; controls.autoRotate=false; });
+    controls.addEventListener('end',()=>{ interacting=false; idleUntil=performance.now()+idleDelay; });
+    canvas.addEventListener('dblclick',reset);
+    canvas.addEventListener('touchstart',e=>{ touchStart=e.touches.length===1?e.touches[0]:null; if(!touchStart) lastTap=null; });
+    canvas.addEventListener('touchend',e=>{
+      const touch=e.changedTouches[0];
+      if(!touchStart||e.touches.length||Math.hypot(touch.clientX-touchStart.clientX,touch.clientY-touchStart.clientY)>tapSlop){
+        lastTap=touchStart=null; return;
+      }
+      const now=performance.now();
+      if(lastTap&&now-lastTap.time<=tapGap&&Math.hypot(touch.clientX-lastTap.x,touch.clientY-lastTap.y)<=tapSlop){
+        reset(); lastTap=null;
+      } else lastTap={x:touch.clientX,y:touch.clientY,time:now};
+      touchStart=null;
+    });
+    canvas.addEventListener('touchcancel',()=>{
+      lastTap=touchStart=null;
+      interacting=false; idleUntil=performance.now()+idleDelay;
+    });
+  }
+  function disposeObjects(){
+    for(const o of [...objects.children]){ objects.remove(o); o.geometry.dispose(); o.material.dispose(); }
+    model=null; modelKey=null;
+  }
+  function build({key,ground,resetView}){
+    disposeObjects();
+    const geo=groundShapeGeo(key); geo.computeBoundingSphere();
+    const {radius,center}=geo.boundingSphere;
+    model=new THREE.Mesh(geo,new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true}));
+    model.rotation.y=-.6; objects.add(model); modelKey=key;
+    const scale=radius*(ground?1:.72),y=ground?-.002:center.y-radius*.3;
+    function ring(inner,outer,color,dashed){
+      const geometry=new THREE.RingGeometry(scale*inner,scale*outer,dashed?144:128);
+      // Keep alternating pairs of sectors in a single mesh for the inner/outer edges of the dashes.
+      if(dashed) geometry.setIndex(Array.from(geometry.index.array).filter((_,i)=>Math.floor(i/12)%2===0));
+      const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false}));
+      mesh.rotation.x=-Math.PI/2; mesh.position.set(center.x,y,center.z); objects.add(mesh);
+    }
+    ring(1.1,1.115,DATA_BLUE,false); ring(1.42,1.428,DATA_BRASS,true);
+    const d=radius/Math.sin(THREE.MathUtils.degToRad(camera.fov/2))*1.2;
+    const target=center.clone().add(new THREE.Vector3(0,-radius*.1,0));
+    const initial=center.clone().add(new THREE.Vector3(d*.55,d*.42,d*.72)).sub(target);
+    const distance=initial.length();
+    const offset=resetView?initial:camera.position.clone().sub(controls.target).multiplyScalar(distance/(controls.minDistance/zoomMin));
+    controls.minDistance=distance*zoomMin; controls.maxDistance=distance*zoomMax;
+    controls.target.copy(target); controls.target0.copy(target); controls.position0.copy(target).add(initial);
+    camera.position.copy(target).add(offset); controls.autoRotate=false; controls.update();
+  }
+  function draw(now){
+    frame=null;
+    if(menu.hidden||screen!=='data'||!stage?.isConnected){ clear(); return; }
+    // 仮: 模型は毎秒最大30回描画。表示中だけ次のフレームを予約する。
+    if(now-lastFrame>=1000/30||!lastFrame){
+      lastFrame=now;
+      const w=stage.clientWidth,h=stage.clientHeight;
+      if(w&&h){
+        if(canvas.width!==w||canvas.height!==h){ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+        controls.autoRotate=!interacting&&now>=idleUntil;
+        controls.update();
+        renderer.render(scene,camera);
+        updateReadout();
+      }
+    }
+    frame=requestAnimationFrame(draw);
+  }
+  function show(root,id,key,ground,team){
+    if(!renderer) init();
+    stage=root.querySelector('.ud-stage'); readout=root.querySelector('.ud-angles'); stage.append(canvas);
+    if(key!==modelKey) build({key,ground,resetView:id!==unit});
+    if(id!==unit) idleUntil=performance.now()+idleDelay;
+    unit=id; model.material.color.copy(TEAM_COL[team]);
+    if(frame===null){ lastFrame=0; frame=requestAnimationFrame(draw); }
+  }
+  function clear(){
+    if(frame!==null) cancelAnimationFrame(frame);
+    if(model) disposeObjects();
+    frame=stage=readout=unit=null; interacting=false; touchStart=lastTap=null;
+  }
+  return {show,clear};
+})();
+
+const dataRoot=document.getElementById('unitData');
+const dataScreen=dataRoot.closest('.scr');
+const narrowData=matchMedia('(max-width:700px)');
+const touchData=matchMedia('(pointer:coarse)').matches;
+function fitData(){
+  const phone=touchData&&Math.min(window.screen.width,window.screen.height)<=700;
+  dataScreen.classList.toggle('ud-compact',phone||narrowData.matches);
+  // Mobile browsers fit the default layout viewport to the screen. Compensate in the database only.
+  const zoom=phone?Math.max(1,document.documentElement.clientWidth/window.screen.width):1;
+  dataScreen.style.setProperty('--ud-zoom',zoom);
+}
+addEventListener('resize',()=>{ if(screen==='data') fitData(); });
+function renderData(focus){
+  fitData();
+  const force=dataState.force,ground=force==='ground',state=dataState[force],team=DATA_TEAMS[state.team];
+  const sameForce=dataRoot.querySelector(`[data-unit-force="${force}"][aria-pressed="true"]`);
+  const listScroll=sameForce?dataRoot.querySelector('.ud-units').scrollLeft:0;
+  const groups=DATA_LISTS[force];
+  const bonus=state.unit==='bonus';
+  const entry=bonus?{code:'B-00'}:groups.flatMap(g=>g.units).find(u=>u.id===state.unit);
+  const file=`${ground?'GF':'SF'}-${entry.code}`;
+  const listButton=(unit,code,name)=>`<button class="ud-plate ud-unit" type="button" data-unit-id="${unit}" aria-pressed="${unit===state.unit}"><code>${code}</code>${esc(name)}<i aria-hidden="true"></i></button>`;
+  const info=bonus?null:ground?groundDataInfo(entry.id,state,team.id):spaceDataInfo(entry.id,state,team.id);
+  dataRoot.innerHTML=`<div class="ud-top">
+    <span class="ud-eyebrow">UNIT DATABASE — <b>${ground?'GROUND FORCES':'SPACE FLEET'}</b></span>
+    <span class="ud-status"><span>ファイル <b>${file}</b></span><span>回線 <i aria-hidden="true"></i><b>OK</b></span></span>
+  </div><nav class="ud-index" aria-label="兵科の一覧">
+    <div class="ud-tabs" role="group" aria-label="軍種">${[['space','宇宙軍'],['ground','地上軍']].map(([id,name])=>
+      `<button class="ud-plate" type="button" data-unit-force="${id}" aria-pressed="${id===force}">${name}</button>`).join('')}</div>
+    <div class="ud-units">
+      ${groups.map(g=>`<div class="ud-group">${g.en} <b>${g.name}</b></div>${g.units.map(u=>listButton(u.id,u.code,u.name)).join('')}`).join('')}
+      ${listButton('bonus','B-00','編成ボーナス')}
+    </div>
+  </nav>
+  ${bonus?dataBonus(ground):dataSpecs(entry,file,info,ground)+dataModelPanel(entry,state,team,ground)}`;
+  if(bonus) dataModel.clear(); else dataModel.show(dataRoot,entry.id,info.model,ground,state.team);
+  if(focus) dataRoot.querySelector(focus)?.focus({preventScroll:true});
+  if(dataScreen.classList.contains('ud-compact')){
+    const list=dataRoot.querySelector('.ud-units');
+    if(sameForce) list.scrollLeft=listScroll;
+    else list.querySelector('[aria-pressed="true"]').scrollIntoView({block:'nearest',inline:'center'});
+  }
+}
+dataRoot.addEventListener('click',event=>{
+  const button=event.target.closest('button');
+  if(!button||button.disabled) return;
+  const state=dataState[dataState.force];
+  for(const [attr,key] of [['force','force'],['id','unit'],['motion','motion'],['height','height'],['team','team'],['research','research']]){
+    const value=button.getAttribute('data-unit-'+attr);
+    if(value===null) continue;
+    if(attr==='force'){
+      dataState.force=value; menu.scrollTop=0;
+    } else {
+      if(attr==='id'&&state.unit!==value){
+        state.height=DATA_GROUPS.at(-1)[3].includes(value)?'low':'walk';
+        state.motion='stop';
+      }
+      state[key]=attr==='team'?Number(value):value;
+    }
+    renderData(`[data-unit-${attr}="${value}"]`);
+    if(attr==='id'&&dataScreen.classList.contains('ud-compact')) dataRoot.querySelector('.ud-sheet').scrollIntoView({block:'start'});
+    break;
+  }
+});
 
 /* back to the menu from the battle */
 /* Enter decides: 出撃 on the sortie screen, 研究する on the tech tree (user decision 2026-10-04). Called by battle/scene.js while the menu is open */

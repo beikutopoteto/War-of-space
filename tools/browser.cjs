@@ -8,9 +8,9 @@ const THREE_DIR = path.dirname(require.resolve(path.join(ROOT, 'node_modules/thr
    and will not click them (2026-11-05). Pass uis:null to let the game scale with the window */
 /* gpu: draw with the Mac's own GPU (Metal) instead of the software renderer, for timing the drawing (tools/ground-weight.cjs).
    scale: the device pixel ratio (2 on a Retina screen; the game draws at up to 2) */
-async function openGame(viewport = { width: 1280, height: 800 }, { uis = 1, gpu = false, scale } = {}) {
+async function openGame(viewport = { width: 1280, height: 800 }, { uis = 1, gpu = false, scale, isMobile = false } = {}) {
   const browser = await chromium.launch(gpu ? { args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] } : {});
-  const page = await browser.newPage(scale ? { viewport, deviceScaleFactor: scale } : { viewport });
+  const page = await browser.newPage({ viewport, deviceScaleFactor: scale, isMobile, hasTouch: isMobile });
   if (uis != null) await page.addInitScript(k => { window.WOS_UIS = k; }, uis);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, route => { const u = route.request().url(); const rel = u.includes('cdnjs') ? 'build/three.min.js' : u.split('three@0.128.0/')[1]; route.fulfill({ path: path.join(THREE_DIR, rel), contentType: 'application/javascript' }); });
