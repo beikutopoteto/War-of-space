@@ -46,8 +46,9 @@ window.WOS_GROUND_RULES = {
   engineering: { seconds:20, hp:40, workRange:2.4, bankMarginKm:.12, laneHalfKm:.4 },
   // 地上試作専用。硬さ1点=耐久20の仮換算。宇宙艦の表・倍率は使わない。
   // moraleMax は士気の最大の倍率（max×倍率）。歩兵は他の兵科より士気が高い（ユーザー決定 2026-11-17）。W.A.S. の2は #501 の仮（士気を戻しても正面の戦車1隊に勝つ役割を保つ）。
-  supply: {max:100,moraleMax:{infantry:1.5,heavyInfantry:1.5,commando:1.5,mechanicalAssault:2,was:2},refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:3,give:2,moraleGiveMax:.8,moraleGiveCost:.5,
+  supply: {max:100,moraleMax:{infantry:1.5,heavyInfantry:1.5,commando:1.5,mechanicalAssault:2,was:2},refill:2,refillWait:2,move:2,shot:.5,strike:4,build:.2,giveKm:3,give:4,moraleGiveMax:.8,moraleGiveCost:.5,
     giveStart:.8,approachKm:1,followKm:1.5,giveRepath:1,aiFocusBelow:.5, // 分配の開始割合はユーザー決定、距離・間隔・NPCの割合は仮（#486）
+    rearGapKm:.5,retreatSafeKm:5,retreatSearchKm:12,retreatFallbackKm:5,retreatQuietSec:20,retreatCheckSec:1, // #508 の仮値
     terrainMove:{'平地':1,'沼地':3,'山岳':3,'砂漠':2},terrainIdle:['沼地','山岳','砂漠'],idleMorale:.05,
     moraleCut:.5,moraleLoss:2,moraleBodyLoss:.5,dugSec:60, // #501 の仮値
     siteRefill:2,siteMoraleRefill:1.5, // 味方拠点の円の中では補充と士気回復をこの倍に（道路は1倍。ユーザー決定 2026-11-25）

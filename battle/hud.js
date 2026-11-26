@@ -94,7 +94,10 @@ function order(f,o){
     groundFormationOrder(f,o);groundCancelWork(f);f.groundAreaSalvo=null;
     if(!f.groundSupplyTrip?.front||f.groundSupplyTrip.front.id!==o.groundFrontId){f.groundSupplyTrip=null;f.groundGiving=null;}
     f.groundSupplyServing=null;
-    if(!npcIssuing)f.groundSupplyNpcUnsafe=false;
+    if(f.groundKind==='supply'){
+      if(npcIssuing&&o.type==='move')o.groundSupplyNpcMove=true;
+      if(!npcIssuing)f.groundSupplyRetreat=null;
+    }
     if(o.type==='attack')f.groundChaseT=0;
   }
   dropArrow(f.arrow); f.arrow=null; f.order=o; if(o.type==='attack') f.strike=o.target; /* a carrier's craft keep this target until it falls or another attack is ordered (sim.js) */

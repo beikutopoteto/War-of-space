@@ -1046,6 +1046,13 @@ function groundDraw(){
   if(typeof groundPlanDraw==='function')groundPlanDraw();
   if(typeof groundAreaDraw==='function')groundAreaDraw();
 }
+const GROUND_FRONTLINE_KINDS=new Set(['infantry','heavyInfantry','commando','mechanicalAssault','vehicle','apc','was']);
+const GROUND_REAR_KINDS=new Set(['supply','artillery','guidedRocket','mobileAA','engineer']);
+function groundFrontlineUnit(f){return GROUND_FRONTLINE_KINDS.has(f.groundKind)&&f.alive&&f.hpPool>0&&!f.embarked&&!groundAbsent(f)&&!groundScriptDescending(f)&&groundMoveKind(f)!=='air';}
+function groundRearPaced(f){
+  return GROUND_REAR_KINDS.has(f.groundKind)&&groundMoveKind(f)!=='air'&&!f.groundBuilding&&!f.groundGiving&&!f.groundUnloading&&
+    !f.groundRout&&!f.groundSupplyTrip&&f.order?.groundSupplyMove!=='retreat'&&(f.order?.type==='move'||f.order?.type==='attack');
+}
 function groundStep(dt){
   if(over) return;
   groundSupplyBefore(dt);
@@ -1058,6 +1065,7 @@ function groundStep(dt){
     if(typeof groundFrontKeepPlayer==='function')groundFrontKeepPlayer();
     npcGroundStep();
   }
+  const movingFront=[[],[]],rear=[];
   for(const f of fleets){
     if(!f.alive||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
     if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10)f.groundMovedAt=gameSec;
@@ -1072,28 +1080,15 @@ function groundStep(dt){
       if(f.order?.type==='attack'&&(!f.order.target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,f.order.target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
       groundAirMotion(f,dt);continue;
     }
-    // 進撃（共有命令の実行）の途中で撃てる敵がいれば、自動交戦の隊は止まって撃ち合う。命令優先の隊は進む（ユーザー決定 2026-11-14）。fireTarget は前のステップの値
-    const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive&&groundAnyBodyCanFire(f,f.fireTarget);
-    if(f.order&&f.order.type==='move'&&!advanceHold&&followPath(f,dt)){
-      groundFormationArrive(f);
-      if(f.order.groundSupplyMove){
-        if(f.order.groundSupplyMove==='follow')f.groundSupplyServing=f.order.groundSupplyMoveTarget;
-        f.groundSupplyCheckLeft=0;
-      }
-      f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);
-    }
-    if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
-      const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
-      if(allowed)order(f,{type:'attack',target:allowed});
-    }
-    const target=f.order&&f.order.type==='attack'?f.order.target:null;
-    if(target&&(!target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,target))){ f.order=null; dropArrow(f.arrow); f.arrow=null; nextOrder(f); }
-    // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく（ユーザー決定 2026-11-14「撃てるまで近づく」）。W.A.S. は直接射撃で撃てるまで（groundAutoIndirect）
-    else if(target&&groundSeenBy(f.team,target)&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
-      f.groundChaseT=(f.groundChaseT||0)-dt;
-      if(f.groundChaseT<=0){ f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5; }
-      if(f.order.path&&(!op.npc||npcGroundHoldChase(f,target))) groundFollow(f,dt);
-    }
+    if(groundRearPaced(f)){rear.push(f);continue;}
+    const {x,z}=f.pos;
+    groundStepMove(f,dt);
+    if((f.pos.x!==x||f.pos.z!==z)&&groundFrontlineUnit(f))movingFront[f.team].push(f);
+  }
+  // 配列の順序にかかわらず、このステップで実際に動いた前列との間隔を守る。
+  for(const f of rear){
+    const battalion=groundSupplyBattalion(f),front=movingFront[f.team];
+    groundStepMove(f,dt,battalion?front.filter(t=>battalion.companies.includes(t.companyId)):front);
   }
   for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
   for(const f of fleets)if(f.alive&&f.bodies)groundTrailMark(f);
@@ -1128,6 +1123,31 @@ function groundStep(dt){
   groundSupplyAfter(dt);
   if(typeof groundFrontStep==='function')groundFrontStep();
   if(op.groundDrill)groundDrillTick();
+}
+
+function groundStepMove(f,dt,front){
+  // 進撃中に撃てる敵がいれば自動交戦の隊は停止し、命令優先の隊は進む。fireTarget は前のステップの値。
+  const advanceHold=f.order?.groundAdvance&&f.stance==='engage'&&f.fireTarget?.alive&&groundAnyBodyCanFire(f,f.fireTarget);
+  if(f.order?.type==='move'&&!advanceHold&&groundFollow(f,dt,front)){
+    groundFormationArrive(f);
+    if(f.order.groundSupplyMove){
+      if(f.order.groundSupplyMove==='follow')f.groundSupplyServing=f.order.groundSupplyMoveTarget;
+      f.groundSupplyCheckLeft=0;
+    }
+    f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);
+  }
+  if(f.team===1&&!groundStaticTarget(f)&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&groundPermissionOnly(f)&&f.stance!=='evade'&&!f.order){
+    const allowed=fleets.filter(t=>groundFireSolution(f,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0];
+    if(allowed)order(f,{type:'attack',target:allowed});
+  }
+  const target=f.order?.type==='attack'?f.order.target:null;
+  if(target&&(!target.alive||!f.order.groundFrontEngage&&!groundSeenBy(f.team,target))){f.order=null;dropArrow(f.arrow);f.arrow=null;nextOrder(f);}
+  // 射程の8割より遠いか、射線・弾道が通らず撃てないあいだは近づく。W.A.S. は直接射撃で撃てるまで。
+  else if(target&&groundSeenBy(f.team,target)&&groundEngagementRange(f,target)>0&&(groundDistanceTo(f,target)>groundEngagementRange(f,target)*.8||!groundFireMode(f,target)||!groundAnyBodyCanFire(f,target))){
+    f.groundChaseT=(f.groundChaseT||0)-dt;
+    if(f.groundChaseT<=0){f.order.path=groundPath(f.pos,target.pos,groundMoveKind(f));f.groundChaseT=.5;}
+    if(f.order.path&&(!op.npc||npcGroundHoldChase(f,target)))groundFollow(f,dt,front);
+  }
 }
 
 // 自動交戦は撃てる敵だけが候補。指揮官は追撃先も選べるが、対戦車の優先は今撃てる相手にだけ付ける。

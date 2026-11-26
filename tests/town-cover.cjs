@@ -60,7 +60,7 @@ function townCases(){
   truck.pos.copy(point(0,-1.5,0));recipient.pos.copy(point(0,1.5,0));truck.groundSupply=40;recipient.groundSupply=40;
   const path=groundPath(truck.pos,recipient.pos,groundMoveKind(truck),true);
   groundSupplyGive(1,new Map());
-  check('町を挟んでも範囲内の通行経路で補給できる',!!path&&path.L<=groundSupplyRules().giveKm*GROUND_SCALE&&recipient.groundSupply===42&&truck.groundSupply===38&&truck.groundSupplyGiving);
+  check('町を挟んでも範囲内の通行経路で補給できる',!!path&&path.L<=groundSupplyRules().giveKm*GROUND_SCALE&&recipient.groundSupply===44&&truck.groundSupply===36&&truck.groundSupplyGiving);
   // 配列の交換・回転した底面・偶数棟の中央値も確認。
   set([box(0,0,2,4,1,'rotated',Math.PI/4),box(0,0,2,4,3,'rotated',Math.PI/4)]);
   const rotated=groundTownZones()[0],extent=3/Math.sqrt(2)+groundRuleSet().combat.townMargin;

@@ -11,6 +11,7 @@ function groundSupplyInitUnit(f){
   if(groundSupplyLand(f))f.groundMorale=groundMoraleUnitMax(f);
   f.groundSupplyGiving=false;f.groundMoraleGiving=false;f.groundStockGiving=false;f.groundSupplySource=null;f.groundSupplyWait=0;f.groundRest=0;f.groundHitLeft=0;f.groundRout=null;f.groundAirState=null;f.groundSupplyGiven=0;f.groundSupplyReceived=0;
   f.groundSupplyDemand=false;f.groundSupplyTrip=null;f.groundSupplyTargets=null;f.groundSupplyCheckLeft=0;f.groundSupplyServing=null;
+  f.groundSupplyRetreat=null;f.groundSupplyCombatAt=-Infinity;
 }
 function groundSupplyReset(){groundRoadLabelsClear();groundSupplyLinksClear();groundSupplyMapClear();groundSupplyNet=null;groundSupplyAiming=false;groundSupplyMessage='';}
 function groundCircleAt(x,y){
@@ -148,7 +149,10 @@ function groundSupplySpeedFactor(f){
   return supply*Math.min(direct,blast);
 }
 function groundSupplySpend(f,amount){if(groundSupplyActive()&&Number.isFinite(f.groundSupply))f.groundSupply=Math.max(0,f.groundSupply-amount);}
-function groundSupplyShot(f,strike=false,share=1){groundSupplySpend(f,(groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot))*Math.max(0,Number.isFinite(share)?share:1));}
+function groundSupplyShot(f,strike=false,share=1){
+  f.groundSupplyCombatAt=gameSec;
+  groundSupplySpend(f,(groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot))*Math.max(0,Number.isFinite(share)?share:1));
+}
 function groundSupplyMoved(f,a,b){
   if(!groundSupplyActive()||f.embarked||!Number.isFinite(f.groundSupply))return;
   if(!groundSupplyLand(f))return;f.groundMoved=true;
@@ -167,6 +171,7 @@ function groundMoraleHit(f,amount,cover,morale,blast){
   if(!groundSupplyActive())return damage;
   const r=groundSupplyRules();
   if(!blast)f.groundHitLeft=r.hitSeconds;
+  f.groundSupplyCombatAt=gameSec;
   f.groundRest=0;
   if(!Number.isFinite(f.groundMorale))return damage;
   // 小隊数を含む隊の最大耐久で割る。カット率には打撃を受ける直前の士気を使う。
@@ -226,8 +231,8 @@ function groundSupplyCancelFocus(f){
 function groundSupplyCommand(list,t){
   const f=list.length===1?list[0]:null;if(!groundSupplyCanGive(f,t))return false;
   if(!npcIssuing&&typeof saveUndo==='function')saveUndo([f]);
-  if(!npcIssuing)f.groundSupplyNpcUnsafe=false;
   npcAutoPlayer([f]);groundCancelWork(f);groundClearOrders(f);f.groundGiving=t;f.groundSupplyCheckLeft=0;
+  f.groundSupplyRetreat=null;
   groundClearAiming();groundSupplyMessage='補給先：'+t.name;
   if(op.groundDrill)groundDrillEvent('supplyFocus',f,t);
   return true;
@@ -253,11 +258,11 @@ function groundSupplyInReach(f,pos,r){
   const path=groundPath(f.pos,pos,groundMoveKind(f),true,true,{bridgesOnly:true,shortest:true,maxKm:r.giveKm});
   return !!path&&groundPolyLength(path.points,range)<=range+1e-8;
 }
-function groundSupplyIdle(f,allowFront=false){
+function groundSupplyIdle(f,allowFront=false,allowNpc=false){
   const frontOrder=allowFront&&f.groundFrontOf&&f.order?.groundFrontId===f.groundFrontOf.id;
   return !f.locked&&!f.embarked&&!f.groundRout&&!f.groundBuilding&&!f.groundUnloading&&!f.pending&&!f.bandTo&&
     !f.queue?.length&&!f.groundPlan&&!f.groundAreaSalvo&&!f.groundVolley&&!f.groundBombRun&&
-    (!f.order||f.order.groundSupplyMove||frontOrder);
+    (!f.order||f.order.groundSupplyMove||frontOrder||allowNpc&&f.order.groundSupplyNpcMove);
 }
 function groundSupplyStartTrip(f){
   if(f.groundKind!=='supply'||!f.alive||f.groundExited||f.groundSupply!==0||f.team===1&&groundTrainingEnemy(f)||
@@ -293,6 +298,93 @@ function groundSupplyApproach(f,dest,r,target=null){
     if(path)return path;
   }
   return null;
+}
+function groundSupplyFrontCombatAt(f){
+  const battalion=groundSupplyBattalion(f);let last=-Infinity;
+  for(const t of fleets){
+    if(t.team!==f.team||!groundFrontlineUnit(t)||battalion&&!battalion.companies.includes(t.companyId))continue;
+    const target=t.order?.type==='attack'?t.order.target:null;
+    if(t.fireTarget?.alive||t.groundVolley||t.groundAreaSalvo||target?.alive&&groundSeenBy(t.team,target))return gameSec;
+    last=Math.max(last,t.groundSupplyCombatAt??-Infinity);
+  }
+  return last;
+}
+function groundSupplyRetreatPath(f,r){
+  const d=groundData(),cell=d.meta.cellKm*GROUND_SCALE,kind=groundMoveKind(f),at=f.pos;
+  const dist2=(a,b)=>(a.x-b.x)**2+(a.z-b.z)**2;
+  const current=[],remembered=[];
+  for(const t of fleets){
+    const contact=t.groundContacts?.[f.team];
+    if(t.team===f.team||!contact)continue;
+    if(groundSeenBy(f.team,t))current.push(contact.pos);
+    else remembered.push(contact);
+  }
+  current.sort((a,b)=>dist2(a,at)-dist2(b,at));
+  remembered.sort((a,b)=>b.at-a.at||dist2(a.pos,at)-dist2(b.pos,at));
+  const enemy=current[0]||remembered[0]?.pos,home=groundSites.find(s=>s.id===op.groundHQ?.[f.team]&&s.owner===f.team)?.pos;
+  let dx=enemy?at.x-enemy.x:0,dz=enemy?at.z-enemy.z:0;
+  if(!dx&&!dz){const rear=home||f.home;dx=rear.x-at.x;dz=rear.z-at.z;}
+  if(!dx&&!dz)return null;
+  const length=Math.hypot(dx,dz);dx/=length;dz/=length;
+  const search=r.retreatSearchKm*GROUND_SCALE,safe=r.retreatSafeKm*GROUND_SCALE,points=[];
+  const eligible=(x,z)=>{
+    const p={x,z};return (x-at.x)*dx+(z-at.z)*dz>=0&&dist2(p,at)<=search**2&&current.every(t=>dist2(p,t)>=safe**2);
+  };
+  const add=(x,z)=>{if(eligible(x,z))points.push({x,z,distance:dist2({x,z},at)});};
+  if(groundTerrainCover(f))add(at.x,at.z);
+  // 森の小さな遮蔽も拾うため、セルの中心に加えて木の遮蔽円の手前と中心を調べる。
+  for(const tree of groundForests){
+    const distance=Math.sqrt(dist2(tree,at));
+    if(distance>search+tree.r)continue;
+    const edge=distance>tree.r?(tree.r-1e-8)/distance:1;
+    add(tree.x+(at.x-tree.x)*edge,tree.z+(at.z-tree.z)*edge);
+    add(tree.x,tree.z);
+  }
+  const x0=groundMapX(at.x),y0=groundMapY(at.z),km=d.meta.cellKm;
+  for(let row=Math.floor((y0-r.retreatSearchKm)/km);row<=Math.floor((y0+r.retreatSearchKm)/km);row++){
+    const z=groundWorldZ((row+.5)*km);
+    for(let col=Math.floor((x0-r.retreatSearchKm)/km);col<=Math.floor((x0+r.retreatSearchKm)/km);col++){
+      const x=groundWorldX((col+.5)*km);
+      if(eligible(x,z)&&groundTerrainCover({pos:{x,z}}))points.push({x,z,distance:dist2({x,z},at)});
+    }
+  }
+  const pathTo=(x,z)=>{
+    const gx=groundMapX(x),gy=groundMapY(z);
+    if(groundPass(gx,gy,kind))return groundPath(at,groundPoint(gx,gy),kind);
+    return null;
+  };
+  points.sort((a,b)=>a.distance-b.distance);
+  for(const p of points){
+    if(p.distance===0)return null; // すでに安全な遮蔽にいる。
+    const path=pathTo(p.x,p.z);if(path)return path;
+  }
+  // 盤の端や水際では、同じ向きで通れる手前の地点を選ぶ。
+  for(let distance=r.retreatFallbackKm*GROUND_SCALE;distance>0;distance-=cell){
+    const path=pathTo(at.x+dx*distance,at.z+dz*distance);if(path)return path;
+  }
+  return null;
+}
+function groundSupplyRetreatStep(f,r){
+  const old=f.groundSupplyRetreat,eligible=groundSupplyIdle(f,false,true)&&f.groundSupply>0&&!f.groundGiving&&!groundTrainingEnemy(f);
+  const last=eligible?Math.max(old?.lastCombat??-Infinity,groundSupplyFrontCombatAt(f)):-Infinity;
+  if(gameSec-last>=r.retreatQuietSec-1e-8){
+    if(old){if(f.order?.groundSupplyMove==='retreat')groundSupplyStopMove(f);f.groundSupplyRetreat=null;f.groundSupplyCheckLeft=0;}
+    return false;
+  }
+  const revision=groundBridgeRevision;
+  f.groundSupplyRetreat=old||{lastCombat:last,revision,nextCheck:gameSec};
+  f.groundSupplyRetreat.lastCombat=last;
+  const retreat=f.groundSupplyRetreat,check=gameSec>=retreat.nextCheck-1e-8;
+  const unsafe=check&&fleets.some(t=>t.team!==f.team&&groundSeenBy(f.team,t)&&t.groundContacts?.[f.team]&&
+    groundDistanceTo(f,{pos:t.groundContacts[f.team].pos})<r.retreatSafeKm*GROUND_SCALE);
+  if(check)retreat.nextCheck=gameSec+r.retreatCheckSec;
+  if(!old||check&&(unsafe||f.order?.groundSupplyMove==='retreat'&&old.revision!==revision)){
+    if(f.order){f.order=null;dropArrow(f.arrow);f.arrow=null;}
+    const path=groundSupplyRetreatPath(f,r);
+    if(path)groundSupplyMove(f,path,'retreat');
+    f.groundSupplyRetreat.revision=revision;f.groundSupplyCheckLeft=0;
+  }
+  return true;
 }
 function groundSupplyTripStep(f,r,refresh){
   const trip=f.groundSupplyTrip;
@@ -342,6 +434,8 @@ function groundSupplyTripStep(f,r,refresh){
 }
 function groundSupplyPlan(f,dt,r){
   if(f.groundGiving&&(!groundSupplyCanGive(f,f.groundGiving)||!groundSupplyNeeds(f.groundGiving,r,true)))groundSupplyCancelFocus(f);
+  if(f.groundSupplyTrip)f.groundSupplyRetreat=null;
+  const retreat=!f.groundSupplyTrip&&groundSupplyRetreatStep(f,r);
   const focus=f.groundGiving||null;
   f.groundSupplyCheckLeft=(f.groundSupplyCheckLeft||0)-dt;
   const revision=groundBridgeRevision,old=f.groundSupplyTargets;
@@ -353,12 +447,13 @@ function groundSupplyPlan(f,dt,r){
   if(f.groundSupplyTrip){groundSupplyTripStep(f,r,refresh);return;}
   const moving=f.order?.groundSupplyMove;
   // 前線の移動はそのまま。集中の接近だけは通常の自動追従と区別する。
-  if(!groundSupplyIdle(f)||f.groundSupply<=0||f.groundSupplyNpcUnsafe||f.team===1&&groundTrainingEnemy(f))return;
+  if(!groundSupplyIdle(f)||f.groundSupply<=0||f.team===1&&groundTrainingEnemy(f))return;
   if(!refresh)return;
   const battalion=groundSupplyBattalion(f);
   const peers=focus?[focus]:groundSupplyPeers(f,battalion);
   const range=r.giveKm*GROUND_SCALE,targets=peers.filter(t=>groundSupplyNeeds(t,r,!!focus)&&groundSupplyInReach(f,t.pos,r));
   f.groundSupplyTargets.targets=targets;
+  if(retreat)return;
   if(!focus&&(f.groundFrontOf||!battalion)){groundSupplyStopMove(f);return;}
   if(moving){
     const t=f.order.groundSupplyMoveTarget;
@@ -396,7 +491,7 @@ function groundSupplyGive(dt,netGains){
   // 手動・NPCの集中は自動分配より先に処理する。
   trucks.sort((a,b)=>Number(!!b.groundGiving)-Number(!!a.groundGiving));
   for(const f of trucks){
-    if(f.order||f.groundMoved||f.groundSupplyTrip||f.groundSupply<=0||!groundSupplyIdle(f)||f.groundSupplyNpcUnsafe)continue;
+    if(f.order||f.groundMoved||f.groundSupplyTrip||f.groundSupply<=0||!groundSupplyIdle(f))continue;
     const focus=f.groundGiving;
     const targets=f.groundSupplyTargets.targets.filter(t=>!used.has(t)&&groundSupplyCanGive(f,t)&&groundSupplyNeeds(t,r,!!focus)&&groundDistanceTo(f,t)<=r.giveKm*GROUND_SCALE);
     if(!targets.length)continue;

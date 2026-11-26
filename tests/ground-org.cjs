@@ -87,12 +87,13 @@ async function checkGroundOrg(page,check){
       const t=orderTargets(),before=fleets.map(f=>f.pos.clone());fleets.forEach(f=>f.stance='evade');
       groupOrder({type:'move',dest:groundPoint(10,30)});
       const ordered=t.every(f=>f.order?.type==='move'),other=fleets.filter(f=>f.team===0&&!t.includes(f)).every(f=>!f.order);
-      for(let i=0;i<20;i++)step(.05);
-      const moved=t.every(f=>f.pos.distanceTo(before[fleets.indexOf(f)])>.1);
+      const moved=()=>t.every(f=>f.pos.distanceTo(before[fleets.indexOf(f)])>.1);
+      // 支援隊は前列と間隔が空くまで発進を待てる。
+      for(let i=0;i<300&&!moved();i++)step(.05);
       const company=fleets.find(f=>f.companyId==='gc1');
       const custom=company.groundKind==='scout'&&company.hp===groundRuleSet().unitTypes.scout.hp;
       const parent=document.querySelector('[data-level="brigades"] .ground-fold');parent.click();const folded=!document.querySelector('[data-level="battalions"]');parent.click();
-      return {ordered,other,moved,custom,folded,selected:t.length===4};
+      return {ordered,other,moved:moved(),custom,folded,selected:t.length===4};
     });
     for(const [name,ok] of Object.entries(result))check(ok,'地上編成の実画面: '+name);
     check(await page.locator('#roster [data-level="battalions"]').count()===2,'地上編成: 旅団→大隊→中隊を再展開');

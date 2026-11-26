@@ -44,6 +44,33 @@ function tempoCases(){
  check('機械の消耗には損害倍率を掛けない',near(hp-machine.hpPool,machine.groundMaxHp*groundRuleSet().combat.mechanicalWearPerSec*10));
  return rows;
 }
+function rearMovementCases(){
+ const rows=[],check=(name,ok)=>rows.push({name,ok:!!ok});
+ op={ground:'exercise2'};groundSites=[];groundForests=[];groundBuildings=[];
+ const d=groundData();d.terrain.cells.fill('平地');d.objects.roads=[{points:[[7,29],[20,29]]}];
+ const unit=(kind,x,id)=>{
+  const f=makeFleet(0,groundUnitSpec({name:id,kind,at:[x,29],band:'ground',stance:'evade'}));
+  f.band='ground';f.companyId=id;return f;
+ };
+ const inf=unit('infantry',11,'line'),gun=unit('artillery',9,'gun'),truck=unit('supply',9,'stock'),other=unit('vehicle',16,'other');
+ groundOrg={battalions:[{companies:['line','gun','stock']},{companies:['other']}]};
+ fleets=[gun,truck,other,inf];const dest=groundPoint(20,29);
+ for(const f of fleets)order(f,{type:'move',dest:dest.clone()});
+ let held=true,closed=false;
+ for(let i=0;i<100;i++){
+  groundStep(.05);
+  for(const f of [gun,truck]){
+   const gap=(inf.pos.x-f.pos.x)/GROUND_SCALE;
+   held&&=gap>=.5-1e-8;
+   closed||=Math.abs(gap-.5)<1e-8;
+  }
+ }
+ check('同期なしでも同大隊の自走砲・補給が毎ステップ歩兵の0.5km手前に留まる',held&&closed&&fleets.every(f=>!f.syncSpeed));
+ groundClearOrders(inf);const x=inf.pos.x;
+ for(let i=0;i<20;i++)groundStep(.05);
+ check('同大隊の歩兵が止まれば自走砲だけをその前に動かせる',gun.pos.x>x&&inf.pos.x===x);
+ return rows;
+}
 function supplyAdvanceCases(id,planned=false){
  const rows=[],check=(name,ok,detail)=>rows.push({name,ok:!!ok,detail});
  op={...WOS_DATA.operations.find(o=>o.id===(id==='baikonur2'?'baikonur':'groundExercise2')),ground:id,groundDrill:false};groundTerrainId=null;over=false;end=()=>{};
@@ -80,6 +107,7 @@ function pathCacheCases(){
 function nodeChecks(){
  const {run,read}=require('./ground-landing.cjs').createGroundContext();
  const rows=run(`(${tempoCases.toString()})()`);
+ rows.push(...require('./ground-landing.cjs').createGroundContext().run(`(${rearMovementCases.toString()})()`));
  const cached=require('./ground-landing.cjs').createGroundContext();rows.push(...cached.run(`(${pathCacheCases.toString()})()`));
  rows.push(...run(`(()=>{
   groundSites=[];fleets=[];groundVisuals=new THREE.Group();
