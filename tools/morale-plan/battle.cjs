@@ -27,7 +27,7 @@ function U(o,team){
   if(MODEL==='new'&&P.hp[kind]!=null){f.hp=P.hp[kind];f.hpPool=P.hp[kind];}
   fleets.push(f);groundInitUnit(f);f.pos.set(o.x*GROUND_SCALE,0,(o.z||0)*GROUND_SCALE);const h=o.h||[team?-1:1,0];f.heading.set(h[0],0,h[1]).normalize();
   f.groundDeployed=true;f.groundVisible=[true,true];f.eva=0;
-  f.mo=['was','droneHive'].includes(kind)?null:(MORALE_MAX[kind]||100);f.moMax=f.mo;f.routAt=null;f.cover=o.cover||null;f.dug=!!o.dug;f.gun=!!o.gun;f.spec=o;
+  f.mo=kind==='was'?null:(MORALE_MAX[kind]||100);f.moMax=f.mo;f.routAt=null;f.cover=o.cover||null;f.dug=!!o.dug;f.gun=!!o.gun;f.spec=o;
   return f;
 }
 function armorOf(t,src,w){

@@ -2,7 +2,7 @@
 let groundSupplyNet=null, groundSupplyAiming=false, groundSupplyMessage='', groundSupplyPenalty=0;
 function groundSupplyRules(){return groundRuleSet().supply;}
 function groundSupplyActive(){return !!(op.ground&&op.groundHQ&&(!op.groundDrill||typeof tutorial!=='undefined'&&(tutorial?.skipped||groundDrillRow()?.section>=10)));}
-function groundSupplyLand(f){return !!f&&!['sea','droneHive','fighter','attack','supportAircraft'].includes(f.groundKind);}
+function groundSupplyLand(f){return !!f&&!['sea','drone','fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundSupplyAir(f){return !!f&&['fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundAbsent(f){return !!f.groundExited||f.groundAirState==='base';}
 function groundCommandAllowed(f,type){return (!groundSupplyActive()||f.groundMorale!==0||f.groundRout==='regroup')&&!groundAbsent(f)&&!f.groundAirState&&!(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&f.groundRout!=='routing'&&(!f.groundRout||['move','board'].includes(type));}
@@ -642,7 +642,7 @@ function groundSupplyPlace(list,p){
   list.forEach((f,i)=>{f.pos.copy(positions[i]);f.pos.y=groundUnitHeight(f);f.home.copy(f.pos);f.post.copy(f.pos);groundClearOrders(f);for(const s of f.ships)s.pos.copy(f.pos);if(op.groundDrill)groundDrillEvent('supplyPlace',f,p);});return true;
 }
 function groundSupplyTile(f){
-  return '<span class="ground-tile-meters">'+groundSupplyMeters([f])+'</span>';
+  return '<span class="ground-tile-meters">'+groundSupplyMeters([f])+'</span>'+(f.groundKind==='scout'?'<small class="ground-drone-stock"></small>':'');
 }
 function groundSupplyUpdateTile(f){
   groundSupplyUpdateMeters(f.btn.querySelector('.ground-tile-meters'),[f]);

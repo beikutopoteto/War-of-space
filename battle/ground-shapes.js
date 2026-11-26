@@ -712,12 +712,23 @@ const GROUND_SHAPES={
      body inside: a wedge-shaped trunk slung forward on legs with the knee to the rear, a sensor slit, a gun on each side.
      A and B are the two steps of its walk */
   mechA:()=>mechParts(1), mechB:()=>mechParts(-1),
-  /* ドローンハイブ: an uncrewed carrier that flies low — a flat six-sided body on four ducted fans with its cells dark on top, a
-     sensor ball underneath, and five of its small drones around it */
-  hive:()=>{ const dr=(x,y,z,r)=>[at(plate([[0,.15],[.13,-.1],[0,-.04],[-.13,-.1]],.03),x,y,z,0,r,0), tone(at(box(.03,.035,.12),x,y+.02,z),DK)];
-    return [at(new THREE.CylinderGeometry(.4,.48,.14,6),0,0,0), tone(at(new THREE.CylinderGeometry(.3,.3,.03,6),0,.08,0),DK), tone(at(new THREE.IcosahedronGeometry(.07,0),0,-.1,.3),GL),
-      ...[[.5,.5],[-.5,.5],[.5,-.5],[-.5,-.5]].flatMap(([x,z])=>[at(new THREE.CylinderGeometry(.22,.22,.07,8),x,0,z), tone(at(new THREE.CylinderGeometry(.16,.16,.08,8),x,0,z),DK), at(box(.12,.04,.12),x*.62,0,z*.62)]),
-      ...dr(.98,.25,.45,.3), ...dr(-1.02,.15,.1,-.4), ...dr(.68,.3,-.88,.2), ...dr(-.58,.35,-.98,0), ...dr(.05,.2,1.08,0)]; },
+  fpv:()=>{
+    const P=[];
+    P.push(at(box(.34,.16,.78),0,0,0));                       // 胴（電池と基板）
+    P.push(tone(at(box(.26,.05,.5),0,.105,-.04),.55));         // 電池の帯
+    P.push(tone(at(box(.16,.12,.1),0,.05,.43,-.35),GL));       // 前のカメラ（少し下向き）
+    for(const [x,z] of [[1,1],[-1,1],[1,-1],[-1,-1]]){
+      P.push(at(box(.07,.05,.9),x*.32,.02,z*.32,0,Math.atan2(x,z),0));                    // 腕（X）
+      P.push(tone(at(new THREE.CylinderGeometry(.075,.085,.12,8),x*.62,.08,z*.62),DK));    // モーター
+      P.push(tone(at(new THREE.CylinderGeometry(.3,.3,.01,14),x*.62,.15,z*.62),.4));      // 回るプロペラ（暗い円板）
+    }
+    P.push(tone(at(tube(.085,.55,8),0,-.17,.12),.8));          // 弾頭（成形炸薬）を腹の下に前向き
+    P.push(tone(at(taper(.085,.02,.22,8),0,-.17,.5),.8));
+    P.push(tone(at(tube(.13,.22,10),0,-.14,-.42),.5));         // 後ろの光ファイバーの巻き枠
+    P.push(tone(at(tube(.15,.03,10),0,-.14,-.31),.35));
+    P.push(tone(at(tube(.15,.03,10),0,-.14,-.53),.35));
+    return P;
+  },
   /* 陸戦型 W.A.S. (for now): the space W.A.S. as it is (CRAFT_SHAPES.was, a user-approved shape), four times the size and set
      on the ground. It is redesigned with the assault carrier later (docs/models.md 9 D) */
   wasG:()=>{ const p=CRAFT_SHAPES.was(); p.forEach(g=>{ g.scale(4,4,4); g.translate(0,.78,0); }); return p; },
@@ -1240,7 +1251,7 @@ const GROUND_MODELS={
   commando:{key:'cmdF',size:.32,form:'squad12',move:['cmdW','cmdW2']},
   heavyInfantry:{key:'hinf',size:.32,form:'squad12',move:['hinf','hinf2']},
   mechanicalAssault:{key:'mechA',size:.32,form:'squad12',move:['mechA','mechB']},
-  droneHive:{key:'hive',size:.7,form:'one'},
+  drone:{key:'fpv',size:.3,form:'wedge3'},
   /* W.A.S. の歩く形（ユーザー 2026-11-19）: 地上で動く体は左右の足を交互に出して歩く（空では歩かない）。前の4こまは盾を下ろした歩き、
      後の4こまは追撃・進撃の盾を構えた歩き（cycle: 1巡のこまの数）。step: 1歩の間隔は歩兵の 0.6 倍（仮） */
   was:{key:'was4',size:.75,form:'wedge3',move:['wasMarch1','wasMarch2','wasMarch3','wasMarch4','wasWalk1','wasWalk2','wasWalk3','wasWalk4'],cycle:4,step:.6},

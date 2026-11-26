@@ -26,7 +26,7 @@ function nodeChecks(){
  `);
  const rows=[],check=(name,code)=>{try{run('bodyFresh()');rows.push({name,ok:!!run('(()=>{'+code+'})()')});}catch(e){rows.push({name,ok:false,error:e.message});}};
  check('初期化は戦車4体・等分耐久、shipsとnは1のまま',`const f=bodyUnit();return f.bodies0===4&&f.bodies.every(b=>bodyClose(b.hp,f.groundMaxHp/4)&&b.hp===b.max&&b.alive)&&f.ships.length===1&&f.n===1&&bodyClose(f.hpPool,bodySum(f));`);
- check('全兵科の体数はモデルのoffset、艦・ハイブ・支援機は1',`for(const kind of Object.keys(groundRuleSet().unitTypes)){const f=bodyUnit(kind),spec=groundModelFor(kind,'earth'),n=['sea','droneHive','supportAircraft'].includes(kind)?1:spec?.offsets.length||1;if(f.bodies0!==n)return false;}return true;`);
+ check('全兵科の体数はモデルのoffset、艦・支援機は1',`for(const kind of Object.keys(groundRuleSet().unitTypes)){const f=bodyUnit(kind),spec=groundModelFor(kind,'earth'),n=['sea','supportAircraft'].includes(kind)?1:spec?.offsets.length||1;if(f.bodies0!==n)return false;}return true;`);
  check('体の時計は固有の再現可能な位相',`const f=bodyUnit();return new Set(f.bodies.map(b=>b.shotT)).size===4&&f.bodies.every((b,i)=>b.shotT===groundBodyRandom(f,i)()*groundRules().fireEvery);`);
  check('実直射で4→3→2→1→0、余りを捨て最後だけ隊撃破',`const f=bodyUnit(),t=bodyUnit('vehicle',1,0,8);f.weapons=f.weapons.map(w=>({...w,power:1e6}));for(let n=3;n>=0;n--){bodyReady(f);for(let i=1;i<f.bodies.length;i++)f.bodies[i].shotT=100;groundBodyFire(f,t,0);if(groundAliveBodies(t)!==n||!bodyClose(t.hpPool,bodySum(t))||t.alive!==(n>0)||t.ships.length!==(n?1:0)||t.n!==1)return false;if(t.bodies.filter(b=>b.alive).some(b=>b.hp!==b.max))return false;}return true;`);
  // 小隊の数（2026-11-18）: 作戦のデータの中隊は4小隊。体・耐久・撃つ量が4倍、1体の耐久と1体の1発は1小隊のときと同じ

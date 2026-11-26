@@ -620,5 +620,11 @@ body.noui .ground-range-label,body.noui .ground-road-label,body.nolabels .ground
 #groundPlanStatus{font-size:10px;color:var(--brass)}
 #groundPlanStatus:empty{display:none}
 #groundStrikeControl{display:flex;align-items:center;gap:2px;flex:none}
-#groundSalvoCount{box-sizing:border-box;width:34px;height:25px;padding:0 2px;font:11px var(--f-num);background:rgba(8,14,26,.7);color:var(--brass);border:1px solid var(--line)}
+#groundSalvoCount,#groundDroneCount{box-sizing:border-box;width:34px;height:25px;padding:0 2px;font:11px var(--f-num);background:rgba(8,14,26,.7);color:var(--brass);border:1px solid var(--line)}
 #groundSalvoCount:disabled{color:var(--ink-dim);opacity:.5}
+
+#groundDroneLaunchControl{display:flex;align-items:center;gap:3px;flex:none}
+#groundDroneCount{display:inline-flex;align-items:center;justify-content:center}
+#groundDroneCount.empty{color:var(--ink-dim)}
+#roster.ground-roster button[id^="fl"]:has(.ground-drone-stock){grid-template-rows:17px auto 8px auto;height:auto;min-height:50px}
+#roster .ground-drone-stock{font:10px var(--f-ui);white-space:nowrap;color:var(--ink-dim)}

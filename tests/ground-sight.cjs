@@ -46,7 +46,7 @@ function sightCases(){
     terrain(()=>12);check('高台の視界の上限を越えない',Math.abs(groundSightRange(tank)-39)<1e-6);
     terrain(()=>0);plane.pos.set(0,0,0);enemy.pos.set(95,0,0);fleets=[plane,enemy];groundUpdateSight();check('支援機は95の敵を発見',enemy.seen);
     enemy.pos.x=101;groundUpdateSight();check('支援機も100を越えると未発見',!enemy.seen);
-    scout.alive=true;scout.team=0;scout.pos.set(0,0,0);enemy.pos.x=60;fleets=[scout,enemy];groundUpdateSight();check('斥候の視界は60まで',enemy.seen);enemy.pos.x=60.01;groundUpdateSight();check('斥候の視界60の外は未発見',!enemy.seen);
+    scout.alive=true;scout.team=0;scout.pos.set(0,0,0);enemy.pos.x=40;fleets=[scout,enemy];groundUpdateSight();check('斥候の視界は40まで',enemy.seen);enemy.pos.x=40.01;groundUpdateSight();check('斥候の視界40の外は未発見',!enemy.seen);
     plane.band='low';plane.bandTo='high';plane.bandLeft=2;
     check('切り替え中の観測高度も元の段',groundEye(plane).y===groundRules().heights.low+groundSightRules().eyeHeight);
   }finally{saved.sight.basic=saved.sightBasic;op=saved.op;

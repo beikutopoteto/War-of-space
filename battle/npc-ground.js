@@ -102,7 +102,7 @@ function npcGroundPower(f){
   return (window.WOS_DATA.npc.power.ground[f.groundKind]??1)*hp;
 }
 function npcGroundFree(f){
-  return f.alive&&f.hpPool>0&&!f.locked&&!f.embarked&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&!f.groundBuilding&&!f.groundUnloading&&
+  return !f.groundDrone&&f.alive&&f.hpPool>0&&!f.locked&&!f.embarked&&!f.groundRout&&!f.groundRecover&&!f.groundAirState&&!f.groundBuilding&&!f.groundUnloading&&
     !f.groundSupplyTrip&&!f.groundSupplyRetreat&&!(f.groundKind==='supply'&&groundSupplyActive()&&f.groundSupply===0)&&
     !['board','bridge','land'].includes(f.order?.type)&&groundCommandAllowed(f,'move');
 }
@@ -165,14 +165,14 @@ function npcGroundSituation(c){
     return {id:s.id,name:s.name||s.id,x:s.x,z:s.y,r:s.radiusKm,owner:seen?relative(s.owner):null,seen,known:relative(npcGroundState.initial.get(s.id)),
       base,goal:base==='foe',final:base==='foe',supply:s.owner===team?groundSupplyAt({pos:s.pos,team}).rate:0};
   });
-  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),antiArmor:!!counters[f.groundKind]?.length,
+  const units=fleets.filter(f=>f.team===team&&f.alive&&f.hpPool>0&&!f.groundExited&&!f.groundDrone).map(f=>({id:f.id,role:N.roles.ground[f.groundKind]||'line',power:npcGroundPower(f),antiArmor:!!counters[f.groundKind]?.length,
     x:groundMapX(f.pos.x),z:groundMapY(f.pos.z),speed:speedOf(f)/GROUND_SCALE,health:Math.max(0,f.hpPool/(f.groundMaxHp||f.n*f.hp)),
     canHold:groundCanCapture(f),canPair:groundCaptureCounts(f),morale:(f.groundMorale??max)/max,supply:(f.groundSupply??max)/max,free:npcGroundFree(f)&&(f.groundKind!=='sea'||npcGroundLiftActive()&&groundLandingShip(f)),
     ...(npcGroundLiftActive()?npcGroundLiftUnit(f):{}),
     engaged:!!(f.fireTarget||f.order?.type==='attack'||f.groundHitLeft>0)}));
   // 死亡・現在の耐久・現在位置を視界外から読まない。最後に見たときの記録だけ。
   const contacts=[];
-  for(const f of fleets){if(f.team===team||!f.alive||f.groundExited)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
+  for(const f of fleets){if(f.team===team||!f.alive||f.groundExited||f.groundDrone)continue;const k=f.groundContacts?.[team];if(!k||k.power===undefined)continue;
     contacts.push({id:f.id,x:groundMapX(k.pos.x),z:groundMapY(k.pos.z),power:k.power,role:k.role,armor:armorKinds.has(k.kind),age:f.groundVisible?.[team]?0:Math.max(0,gameSec-k.at)});
   }
   const sit={time:gameSec,captureGroup:groundRuleSet().capture.group,zones,links:[...npcGroundLinks(),...(npcGroundLiftActive()?npcGroundLiftLinks():[])],units,contacts,goal:{type:'seize',...(groundScriptIntent(team)||(c.cfg||op.npc[team])?.intent||{})}}; // 作戦の意図（npc の intent: type・zones・until・style）
@@ -486,6 +486,7 @@ function npcGroundStep(){
   for(const c of npcGroundState.commanders.values()){
     if(gameSec+1e-8<c.nextThink)continue;c.nextThink=gameSec+c.L.think;
     for(const f of fleets)if(f.team===c.team&&!npcAutoPlayerUnit(f)&&(!c.unitIds||c.unitIds.has(f.id)))f.stance='engage';
+    if(typeof groundDroneNpc==='function')for(const f of [...fleets])if(f.groundKind==='scout'&&f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id)))groundDroneNpc(f);
     const sit=npcGroundSituation(c),start=performance.now(),plan=npcThink(c,sit),ms=performance.now()-start,m=npcGroundState.timings;
     m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcAllyCommunicate(npcGroundState,c,sit,plan);npcIssuing=true;try{npcGroundApply(c,sit,plan);}finally{npcIssuing=false;}
   }

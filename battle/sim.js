@@ -112,12 +112,13 @@ function randShip(u){ if(u.troop) return u.dots.length?u.dots[(Math.random()*Mat
 
 function damage(t,amt,src,groundImpact=null,groundBody=null,groundHit=null){
   if(op.ground&&src){
-    const allowed=groundImpact?groundStrikeHits(groundImpact,t,src):(typeof groundAutoAAHit==='function'&&groundAutoAAHit(src,t))||groundCanFire(src,t)&&groundFireMode(src,t)==='direct';
+    const allowed=groundImpact?groundStrikeHits(groundImpact,t,src):src.groundDrone?.impact===t||(typeof groundAutoAAHit==='function'&&groundAutoAAHit(src,t))||groundCanFire(src,t)&&groundFireMode(src,t)==='direct';
     if(!allowed)return;
   }
   if(tutorialProtected()&&src&&src.team===1&&t.team===0) return;
   tutorialDamage(t,amt,src);
   if(!t.alive) return;
+  if(op.ground&&t.groundDrone){if(amt>0)groundDroneReceiveShot(t,src,groundBody,groundHit);return;}
   if(amt>0&&t.feint&&t.mode==='feint'&&!t.feintOut&&src&&src.team!==t.team&&src.seen&&src.type!=='thr'){
     const s=feintTransitState(t); s.hits.set(src,gameSec);
   }
@@ -197,7 +198,7 @@ let outcome=null;
 function end(win,quit=false,full=false){
   /* 第5節: no defeat while the enemy is already falling back (stepRepel) */
   if(over||!win&&!quit&&repelT!=null) return; over=true; outcome=win; perfect=win&&full; setPhase('戦闘終結');
-  const left=fleets.filter(f=>f.team===0&&f.alive).reduce((s,f)=>s+f.ships.length,0);
+  const left=fleets.filter(f=>f.team===0&&f.alive&&!f.groundDrone).reduce((s,f)=>s+f.ships.length,0);
   document.getElementById('rh').textContent=win?(perfect?'完全勝利':'勝利'):'敗北';
   /* a lost carrier or too many civilian dead (第4節) have their own words */
   const why=!win&&loseWhy==='time'&&op.timeUp?{lose:op.timeUp.lose,loseLog:op.timeUp.loseLog}:!win&&loseWhy==='carrier'&&op.result.loseCarrier?{lose:op.result.loseCarrier,loseLog:op.result.loseCarrierLog}:!win&&loseWhy==='civil'&&op.result.loseCivil?{lose:op.result.loseCivil,loseLog:op.result.loseCivilLog}

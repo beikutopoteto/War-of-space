@@ -1,7 +1,7 @@
 /* node tests/ground-branches.cjs：ブラウザ不要。本物の命令・射撃・damage・経路で⑧を確認。
    npm test では同じ固定場面と、編成・自動交戦ボタン・標的クリックも確認する。 */
 const fs=require('fs'),path=require('path'),vm=require('vm');
-const NEW_KINDS=['commando','guidedRocket','droneHive','mechanicalAssault','mobileAA'];
+const NEW_KINDS=['commando','guidedRocket','mechanicalAssault','mobileAA'];
 function branchCases(){
   const saved={op,fleets,groundSites,groundHeight,groundForests,groundBuildings,groundFog,groundStrikes,groundImpacts,over,end,shoot,burst,unselect,logEvent,groundHud,random:Math.random};
   const results=[],check=(name,ok)=>results.push({name,ok});let id=100;
@@ -25,8 +25,8 @@ function branchCases(){
     // 戦闘規則の固定場面では本営とデバッグ専用の固定敵指定を外す。補給はground-supply、固定敵はground-fixesで確認。
     op={...op,groundHQ:null,groundStaticEnemies:false};
     Math.random=()=>0;groundSites=[];groundHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundFog=null;groundStrikes=[];groundImpacts=[];over=false;end=shoot=burst=unselect=logEvent=groundHud=()=>{};
-    check('17兵科をデータに収録',Object.keys(groundRuleSet().unitTypes).length===17);
-    for(const kind of ['guidedRocket','droneHive','mechanicalAssault']){
+    check('16兵科をデータに収録',Object.keys(groundRuleSet().unitTypes).length===16);
+    for(const kind of ['guidedRocket','mechanicalAssault']){
       const f=unit(kind),target=unit('vehicle',1,9,27),other=unit('infantry',1,7,27);fleets=[f,target,other];
       f.stance='engage';f.fireTarget=other;f.strike=other;groundUpdateSight();const hp=other.hpPool;
       damage(other,10,f);tick(1.1);
@@ -40,7 +40,7 @@ function branchCases(){
       f.groundShotT=0;tick(.05);
       check(kind+'：許可目標が射程外でも近い別の敵を撃たない',other.hpPool===hp&&!f.fireTarget);
       fleets=[f,target,other];f.pos.copy(groundPoint(8,27));other.pos.copy(groundPoint(7,27));
-      target.pos.copy(f.pos);target.band=kind==='droneHive'?'high':'sea';f.groundShotT=0;tick(.05);
+      target.pos.copy(f.pos);target.band='sea';f.groundShotT=0;tick(.05);
       check(kind+'：許可目標が撃てない段でも他へ切り替えない',other.hpPool===hp&&!f.fireTarget);
       target.band='ground';target.pos.copy(groundPoint(45,30));f.groundShotT=0;tick(.05);
       check(kind+'：目標を見失うと命令を外し未許可の打撃0',!f.order&&!f.fireTarget&&other.hpPool===hp);
@@ -54,8 +54,8 @@ function branchCases(){
       const red=unit(kind,1),blue=unit('vehicle',0,9,27);fleets=[red,blue];red.stance='engage';fireOnce(red,blue);
       check(kind+'：敵AIも明示した攻撃命令で許可し打撃',red.order?.type==='attack'&&red.order.target===blue&&blue.hpPool<blue.groundMaxHp);
     }
-    // 新5兵科×4段。狙いの値でなく本物の damage による耐久差で表を確認。
-    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['droneHive',[2,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
+    // 残る4兵科×4段。狙いの値でなく本物の damage による耐久差で表を確認。
+    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
         const factor=band==='ground'?(kind==='guidedRocket'?2:groundDirectWeapon(f,t).armorFactor):1;
@@ -79,12 +79,11 @@ function branchCases(){
     check('森と市街地が重なっても軽減は重複しない',near(hit(command),10*.5**1.5*groundRuleSet().combat.damageScale));groundForests=[];
     check('市街地：通常5×損害倍率、コマンドは0.5の1.5乗',near(hit(normal),5*groundRuleSet().combat.damageScale)&&near(hit(command),10*.5**1.5*groundRuleSet().combat.damageScale));groundBuildings=[];
     check('コマンドは占拠しない',!groundCanCapture(command));
-    const drone=unit('droneHive'),scout=unit('scout');check('ドローンは低空専用・斥候と同視界',groundBands(drone).join()==='low'&&groundMoveKind(drone)==='air'&&groundSightRange(drone)===groundSightRange(scout));
     const machine=unit('mechanicalAssault');fleets=[machine];const hp=machine.hpPool;tick(10);
     check('機械化突撃兵は10秒で最大耐久の1%を消耗',near(machine.hpPool,hp-machine.groundMaxHp*.01));
     machine.hpPool=.001;tick(.05);check('消耗しきると稼働終了し残存数・命令も消える',!machine.alive&&!machine.ships.length&&!machine.order&&machine.hpPool===0);
     // 橋も浅瀬もない本流。新兵科は実経路も渡河表どおり。
-    for(const [kind,factor] of [['commando',.2],['guidedRocket',0],['droneHive',1],['mechanicalAssault',.2],['mobileAA',0]]){
+    for(const [kind,factor] of [['commando',.2],['guidedRocket',0],['mechanicalAssault',.2],['mobileAA',0]]){
       const f=unit(kind),move=groundMoveKind(f),p=groundPoint(23.47,26);
       check(kind+'：川の速度倍率 '+factor,groundRiverFactor(23.47,26,move)===factor&&groundPass(23.47,26,move)===(factor>0));
       const route=groundPath(groundPoint(21,26),groundPoint(26,26),move);
@@ -128,7 +127,7 @@ async function checkGroundBranches(page,check){
     // 大隊のタブの最初の中隊の行（2026-11-18 に中隊のページを消した）。
     await page.waitForSelector('[data-ground-kind]');
     const first=await page.getAttribute('[data-ground-kind]','data-ground-kind'),sel=`[data-ground-kind="${first}"]`;
-    check(await page.locator(sel+' option').count()===17,'残り兵科: 編成画面に17兵科');
+    check(await page.locator(sel+' option').count()===16,'残り兵科: 編成画面に16兵科');
     for(const kind of NEW_KINDS){
       await page.selectOption(sel,kind);
       check(await page.inputValue(sel)===kind&&await page.evaluate(([id,kind])=>JSON.parse(localStorage.getItem('wos.save.v1')).groundOrg.companies.find(c=>c.id===id).kind===kind,[first,kind]),'残り兵科: 編成選択・保存 '+kind);

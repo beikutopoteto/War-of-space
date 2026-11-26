@@ -6,7 +6,7 @@ window.WOS_GROUND_RULES = {
   // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
   wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 }, moveSupplyFactor:2, idleSupplyPerSec:.05, evasion:.5, npcMinKm:6 }, // ほかは仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
-  sight: { site:30, basic:30, scout:60, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
+  sight: { site:30, basic:30, scout:40, concealment:{scout:.5,drone:.5}, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   // 2026-11-17決定の最大値で遊ぶ。initialは将来の研究用データだけで、現在は参照しない。
   // dmgScale は地点攻撃の弾だけに掛ける威力の倍率（対地の直射は unitTypes の weapons を参照）。間接の砲撃は2倍（ユーザー決定 2026-11-17）。
@@ -19,7 +19,7 @@ window.WOS_GROUND_RULES = {
     supportAircraft:{delay:7,radius:2.4,areaRadius:9,spread:2,reload:10,bombsPerPass:6,initial:{radius:1.2,reload:15,bombsPerPass:4}},
     battleship:{delay:8,radius:1.2,dmgScale:2,areaRadius:10,reload:10,scatterRatio:.004,initial:{radius:.6,reload:15}},
     sea:{delay:8,radius:.48,dmgScale:2,areaRadius:10,reload:10,minScatterDiameter10KmM:25,initial:{radius:.24,reload:15}},
-    // 海の艦・橋・未指定兵科の倍率、aiBodiesは仮（#448）。ドローンハイブは中身が未実装なので決めない（既定の1）。
+    // 海の艦・橋・未指定兵科の倍率、aiBodiesは仮（#448）。
     armor:{supply:1.3,infantry:1,commando:1,mechanicalAssault:1,heavyInfantry:.35,apc:.35,scout:.35,artillery:.35,mobileAA:.35,guidedRocket:.35,engineer:.35,vehicle:.15,was:.2,sea:.15,bridge:1,default:1},
     // #501 の仮値。armor は爆風の半径に使い、softTarget は当たったときの威力に使う。
     softTarget:{
@@ -60,7 +60,7 @@ window.WOS_GROUND_RULES = {
   // 出撃する1小隊あたりの補給値（仮、#485）。海の艦は対象外。
   supplyWeight: {
     infantry:1,scout:1,engineer:1,commando:1,apc:1,supply:1,
-    heavyInfantry:2,mobileAA:2,mechanicalAssault:2,droneHive:2,
+    heavyInfantry:2,mobileAA:2,mechanicalAssault:2,
     vehicle:3,artillery:3,guidedRocket:3,was:3,fighter:3,attack:3,supportAircraft:3
   },
   sortieLimits: {
@@ -76,7 +76,6 @@ window.WOS_GROUND_RULES = {
     heavyInfantry:{name:'重強化歩兵',speed:1.1,range:16,hp:200,dmg:4,armor:30,blastMorale:1,weapons:[{power:4,pen:60,morale:1.2},{power:7,pen:2000,soft:.15,morale:1,top:true}],fireRangesKm:{direct:4,aa:6}},
     commando:{name:'強化コマンド歩兵',speed:1.9,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
     guidedRocket:{name:'無誘導ロケット',speed:2.5,range:30,hp:100,dmg:4,permissionOnly:true,armor:{front:300,side:50,top:40},blastMorale:.7,fireRangesKm:{indirect:{min:0,max:50}}},
-    droneHive:{name:'ドローンハイブ',speed:4,range:12,hp:20,dmg:2,permissionOnly:true,fireRangesKm:{direct:10}}, // 送り出す機体の運用範囲（仮）
     mechanicalAssault:{name:'機械化突撃兵',speed:2.2,range:10,hp:120,dmg:3,permissionOnly:true,armor:15,blastMorale:1,weapons:[{power:3,pen:25,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:1.2,aa:0.8}},
     mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:150,dmg:4,armor:{front:300,side:50,top:40},blastMorale:.7,weapons:[{power:2,pen:90,morale:1.5}],fireRangesKm:{direct:2,aa:4}},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:250,dmg:5,armor:{front:1800,side:500,top:150,shapedFront:2200},blastMorale:.4,weapons:[{power:5,pen:100,soft:1.6,morale:1.2},{power:6,pen:1800,soft:.2,morale:1.2}],fireRangesKm:{direct:3,aa:1}},
@@ -106,6 +105,15 @@ window.WOS_GROUND_RULES = {
   },
   // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
   combat: {
+    // #511。時刻はゲーム秒。機体数と射程・電池はユーザー決定、ほかの性能は仮。
+    drone: {
+      name:'ドローン',airframes:3,rangeKm:15,researchRangeKm:50,batterySec:60,
+      speedKmPerSecond:1,heightKm:.25,sightKm:2,orbitKm:.5,diveInterval:1,chargeSec:30,
+      replenishSec:30,replenishSupply:.5,aaHit:.6,otherHit:.15,
+      weapon:{power:5,pen:800,soft:.5,morale:1,top:true},
+      npcTargets:['vehicle','artillery','guidedRocket','mobileAA'],
+      launchOffsetKm:[.35,.45] // 仮。承認済みの見本と同じ斥候からの前後・左右の間隔。
+    },
     damageScale:1.3,mobileAAAir:2,urbanMargin:.8,townMargin:.4,mechanicalWearPerSec:.001,
     // #501 の仮値。正面は ±60°（cos 60° = 0.5）。町と森は町を優先し、停止による陣地は重ねる。
     penetration:{exponent:4,floor:.03,frontCos:.5},

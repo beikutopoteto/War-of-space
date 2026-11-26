@@ -39,7 +39,7 @@ function nodeChecks(){
    check('布陣は進撃のずれを縮めた位置で、ゆらがない',def.every((p,i)=>Math.abs((p.x-o[i].x)-(adv[i].x-o[i].x)*R.defend)<1e-9&&Math.abs((p.z-o[i].z)-(adv[i].z-o[i].z)*R.defend)<1e-9&&!p.wa));
    check('同じ中隊は毎回同じずれ、別中隊は別',JSON.stringify(adv)===JSON.stringify(layout('vehicle','advance',ks))&&JSON.stringify(adv)!==JSON.stringify(groundFormationLayout({...f,id:13,groundKind:'vehicle'},ks,'advance')));
    check('モデルのない手組みの並びはずらさない',layout('vehicle','defend').every((p,i)=>p.x===spec.offsets[i][0]*spec.size&&p.z===spec.offsets[i][1]*spec.size));}
-  check('1体と航空の隊形は固定',layout('droneHive','idle',{offsets:GROUND_FORMS.one,size:.7})[0].x===0&&JSON.stringify(layout('fighter','idle'))===JSON.stringify(layout('fighter','defend')));
+  check('1体と航空の隊形は固定',layout('supportAircraft','idle',{offsets:GROUND_FORMS.one,size:.7})[0].x===0&&JSON.stringify(layout('fighter','idle'))===JSON.stringify(layout('fighter','defend')));
   for(const o of [{type:'move'},{type:'attack'}]){f.groundDeployed=true;groundFormationOrder(f,o);check(o.type+'で防衛解除',!f.groundDeployed);}
   for(const flag of ['groundDeploy','groundAdvance']){f.groundDeployed=true;groundFormationOrder(f,{type:'move',[flag]:true});check(flag+'は保持',f.groundDeployed);f.groundDeployed=false;f.order={type:'move',[flag]:true};groundFormationArrive(f);check(flag+'到着で防衛',f.groundDeployed);}
   return rows;

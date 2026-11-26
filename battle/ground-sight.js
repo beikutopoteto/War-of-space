@@ -30,10 +30,12 @@ function groundSightHeight(x,z){
 }
 // 高度切り替え中の索敵も、射撃と同じく到着までは元の段を使う。
 function groundEye(f){
+  if(f.groundKind==='drone')return {x:f.pos.x,z:f.pos.z,y:f.pos.y};
   return {x:f.pos.x,z:f.pos.z,y:groundHeight(f.pos.x,f.pos.z)+groundBandHeight(f.band)+groundSightRules().eyeHeight};
 }
 function groundSightRange(f){
-  const r=groundSightRules(), base=r[f.groundKind==='droneHive'?'scout':f.groundKind]??r.basic;
+  if(f.groundKind==='drone')return groundRuleSet().combat.drone.sightKm*GROUND_SCALE;
+  const r=groundSightRules(), base=r[f.groundKind]??r.basic;
   return base*(1+r.heightGain*Math.min(1,Math.max(0,groundHeight(f.pos.x,f.pos.z))/r.heightForMax));
 }
 // 木を4戦闘単位の区画に分けて、その点の近くの木だけを調べる（広い演習場で木が数千本あるため）
@@ -49,7 +51,8 @@ function groundInForest(x,z){
   return !!list&&list.some(p=>Math.hypot(x-p.x,z-p.z)<=p.r);
 }
 function groundConcealment(f){
-  return (f.band||'ground')==='ground'&&!groundWasFlying(f)&&groundInForest(f.pos.x,f.pos.z)?groundSightRules().forest:1;
+  const r=groundSightRules(),base=r.concealment?.[f.groundKind]??1;
+  return base*((f.band||'ground')==='ground'&&!groundWasFlying(f)&&groundInForest(f.pos.x,f.pos.z)?r.forest:1);
 }
 // 線分と建物の箱の交差。薄い建物もサンプリングの間から透視しない。
 function groundBuildingBlocks(a,b,box){

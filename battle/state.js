@@ -73,7 +73,7 @@ function techFleet(team,o){
 /* every warship of both sides goes a little faster (user decision 2026-10-20: WOS_DATA.balance.speed); not the civilian ships nor the guns */
 const SPEED_K=WOS_DATA.balance&&WOS_DATA.balance.speed||1;
 function makeFleet(team,o){
-  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type,!!o.groundLanding):groundRuleSet().unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
+  if(op.ground&&o.groundKind){ const u=o.groundKind==='sea'?groundSeaStats(o.type,!!o.groundLanding):o.groundKind==='drone'?groundDroneFleetStats():groundRuleSet().unitTypes[o.groundKind]; o={...o,...u,name:o.name,sub:o.groundLanding?'海の揚陸艦（仮）':u.name||u.sub}; }
   if(o.hp==null){ const derived=techFleet(team,o); if(o.dmg!=null) delete derived.byType; o={...o,...derived}; }
   if(o.hurt) o={...o,hp:o.hp*o.hurt};   // 第6節 (2026-10-24): an allied unit still hurt from the last battle, every ship at that share of its hit points
   if(!o.groundKind&&o.speed&&o.type!=='tr'&&!o.fixed) o={...o,speed:o.speed*SPEED_K};
@@ -483,7 +483,11 @@ function updateRoster(){
     if(nn) nb.style.fontSize=Math.min(10,40/nb.textContent.length).toFixed(1)+'px';   // a story unit's whole name, small enough to fit the tile (2026-11-05)
     f.btn.querySelector('.no small').textContent=(npcAutoPlayerUnit(f)?'手動 ':'')+(f.queue.length?`予${f.queue.length} `:'')+(!op.ground&&nn&&f.n===1?'':'×'+(op.ground&&f.bodies?groundAliveBodies(f):f.ships.length));
     f.btn.classList.toggle('evade',f.stance==='evade'); f.btn.classList.toggle('lo',hull<.3);
-    if(op.ground)groundSupplyUpdateTile(f);else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
+    if(op.ground){
+      groundSupplyUpdateTile(f);
+      const stock=f.btn.querySelector('.ground-drone-stock');
+      if(stock){const {ready,max}=groundDroneStock(f);stock.textContent='ドローン '+ready.length+'/'+max;}
+    }else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
     if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit||!!op.ground&&!groundCommandAllowed(f,'stance'); }
   });

@@ -59,7 +59,7 @@ function groundScriptCurrent(){
 }
 function groundScriptSnapshot(){
   const r=groundScriptState,teams=[0,1].map(()=>({initial:0,power:0,alive:0,exited:0}));
-  const units=fleets.map(f=>{
+  const units=fleets.filter(f=>!f.groundDrone).map(f=>{
     if(!r.registered.has(f)){r.registered.add(f);r.initial[f.team]+=Math.max(0,f.hpPool);}
     const t=teams[f.team];
     if(f.groundExited){t.exited++;t.power+=f.groundExitHp;}

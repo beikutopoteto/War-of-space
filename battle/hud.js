@@ -90,6 +90,7 @@ function order(f,o){
   if(op.ground&&o.type==='attack'&&!groundManualTargetAllowed(f,o.target))return;
   if(op.ground){
     if(f.embarked||!groundCommandAllowed(f,o.type))return;
+    if(f.groundDrone){if(o.type==='move')groundDroneMoveOrder(f,o);return;}
     if(f.groundFrontOf&&o.groundFrontId!==f.groundFrontOf.id)groundFrontRememberVia(f);
     groundFormationOrder(f,o);groundCancelWork(f);f.groundAreaSalvo=null;
     if(!f.groundSupplyTrip?.front||f.groundSupplyTrip.front.id!==o.groundFrontId){f.groundSupplyTrip=null;f.groundGiving=null;}
@@ -210,6 +211,11 @@ function clickable(x,y){ if(over) return false; const {best,fort}=pick(x,y);
 let labelDown=null, labelEnemy=null;
 function tap(x,y,cmdOnly=false,queue=false,labelTarget=null){
   if(over) return;
+  if(op.ground&&!deploying&&['dive','orbit'].includes(groundWorkAiming)){
+    if(groundWorkAiming==='dive')groundDroneTap(null,labelTarget||pick(x,y).best);
+    else groundDroneTap(groundAt(x,y),null);
+    return;
+  }
   // 味方クリックは通常の選択。搭乗・補給を明示したときだけ相手指定。
   if(op.ground&&!deploying&&!cmdOnly){
     const target=labelTarget||pick(x,y).best;
