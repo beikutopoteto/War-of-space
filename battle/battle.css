@@ -627,4 +627,4 @@ body.noui .ground-range-label,body.noui .ground-road-label,body.nolabels .ground
 #groundDroneCount{display:inline-flex;align-items:center;justify-content:center}
 #groundDroneCount.empty{color:var(--ink-dim)}
 #roster.ground-roster button[id^="fl"]:has(.ground-drone-stock){grid-template-rows:17px auto 8px auto;height:auto;min-height:50px}
-#roster .ground-drone-stock{font:10px var(--f-ui);white-space:nowrap;color:var(--ink-dim)}
+#roster .ground-drone-stock{font:10px var(--f-ui);white-space:pre;color:var(--ink-dim)}
