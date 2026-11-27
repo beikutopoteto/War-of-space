@@ -265,10 +265,13 @@ addEventListener('resize',fitMenu); fitMenu();
 let orgPop=null, orgFromForces=false, sortieInitialized=false;
 let orgForce='space', groundTab='battalions', selGround=null;
 let screen='title', tab='army', selBg=null, selArmy=null, selGroup=null, layer=2, placing=null, sortieGroups=[], sortieOp=CAMP[0].id, confirmDel=null;
+const groundSortieExcluded=new Set();
+const usesGroundForces=op=>!!op?.ground&&op.forces!=='fixed'&&!op.groundDrill;
+const groundForcesOpen=()=>screen==='forces'&&usesGroundForces(OPS.find(o=>o.id===sortieOp));
 
 function show(s){ if(screen==='forces'&&s!=='forces') WOS_DOCK.close(); screen=s; confirmDel=null; render(); menu.scrollTop=0; }
 function render(){
-  WOS_BG.screen(screen);
+  WOS_BG.screen(groundForcesOpen()?'ground-forces':screen);
   menu.querySelectorAll('.scr').forEach(el=>el.hidden=el.dataset.s!==screen);
   if(screen==='sortie') renderSortie();
   if(screen==='forces') renderForces();
@@ -315,10 +318,10 @@ menu.innerHTML=`
 <section class="scr sortie-screen" data-s="sortie" hidden>
   <button class="back plate" data-go="mode">← 出撃</button><h2 class="sortie-heading"><b>OFFLINE</b><span>作戦を選ぶ</span></h2>
   <div id="opList" class="ops"></div><p id="where" class="where"></p>
-  <div class="plate det"><div id="opDetail"></div><div id="fixedNote"></div><div id="groundSortieLoad"></div><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
+  <div class="plate det"><div id="opDetail"></div><div id="fixedNote"></div><div class="det-row"><span id="opReward"></span><span class="det-buttons"><button id="goQuick" class="quick" hidden>クイック出撃</button><button id="goBattle" class="primary">出撃する</button></span></div></div>
 </section>
 <section class="scr sortie-screen forces-screen" data-s="forces" hidden>
-  <canvas id="dockCanvas"></canvas><button class="back plate" data-go="sortie">← 作戦を選ぶ</button>
+  <canvas id="dockCanvas"></canvas><canvas id="groundForcesMap" aria-hidden="true" hidden></canvas><button class="back plate" data-go="sortie">← 作戦を選ぶ</button>
   <h2 class="sortie-heading"><b>FORCES</b><span>出撃する戦区軍</span><small id="forcesName"></small></h2>
   <div class="forces-left"><div id="sgList" class="cards"></div><button id="forcesCreate" class="plate" data-go="org">＋ 部隊編成で戦区軍を作る</button></div>
   <div class="forces-right"><div class="plate" id="forcesDetail"></div><div class="plate" id="sgLoad"></div><div class="forces-buttons"><button id="forcesOrg" data-go="org">部隊編成へ</button><button id="forcesBattle" class="primary">出撃する</button></div></div>
@@ -347,7 +350,17 @@ menu.innerHTML=`
 </section>`;
 
 menu.addEventListener('click',e=>{
-  const go=e.target.closest('[data-go]'); if(go){ if(go.dataset.go==='org') orgFromForces=screen==='forces'; if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go); return; }
+  const go=e.target.closest('[data-go]'); if(go){
+    if(go.dataset.go==='org'){
+      orgFromForces=screen==='forces';
+      if(screen==='forces'){
+        orgForce=groundForcesOpen()?'ground':'space';
+        if(orgForce==='ground'){ groundTab='brigades'; selGround=null; }
+      }
+    }
+    if(screen==='org'&&go.classList.contains('back')&&orgFromForces){ orgFromForces=false; show('forces'); } else show(go.dataset.go);
+    return;
+  }
   const force=e.target.closest('[data-org-force]'); if(force){ orgForce=force.dataset.orgForce; confirmDel=null; render(); return; }
   const gt=e.target.closest('[data-ground-tab]'); if(gt){ groundTab=gt.dataset.groundTab; selGround=null; confirmDel=null; render(); return; }
   const t=e.target.closest('[data-tab]'); if(t){ tab=t.dataset.tab; confirmDel=null; render(); }
@@ -668,22 +681,21 @@ function renderSortie(){
   const fixedOp=op.forces==='fixed'?op:null;
   const qb=document.getElementById('goQuick'); qb.hidden=!!fixedOp||!!op.chapter||!op.quick;
   if(!qb.hidden) qb.onclick=()=>{ if(window.WOS){ running={quick:true}; window.WOS.start(op.ground?{op:op.id,fleets:op.quick,quickOrg:true}:{op:op.id}); } };
-  const load=op.ground&&!fixedOp&&!op.groundDrill?GROUND.sortie(save.groundOrg,op).load:null;
-  const bannedNote=load?(op.groundSortie?.bannedKinds||[]).map(k=>(GROUND.types()[k]?.name||k)+' は出撃できません。').join(''):'';
-  document.getElementById('fixedNote').textContent=load?`地上軍の編成から${load.companies.length}個中隊で出撃します。${save.groundOrg.companies.length?'':'初期部隊を使います。'}${bannedNote}`:fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
-  const scaleBlocked=!!load?.scaleOver&&!dbg.free;
-  document.getElementById('groundSortieLoad').innerHTML=load&&(load.scale||load.supplyLimit!==null)?`
-    <table class="load"><tbody>
-      ${load.scale?`<tr class="${load.scaleOver?'over':''}"><th>作戦規模（${esc(load.scale.name)}）</th><td>${load.platoons}/${load.scale.cap}小隊</td></tr>`:''}
-      ${load.supplyLimit!==null?`<tr class="${load.excess?'over':''}"><th>補給限界</th><td>${load.supplyUsed}/${load.supplyLimit}（基本${load.supplyBase}＋補給中隊${load.supplyPlatoons}小隊）${load.excess?`<br>補給・士気の上限 −${load.penaltyPercent}%`:''}</td></tr>`:''}
-    </tbody></table>
-    ${load.scaleOver?`<p class="warn">${scaleBlocked?'出撃できません。部隊編成で小隊を減らしてください。':'デバッグ：出撃上限を無視して出撃できます。'}</p>`:''}`:'';
-  const btn=document.getElementById('goBattle'); btn.disabled=scaleBlocked;
-  btn.onclick=()=>{ if(op===TUT2){ running={op:TUT2_BASE.id,progress:TUT2.id};window.WOS.start({op:TUT2_BASE.id,tutorial:true}); } else if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
+  document.getElementById('fixedNote').textContent=fixedOp?'この作戦は決まった艦隊で戦います：'+fixedOp.quick.map(f=>f.name).join('・'):'';
+  const btn=document.getElementById('goBattle');
+  btn.onclick=()=>{ if(op===TUT2){ running={op:TUT2_BASE.id,progress:TUT2.id};window.WOS.start({op:TUT2_BASE.id,tutorial:true}); }
+    else if(usesGroundForces(op)){ groundSortieExcluded.clear(); show('forces'); }
+    else if(op.ground){ running={op:op.id};window.WOS.start({op:op.id}); } else if(op===TUT){ if(window.WOS){ running={op:'charybdis',tutorial:true}; window.WOS.start({op:'charybdis',tutorial:true}); } } else if(fixedOp){ if(window.WOS){ running={op:fixedOp.id}; window.WOS.start({op:fixedOp.id, flags:storyFlags()}); } } else { if(!sortieInitialized){ sortieGroups=save.groups[0]?[save.groups[0].id]:[]; sortieInitialized=true; } show('forces'); } };
 }
 function renderForces(){
   const op=OPS.find(o=>o.id===sortieOp), load=document.getElementById('sgLoad'); load.innerHTML='';
+  const ground=usesGroundForces(op), map=document.getElementById('groundForcesMap'), dock=document.getElementById('dockCanvas');
+  map.hidden=!ground; dock.hidden=ground;
+  map.parentElement.classList.toggle('ground-forces',ground);
+  map.parentElement.querySelector('.sortie-heading span').textContent=ground?'出撃する旅団':'出撃する戦区軍';
+  document.getElementById('forcesCreate').textContent=ground?'＋ 部隊編成で旅団を作る':'＋ 部隊編成で戦区軍を作る';
   document.getElementById('forcesName').textContent=(op.chapter||'演習')+'　'+op.name;
+  if(ground){ renderGroundForces(op,load,map); return; }
   document.getElementById('forcesDetail').innerHTML=`<span class="ch">${esc(op.chapter||'演習')}</span><h3>${esc(op.name)}</h3><p>${scaleText(op)}${esc(op.threat)}</p>`;
   document.getElementById('forcesOrg').hidden=document.getElementById('forcesCreate').hidden=!unlocked('fleet');
   /* several army groups may sortie together while the ships of each branch stay within the limit (user decision 2026-10-04).
@@ -710,6 +722,54 @@ function renderForces(){
   btn.onclick=()=>{ if(prepOn()&&(PREP[prog().prepStep].condition!=='sortie'||sortieOp==='nile')) finishPrep(false); WOS_DOCK.close(); running={op:sortieOp}; startBattle(chosen); };
   const ships=chosen.flatMap(g=>groupSummary(g).flatMap(a=>armyStats(a).bgs.flatMap(b=>Array(b.count).fill(b.type))));
   WOS_DOCK.draw(document.getElementById('dockCanvas'),ships);
+}
+function renderGroundForces(op,plate,map){
+  const org=GROUND.sortieOrg(save.groundOrg);
+  const cards=[
+    ...org.brigades.map(g=>({key:'brigade:'+g.id,name:g.name,battalions:g.battalions.map(id=>org.battalions.find(b=>b.id===id)).filter(Boolean)})),
+    ...org.battalions.filter(b=>!groundOwner(org,b.id)).map(b=>({key:'battalion:'+b.id,name:b.name,battalions:[b],independent:true}))
+  ];
+  const chosen=cards.filter(c=>!groundSortieExcluded.has(c.key));
+  const battalionIds=chosen.flatMap(c=>c.battalions.map(b=>b.id));
+  const {load}=GROUND.sortie(org,op,battalionIds);
+  const list=document.getElementById('sgList');
+  list.innerHTML=cards.map(c=>{
+    const on=!groundSortieExcluded.has(c.key);
+    const battalions=c.battalions.map(b=>({name:b.name,...GROUND.sortieLoad(GROUND.companiesOf(org,'battalions',b.id),op)}));
+    const totals=GROUND.sortieLoad(battalions.flatMap(b=>b.companies),op);
+    const marks=battalions.map(b=>{
+      const by={};
+      b.companies.forEach(c=>by[c.kind]=(by[c.kind]||0)+c.platoons);
+      const main=Object.keys(by).sort((a,b)=>by[b]-by[a])[0];
+      return `<i title="${esc(b.name)}">${main?groundMark(main):''}<small>${esc(b.name.replace(/\s*大隊$/,'' )||b.name)}</small></i>`;
+    }).join('');
+    return `<button class="sgcard ${on?'sel':''}" data-ground-sortie="${esc(c.key)}" aria-pressed="${on}"><b>${esc(c.name)}${c.independent?' <small class="dim">旅団に入っていない大隊</small>':''}</b>
+      <em>${c.independent?'':battalions.length+'個大隊・'}${totals.companies.length}個中隊・${totals.platoons}小隊・補給値 ${totals.supplyUsed}</em><span class="forces-marks">${marks||'大隊が未配置'}</span></button>`;
+  }).join('');
+  list.querySelectorAll('[data-ground-sortie]').forEach((b,i)=>b.onclick=()=>{
+    const key=b.dataset.groundSortie;
+    if(!groundSortieExcluded.delete(key)) groundSortieExcluded.add(key);
+    renderGroundForces(op,plate,map);
+    list.querySelectorAll('[data-ground-sortie]')[i].focus({preventScroll:true});
+  });
+
+  document.getElementById('forcesOrg').hidden=document.getElementById('forcesCreate').hidden=false;
+  const banned=(op.groundSortie?.bannedKinds||[]).map(k=>(GROUND.types()[k]?.name||k)+' は出撃できません。').join('');
+  const fallback=save.groundOrg.companies.length?'':'初期部隊を使います。';
+  document.getElementById('forcesDetail').innerHTML=`<span class="ch">${esc(op.chapter||op.tag||'演習')}</span><h3>${esc(op.name)}</h3><p>${load.scale?esc(load.scale.name)+'　':''}${esc(op.summary||op.threat)}</p>${fallback||banned?`<p class="dim">${esc(fallback+banned)}</p>`:''}`;
+  const independent=chosen.filter(c=>c.independent).length;
+  const total=(chosen.length>independent||!independent?`${chosen.length-independent}個旅団`:'')+
+    (independent?`${chosen.length>independent?'・':''}${independent}個大隊`:'');
+  plate.innerHTML=`<h3><i>LIMIT</i> 出撃の上限 <span class="dim">${total}の合計</span></h3>${load.scale||load.supplyLimit!==null?`<table class="load"><tbody>
+    ${load.scale?`<tr class="${load.scaleOver?'over':''}"><th>作戦規模（${esc(load.scale.name)}）</th><td>${load.platoons} / ${load.scale.cap}小隊</td><td class="note">全兵科の小隊の数</td></tr>`:''}
+    ${load.supplyLimit!==null?`<tr class="${load.excess?'over':''}"><th>補給限界</th><td>${load.supplyUsed} / ${load.supplyLimit}</td><td class="note">基本${load.supplyBase}＋補給中隊${load.supplyPlatoons}小隊</td></tr>`:''}
+    </tbody></table>`:''}
+    ${load.excess?`<p class="warn">補給限界を${load.excess}超えています。出撃はできますが、戦闘の補給・士気の上限が −${load.penaltyPercent}% になります。</p>`:''}
+    ${load.scaleOver?`<p class="warn">${dbg.free?'デバッグ：出撃上限を無視して出撃できます。':'出撃できません。選ぶ部隊を減らすか、部隊編成で小隊を減らしてください。'}</p>`:''}`;
+  const btn=document.getElementById('forcesBattle');
+  btn.disabled=!load.companies.length||load.scaleOver&&!dbg.free;
+  btn.onclick=()=>{ running={op:op.id}; window.WOS.start({op:op.id,groundOrg:org,groundBattalions:battalionIds}); };
+  WOS_BG.ground(map,op.ground);
 }
 /* the battle's scale (op.scale, user decision 2026-10-12): its name and the expected length at 1×, shortened by op.pace like the
    clock (user decision 2026-10-15: show the real length) */
@@ -1433,6 +1493,10 @@ function onKey(e){
   // scene.js intercepts keydown before it reaches the button. Activate it here, once per press.
   if(section){
     if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(!e.repeat) section.click(); }
+    return;
+  }
+  if(groundForcesOpen()&&e.target?.closest?.('.forces-screen button')){
+    if(e.key==='Enter'||e.key===' '){ e.preventDefault(); if(!e.repeat) e.target.closest('button').click(); }
     return;
   }
   if(e.key!=='Enter') return;

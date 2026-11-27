@@ -44,10 +44,10 @@ function groundUnitSpec(u){
     ...(u.groundCargo?{groundCargo:u.groundCargo.map(groundUnitSpec)}:{})};
 }
 // 編成は位置を持たない。出撃する中隊を作戦の枠または拠点周辺へ置く。
-function groundSortieForces(operation,value){
+function groundSortieForces(operation,value,battalionIds){
   const config=operation.groundSortie;
   if(!config)throw new Error(operation.id+': groundSortie がありません');
-  const {org,fleets:units,load}=window.WOS_GROUND_ORG.sortie(value,operation);
+  const {org,fleets:units,load}=window.WOS_GROUND_ORG.sortie(value,operation,battalionIds);
   if(config.slots){
     if(!config.slots.length)throw new Error('groundSortie.slots が空です');
     return {org,load,fleets:units.map((f,i)=>{const slot=config.slots[i%config.slots.length];
@@ -78,7 +78,7 @@ function groundSortieForces(operation,value){
 }
 // 宇宙の部隊選択も従来どおり返す。state.js に地上用の分かれ目を増やさない。
 function groundResolveForces(operation,cfg){
-  const sortie=operation.ground&&!operation.groundDrill&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg):null;
+  const sortie=operation.ground&&!operation.groundDrill&&operation.forces!=='fixed'&&!(cfg?.fleets?.length)?groundSortieForces(operation,cfg?.groundOrg,cfg?.groundBattalions):null;
   const spec=operation.groundDrill?operation.quick:sortie?sortie.fleets:cfg?.fleets?.length?cfg.fleets:operation.quick;
   return {fleets:operation.ground?spec.map(groundUnitSpec):spec,
     enemies:operation.ground?operation.enemies.map(groundUnitSpec):operation.enemies,
@@ -91,12 +91,38 @@ function groundSetupCoordinates(){
   for(const row of op.tutorial||[])for(const mark of row.marks||[])if(mark.at)
     mark.pos=[(mark.at[0]-d.meta.widthKm/2)*GROUND_SCALE,(d.meta.heightKm/2-mark.at[1])*GROUND_SCALE];
 }
+function forestBandWidth(b,y){const t=Math.max(0,Math.min(1,(y-b.yMin)/(b.fadeStartYKm-b.yMin)));return b.bankMaxSouthKm+(b.bankMaxNorthKm-b.bankMaxSouthKm)*t}
+function groundForestSampler(d,random){
+ const spec=d.objects.forest,inside=groundInside;
+ function bankCandidate(){
+  const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;
+  if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)return null;
+  const fade=Math.max(0,Math.min(1,(cy-band.yMin)/(band.fadeStartYKm-band.yMin)));if(random()>.18+.82*fade)return null;
+  const gap=(Math.sin((cy/band.gapPeriodKm)*Math.PI*2+band.gapFraction*7)+1)/2;if(gap<band.gapFraction)return null;
+  const width=forestBandWidth(band,cy),distance=band.bankMinKm+random()*Math.max(0,width-band.bankMinKm),side=random()<.5?-1:1,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+  return {x:cx-side*dy/len*distance,y:cy+side*dx/len*distance,zone:'bank'};
+ }
+ return (count,treeCount)=>{
+  // Optional sources use only their declared lines/polygons. Old maps keep their seeded river placement.
+  if(!spec.windbreaks&&!spec.islands)return bankCandidate();
+  const source=(count+.5)/treeCount;
+  if(source<(spec.windbreakShare||0)){
+   const row=spec.windbreaks[Math.floor(random()*spec.windbreaks.length)],i=Math.floor(random()*(row.points.length-1)),a=row.points[i],b=row.points[i+1],t=random(),side=(random()-.5)*row.widthKm,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
+   return {x:a[0]+dx*t-dy/len*side,y:a[1]+dy*t+dx/len*side,zone:'windbreak'};
+  }
+  if(source<(spec.windbreakShare||0)+(spec.islandShare||0)){
+   const p=spec.islands[Math.floor(random()*spec.islands.length)].polygon,xs=p.map(p=>p[0]),ys=p.map(p=>p[1]),x=Math.min(...xs)+random()*(Math.max(...xs)-Math.min(...xs)),y=Math.min(...ys)+random()*(Math.max(...ys)-Math.min(...ys));
+   return inside(x,y,p)?{x,y,zone:'island'}:null;
+  }
+  return bankCandidate();
+ };
+}
 // 描画と同じ樹冠・建物の位置を地上の索敵に渡す（戦闘単位）。
 let groundForests=[], groundBuildings=[];
 function groundInside(x,y,poly){ let hit=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const a=poly[i],b=poly[j]; if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]) hit=!hit; } return hit; }
 function groundDistance(x,y,points){ let best=Infinity; for(let i=0;i<points.length-1;i++){ const a=points[i],b=points[i+1],dx=b[0]-a[0],dy=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy))); best=Math.min(best,Math.hypot(x-a[0]-t*dx,y-a[1]-t*dy)); } return best; }
-function groundElevation(x,y){
-  const d=groundData(),spec=d.height;
+function groundElevation(x,y,d=groundData()){
+  const spec=d.height;
   if(groundInside(x,y,d.water.sea))return 0;
   let sum=0,weight=0;
   for(const p of spec.points){const w=1/(1+((x-p.x)**2+(y-p.y)**2)/spec.interpolationRadiusKm**2);sum+=p.m*w;weight+=w;}
@@ -475,36 +501,14 @@ const waterMask=document.createElement('canvas');waterMask.width=canvas.width;wa
 function rng(seed){return function(){seed=seed*16807%2147483647;return (seed-1)/2147483646}}
 // Reeds are a surface detail and appear only on wet cells.
 function populateReeds(){const spec=d.objects.reeds,random=rng(spec.seed),polys=d.surface.filter(s=>spec.coverIds.includes(s.id)).map(s=>s.polygon),mesh=new THREE.InstancedMesh(new THREE.ConeBufferGeometry(.07,.17,4),new THREE.MeshLambertMaterial({color:0xb2aa63}),spec.count),dummy=new THREE.Object3D();let count=0;for(let i=0;i<spec.count*120&&count<spec.count;i++){let x=random()*W,y=random()*H;if(!polys.some(p=>inside(x,y,p))||inside(x,y,d.water.sea)||d.terrain.cells[Math.floor(y/cell)*d.terrain.cols+Math.floor(x/cell)]!=='沼地')continue;if(spec.roadClearanceKm){const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;}dummy.position.set(toX(x),elevation(x,y)+.075,toZ(y));dummy.scale.setScalar(.65+random()*.5);dummy.rotation.y=random()*Math.PI;dummy.updateMatrix();mesh.setMatrixAt(count++,dummy.matrix)}mesh.count=count;mesh.userData.groundObject='reeds';mesh.castShadow=true;world.add(mesh)}
-function forestBandWidth(b,y){const t=Math.max(0,Math.min(1,(y-b.yMin)/(b.fadeStartYKm-b.yMin)));return b.bankMaxSouthKm+(b.bankMaxNorthKm-b.bankMaxSouthKm)*t}
 // Place trees from each actual channel outwards, in reproducible interrupted banks.
 function populateForest(){
  const spec=d.objects.forest,random=rng(spec.seed),treeCount=Math.round(spec.count*(spec.renderFactor??.55)),mesh=new THREE.InstancedMesh(groundShapeGeo('obTreeBroad'),new THREE.MeshLambertMaterial({color:0xffffff,vertexColors:true}),treeCount),dummy=new THREE.Object3D();
  mesh.geometry.computeBoundingBox();const forestBox=mesh.geometry.boundingBox,forestCanopyRadius=Math.hypot(Math.max(Math.abs(forestBox.min.x),Math.abs(forestBox.max.x)),Math.max(Math.abs(forestBox.min.z),Math.abs(forestBox.max.z)));
- function bankCandidate(){
-  const band=spec.bands[Math.floor(random()*spec.bands.length)],river=d.water.rivers.find(r=>r.id===band.river),i=Math.floor(random()*(river.points.length-1)),a=river.points[i],b=river.points[i+1],t=random(),cx=a[0]+(b[0]-a[0])*t,cy=a[1]+(b[1]-a[1])*t;
-  if(cy<band.yMin||cy>band.yMax||cy>spec.terraceMaxYKm)return null;
-  const fade=Math.max(0,Math.min(1,(cy-band.yMin)/(band.fadeStartYKm-band.yMin)));if(random()>.18+.82*fade)return null;
-  const gap=(Math.sin((cy/band.gapPeriodKm)*Math.PI*2+band.gapFraction*7)+1)/2;if(gap<band.gapFraction)return null;
-  const width=forestBandWidth(band,cy),distance=band.bankMinKm+random()*Math.max(0,width-band.bankMinKm),side=random()<.5?-1:1,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
-  return {x:cx-side*dy/len*distance,y:cy+side*dx/len*distance,zone:'bank'};
- }
- function candidate(){
-  // Optional sources use only their declared lines/polygons. Old maps keep their seeded river placement.
-  if(!spec.windbreaks&&!spec.islands)return bankCandidate();
-  const source=(count+.5)/treeCount;
-  if(source<(spec.windbreakShare||0)){
-   const row=spec.windbreaks[Math.floor(random()*spec.windbreaks.length)],i=Math.floor(random()*(row.points.length-1)),a=row.points[i],b=row.points[i+1],t=random(),side=(random()-.5)*row.widthKm,dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);
-   return {x:a[0]+dx*t-dy/len*side,y:a[1]+dy*t+dx/len*side,zone:'windbreak'};
-  }
-  if(source<(spec.windbreakShare||0)+(spec.islandShare||0)){
-   const p=spec.islands[Math.floor(random()*spec.islands.length)].polygon,xs=p.map(p=>p[0]),ys=p.map(p=>p[1]),x=Math.min(...xs)+random()*(Math.max(...xs)-Math.min(...xs)),y=Math.min(...ys)+random()*(Math.max(...ys)-Math.min(...ys));
-   return inside(x,y,p)?{x,y,zone:'island'}:null;
-  }
-  return bankCandidate();
- }
+ const candidate=groundForestSampler(d,random);
  let count=0;
  for(let attempt=0;attempt<treeCount*80&&count<treeCount;attempt++){
-  const p=candidate();if(!p)continue;const {x,y,zone}=p;
+  const p=candidate(count,treeCount);if(!p)continue;const {x,y,zone}=p;
   if(!inside(x,y,d.display.board)||inside(x,y,d.water.sea)||(spec.avoidWater&&y>spec.terraceMaxYKm))continue;
   if(spec.avoidWater&&(!groundPass(x,y,'vehicle')||d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2;})))continue;
   const road=nearestRoadPoint(x,y);if(Math.hypot(x-road.x,y-road.y)<spec.roadClearanceKm)continue;

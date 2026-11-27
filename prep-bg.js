@@ -167,10 +167,103 @@ function frame(now){
 function sync(){
   const menu=document.getElementById('menu');
   if(!cv.isConnected) menu.prepend(cv);
-  if(menu.hidden){ if(raf) cancelAnimationFrame(raf); raf=0; last=0; }
+  cv.hidden=scr==='ground-forces';
+  if(menu.hidden||cv.hidden){ if(raf) cancelAnimationFrame(raf); raf=0; last=0; }
   else if(!raf){ last=0; raf=requestAnimationFrame(frame); }
 }
-window.WOS_BG={screen(name){ scr=name; if(name!=='sortie'){clock.target=null; clock.focus=null;} sync(); }, focus(op,list,select){ if(clock.focus?.id!==op.id || (clock.focus===null&&op.place)){clock.focus=op.place?op:null; clock.target=op.place?dayOf(op.date):null; clock.since=performance.now();} marks=list; selectMark=select; }};
+
+// 出撃用の地図。戦闘のカメラ・地形の状態を動かさず、同じ地形データを北を上に描く。
+function rng(seed){return function(){seed=seed*16807%2147483647;return (seed-1)/2147483646}}
+function drawGround(canvas,id){
+  if(canvas.dataset.terrain===id) return;
+  const d=WOS_TERRAIN[id], {widthKm:width,heightKm:height,cellKm:cell,seed}=d.meta;
+  const scale=1600/Math.max(width,height);
+  canvas.width=Math.ceil(width*scale);
+  canvas.height=Math.ceil(height*scale);
+  const ctx=canvas.getContext('2d');
+  const path=(points,close=false)=>{
+    ctx.beginPath();
+    points.forEach(([x,y],i)=>i?ctx.lineTo(x,height-y):ctx.moveTo(x,height-y));
+    if(close) ctx.closePath();
+  };
+  const fill=(points,color)=>{ path(points,true); ctx.fillStyle=color; ctx.fill(); };
+  const line=(points,w,color)=>{ path(points); ctx.lineWidth=w; ctx.strokeStyle=color; ctx.stroke(); };
+  const relief=document.createElement('canvas');
+  relief.width=Math.min(640,d.terrain.cols*2);
+  relief.height=Math.min(640,d.terrain.rows*2);
+  const r=relief.getContext('2d'), pixels=r.createImageData(relief.width,relief.height);
+  const tones={'平地':115,'沼地':78,'山岳':126,'砂漠':142};
+  const noise=rng(seed);
+  for(let row=0;row<relief.height;row++)for(let col=0;col<relief.width;col++){
+    const x=(col+.5)*width/relief.width,y=height-(row+.5)*height/relief.height;
+    const cellRow=Math.min(d.terrain.rows-1,Math.max(0,Math.floor(y/cell))),cellCol=Math.min(d.terrain.cols-1,Math.max(0,Math.floor(x/cell)));
+    const type=d.terrain.cells[cellRow*d.terrain.cols+cellCol];
+    const h=groundElevation(x,y,d), slope=groundElevation(x-.24,y+.24,d)-h;
+    const tone=(tones[type]??115)+Math.max(-41,Math.min(41,slope*2100))+noise()*15;
+    const i=4*(row*relief.width+col);
+    pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=tone;
+    pixels.data[i+3]=255;
+  }
+  r.putImageData(pixels,0,0);
+  ctx.scale(scale,scale);
+  ctx.lineJoin=ctx.lineCap='round';
+  path(d.display.board,true);
+  ctx.save();
+  ctx.clip();
+  ctx.drawImage(relief,0,0,width,height);
+  fill(d.water.sea,'#454545');
+  fill(d.water.shallow,'#5e5e5e');
+  for(const pond of d.water.ponds) fill(pond,'#505050');
+  for(const river of d.water.rivers){
+    for(let i=1;i<river.points.length;i++) line(river.points.slice(i-1,i+1),(river.widths[i-1]+river.widths[i])/2,'#585858');
+  }
+  const channel=d.water.deepChannel;
+  if(channel) line(channel.points,channel.widthKm,'#3a3a3a');
+
+  const grid=cell*5;
+  for(let x=0;x<width;x+=grid) line([[x,0],[x,height]],.45/scale,'#ffffff13');
+  for(let y=0;y<height;y+=grid) line([[0,y],[width,y]],.45/scale,'#ffffff13');
+
+  const roads=d.objects.roads, forest=d.objects.forest;
+  const trees=Math.round(forest.count*(forest.renderFactor??.55));
+  const treeNoise=rng(forest.seed), candidate=groundForestSampler(d,treeNoise);
+  let count=0;
+  for(let attempt=0;attempt<trees*80&&count<trees;attempt++){
+    const tree=candidate(count,trees);
+    if(!tree) continue;
+    const {x,y}=tree;
+    if(!groundInside(x,y,d.display.board)||groundInside(x,y,d.water.sea)||d.water.ponds.some(p=>groundInside(x,y,p))) continue;
+    if(d.water.rivers.some(r=>{const at=groundRiverAt(x,y,r);return at.dist<at.width/2;})||
+       roads.some(r=>groundDistance(x,y,r.points)<forest.roadClearanceKm)) continue;
+    const size=(.09+treeNoise()*.11)*Math.max(1,14/scale), top=height-y;
+    ctx.fillStyle='#282828';
+    ctx.beginPath(); ctx.ellipse(x+size,top+size,size*1.9,size,.6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=treeNoise()<.5?'#858585':'#a5a5a5';
+    ctx.beginPath(); ctx.arc(x,top,size,0,Math.PI*2); ctx.fill();
+    count++;
+  }
+  for(const road of roads) line(road.points,(road.type==='main'?5:3)/scale,'#727272');
+  for(const road of roads) line(road.points,(road.type==='main'?3:1.5)/scale,'#9b9b9b');
+  ctx.restore();
+
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.font=`600 ${13/scale}px sans-serif`;
+  for(const site of d.sites){
+    const y=height-site.y, labelY=y-site.radiusKm;
+    ctx.beginPath();
+    ctx.arc(site.x,y,site.radiusKm,0,Math.PI*2);
+    ctx.lineWidth=1/scale; ctx.strokeStyle='#b3b3b388'; ctx.stroke();
+    const labelWidth=ctx.measureText(site.name).width+14/scale;
+    const labelX=Math.max(labelWidth/2,Math.min(width-labelWidth/2,site.x));
+    ctx.fillStyle='#242424d9';
+    ctx.fillRect(labelX-labelWidth/2,labelY-19/scale,labelWidth,19/scale);
+    ctx.fillStyle='#cecece';
+    ctx.fillText(site.name,labelX,labelY-9/scale);
+  }
+  canvas.dataset.terrain=id;
+}
+window.WOS_BG={screen(name){ scr=name; if(name!=='sortie'){clock.target=null; clock.focus=null;} sync(); }, focus(op,list,select){ if(clock.focus?.id!==op.id || (clock.focus===null&&op.place)){clock.focus=op.place?op:null; clock.target=op.place?dayOf(op.date):null; clock.since=performance.now();} marks=list; selectMark=select; }, ground:drawGround};
 addEventListener('resize',fit);
 new MutationObserver(sync).observe(document.getElementById('menu'),{attributes:true,attributeFilter:['hidden']});
 fit();

@@ -208,7 +208,7 @@ async function checkGroundDrill(page,check){
     // 古い保存は tutorial2 だけに移し、二重報酬を出さない。
     await page.evaluate(()=>{const s=JSON.parse(localStorage.getItem('wos.save.v1'));s.prog.cleared=s.prog.cleared.filter(id=>id!=='tutorial2');s.prog.cleared.push('ch2drill');localStorage.setItem('wos.save.v1',JSON.stringify(s));});await menu();
     check(await page.locator('[data-op="tutorial2"] .op-status').textContent()==='クリア済み'&&await page.locator('[data-op="baikonur"]').isEnabled(),'旧 ch2drill 保存を移行して通常演習を解放');
-    await page.click('[data-op="baikonur"]');await page.click('#goBattle');
+    await page.click('[data-op="baikonur"]');await page.click('#goBattle');await page.click('#forcesBattle');
     await page.evaluate(()=>{if(talking)endTalk();setSpeed(0);endDeploy();});
     check(await page.evaluate(()=>!tutorial&&fleets.some(f=>f.groundKind==='was')),'通常出撃は保存中の地上軍を使う');
     await page.evaluate(()=>{const s=groundSites.find(s=>s.id==='F');s.owner=0;step(.05);});

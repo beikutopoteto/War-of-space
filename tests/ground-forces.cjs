@@ -66,6 +66,15 @@ function nodeChecks(){
         !edge.load.scaleOver&&over.load.scaleOver&&over.fleets.length===65;
     })()`);
   });
+  check('出撃に選んだ大隊だけを元の順で残す。明示的な空選択には初期部隊を足さない',()=>{
+    yes(`(()=>{
+      const org=window.WOS_GROUND_ORG.defaults(),before=JSON.stringify(org);
+      const chosen=groundSortieForces(op,org,['gb2']),empty=groundSortieForces(op,org,[]);
+      return chosen.fleets.map(f=>f.companyId).join()==='gc4,gc5,gc6'&&chosen.load.platoons===12&&
+        chosen.org.brigades[0].battalions.join()==='gb2'&&chosen.org.battalions.length===1&&
+        !empty.fleets.length&&!empty.org.brigades.length&&!empty.load.platoons&&JSON.stringify(org)===before;
+    })()`);
+  });
   check('1kmずつ半径を広げ、最大2倍でも不足すればエラーにする',()=>{
     yes(`(()=>{const companies=Array.from({length:40},(_,i)=>({id:'many'+i,name:'歩兵'+i,kind:'infantry'}));
       const s=groundSortieForces(op,{companies}),site=groundData().sites.find(s=>s.id==='A');
@@ -133,19 +142,45 @@ async function checkGroundSupplyLimit(page,check){
     await page.evaluate(seedSupplySortie,options);
     await openSortieMenu(page,{reload:true});
     await page.click('[data-op="baikonur"]');
+    await page.click('#goBattle');
   };
-  const go=page.locator('#goBattle'),load=page.locator('#groundSortieLoad');
+  const go=page.locator('#forcesBattle'),load=page.locator('#sgLoad');
+  const cards=page.locator('[data-ground-sortie]'),brigade=cards.filter({hasText:'第1 旅団'});
+  const values=()=>load.locator('td:nth-child(2)').allTextContents();
   try{
     await open({});
-    check(await go.isEnabled()&&(await load.textContent()).includes('24/64小隊')&&await load.locator('tr.over').count()===0,
+    check(await go.isEnabled()&&(await values()).join()===['24 / 64小隊','60 / 100'].join()&&await load.locator('tr.over').count()===0,
       '地上出撃上限: 作戦規模と補給限界の内なら通常出撃できる');
-    await open({penalty:true});
-    check(await go.isEnabled()&&await load.locator('tr.over').count()===1&&/114\/104.*補給・士気の上限 −20%/s.test(await load.textContent()),
+    await open({oversize:true});
+    check(await page.locator('[data-ground-sortie][aria-pressed="true"]').count()===3&&await cards.count()===3&&
+      (await cards.last().textContent()).includes('旅団に入っていない大隊'),
+      '地上出撃: 旅団と独立大隊の札は初めにすべて選ばれる');
+    check(await go.isDisabled()&&await load.locator('tr.over').count()===2&&(await values())[0]==='65 / 64小隊'&&await load.locator('.warn').first().isVisible(),
+      '地上出撃上限: 65/64小隊で警告し通常出撃を止める');
+    await brigade.click();
+    check(await go.isEnabled()&&(await values()).join()===['25 / 64小隊','25 / 100'].join()&&await load.locator('tr.over').count()===0,
+      '地上出撃: 旅団を外すと小隊・補給値と補給中隊の上積みが減る');
+    await page.click('#forcesCreate');
+    check(await page.locator('[data-org-force="ground"]').getAttribute('aria-selected')==='true'&&await page.locator('[data-ground-tab="brigades"]').getAttribute('aria-selected')==='true',
+      '地上出撃: 編成へのボタンで地上軍の旅団を開く');
+    await page.click('[data-s="org"] .back');
+    check((await values())[0]==='25 / 64小隊'&&await brigade.getAttribute('aria-pressed')==='false',
+      '地上出撃: 部隊編成から戻ると選択が残る');
+    for(const card of await cards.all()) if(await card.getAttribute('aria-pressed')==='true') await card.click();
+    check(await go.isDisabled()&&(await values()).join()===['0 / 64小隊','0 / 100'].join(),
+      '地上出撃: 札をすべて外すと出撃できない');
+    await brigade.press('Enter');
+    check(await go.isEnabled()&&await load.locator('tr.over').count()===1&&
+      await load.locator('tr.over th').textContent()==='補給限界'&&
+      await load.locator('tr.over th').evaluate(e=>getComputedStyle(e).color===getComputedStyle(document.querySelector('#sgLoad .warn')).color)&&
+      (await values())[1]==='114 / 104'&&/補給限界を10超えています。出撃はできますが、戦闘の補給・士気の上限が −20% になります。/.test(await load.textContent()),
       '地上出撃上限: 補給限界だけを超えた編成は下げ幅を表示して出撃できる');
     await go.click();
     const result=await page.evaluate(()=>{
       setSpeed(0);
       const infantry=fleets.find(f=>f.companyId==='test0'),truck=fleets.find(f=>f.companyId==='test1'),air=fleets.find(f=>f.companyId==='test2');
+      const selected=fleets.filter(f=>f.team===0&&!f.embarked&&f.groundKind!=='sea').map(f=>f.companyId);
+      const chosen=selected.join()===Array.from({length:12},(_,i)=>'test'+i).join()&&groundOrg.battalions.length===3;
       const near=(a,b)=>Math.abs(a-b)<1e-6;
       const initial=fleets.filter(f=>f.team===0).every(f=>(!Number.isFinite(f.groundSupply)||near(f.groundSupply,80))&&
         (!Number.isFinite(f.groundMorale)||near(f.groundMorale,.8*groundMoraleMax(f))))&&near(infantry.groundMorale,120)&&near(air.groundSupply,80);
@@ -167,25 +202,25 @@ async function checkGroundSupplyLimit(page,check){
       const distribution=near(infantry.groundSupply,80)&&near(infantry.groundMorale,96);
       air.groundSupply=15;air.groundAirState='base';air.groundAirLeft=1;air.groundAirResume=air.pos.clone();
       groundAirStep(air,1);
-      return {initial,enemy,bars,hud,refill,awayRest,distribution,airRefill:near(air.groundSupply,80)&&air.groundAirState==='return'};
+      return {chosen,initial,enemy,bars,hud,refill,awayRest,distribution,airRefill:near(air.groundSupply,80)&&air.groundAirState==='return'};
     });
-    const labels={initial:'自軍の初期補給80・歩兵士気120・航空補給80',enemy:'敵は補給100と兵科本来の士気',bars:'棒と性能は元の最大を参照',
+    const labels={chosen:'選んだ旅団の12中隊と3大隊だけで戦闘が始まる',initial:'自軍の初期補給80・歩兵士気120・航空補給80',enemy:'敵は補給100と兵科本来の士気',bars:'棒と性能は元の最大を参照',
       hud:'補給HUDの先頭に超過',refill:'本営の補充と休息は補給80・歩兵士気120まで',awayRest:'味方色の外の休息は歩兵士気96まで',
       distribution:'分配は補給80・歩兵士気96まで',airRefill:'航空の基地補給も80まで'};
     for(const [key,ok] of Object.entries(result))check(ok,'地上戦補給限界: '+labels[key]);
     await openSortieMenu(page);
     await page.click('[data-op="baikonur"]');
+    check(await page.locator('#goQuick').isEnabled()&&!await go.isVisible(),'地上出撃: 65小隊の編成でも作戦選びからクイック出撃できる');
     await page.click('#goQuick');
     check(await page.evaluate(()=>{
       setSpeed(0);
-      return fleets.filter(f=>f.team===0&&Number.isFinite(f.groundSupply)).every(f=>f.groundSupply===100&&
+      return !lastCfg.groundBattalions&&lastCfg.quickOrg&&lastCfg.fleets.length===11&&
+        fleets.filter(f=>f.team===0&&Number.isFinite(f.groundSupply)).every(f=>f.groundSupply===100&&
         (!Number.isFinite(f.groundMorale)||f.groundMorale===groundMoraleMax(f)))&&!document.getElementById('groundSupplyStatus').textContent.includes('超過');
     }),'地上戦補給限界: クイック出撃は補給100と兵科本来の士気');
-    await open({oversize:true});
-    check(await go.isDisabled()&&await page.locator('#goQuick').isEnabled()&&await load.locator('tr.over').count()===2&&/65\/64小隊/.test(await load.textContent())&&await load.locator('.warn').isVisible(),
-      '地上出撃上限: 65/64小隊で警告し通常出撃を止める');
+    await openSortieMenu(page);
     await page.click('[data-op="tutorial2"]');
-    check(await go.isEnabled()&&!(await load.textContent()).trim(),'地上出撃上限: 固定のチュートリアルは上限表示の外');
+    check(await page.locator('#goBattle').isEnabled()&&!await load.isVisible(),'地上出撃上限: 固定のチュートリアルは上限表示の外');
     await open({oversize:true,free:true});
     check(await go.isEnabled()&&/出撃上限を無視/.test(await load.textContent()),'地上出撃上限: デバッグで作戦規模を超えて出撃できる');
     await go.click();
