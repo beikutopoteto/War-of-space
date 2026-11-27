@@ -862,7 +862,7 @@ function groundBodyIdleClock(f,timer){
   for(const b of f.bodies)if(b.alive&&b[timer]<=0)b[timer]=groundRules().fireEvery;
 }
 function groundBodyFire(f,t,dt,aa=false){
-  const timer=aa?'aaT':'shotT',range=aa?groundAARange(f):groundTargetRange(f,t);
+  const timer=aa?'aaT':'shotT',range=aa?groundAARange(f,t):groundTargetRange(f,t);
   for(const [i,b] of f.bodies.entries()){
     b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
     const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
