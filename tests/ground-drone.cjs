@@ -59,6 +59,8 @@ function droneCases(){
     const a=third.pos.clone();tick(.4);
     check('指定地点の上を半径0.5 kmで旋回',nearby(groundDistanceTo(third,{pos:circle}),2)&&a.distanceTo(third.pos)>.1);
     const tank=spawn('vehicle',1,15,18);
+    // 自爆と補充を測る場面では、戦車が旋回機を撃墜して別の枠が先に補充されるのを防ぐ。
+    tank.groundAAEnabled=false;
     setPoint(enemy,8.75,18);groundUpdateSight();
     const infantryBefore=enemy.hpPool,tankBefore=tank.hpPool;
     for(const b of scout.bodies)b.shotT=0;
@@ -113,6 +115,18 @@ function droneCases(){
     };
     const aa=trial('mobileAA'),infantry=trial('infantry');
     check('同じ乱数種の複数回で自走対空砲は歩兵より多く撃墜し、1発で機数が減る',aa>infantry&&aa>0&&infantry>0);
+    const threshold=(kind,probability)=>{
+      const f=groundDroneLaunch(scout);
+      Math.random=()=>probability;
+      groundDroneReceiveShot(f,{groundKind:kind});
+      const at=groundAliveBodies(f);
+      Math.random=()=>probability-1e-6;
+      groundDroneReceiveShot(f,{groundKind:kind});
+      const below=groundAliveBodies(f);
+      groundDroneRemove(f);groundDroneCleanup();f.groundDrone.slot.stock=3;
+      return at===3&&below===2;
+    };
+    check('1発で1機を失う確率は対空0.5・その他0.125',threshold('mobileAA',.5)&&threshold('infantry',.125));
     const lost=groundDroneLaunch(scout);
     const i=lost.groundDrone.slot.i*groundBodiesPerPlatoon(scout);
     for(const b of scout.bodies.slice(i,i+groundBodiesPerPlatoon(scout)))groundBodyHit(scout,b,b.hp,false);

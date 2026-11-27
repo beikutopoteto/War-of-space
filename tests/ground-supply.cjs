@@ -71,13 +71,13 @@ function supplyCases(){
     const was=unit(0,'was',15,27);
     check('W.A.S. の補給と士気は100から始まる',was.groundSupply===100&&was.groundMorale===100);
     truck.groundSupply=30;
-    for(const band of ['ground','cruise','low']){
+    for(const [band,moveCost,idleCost] of [['ground',2,0],['cruise',2.8,.035],['low',4,.05]]){
       was.band=band;was.groundSupply=40;was.groundMorale=50;was.groundRest=0;
       groundSupplyMoved(was,was.pos,was.pos.clone().add(new THREE.Vector3(4,0,0)));
       const moving=was.groundSupply;was.groundMoved=false;
       fleets=[was];groundSupplyAfter(1);
-      const flying=band!=='ground',idle=was.groundSupply;
-      check('W.A.S. '+band+' の移動・停止時の補給消費',near(moving,flying?36:38)&&near(idle,moving-(flying?.05:0)));
+      const idle=was.groundSupply;
+      check('W.A.S. '+band+' の移動・停止時の補給消費',near(moving,40-moveCost)&&near(idle,moving-idleCost));
       fleets=[truck,was];
       check('W.A.S. '+band+' へ補給と士気を分配',groundSupplyCommand([truck],was));
       const morale=was.groundMorale;

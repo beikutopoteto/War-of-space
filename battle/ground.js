@@ -260,14 +260,21 @@ function groundBeginBand(f,band){
   f.pos.y=groundUnitHeight(f);
 }
 function groundWasCanToggle(f){
-  return f.groundKind==='was'&&f.alive&&!f.locked&&!f.embarked&&!f.bandTo&&groundCommandAllowed(f,'band')&&(!groundWasFlying(f)||groundLandable(f));
+  return f.groundKind==='was'&&f.alive&&!f.locked&&!f.embarked&&!f.bandTo&&groundCommandAllowed(f,'band')&&(groundWasFlying(f)?groundLandable(f):f.groundSupply!==0);
+}
+function groundWasLand(f){
+  f.groundWasLanding=true;
+  groundBeginBand(f,f.band==='low'?'cruise':'ground');
+}
+function groundWasAutoLand(f){
+  if(!groundWasFlying(f)||(f.groundSupply!==0&&!f.groundWasForcedLanding))return;
+  f.groundWasForcedLanding=true;
+  if(!f.bandTo&&groundLandable(f))groundWasLand(f);
 }
 function groundWasToggle(f){
   if(!groundWasCanToggle(f))return false;
-  if(groundWasFlying(f)){
-    f.groundWasLanding=true;
-    groundBeginBand(f,f.band==='low'?'cruise':'ground');
-  }else{
+  if(groundWasFlying(f))groundWasLand(f);
+  else{
     groundBeginBand(f,'cruise');
     f.syncSpeed=null;
     groundRepathForMoveKind(f);
@@ -294,6 +301,7 @@ function groundStepBand(f,dt){
     if(band==='cruise'&&groundLandable(f))groundBeginBand(f,'ground');
     else f.groundWasLanding=false;
   }
+  if(band==='ground'&&f.band==='ground'&&f.groundKind==='was')f.groundWasForcedLanding=false;
   if(kind!==groundMoveKind(f))groundRepathForMoveKind(f);
 }
 function groundSetBand(list,band){
@@ -1076,6 +1084,7 @@ function groundStep(dt){
     if(f.groundKind==='mechanicalAssault'){
       groundMechanicalWear(f,dt); if(!f.alive)continue;
     }
+    if(f.groundKind==='was')groundWasAutoLand(f);
     if(f.bandTo)groundStepBand(f,dt);
     if(f.groundKind==='was'){const rules=groundRuleSet();f.speed=groundWasCruising(f)?rules.wasFlight.speed.cruise:groundWasFlying(f)?rules.wasFlight.speed.low:rules.unitTypes.was.speed;}
     if(!groundFlyingAircraft(f)||groundTrainingEnemy(f)||groundStaticTarget(f))f.pos.y=groundUnitHeight(f);

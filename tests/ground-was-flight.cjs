@@ -93,6 +93,42 @@ async function checkWasFlight(page,check){
     was.pos.copy(at);groundHud();toggle.click();
     was.pos.copy(sea);settle();
     record('水面への着陸拒否と降下中に地表を外れたときの巡航復帰',waterNoLand&&was.band==='cruise'&&!was.bandTo&&!was.groundWasLanding);
+
+    was.groundSupply=0;
+    groundStep(.05);
+    const waitsOverWater=!groundLandable(was)&&was.band==='cruise'&&!was.bandTo;
+    was.pos.copy(at);
+    groundStep(.05);
+    const autoLanding=was.bandTo==='ground'&&was.groundWasLanding;
+    groundStep(was.bandLeft);groundHud();
+    record('巡航中に補給が切れると、水上では巡航を続け、地表で自動着陸して歩行になる',waitsOverWater&&autoLanding&&was.band==='ground'&&!was.bandTo&&label()==='飛行'&&alt.hidden&&groundCanCapture(was));
+
+    const disabled=toggle.disabled;
+    toggle.click();
+    const playerBlocked=was.band==='ground'&&!was.bandTo;
+    const hq=groundSites.find(s=>s.id==='B');
+    const npcDestination=groundSites.find(s=>groundLandable(was,s.pos)&&groundDistanceTo(was,s)>=groundRuleSet().wasFlight.npcMinKm*GROUND_SCALE);
+    npcGroundMove(was,npcDestination.pos);
+    record('補給0ではプレイヤーも NPC も離陸できない',disabled&&playerBlocked&&was.band==='ground'&&!was.bandTo&&!was.groundWasNpcCruise);
+    groundClearOrders(was);
+    op={...op,groundHQ:{0:'B',1:'F'}};
+    was.pos.copy(hq.pos);was.groundSupplyWait=groundSupplyRules().refillWait;
+    groundStep(.05);groundHud();
+    const refilled=was.groundSupply>0&&!toggle.disabled;
+    toggle.click();
+    record('本営で補給が入ると再び離陸できる',refilled&&was.bandTo==='cruise');
+    settle();
+
+    band('low').click();settle();
+    was.groundSupply=.001;was.groundSupplyWait=groundSupplyRules().refillWait;
+    groundStep(.05);
+    const startsInLow=was.band==='low'&&was.bandTo==='cruise'&&was.groundSupply>0;
+    groundStep(was.bandLeft);
+    const viaCruise=was.band==='cruise'&&was.bandTo==='ground';
+    groundStep(was.bandLeft);
+    record('低高度で停止中に使い切ると、同じステップで補給されても巡航を経て着陸する',startsInLow&&viaCruise&&was.band==='ground'&&!was.bandTo);
+    groundHud();toggle.click();groundStep(was.bandLeft);groundStep(.05);
+    record('補給済みで着陸したあとは再離陸しても自動着陸しない',was.band==='cruise'&&!was.bandTo);
     return rows;
   });
   for(const {name,ok,detail} of rows)check(ok,'W.A.S. 飛行: '+name,detail);
