@@ -25,7 +25,30 @@ function groundDroneSlotAlive(scout,slot){
 }
 function groundDroneStock(scout){
   const rules=groundDroneRules(),slots=groundDroneSlots(scout).filter(slot=>groundDroneSlotAlive(scout,slot));
-  return {max:slots.length,ready:slots.filter(slot=>!slot.drone&&slot.stock===rules.airframes&&gameSec>=slot.ready)};
+  return {slots,max:slots.length,ready:slots.filter(slot=>!slot.drone&&slot.stock===rules.airframes&&gameSec>=slot.ready)};
+}
+function groundDroneMissing(slot){
+  return groundDroneRules().airframes-slot.stock-(slot.drone?groundAliveBodies(slot.drone):0);
+}
+function groundDroneCanRefill(scout){
+  return groundSupplyActive()&&scout.groundSupply>=groundSupplyUnitMax(scout)*groundDroneRules().replenishSupply;
+}
+function groundDroneStockText(scout){
+  const {slots,ready,max}=groundDroneStock(scout),r=groundDroneRules();
+  const stock='ドローン '+ready.length+'/'+max;
+  const canRefill=groundDroneCanRefill(scout),progress=scout.groundDroneRefill||0;
+  let next=Infinity,short=false,queued=0;
+  for(const slot of slots){
+    const missing=groundDroneMissing(slot);
+    // 補充は小隊の順に一機ずつ。飛行中の枠に入る補充も後続の待ち時間に含める。
+    queued+=missing;
+    if(slot.drone||ready.includes(slot))continue;
+    if(missing&&!canRefill){short=true;continue;}
+    const refill=missing?queued*r.replenishSec-progress:0;
+    next=Math.min(next,Math.max(slot.ready-gameSec,refill));
+  }
+  // 飛行中の枠は着地時刻が未定なので、表示は地上で待つ枠から選ぶ。
+  return stock+(Number.isFinite(next)?'\n次 '+Math.ceil(next)+'秒':short?'\n補給不足':'');
 }
 function groundDroneControllerReady(scout){
   return scout?.groundKind==='scout'&&scout.alive&&!scout.embarked&&!scout.locked&&
@@ -41,7 +64,7 @@ function groundDroneLaunch(scout,npc=false){
   if(!groundPass(groundMapX(p.x),groundMapY(p.z),'air'))p.copy(scout.pos);
   const f=makeFleet(scout.team,{groundKind:'drone',name:r.name,pos:[p.x,p.z],n:1,scale:GROUND_MODELS.drone.size,band:'low',
     groundPlatoons:1,stance:'evade',side:scout.side});
-  f.groundDrone={scout,slot,npc,expires:gameSec+r.batterySec,mission:null,dive:null};
+  f.groundDrone={scout,slot,npc,expires:gameSec+r.batterySec,mission:null,dive:null,damaged:false};
   f.heading.copy(scout.heading);
   slot.stock=0;slot.drone=f;fleets.push(f);groundInitUnit(f);
   groundDroneStats[f.team].launched++;
@@ -66,6 +89,7 @@ function groundDroneRemove(f,landed=false){
 }
 function groundDroneLose(f,body,shotDown){
   if(!body?.alive)return;
+  if(shotDown)f.groundDrone.damaged=true;
   groundBodyHit(f,body,body.hp,shotDown);
   if(shotDown)groundDroneStats[f.team].shotDown++;
   if(!groundAliveBodies(f))groundDroneRemove(f);
@@ -77,9 +101,8 @@ function groundDroneReceiveShot(f,src,body,weapon){
 function groundDroneReplenish(scout,dt){
   if(!scout.groundDroneSlots)return;
   const r=groundDroneRules();
-  const slot=scout.groundDroneSlots.find(s=>s.stock+(s.drone?groundAliveBodies(s.drone):0)<r.airframes&&groundDroneSlotAlive(scout,s));
-  const enough=groundSupplyActive()&&scout.groundSupply>=groundSupplyUnitMax(scout)*r.replenishSupply;
-  if(!slot||!enough){scout.groundDroneRefill=0;return;}
+  const slot=scout.groundDroneSlots.find(s=>groundDroneMissing(s)>0&&groundDroneSlotAlive(scout,s));
+  if(!slot||!groundDroneCanRefill(scout)){scout.groundDroneRefill=0;return;}
   scout.groundDroneRefill=(scout.groundDroneRefill||0)+dt;
   if(scout.groundDroneRefill+1e-8<r.replenishSec)return;
   scout.groundDroneRefill=0;slot.stock++;
@@ -181,7 +204,14 @@ function groundDroneStep(dt){
     if(!groundDroneSlotAlive(scout,d.slot)||scout.embarked){groundDroneRemove(f);continue;}
     const speed=r.speedKmPerSecond*GROUND_SCALE,travel=speed*dt;
     const distance=groundDistanceTo(f,scout),left=d.expires-gameSec;
-    if(d.mission?.type!=='recall'&&left<=distance/speed+2*dt)groundDroneRecall(f);
+    const diving=d.mission?.type==='dive'&&groundDroneTarget(f,d.mission.target,false);
+    const targetDist=diving?groundDistanceTo(f,d.mission.target):Infinity;
+    // 自爆の終盤（6km以内・中間点以降・降下中）は被弾・命中後も突入を続け、序盤で撃たれたときは残機を回収する。
+    const committed=d.npc&&diving&&(!!d.dive||targetDist<=6*GROUND_SCALE||targetDist<=distance);
+    const reserve=d.npc&&!committed?10:0;
+    const finishDive=committed&&left>targetDist/speed+r.heightKm/r.speedKmPerSecond+2*dt;
+    if(d.mission?.type!=='recall'&&(!finishDive&&left<=distance/speed+2*dt+reserve||
+      d.npc&&d.damaged&&!committed))groundDroneRecall(f);
     if(d.mission?.type==='recall'){
       if(groundDroneMove(f,scout.pos,travel))groundDroneRemove(f,true);
       else if(left<=0)groundDroneRemove(f);
@@ -197,21 +227,136 @@ function groundDroneCleanup(){
     if(!f.alive)fleets.splice(i,1);
   }
 }
-function groundDroneNpc(scout){
-  if(!groundDroneControllerReady(scout)||scout.stance==='evade'||npcAutoPlayerUnit(scout))return;
-  const r=groundDroneRules(),slots=groundDroneSlots(scout);
-  const visible=fleets.filter(t=>groundDroneTarget(scout,t));
-  const nearest=(list)=>list.reduce((a,b)=>!a||groundDistanceTo(scout,b)<groundDistanceTo(scout,a)?b:a,null);
-  const target=nearest(visible.filter(t=>r.npcTargets.includes(t.groundKind)&&groundDistanceTo(scout,t)<=r.rangeKm*GROUND_SCALE));
-  const sight=target||nearest(visible);
-  if(!sight)return;
-  const launched=groundDroneLaunch(scout,true);
-  for(const slot of slots){
-    const f=slot.drone,m=f?.groundDrone.mission;
-    if(!f?.groundDrone.npc||m?.type==='recall'||m?.type==='dive')continue;
-    if(target&&f!==launched){groundDroneDive(f,target);continue;}
-    if(!m||m.point.distanceToSquared(sight.pos)>(r.orbitKm*GROUND_SCALE)**2)groundDroneOrbit(f,sight.pos);
+function groundDroneNpcThreatRange(f){
+  if(f.groundKind==='sea')return 0;
+  const ranges=groundFireRanges(f);
+  const air=['fighter','attack'].includes(f.groundKind)?ranges.air||0:0;
+  const direct=!air&&groundFireFactor(f,{groundKind:'drone',band:'low'},false)>0?ranges.direct||0:0;
+  return Math.max(groundAARange(f),air,direct);
+}
+function groundDroneNpcUnitDefense(f,at,isTarget){
+  if(f.groundKind==='sea'||f.groundRout||f.groundMorale===0)return 0;
+  const bodies=groundAliveBodies(f),ranges=groundFireRanges(f);
+  const aaRange=groundAARange(f),directRange=f.stance==='evade'||groundFireFactor(f,{groundKind:'drone',band:'low'},false)<=0?0:ranges.direct||0;
+  const dist=isTarget?0:groundDistanceTo(f,{pos:at});
+  const engaged=!!(f.fireTarget?.alive&&!f.fireTarget.groundDrone);
+  const hover=isTarget?.5:0;
+  // 交戦中の隊も飛行中に手が空くことがあるため、目標本体の直射は一部を見込む。
+  const directScale=engaged?(isTarget?.35:0):1;
+  const directKm=directRange>dist?((directRange-dist)/GROUND_SCALE+hover)*directScale:0;
+  const aaKm=aaRange>dist?(aaRange-dist)/GROUND_SCALE+hover:0;
+  const aaWeight=f.groundKind==='mobileAA'||(f.weapons??groundRuleSet().unitTypes[f.groundKind]?.weapons)?.some(w=>w.air)?4:1;
+  return bodies*(directKm+aaKm*aaWeight);
+}
+function groundDroneNpcDefense(t,enemies=[]){
+  let score=groundDroneNpcUnitDefense(t,t.pos,true);
+  for(const e of enemies)if(e!==t)score+=groundDroneNpcUnitDefense(e,t.pos,false);
+  return score;
+}
+function groundDroneNpcSegmentClear(a,b,hazards){
+  const dx=b.x-a.x,dz=b.z-a.z,len2=dx*dx+dz*dz;
+  for(const h of hazards){
+    if(h.f.pos===b)continue;
+    const u=len2>1e-8?Math.max(0,Math.min(1,((h.f.pos.x-a.x)*dx+(h.f.pos.z-a.z)*dz)/len2)):0;
+    if(Math.hypot(a.x+dx*u-h.f.pos.x,a.z+dz*u-h.f.pos.z)<=h.range)return false;
   }
+  return true;
+}
+function groundDroneNpcContacts(scout){
+  const r=groundDroneRules(),visible=fleets.filter(t=>groundDroneTarget(scout,t));
+  const aa=[],fire=[];
+  for(const f of fleets){
+    if(f.team===scout.team||!f.alive||f.embarked||groundAbsent(f)||!groundSeenBy(scout.team,f))continue;
+    const hardAA=f.groundKind==='mobileAA'||f.groundKind==='heavyInfantry'||f.groundKind==='fighter'||
+      (f.weapons??groundRuleSet().unitTypes[f.groundKind]?.weapons)?.some(w=>w.air);
+    if(hardAA){
+      const range=groundAARange(f)||groundFireRanges(f).air;
+      if(range>0)aa.push({f,range});
+    }
+    const threat=f.stance==='evade'?groundAARange(f):groundDroneNpcThreatRange(f);
+    if(threat>0&&f.groundKind!=='sea'&&!f.groundRout&&f.groundMorale!==0)fire.push({f,range:threat});
+  }
+  const safe=(pos,margin=0)=>aa.every(a=>groundDistanceTo({pos},a.f)>a.range+margin);
+  const orbitSafe=(pos,margin=0)=>safe(pos,margin)&&fire.every(e=>groundDistanceTo({pos},e.f)>e.range+margin+.15*GROUND_SCALE);
+  visible.sort((a,b)=>groundDistanceTo(scout,a)-groundDistanceTo(scout,b));
+  const targets=visible.filter(t=>r.npcTargets.includes(t.groundKind)&&safe(t.pos));
+  targets.sort((a,b)=>{
+    const clearA=groundDroneNpcSegmentClear(scout.pos,a.pos,aa)?(groundDroneNpcSegmentClear(scout.pos,a.pos,fire)?0:1):2;
+    const clearB=groundDroneNpcSegmentClear(scout.pos,b.pos,aa)?(groundDroneNpcSegmentClear(scout.pos,b.pos,fire)?0:1):2;
+    if(clearA!==clearB)return clearA-clearB;
+    const defA=groundDroneNpcDefense(a,visible),defB=groundDroneNpcDefense(b,visible);
+    if(defA!==defB)return defA-defB;
+    return groundDistanceTo(scout,a)-groundDistanceTo(scout,b);
+  });
+  return {visible,targets,safe,orbitSafe,aa,fire};
+}
+function groundDroneNpcOrbitPoint(scout,contacts,point){
+  const r=groundDroneRules(),range=r.rangeKm*GROUND_SCALE,orbitR=r.orbitKm*GROUND_SCALE,sightR=r.sightKm*GROUND_SCALE;
+  const inRange=pos=>groundDistanceTo(scout,{pos})<=range;
+  const ok=pos=>inRange(pos)&&contacts.orbitSafe(pos,orbitR);
+  const standoff=(targetPos,fireRange)=>{
+    const need=fireRange+orbitR+.2*GROUND_SCALE;
+    if(need+orbitR>sightR)return null;
+    const dist=groundDistanceTo(scout,{pos:targetPos});
+    if(dist<=1e-8)return null;
+    const p=targetPos.clone().lerp(scout.pos,Math.min(1,need/dist));
+    return ok(p)&&groundDroneOnBoard(p)?p:null;
+  };
+  for(const t of contacts.visible){
+    const fireRange=t.groundRout||t.groundMorale===0?0:t.stance==='evade'?groundAARange(t):groundDroneNpcThreatRange(t);
+    const p=fireRange>0?standoff(t.pos,fireRange):(ok(t.pos)?t.pos:null);
+    if(p)return p;
+  }
+  if(point&&ok(point))return point;
+  if(point){
+    const p=standoff(point,0);
+    if(p)return p;
+  }
+  return null;
+}
+function groundDroneNpc(scout,contacts,point=null){
+  if(!groundDroneControllerReady(scout)||scout.stance==='evade'||npcAutoPlayerUnit(scout))return;
+  const r=groundDroneRules(),slots=groundDroneSlots(scout),range=r.rangeKm*GROUND_SCALE;
+  const info=contacts??groundDroneNpcContacts(scout),{visible,targets,safe}=info;
+  const inRange=pos=>groundDistanceTo(scout,{pos})<=range;
+  const stock=groundDroneStock(scout),maxFrames=stock.max*r.airframes;
+  // 想定撃墜数が手持ち全機を上回る非交戦の密集戦車などには突入せず、交戦中や孤立した目標を待つ。
+  const viable=t=>inRange(t.pos)&&groundDroneNpcDefense(t,visible)*r.otherHit<=Math.max(r.airframes,maxFrames*.55);
+  const target=targets.find(viable);
+  const sight=groundDroneNpcOrbitPoint(scout,info,point);
+  let flying=false;
+  const activeDives=[];
+  for(const slot of slots){
+    const f=slot.drone,d=f?.groundDrone,m=d?.mission;
+    if(!d?.npc||m?.type==='recall')continue;
+    flying=true;
+    if(m?.type==='dive'&&groundDroneTarget(f,m.target,false)&&inRange(m.target.pos)&&safe(m.target.pos)){
+      activeDives.push(f);continue;
+    }
+    if(target){groundDroneDive(f,target);activeDives.push(f);continue;}
+    if(!sight){groundDroneRecall(f);continue;}
+    if(m?.type!=='orbit'||!info.orbitSafe(m.point,r.orbitKm*GROUND_SCALE)||!inRange(m.point)||
+      groundDistanceTo({pos:m.point},{pos:sight})>r.orbitKm*GROUND_SCALE)groundDroneOrbit(f,sight);
+  }
+  // 偵察は一枠ずつ。自爆は相手の対空・直射火力に応じて複数枠を同時に突入させる。
+  if(scout.order)return;
+  if(target){
+    const defense=groundDroneNpcDefense(target,visible),expectedKills=defense*r.otherHit;
+    const need=expectedKills<=0?1:Math.max(1,Math.min(stock.max,Math.ceil((expectedKills+r.airframes+.1)/r.airframes)));
+    const ready=stock.ready.length;
+    const attacking=activeDives.filter(f=>f.groundDrone.mission?.target===target).length;
+    if(need>1&&attacking+ready<need)return;
+    const launchCount=attacking?Math.max(0,need-attacking):need;
+    for(let i=0;i<launchCount;i++){
+      const f=groundDroneLaunch(scout,true);
+      if(!f)break;
+      groundDroneDive(f,target);
+    }
+    return;
+  }
+  if(!sight||flying)return;
+  const f=groundDroneLaunch(scout,true);
+  if(f)groundDroneOrbit(f,sight);
 }
 function groundDroneDraw(f,picked){
   const d=f.groundDrone,model=f.groundModel;

@@ -486,7 +486,7 @@ function updateRoster(){
     if(op.ground){
       groundSupplyUpdateTile(f);
       const stock=f.btn.querySelector('.ground-drone-stock');
-      if(stock){const {ready,max}=groundDroneStock(f);stock.textContent='ドローン '+ready.length+'/'+max;}
+      if(stock){const label=groundDroneStockText(f);if(stock.textContent!==label)stock.textContent=label;}
     }else f.btn.querySelector('.bar i').style.width=(100*hull)+'%';
     f.btn.disabled=!f.alive; f.btn.setAttribute('aria-pressed',String(t.includes(f)));
     if(f.stBtn){ const permit=!!op.ground&&groundPermissionOnly(f);f.stBtn.dataset.st=f.stance; f.stBtn.setAttribute('aria-label',permit?'許可制':f.stance==='evade'?'命令優先':'自動交戦'); f.stBtn.title=permit?'許可制：攻撃を命じた目標だけを撃つ':'この艦隊の自動交戦/命令優先を切り替える';f.stBtn.disabled=!f.alive||permit||!!op.ground&&!groundCommandAllowed(f,'stance'); }

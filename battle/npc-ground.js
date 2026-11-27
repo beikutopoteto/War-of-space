@@ -238,6 +238,50 @@ function npcGroundEscortPoint(f,sit,k,z,from){
   }
   return npcGroundPassPoint(f,main.x,main.z); // 背後が通れなければ主力のそばの通行可能点へ
 }
+function npcGroundScoutAim(f,k,z,contacts){
+  const near=t=>groundDistanceTo(f,t)<=2*groundDroneRules().rangeKm*GROUND_SCALE; // 仮: 発進半径の2倍までの接触を優先
+  const target=contacts.targets.find(near)||contacts.visible.find(near);
+  if(target)return target.pos;
+  if(z&&(k.type==='recon'||k.type==='fix'||k.type==='cut'||k.type==='seize'&&k.stage!=='assemble'))return groundPoint(z.x,z.z);
+  return null;
+}
+function npcGroundScoutPost(f,aim,from){
+  const r=groundDroneRules(),range=r.rangeKm*GROUND_SCALE,kind=groundMoveKind(f);
+  const reaches=pos=>groundDistanceTo({pos},{pos:aim})<=range;
+  const point=(x,z)=>new THREE.Vector3(x,f.pos.y,z);
+  const route=pos=>{
+    if(!pos||!reaches(pos)||!groundPass(groundMapX(pos.x),groundMapY(pos.z),kind))return null;
+    if(groundDistanceTo(f,{pos})<.001)return {pos,path:null};
+    const path=groundMovePath(f.pos,[pos],kind);
+    return path?{pos,path}:null;
+  };
+  const nearest=positions=>{
+    positions.sort((a,b)=>groundDistanceTo(f,{pos:a})-groundDistanceTo(f,{pos:b}));
+    for(const pos of positions){const post=route(pos);if(post)return post;}
+    return null;
+  };
+  if(reaches(f.pos)&&groundInForest(f.pos.x,f.pos.z))return {pos:f.pos.clone(),path:null};
+  const forest=nearest(groundForests.filter(tree=>Math.hypot(tree.x-aim.x,tree.z-aim.z)<=range).map(tree=>point(tree.x,tree.z)));
+  if(forest)return forest;
+
+  const towns=groundTownZones();
+  if(reaches(f.pos)&&towns.some(t=>groundInsideTown(f.pos,t))&&!groundBuildings.some(b=>groundInsideBuilding(f.pos,b)))return {pos:f.pos.clone(),path:null};
+  const positions=[],gap=.05*GROUND_SCALE; // 仮: 建物の外壁から50m
+  for(const b of groundBuildings){
+    if(b.settlement==null)continue;
+    for(const pos of [point(b.minX-gap,b.z),point(b.maxX+gap,b.z),point(b.x,b.minZ-gap),point(b.x,b.maxZ+gap)]){
+      if(reaches(pos)&&towns.some(t=>t.settlement===b.settlement&&groundInsideTown(pos,t))&&
+        !groundBuildings.some(box=>groundInsideBuilding(pos,box)))positions.push(pos);
+    }
+  }
+  const town=nearest(positions);
+  if(town)return town;
+
+  const rear=from||f.pos,distance=groundDistanceTo({pos:rear},{pos:aim});
+  const back=Math.min(groundSightRange(f)*.8,range-r.orbitKm*GROUND_SCALE);
+  const p=distance?point(aim.x,aim.z).lerp(rear,Math.min(1,back/distance)):point(aim.x,aim.z);
+  return route(npcGroundPassPoint(f,groundMapX(p.x),groundMapY(p.z),(x,y)=>reaches(groundPoint(x,y))));
+}
 function npcGroundDestination(c,sit,k,x,index,count){
   const z=sit.zones.find(z=>z.id===k.zone),from=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own')||z;
   const f=fleets.find(f=>f.id===x.id),u=sit.units.find(u=>u.id===x.id);if(!z||!f||!u)return null;
@@ -417,11 +461,11 @@ function npcGroundHoldStep(){
     }
   }
 }
-function npcGroundMove(f,dest){
+function npcGroundMove(f,dest,groundPreparedPath){
   if(f.groundKind==='was'&&f.band==='ground'&&!f.bandTo&&groundDistanceTo(f,{pos:dest})>=groundRuleSet().wasFlight.npcMinKm*GROUND_SCALE&&groundLandable(f,dest)){
     f.groundWasNpcCruise=groundWasToggle(f);
   }
-  order(f,{type:'move',dest});
+  order(f,{type:'move',dest,groundPreparedPath});
 }
 function npcGroundSync(c,plan){
   for(const f of npcGroundState.synced)if(f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id))){f.syncSpeed=null;npcGroundState.synced.delete(f);}
@@ -439,11 +483,33 @@ function npcGroundApply(c,sit,plan){
   for(const [id] of npcGroundState.holds)if(fleets.find(f=>f.id===id)?.team===c.team&&(!c.unitIds||c.unitIds.has(id)))npcGroundState.holds.delete(id);
   const lift=npcGroundLiftActive()?npcGroundLiftOrders(c,sit,plan):new Set();
   const road=npcGroundRoadOrders(c,sit,plan);
+  const scouts=new Map();
   for(const k of plan.tasks){
     for(let i=0;i<k.units.length;i++){
       const x=k.units[i],f=fleets.find(f=>f.id===x.id);if(!f||lift.has(f.id)||!sit.units.some(u=>u.id===f.id)||npcAutoPlayerUnit(f)||f.groundKind==='sea'||!npcGroundFree(f))continue;
       const z=sit.zones.find(z=>z.id===k.zone),special=road.has(f.id)||k.type==='refit';
       if(k.type!=='refit')npcGroundState.refit?.delete(f.id);
+      if(f.groundKind==='scout'&&typeof groundDroneNpc==='function'&&!['refit','retire'].includes(k.type)){
+        const contacts=groundDroneNpcContacts(f),aim=npcGroundScoutAim(f,k,z,contacts);
+        scouts.set(f,{contacts,aim});
+        if(f.groundDroneSlots?.some(s=>s.drone?.groundDrone.npc))continue; // 回収まで母隊は停止
+        if(aim&&!special){
+          const post=f.npcGroundScoutPost;
+          const current=f.order?.dest??(!f.order?f.pos:null);
+          if(post&&current&&groundDistanceTo({pos:post},{pos:aim})<=groundDroneRules().rangeKm*GROUND_SCALE&&
+            groundDistanceTo({pos:current},{pos:post})<.001)continue;
+          const from=sit.zones.find(z=>z.id===k.from)||sit.zones.find(z=>z.base==='own');
+          const next=npcGroundScoutPost(f,aim,from&&groundPoint(from.x,from.z));
+          if(next){
+            if(next.path)npcGroundMove(f,next.pos,next.path);
+            else if(f.order)groundClearOrders(f);
+            f.npcGroundScoutPost=next.pos;
+            npcGroundState.last.delete(f.id);
+            continue;
+          }
+        }
+        f.npcGroundScoutPost=null;
+      }
       const dest=road.get(f.id)||(k.type==='refit'?(z&&npcGroundRefitPoint(f,z)):npcGroundDestination(c,sit,k,x,i,k.units.length));if(!dest)continue;
       const mode=k.key+':'+k.stage+(x.as==='escort'?':escort':''),changed=npcGroundState.modes.get(f.id)!==mode,precision=(special||x.as==='escort'||k.type==='hold'||k.type==='seize'&&k.stage==='assault') ? .001 : 1;
       const last=npcGroundState.last.get(f.id),distance=p=>Math.hypot(p.x-dest.x,p.z-dest.z)/GROUND_SCALE;
@@ -470,6 +536,7 @@ function npcGroundApply(c,sit,plan){
     }
     npcGroundSupportFire(c,k,sit.zones.find(z=>z.id===k.zone));
   }
+  for(const [f,{contacts,aim}] of scouts)groundDroneNpc(f,contacts,aim);
 }
 function npcGroundStep(){
   if(!op.ground||op.groundDrill||!op.npc)return;
@@ -486,7 +553,6 @@ function npcGroundStep(){
   for(const c of npcGroundState.commanders.values()){
     if(gameSec+1e-8<c.nextThink)continue;c.nextThink=gameSec+c.L.think;
     for(const f of fleets)if(f.team===c.team&&!npcAutoPlayerUnit(f)&&(!c.unitIds||c.unitIds.has(f.id)))f.stance='engage';
-    if(typeof groundDroneNpc==='function')for(const f of [...fleets])if(f.groundKind==='scout'&&f.team===c.team&&(!c.unitIds||c.unitIds.has(f.id)))groundDroneNpc(f);
     const sit=npcGroundSituation(c),start=performance.now(),plan=npcThink(c,sit),ms=performance.now()-start,m=npcGroundState.timings;
     m.count++;m.total+=ms;m.max=Math.max(m.max,ms);npcAllyCommunicate(npcGroundState,c,sit,plan);npcIssuing=true;try{npcGroundApply(c,sit,plan);}finally{npcIssuing=false;}
   }
