@@ -90,7 +90,7 @@ function groundLandStep(ship,dt){
 }
 function groundBoardable(f){return !!f&&f.alive&&!f.embarked&&!f.locked&&groundCommandAllowed(f,'board')&&f.band==='ground'&&['infantry','heavyInfantry','commando'].includes(f.groundKind);}
 function groundTransportLabel(f){const passengers=groundPassengers(f);return f.name+(passengers.length?' / 搭載：'+passengers.map(p=>p.name).join('・'):'')+(groundPermissionOnly(f)?' / 許可制':'')+(f.groundRout||f.groundAirState||f.groundGiving||f.groundSupplyTrip||f.groundSupplyGiving?' / '+groundSupplyStatus(f):'');}
-function groundClearOrders(f){if(f.groundDrone)f.groundDrone.mission=f.groundDrone.dive=null;if(f.groundFrontOf)groundFrontRememberVia(f);groundBombCancel(f);groundVolleyCancel(f);f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;f.groundSupplyTrip=null;}
+function groundClearOrders(f){if(f.groundDrone)f.groundDrone.mission=null;if(f.groundFrontOf)groundFrontRememberVia(f);groundBombCancel(f);groundVolleyCancel(f);f.groundAreaSalvo=null;dropArrow(f.arrow);f.arrow=null;f.order=null;f.queue=[];f.fireTarget=null;f.strike=null;f.groundGiving=null;f.groundSupplyTrip=null;}
 function groundCancelWork(f){
   groundBombCancel(f);
   groundVolleyCancel(f);

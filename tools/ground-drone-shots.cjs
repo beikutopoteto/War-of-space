@@ -1,4 +1,4 @@
-/* node tools/ground-drone-shots.cjs — #511 の実画面を 1600×900 で .shots/ に保存。 */
+/* node tools/ground-drone-shots.cjs [--dive-only] — 実画面を 1600×900 で .shots/ に保存。 */
 const fs=require('node:fs');
 const path=require('node:path');
 const assert=require('node:assert/strict');
@@ -6,6 +6,7 @@ const {openGame,ROOT}=require('./browser.cjs');
 
 async function main(){
   const out=path.join(ROOT,'.shots');
+  const diveOnly=process.argv.includes('--dive-only');
   fs.mkdirSync(out,{recursive:true});
   const {browser,page,errors}=await openGame({width:1600,height:900},{gpu:process.platform==='darwin'});
   try{
@@ -36,6 +37,7 @@ async function main(){
     });
     const frames=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
     const shot=async name=>{
+      if(diveOnly&&name!=='06-dive')return;
       await frames();assert.deepEqual(errors,[],'ページ例外');
       await page.screenshot({path:path.join(out,`ground-drone-${name}.png`),timeout:120000});
       assert.deepEqual(errors,[],'ページ例外');
@@ -102,14 +104,21 @@ async function main(){
     await page.evaluate(()=>{
       const {drone,tank}=droneShot;
       if(drone.groundDrone.mission?.target!==tank)throw Error('自爆命令が発行されていない');
-      while(!drone.groundDrone.dive&&groundDroneStats[0].hits===0&&gameSec<10)droneShotTick(.05);
-      if(!drone.groundDrone.dive)throw Error('飛び込みが始まっていない');
-      droneShotTick(.12);
-      droneShotCamera(tank.pos.clone().lerp(drone.pos,.5),[2.8,1.7,2.3]);
+      const frames=drone.groundDrone.mission.frames;
+      const fromTarget=()=>groundDistanceTo(drone,tank)/GROUND_SCALE;
+      for(let i=0;i<600&&fromTarget()>.28;i++){gameSec+=.01;groundDroneStep(.01);}
+      if(fromTarget()>.28||frames.some((frame,i)=>!frame.body.alive||frame.pitch<=0||i>0&&frame.pos.y<=frames[i-1].pos.y)){
+        throw Error('高度の異なる3機が突入している場面を撮影できない');
+      }
+      const tail=frames[2].pos,dir=tank.pos.clone().sub(tail);
+      dir.y=0;dir.normalize();
+      groundUpdateSight();
+      droneShotCamera(tank.pos.clone().lerp(tail,.5),[-dir.z*4.5-dir.x*.3,1.25,dir.x*4.5-dir.z*.3]);
     });
     await shot('06-dive');
     await page.evaluate(()=>droneShotTick(3));
     assert.equal(await page.evaluate(()=>groundDroneStats[0].hits),3);
+    if(diveOnly)return;
     await scoutButton.click();
     await page.mouse.move(1100,500);
     await btn('Launch').click();
