@@ -110,8 +110,10 @@ window.WOS_GROUND_RULES = {
     // #511。時刻はゲーム秒。機体数と射程・電池はユーザー決定、ほかの性能は仮。
     drone: {
       name:'ドローン',airframes:3,rangeKm:15,researchRangeKm:50,batterySec:60,
-      speedKmPerSecond:1,heightKm:.25,sightKm:2,orbitKm:.5,diveInterval:1,chargeSec:30,
-      replenishSec:30,replenishSupply:.5,aaHit:.5,otherHit:.125, // 1.2倍硬く（ユーザー決定 2026-11-27）
+      speedKmPerSecond:1,heightKm:.25,sightKm:2,orbitKm:.5,chargeSec:30,
+      diveInterval:.25,otherHit:.1, // ユーザー決定 2026-11-27
+      diveHeightKm:.05,diveOffsetKm:.025,seaAAKm:3, // 仮。落下を始める高さと手前の距離、艦の近接対空。
+      replenishSec:30,replenishSupply:.5,aaHit:.5,
       weapon:{power:5,pen:800,soft:.5,morale:1,top:true},
       npcTargets:['vehicle','artillery','guidedRocket','mobileAA'],
       launchOffsetKm:[.35,.45] // 仮。承認済みの見本と同じ斥候からの前後・左右の間隔。

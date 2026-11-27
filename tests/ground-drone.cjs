@@ -86,11 +86,32 @@ function droneCases(){
     check('任意の直接damageで自爆の許可を偽装できない', (damage(tank,10,third), tank.hpPool===tankBefore));
     // 制限時間の近い旋回機とは別の、充電を終えた駒で追尾と3回の命中を測る。
     const attacker=groundDroneLaunch(scout);setPoint(attacker,14,18);
+    const origin=attacker.pos.clone();
     check('見えている戦車に自爆指示',groundDroneDive(attacker,tank));
     setPoint(tank,16,18);
+    const turn=tank.pos.clone().add(new THREE.Vector3(-.025,.05,0).multiplyScalar(GROUND_SCALE));
+    const frames=attacker.groundDrone.mission.frames;
     const beforeHits=groundDroneStats[0].hits;
-    tick(3.5);check('移動した同じ戦車へ順に2機、1機残る',groundDroneStats[0].hits-beforeHits===2&&groundAliveBodies(attacker)===1);
-    tick(1);check('残り1機も同じ戦車に当たり駒が消える',groundDroneStats[0].hits-beforeHits===3&&!attacker.alive&&tank.hpPool<tankBefore);
+    tick(.05);const firstPoint=frames[0].pos.clone();
+    const onlyFirst=firstPoint.x>origin.x&&frames[1].pos.equals(origin)&&frames[2].pos.equals(origin);
+    tick(.20);const secondWaiting=frames[1].pos.distanceTo(origin)<1e-6;
+    tick(.05);const secondFollowing=frames[1].pos.distanceTo(firstPoint)<1e-6&&frames[2].pos.equals(origin);
+    tick(.20);const thirdWaiting=frames[2].pos.distanceTo(origin)<1e-6;
+    tick(.05);
+    check('3機が0.25秒おきに出て同じ経路をたどる',
+      onlyFirst&&secondWaiting&&secondFollowing&&thirdWaiting&&frames[2].pos.distanceTo(firstPoint)<1e-6);
+    const alongLine=(p,sec)=>p.distanceTo(origin.clone().lerp(turn,sec*GROUND_SCALE/origin.distanceTo(turn)))<1e-6;
+    groundDraw();
+    const model=attacker.groundModel,bodies=model.userData.formation.bodies;
+    check('高度を下げる直線を通り、視線と模型の高さも下がる',
+      alongLine(firstPoint,.05)&&frames.every((frame,i)=>alongLine(frame.pos,.55-i*.25)&&frame.pos.y<origin.y&&
+        nearby(model.position.y+bodies[i].position.y,frame.pos.y))&&nearby(groundEye(attacker).y,frames[0].pos.y));
+    tick(1.45);
+    check('頭上の点で止まらず同じステップで落下を始める',
+      frames[0].dropping&&frames[0].pos.x>turn.x&&frames[0].pos.y<turn.y&&groundDroneStats[0].hits===beforeHits);
+    tick(.05);check('移動した戦車に1機目が当たり2機残る',groundDroneStats[0].hits-beforeHits===1&&groundAliveBodies(attacker)===2);
+    tick(.25);check('移動した同じ戦車へ順に2機、1機残る',groundDroneStats[0].hits-beforeHits===2&&groundAliveBodies(attacker)===1);
+    tick(.25);check('残り1機も同じ戦車に当たり駒が消える',groundDroneStats[0].hits-beforeHits===3&&!attacker.alive&&tank.hpPool<tankBefore);
     const slot=attacker.groundDrone.slot;
     scout.groundSupply=groundSupplyUnitMax(scout)*.5-.01;tick(30);
     check('補給が半分未満の間は補充されない',slot.stock===0);
@@ -111,6 +132,25 @@ function droneCases(){
       if(f.alive)groundDroneRemove(f);
       groundDroneCleanup();gun.alive=false;f.groundDrone.slot.stock=3;
     }
+    const ship=makeFleet(1,groundUnitSpec({kind:'sea',type:'cl',name:'試験用イージス艦',at:[9,5],stance:'evade'}));
+    fleets.push(ship);groundInitUnit(ship);setPoint(ship,9,5);
+    const seaDrone=groundDroneLaunch(scout);
+    setPoint(seaDrone,12.01,5);groundUpdateSight();
+    Math.random=()=>0;
+    ship.bodies[0].aaT=0;groundAutoAAStep(0);
+    check('海の艦は観測済みでも3 kmより遠いドローンを撃たない',
+      groundSeenBy(1,seaDrone)&&!groundAASolution(ship,seaDrone)&&!ship.groundAATarget&&groundAliveBodies(seaDrone)===3);
+    setPoint(seaDrone,12,5);groundUpdateSight();ship.bodies[0].aaT=0;groundAutoAAStep(0);
+    check('海の艦は3 kmの境界でドローンを撃つ',ship.groundAATarget===seaDrone&&groundAliveBodies(seaDrone)===2);
+    setPoint(seaDrone,12.01,5);groundAutoAAStep(0);
+    check('装填中に3 kmを出たドローンの照準は解除される',!ship.groundAATarget);
+    const seaPlane=spawn('fighter',0,39,5);
+    setPoint(seaPlane,39,5);seaPlane.groundVisible=[true,true];
+    ship.bodies[0].aaT=0;groundAutoAAStep(0);
+    check('海の艦は30 km先の航空機には対空を続ける',ship.groundAATarget===seaPlane&&seaPlane.hpPool<seaPlane.groundMaxHp);
+    ship.alive=seaPlane.alive=false;
+    groundDroneRemove(seaDrone);groundDroneCleanup();seaDrone.groundDrone.slot.stock=3;
+
     const trial=kind=>{
       const shooter=spawn(kind,1,9,18),loss=groundDroneStats[0].shotDown;
       let rng=1;
@@ -142,7 +182,7 @@ function droneCases(){
       groundDroneRemove(f);groundDroneCleanup();f.groundDrone.slot.stock=3;
       return at===3&&below===2;
     };
-    check('1発で1機を失う確率は対空0.5・その他0.125',threshold('mobileAA',.5)&&threshold('infantry',.125));
+    check('1発で1機を失う確率は対空0.5・その他0.1',threshold('mobileAA',.5)&&threshold('infantry',.1));
     const lost=groundDroneLaunch(scout);
     const i=lost.groundDrone.slot.i*groundBodiesPerPlatoon(scout);
     for(const b of scout.bodies.slice(i,i+groundBodiesPerPlatoon(scout)))groundBodyHit(scout,b,b.hp,false);
@@ -229,7 +269,9 @@ function droneNpcCases(){
     const hitsBeforeDive=groundDroneStats[0].hits;
     groundDroneNpc(scout);
     const finisher=groundDroneSlots(scout).find(s=>s.drone)?.drone;
-    setPoint(finisher,11,23);groundDroneLose(finisher,finisher.bodies[0],true);
+    // 飛行経路は自爆指示を出した場所から始まるので、終盤用の位置で指示を出し直す。
+    setPoint(finisher,11,23);groundDroneDive(finisher,safe);
+    groundDroneLose(finisher,finisher.bodies[0],true);
     tick();
     check('突入の終盤で撃たれても帰還せず自爆を続ける',finisher?.groundDrone.mission?.type==='dive');
     for(let i=0;i<140&&finisher.alive;i++)tick();

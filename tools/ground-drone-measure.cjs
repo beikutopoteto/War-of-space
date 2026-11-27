@@ -57,16 +57,25 @@ function traceDrones(){
   groundDroneLose=(f,body,shotDown)=>{
     const frame=flights.get(f)?.frames[f.bodies.indexOf(body)];
     if(frame&&body.alive){
-      const phase=f.groundDrone.mission?.type??'idle';
-      if(shotDown)finish(frame,'shotDown',{phase,diving:f.groundDrone.dive?.body===body,...shooter});
+      const mission=f.groundDrone.mission,phase=mission?.type??'idle';
+      const diving=mission?.frames?.find(a=>a.body===body)?.dropping??(f.groundDrone.dive?.body===body);
+      if(shotDown)finish(frame,'shotDown',{phase,diving,...shooter});
       else if(impact)finish(frame,groundDroneStats[f.team].hits>impact.hits?'hit':'miss',{target:impact.target});
     }
     lose(f,body,shotDown);
   };
-  groundDroneDiveStep=(f,m,travel)=>{
+  groundDroneDiveStep=(f,m,stepSize)=>{
     const flight=flights.get(f),before=f.groundDrone.dive;
+    const dropping=m.frames?.map(frame=>frame.dropping);
     impact={hits:groundDroneStats[f.team].hits,target:targetInfo(m.target)};
-    try{diveStep(f,m,travel);}finally{impact=null;}
+    try{diveStep(f,m,stepSize);}finally{impact=null;}
+    if(dropping){
+      m.frames.forEach((frame,i)=>{
+        if(frame.dropping&&!dropping[i])flight?.frames[f.bodies.indexOf(frame.body)].events.push({at:stamp(),type:'diveStarted',target:targetInfo(m.target)});
+      });
+      return;
+    }
+    // PR #524 までの版は一駒につき一機ずつ着地点で降下を始める。
     const after=f.groundDrone.dive;
     if(before===after)return;
     if(before){

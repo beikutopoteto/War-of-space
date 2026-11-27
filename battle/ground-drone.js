@@ -64,7 +64,7 @@ function groundDroneLaunch(scout,npc=false){
   if(!groundPass(groundMapX(p.x),groundMapY(p.z),'air'))p.copy(scout.pos);
   const f=makeFleet(scout.team,{groundKind:'drone',name:r.name,pos:[p.x,p.z],n:1,scale:GROUND_MODELS.drone.size,band:'low',
     groundPlatoons:1,stance:'evade',side:scout.side});
-  f.groundDrone={scout,slot,npc,expires:gameSec+r.batterySec,mission:null,dive:null,damaged:false};
+  f.groundDrone={scout,slot,npc,expires:gameSec+r.batterySec,mission:null,damaged:false};
   f.heading.copy(scout.heading);
   slot.stock=0;slot.drone=f;fleets.push(f);groundInitUnit(f);
   groundDroneStats[f.team].launched++;
@@ -119,7 +119,11 @@ function groundDroneTarget(f,t,seen=true){
 function groundDroneDive(f,target){
   if(!groundDroneTarget(f,target))return false;
   groundClearOrders(f);
-  f.groundDrone.mission={type:'dive',target,point:target.pos.clone(),next:gameSec};
+  const r=groundDroneRules(),origin=f.pos.clone(),yaw=Math.atan2(f.heading.x,f.heading.z);
+  const frames=f.bodies.filter(body=>body.alive).map((body,i)=>({
+    body,at:gameSec+i*r.diveInterval,pos:origin.clone(),yaw,pitch:0,dropping:false
+  }));
+  f.groundDrone.mission={type:'dive',target,point:target.pos.clone(),origin,frames};
   return true;
 }
 function groundDroneOrbit(f,point){
@@ -151,7 +155,7 @@ function groundDroneMoveOrder(f,o){
   const dest=groundDroneClamp(f.groundDrone.scout,o.dest);
   if(!groundDroneOnBoard(dest))return;
   f.groundDrone.npc=false;
-  f.groundDrone.mission=f.groundDrone.dive=null;
+  f.groundDrone.mission=null;
   dropArrow(f.arrow);f.arrow=null;
   f.order={type:'move',dest,via:o.via||[],path:null};
 }
@@ -172,18 +176,22 @@ function groundDroneOrbitStep(f,m,travel){
   const p=center.clone().add(new THREE.Vector3(Math.cos(angle)*radius,0,Math.sin(angle)*radius));
   if(groundDroneMove(f,p,travel))m.angle=angle+travel/radius;
 }
-function groundDroneDiveStep(f,m,travel){
-  const d=f.groundDrone,r=groundDroneRules(),target=m.target,valid=groundDroneTarget(f,target,false);
-  if(valid)m.point.copy(target.pos);
-  if(!groundDroneMove(f,m.point,travel)||groundDistanceTo(f,{pos:m.point})>1e-8){d.dive=null;return;}
-  if(d.dive&&!d.dive.body.alive)d.dive=null;
-  if(!d.dive&&gameSec>=m.next){
-    d.dive={body:f.bodies.find(b=>b.alive),at:gameSec};
-    m.next=gameSec+r.diveInterval;
-  }
-  if(!d.dive||gameSec-d.dive.at+1e-8<r.heightKm/r.speedKmPerSecond)return;
-  const {body}=d.dive;
-  if(valid){
+// 到着したときは同じステップの残りの移動量を次の区間に渡す。
+function groundDroneDiveMove(frame,scout,waypoint,travel){
+  const goal=groundDroneClamp(scout,waypoint),distance=frame.pos.distanceTo(goal);
+  const next=distance<=travel?goal:frame.pos.clone().lerp(goal,travel/distance);
+  const pos=groundDroneClamp(scout,next);
+  if(!groundDroneOnBoard(pos))return null;
+  pos.y=Math.max(pos.y,groundHeight(pos.x,pos.z));
+  const dx=pos.x-frame.pos.x,dz=pos.z-frame.pos.z,dy=pos.y-frame.pos.y,horizontal=Math.hypot(dx,dz);
+  if(horizontal>1e-8)frame.yaw=Math.atan2(dx,dz);
+  if(horizontal>1e-8||Math.abs(dy)>1e-8)frame.pitch=Math.atan2(-dy,horizontal);
+  frame.pos.copy(pos);
+  return distance<=travel&&pos.distanceToSquared(waypoint)<1e-12?travel-distance:null;
+}
+function groundDroneDiveImpact(f,target,body){
+  const d=f.groundDrone;
+  if(groundDroneTarget(f,target,false)){
     const weapon=groundDirectWeapon(f,target);
     d.impact=target;
     const i=target.bodies?.findIndex(b=>b.alive)??-1;
@@ -192,8 +200,33 @@ function groundDroneDiveStep(f,m,travel){
     groundDroneStats[f.team].hits++;
     groundVisualLoss(target,at);
   }
-  d.dive=null;
   groundDroneLose(f,body,false);
+}
+function groundDroneDiveStep(f,m,dt){
+  const r=groundDroneRules(),scout=f.groundDrone.scout,speed=r.speedKmPerSecond*GROUND_SCALE;
+  if(groundDroneTarget(f,m.target,false))m.point.copy(m.target.pos);
+  const distance=groundDistanceTo({pos:m.origin},{pos:m.point});
+  const turn=m.point.clone().lerp(m.origin,Math.min(.5,r.diveOffsetKm*GROUND_SCALE/distance));
+  turn.y=Math.max(m.point.y,groundHeight(turn.x,turn.z))+r.diveHeightKm*GROUND_SCALE;
+  for(const frame of m.frames){
+    if(!frame.body.alive||gameSec<=frame.at)continue;
+    let travel=Math.min(dt,gameSec-frame.at)*speed;
+    if(!frame.dropping){
+      travel=groundDroneDiveMove(frame,scout,turn,travel);
+      if(travel===null)continue;
+      frame.dropping=true;
+    }
+    if(groundDroneDiveMove(frame,scout,m.point,travel)!==null){
+      f.pos.copy(frame.pos);
+      groundDroneDiveImpact(f,m.target,frame.body);
+    }
+  }
+  // 射撃・視界・命令の代表点は先頭の生き残った機体。
+  const lead=m.frames.find(frame=>frame.body.alive);
+  if(lead){
+    f.pos.copy(lead.pos);
+    f.heading.set(Math.sin(lead.yaw),0,Math.cos(lead.yaw));
+  }
 }
 function groundDroneStep(dt){
   for(const f of fleets){
@@ -204,19 +237,20 @@ function groundDroneStep(dt){
     if(!groundDroneSlotAlive(scout,d.slot)||scout.embarked){groundDroneRemove(f);continue;}
     const speed=r.speedKmPerSecond*GROUND_SCALE,travel=speed*dt;
     const distance=groundDistanceTo(f,scout),left=d.expires-gameSec;
-    const diving=d.mission?.type==='dive'&&groundDroneTarget(f,d.mission.target,false);
-    const targetDist=diving?groundDistanceTo(f,d.mission.target):Infinity;
+    const m=d.mission,diving=m?.type==='dive'&&groundDroneTarget(f,m.target,false);
+    const targetDist=diving?groundDistanceTo(f,m.target):Infinity;
     // 自爆の終盤（6km以内・中間点以降・降下中）は被弾・命中後も突入を続け、序盤で撃たれたときは残機を回収する。
-    const committed=d.npc&&diving&&(!!d.dive||targetDist<=6*GROUND_SCALE||targetDist<=distance);
+    const committed=d.npc&&diving&&(m.frames.some(frame=>frame.dropping)||targetDist<=6*GROUND_SCALE||targetDist<=distance);
     const reserve=d.npc&&!committed?10:0;
-    const finishDive=committed&&left>targetDist/speed+r.heightKm/r.speedKmPerSecond+2*dt;
+    const finishDive=committed&&m.frames.every(frame=>!frame.body.alive||left>
+      Math.max(0,frame.at-gameSec)+frame.pos.distanceTo(m.target.pos)/speed+r.diveHeightKm/r.speedKmPerSecond+2*dt);
     if(d.mission?.type!=='recall'&&(!finishDive&&left<=distance/speed+2*dt+reserve||
       d.npc&&d.damaged&&!committed))groundDroneRecall(f);
     if(d.mission?.type==='recall'){
       if(groundDroneMove(f,scout.pos,travel))groundDroneRemove(f,true);
       else if(left<=0)groundDroneRemove(f);
     }else if(d.mission?.type==='orbit')groundDroneOrbitStep(f,d.mission,travel);
-    else if(d.mission?.type==='dive')groundDroneDiveStep(f,d.mission,travel);
+    else if(d.mission?.type==='dive')groundDroneDiveStep(f,d.mission,dt);
     else groundDroneFlyOrder(f,travel);
   }
 }
@@ -366,14 +400,10 @@ function groundDroneDraw(f,picked){
     const [x,z]=spec.offsets[i];body.position.set(x*spec.size,0,z*spec.size);
     body.rotation.set(0,0,0);
   });
-  if(d.dive){
-    const r=groundDroneRules(),i=f.bodies.indexOf(d.dive.body),body=bodies[i];
-    const progress=Math.min(1,(gameSec-d.dive.at)/(r.heightKm/r.speedKmPerSecond));
-    const t=d.mission.target,iTarget=t.bodies?.findIndex(b=>b.alive)??-1;
-    const at=groundDroneTarget(f,t,false)&&iTarget>=0?groundBodyPosition(t,iTarget):d.mission.point;
-    const p=at.clone().sub(f.pos).applyAxisAngle(groundFxUp,-model.rotation.y);
-    body.position.lerp(p,progress);
-    body.rotation.x=Math.atan2(f.pos.y-d.mission.point.y,Math.hypot(body.position.x-p.x,body.position.z-p.z));
+  for(const frame of d.mission?.frames??[]){
+    const body=bodies[f.bodies.indexOf(frame.body)];
+    body.position.copy(frame.pos).sub(f.pos).applyAxisAngle(groundFxUp,-model.rotation.y);
+    body.rotation.set(frame.pitch,frame.yaw-model.rotation.y,0,'YXZ');
   }
   const show=model.visible&&(picked.includes(f)||picked.includes(d.scout));
   if(!show){if(d.fiber)d.fiber.visible=false;return;}
