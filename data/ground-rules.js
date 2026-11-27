@@ -4,7 +4,9 @@ window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
   // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
   // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
-  wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 }, moveSupplyFactor:2, idleSupplyPerSec:.05, evasion:.5, npcMinKm:6 }, // ほかは仮。
+  wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 },
+    moveSupplyFactor:{cruise:1.4,low:2}, idleSupplyPerSec:{cruise:.035,low:.05}, // 巡航は今の0.7倍（ユーザー決定 2026-11-27）
+    evasion:.5, npcMinKm:6 }, // ほかは仮。
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { site:30, basic:30, scout:40, concealment:{scout:.5,drone:.5}, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
@@ -109,7 +111,7 @@ window.WOS_GROUND_RULES = {
     drone: {
       name:'ドローン',airframes:3,rangeKm:15,researchRangeKm:50,batterySec:60,
       speedKmPerSecond:1,heightKm:.25,sightKm:2,orbitKm:.5,diveInterval:1,chargeSec:30,
-      replenishSec:30,replenishSupply:.5,aaHit:.6,otherHit:.15,
+      replenishSec:30,replenishSupply:.5,aaHit:.5,otherHit:.125, // 1.2倍硬く（ユーザー決定 2026-11-27）
       weapon:{power:5,pen:800,soft:.5,morale:1,top:true},
       npcTargets:['vehicle','artillery','guidedRocket','mobileAA'],
       launchOffsetKm:[.35,.45] // 仮。承認済みの見本と同じ斥候からの前後・左右の間隔。

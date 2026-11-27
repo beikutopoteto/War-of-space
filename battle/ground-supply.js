@@ -158,7 +158,8 @@ function groundSupplyMoved(f,a,b){
   if(!groundSupplyLand(f))return;f.groundMoved=true;
   const flying=groundWasFlying(f),km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;
   const r=groundSupplyRules();
-  groundSupplySpend(f,km*r.move*(flying?groundRuleSet().wasFlight.moveSupplyFactor:1));
+  const factor=flying?groundRuleSet().wasFlight.moveSupplyFactor[groundWasCruising(f)?'cruise':'low']:1;
+  groundSupplySpend(f,km*r.move*factor);
   if(!Number.isFinite(f.groundMorale)||f.groundRout)return;
   if(flying){f.groundMorale=Math.max(0,f.groundMorale-km*r.terrainMove['平地']);return;}
   const d=WOS_TERRAIN[op.ground],n=Math.max(1,Math.ceil(km/(d.meta.cellKm/4)));let spent=0;
@@ -569,7 +570,11 @@ function groundSupplyAfter(dt){
   groundSupplyRoadCapture(dt);groundSupplyRefresh();const r=groundSupplyRules(),netGains=new Map(),d=WOS_TERRAIN[op.ground];
   for(const f of fleets){if(!f.alive||f.groundExited||f.embarked||!groundSupplyLand(f))continue;
     const flying=groundWasFlying(f);
-    if(flying&&!f.groundMoved)groundSupplySpend(f,groundRuleSet().wasFlight.idleSupplyPerSec*dt);
+    if(flying){
+      if(!f.groundMoved)groundSupplySpend(f,groundRuleSet().wasFlight.idleSupplyPerSec[groundWasCruising(f)?'cruise':'low']*dt);
+      // 同じステップで補給を受けても、移動や停止で使い切った時点の着陸を続ける。
+      if(!groundScriptDescending(f))groundWasAutoLand(f);
+    }
     groundSupplyDemand(f,r);
     groundSupplyStartTrip(f);
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
