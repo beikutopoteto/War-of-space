@@ -109,13 +109,25 @@ window.WOS_GROUND_ORG=(()=>{
     const penaltyPercent=Math.min(sortieLimits.maxPenalty,sortieLimits.penaltyPerPoint*excess);
     return {companies:allowed,platoons,scale,scaleOver,supplyUsed,supplyPlatoons,supplyBonus,supplyBase,supplyLimit,excess,penaltyPercent};
   }
-  function sortie(value,operation){
-    let org=normalize(value); if(!org.companies.length) org=defaults();
-    const load=sortieLoad(org.companies,operation);
-    if(load.companies.length!==org.companies.length) org=normalize({...org,companies:load.companies});
+  function sortieOrg(value){
+    const org=normalize(value);
+    return org.companies.length?org:defaults();
+  }
+  function sortie(value,operation,battalionIds){
+    const source=sortieOrg(value);
+    const battalions=battalionIds===undefined?source.battalions:source.battalions.filter(b=>battalionIds.includes(b.id));
+    const companies=battalionIds===undefined?source.companies:source.companies.filter(c=>battalions.some(b=>b.companies.includes(c.id)));
+    const load=sortieLoad(companies,operation);
+    let org=source;
+    if(battalionIds!==undefined||load.companies.length!==source.companies.length)
+      org=normalize({...source,battalions,companies:load.companies});
+    if(battalionIds!==undefined){
+      org.battalions=org.battalions.filter(b=>b.companies.length);
+      org.brigades=org.brigades.map(g=>({...g,battalions:g.battalions.filter(id=>org.battalions.some(b=>b.id===id))})).filter(g=>g.battalions.length);
+    }
     const fleets=org.companies.map(c=>({name:c.name,groundKind:c.kind,groundPlatoons:c.platoons,companyId:c.id,vis:9,stl:0,
       band:['fighter','supportAircraft'].includes(c.kind)?'high':c.kind==='attack'?'low':'ground'}));
     return {org,fleets,load};
   }
-  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortie,QUICK_GROUPS,quickOrg};
+  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortieOrg,sortie,QUICK_GROUPS,quickOrg};
 })();

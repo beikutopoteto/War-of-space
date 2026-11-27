@@ -27,8 +27,9 @@ const {openSortieMenu}=require('../tests/ground-drill-menu.cjs');
     await page.evaluate(seedSupplySortie,{oversize:true});
     await openSortieMenu(page,{reload:true});
     await page.click('[data-op="baikonur"]');
-    assert.equal(await page.locator('#groundSortieLoad tr.over').count(),2);
-    assert.equal(await page.locator('#goBattle').isDisabled(),true);
+    await page.click('#goBattle');
+    assert.equal(await page.locator('#sgLoad tr.over').count(),2);
+    assert.equal(await page.locator('#forcesBattle').isDisabled(),true);
     await capture('sortie');
 
     await page.evaluate(()=>WOS.openMenu());
