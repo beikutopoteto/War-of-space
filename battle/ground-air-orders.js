@@ -1,4 +1,4 @@
-/* 航空機の連続飛行。支援機は中隊の座標、戦闘機と攻撃機は各機の座標で進める。 */
+/* 航空機の連続飛行。編成のある航空隊は各機の座標で進める。 */
 const GROUND_AIR_CONTROL=Object.freeze({turnRate:.8,lookAhead:.7,waypoint:.8,fireCone:Math.PI/5});
 function groundFlyingAircraft(f){return !!f&&['fighter','attack','supportAircraft'].includes(f.groundKind);}
 function groundAirAngleDelta(a,b){return Math.atan2(Math.sin(b-a),Math.cos(b-a));}
@@ -67,7 +67,7 @@ function groundAirMotion(f,dt){
  if(!op.ground||!groundFlyingAircraft(f))return false;
  if(!f.alive){groundBombCancel(f);return true;}
  if(f.embarked||groundAbsent(f)||f.locked||groundTrainingEnemy(f)||groundStaticTarget(f))return true;
- if(groundAirSquad(f))return groundAirSquadStep(f,dt);
+ if(groundAirSquad(f))return f.groundKind==='supportAircraft'?groundSupportStep(f,dt):groundAirSquadStep(f,dt);
  if(!f.groundAirState&&f.groundBombRun)return groundBombApproach(f,dt);
  const o=f.order;
  if(o?.type==='move'&&o.path){
@@ -104,8 +104,8 @@ function groundAirMotion(f,dt){
  groundAirLoiter(f,dt);return true;
 }
 
-// 戦闘機・攻撃機の世界座標は機体ごとに持つ。中隊の座標は操作・索敵表示のための代表点。
-function groundAirSquad(f){return !!f?.bodies&&!!f.groundBodySpec&&['fighter','attack'].includes(f.groundKind);}
+// 世界座標は機体ごとに持つ。中隊の座標は操作・索敵表示のための代表点。
+function groundAirSquad(f){return !!f?.bodies&&!!f.groundBodySpec&&groundFlyingAircraft(f);}
 function groundAirDirection(yaw){return new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));}
 function groundAirBearing(from,to){return Math.atan2(to.x-from.x,to.z-from.z);}
 function groundAirInside(p){return groundPass(groundMapX(p.x),groundMapY(p.z),'air');}
@@ -138,15 +138,16 @@ function groundAirInwardYaw(b){
 }
 function groundAirSquadTrack(f){
  const rules=groundRuleSet().airCombat,existing=f.groundAirSquad;
- const yaw=Math.atan2(f.heading.x,f.heading.z);
+ const yaw=Math.atan2(f.heading.x,f.heading.z),support=f.groundKind==='supportAircraft';
  if(!existing){
   const cruise=rules.cruiseKmSec[f.groundKind]*GROUND_SCALE,[minG,maxG]=rules.turnLoadG[f.groundKind];
+  const speedVariation=support?0:rules.speedVariation,minTurnRadius=support?rules.support.turnRadiusKm*GROUND_SCALE:0;
   const bodies=f.groundBodySpec.offsets.map(([x,z],i)=>{
-   const random=groundBodyRandom(f,i),variation=(2*random()-1)*rules.speedVariation;
+   const random=groundBodyRandom(f,i),variation=(2*random()-1)*speedVariation;
    const pos=new THREE.Vector3(x*f.groundBodySpec.size,0,z*f.groundBodySpec.size).applyAxisAngle(new THREE.Vector3(0,1,0),yaw).add(f.pos);
    const speed=cruise*(1+variation);
    const turnLoadG=minG+(maxG-minG)*random();
-   return {pos,yaw,pitch:0,bank:0,speed,variation,turnLoadG,velocity:new THREE.Vector3(),phase:null,route:null,entryYaw:null};
+   return {pos,yaw,pitch:0,bank:0,speed,variation,turnLoadG,minTurnRadius,velocity:new THREE.Vector3(),phase:null,route:null,entryYaw:null};
   });
   return f.groundAirSquad={bodies,last:f.pos.clone(),yaw,elapsed:0,target:null,aim:null};
  }
@@ -156,6 +157,11 @@ function groundAirSquadTrack(f){
   for(const b of existing.bodies){
    b.pos.add(shift);b.route=null;b.phase=null;b.navKey=null;b.turnInward=false;
    if(!existing.elapsed)b.yaw=yaw;
+  }
+  if(support){
+   existing.supportPatrol=null;
+   if(existing.supportPass)existing.supportPass.route=null;
+   if(f.groundBombRun)f.groundBombRun.route=null;
   }
   existing.last.copy(f.pos);existing.yaw=yaw;f.groundBodyGeometry=null;
  }
@@ -203,7 +209,7 @@ function groundAirRouteInside(b,segments,margin){
 }
 function groundAirRouteRadius(b,cruise,rules){
  const speed=cruise*rules.maxSpeedFactor;
- return speed/groundAirTurnLimit(speed,b.turnLoadG,rules);
+ return Math.max(b.minTurnRadius||0,speed/groundAirTurnLimit(speed,b.turnLoadG,rules));
 }
 function groundAirAdvance(b,distance,turn){
  const half=turn/2,travel=Math.abs(half)<1e-8?distance:distance*Math.sin(half)/half;
@@ -218,7 +224,7 @@ function groundAirBoundaryYaw(b,yaw,radius,margin){
  if(b.turnInward&&clear&&Math.abs(groundAirAngleDelta(b.yaw,inward))<Math.PI/4)b.turnInward=false;
  return b.turnInward?inward:yaw;
 }
-function groundAirFly(b,dt,cruise,rules,yaw,pitch,route=null,heights=null,pitchRules=rules){
+function groundAirFly(b,dt,cruise,rules,yaw,pitch,route=null,heights=null,pitchRules=rules,clearanceKm=rules.ground.lowKm){
  const {clamp,degToRad}=THREE.MathUtils,old=b.pos.clone(),oldYaw=b.yaw,oldHeight=groundAirPhysicalY(old);
  const pitchLimit=degToRad(pitchRules.maxPitchDeg),pitchStep=degToRad(pitchRules.pitchRateDeg)*dt;
  b.pitch+=clamp(clamp(pitch,-pitchLimit,pitchLimit)-b.pitch,-pitchStep,pitchStep);
@@ -235,14 +241,14 @@ function groundAirFly(b,dt,cruise,rules,yaw,pitch,route=null,heights=null,pitchR
   if(distance>1e-8)groundAirAdvance(b,distance,0);
  }else{
   yaw=groundAirBoundaryYaw(b,yaw,groundAirRouteRadius(b,cruise,rules),rules.boundaryMarginKm*GROUND_SCALE);
-  const limit=groundAirTurnLimit(horizontal,b.turnLoadG,rules)*dt;
+  const limit=Math.min(groundAirTurnLimit(horizontal,b.turnLoadG,rules),horizontal/(b.minTurnRadius||0))*dt;
   groundAirAdvance(b,distance,clamp(groundAirAngleDelta(b.yaw,yaw),-limit,limit));
  }
  b.bank=-Math.atan(horizontal*groundAirAngleDelta(oldYaw,b.yaw)/(dt*rules.turnGravityKmSec2*GROUND_SCALE));
  const surface=groundSightHeight(b.pos.x,b.pos.z),exaggeration=groundData().meta.elevationExaggeration||1;
  const height=clamp(oldHeight+b.speed*Math.sin(b.pitch)*dt,heights?.min??-Infinity,heights?.max??Infinity);
  const displayedY=height+surface*(1-1/exaggeration);
- b.pos.y=Math.max(displayedY,groundAirClearance(old,b.pos,rules.ground.lowKm*GROUND_SCALE));
+ b.pos.y=Math.max(displayedY,groundAirClearance(old,b.pos,clearanceKm*GROUND_SCALE));
  b.velocity.copy(b.pos).sub(old).multiplyScalar(1/dt);
  b.velocity.y=(groundAirPhysicalY(b.pos)-oldHeight)/dt;
 }
@@ -282,15 +288,16 @@ function groundAirGroundEntry(b,aim,i,pairPlan,cruise,rules){
  }
  return !!best;
 }
-function groundAirGroundPass(b,aim,i,pair,dt,cruise,rules){
- const g=rules.ground,angle=THREE.MathUtils.degToRad(g.diveDeg),low=g.lowKm*GROUND_SCALE;
+function groundAirGroundPass(b,aim,i,pair,dt,cruise,rules,strafe=null,pitchRules=rules){
+ const g=rules.ground,angle=THREE.MathUtils.degToRad(g.diveDeg),lowKm=strafe?.lowKm??g.lowKm,low=lowKm*GROUND_SCALE;
+ const surface=groundAirPhysicalY(new THREE.Vector3(b.pos.x,groundSurfaceHeight(b.pos.x,b.pos.z),b.pos.z));
+ const targetSurface=strafe?{x:aim.x,y:groundSurfaceHeight(aim.x,aim.z),z:aim.z}:aim;
+ const level=surface+low,high=groundAirPhysicalY(targetSurface)+low+g.diveKm*GROUND_SCALE*Math.tan(angle);
  if(!b.phase&&!groundAirGroundEntry(b,aim,i,pair,cruise,rules)){
-  groundAirFly(b,dt,cruise,rules,groundAirInwardYaw(b),groundAirPitchTo(b,groundAirPhysicalY(aim)+low));
+  groundAirFly(b,dt,cruise,rules,groundAirInwardYaw(b),groundAirPitchTo(b,strafe?high:groundAirPhysicalY(aim)+low),null,null,pitchRules,lowKm);
   return;
  }
  const dir=b.entryDir,along=b.pos.clone().sub(b.entryAim).dot(dir)/GROUND_SCALE;
- const surface=groundAirPhysicalY(new THREE.Vector3(b.pos.x,groundSurfaceHeight(b.pos.x,b.pos.z),b.pos.z));
- const level=surface+low,high=groundAirPhysicalY(aim)+low+g.diveKm*GROUND_SCALE*Math.tan(angle);
  const targetAlong=b.pos.clone().sub(aim).dot(dir)/GROUND_SCALE;
  let yaw=b.entryYaw,pitch=groundAirPitchTo(b,level),route=null;
  if(b.phase==='align'){
@@ -299,19 +306,24 @@ function groundAirGroundPass(b,aim,i,pair,dt,cruise,rules){
  }
  if(b.phase==='approach'&&along>=-g.pullKm)b.phase='pull';
  if(b.phase==='pull'&&along>=-g.diveKm)b.phase='dive';
- if(b.phase==='dive'&&targetAlong>=0)b.phase='exit';
- if(b.phase==='exit'&&targetAlong>=g.exitKm){
+ if(b.phase==='dive'&&(targetAlong>=0||strafe&&along>=g.exitKm*.5))b.phase='exit';
+ if(strafe&&b.phase==='exit'&&along>=g.exitKm)b.phase='climb';
+ const climbHeight=strafe&&surface+strafe.climbKm*GROUND_SCALE;
+ const ready=strafe?b.phase==='climb'&&groundAirPhysicalY(b.pos)>=climbHeight*.9+surface*.1:
+  b.phase==='exit'&&targetAlong>=g.exitKm;
+ if(ready){
   if(groundAirGroundEntry(b,aim,i,pair,cruise,rules))route=b.route;
   else {b.phase=null;yaw=groundAirInwardYaw(b);}
  }
- if(b.phase==='pull')pitch=groundAirPitchTo(b,high);
+ if(b.phase==='pull'||strafe&&['align','approach'].includes(b.phase))pitch=groundAirPitchTo(b,high);
+ if(b.phase==='climb')pitch=Math.max(0,groundAirPitchTo(b,climbHeight));
  if(b.phase==='dive'){
   const ahead=aim.clone().addScaledVector(dir,targetAlong*GROUND_SCALE+Math.max(cruise*.3,GROUND_SCALE));
   yaw=groundAirBearing(b.pos,ahead);
   const run=Math.max(GROUND_SCALE,-targetAlong*GROUND_SCALE);
   pitch=-Math.min(angle,Math.max(0,Math.atan2(groundAirPhysicalY(b.pos)-level,run*.8)));
  }
- groundAirFly(b,dt,cruise,rules,yaw,pitch,route);
+ groundAirFly(b,dt,cruise,rules,yaw,pitch,route,null,pitchRules,lowKm);
  if(!route&&b.turnInward)b.phase=null;
 }
 function groundAirAirTarget(t,b,pair){
@@ -420,16 +432,33 @@ function groundAirSquadTarget(f,previous){
  if(ready(previous)&&groundSeenBy(f.team,previous))return previous;
  return fleets.filter(t=>ready(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundDistanceTo(f,a)-groundDistanceTo(f,b))[0]||null;
 }
+function groundAirLowTarget(t,rules){
+ return groundWasCruising(t)||['was','drone'].includes(t.groundKind)&&
+  t.pos.y-groundSightHeight(t.pos.x,t.pos.z)<rules.air.minHeightKm*GROUND_SCALE;
+}
+function groundAirStrafeAim(b,t,fallback){
+ const positions=groundBodyPositions(t).positions;
+ if(!b.phase||!t.bodies[b.strafeBody]?.alive){
+  let distance=Infinity;
+  for(const [j,p] of positions.entries()){
+   if(!t.bodies[j]?.alive)continue;
+   const d=Math.hypot(p.x-b.pos.x,p.z-b.pos.z);
+   if(d<distance){distance=d;b.strafeBody=j;}
+  }
+ }
+ return positions[b.strafeBody]??fallback;
+}
 function groundAirSquadStep(f,dt){
  if(!(Number.isFinite(dt)&&dt>0))return true;
  const track=groundAirSquadTrack(f),rules=groundRuleSet().airCombat,cruise=rules.cruiseKmSec[f.groundKind]*GROUND_SCALE;
  const target=groundAirSquadTarget(f,track.target),visible=target&&groundSeenBy(f.team,target),order=f.order;
- const air=!!target&&groundUsesAirRange(f,target);
  const fighter=f.groundKind==='fighter',limits=fighter?rules.air:rules.air.attack;
- if(track.target!==target||track.airTarget!==air){
-  track.target=target;track.airTarget=air;track.aim=null;track.engagementSpace=null;track.elapsed=0;track.pairs=[{pass:0},{pass:0}];
+ const airRange=!!target&&groundUsesAirRange(f,target),low=!!target&&groundAirLowTarget(target,rules);
+ const air=airRange&&!low,strafe=low&&airRange||!!target&&fighter&&!airRange;
+ if(track.target!==target||track.airTarget!==air||track.strafing!==strafe){
+  track.target=target;track.airTarget=air;track.strafing=strafe;track.aim=null;track.engagementSpace=null;track.elapsed=0;track.pairs=[{pass:0},{pass:0}];
   for(const b of track.bodies){
-   b.phase=null;b.route=null;b.entryYaw=null;b.pass=0;b.engagementSpace=null;b.nav=null;b.navKey=null;b.turnInward=false;
+   b.phase=null;b.route=null;b.entryYaw=null;b.pass=0;b.strafeBody=null;b.engagementSpace=null;b.nav=null;b.navKey=null;b.turnInward=false;
   }
  }
  if(visible){
@@ -457,7 +486,10 @@ function groundAirSquadStep(f,dt){
     b.nav=null;b.navKey=null;
     const pair=track.pairs[i>>1];
     if(air)groundAirAirPass(f,b,target,i,pair,step,cruise,rules,heights);
-    else groundAirGroundPass(b,track.aim,i,pair,step,cruise,rules);
+    else{
+     const aim=strafe&&visible&&target.bodies?groundAirStrafeAim(b,target,track.aim):track.aim;
+     groundAirGroundPass(b,aim,i,pair,step,cruise,rules,strafe?rules.strafe:null,fighter&&strafe?rules.air.fighter:rules);
+    }
    }else if(track.aim){
     groundAirFly(b,step,cruise,rules,b.yaw,groundAirPitchTo(b,Math.min(groundAirLevelHeight(f,b),heights?.max??Infinity)),null,heights);
    }else groundAirNavigate(f,b,point,point,i,step,cruise,rules,heights);

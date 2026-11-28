@@ -65,11 +65,18 @@ function groundStrikeRange(f){
 }
 function groundStrikeInRange(f,p){
   if(!groundStrikeWeapon(f)||!Number.isFinite(p.x)||!Number.isFinite(p.z))return false;
-  if(f.groundKind==='supportAircraft')return groundPass(p.x/GROUND_SCALE+24,18-p.z/GROUND_SCALE,'air')&&!!groundBombPlan(f,p);
+  if(f.groundKind==='supportAircraft')return groundAirInside(p)&&!!groundBombPlan(f,p);
   const r=groundStrikeRange(f),distance=groundDistanceTo(f,{pos:p});
   return r.max>0&&distance>=r.min&&distance<=r.max&&groundPass(groundMapX(p.x),groundMapY(p.z),'air')&&(!r.direct||distance<=groundSightRange(f)&&groundClearLine(groundEye(f),{x:p.x,z:p.z,y:groundSightHeight(p.x,p.z)+groundSightRules().eyeHeight}))&&(f.groundKind==='supportAircraft'||groundBallisticPoint(f,p).clear);
 }
-function groundStrikeCanLaunch(f,p,volley=null){return groundStrikeInRange(f,p)&&(f.groundKind!=='supportAircraft'||volley?.ledger?.fired.size>0||groundBombPose(f,p))&&(volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);}
+function groundStrikeCanLaunch(f,p,volley=null){
+  const bomb=f.groundKind==='supportAircraft',run=f.groundBombRun;
+  // 計画済みの投下列は、各発の時点で新しい進入を要求せず、現在の投下姿勢を使う。
+  const planned=bomb&&groundAirSquad(f)&&(run?.ledger.releaseAim.equals(p)||volley?.ledger?.fired.size>0);
+  const reachable=planned?!!groundStrikeWeapon(f)&&groundBallisticFinite(p)&&groundAirInside(p):groundStrikeInRange(f,p);
+  return reachable&&(!bomb||volley?.ledger?.fired.size>0||groundBombPose(f,p))&&
+    (volley?f.groundVolley===volley&&volley.ledger?.source===f&&Array.isArray(volley.ledger.entries)&&volley.ledger.entries.length>0:(f.groundStrikeCooldown||0)<=0);
+}
 function groundStrikeLaunch(f,p,impactOverride=null,area=null,volley=null,entry=null){
   if(!groundStrikeCanLaunch(f,p,volley))return null;
   const w=groundStrikeWeapon(f),observed=groundPointSeenBy(f.team,p),distanceScatter=groundScatterBase(f)>0,spread=f.groundKind==='supportAircraft'?0:distanceScatter?groundScatterRadius(f,p):w.spread*(observed?1:groundStrikeRules().unseenSpread);

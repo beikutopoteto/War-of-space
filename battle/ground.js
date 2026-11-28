@@ -1042,6 +1042,42 @@ function groundWasDogfightAim(state,i){
   }
   return -1;
 }
+function groundWasBoostJump(time,jump,fallAt,fallSec){
+  const {smootherstep:smooth,degToRad}=THREE.MathUtils;
+  const lift=smooth(time,0,jump.riseSec)*(1-smooth(time,fallAt,fallAt+fallSec));
+  const boost=smooth(time,0,.12)*(1-smooth(time,jump.riseSec-.12,jump.riseSec));
+  return {lift,boost,pitch:-degToRad(jump.pitchDeg)*boost};
+}
+function groundWasBoostSlide(time,slide){
+  const {smootherstep:smooth}=THREE.MathUtils;
+  const rejoin=smooth(time,slide.durationSec,slide.durationSec+slide.rejoinSec);
+  const move=smooth(time,0,slide.durationSec);
+  const boost=smooth(time,0,.1)*(1-smooth(time,slide.durationSec-.15,slide.durationSec));
+  return {rejoin,move,boost};
+}
+function groundWasAirEvasion(f,track,now){
+  const cfg=groundRuleSet().airCombat.strafe,d=groundRuleSet().wasCombat.dogfight;
+  const pairs=track.airEvasion??=[];
+  for(const enemy of fleets){
+    const air=enemy.groundAirSquad;
+    if(enemy.team===f.team||!enemy.alive||enemy.embarked||groundAbsent(enemy)||air?.target!==f||
+       !air.strafing||!groundSeenBy(f.team,enemy)||!groundSeenBy(enemy.team,f))continue;
+    for(const [i,b] of air.bodies.entries()){
+      const j=b.strafeBody,pair=j>>1;
+      if(!enemy.bodies[i].alive||!f.bodies[j]?.alive||!['approach','pull','dive'].includes(b.phase))continue;
+      const prior=pairs[pair];
+      if(prior?.entry===b.entryAim||prior?.end>now)continue;
+      const own=groundBodyPosition(f,j),dx=own.x-b.pos.x,dz=own.z-b.pos.z,dir=b.entryDir;
+      const ahead=dx*dir.x+dz*dir.z,cross=dx*dir.z-dz*dir.x;
+      if(ahead<=0||ahead>b.speed*cfg.threatLeadSec||Math.abs(cross)>cfg.threatWidthKm*GROUND_SCALE||
+         groundAirPhysicalY(b.pos)-groundAirPhysicalY(own)>cfg.threatHeightKm*GROUND_SCALE)continue;
+      const jump=prior?!prior.jump:pair%2!==0;
+      const duration=jump?d.jump.riseSec+d.jump.diveSec:d.slide.durationSec+d.slide.rejoinSec;
+      pairs[pair]={entry:b.entryAim,at:now,end:now+duration+cfg.wingDelaySec,jump,lane:cross<0?-1:1,dir};
+    }
+  }
+  return pairs;
+}
 function groundWasDogfightMove(f,state,b,i,now,forward,rules){
   const {dogfight:d,swarmManeuvers:m,swarmAttitude:a,swarmLayout:layout}=rules;
   const {clamp,lerp,smootherstep:smooth}=THREE.MathUtils;
@@ -1093,10 +1129,8 @@ function groundWasDogfightMove(f,state,b,i,now,forward,rules){
   // 組の開始をずらし、片方ずつ2周に1度、高く跳んで通過の半ばで低空に戻る。
   const jump=d.jump,jumpTime=(u-jump.start)*period;
   const jumping=(lap+i+row+role+f.team)%2===0;
-  const rise=jumping?smooth(jumpTime,0,jump.riseSec):0;
-  const dive=1-smooth(jumpTime,(pass.enter-jump.start)*period,(pass.enter-jump.start)*period+jump.diveSec);
-  const jumpReady=rise*dive;
-  const thrust=jumping?smooth(jumpTime,0,.12)*(1-smooth(jumpTime,jump.riseSec-.12,jump.riseSec)):0;
+  const leap=groundWasBoostJump(jumping?jumpTime:-1,jump,(pass.enter-jump.start)*period,jump.diveSec);
+  const jumpReady=leap.lift,thrust=leap.boost;
   height+=jumpReady*lerp(...jump.riseKm,(1+hash(f.id,i,43))/2);
 
   const slide=d.slide,slideTime=(u-slide.start)*period;
@@ -1108,12 +1142,11 @@ function groundWasDogfightMove(f,state,b,i,now,forward,rules){
       b.duelSlide={x:own.x,z:own.z,dx:lane*Math.cos(yaw),dz:-lane*Math.sin(yaw)};
     }
     const entry=b.duelSlide;
-    const rejoin=smooth(slideTime,slide.durationSec,slide.durationSec+slide.rejoinSec);
+    const {rejoin,move,boost}=groundWasBoostSlide(slideTime,slide);
     const distance=lerp(...slide.distanceKm,(1+hash(f.id,i,42))/2)*GROUND_SCALE;
-    const move=distance*smooth(slideTime,0,slide.durationSec);
-    x=lerp(entry.x+entry.dx*move,x,rejoin);
-    z=lerp(entry.z+entry.dz*move,z,rejoin);
-    slideBoost=smooth(slideTime,0,.1)*(1-smooth(slideTime,slide.durationSec-.15,slide.durationSec));
+    x=lerp(entry.x+entry.dx*distance*move,x,rejoin);
+    z=lerp(entry.z+entry.dz*distance*move,z,rejoin);
+    slideBoost=boost;
   }else b.duelSlide=null;
 
   // 相手との接近時も各機が小さくよける。中点からの外周は共通。
@@ -1131,7 +1164,7 @@ function groundWasDogfightMove(f,state,b,i,now,forward,rules){
   const passing=attack>.6&&own.distanceToSquared(foe.pos)<=(pass.fireKm*GROUND_SCALE)**2;
   return {x:x-f.pos.x,z:z-f.pos.z,height:clamp(height,d.minHeightKm,jumpReady?d.maxHeightKm:d.lowMaxHeightKm)*GROUND_SCALE,outer,
     bank:lerp([a.frontRoll,a.middleRoll,a.rearRoll][role]*Math.cos(phase),lane*a.frontRoll,slideBoost),
-    pitch:-THREE.MathUtils.degToRad(jump.pitchDeg)*thrust,boost:Math.max(thrust,slideBoost),slideBoost,jumpReady,
+    pitch:leap.pitch,boost:Math.max(thrust,slideBoost),slideBoost,jumpReady,
     passBlend:Math.max(attack,slideTime>=0&&slideTime<slide.durationSec?1:0),
     foe:foe?.pos,passTarget:passing?targetIndex:null};
 }
@@ -1287,7 +1320,9 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null){
   }
   track.dogfight=dogfight&&{target:dogfight.target,x:dogfight.x,z:dogfight.z,pairs:dogfight.pairs};
   const landing=f.bandTo==='ground';
-  if(landing)track.reverse=null;
+  if(landing){track.reverse=null;track.airEvasion=null;}
+  const evasion=landing?null:groundWasAirEvasion(f,track,now);
+  const evadeWingDelay=groundRuleSet().airCombat.strafe.wingDelaySec;
   // 等価な角度へ折り返さずに積み上げ、180度の折り返しでも各機が同じ側から旋回する。
   const turn=groundWrap(heading-track.heading);
   const reverseAngle=degToRad(R.minAngleDeg);
@@ -1448,6 +1483,27 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null){
       goalZ=lerp(centerZ+b.transfer.z,goalZ,transfer);
       if(transfer===1)b.transfer=null;
     }
+    const evade=evasion?.[i>>1];
+    if(alive[i]&&evade?.end>now){
+      const time=now-evade.at-(i%2)*evadeWingDelay,d=rules.dogfight;
+      if(evade.jump){
+        const leap=groundWasBoostJump(time,d.jump,d.jump.riseSec,d.jump.diveSec);
+        const surface=groundSurfaceHeight(goalX,goalZ);
+        const ceiling=surface+(dogfight?d.maxHeightKm:rules.swarmManeuvers.maxHeightKm)*GROUND_SCALE;
+        const rise=lerp(...d.jump.riseKm,(1+hash(f.id,i,43))/2)*GROUND_SCALE;
+        goalY=Math.max(goalY,Math.min(ceiling,goalY+rise*leap.lift));
+        pitch+=leap.pitch;b.boost=Math.max(b.boost,leap.boost);
+        heightResponse=lerp(heightResponse,rules.swarmAttitude.maneuverResponse,leap.lift);
+      }else{
+        const slide=groundWasBoostSlide(time,d.slide);
+        const offset=evade.lane*(1-slide.rejoin)*slide.move*lerp(...d.slide.distanceKm,(1+hash(f.id,i,42))/2)*GROUND_SCALE;
+        const x=goalX+evade.dir.z*offset,z=goalZ-evade.dir.x*offset;
+        if(groundPass(groundMapX(x),groundMapY(z),'air')){goalX=x;goalZ=z;}
+        bank=lerp(bank,evade.lane*rules.swarmAttitude.frontRoll,slide.boost);
+        b.slideBoost=Math.max(b.slideBoost,slide.boost);b.boost=Math.max(b.boost,slide.boost);
+        response=lerp(response,rules.swarmAttitude.maneuverResponse,slide.move*(1-slide.rejoin));
+      }
+    }
     const clearance=dogfight?rules.dogfight.minHeightKm*GROUND_SCALE:GROUND_BODY_LIFT+minClearance;
     const minY=landing?-Infinity:groundSurfaceHeight(goalX,goalZ)+clearance;
     if(goalY<minY)goalY=minY;
@@ -1566,10 +1622,10 @@ function groundWasFlightStep(f,dt,dogfight=null){
       b.pos.z+=dz+(f.pos.z+slot.z*c-slot.x*s-b.pos.z-dz)*k;
       b.yaw+=groundWrap(heading+slot.yaw-b.yaw)*k;b.pitch*=1-k;b.bank*=1-k;
       b.vel.set(0,0,0);b.transfer=null;b.revStart=null;b.course=heading;b.breakup=0;
-      b.passFiring=false;b.reverseFire=false;b.boost=0;
+      b.passFiring=false;b.reverseFire=false;b.boost=0;b.slideBoost=0;
     });
     track.heading=track.course=track.turnOriginHeading=heading;
-    track.swarm=null;track.dogfight=null;track.reverse=null;
+    track.swarm=null;track.dogfight=null;track.reverse=null;track.airEvasion=null;
   }
   track.last.copy(f.pos);
   f.groundBodyGeometry=null;
@@ -1985,7 +2041,7 @@ function groundDraw(){
       const cyc=formation.spec.cycle||0,guard=was&&groundWasGuard(f),base=guard?cyc:0;
       const swarm=model.userData.wasSwarming;
       const duel=f.groundWasFlight?.dogfight;
-      const combat=swarm?groundRuleSet().wasCombat:null;
+      const combat=was?groundRuleSet().wasCombat:null;
       const flashEvery=duel?combat.dogfight.pass.flashEverySec:combat?.swarmManeuvers.front.firePass.flashEverySec;
       pose.move.forEach((moves,i)=>{
         const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now),body=pose.stand[i];
@@ -2001,7 +2057,7 @@ function groundDraw(){
           body.rotation.y=aim.yaw-heading;
         }
         if(alive&&was&&groundWasPower[key]&&model.visible){
-          const boost=swarm?body.userData.wasSwarmBoost:0,slide=duel?body.userData.wasSlideBoost:0;
+          const boost=body.userData.wasSwarmBoost||0,slide=body.userData.wasSlideBoost||0;
           const length=slide?THREE.MathUtils.lerp(1,combat.dogfight.slide.plumeLength,slide):1;
           plumes.push({body,key,boost,length});
         }

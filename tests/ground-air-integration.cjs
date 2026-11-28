@@ -2,6 +2,8 @@
 const assert=require('assert/strict');
 function nodeChecks(){
  const {ctx,run}=require('./ground-controls.cjs').createControlsContext(),rows=[];
+ const {readFileSync}=require('node:fs');
+ run(readFileSync(require.resolve('../battle/loop.js'),'utf8').split('\n').find(line=>line.startsWith('const hash=')));
  Object.assign(ctx,{chase:null,groundDrillTick:()=>{}});
  run(require('fs').readFileSync(require('path').join(__dirname,'../data/ground-org.js'),'utf8'));
  run(`
@@ -241,6 +243,120 @@ function nodeChecks(){
   order(f,{type:'attack',target:t});
   groundVisualDirect=()=>{};
   return airUntil(()=>groundAirSquadTrack(f).bodies.some(b=>b.phase==='dive'),16);
+ `);
+ check('戦闘機・攻撃機は巡航W.A.S.の描画位置を掃射し、最低高度を守って低空離脱・再進入する',`
+  for(const kind of ['fighter','attack']){
+   airSetup();
+   const f=airSquad(kind,-26,0,'high'),t=airSquad('was',0,1,'cruise');
+   const track=groundAirSquadTrack(f),rules=groundRuleSet().airCombat,cruise=rules.cruiseKmSec[kind]*GROUND_SCALE;
+   const shots=[],dives=new Set();let exited=false,climbed=false;
+   groundVisualDirect=(src,i,target,j,from,to,aa)=>{
+    if(src===f)shots.push({at:gameSec,valid:!aa&&target===t&&track.bodies[i].phase==='dive'&&
+      from.equals(groundBodyPosition(f,i))&&to.equals(groundBodyPosition(t,j))});
+   };
+   order(f,{type:'attack',target:t});
+   for(let step=0;step<280;step++){
+    const yaws=track.bodies.map(b=>b.yaw);
+    airTick();
+    for(const [i,b] of track.bodies.entries()){
+     const floor=groundSightHeight(b.pos.x,b.pos.z)+rules.strafe.lowKm*GROUND_SCALE;
+     const turn=groundAirTurnLimit(b.speed*Math.cos(b.pitch),b.turnLoadG,rules)*.05;
+     if(b.pos.y<floor-1e-8||b.speed<cruise*rules.minSpeedFactor-1e-8||
+        Math.abs(groundAirAngleDelta(yaws[i],b.yaw))>turn+1e-8)return false;
+     if(i===0&&b.phase==='dive')dives.add(b.entryYaw);
+     exited||=b.phase==='exit'&&b.pos.y<1.5*GROUND_SCALE;
+     climbed||=b.phase==='climb'&&b.velocity.y>0;
+    }
+   }
+   if(!shots.length||shots[0].at>10||!shots.every(s=>s.valid)||!exited||!climbed||dives.size<2)
+    throw Error(JSON.stringify({kind,shots,exited,climbed,dives:[...dives]}));
+  }
+  return true;
+ `);
+ check('巡航W.A.S.は狙われた組だけがブーストでかわし、低く来た戦闘機へバルカンを撃つ',`
+  op.groundStaticEnemies=false;
+  const f=airSquad('fighter',-26,0,'high'),w=airSquad('was',0,1,'cruise'),shots=[];
+  const hp=f.hpPool;
+  groundVisualDirect=(src,i,target,j,from,to,aa,weapon)=>{
+   if(src===w&&target===f)shots.push(aa&&weapon.fx==='gatling'&&groundAAHeightAllows(w,to)&&
+     from.equals(groundBodyPosition(w,i))&&to.equals(groundBodyPosition(f,j)));
+  };
+  order(f,{type:'attack',target:w});
+  let staggered=false,slide=false,jump=false;
+  for(let step=0;step<260&&f.alive;step++){
+   airTick();
+   const flight=w.groundWasFlight;
+   for(const [pair,evade] of (flight?.airEvasion||[]).entries()){
+    if(!evade||evade.end<=gameSec)continue;
+    const lead=flight.bodies[2*pair],wing=flight.bodies[2*pair+1];
+    if(lead.boost>0&&wing.boost===0)staggered=true;
+    if(lead.slideBoost>0)slide=true;
+    if(evade.jump&&lead.boost>0&&lead.pitch<0)jump=true;
+   }
+   if(flight?.bodies.some((b,i)=>b.boost>0&&!(flight.airEvasion?.[i>>1]?.end>gameSec)))return false;
+  }
+  if(!(shots.length&&shots.every(Boolean)&&f.hpPool<hp&&staggered&&slide&&jump))
+   throw Error(JSON.stringify({shots,hp:f.hpPool,staggered,slide,jump}));
+  return true;
+ `);
+ check('支援機は高高度の直線で全弾を投下し、3×3区画内の大回りと直線で戻る',`
+  const f=airSquad('supportAircraft',-40,0,'high'),p=new THREE.Vector3();
+  const aa=airSquad('mobileAA',0,1,'ground');
+  const track=groundAirSquadTrack(f),b=track.bodies[0],rules=groundRuleSet().airCombat;
+  if(f.bodies.length!==1||groundStrikeCommand([f],p)!==1)throw Error('点爆撃の命令が通らない');
+  const run=f.groundBombRun,space=run.plan.space,course=run.plan.yaw;
+  const allBombs=new Set();let straight=0,returned=0,banked=false,lastYaw=b.yaw;
+  for(let step=0;step<480;step++){
+   airTick();
+   const dyaw=Math.abs(groundAirAngleDelta(lastYaw,b.yaw));lastYaw=b.yaw;
+   if(!groundAirInside(b.pos)||groundAirClearanceToEdge(b.pos,space)<0||
+      Math.abs(groundAirPhysicalY(b.pos)/GROUND_SCALE-10)>1e-8||
+      groundAAHeightAllows(aa,b.pos)||!groundBodyPosition(f,0).equals(b.pos)||
+      b.speed<rules.cruiseKmSec.supportAircraft*GROUND_SCALE*rules.minSpeedFactor||
+      dyaw>groundAirTurnLimit(b.speed,b.turnLoadG,rules)*.05+1e-8)
+    throw Error(JSON.stringify({step,pos:b.pos,space,dyaw,height:groundAirPhysicalY(b.pos),speed:b.speed}));
+   if(run.phase==='run'&&dyaw<1e-8&&!run.ledger.issued)straight++;
+   for(const s of groundStrikes){
+    if(allBombs.has(s))continue;
+    const v=s.flight.velocityMeters;
+    if(Math.abs(v.y)>1e-8||Math.abs(groundAirAngleDelta(course,Math.atan2(v.x,v.z)))>1e-7)
+     throw Error(JSON.stringify({step,course,v}));
+    allBombs.add(s);
+   }
+   if(run.ledger.issued&&Math.abs(b.bank)>.01)banked=true;
+   if(banked&&dyaw<1e-8&&Math.cos(b.yaw-course)<-.5)returned++;
+  }
+  if(!(straight>=3&&allBombs.size===groundStrikeWeapon(f).bombsPerPass&&banked&&returned>40))
+   throw Error(JSON.stringify({straight,bombs:allBombs.size,banked,returned}));
+  return true;
+ `);
+ check('支援機の範囲爆撃は各進入で斉射1回を消費し、次の進入でも投下する',`
+  const f=airSquad('supportAircraft',-50,0,'high'),area=airArea(f,2);
+  groundAreaSalvoStep();const first=f.groundBombRun;
+  let entered=false;
+  for(let i=0;first&&i<300&&area.sent.get(f)!==1;i++){
+   airTick();
+   const inside=groundAirClearanceToEdge(f.pos,first.plan.space)>=0;
+   if(!groundAirInside(f.pos)||entered&&!inside)return false;
+   entered||=inside;
+  }
+  if(!first||!entered||area.sent.get(f)!==1||f.groundAreaSalvo.remaining!==1)
+   throw Error(JSON.stringify({prepared:!!first,sent:area.sent.get(f),phase:first?.phase,pos:f.pos}));
+  if(!airUntil(()=>area.sent.get(f)===2&&!f.groundVolley&&!f.groundBombRun,40)||f.groundAreaSalvo)
+   throw Error(JSON.stringify({sent:area.sent.get(f),phase:f.groundBombRun?.phase,pos:f.pos}));
+  return true;
+ `);
+ check('支援機の投下途中のUndoは同じ斉射の続きだけを直線で投下する',`
+  const f=airSquad('supportAircraft',-40,0,'high'),p=new THREE.Vector3();
+  if(groundStrikeCommand([f],p)!==1||!airUntil(()=>f.groundBombRun?.ledger.issued,15))return false;
+  const ledger=f.groundVolley.ledger,head=f.heading.clone();
+  saveUndo([f]);groundClearOrders(f);undo();
+  if(f.groundVolley?.ledger!==ledger||ledger.fired.size!==1)return false;
+  let i=0;
+  for(;i<100&&f.groundVolley;i++){
+   airTick();if(f.heading.distanceTo(head)>1e-7)return false;
+  }
+  return i>1&&!f.groundBombRun&&ledger.fired.size===groundStrikeWeapon(f).bombsPerPass;
  `);
  check('射程・3D射界・遮蔽は各機の位置で決め、後方や真上には撃たない',`
   const f=airSquad('fighter',-60),t=airSquad('fighter',60,1),a=groundAirSquadTrack(f),b=groundAirSquadTrack(t);

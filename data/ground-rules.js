@@ -4,12 +4,16 @@ window.WOS_GROUND_RULES = {
   bands: { heights: { ground:0, low:12.288, high:40 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 戦闘単位。高高度10 kmはユーザー決定 2026-11-28。
   // 距離は km、時間はゲーム秒。重力は 9.8 m/s² を 1ゲーム秒＝60秒で換算。
   airCombat: {
-    cruiseKmSec:{fighter:10.5,attack:7.5}, minSpeedFactor:.6, maxSpeedFactor:1.22, speedVariation:.045,
-    turnGravityKmSec2:9.8*60**2/1000, turnLoadG:{fighter:[5,7],attack:[3,4]}, maxPitchDeg:28, pitchRateDeg:85,
+    cruiseKmSec:{fighter:10.5,attack:7.5,supportAircraft:1.25}, minSpeedFactor:.6, maxSpeedFactor:1.22, speedVariation:.045,
+    turnGravityKmSec2:9.8*60**2/1000, turnLoadG:{fighter:[5,7],attack:[3,4],supportAircraft:[1.5,2]}, maxPitchDeg:28, pitchRateDeg:85,
     sectorKm:12, // 仮。航空巡回（#521）と同じ左下 A1 の格子。
     pitchSpeedFactor:.65, speedResponse:3, stepSec:.05, boundaryMarginKm:1,
     pairDelaySec:.55, wingDelaySec:.14, pairAngleDeg:23, wingAngleDeg:2.5, reentryAngleDeg:110,
     ground:{entryKm:11,pullKm:8,diveKm:4,exitKm:4.5,lowKm:.24,diveDeg:18},
+    // 仮。低い相手への掃射と、狙われた W.A.S. の組が反応する範囲。
+    strafe:{lowKm:.32,climbKm:2.2,threatHeightKm:3.5,threatWidthKm:.9,threatLeadSec:.55,wingDelaySec:.1},
+    // 仮。支援機は従来の巡航速度（1.25 km/ゲーム秒）で、上限1.5〜2 Gの内側に広い旋回を取る。
+    support:{entryKm:2,exitKm:2,turnRadiusKm:.75},
     air:{minHeightKm:1.5,maxHeightKm:6,heightAdvantageKm:1.3,diveSec:.48,exitKm:6,tailSec:.75,tailAngleDeg:24,peelDeg:45,leadSec:1.2,
       attack:{maxHeightKm:3},
       fighter:{maxPitchDeg:42,pitchRateDeg:145,diveSec:.62,exitKm:3.5,climbLookAheadSec:.2,divePitchBiasDeg:12,passDiveSec:.22}} // 戦闘機の一撃離脱は仮。

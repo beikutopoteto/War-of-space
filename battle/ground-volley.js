@@ -56,7 +56,10 @@ function groundVolleyStart(f,target){
   if(!groundVolleyEligible(f)||f.groundVolley||(f.groundStrikeCooldown||0)>1e-8||!Array.isArray(f.ships)||!f.ships.length)return false;
   if(!target||!!target.area===!!target.point)return false;
   if(target.point&&![target.point.x,target.point.y,target.point.z].every(Number.isFinite))return false;
-  const weapon=groundStrikeWeapon(f),rocket=f.groundKind==='guidedRocket',bomb=f.groundKind==='supportAircraft',rounds=rocket?weapon.rocketsPerVolley:bomb?weapon.bombsPerPass:1,interval=rocket?weapon.burstInterval:bomb?weapon.radius/speedOf(f):0;
+  const weapon=groundStrikeWeapon(f),rocket=f.groundKind==='guidedRocket',bomb=f.groundKind==='supportAircraft';
+  const rounds=rocket?weapon.rocketsPerVolley:bomb?weapon.bombsPerPass:1;
+  const flight=f.groundFlightVelocity,bombSpeed=bomb&&groundAirSquad(f)&&flight?Math.hypot(flight.x,flight.z):0;
+  const interval=rocket?weapon.burstInterval:bomb?weapon.radius/(bombSpeed||speedOf(f)):0;
   if(!Number.isInteger(rounds)||rounds<1||!Number.isFinite(interval)||interval<0||!Number.isFinite(weapon.reload)||weapon.reload<0)return false;
   const bodies=f.bodies?f.bodies.map((body,index)=>({body,index})).filter(x=>x.body.alive):f.ships.map((vehicle,index)=>({vehicle,index})),entries=[];
   for(let round=0;round<rounds;round++)for(const body of bodies)entries.push({id:entries.length,...body,round,at:round*interval});
