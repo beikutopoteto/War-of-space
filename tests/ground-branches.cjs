@@ -55,16 +55,17 @@ function branchCases(){
       check(kind+'：敵AIも明示した攻撃命令で許可し打撃',red.order?.type==='attack'&&red.order.target===blue&&blue.hpPool<blue.groundMaxHp);
     }
     // 残る4兵科×4段。狙いの値でなく本物の damage による耐久差で表を確認。
-    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[2,8,8,0]]]){
+    const mobileAAPower=groundRuleSet().unitTypes.mobileAA.weapons.find(w=>w.air).power;
+    for(const [kind,hits] of [['commando',[2,1,0,0]],['guidedRocket',[4*groundRuleSet().strike.guidedRocket.dmgScale,0,0,0]],['mechanicalAssault',[3,1.5,1.5,0]],['mobileAA',[mobileAAPower,mobileAAPower,mobileAAPower,0]]]){
       for(const [i,band] of ['ground','low','high','sea'].entries()){
         const f=unit(kind),t=unit('infantry',1,8.4,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);
-        const factor=band==='ground'?(kind==='guidedRocket'?2:groundDirectWeapon(f,t).armorFactor):1;
+        const factor=band==='ground'?(kind==='guidedRocket'?2:groundDirectWeapon(f,t).armorFactor):groundDirectWeapon(f,t,true).armorFactor;
         check(kind+'：段別の実打撃と通常／自動対空の対象 '+band,near(hp-t.hpPool,hits[i]*factor*groundRuleSet().combat.damageScale)&&(['low','high'].includes(band)?!f.fireTarget&&(hits[i]>0?f.groundAATarget===t:!f.groundAATarget):hits[i]===0||f.fireTarget===t));
       }
     }
     for(const band of ['low','high','ground']){
       const f=unit('mobileAA'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;tick(.05);
-      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,(band==='ground'?2*groundDirectWeapon(f,t).armorFactor:8)*groundRuleSet().combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
+      check('自走対空砲：'+band+'へ実打撃',near(hp-t.hpPool,mobileAAPower*groundDirectWeapon(f,t,band!=='ground').armorFactor*groundRuleSet().combat.damageScale)&&(band==='ground'?f.fireTarget===t:f.groundAATarget===t&&!f.fireTarget));
     }
     for(const band of ['ground','low','high']){
       const f=unit('guidedRocket'),t=unit(band==='ground'?'vehicle':'fighter',1,9,27);t.band=band;fleets=[f,t];order(f,{type:'attack',target:t});const hp=t.hpPool;fireOnce(f,t);

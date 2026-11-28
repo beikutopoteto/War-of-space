@@ -5,8 +5,84 @@ window.WOS_GROUND_RULES = {
   // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
   // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
   wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 },
-    moveSupplyFactor:{cruise:1.4,low:2}, idleSupplyPerSec:{cruise:.035,low:.05}, // 巡航は今の0.7倍（ユーザー決定 2026-11-27）
-    evasion:.5, npcMinKm:6 }, // ほかは仮。
+    moveSupplyFactor:{ground:.5,cruise:.7,low:1}, idleSupplyPerSec:{cruise:1.05,low:2.05}, // ユーザー決定 2026-11-27。停止は補給の表示点/ゲーム秒。
+    evasion:.6, // ユーザー決定 2026-11-28（仮）。
+    npcMinKm:6 }, // 仮。
+  wasCombat: { // #525 の仮値。距離は km。
+    reactiveArmor:{penetrationRatio:2,refillCost:2},
+    topAttackKm:1,
+    shotSupplyFactor:1.3, // ユーザー決定 2026-11-28。射撃・対艦ロケットなど撃つときの補給消費倍率（wasFlight の移動・停止消費は変えない）。
+    autoCruise:{supplyFraction:.3,quietSec:10},
+    // 巡航で移動するとき、採用図の矢印（歩くときの間隔）を縮める倍率（ユーザー決定 2026-11-28「移動は3倍」、採用）。.36 で4小隊16機の最大間隔は約0.87 km。
+    cruiseSpacing:.36,
+    // 各機の描画の仮値。時間はゲーム秒、角度はラジアン。drift・scatter は模型の長さ、height は模型の高さに対する倍率。
+    cruiseMotion:{follow:12,velocityResponse:30,leadSec:.115,swarmAimSec:.45},
+    cruiseDrift:{periodSec:[4.5,12.5],drift:[.4,.78],height:[.3,.58],spacingGain:.12,scatter:.16,idleFactor:.55,yawSway:.09,
+      sepWidth:.95,sepHeight:.85,sepRate:26,minClearanceKm:.02},
+    // 巡航陣形の崩し方と戻り方（仮）。maxRadiusKm は cruiseSpacing が既定値のときの半径。
+    cruiseTurn:{staggerSec:.32,courseResponse:[3,6],yawResponse:9,maxYawSpeed:4.5,speed:[2.2,4.2],
+      settleResponse:1.4,arc:[.25,.85],bankPerTurn:.08,maxRadiusKm:.588,
+      enterSec:[.65,1.15],rejoinSec:[2,3.1]},
+    // 巡航中の反転（おおむね120°以上の向き変更）の部隊内クロス（仮）。長さ比は模型の長さ、高さ比は模型の高さ。
+    cruiseReverse:{minAngleDeg:120,turnWindowSec:.45,
+      frontDelaySec:[0,.2],frontDurationSec:[1.15,1.55],
+      middleDelaySec:[.1,.35],middleDurationSec:[1.65,2.2],
+      rearDelaySec:[.05,.25],rearDurationSec:[2.2,2.8],
+      rearMinCoverSec:1.0,rearCoverSec:[2.4,3.1],rearMaxCoverSec:4.5,
+      frontLaneL:.42,frontHeightH:.38,middleArcL:[.45,.95],rearSpreadL:.48,rearHeightH:.24,
+      frontPitch:.12,rearPitch:-.06,bankPerTurn:.1},
+    // ユーザー決定 2026-11-28（採用）。全機が飛び回り、外周の直径は約2 km。
+    swarmPattern:'all',
+    // 見本の0.7 kmから全距離を2.0/0.7倍。middleKm・rearKmはrolesで自軍側へ下がる距離。
+    swarmLayout:{frontRadiusKm:.2*2/.7,middleKm:.3*2/.7,rearKm:.45*2/.7,allMiddleRadiusKm:.27*2/.7,allRearRadiusKm:1,maxSpanKm:2},
+    // 巡航 W.A.S. 同士の巴戦（仮）。距離は km、時間はゲーム秒、角度はラジアン。
+    dogfight:{
+      damageScale:1,noEvasion:true, // ユーザー決定 2026-11-28: 飛行中の W.A.S. 同士は回避なし（損害4倍はやめた）。
+      cannonEvasionFactor:2,cannonMaxEvasion:.9,
+      radiusKm:[.63,.78,.91],heightKm:[.054,.05,.064],periodSec:[5.8,7,9.2],
+      periodVariationSec:.85,headingSpread:1.16,crossWidth:.53,phaseLag:.44,
+      minHeightKm:.03,lowMaxHeightKm:.08,maxHeightKm:.2,heightWaveKm:.013,
+      pairGapKm:.076,splitKm:.14,tailKm:.14,coverKm:.14,pursuit:.32,pitchLimit:.85,
+      jump:{start:.15,riseSec:.7,riseKm:[.08,.12],diveSec:1.05,pitchDeg:16},
+      slide:{start:.72,durationSec:.82,rejoinSec:.72,distanceKm:[.12,.19],plumeLength:2.6},
+      pass:{start:.28,enter:.41,exit:.54,end:.68,alongKm:.27,gapKm:[.055,.09],fireKm:.135,flashEverySec:.19},
+      stray:{chance:.28,reachKm:[.065,.12],size:.075},
+      wreck:{durationSec:[2,3],driftKm:.18,smokePuffs:9,smokeSec:1.15,impactSize:.27}
+    },
+    // 停止巡航で交戦中のロール・ピッチと揺れの速さ（仮）。角度はラジアン、速さはラジアン/ゲーム秒。
+    swarmAttitude:{
+      frontOrbitSpeed:1.5,frontRoll:.42,frontRollSway:.14,frontAimPitch:.55,frontClimbPitch:.22,
+      middleOrbitSpeed:.95,middleSwaySpeed:2.8,middleRoll:.34,middlePitch:.24,
+      rearOrbitSpeed:.58,rearSwaySpeed:2.5,rearRoll:.3,rearPitch:.2,maxYawSpeed:9,
+      maneuverResponse:16 // ブースト・通過中の描画の追従率（1/ゲーム秒）。
+    },
+    // 技と僚機の離れ方は仮。距離・高さは km、時間はゲーム秒、Deg は度。
+    swarmManeuvers:{
+      slotSec:4.4,slotVariationSec:.6,pairPhase:.54,minHeightKm:.02,maxHeightKm:.17,
+      // 僚機の半独立（仮）: 間隔は50 m〜数百 m でゆっくり伸縮し、相対位置も時間で回る。技の開始・向きも長機とずらす。
+      pair:{gapKm:.09,minGapKm:.068,maxGapKm:.21,sideKm:.074,backKm:.09,riseKm:.068,passRiseKm:.032,
+        orbitRate:[.38,.66],breatheRate:[.26,.48],heightRate:[.52,.92],heightWaveKm:.032,
+        speedWaveKm:.065,speedWaveRate:[.45,.8],leadWanderKm:.042,leadWanderRate:[.32,.56],
+        phaseLag:.28,phaseLagVar:.16,phaseDrift:.10,phaseDriftRate:.24,
+        passAngleDeg:36,passLaneKm:.11,avoidHeightKm:.032,unitClearKm:.055},
+      jump:{startSec:.9,prepSec:.55,riseSec:.8,floatSec:.3,fallSec:.86,thrustFadeSec:.12,
+        launchKm:.045,riseKm:.08,variationKm:.01,pitchDeg:16},
+      front:{heightKm:.09,swayKm:.06,innerScale:.48,infantryClearanceKm:.125,
+        diveHighKm:.15,diveLowKm:.03,diveRadiusScale:.48,divePitchDeg:67,outerScale:1.16,
+        // 飛び越え・突っ切り・射撃通過。enter/start/end/exit は技の中での進み具合（0〜1）。
+        passes:{
+          2:{enter:.10,start:.30,end:.70,exit:.90,radiusKm:.15,heightKm:.145},
+          4:{enter:.14,start:.405,end:.595,exit:.86,radiusKm:.14,heightKm:.14,leadLaneKm:.06},
+          5:{enter:.14,start:.375,end:.625,exit:.86,radiusKm:.14,heightKm:.14}
+        },
+        firePass:{pitchDeg:[40,70],flashEverySec:.19}},
+      middle:{sideKm:.15,swayKm:.023,depthSwayKm:.015,coverKm:.088,slideKm:.058,
+        heightKm:.055,heightSwayKm:.024,climbKm:.064,innerKm:.22,arcRad:.24,
+        passInnerKm:.26,passHeightKm:.13,outerScale:1.12},
+      rear:{sideKm:.09,swayKm:.038,depthSwayKm:.017,heightKm:.046,heightSwayKm:.026,
+        sniperRiseKm:.072,innerKm:.21,arcRad:.22,dipHeightKm:.032,orbitInsetKm:.06,outerScale:1.12}
+    }
+  },
   // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
   sight: { site:30, basic:30, scout:40, concealment:{scout:.5,drone:.5}, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
@@ -15,7 +91,8 @@ window.WOS_GROUND_RULES = {
   // minScatterDiameter10KmM は10kmでの最小直径（m）、scatterRatioは距離に対する直径の比。
   strike: {
     vehicle:{delay:2,radius:.4,dmgScale:3,areaRadius:2,spread:.08,reload:4,initial:{radius:.2,reload:6}}, // 地点攻撃だけ3倍（ユーザー決定 2026-11-17。爆風が小さくなり強化歩兵への効きが前の約0.28倍だった）
-    was:{delay:5,radius:.4,dmgScale:2,areaRadius:7,reload:8,minScatterDiameter10KmM:25,initial:{radius:.2,reload:12}},
+    // 88 mm 砲の間接発射間隔は 76 mm の1.5倍（仮、ユーザー決定 2026-11-28）。
+    was:{delay:5,radius:.4,dmgScale:2,areaRadius:7,reload:12,minScatterDiameter10KmM:25,initial:{radius:.2,reload:18}},
     artillery:{delay:5,radius:.8,dmgScale:2,areaRadius:7,spread:2,reload:8,minScatterDiameter10KmM:25,initial:{radius:.4,reload:12}},
     guidedRocket:{delay:5,radius:1.2,dmgScale:2,areaRadius:7,reload:30,rocketsPerVolley:12,burstInterval:.25,scatterRatio:.02,initial:{radius:.6,burstInterval:.5,reload:45}},
     supportAircraft:{delay:7,radius:2.4,areaRadius:9,spread:2,reload:10,bombsPerPass:6,initial:{radius:1.2,reload:15,bombsPerPass:4}},
@@ -79,7 +156,8 @@ window.WOS_GROUND_RULES = {
     commando:{name:'強化コマンド歩兵',speed:1.9,range:10,hp:160,dmg:2,armor:10,blastMorale:1,weapons:[{power:2,pen:15,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:0.8,aa:0.5}},
     guidedRocket:{name:'無誘導ロケット',speed:2.5,range:30,hp:100,dmg:4,permissionOnly:true,armor:{front:300,side:50,top:40},blastMorale:.7,fireRangesKm:{indirect:{min:0,max:50}}},
     mechanicalAssault:{name:'機械化突撃兵',speed:2.2,range:10,hp:120,dmg:3,permissionOnly:true,armor:15,blastMorale:1,weapons:[{power:3,pen:25,morale:1},{power:2.5,pen:700,soft:.15,morale:1,shaped:true}],fireRangesKm:{direct:1.2,aa:0.8}},
-    mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:150,dmg:4,armor:{front:300,side:50,top:40},blastMorale:.7,weapons:[{power:2,pen:90,morale:1.5}],fireRangesKm:{direct:2,aa:4}},
+    // 35 mm 連装機関砲1つで空も地上も撃つ（カメラによる自動計算照準。ユーザー決定 2026-11-28、耐久・直射士気軽減・威力・貫通・士気・発射間隔・回避軽減は仮）。
+    mobileAA:{name:'自走対空砲',speed:2.5,range:25,hp:180,dmg:4,armor:{front:300,side:50,top:150},blastMorale:.7,directMorale:.08,weapons:[{power:8,pen:220,morale:.4,fireFactor:.2,burst:1.5,air:true,evasionFactor:.15,barrels:2}] /* 35 mm 連装: 1門3×2門、1回の射撃を長く（power 8、間隔0.2。上面装甲150＝対空なので上を厚く。ユーザー 2026-11-28）。耐久は1両60（小隊180）（ユーザー決定 2026-11-28） */,fireRangesKm:{direct:2,aa:6}},
     vehicle:{name:'主力戦車',speed:3,range:20,hp:250,dmg:5,armor:{front:1800,side:500,top:150,shapedFront:2200},blastMorale:.4,weapons:[{power:5,pen:100,soft:1.6,morale:1.2},{power:6,pen:1800,soft:.2,morale:1.2}],fireRangesKm:{direct:3,aa:1}},
     scout:{name:'斥候',speed:3.5,range:7,hp:80,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:1,pen:20,morale:1}],fireRangesKm:{direct:0.6}},
     apc:{name:'装甲兵員輸送車',speed:3,range:8,hp:225,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:3,pen:200,morale:1.2}],fireRangesKm:{direct:1.5,aa:1}},
@@ -91,7 +169,15 @@ window.WOS_GROUND_RULES = {
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
     // directFirst: 直接射撃を主とする。間接射撃は地点攻撃の命令のときだけ撃ち（自動交戦・攻撃の命令・敵の自動の地点攻撃では撃たない）、
     // 攻撃の命令と NPC の助攻では直接射撃の距離まで近づく（ユーザー決定 2026-11-19）
-    was:{name:'陸戦型 W.A.S.',speed:4.7,range:12,hp:150,dmg:2,directFirst:true,armor:{front:250,side:150,top:150},blastMorale:.7,weapons:[{power:5,pen:280,soft:1.5,morale:1.5,air:true,fx:'gatling'},{power:5,pen:800,morale:2},{power:6,pen:2500,soft:.1,morale:1.5,shaped:true}],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
+    // 装甲と耐久はユーザー決定 2026-11-27。
+    was:{name:'陸戦型 W.A.S.',speed:4.7,range:12,hp:170,dmg:2,directFirst:true,armor:{front:400,side:200,top:150},blastMorale:.7,weapons:[
+      // 30 mm バルカン（ユーザー決定 2026-11-28）: 威力3・軟目標倍率なし、88 mm・対艦ロケットと同時に独自間隔で撃つ。
+      {power:3,pen:280,morale:1.5,air:true,parallel:true,fx:'gatling'},
+      // 88 mm 砲（ユーザー決定 2026-11-28）: 威力8。貫通900・直射間隔1.5倍（fireFactor）は仮。
+      {power:8,pen:900,morale:2,fireFactor:1.5,wasCannon:true},
+      // 対艦ロケットはユーザー決定 2026-11-27。威力60は仮（ユーザー決定 2026-11-28 で 55 から戻した）。
+      {power:60,pen:2500,soft:.1,morale:1.5,shaped:true,rounds:3,roundInterval:1,reloadSec:5,fx:'rocket'}
+    ],evasion:.3,fireRangesKm:{direct:3,indirect:{min:1,max:12},aa:6,airborne:{ground:5,air:15}}}
   },
   // 地上・海上専用の仮射程（km）。既存の艦種IDを使い、宇宙側の艦種・性能は変更しない。
   navalFireRangesKm: {

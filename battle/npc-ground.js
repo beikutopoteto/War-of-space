@@ -545,7 +545,8 @@ function npcGroundStep(){
   for(const f of fleets){
     if(!f.groundWasNpcCruise||!npcGroundActive(f.team)||npcAutoPlayerUnit(f))continue;
     if(!groundWasFlying(f))f.groundWasNpcCruise=false;
-    else if(f.order?.type!=='move')groundWasToggle(f);
+    // 交戦中の巡航は射撃側が引き継ぎ、交戦が終わってから着陸する。
+    else if(f.order?.type!=='move'&&!(f.stance==='engage'&&f.fireTarget?.alive))groundWasToggle(f);
   }
   if(npcGroundLiftActive()){npcIssuing=true;try{npcGroundLiftWatch();}finally{npcIssuing=false;}}
   npcGroundHoldStep();

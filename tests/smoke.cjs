@@ -19,7 +19,8 @@ const { checkGroundBranches } = require('./ground-branches.cjs');
 const { checkGroundSea } = require('./ground-sea.cjs');
 const { checkGroundLanding } = require('./ground-landing.cjs');
 const { checkGroundSupply } = require('./ground-supply.cjs');
-const {checkWasFlight}=require('./ground-was-flight.cjs');
+const {nodeChecks:groundWasFlightChecks,checkWasFlight}=require('./ground-was-flight.cjs');
+const {nodeChecks:groundWasCombatChecks}=require('./ground-was-combat.cjs');
 const {nodeChecks:npcSpaceChecks,checkNpcSpace}=require('./npc-space.cjs');
 const {nodeChecks:npcCoreChecks}=require('./npc-core.cjs');
 const {nodeChecks:npcSimChecks}=require('./npc-sim.cjs');
@@ -85,6 +86,8 @@ function check(ok, label, detail = '') {
   for(const r of groundFormationChecks())check(r.ok,'隊形: '+r.name);
   for(const r of groundBodyChecks())check(r.ok,'地上の体: '+r.name);
   for(const r of groundWeaponsChecks())check(r.ok,'地上兵器: '+r.name,r.error||'');
+  for(const r of groundWasCombatChecks())check(r.ok,'W.A.S. 交戦: '+r.name);
+  for(const r of groundWasFlightChecks())check(r.ok,'W.A.S. 飛行: '+r.name);
   for(const r of groundPlanChecks())check(r.ok,'地上共有命令: '+r.name);
   for(const r of groundAreaChecks())check(r.ok,'範囲砲撃: '+r.name);
   for(const r of groundRangeChecks())check(r.ok,'地上射程分離: '+r.name);
@@ -167,6 +170,9 @@ function check(ok, label, detail = '') {
       const composition=[fleets.filter(f=>f.team===0).length,fleets.filter(f=>f.team===1).length], initial=fighter.band==='high'&&attack.band==='low'&&by('fighter',1).band==='high'&&by('attack',1).band==='low';
       fleets.forEach(f=>{f.stance='evade';f.order=null;});
       const at=groundPoint(16,25),victim=by('vehicle',1); attack.pos.copy(at); victim.pos.copy(at).add(new THREE.Vector3(1,0,0));
+      // 攻撃機と W.A.S. の射撃を受けても、高度の確認が終わるまで同じ地上目標を維持する。
+      for(const b of victim.bodies)b.hp=b.max=1000;
+      groundBodySync(victim);victim.groundMaxHp=victim.hpPool;
       fleets=[attack,victim];victim.groundHoldFire=true;attack.band='low'; attack.order={type:'attack',target:victim};
       const originalDamage=damage,hits=[];
       damage=(t,n,f,...rest)=>{hits.push({kind:f.groundKind,band:f.band,target:t.band,n}); originalDamage(t,n,f,...rest);};

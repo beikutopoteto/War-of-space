@@ -1214,10 +1214,21 @@ function mBB5(){ const M=mA([[-1.35,.22,.12],[-.7,.3,.17],[.5,.3,.17],[1.1,.24,.
     ...mPair(mPD,.2,M.top(-.9)-.004,-.9,.95), ...mPair(mPD,.2,ty-.004,.3,.95),
     ...M.under(mGun(0,0,m,1.25,2),m), ...M.under(mGun(0,0,-.75,1.1,2,true),-.75), ...M.side(()=>mGun(0,0,.4,.7),.4),
     ...[.5,-.35].flatMap(z=>[1,-1].flatMap(sg=>M.under(mGat(0,0,z,.95),z,sg*W(z)*.55)))]; }
+// 採用図 was-formation.json（ユーザー決定 2026-11-28）。2点ずつ長機・僚機、4点ずつ小隊。
+// 図の1点は仮12 m（.096 × モデルの size .5 ÷ 4）。図を正面が +z の模型座標へ回す。
+const GROUND_WAS_FORMS=[null,
+  [[-21,-24],[11,-24],[-11,24],[21,24]],
+  [[-13,-70.5],[13,-70.5],[-55,-5.5],[-77,16.5],[55,-5.5],[77,16.5],[-22,59.5],[22,59.5]],
+  [[-13,-81.8],[13,-81.8],[-37.4,-28.8],[-48.4,-1.8],[37.4,-28.8],[48.4,-1.8],[-22,48.2],[22,48.2],
+   [-90.2,26.2],[-63.2,38.2],[90.2,26.2],[63.2,38.2]],
+  [[-13,-105.4],[13,-105.4],[-37.4,-52.4],[-48.4,-25.4],[37.4,-52.4],[48.4,-25.4],[-22,6.6],[22,6.6],
+   [-96.5,12.6],[-69.5,24.6],[96.5,12.6],[69.5,24.6],[-30.2,56.7],[-59.2,82.7],[30.2,56.7],[59.2,82.7]]
+].map(points=>points?.map(([x,y])=>[-x*.096,-y*.096]));
 const GROUND_FORMS={
   one:[[0,0]],
   v3:[[0,0],[-3,-3],[3,-3]],                              // the old aircraft V
   wedge3:[[0,.8],[-1.3,-.7],[1.3,-.7]],
+  wasArrow:GROUND_WAS_FORMS[1],
   wedge4:[[.65,.7],[-.65,.7],[1.95,-.7],[-1.95,-.7]],
   line3:[[-1.35,0],[0,0],[1.35,0]],
   line4:[[-2,0],[-.67,0],[.67,0],[2,0]],
@@ -1253,8 +1264,9 @@ const GROUND_MODELS={
   mechanicalAssault:{key:'mechA',size:.32,form:'squad12',move:['mechA','mechB']},
   drone:{key:'fpv',size:.3,form:'wedge3'},
   /* W.A.S. の歩く形（ユーザー 2026-11-19）: 地上で動く体は左右の足を交互に出して歩く（空では歩かない）。前の4こまは盾を下ろした歩き、
-     後の4こまは追撃・進撃の盾を構えた歩き（cycle: 1巡のこまの数）。step: 1歩の間隔は歩兵の 0.6 倍（仮） */
-  was:{key:'was4',size:.75,form:'wedge3',move:['wasMarch1','wasMarch2','wasMarch3','wasMarch4','wasWalk1','wasWalk2','wasWalk3','wasWalk4'],cycle:4,step:.6},
+     後の4こまは追撃・進撃の盾を構えた歩き（cycle: 1巡のこまの数）。step: 1歩の間隔は歩兵の 0.6 倍（仮）。
+     ユーザー決定 2026-11-28: 戦車に比べて大きすぎたため size を 0.75 → 0.5 に縮小 */
+  was:{key:'was4',size:.5,form:'wasArrow',move:['wasMarch1','wasMarch2','wasMarch3','wasMarch4','wasWalk1','wasWalk2','wasWalk3','wasWalk4'],cycle:4,step:.6},
   fighter:{earth:{key:'ftrE',size:.6,form:'flight4'},mars:{key:'ftrM',size:.6,form:'flight4'}},
   attack:{earth:{key:'atkE',size:.6,form:'flight4'},mars:{key:'atkM',size:.6,form:'flight4'}},
   supportAircraft:{earth:{key:'awE',size:1,form:'one'},mars:{key:'awM',size:1,form:'one'}},

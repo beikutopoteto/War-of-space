@@ -178,7 +178,7 @@ function nodeChecks(){
   assert.equal(steps,20);ctx.fleets.forEach((f,i)=>assert.ok(f.pos.equals(places[i])));
   assert.ok(ctx.fleets.filter(f=>f.groundModel.userData.pose).every(f=>f.groundModel.userData.pose.move.every(m=>m.filter(b=>b.visible).length===1)));count++;
   ctx.location.search='';run('Object.assign(GROUND_MODELS,APPROVED_MODELS);initModels();');
-  check('差し替えなしで陸と空の全部隊が採用の形、海艦は従来表示',`fleets.every(f=>f.groundModel.userData.groundShape===(f.groundKind!=='sea'))&&fleets.filter(f=>f.groundKind==='was').every(f=>f.groundModel.children[0].scale.x===.75)`);
+  check('差し替えなしで陸と空の全部隊が採用の形、海艦は従来表示',`fleets.every(f=>f.groundModel.userData.groundShape===(f.groundKind!=='sea'))&&fleets.filter(f=>f.groundKind==='was').every(f=>f.groundModel.children[0].scale.x===.5)`);
   console.log(`| 地上模型・差し替え・見本（ブラウザ不要） | ${count}/${count} 成功 |`);
 }
 if(require.main===module)nodeChecks();
