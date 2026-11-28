@@ -162,8 +162,10 @@ const GFX=(()=>{
   function plume(s){
     const group=new THREE.Group(), outer=mesh(geo().cone,mat(0x58a6ff,.5),group), mid=mesh(geo().cone,mat(0xa9d6ff,.8),group), core=mesh(geo().cone,mat(0xffffff,1),group), g=glow(0x9ccfff,group), ph=rnd()*9;
     for(const m of [outer,mid,core]) m.rotation.y=Math.PI;
-    return {group,update(t,power=1,length=1){ const f=1+.12*Math.sin(t*37+ph)+.07*Math.sin(t*61+ph*2), L=s*power*f*length; group.visible=power>.02;
-      outer.scale.set(s*.55,s*.55,L*1.7); mid.scale.set(s*.36,s*.36,L*1.1); core.scale.set(s*.2,s*.2,L*.55); g.scale.setScalar(s*(.9+power*.8)*f); g.material.opacity=Math.min(.9,.55+(length-1)*.2); return true; }};
+    return {group,update(t,power=1,length=1,detail=true){ const f=1+.12*Math.sin(t*37+ph)+.07*Math.sin(t*61+ph*2), L=s*power*f*length; group.visible=power>.02;
+      outer.scale.set(s*.55,s*.55,L*1.7); mid.visible=core.visible=detail;
+      if(detail){mid.scale.set(s*.36,s*.36,L*1.1);core.scale.set(s*.2,s*.2,L*.55);}
+      g.scale.setScalar(s*(.9+power*.8)*f); g.material.opacity=Math.min(.9,.55+(length-1)*.2); return true; }};
   }
   // 落下の軌道をたどる煙。粒の数は固定し、落ちた後も最後の煙だけ少し残す。
   function wreckTrail(size,path,dur,{smokePuffs,smokeSec}){

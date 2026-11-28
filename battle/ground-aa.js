@@ -79,12 +79,14 @@ function groundAutoAAStep(dt){
     if(!f)continue;
     f.groundAATimer=Math.max(0,(Number.isFinite(f.groundAATimer)?f.groundAATimer:0)-dt);
     const previous=f.groundAATarget;f.groundAATarget=null;
+    const melee=f.groundWasFlight?.dogfight?.group;
     if(f.bodies)for(const b of f.bodies)b.aaT=Math.max(0,b.aaT-dt);
     if(!groundAutoAAReady(f)||groundAARange(f)<=0){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
     const reloading=f.bodies?f.bodies.every(b=>!b.alive||b.aaT>1e-8):f.groundAATimer>1e-8;
     // 装填中は表示の目標を保持し、発射時に射線を確認する。
     if(reloading){
-      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)){
+      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&
+        !(melee?.multi&&previous.groundWasFlight?.dogfight?.group===melee)){
         const range=groundAARange(f,previous);
         if(groundUsesFlightBodies(f,previous)?groundBodiesWithinReach(f,previous,range):
           groundDistanceTo(f,previous)<=range&&groundAAHeightAllows(f,previous.pos,previous))f.groundAATarget=previous;
@@ -92,7 +94,8 @@ function groundAutoAAStep(dt){
       continue;
     }
     const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&
-      !(f.fireTarget===t&&(groundWasCruising(t)||groundWasLowDuel(f,t)))&&groundSeenBy(f.team,t))
+      !(f.fireTarget===t&&(groundWasCruising(t)||groundWasLowDuel(f,t)))&&
+      !(melee?.multi&&t.groundWasFlight?.dogfight?.group===melee)&&groundSeenBy(f.team,t))
       .map(t=>({t,d:groundDistanceTo(f,t)}))
       .filter(({t,d})=>groundUsesFlightBodies(f,t)||d<=groundAARange(f,t));
     if(f.groundKind==='mobileAA'&&f.bodies){

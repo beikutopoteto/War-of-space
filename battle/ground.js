@@ -1013,7 +1013,7 @@ function groundWasDuelDirect(f,t){
 function groundWasLowDuel(f,t){
   return f.groundKind==='was'&&f.band==='low'&&!f.bandTo&&t?.groundKind==='was'&&t.band==='low'&&!t.bandTo;
 }
-function groundWasDogfightPairs(f,t){
+function groundWasDogfightPairs(f,t,paths){
   const [front,middle]=GROUND_WAS_ROLES[f.bodies.length/4];
   const [enemyFront,enemyMiddle]=GROUND_WAS_ROLES[t.bodies.length/4];
   const ends=[0,front,front+middle,f.bodies.length/2];
@@ -1025,30 +1025,117 @@ function groundWasDogfightPairs(f,t){
       const start=enemyEnds[r],count=enemyEnds[r+1]-start;
       return Array.from({length:count},(_,j)=>start+(row+j)%count);
     });
-    return {role,row,pairs};
+    const {lerp}=THREE.MathUtils;
+    return {role,row,target:t,pairs,
+      phase:paths.phaseSpread*hash(f.id,i,31),bearing:paths.angleSpread*hash(f.id,i,32),
+      radius:lerp(...paths.radiusScale,(1+hash(f.id,i,33))/2),
+      wander:Math.PI*hash(f.id,i,34)};
   });
 }
-function groundWasDogfightState(f,rules){
-  const low=groundWasLowDuel(f,f.fireTarget);
-  const target=low?f.fireTarget:groundWasSwarmTarget(f,rules);
-  if(!target?.alive||target.embarked||groundAbsent(target)||!groundWasBodyFlight(target))return null;
-  if(low?target.fireTarget!==f||gameSec-Math.max(f.groundMovedAt,target.groundMovedAt)<.4:
-    groundWasSwarmTarget(target,rules)!==f)return null;
-  // このステップでどちらを先に動かしても、同じ時点の相手の位置と向きで追う。
-  const snapshot=t=>groundWasFlightTrack(t).bodies.map(b=>({pos:b.pos.clone(),yaw:b.yaw}));
-  const prior=f.groundWasFlight?.dogfight;
-  return {target,low,at:prior?.low&&prior.target===target?prior.at:gameSec,
-    x:(f.pos.x+target.pos.x)/2,z:(f.pos.z+target.pos.z)/2,
-    pairs:groundWasDogfightPairs(f,target),friends:snapshot(f),foes:snapshot(target)};
+function groundWasDogfightTarget(f,rules){
+  if(!f?.alive||f.embarked||groundAbsent(f)||!groundWasBodyFlight(f)||f.bandTo||gameSec-f.groundMovedAt<.4)return null;
+  const t=groundWasLowDuel(f,f.fireTarget)?f.fireTarget:groundWasSwarmTarget(f,rules);
+  return t?.alive&&t.team!==f.team&&t.band===f.band&&!t.bandTo&&!t.embarked&&!groundAbsent(t)&&groundWasBodyFlight(t)?t:null;
 }
-function groundWasDogfightAim(state,i){
-  const {target,pairs}=state,wing=i%2;
-  for(const pair of pairs[i>>1].pairs){
-    const j=2*pair+wing,k=2*pair+1-wing;
-    if(target.bodies[j].alive)return j;
-    if(target.bodies[k].alive)return k;
+// 近い組から両軍の組を結び、相手の全組に行き先が付くまでは同じ組を重ねて選ばない。
+function groundWasDogfightMatch(members,pairsByUnit,snapshots){
+  const teams=[[],[]];
+  for(const f of members){
+    const bodies=snapshots.get(f);
+    pairsByUnit.get(f).forEach((pair,i)=>{
+      const a=bodies[2*i],b=bodies[2*i+1];
+      if(!a.alive&&!b.alive)return;
+      const pos=a.alive&&b.alive?a.pos.clone().lerp(b.pos,.5):(a.alive?a:b).pos;
+      teams[f.team].push({f,pair,i,pos});
+    });
   }
-  return -1;
+  const links=teams[0].flatMap(a=>teams[1].map(b=>({a,b,d:a.pos.distanceToSquared(b.pos)}))).sort((a,b)=>a.d-b.d);
+  const allA=new Set(teams[0]),allB=new Set(teams[1]);
+  const matchedA=new Set(),matchedB=new Set();
+  const assign=(a,b)=>{a.pair.target=b.f;a.pair.pairs=[b.i];};
+  while(links.length&&(allA.size||allB.size)){
+    for(const {a,b} of links){
+      if(matchedA.has(a)||matchedB.has(b))continue;
+      if(allA.delete(a))assign(a,b);
+      if(allB.delete(b))assign(b,a);
+      matchedA.add(a);matchedB.add(b);
+    }
+    matchedA.clear();matchedB.clear();
+    // 人数差があるときは、まだ相手のいない側の組と、反対側の全組で次の割り当てを行う。
+    for(const a of teams[0])if(allA.size&&!allA.has(a))matchedA.add(a);
+    for(const b of teams[1])if(allB.size&&!allB.has(b))matchedB.add(b);
+  }
+}
+function groundWasDogfightStates(rules){
+  const {dogfight:d,swarmLayout}=rules,contacts=new Map(),states=new Map(),groups=[];
+  for(const f of fleets){
+    const t=groundWasDogfightTarget(f,rules);
+    if(t)contacts.set(f,t);
+  }
+  const nearby=new Set([...contacts].filter(([f,t])=>contacts.has(t)&&groundDistanceTo(f,t)<=d.mergeKm*GROUND_SCALE).map(([f])=>f));
+  // 同じ空域の交戦につながる隊を残す。相手が離脱した隊は参加しない。
+  let removed;
+  do{
+    removed=false;
+    for(const f of nearby)if(!nearby.has(contacts.get(f))){nearby.delete(f);removed=true;}
+  }while(removed);
+  while(nearby.size){
+    const first=nearby.values().next().value,members=[first];
+    nearby.delete(first);
+    for(const f of members)for(const t of nearby){
+      if(t.band===f.band&&groundDistanceTo(f,t)<=d.mergeKm*GROUND_SCALE){members.push(t);nearby.delete(t);}
+    }
+    if(members.filter(f=>f.team===0).length>=2&&members.filter(f=>f.team===1).length>=2)groups.push(members);
+  }
+  const grouped=new Set(groups.flat());
+  for(const [f,t] of contacts)if(!grouped.has(f)&&!grouped.has(t)&&contacts.get(t)===f){
+    groups.push([f,t]);grouped.add(f);grouped.add(t);
+  }
+  for(const members of groups){
+    members.sort((a,b)=>a.id-b.id);
+    const low=members[0].band==='low',multi=members.length>2,mode=low?d.low:d;
+    const scale=(members.length/2)**d.sizeExponent,outer=(low?mode.maxSpanKm:swarmLayout.maxSpanKm)*GROUND_SCALE*scale/2;
+    let x=0,z=0;
+    const snapshots=new Map();
+    for(const f of members){
+      x+=f.pos.x;z+=f.pos.z;
+      // 同じ時点の位置を一度だけ読む。後で動かす隊にも移動前の位置・向きを渡す。
+      snapshots.set(f,groundWasFlightTrack(f).bodies.map((b,i)=>({pos:b.pos.clone(),yaw:b.yaw,unit:f,index:i,alive:f.bodies[i].alive})));
+    }
+    x/=members.length;z/=members.length;
+    const key=members.map(f=>f.id).join(',');
+    const livePairs=multi?members.map(f=>f.bodies.reduce((mask,b,i)=>mask|(b.alive?1<<(i>>1):0),0)).join(','):null;
+    const prior=members.find(f=>{
+      const group=f.groundWasFlight?.dogfight?.group;
+      return group?.key===key&&group.paths===mode.paths&&group.livePairs===livePairs;
+    })?.groundWasFlight.dogfight.group;
+    let pairsByUnit=prior?.pairsByUnit;
+    if(!pairsByUnit){
+      pairsByUnit=new Map(members.map(f=>[f,groundWasDogfightPairs(f,contacts.get(f),mode.paths)]));
+      if(multi)groundWasDogfightMatch(members,pairsByUnit,snapshots);
+    }
+    const group={key,livePairs,paths:mode.paths,pairsByUnit,members,multi,low,x,z,outer};
+    for(const f of members){
+      const old=f.groundWasFlight?.dogfight;
+      states.set(f,{group,target:contacts.get(f),low,at:old?.low===low?old.at:gameSec,
+        x,z,outer,scale,pairs:pairsByUnit.get(f),friends:snapshots.get(f),snapshots});
+    }
+  }
+  return states;
+}
+function groundWasDogfightAim(state,i,useLock=false){
+  const {target,pairs}=state.pairs[i>>1],foes=state.snapshots.get(target),wing=i%2;
+  if(!foes)return null;
+  if(useLock){
+    const locked=state.friends[i].unit.groundBodyTargets?.get(target)?.pairTargets[i>>1];
+    if(foes[locked]?.alive&&(!state.group.multi||pairs.includes(locked>>1)))return foes[locked];
+  }
+  for(const pair of pairs){
+    const j=2*pair+wing,k=2*pair+1-wing;
+    if(foes[j].alive)return foes[j];
+    if(foes[k].alive)return foes[k];
+  }
+  return null;
 }
 function groundWasBoostJump(time,jump,fallAt,fallSec){
   const {smootherstep:smooth,degToRad}=THREE.MathUtils;
@@ -1167,17 +1254,18 @@ function groundWasDogfightSlide(f,state,b,i,foe,own,x,z,time,slide){
   return {x:lerp(entry.x+entry.dx*distance,x,rejoin),z:lerp(entry.z+entry.dz*distance,z,rejoin),boost};
 }
 function groundWasDogfightMove(f,state,b,i,now,forward,rules){
-  const {dogfight:d,swarmManeuvers:m,swarmAttitude:a,swarmLayout:layout}=rules;
+  const {dogfight:d,swarmAttitude:a}=rules;
   const {clamp,lerp,smootherstep:smooth}=THREE.MathUtils;
-  const pair=i>>1,wing=i%2,lane=wing?1:-1,{role,row}=state.pairs[pair];
-  const period=d.periodSec[role]+d.periodVariationSec*hash(f.id,pair,0);
-  const clock=now/period+row*m.pairPhase+role/3;
+  const iPair=i>>1,wing=i%2,lane=wing?1:-1,pair=state.pairs[iPair],{role,row}=pair;
+  const period=d.periodSec[role]+d.periodVariationSec*hash(f.id,iPair,0);
+  const clock=now/period+pair.phase+role/3;
   const phase=clock*2*Math.PI,cycle=clock-wing*d.phaseLag/(2*Math.PI);
   const lap=Math.floor(cycle),u=cycle-lap;
-  const bearing=forward+row*d.headingSpread+role*Math.PI/3;
+  const drift=now/d.paths.wanderSec*2*Math.PI+pair.wander;
+  const bearing=forward+pair.bearing+d.paths.turnWander*Math.sin(drift);
   const side=Math.sin(bearing),ahead=Math.cos(bearing);
-  const radius=d.radiusKm[role],own=state.friends[i].pos;
-  const targetIndex=groundWasDogfightAim(state,i),foe=state.foes[targetIndex];
+  const radius=d.radiusKm[role]*pair.radius*state.scale,own=state.friends[i].pos;
+  const foe=groundWasDogfightAim(state,i,state.group.multi);
 
   // 同じ組は横に並ぶ区間を持ち、進入時に左右へ開いて各機が受け持つ相手に向かう。
   const pass=d.pass,split=smooth(u,.13,pass.enter)*(1-smooth(u,pass.end,.96));
@@ -1186,7 +1274,9 @@ function groundWasDogfightMove(f,state,b,i,now,forward,rules){
   const gap=lane*(d.pairGapKm/2+d.splitKm*split);
   const across=radius*Math.sin(phase)+gap*tangentZ/tangent+.012*Math.sin(phase*.73+i);
   const along=radius*(role===2?Math.cos(phase):d.crossWidth*Math.sin(2*phase))-gap*tangentX/tangent;
-  let x=state.x+(across*ahead+along*side)*GROUND_SCALE,z=state.z+(along*ahead-across*side)*GROUND_SCALE;
+  const wander=d.paths.wanderKm*state.scale;
+  let x=state.x+(across*ahead+along*side+wander*Math.cos(drift))*GROUND_SCALE,
+    z=state.z+(along*ahead-across*side+wander*Math.sin(drift+pair.wander))*GROUND_SCALE;
   let height=clamp(d.heightKm[role]+d.heightWaveKm*Math.sin(phase+wing+row),d.minHeightKm,d.lowMaxHeightKm);
 
   // 前衛は相手の後ろを狙い、中衛は前衛を援護する。後衛はふだん外周に残る。
@@ -1226,57 +1316,47 @@ function groundWasDogfightMove(f,state,b,i,now,forward,rules){
   x=slip.x;z=slip.z;
   const slideBoost=slip.boost;
 
-  // 相手との接近時も各機が小さくよける。中点からの外周は共通。
-  for(let k=0;k<state.foes.length;k++){
-    if(!state.target.bodies[k].alive)continue;
-    const p=state.foes[k].pos,dx=own.x-p.x,dz=own.z-p.z,dy=own.y-p.y;
-    const gap=m.pair.unitClearKm*GROUND_SCALE,dist=Math.hypot(dx,dy,dz);
-    if(dist>=gap)continue;
-    const angle=dx||dz?Math.atan2(dx,dz):bearing;
-    x+=Math.sin(angle)*(gap-dist);z+=Math.cos(angle)*(gap-dist);
-    height+=(dy===0?(f.team?1:-1):Math.sign(dy))*d.heightWaveKm*(1-dist/gap);
-  }
-  const outer=layout.maxSpanKm/2*GROUND_SCALE,offset=Math.hypot(x-state.x,z-state.z);
+  const outer=state.outer,offset=Math.hypot(x-state.x,z-state.z);
   if(offset>outer){x=lerp(state.x,x,outer/offset);z=lerp(state.z,z,outer/offset);}
   const passing=attack>.6&&own.distanceToSquared(foe.pos)<=(pass.fireKm*GROUND_SCALE)**2;
   return {x:x-f.pos.x,z:z-f.pos.z,height:clamp(height,d.minHeightKm,jumpReady?d.maxHeightKm:d.lowMaxHeightKm)*GROUND_SCALE,outer,
     bank:lerp([a.frontRoll,a.middleRoll,a.rearRoll][role]*Math.cos(phase),lane*a.frontRoll,slideBoost),
     pitch:leap.pitch,boost:Math.max(thrust,slideBoost),slideBoost,jumpReady,
     passBlend:Math.max(attack,slideTime>=0&&slideTime<slide.durationSec?1:0),
-    foe:foe?.pos,passTarget:passing?targetIndex:null};
+    foe:foe?.pos,passTarget:passing?foe.index:null,passUnit:passing?foe.unit:null};
 }
 function groundWasLowDogfightMove(f,state,b,i,forward,d){
   const {lerp,smootherstep:smooth}=THREE.MathUtils;
-  const {role,row}=state.pairs[i>>1],wing=i%2,lane=wing?1:-1,pass=d.pass;
-  // 対向する同じ役割・列の組は通過時刻を共有し、各機の進入は少しずらす。
-  const period=d.periodSec[role]+d.periodVariationSec*hash(f.id+state.target.id,role,row);
+  const pair=state.pairs[i>>1],{role,row}=pair,wing=i%2,lane=wing?1:-1,pass=d.pass;
+  const period=d.periodSec[role]+d.periodVariationSec*hash(f.id,i>>1,0);
   const delay=wing*d.wingDelaySec+b.stagger*d.unitDelaySec;
-  const cycle=(gameSec-state.at-delay)/period+row*d.pairPhase+role/3;
+  const cycle=(gameSec-state.at-delay)/period+row*d.pairPhase+role/3+pair.phase;
   const lap=Math.floor(cycle),u=cycle-lap;
-  const bearing=forward+(row+role/2)*d.headingSpread,dx=Math.sin(bearing),dz=Math.cos(bearing);
+  const drift=(gameSec-state.at)/d.paths.wanderSec*2*Math.PI+pair.wander;
+  const bearing=forward+pair.bearing+d.paths.turnWander*Math.sin(drift),dx=Math.sin(bearing),dz=Math.cos(bearing);
   const run=smooth(u,pass.start,pass.end),back=smooth(u,pass.turn,pass.returnAt);
-  const along=pass.alongKm*(2*(run-back)-1);
+  const along=pass.alongKm*pair.radius*state.scale*(2*(run-back)-1);
   const split=smooth(u,0,pass.enter)*(1-smooth(u,pass.exit,pass.returnAt));
   const turn=smooth(u,pass.end,pass.turn)*(1-back);
   const across=lane*(d.pairGapKm/2+d.splitKm*split+d.turnWidthKm*turn);
-  let x=state.x+(dx*along+dz*across)*GROUND_SCALE,z=state.z+(dz*along-dx*across)*GROUND_SCALE;
+  const wander=d.paths.wanderKm*state.scale;
+  let x=state.x+(dx*along+dz*across+wander*Math.cos(drift))*GROUND_SCALE,
+    z=state.z+(dz*along-dx*across+wander*Math.sin(drift+pair.wander))*GROUND_SCALE;
   const level=lane*(f.team===1?-1:1)*(lap%2?-1:1);
   const dive=smooth(u,pass.enter,pass.exit),rise=smooth(u,0,pass.enter);
   const height=level*lerp(...d.heightKm,b.stagger)*(rise-2*dive+smooth(u,pass.turn,1))+
     d.heightWaveKm*Math.sin(2*Math.PI*u+i)+d.turnClimbKm*turn;
 
-  const assignedIndex=groundWasDogfightAim(state,i),assigned=state.foes[assignedIndex];
+  const assigned=groundWasDogfightAim(state,i);
   if(assigned){
     const tail=d.tailKm*GROUND_SCALE;
     x=lerp(x,assigned.pos.x-Math.sin(assigned.yaw)*tail,d.pursuit*turn);
     z=lerp(z,assigned.pos.z-Math.cos(assigned.yaw)*tail,d.pursuit*turn);
   }
-  const locked=f.groundBodyTargets?.get(state.target)?.pairTargets[i>>1];
-  const aim=state.target.bodies[locked]?.alive?locked:assignedIndex;
-  const foe=state.foes[aim],own=state.friends[i].pos;
+  const foe=groundWasDogfightAim(state,i,true)??assigned,own=state.friends[i].pos;
   const slip=groundWasDogfightSlide(f,state,b,i,foe,own,x,z,(u-d.slide.start)*period,d.slide);
   const passBlend=smooth(u,pass.start,pass.enter)*(1-smooth(u,pass.exit,pass.end));
-  return {x:slip.x,z:slip.z,height,turn,aim,foe:foe?.pos,passBlend,slideBoost:slip.boost,
+  return {x:slip.x,z:slip.z,height,turn,aim:foe?.index,passUnit:foe?.unit,foe:foe?.pos,passBlend,slideBoost:slip.boost,
     bank:lane*d.turnBank*Math.max(turn,slip.boost),boost:Math.max(passBlend,turn,slip.boost)};
 }
 // 反転時の役割: 先頭の小隊が前衛、最後列の小隊が後衛（1小隊のときは前2機・後2機）。
@@ -1359,6 +1439,7 @@ function groundWasSwarmSeparate(points,alive,centerX,centerZ,outers,minYs,maxYs,
   const n=points.length,{clamp}=THREE.MathUtils;
   const pairXZ=Math.max(sepXZ,pairGap),unitXZ=Math.max(sepXZ,unitGap),needY=Math.max(sepY,avoidY);
   for(let pass=0;pass<passes;pass++){
+    let moved=false;
     for(let i=0;i<n;i++){
       if(!alive[i])continue;
       const a=points[i];
@@ -1366,18 +1447,19 @@ function groundWasSwarmSeparate(points,alive,centerX,centerZ,outers,minYs,maxYs,
         if(!alive[j])continue;
         const b=points[j],samePair=(i>>1)===(j>>1),needXZ=samePair?pairXZ:unitXZ;
         const dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
-        const d3=Math.hypot(dx,dy,dz),q=Math.hypot(dx/needXZ,dy/needY,dz/needXZ);
-        const lack3=samePair?pairGap-d3:0,lackQ=1-q;
-        if(lack3<=0&&lackQ<=0)continue;
-        const dh=Math.hypot(dx,dz);
-        const ux=dh>1e-5?dx/dh:Math.cos(i*1.7+j),uz=dh>1e-5?dz/dh:Math.sin(i*1.7+j);
+        const h2=dx*dx+dz*dz,y2=dy*dy;
+        const q2=h2/(needXZ*needXZ)+y2/(needY*needY),d2=h2+y2;
+        const pairClose=samePair&&d2<pairGap*pairGap;
+        if(!pairClose&&q2>=1)continue;
+        moved=true;
         let px=0,py=0,pz=0;
-        if(lack3>0){
-          const push=lack3*gain;
+        if(pairClose){
+          const dh=Math.sqrt(h2),ux=dh>1e-5?dx/dh:Math.cos(i*1.7+j),uz=dh>1e-5?dz/dh:Math.sin(i*1.7+j);
+          const push=(pairGap-Math.sqrt(d2))*gain;
           px=ux*push;pz=uz*push;
           if(Math.abs(dy)<avoidY)py=(dy===0?(i%2?1:-1):Math.sign(dy))*(avoidY-Math.abs(dy))*.35*gain;
         }else{
-          const push=lackQ*gain/Math.max(q,1e-5);
+          const q=Math.sqrt(q2),push=(1-q)*gain/Math.max(q,1e-5);
           px=dx*push;py=dy*push;pz=dz*push;
         }
         if(Number.isFinite(maxMove)){
@@ -1390,10 +1472,60 @@ function groundWasSwarmSeparate(points,alive,centerX,centerZ,outers,minYs,maxYs,
     }
     for(let i=0;i<n;i++){
       if(!alive[i])continue;
-      const g=points[i],ox=g.x-centerX,oz=g.z-centerZ,r=Math.hypot(ox,oz),lim=outers[i];
-      if(lim>0&&r>lim){const k=lim/r;g.x=centerX+ox*k;g.z=centerZ+oz*k;}
-      g.y=clamp(g.y,minYs[i],maxYs[i]);
+      const g=points[i],ox=g.x-centerX,oz=g.z-centerZ,r2=ox*ox+oz*oz,lim=outers[i];
+      if(lim>0&&r2>lim*lim){const k=lim/Math.sqrt(r2);g.x=centerX+ox*k;g.z=centerZ+oz*k;moved=true;}
+      const y=clamp(g.y,minYs[i],maxYs[i]);
+      if(g.y!==y){g.y=y;moved=true;}
     }
+    if(!moved)break;
+  }
+}
+// 中隊ごとの補間のあと、別中隊の機体も同じ空域で押し離す。
+function groundWasDogfightSeparate(group,rules){
+  const sep=rules.swarmManeuvers.pair,drift=rules.cruiseDrift,{x,z,outer,low}=group;
+  const height=low?rules.dogfight.low.heightLimitKm:rules.dogfight.maxHeightKm;
+  const bandY=low?groundBandHeight('low'):0,minHeight=low?-height:rules.dogfight.minHeightKm;
+  const companies=[];
+  for(const f of group.members){
+    const track=f.groundWasFlight;
+    if(track?.dogfight?.group!==group)continue;
+    const dims=groundBodyDims(track.spec);
+    companies.push({f,points:track.bodies.filter((b,i)=>f.bodies[i].alive).map(b=>b.pos),
+      width:Math.max(sep.unitClearKm*GROUND_SCALE,dims.wid*drift.sepWidth),
+      height:Math.max(sep.avoidHeightKm*GROUND_SCALE,dims.ht*drift.sepHeight)});
+  }
+  const {clamp}=THREE.MathUtils,minY=minHeight*GROUND_SCALE,maxY=height*GROUND_SCALE;
+  const fit=(p,px,py,pz)=>{
+    // 参戦の途中で空域の外にいる機も、押し離しでさらに外へ出さない。
+    const ox=p.x-x,oz=p.z-z,rx=ox+px,rz=oz+pz,lim2=Math.max(outer*outer,ox*ox+oz*oz),r2=rx*rx+rz*rz;
+    const k=r2>lim2?Math.sqrt(lim2/r2):1;
+    p.x=x+rx*k;p.z=z+rz*k;
+    const surface=groundSurfaceHeight(p.x,p.z)+bandY;
+    p.y=clamp(p.y+py,surface+minY,surface+maxY);
+  };
+  for(let pass=0;pass<rules.dogfight.separationPasses;pass++){
+    let moved=false;
+    for(let i=0;i<companies.length;i++)for(let j=i+1;j<companies.length;j++){
+      const a=companies[i],b=companies[j],width=Math.max(a.width,b.width),height=Math.max(a.height,b.height);
+      for(const p of a.points)for(const q of b.points){
+        let dx=p.x-q.x,dy=p.y-q.y,dz=p.z-q.z;
+        if(Math.abs(dx)>=width||Math.abs(dy)>=height||Math.abs(dz)>=width)continue;
+        let distance=(dx*dx+dz*dz)/(width*width)+dy*dy/(height*height);
+        if(distance>=1)continue;
+        if(distance<1e-8){
+          const bearing=Math.PI*hash(a.f.id,b.f.id,35);
+          dx=Math.sin(bearing)*width;dy=0;dz=Math.cos(bearing)*width;
+          distance=0;
+        }else{
+          distance=Math.sqrt(distance);
+          dx/=distance;dy/=distance;dz/=distance;
+        }
+        const push=(1-distance)/2;
+        fit(p,dx*push,dy*push,dz*push);fit(q,-dx*push,-dy*push,-dz*push);
+        moved=true;
+      }
+    }
+    if(!moved)break;
   }
 }
 function groundWasBodyFlight(f){return !!f.bodies&&f.groundBodySpec?.form==='wasArrow'&&groundWasFlying(f);}
@@ -1425,12 +1557,12 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
     track.reverse=null;
     for(const b of track.bodies){b.pos.add(shift);b.vel.set(0,0,0);b.revStart=null;}
   }
-  if(track.swarm!==swarm||!!track.dogfight!==!!dogfight){
+  if(track.swarm!==swarm||track.dogfight?.group?.key!==dogfight?.group.key){
     track.swarm=swarm;track.swarmAt=now;track.reverse=null;
     // 周回への出入りは、そのとき飛んでいる位置・速度から機体ごとの時間でつなぐ。
     for(const b of track.bodies){b.transfer={x:b.pos.x-prev.x,y:b.pos.y-priorCenterY,z:b.pos.z-prev.z};b.revStart=null;b.duelSlide=null;}
   }
-  track.dogfight=dogfight&&{target:dogfight.target,x:dogfight.x,z:dogfight.z,pairs:dogfight.pairs};
+  track.dogfight=dogfight&&{target:dogfight.target,x:dogfight.x,z:dogfight.z,pairs:dogfight.pairs,group:dogfight.group};
   const landing=f.bandTo==='ground';
   if(landing||airFight)track.reverse=null;
   const airMode=rules.aircraft.cruise;
@@ -1472,7 +1604,7 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
   const steer=T.maxYawSpeed*dt,steerK=1-Math.exp(-T.yawResponse*dt);
   const settle=1-Math.exp(-T.settleResponse*dt);
   const wave=({rate,phase})=>Math.sin(now*rate+phase);
-  const dx=swarm?swarm.pos.x-f.pos.x:0,dz=swarm?swarm.pos.z-f.pos.z:0,forward=dx||dz?Math.atan2(dx,dz):heading;
+  const dx=swarmCenter?swarmCenter.x-f.pos.x:0,dz=swarmCenter?swarmCenter.z-f.pos.z:0,forward=dx||dz?Math.atan2(dx,dz):heading;
   const velocity=Math.max(M.velocityResponse,M.follow+1,rules.swarmAttitude.maneuverResponse+1),fastDecay=Math.exp(-velocity*dt);
   const aimBlend=swarm?smoothstep(now-track.swarmAt,0,M.swarmAimSec):0;
   const rev=track.reverse;
@@ -1482,7 +1614,7 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
   const goals=[],minYs=[],meta=[],swarmOuters=[],swarmMaxYs=[];
   let pair,anyReversing=false;
   track.bodies.forEach((b,i)=>{
-    b.boost=0;b.slideBoost=0;b.passFiring=false;b.passTarget=null;
+    b.boost=0;b.slideBoost=0;b.passFiring=false;b.passTarget=null;b.passUnit=null;
     const slot=targets[i];
     const delay=b.stagger*T.staggerSec;
     const gap=b.gap*spacing,scatter=landing?0:D.scatter*Math.min(dims.len,gap*1.6+dims.len*.35);
@@ -1583,7 +1715,7 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
       foe=target.foe??null;
       b.boost=target.boost*transfer;
       b.slideBoost=(target.slideBoost??0)*transfer;
-      b.passTarget=target.passTarget??null;
+      b.passTarget=target.passTarget??null;b.passUnit=target.passUnit??null;
       b.passFiring=aim===1||b.passTarget!==null;
       swarmOuters[i]=target.outer;
       swarmMaxYs[i]=groundSurfaceHeight(goalX,goalZ)+(dogfight?rules.dogfight.maxHeightKm:rules.swarmManeuvers.maxHeightKm)*GROUND_SCALE;
@@ -1654,8 +1786,9 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
       for(let j=i+1;j<goals.length;j++){
         if(!alive[j])continue;
         const bj=track.bodies[j].pos,need=((i>>1)===(j>>1)?Math.max(sepXZ,pairGap):Math.max(sepXZ,unitGap))*1.35;
-        const dx=bi.x-bj.x,dy=bi.y-bj.y,dz=bi.z-bj.z,d3=Math.hypot(dx,dy,dz);
-        if(d3>=need)continue;
+        const dx=bi.x-bj.x,dy=bi.y-bj.y,dz=bi.z-bj.z,d2=dx*dx+dy*dy+dz*dz;
+        if(d2>=need*need)continue;
+        const d3=Math.sqrt(d2);
         const dh=Math.hypot(dx,dz);
         const ux=dh>1e-5?dx/dh:Math.cos(i*1.7+j),uz=dh>1e-5?dz/dh:Math.sin(i*1.7+j);
         const push=(need-d3)*.85;
@@ -1757,12 +1890,12 @@ function groundWasLowDogfightStep(f,track,state,dt,heading,rules){
   if(!track.dogfight?.low||track.dogfight.target!==state.target){
     for(const b of track.bodies)b.duelSlide=null;
   }
-  track.dogfight={target:state.target,low:true,at:state.at,x:state.x,z:state.z,pairs:state.pairs};
+  track.dogfight={target:state.target,low:true,at:state.at,x:state.x,z:state.z,pairs:state.pairs,group:state.group};
   track.swarm=state.target;track.reverse=null;track.airEvasion=null;
   track.heading=track.course=track.turnOriginHeading=heading;
-  const dx=state.target.pos.x-f.pos.x,dz=state.target.pos.z-f.pos.z;
+  const dx=state.x-f.pos.x,dz=state.z-f.pos.z;
   const forward=dx||dz?Math.atan2(dx,dz):f.team*Math.PI;
-  const altitude=groundBandHeight('low'),heightLimit=d.heightLimitKm*GROUND_SCALE,outer=d.maxSpanKm*GROUND_SCALE/2;
+  const altitude=groundBandHeight('low'),heightLimit=d.heightLimitKm*GROUND_SCALE,outer=state.outer;
   const velocity=rules.cruiseMotion.velocityResponse,fast=Math.exp(-velocity*dt);
   const alive=f.bodies.map(b=>b.alive),points=track.bodies.map(b=>b.pos);
   const minYs=[],maxYs=[],outers=[],moves=[];
@@ -1798,7 +1931,7 @@ function groundWasLowDogfightStep(f,track,state,dt,heading,rules){
     b.bank=lerp(b.bank,move.bank,pose);
     b.boost=move.boost;b.slideBoost=move.slideBoost;
     b.passFiring=!!foe&&move.passBlend>.5&&b.pos.distanceToSquared(foe)<=(d.pass.fireKm*GROUND_SCALE)**2;
-    b.passTarget=b.passFiring?move.aim:null;
+    b.passTarget=b.passFiring?move.aim:null;b.passUnit=b.passFiring?move.passUnit:null;
     b.transfer=null;b.revStart=null;b.course=heading;b.breakup=0;b.reverseFire=false;
   }
 }
@@ -1864,8 +1997,9 @@ function groundFormationDraw(f,now){
       body.rotation.set(pitch,b.yaw-a1,bank,'YXZ');
       body.userData.wasPassFiring=b.passFiring;
       body.userData.wasPassTarget=b.passTarget;
+      body.userData.wasPassUnit=b.passUnit;
       body.userData.wasReverseFire=b.reverseFire;
-      for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
+      body.userData.wasPlumePosition=p;
     });
     return;
   }
@@ -1873,6 +2007,7 @@ function groundFormationDraw(f,now){
   for(const body of form.bodies){
     body.userData.wasReverseFire=false;
     delete body.userData.wasThrust;
+    delete body.userData.wasPlumePosition;
   }
   // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
   if(!groundBodyCentered(f)){
@@ -1963,7 +2098,7 @@ function groundBodyShot(f,i,t,j,range,fromGeometry=groundBodyPositions(f),toGeom
   if(!groundClearLine(eye(f,from,fromGeometry),toEye))return null;
   return {from,pos,b:t.bodies?.[j]??null,j,flight:!!(fromGeometry.flight||toGeometry.flight||air||toGeometry.air),targetYaw:toGeometry.yaws?.[j]};
 }
-function groundBodyTarget(f,i,t,range,aa=false){
+function groundBodyTarget(f,i,t,range,aa=false,assignedPair=null){
   const fromGeometry=groundBodyPositions(f),toGeometry=groundBodyPositions(t);
   const mask=t.bodies?t.bodies.reduce((n,b,j)=>n+(b.alive?2**j:0),0):1;
   // Reuse a ray only within this simulation instant and with identical geometry/live slots.
@@ -1974,21 +2109,21 @@ function groundBodyTarget(f,i,t,range,aa=false){
     entry={fromFlight:fromGeometry.flight,toFlight:toGeometry.flight,rows:[],pairTargets:[]};
     cache.set(t,entry);
   }
-  const {rows,pairTargets}=entry;
+  const {pairTargets}=entry,rows=assignedPair===null?entry.rows:(entry.assignedRows??=[]);
   const duel=!!(fromGeometry.flight&&toGeometry.flight),pair=i>>1;
   const leader=2*pair,aimFrom=duel?(f.bodies[leader].alive?leader:leader+1):i;
   const locked=duel?pairTargets[pair]:undefined;
   const old=rows[i];if(old&&old.time===gameSec&&old.from===fromGeometry&&old.to===toGeometry&&old.mask===mask&&old.range===range&&
-    old.aimFrom===aimFrom&&old.buildings===groundBuildings&&old.aa===aa)return old.hit;
+    old.aimFrom===aimFrom&&old.buildings===groundBuildings&&old.aa===aa&&old.assignedPair===assignedPair)return old.hit;
   const flight=!!(fromGeometry.flight||toGeometry.flight);
-  let best=locked!==undefined&&t.bodies[locked]?.alive&&
+  let best=locked!==undefined&&(assignedPair===null||(locked>>1)===assignedPair)&&t.bodies[locked]?.alive&&
     (!aa||groundAAHeightAllows(f,toGeometry.positions[locked],t,fromGeometry.positions[i]))?locked:-1;
   let hit=null;
   if(best<0){
     const from=fromGeometry.positions[aimFrom]||fromGeometry.positions[0];
     let dist2=Infinity;
-    const count=t.bodies?t.bodies.length:1;
-    for(let j=0;j<count;j++){
+    const count=assignedPair===null?(t.bodies?t.bodies.length:1):2*assignedPair+2;
+    for(let j=assignedPair===null?0:2*assignedPair;j<count;j++){
       if(t.bodies&&!t.bodies[j].alive)continue;
       const p=toGeometry.positions[j]||toGeometry.positions[0];
       const dx=from.x-p.x,dz=from.z-p.z,dy=flight?from.y-p.y:0,d=dx*dx+dz*dz+dy*dy;
@@ -2005,7 +2140,7 @@ function groundBodyTarget(f,i,t,range,aa=false){
   if(best>=0&&!hit)hit=groundBodyShot(f,i,t,best,range,fromGeometry,toGeometry,aa);
   // 組で1機を狙い、撃墜まで維持する。射程・射線は撃つ機体ごとに確かめる。
   if(duel&&hit)pairTargets[pair]=best;
-  rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,aimFrom,buildings:groundBuildings,aa,hit};return hit;
+  rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,aimFrom,buildings:groundBuildings,aa,assignedPair,hit};return hit;
 }
 function groundBodyInRange(f,t,range,aa=false){
   return f.bodies?f.bodies.some((b,i)=>b.alive&&groundBodyTarget(f,i,t,range,aa)):!!groundBodyTarget(f,0,t,range,aa);
@@ -2047,26 +2182,32 @@ function groundBodyDirectShot(f,i,t,hit,aa,weapon){
   groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b,weapon);
   groundSupplyShot(f,false,1/f.bodies0);
 }
-function groundBodyFire(f,t,dt,aa=false){
-  const duel=!aa&&groundWasDuelDirect(f,t);
-  const lowDuel=!aa&&groundWasLowDuel(f,t),gatling=duel||lowDuel;
+function groundBodyFire(f,primary,dt,aa=false){
+  const duel=!aa&&groundWasDuelDirect(f,primary);
+  const lowDuel=!aa&&groundWasLowDuel(f,primary),gatling=duel||lowDuel;
   // バルカンと88 mm砲は、対地戦から切り替わってもそれぞれの射撃間隔を引き継ぐ。
   const timer=aa?'aaT':gatling?'parallelT':'shotT',extraTimer=gatling?'shotT':'parallelT';
-  const range=aa?groundAARange(f,t):groundTargetRange(f,t);
-  const flight=groundWasBodyFlight(f)||groundWasBodyFlight(t);
-  const parallel=!aa&&!flight?groundParallelWeapons(f,t):[];
+  const range=aa?groundAARange(f,primary):groundTargetRange(f,primary);
+  const dogfight=f.groundWasFlight?.dogfight;
+  const multi=gatling&&dogfight?.group?.multi&&dogfight.group.members.includes(primary);
+  const flight=groundWasBodyFlight(f)||groundWasBodyFlight(primary);
+  const parallel=!aa&&!flight?groundParallelWeapons(f,primary):[];
   const hasParallel=!lowDuel&&(flight?!aa&&(f.weapons??groundRuleSet().unitTypes[f.groundKind]?.weapons)?.some(w=>w.parallel):parallel.length>0);
   for(const [i,b] of f.bodies.entries()){
     b[timer]=Math.max(0,(b[timer]??0)-dt);
     if(!aa&&b[extraTimer]!==undefined)b[extraTimer]=Math.max(0,b[extraTimer]-dt);
-    if(!b.alive||!t.alive)continue;
+    if(!b.alive||!primary.alive)continue;
     const rocket=!aa&&!gatling&&b.groundRocket;
     // ロケットの発射間隔と再装填は、通常武器の射撃間隔とは別にゲーム時刻で進む。
     const mainDue=b[timer]<=0||!!(rocket&&rocket.readyAt<=gameSec+1e-8);
     const parallelDue=hasParallel&&(b[extraTimer]??0)<=0;
     if(!aa&&!hasParallel&&(b[extraTimer]??1)<=0)b[extraTimer]=groundRules().fireEvery;
     if(!mainDue&&!parallelDue)continue;
-    const hit=groundBodyTarget(f,i,t,range,aa);if(!hit)continue;
+    const assignment=multi?dogfight.pairs[i>>1]:null;
+    const t=assignment?.target??primary,assignedPair=assignment?.pairs[0]??null;
+    if(assignment&&(!t.alive||t.groundWasFlight?.dogfight?.group!==dogfight.group||!groundSeenBy(f.team,t)))continue;
+    const reach=t===primary?range:groundTargetRange(f,t);
+    const hit=groundBodyTarget(f,i,t,reach,aa,assignedPair);if(!hit)continue;
     if(mainDue){
       const weapon=groundDirectWeapon(f,t,aa,b,hit);
       if(b[timer]<=0||weapon.rounds){
@@ -2079,7 +2220,7 @@ function groundBodyFire(f,t,dt,aa=false){
       }
     }
     if(parallelDue&&t.alive){
-      const shot=hit.b&&!hit.b.alive?groundBodyTarget(f,i,t,range):hit;
+      const shot=hit.b&&!hit.b.alive?groundBodyTarget(f,i,t,reach,aa,assignedPair):hit;
       if(!shot)continue;
       const weapons=flight?groundParallelWeapons(f,t,false,shot):parallel;
       if(!weapons.length)b[extraTimer]=groundRules().fireEvery;
@@ -2278,7 +2419,7 @@ function groundDraw(){
         }
         if(alive&&model.visible&&f.fireTarget?.alive&&passFiring&&now-(body.userData.wasPassShotAt??-Infinity)>=flashEvery){
           body.userData.wasPassShotAt=now;
-          groundWasPassFlash(body,f,f.fireTarget,heading,now);
+          groundWasPassFlash(body,f,body.userData.wasPassUnit??f.fireTarget,heading,now);
         }
         moves.forEach((body,j)=>body.visible=moving&&j===at&&alive);
       });
@@ -2353,14 +2494,14 @@ function groundStep(dt){
   for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
   for(const f of fleets)if(f.alive&&f.bodies)groundTrailMark(f);
   // 体ごとの動きを、中隊が動いたあとの位置で進める（このあとの視界・射撃は進めた体の位置を使う）
-  const dogfights=new Map(),wasRules=groundRuleSet().wasCombat;
-  for(const f of fleets)if(f.alive&&!f.embarked&&!groundAbsent(f)&&groundWasBodyFlight(f)){
-    const state=groundWasDogfightState(f,wasRules);
-    if(state)dogfights.set(f,state);
-  }
+  const wasRules=groundRuleSet().wasCombat,dogfights=groundWasDogfightStates(wasRules);
   for(const f of fleets)if(f.alive&&f.bodies){
     if(f.groundKind==='was'&&!f.embarked&&!groundAbsent(f))groundWasFlightStep(f,dt,dogfights.get(f));
     groundBodyTrack(f,true);
+  }
+  if(dt>0){
+    const groups=new Set([...dogfights.values()].map(state=>state.group));
+    for(const group of groups)groundWasDogfightSeparate(group,wasRules);
   }
   groundTransportSync();
   if(typeof groundDroneStep==='function')groundDroneStep(dt);

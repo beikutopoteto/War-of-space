@@ -34,7 +34,7 @@ window.WOS_GROUND_RULES = {
       poses:['wasFly','wasFlyFire','wasFlyMove','wasFlyMarch','wasFlyUp','wasFlyDown'],
       plumeRiseSec:.06,plumeFallSec:.12,
       back:{idlePower:.4,maxPower:1.35,maxLength:2.4,accelKmSec2:6,yawDegSec:240,maneuver:.65,
-        burstSec:.22,reburstSec:1.35},
+        burstSec:.22,reburstSec:1.35,minPixels:.65,detailPixels:3},
       calf:{yawDegSec:[35,180],sideAccelKmSec2:[.7,4],brakeKmSec2:[1.5,5],
         maxPower:.65,transitionPower:.42,transitionSec:.24,minPixels:5}},
     reactiveArmor:{penetrationRatio:2,refillCost:2},
@@ -77,7 +77,9 @@ window.WOS_GROUND_RULES = {
       damageScale:1,noEvasion:true, // ユーザー決定 2026-11-28: 飛行中の W.A.S. 同士は回避なし（損害4倍はやめた）。
       cannonEvasionFactor:2,cannonMaxEvasion:.9,
       radiusKm:[.63,.78,.91],heightKm:[.054,.05,.064],periodSec:[5.8,7,9.2],
-      periodVariationSec:.85,headingSpread:1.16,crossWidth:.53,phaseLag:.44,
+      periodVariationSec:.85,crossWidth:.53,phaseLag:.44,
+      // 中隊の合流距離と組ごとの軌道（仮）。位相は周回の割合、角度はラジアン。
+      mergeKm:4,sizeExponent:.5,separationPasses:3,paths:{phaseSpread:.34,angleSpread:1.2,radiusScale:[.76,1.14],wanderKm:.15,wanderSec:12,turnWander:.19},
       minHeightKm:.03,lowMaxHeightKm:.08,maxHeightKm:.2,heightWaveKm:.013,
       pairGapKm:.076,splitKm:.14,tailKm:.14,coverKm:.14,pursuit:.32,pitchLimit:.85,
       jump:{start:.15,riseSec:.7,riseKm:[.08,.12],diveSec:1.05,pitchDeg:16},
@@ -88,7 +90,8 @@ window.WOS_GROUND_RULES = {
       // 低高度 W.A.S. 同士の巴戦（仮）。高度は低高度の段からの差。
       low:{maxSpanKm:3,heightLimitKm:.95,heightKm:[.6,.9],heightWaveKm:.05,
         periodSec:[4.1,4.7,5.3],periodVariationSec:.35,pairPhase:.27,wingDelaySec:.16,unitDelaySec:.1,
-        headingSpread:.32,pairGapKm:.10,splitKm:.24,tailKm:.20,pursuit:.32,
+        pairGapKm:.10,splitKm:.24,tailKm:.20,pursuit:.32,
+        paths:{phaseSpread:.27,angleSpread:1.05,radiusScale:[.77,1.14],wanderKm:.22,wanderSec:11,turnWander:.21},
         turnWidthKm:.32,turnClimbKm:.28,turnPitchDeg:78,turnBank:.65,
         response:6,passResponse:14,
         pass:{start:.12,enter:.26,exit:.46,end:.59,turn:.72,returnAt:.98,alongKm:1.12,fireKm:.65},

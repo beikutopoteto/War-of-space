@@ -237,14 +237,29 @@ function groundFogDraw(force=false){
   const fog=groundFog;if(!fog||!force&&gameSec<fog.next)return;
   const d=groundData(),r=groundRuleSet().sight,{width,height}=fog.canvas,raw=fog.pixels.data;
   const observers=fleets.filter(f=>f.alive&&f.team===0&&!f.embarked&&!f.groundExited).map(f=>({eye:groundEye(f),range:groundSightRange(f)})).concat(groundSiteObservers(0));
+  groundSightGrid();
+  const last=fog.last;
+  fog.next=gameSec+r.fogEvery;
+  // 停止した観測点・地形が同じなら、前の霧の画像をそのまま使う。
+  if(!force&&last?.height===groundSightHeightSource&&last.buildings===groundBuildings&&last.rules===r&&
+    last.observers.length===observers.length&&observers.every(({eye,range},i)=>{
+      const old=last.observers[i];
+      return range===old.range&&eye.x===old.eye.x&&eye.y===old.eye.y&&eye.z===old.eye.z;
+    }))return;
+  fog.last={height:groundSightHeightSource,buildings:groundBuildings,rules:r,observers};
   for(let py=0;py<height;py++)for(let px=0;px<width;px++){
     const gx=(px+.5)/width*d.meta.widthKm,gy=(1-(py+.5)/height)*d.meta.heightKm,x=groundWorldX(gx),z=groundWorldZ(gy);
     const k=(py*width+px)*4;let visible=false;
     if(groundInside(gx,gy,d.display.board)){
-      const target={x,z,y:groundSightHeight(x,z)+r.eyeHeight};
-      visible=observers.some(o=>Math.hypot(x-o.eye.x,z-o.eye.z)<=o.range&&groundClearLine(o.eye,target));
+      let target;
+      visible=observers.some(({eye,range})=>{
+        const dx=x-eye.x,dz=z-eye.z;
+        if(dx*dx+dz*dz>range*range)return false;
+        target??={x,z,y:groundSightHeight(x,z)+r.eyeHeight};
+        return groundClearLine(eye,target);
+      });
       raw[k+3]=visible?0:r.fogAlpha;
     }else raw[k+3]=0;
   }
-  fog.ctx.putImageData(fog.pixels,0,0);fog.texture.needsUpdate=true;fog.next=gameSec+r.fogEvery;
+  fog.ctx.putImageData(fog.pixels,0,0);fog.texture.needsUpdate=true;
 }

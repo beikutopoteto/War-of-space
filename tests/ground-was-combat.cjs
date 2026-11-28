@@ -737,6 +737,81 @@ function nodeChecks(){
         aimed.length===5&&aimed.every(s=>!s.aa)&&aimed[0].body===left&&aimed[1].body===right);
     }finally{groundBodyPositions=bodyPositions;groundFireDirect=origFire;}
 
+    // 外接長方形を輪郭の各辺に合わせ、面積が最小になる向きで比べる。
+    const outlineRatio=points=>{
+      const edge=(a,b,c)=>(b.x-a.x)*(c.z-a.z)-(b.z-a.z)*(c.x-a.x);
+      const sorted=[...points].sort((a,b)=>a.x-b.x||a.z-b.z);
+      const half=list=>{
+        const out=[];
+        for(const p of list){
+          while(out.length>=2&&edge(out.at(-2),out.at(-1),p)<=0)out.pop();
+          out.push(p);
+        }
+        return out.slice(0,-1);
+      };
+      const hull=half(sorted).concat(half([...sorted].reverse()));
+      let area=0,box=Infinity;
+      hull.forEach((a,i)=>{
+        const b=hull[(i+1)%hull.length],dx=b.x-a.x,dz=b.z-a.z;
+        area+=a.x*b.z-a.z*b.x;
+        const x=hull.map(p=>p.x*dx+p.z*dz),z=hull.map(p=>p.z*dx-p.x*dz);
+        box=Math.min(box,(Math.max(...x)-Math.min(...x))*(Math.max(...z)-Math.min(...z))/(dx*dx+dz*dz));
+      });
+      return Math.abs(area)/2/box;
+    };
+    for(const band of ['cruise','low']){
+      fresh();
+      const a=unit('was',0,-2,0,4),b=unit('was',1,1,.6,4),ratios=[];
+      a.band=b.band=band;
+      order(a,{type:'attack',target:b});order(b,{type:'attack',target:a});
+      const originalFire=groundFireDirect;
+      try{
+        groundFireDirect=()=>{}; // 観測する間は配置が機数減少に左右されない。
+        for(let i=0;i<160;i++){
+          tick(.05);
+          if(i>=49&&i%10===9&&a.groundWasFlight?.dogfight&&b.groundWasFlight?.dogfight){
+            ratios.push(outlineRatio([a,b].flatMap(f=>groundBodyPositions(f).positions)));
+          }
+        }
+      }finally{groundFireDirect=originalFire;}
+      const mean=ratios.reduce((sum,r)=>sum+r,0)/ratios.length;
+      check(band+' の上面の輪郭は外接長方形の角まで埋まらず、時間とともに変わる（面積比 '+mean.toFixed(2)+'）',
+        ratios.length===12&&mean<.81&&Math.max(...ratios)-Math.min(...ratios)>.08);
+
+      fresh();
+      const joined=[unit('was',0,-2,-1,4),unit('was',0,-1.7,1.4,4),unit('was',1,1,-.5,4),unit('was',1,2.5,1.3,4)];
+      const targets=[joined[2],joined[2],joined[1],joined[0]];
+      joined.forEach((f,i)=>{f.band=band;order(f,{type:'attack',target:targets[i]});});
+      const origin=joined.reduce((p,f)=>p.add(f.pos),new THREE.Vector3()).multiplyScalar(1/joined.length);
+      const shots=[],originalShot=groundBodyDirectShot;
+      try{
+        groundBodyDirectShot=(f,i,t,hit,aa)=>{
+          const duel=f.groundWasFlight?.dogfight;
+          if(duel?.group?.multi)shots.push({f,t,i,j:hit.j,pair:duel.pairs[i>>1],aa});
+        };
+        for(let i=0;i<75;i++)tick(.05);
+      }finally{groundBodyDirectShot=originalShot;}
+      const fights=joined.map(f=>f.groundWasFlight?.dogfight),group=fights[0]?.group;
+      const rules=groundRuleSet().wasCombat,span=band==='low'?rules.dogfight.low.maxSpanKm:rules.swarmLayout.maxSpanKm;
+      check(band+' の各2個中隊は4中隊の平均位置・単独戦の√2倍の空域を共有する',
+        group?.multi&&fights.every(d=>d?.group===group&&close(d.x,origin.x)&&close(d.z,origin.z))&&
+          close(group.outer,span*GROUND_SCALE/Math.SQRT2));
+      check(band+' の16組ずつが敵の組を重複なく分担し、実際の射撃も割り当て先に届く',
+        [0,2].every(i=>{
+          const pairs=fights.slice(i,i+2).flatMap(d=>d?.pairs??[]);
+          return new Set(pairs.map(({target,pairs})=>target.id+':'+pairs[0])).size===16;
+        })&&shots.some(({f,t})=>t!==targets[joined.indexOf(f)])&&
+          shots.every(({t,j,pair,aa})=>!aa&&t===pair.target&&(j>>1)===pair.pairs[0]));
+      if(group){
+        const plans=joined.map(f=>f.groundWasFlight);
+        const p=plans[0].bodies[0].pos,q=plans[1].bodies[0].pos;
+        p.set(origin.x,groundBandHeight(band)+.2,origin.z);q.copy(p);
+        groundWasDogfightSeparate(group,rules);
+        check(band+' の別中隊の機が同じ位置に来ても押し離す',
+          p.distanceTo(q)>=rules.swarmManeuvers.pair.unitClearKm*GROUND_SCALE-1e-7);
+      }
+    }
+
     return rows;
   })()`);
   return cases;

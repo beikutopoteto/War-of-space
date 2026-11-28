@@ -161,24 +161,26 @@ function groundWasPlume(body,now,config,calves=false,transitionPower=0){
   if(!nozzles||groundFxPlumesUsed>=GROUND_FX_LIMIT.plumes)return;
   const {lerp}=THREE.MathUtils;
   const state=body.userData.wasThrust,{back,calf}=config,boost=state?.boost??0;
-  if(calves){
-    if(!transitionPower&&Math.max(state?.left??0,state?.right??0)<=.02)return;
-    if(!groundFxDetail(body.getWorldPosition(groundWasPlumePoint),body.scale.x,calf.minPixels))return;
-  }
-  const backPower=lerp(back.idlePower,back.maxPower,boost);
+  if(calves&&!transitionPower&&Math.max(state?.left??0,state?.right??0)<=.02)return;
+  const at=body.userData.wasPlumePosition??body.getWorldPosition(groundWasPlumePoint);
+  if(calves&&!groundFxDetail(at,body.scale.x,calf.minPixels))return;
+  const plumeSize=.52,backPower=lerp(back.idlePower,back.maxPower,boost);
+  const radius=plumeSize*body.scale.x/GROUND_SCALE;
+  if(!calves&&!groundFxDetail(at,radius,back.minPixels))return;
+  const detail=calves||groundFxDetail(at,radius,back.detailPixels);
   const length=calves?1:lerp(1,back.maxLength,boost);
   for(const n of nozzles){
     if(Boolean(n.calfSide)!==calves)continue;
     if(groundFxPlumesUsed>=GROUND_FX_LIMIT.plumes)break;
     const power=n.k*(calves?Math.max(transitionPower,(n.calfSide>0?state?.left:state?.right)??0):backPower);
     if(power<=.02)continue;
-    const i=groundFxPlumesUsed++,fx=groundFxPlumes[i]||(groundFxPlumes[i]=GFX.plume(.52));
+    const i=groundFxPlumesUsed++,fx=groundFxPlumes[i]||(groundFxPlumes[i]=GFX.plume(plumeSize));
     if(fx.group.parent!==body)body.add(fx.group);
     fx.group.position.fromArray(n.p);
     fx.group.quaternion.setFromUnitVectors(groundFxForward,groundWasPlumeDirection.fromArray(n.d));
     const width=Math.sqrt(Math.min(1,power));
     fx.group.scale.set(width,width,1);
-    fx.update(now,power,length);
+    fx.update(now,power,length,detail);
   }
 }
 // 通過中は銃口の光と曳光を描く。実弾の発射と着弾は通常の射撃処理で起きる。
@@ -189,7 +191,7 @@ function groundWasPassFlash(body,f,t,heading,now){
     .add(body.position).applyAxisAngle(groundFxUp,heading).add(f.pos);
   muzzle.y+=GROUND_BODY_LIFT;
   const index=body.userData.wasPassTarget;
-  if(index!=null&&(f.groundWasFlight?.dogfight?.target!==t||!t.bodies?.[index]?.alive))return;
+  if(index!=null&&(!f.groundWasFlight?.dogfight||!t.alive||!t.bodies?.[index]?.alive))return;
   const at=index==null?t.pos.clone():groundBodyPosition(t,index);
   if(index==null&&t.band==='ground')at.y+=GROUND_BODY_LIFT;
   if(index!=null&&!groundClearLine(muzzle,at))return;
@@ -301,6 +303,7 @@ function groundVisualDrawGatling(now){
   for(const burst of groundGatlingBursts){
     const f=burst.source,i=burst.bodyIndex;
     if(!f?.alive||f.embarked||groundAbsent(f)||(f.bodies&&!f.bodies[i]?.alive))continue;
+    if(burst.start+burst.next*spacing>now){groundGatlingBursts[kept++]=burst;continue;}
     const liveGuns=groundVisualGatlingGuns(f,i);
     if(burst.hadSource&&!liveGuns)continue;
     while(burst.next<g.rounds){
