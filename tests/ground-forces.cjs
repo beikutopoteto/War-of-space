@@ -34,18 +34,18 @@ function nodeChecks(){
     yes(`(()=>{const org=window.WOS_GROUND_ORG.defaults(),before=JSON.stringify(org),o={...op,groundSortie:{...op.groundSortie,bannedKinds:['vehicle']}};
       const s=groundSortieForces(o,org),ids='gc2,gc3,gc4,gc5,gc6';
       return JSON.stringify(org)===before&&s.fleets.map(f=>f.companyId).join()===ids&&s.org.battalions.flatMap(b=>b.companies).join()===ids&&
-        s.load.platoons===20&&s.load.supplyUsed===48;})()`);
+        s.load.platoons===20&&s.load.supplyUsed===28;})()`);
   });
   check('補給の超過0・10・40に対して、上限低下0・20・50%',()=>{
     yes(`(()=>{
       const load=(tanks,infantry)=>window.WOS_GROUND_ORG.sortieLoad([
-        ...Array.from({length:tanks},()=>({kind:'vehicle',platoons:4})),
+        ...tanks.map(platoons=>({kind:'vehicle',platoons})),
         ...infantry.map(platoons=>({kind:'infantry',platoons}))
       ],op);
-      const exact=load(8,[4]),over=load(9,[2]),capped=load(11,[4,4]);
-      return exact.supplyUsed===100&&exact.excess===0&&exact.penaltyPercent===0&&
-        over.supplyUsed===110&&over.excess===10&&over.penaltyPercent===20&&
-        capped.supplyUsed===140&&capped.excess===40&&capped.penaltyPercent===50;
+      const exact=load([4,3],[4]),over=load([4,4],[1]),capped=load([4,4,2],[4,1]);
+      return exact.supplyUsed===95&&exact.excess===0&&exact.penaltyPercent===0&&
+        over.supplyUsed===105&&over.excess===10&&over.penaltyPercent===20&&
+        capped.supplyUsed===135&&capped.excess===40&&capped.penaltyPercent===50;
     })()`);
   });
   check('補給中隊の小隊は規模と補給値に数え、1小隊につき補給限界を4増やす。海艦は除外',()=>{
@@ -53,8 +53,8 @@ function nodeChecks(){
       const companies=[{kind:'infantry',platoons:2},{kind:'supply',platoons:3},{kind:'vehicle',platoons:4},{kind:'sea',platoons:4}];
       const load=window.WOS_GROUND_ORG.sortieLoad(companies,op);
       const banned=window.WOS_GROUND_ORG.sortieLoad(companies,{...op,groundSortie:{...op.groundSortie,bannedKinds:['supply','vehicle']}});
-      return load.platoons===9&&load.supplyUsed===17&&load.supplyPlatoons===3&&load.supplyBonus===12&&load.supplyLimit===112&&
-        banned.platoons===2&&banned.supplyUsed===2&&banned.supplyLimit===100;
+      return load.platoons===9&&load.supplyUsed===57&&load.supplyPlatoons===3&&load.supplyBonus===12&&load.supplyLimit===107&&
+        banned.platoons===2&&banned.supplyUsed===2&&banned.supplyLimit===95;
     })()`);
   });
   check('空の編成は初期部隊に戻り、規模超過で出撃しても小隊を切り捨てない',()=>{
@@ -62,7 +62,7 @@ function nodeChecks(){
       const empty=groundSortieForces(op,{companies:[]});
       const companies=Array.from({length:65},(_,i)=>({id:'many'+i,kind:'infantry',platoons:1}));
       const edge=groundSortieForces(op,{companies:companies.slice(0,64)}),over=groundSortieForces(op,{companies});
-      return empty.fleets.length===6&&empty.load.platoons===24&&empty.load.supplyUsed===60&&
+      return empty.fleets.length===6&&empty.load.platoons===24&&empty.load.supplyUsed===80&&
         !edge.load.scaleOver&&over.load.scaleOver&&over.fleets.length===65;
     })()`);
   });
@@ -115,8 +115,9 @@ function seedSupplySortie({penalty=false,oversize=false,free=false}={}){
   s.sortieMenu={closed:{'第一章':true,'第二章':true},seen:[]};
   s.groundOrg=ground.defaults();
   if(penalty||oversize){
-    // 40小隊、補給値114、限界104。追加の歩兵25小隊で師団上限も超える。
-    const lineup=[['infantry',2],['supply',1],['attack',1],...Array.from({length:9},()=>['vehicle',4])];
+    // 40小隊、補給値109、限界99。追加の歩兵25小隊で師団上限も超える。
+    const lineup=[['infantry',1],['supply',1],['attack',2],['vehicle',4],['was',4],['was',4],['guidedRocket',4],
+      ...Array.from({length:5},()=>['infantry',4])];
     if(oversize)lineup.push(...Array.from({length:6},()=>['infantry',4]),['infantry',1]);
     const companies=lineup.map(([kind,platoons],i)=>({id:'test'+i,name:`第${i+1} ${ground.types()[kind].name}中隊`,kind,platoons}));
     const battalions=Array.from({length:Math.ceil(companies.length/4)},(_,i)=>({id:'testb'+i,name:`第${i+1} 大隊`,companies:companies.slice(i*4,i*4+4).map(c=>c.id)}));
@@ -140,7 +141,7 @@ async function checkGroundSupplyLimit(page,check){
     check(await go.isEnabled()&&(await load.textContent()).includes('24/64小隊')&&await load.locator('tr.over').count()===0,
       '地上出撃上限: 作戦規模と補給限界の内なら通常出撃できる');
     await open({penalty:true});
-    check(await go.isEnabled()&&await load.locator('tr.over').count()===1&&/114\/104.*補給・士気の上限 −20%/s.test(await load.textContent()),
+    check(await go.isEnabled()&&await load.locator('tr.over').count()===1&&/109\/99.*補給・士気の上限 −20%/s.test(await load.textContent()),
       '地上出撃上限: 補給限界だけを超えた編成は下げ幅を表示して出撃できる');
     await go.click();
     const result=await page.evaluate(()=>{

@@ -34,12 +34,12 @@ const {openSortieMenu}=require('../tests/ground-drill-menu.cjs');
     await page.evaluate(()=>WOS.openMenu());
     await page.click('#mainNav [data-go="org"]');
     await page.click('[data-org-force="ground"]');
-    assert.match(await page.locator('#orgCap').textContent(),/65小隊・補給値 139/);
-    assert.match(await page.locator('#orgDetail .dpanel').textContent(),/大隊の中身.*補給値 18/s);
+    assert.match(await page.locator('#orgCap').textContent(),/65小隊・補給値 134/);
+    assert.match(await page.locator('#orgDetail .dpanel').textContent(),/大隊の中身.*補給値 57/s);
     await capture('battalion');
 
     await page.click('[data-ground-tab="brigades"]');
-    assert.match(await page.locator('#orgDetail .dpanel').textContent(),/旅団の中身.*補給値 114.*補給中隊 1小隊（限界 \+4）/s);
+    assert.match(await page.locator('#orgDetail .dpanel').textContent(),/旅団の中身.*補給値 109.*補給中隊 1小隊（限界 \+4）/s);
     await capture('brigade');
     checkErrors();
   }finally{

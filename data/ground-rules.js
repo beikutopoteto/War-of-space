@@ -59,11 +59,13 @@ window.WOS_GROUND_RULES = {
   // fireRangesKm は武器到達距離（km）の仮値。索敵距離とは独立。
   // direct / indirect:{min,max} は地上・海上、ground / air は航空の対地・対空。
   // aa は航空機以外の自動対空用、airborne は空中 W.A.S. の対地・対空。未指定・0は能力なし。
-  // 出撃する1小隊あたりの補給値（仮、#485）。海の艦は対象外。
+  // #522 強化歩兵を1とした強さで測った値（ユーザー決定の測り方、2026-11-27）
+  // 出撃する1小隊あたりの補給値（仮）。測定対象外の支援兵科は現行値。海の艦は対象外。
   supplyWeight: {
     infantry:1,scout:1,engineer:1,commando:1,apc:1,supply:1,
-    heavyInfantry:2,mobileAA:2,mechanicalAssault:2,
-    vehicle:3,artillery:3,guidedRocket:3,was:3,fighter:3,attack:3,supportAircraft:3
+    heavyInfantry:1.5,mobileAA:4,mechanicalAssault:1.5,
+    // ユーザー決定（#522、2026-11-28）: 戦車6、W.A.S. 12、航空機3、自走砲・無誘導ロケット・自走対空砲4
+    vehicle:6,artillery:4,guidedRocket:4,was:12,fighter:3,attack:3,supportAircraft:3
   },
   sortieLimits: {
     scales:{division:{name:'師団規模',cap:64}},supplyPerPlatoon:4, // 仮（#485）
