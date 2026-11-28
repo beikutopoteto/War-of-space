@@ -1037,12 +1037,13 @@ function groundWasDogfightTarget(f,rules){
   const t=groundWasLowDuel(f,f.fireTarget)?f.fireTarget:groundWasSwarmTarget(f,rules);
   return t?.alive&&t.team!==f.team&&t.band===f.band&&!t.bandTo&&!t.embarked&&!groundAbsent(t)&&groundWasBodyFlight(t)?t:null;
 }
-// 近い組から両軍の組を結び、相手の全組に行き先が付くまでは同じ組を重ねて選ばない。
+// 近い組から両軍の組を結び、余った組は相手の組に1組ずつ加える。
 function groundWasDogfightMatch(members,pairsByUnit,snapshots){
   const teams=[[],[]];
   for(const f of members){
     const bodies=snapshots.get(f);
     pairsByUnit.get(f).forEach((pair,i)=>{
+      pair.target=null;pair.pairs=[];
       const a=bodies[2*i],b=bodies[2*i+1];
       if(!a.alive&&!b.alive)return;
       const pos=a.alive&&b.alive?a.pos.clone().lerp(b.pos,.5):(a.alive?a:b).pos;
@@ -1050,20 +1051,16 @@ function groundWasDogfightMatch(members,pairsByUnit,snapshots){
     });
   }
   const links=teams[0].flatMap(a=>teams[1].map(b=>({a,b,d:a.pos.distanceToSquared(b.pos)}))).sort((a,b)=>a.d-b.d);
-  const allA=new Set(teams[0]),allB=new Set(teams[1]);
-  const matchedA=new Set(),matchedB=new Set();
   const assign=(a,b)=>{a.pair.target=b.f;a.pair.pairs=[b.i];};
-  while(links.length&&(allA.size||allB.size)){
-    for(const {a,b} of links){
-      if(matchedA.has(a)||matchedB.has(b))continue;
-      if(allA.delete(a))assign(a,b);
-      if(allB.delete(b))assign(b,a);
-      matchedA.add(a);matchedB.add(b);
-    }
-    matchedA.clear();matchedB.clear();
-    // 人数差があるときは、まだ相手のいない側の組と、反対側の全組で次の割り当てを行う。
-    for(const a of teams[0])if(allA.size&&!allA.has(a))matchedA.add(a);
-    for(const b of teams[1])if(allB.size&&!allB.has(b))matchedB.add(b);
+  for(const {a,b} of links){
+    if(a.pair.target||b.pair.target)continue;
+    assign(a,b);assign(b,a);
+  }
+  const reinforced=new Set();
+  for(const {a,b} of links){
+    const [free,foe]=a.pair.target?[b,a]:[a,b];
+    if(free.pair.target||reinforced.has(foe))continue;
+    assign(free,foe);reinforced.add(foe);
   }
 }
 function groundWasDogfightStates(rules){
@@ -1085,7 +1082,7 @@ function groundWasDogfightStates(rules){
     for(const f of members)for(const t of nearby){
       if(t.band===f.band&&groundDistanceTo(f,t)<=d.mergeKm*GROUND_SCALE){members.push(t);nearby.delete(t);}
     }
-    if(members.filter(f=>f.team===0).length>=2&&members.filter(f=>f.team===1).length>=2)groups.push(members);
+    if(members.length>=3)groups.push(members);
   }
   const grouped=new Set(groups.flat());
   for(const [f,t] of contacts)if(!grouped.has(f)&&!grouped.has(t)&&contacts.get(t)===f){
@@ -2145,6 +2142,24 @@ function groundBodyTarget(f,i,t,range,aa=false,assignedPair=null){
 function groundBodyInRange(f,t,range,aa=false){
   return f.bodies?f.bodies.some((b,i)=>b.alive&&groundBodyTarget(f,i,t,range,aa)):!!groundBodyTarget(f,0,t,range,aa);
 }
+// 受け持ちのない組は、長機を基準に乱戦内の近くにいる撃てる機体を探す。
+function groundWasDogfightFreeShot(f,i,group){
+  const from=groundBodyPositions(f),leader=i&~1;
+  const origin=from.positions[f.bodies[leader].alive?leader:leader+1];
+  let closest=null,distance=Infinity;
+  for(const t of group.members){
+    if(t.team===f.team||!t.alive||t.groundWasFlight?.dogfight?.group!==group||!groundSeenBy(f.team,t))continue;
+    const to=groundBodyPositions(t),range=groundTargetRange(f,t);
+    for(const [j,b] of t.bodies.entries()){
+      if(!b.alive)continue;
+      const d=origin.distanceToSquared(to.positions[j]);
+      if(d>=distance)continue;
+      const hit=groundBodyShot(f,i,t,j,range,from,to);
+      if(hit){closest={t,hit};distance=d;}
+    }
+  }
+  return closest;
+}
 function groundBodyReach(g){
   if(g.reach!==undefined)return g.reach;
   let r2=0;
@@ -2204,10 +2219,12 @@ function groundBodyFire(f,primary,dt,aa=false){
     if(!aa&&!hasParallel&&(b[extraTimer]??1)<=0)b[extraTimer]=groundRules().fireEvery;
     if(!mainDue&&!parallelDue)continue;
     const assignment=multi?dogfight.pairs[i>>1]:null;
-    const t=assignment?.target??primary,assignedPair=assignment?.pairs[0]??null;
-    if(assignment&&(!t.alive||t.groundWasFlight?.dogfight?.group!==dogfight.group||!groundSeenBy(f.team,t)))continue;
+    const freeShot=assignment&&!assignment.target?groundWasDogfightFreeShot(f,i,dogfight.group):null;
+    if(assignment&&!assignment.target&&!freeShot)continue;
+    const t=assignment?.target??freeShot?.t??primary,assignedPair=assignment?.pairs[0]??null;
+    if(assignment?.target&&(!t.alive||t.groundWasFlight?.dogfight?.group!==dogfight.group||!groundSeenBy(f.team,t)))continue;
     const reach=t===primary?range:groundTargetRange(f,t);
-    const hit=groundBodyTarget(f,i,t,reach,aa,assignedPair);if(!hit)continue;
+    const hit=freeShot?.hit??groundBodyTarget(f,i,t,reach,aa,assignedPair);if(!hit)continue;
     if(mainDue){
       const weapon=groundDirectWeapon(f,t,aa,b,hit);
       if(b[timer]<=0||weapon.rounds){

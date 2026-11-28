@@ -812,6 +812,51 @@ function nodeChecks(){
       }
     }
 
+    for(const count of [2,3]){
+      fresh();
+      const blue=unit('was',0,-2,0,4);
+      const red=Array.from({length:count},(_,i)=>unit('was',1,1,(i===2?-1:i)*1.2*GROUND_SCALE,4));
+      const joined=[blue,...red];
+      const origin=joined.reduce((p,f)=>p.add(f.pos),new THREE.Vector3()).multiplyScalar(1/joined.length);
+      for(const f of joined){
+        f.band='cruise';
+        order(f,{type:'attack',target:f===blue?red[0]:blue});
+      }
+      const observed=red[1],frames=[],fired=new Set(),freeFired=new Set();
+      const originalShot=groundBodyDirectShot;
+      try{
+        groundBodyDirectShot=(f,i,t,hit,aa)=>{
+          const duel=f.groundWasFlight?.dogfight;
+          if(!red.includes(f)||t!==blue||aa||!duel?.group.multi)return;
+          if(f===observed)fired.add(i);
+          if(!duel.pairs[i>>1].target)freeFired.add(f.id+':'+(i>>1));
+        };
+        for(let i=0;i<150;i++){
+          tick(.05);
+          if(i>=59&&i%10===9){
+            const track=observed.groundWasFlight;
+            frames.push(track.bodies.map(b=>b.pos.clone()));
+          }
+        }
+      }finally{groundBodyDirectShot=originalShot;}
+      const group=blue.groundWasFlight?.dogfight?.group;
+      const outer=groundRuleSet().wasCombat.swarmLayout.maxSpanKm*GROUND_SCALE/2*Math.sqrt(joined.length/2);
+      check('巡航1:'+count+'で全中隊が平均位置の乱戦空域に合流する',
+        group?.multi&&joined.every(f=>f.groundWasFlight?.dogfight?.group===group)&&
+          close(group.x,origin.x)&&close(group.z,origin.z)&&close(group.outer,outer));
+      const initial=frames[0];
+      check('巡航1:'+count+'で2個目の中隊の全機が空域内でばらばらに動き、射撃する',
+        frames.every(frame=>frame.every(p=>Math.hypot(p.x-origin.x,p.z-origin.z)<=outer+1e-7))&&
+          initial.every((p,i)=>fired.has(i)&&frames.some(frame=>frame[i].distanceTo(p)>.1*GROUND_SCALE))&&
+          initial.slice(1).every((p,i)=>frames.some(frame=>
+            frame[i+1].clone().sub(frame[0]).distanceTo(p.clone().sub(initial[0]))>.05*GROUND_SCALE)));
+      const assignments=red.flatMap(f=>f.groundWasFlight?.dogfight?.pairs??[]);
+      const counts=blue.bodies.filter((_,i)=>i%2===0).map((_,i)=>assignments.filter(p=>p.target===blue&&p.pairs[0]===i).length);
+      const spare=(count-2)*counts.length;
+      check('巡航1:'+count+'で各組の受け持ちは2組まで、余った組も射撃する',
+        counts.every(n=>n===2)&&assignments.filter(p=>!p.target).length===spare&&freeFired.size===spare);
+    }
+
     return rows;
   })()`);
   return cases;
