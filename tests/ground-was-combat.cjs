@@ -209,6 +209,61 @@ function nodeChecks(){
       wreck?.life>=2+wreckCfg.smokeSec&&wreck.life<=3+wreckCfg.smokeSec&&!groundFxQueues.direct.length);
 
     fresh();
+    const lowBlue=unit('was',0,-3,0,4),lowRed=unit('was',1,3,0,4),lowUnits=[lowBlue,lowRed];
+    for(const f of lowUnits)f.band='low';
+    order(lowBlue,{type:'attack',target:lowRed});order(lowRed,{type:'attack',target:lowBlue});
+    const lowShots=[],lowBand=groundBandHeight('low'),lowMiddle=lowBlue.pos.clone().lerp(lowRed.pos,.5);
+    const heights=lowUnits.map(f=>f.bodies.map(()=>({min:Infinity,max:-Infinity})));
+    const crossed=lowUnits.map(()=>false),passed=lowUnits.map(()=>false);
+    let maxHeight=0,maxRadius=0,enteredAt=Infinity,staggered=false,splitHeight=false,turned=false;
+    try{
+      groundFireDirect=(f,t,share,aa,body,weapon)=>{
+        lowShots.push({f,t,aa,weapon,time:gameSec});
+        return directFire(f,t,share,aa,body,weapon);
+      };
+      for(let step=0;step<200;step++){
+        tick(.05);
+        if(!lowUnits.every(f=>f.groundWasFlight?.dogfight?.low))continue;
+        let radius=0;
+        lowUnits.forEach((f,k)=>{
+          const {bodies}=f.groundWasFlight;
+          for(const [i,b] of bodies.entries()){
+            if(!f.bodies[i].alive)continue;
+            const p=groundBodyPosition(f,i),h=(p.y-lowBand)/GROUND_SCALE,span=heights[k][i];
+            maxHeight=Math.max(maxHeight,Math.abs(h));
+            radius=Math.max(radius,Math.hypot(p.x-lowMiddle.x,p.z-lowMiddle.z)/GROUND_SCALE);
+            span.min=Math.min(span.min,h);span.max=Math.max(span.max,h);
+            passed[k]||=b.passFiring;
+            if(i===0)crossed[k]||=(k?-1:1)*(p.x-lowMiddle.x)>.45*GROUND_SCALE;
+            if(i%2===0&&f.bodies[i+1].alive){
+              const wing=bodies[i+1];
+              staggered||=b.slideBoost>.5&&wing.slideBoost===0;
+              splitHeight||=Math.abs(p.y-wing.pos.y)>.6*GROUND_SCALE;
+            }
+            turned||=b.pitch< -1;
+          }
+        });
+        if(radius<=1.5+1e-8)enteredAt=Math.min(enteredAt,gameSec);
+        if(Number.isFinite(enteredAt))maxRadius=Math.max(maxRadius,radius);
+      }
+    }finally{groundFireDirect=directFire;}
+    check('低高度の相互攻撃は10秒以内に双方がバルカンを撃ち、対空との二重発射がない',
+      lowUnits.every((f,k)=>f.order?.target===lowUnits[1-k]&&lowShots.some(s=>s.f===f&&s.t===f.order.target&&s.time<=10+1e-8))&&
+      lowShots.every(s=>!s.aa&&s.weapon.fx==='gatling'));
+    const minExcursion=Math.min(...heights.flat().map(s=>s.max-s.min));
+    check('低高度の巴戦は各機が高さの差600 m以上を使い、段の上下1 km・直径3 kmに収まる（最大高度差 '+
+      maxHeight.toFixed(2)+' km、最大半径 '+maxRadius.toFixed(2)+' km、最小上下幅 '+minExcursion.toFixed(2)+' km）',
+      maxHeight<=1+1e-8&&enteredAt<=1&&maxRadius<=1.5+1e-8&&minExcursion>=.6);
+    check('低高度の巴戦は双方が射撃通過し、組の上下分離・機ごとの横滑り・上昇反転がある',
+      crossed.every(Boolean)&&passed.every(Boolean)&&splitHeight&&staggered&&turned);
+    groundFxReset();
+    const lowFell=lowBlue.bodies.find(b=>b.alive),lowWreckCfg=groundRuleSet().wasCombat.dogfight.low.wreck;
+    groundBodyHit(lowBlue,lowFell,lowFell.hp);
+    const lowWreck=groundFxQueues.wreck[0];
+    const fallSec=lowWreck?.life-lowWreckCfg.smokeSec;
+    check('低高度の撃墜機は別枠で5〜7秒の墜落を描く',!lowFell.alive&&fallSec>=5&&fallSec<=7);
+
+    fresh();
     const leadFlight=unit('was',0,0),enemyFlight=unit('was',1,2),aa=unit('mobileAA',1,0);
     leadFlight.band=enemyFlight.band='cruise';
     const airLoss=groundDamageAmount(enemyFlight,10,leadFlight,null,null);

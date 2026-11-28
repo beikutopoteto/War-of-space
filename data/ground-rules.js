@@ -76,7 +76,17 @@ window.WOS_GROUND_RULES = {
       slide:{start:.72,durationSec:.82,rejoinSec:.72,distanceKm:[.12,.19],plumeLength:2.6},
       pass:{start:.28,enter:.41,exit:.54,end:.68,alongKm:.27,gapKm:[.055,.09],fireKm:.135,flashEverySec:.19},
       stray:{chance:.28,reachKm:[.065,.12],size:.075},
-      wreck:{durationSec:[2,3],driftKm:.18,smokePuffs:9,smokeSec:1.15,impactSize:.27}
+      wreck:{durationSec:[2,3],driftKm:.18,smokePuffs:9,smokeSec:1.15,impactSize:.27},
+      // 低高度 W.A.S. 同士の巴戦（仮）。高度は低高度の段からの差。
+      low:{maxSpanKm:3,heightLimitKm:.95,heightKm:[.6,.9],heightWaveKm:.05,
+        periodSec:[4.1,4.7,5.3],periodVariationSec:.35,pairPhase:.27,wingDelaySec:.16,unitDelaySec:.1,
+        headingSpread:.32,pairGapKm:.10,splitKm:.24,tailKm:.20,pursuit:.32,
+        turnWidthKm:.32,turnClimbKm:.28,turnPitchDeg:78,turnBank:.65,
+        response:6,passResponse:14,
+        pass:{start:.12,enter:.26,exit:.46,end:.59,turn:.72,returnAt:.98,alongKm:1.12,fireKm:.65},
+        slide:{start:.55,durationSec:.42,rejoinSec:.48,distanceKm:[.3,.6],plumeLength:4.1},
+        wreck:{durationSec:[5,7],driftKm:.42,smokePuffs:24,smokeSec:2.3}
+      }
     },
     // 停止巡航で交戦中のロール・ピッチと揺れの速さ（仮）。角度はラジアン、速さはラジアン/ゲーム秒。
     swarmAttitude:{

@@ -373,15 +373,17 @@ function groundVisualBlast(s){
 function groundVisualLoss(f,at,i){
   if(!groundVisuals||!groundFxSeen(f))return;
   const data=f.groundModel?.userData,body=data?.formation?.bodies[i],flight=f.groundWasFlight?.bodies[i];
-  if(f.groundKind==='was'&&f.band==='cruise'&&body&&flight){
-    groundVisualWasWreck(at,data.special?.get('wasFly')||body.geometry,body.material,body.scale,flight);
+  if(f.groundKind==='was'&&['cruise','low'].includes(f.band)&&body&&flight){
+    const {wreck,low}=groundRuleSet().wasCombat.dogfight;
+    const config=f.band==='low'?{...wreck,...low.wreck}:wreck;
+    groundVisualWasWreck(at,data.special?.get('wasFly')||body.geometry,body.material,body.scale,flight,config);
     return;
   }
   const inAir=['low','high'].includes(f.band);
   groundFxAdd('direct',gameSec,inAir?1.5:.9,()=>groundFxPlace(inAir?GFX.airBurst(.55):GFX.hit(.28),at));
 }
-function groundVisualWasWreck(at,geometry,material,scale,flight){
-  const config=groundRuleSet().wasCombat.dogfight.wreck,rnd=GFX.visualRandom;
+function groundVisualWasWreck(at,geometry,material,scale,flight,config){
+  const rnd=GFX.visualRandom;
   const {lerp,clamp}=THREE.MathUtils,duration=lerp(...config.durationSec,rnd());
   const spin=(rnd()<.5?-1:1),initial={yaw:flight.yaw,pitch:flight.pitch,bank:flight.bank};
   const drift=flight.vel.clone().setY(0).multiplyScalar(duration*.55);

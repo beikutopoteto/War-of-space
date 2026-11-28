@@ -91,7 +91,8 @@ function groundAutoAAStep(dt){
       }
       continue;
     }
-    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&!(groundWasCruising(t)&&f.fireTarget===t)&&groundSeenBy(f.team,t))
+    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&
+      !(f.fireTarget===t&&(groundWasCruising(t)||groundWasLowDuel(f,t)))&&groundSeenBy(f.team,t))
       .map(t=>({t,d:groundDistanceTo(f,t)}))
       .filter(({t,d})=>groundUsesFlightBodies(f,t)||d<=groundAARange(f,t));
     if(f.groundKind==='mobileAA'&&f.bodies){
