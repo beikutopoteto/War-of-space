@@ -1860,7 +1860,7 @@ function groundFormationDraw(f,now){
     form.bodies.forEach((body,i)=>{
       const b=track.bodies[i],p=g.positions[i],x=p.x-f.pos.x,z=p.z-f.pos.z;
       body.position.set(x*c1-z*s1,p.y-f.pos.y-GROUND_BODY_LIFT,x*s1+z*c1);
-      const {pitch,bank}=groundWasDrawThrust(body,p,b.yaw,now,config);
+      const {pitch,bank}=groundWasDrawThrust(body,p,b.yaw,now,config,b.boost);
       body.rotation.set(pitch,b.yaw-a1,bank,'YXZ');
       body.userData.wasPassFiring=b.passFiring;
       body.userData.wasPassTarget=b.passTarget;
@@ -2255,6 +2255,10 @@ function groundDraw(){
       const swarm=model.userData.wasSwarming;
       const duel=f.groundWasFlight?.dogfight;
       const combat=was?groundRuleSet().wasCombat:null;
+      const thrust=combat?.thrust,calf=thrust?.calf;
+      const liftOff=calf&&f.band==='ground'&&f.bandTo==='cruise'&&groundBandSeconds(f,f.bandTo)-f.bandLeft<calf.transitionSec;
+      const touchDown=calf&&f.bandTo==='ground'&&f.bandLeft<calf.transitionSec;
+      const transitionPower=liftOff||touchDown?calf.transitionPower:0;
       const flashEvery=duel?combat.dogfight.pass.flashEverySec:combat?.swarmManeuvers.front.firePass.flashEverySec;
       pose.move.forEach((moves,i)=>{
         const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now),body=pose.stand[i];
@@ -2269,8 +2273,8 @@ function groundDraw(){
           body.userData.baseYaw=body.rotation.y;
           body.rotation.y=aim.yaw-heading;
         }
-        if(alive&&combat?.thrust.posePower[key]&&model.visible){
-          plumes.push({body,key,boost:body.userData.wasThrust?.boost??0,config:combat.thrust});
+        if(alive&&thrust?.poses.includes(key)&&model.visible){
+          plumes.push({body,boost:body.userData.wasThrust?.boost??0,config:thrust,transitionPower});
         }
         if(alive&&model.visible&&f.fireTarget?.alive&&passFiring&&now-(body.userData.wasPassShotAt??-Infinity)>=flashEvery){
           body.userData.wasPassShotAt=now;
@@ -2292,9 +2296,10 @@ function groundDraw(){
   }
   for(const f of fleets)if(f.groundDrone)groundDroneDraw(f,picked);
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
-  // 噴射の表示枠は増やさず、加速で強く噴射する機体を先に描く。
+  // 背中の表示を優先し、残りの枠で近くのふくらはぎを描く。
   plumes.sort((a,b)=>b.boost-a.boost);
-  for(const {body,key,boost,config} of plumes)groundWasPlume(body,key,now,boost,config);
+  for(const {body,config} of plumes)groundWasPlume(body,now,config);
+  for(const {body,config,transitionPower} of plumes)groundWasPlume(body,now,config,true,transitionPower);
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundFxDraw(now); groundTransportDraw(); groundSupplyDraw(); groundScriptDraw();
   if(typeof groundPlanDraw==='function')groundPlanDraw();

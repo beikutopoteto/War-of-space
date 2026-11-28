@@ -1,10 +1,11 @@
 /* Ground-battle presentation. Positions here are in groundVisuals coordinates.
    A shot records only drawing state. The simulation still owns firing, flight, hits and movement. */
-const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,rocket:24,stray:8,wreck:6,plumes:32}; // 同時表示数は仮。噴射口は1個中隊16機×2。
+const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,rocket:24,stray:8,wreck:6,plumes:64}; // 同時表示数は仮。噴射口は1個中隊16機×最大4。
 const GROUND_BODY_LIFT=.15; // 地上の体と空中の W.A.S. を描くときの持ち上げ幅
 const groundFxQueues={direct:[],flight:[],blast:[],rocket:[],stray:[],wreck:[]},groundFxPlumes=[],groundGatlingBursts=[];
 const groundFxUp=new THREE.Vector3(0,1,0),groundFxForward=new THREE.Vector3(0,0,1);
 const groundWasDrawVelocity=new THREE.Vector3(),groundWasDrawAccel=new THREE.Vector3();
+const groundWasPlumePoint=new THREE.Vector3(),groundWasPlumeDirection=new THREE.Vector3();
 let groundFxPlumesUsed=0;
 
 function groundFxRelease(fx){
@@ -60,7 +61,7 @@ function groundFxDetail(at,radius,minPixels){
 }
 
 function groundVisualSpecialKeys(key){
-  if(key==='was4')return ['wasFire',...Object.keys(groundRuleSet().wasCombat.thrust.posePower)];
+  if(key==='was4')return ['wasFire',...groundRuleSet().wasCombat.thrust.poses];
   return key==='hinf'?['hinfMsl']:[];
 }
 function groundVisualRigParts(body,rig){
@@ -111,46 +112,73 @@ function groundWasVisualPose(f,shot,moving,guard){
   if(shot)return 'wasFlyFire';
   return moving?(guard?'wasFlyMove':'wasFlyMarch'):'wasFly';
 }
-function groundWasDrawThrust(body,position,yaw,now,config){
+function groundWasDrawThrust(body,position,yaw,now,config,maneuver=0){
   let state=body.userData.wasThrust;
+  const c=Math.cos(yaw),s=Math.sin(yaw);
+  const {clamp,degToRad,radToDeg,smoothstep}=THREE.MathUtils;
   if(!state||now<state.at){
     state=body.userData.wasThrust={at:now,position:position.clone(),velocity:new THREE.Vector3(),
-      accel:new THREE.Vector3(),step:0,boost:0,pitch:0,bank:0};
+      accel:new THREE.Vector3(),yaw,step:0,boost:0,left:0,right:0,burstAt:-Infinity,burstDemand:false,pitch:0,bank:0};
   }else if(now>state.at){
     const dt=now-state.at;
     const velocity=groundWasDrawVelocity.subVectors(position,state.position).divideScalar(dt);
+    const {back,calf}=config;
+    const yawRate=radToDeg(groundWrap(yaw-state.yaw))/dt;
+    let sideAccel=0,brake=0,accelSize=0;
     if(state.step>0){
       // 速度は各区間の中点の値として扱う。描画間隔が変わってもその中点間の時間で割る。
       const accel=groundWasDrawAccel.subVectors(velocity,state.velocity)
-        .divideScalar((dt+state.step)/2*GROUND_SCALE*config.fullAccelKmSec2);
-      const boost=Math.min(1,accel.length());
-      accel.clampLength(0,1);
+        .divideScalar((dt+state.step)/2*GROUND_SCALE);
+      accelSize=accel.length();
+      sideAccel=accel.x*c-accel.z*s;
+      const {x,z}=state.velocity,speed=Math.hypot(x,z);
+      if(speed>0)brake=-(accel.x*x+accel.z*z)/speed;
+      accel.divideScalar(config.fullAccelKmSec2).clampLength(0,1);
       const rise=-Math.expm1(Math.log(.1)*dt/config.riseSec);
-      const response=boost>state.boost?rise:-Math.expm1(Math.log(.1)*dt/config.fallSec);
-      state.boost+=(boost-state.boost)*response;
       state.accel.lerp(accel,rise);
     }
-    state.position.copy(position);state.velocity.copy(velocity);state.step=dt;state.at=now;
+    const demand=accelSize>=back.accelKmSec2||Math.abs(yawRate)>=back.yawDegSec||maneuver>=back.maneuver;
+    // 強噴射は閾値を超えた出だしだけ。連続した機動や入力の揺れで点き続けないようにする。
+    if(demand&&!state.burstDemand&&now-state.burstAt>=back.reburstSec)state.burstAt=now;
+    state.burstDemand=demand;
+    const rise=-Math.expm1(Math.log(.1)*dt/config.plumeRiseSec),fall=-Math.expm1(Math.log(.1)*dt/config.plumeFallSec);
+    const follow=(value,target)=>value+(target-value)*(target>value?rise:fall);
+    state.boost=follow(state.boost,Number(now-state.burstAt<back.burstSec));
+    const braking=smoothstep(brake,...calf.brakeKmSec2);
+    // +X は左。右への転換・横加速には左脚を使い、制動では両脚を使う。
+    state.left=follow(state.left,calf.maxPower*Math.max(braking,smoothstep(-yawRate,...calf.yawDegSec),smoothstep(-sideAccel,...calf.sideAccelKmSec2)));
+    state.right=follow(state.right,calf.maxPower*Math.max(braking,smoothstep(yawRate,...calf.yawDegSec),smoothstep(sideAccel,...calf.sideAccelKmSec2)));
+    state.position.copy(position);state.velocity.copy(velocity);state.yaw=yaw;state.step=dt;state.at=now;
   }
   // 機体のヨーを基準に前後・左右へ分ける。機体の正面は +Z。
-  const {x,y,z}=state.accel,c=Math.cos(yaw),s=Math.sin(yaw);
-  const {clamp,degToRad}=THREE.MathUtils;
+  const {x,y,z}=state.accel;
   state.pitch=degToRad(clamp((x*s+z*c)*config.pitchDeg-y*config.verticalPitchDeg,-config.pitchDeg,config.pitchDeg));
   state.bank=degToRad(-(x*c-z*s)*config.rollDeg);
   return state;
 }
-function groundWasPlume(body,key,now,boost,config){
+function groundWasPlume(body,now,config,calves=false,transitionPower=0){
   const nozzles=body.geometry.userData.nozzles;
-  if(!nozzles||groundFxPlumesUsed+nozzles.length>GROUND_FX_LIMIT.plumes)return;
+  if(!nozzles||groundFxPlumesUsed>=GROUND_FX_LIMIT.plumes)return;
   const {lerp}=THREE.MathUtils;
-  const power=lerp(config.posePower[key]*config.floorFactor,config.maxPower,boost);
-  const length=lerp(1,config.maxLength,boost);
+  const state=body.userData.wasThrust,{back,calf}=config,boost=state?.boost??0;
+  if(calves){
+    if(!transitionPower&&Math.max(state?.left??0,state?.right??0)<=.02)return;
+    if(!groundFxDetail(body.getWorldPosition(groundWasPlumePoint),body.scale.x,calf.minPixels))return;
+  }
+  const backPower=lerp(back.idlePower,back.maxPower,boost);
+  const length=calves?1:lerp(1,back.maxLength,boost);
   for(const n of nozzles){
+    if(Boolean(n.calfSide)!==calves)continue;
+    if(groundFxPlumesUsed>=GROUND_FX_LIMIT.plumes)break;
+    const power=n.k*(calves?Math.max(transitionPower,(n.calfSide>0?state?.left:state?.right)??0):backPower);
+    if(power<=.02)continue;
     const i=groundFxPlumesUsed++,fx=groundFxPlumes[i]||(groundFxPlumes[i]=GFX.plume(.52));
     if(fx.group.parent!==body)body.add(fx.group);
     fx.group.position.fromArray(n.p);
-    fx.group.quaternion.setFromUnitVectors(groundFxForward,new THREE.Vector3().fromArray(n.d));
-    fx.update(now,power*n.k,length);
+    fx.group.quaternion.setFromUnitVectors(groundFxForward,groundWasPlumeDirection.fromArray(n.d));
+    const width=Math.sqrt(Math.min(1,power));
+    fx.group.scale.set(width,width,1);
+    fx.update(now,power,length);
   }
 }
 // 通過中は銃口の光と曳光を描く。実弾の発射と着弾は通常の射撃処理で起きる。

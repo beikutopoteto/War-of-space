@@ -124,7 +124,7 @@ async function checkGroundVisuals(page,check){
       record('W.A.S. の地上射撃姿勢',pose(f,'wasFire'));
       advance(1.1);
       const climbs=groundWasToggle(f);groundDraw();
-      record('W.A.S. の上昇姿勢と背中の噴射',climbs&&pose(f,'wasFlyUp')&&groundFxPlumesUsed===2*f.bodies0&&calls.plume.length>0);
+      record('W.A.S. の上昇姿勢と背中の噴射',climbs&&pose(f,'wasFlyUp')&&groundFxPlumesUsed>=2*f.bodies0&&calls.plume.length>0);
       groundStepBand(f,groundRuleSet().wasFlight.transitionSec);f.pos.y=groundUnitHeight(f);advance(.5);
       record('W.A.S. の空中待機姿勢',pose(f,'wasFly'));
       f.order={type:'move'};f.pos.x+=.05;advance(.05);
@@ -202,33 +202,68 @@ function nodeChecks(){
     model.position.copy(f.pos);model.position.y+=GROUND_BODY_LIFT;
     model.rotation.y=Math.PI;
     body.geometry=model.userData.special.get(key);
-    const draws=[];
-    GFX.plume=()=>({group:new THREE.Group(),update:(now,power,length)=>draws.push({power,length})});
-    const frame=(time,sideKm)=>{
+    const draws=[],near=(a,b)=>Math.abs(a-b)<1e-7;
+    GFX.plume=()=>{
+      const group=new THREE.Group();
+      return {group,update:(now,power,length)=>draws.push({power,length,at:group.position.clone()})};
+    };
+    const frame=(time,sideKm,angle=yaw)=>{
       gameSec=time;track.bodies[0].pos.copy(point).addScaledVector(new THREE.Vector3(0,0,-1),sideKm*GROUND_SCALE);
-      track.bodies[0].yaw=yaw;
+      track.bodies[0].yaw=angle;
       groundFormationDraw(f,time);
-      groundFxPlumesUsed=0;
-      groundWasPlume(body,key,time,body.userData.wasThrust.boost,config);
-      return draws.at(-1);
+      groundFxPlumesUsed=draws.length=0;
+      groundWasPlume(body,time,config);
+      groundWasPlume(body,time,config,true);
+      return draws.slice();
     };
     frame(0,0);frame(.05,.05);
     const cruise=frame(.12,.12);
-    const nozzle=body.geometry.userData.nozzles[0],flame=groundFxPlumes[0].group;
+    const nozzles=body.geometry.userData.nozzles,nozzle=nozzles.find(n=>!n.calfSide),flame=groundFxPlumes[0].group;
+    const calfAt=(draws,side)=>draws.find(d=>d.at.distanceTo(new THREE.Vector3().fromArray(nozzles.find(n=>n.calfSide===side).p))<1e-7)?.power??0;
     const direction=()=>new THREE.Vector3(0,0,1).applyQuaternion(flame.getWorldQuaternion(new THREE.Quaternion()));
     const straight=direction();
-    const boost=frame(.22,.37);
+    const boost=frame(.22,.30);
     const bank=body.rotation.z,tilted=direction();
     const localUp=new THREE.Vector3(0,1,0).applyQuaternion(body.getWorldQuaternion(new THREE.Quaternion()));
     const nozzleDirection=new THREE.Vector3().fromArray(nozzle.d)
       .applyQuaternion(body.getWorldQuaternion(new THREE.Quaternion()));
-    record('一定速度では姿勢の下限、加速では背中の噴射がより強く長い',
-      Math.abs(cruise.power-config.posePower[key]*config.floorFactor)<1e-7&&Math.abs(cruise.length-1)<1e-7&&
-      boost.power>cruise.power&&boost.length>cruise.length);
+    record('等速巡航では背中2口だけが小さく点く',
+      cruise.length===2&&cruise.every(d=>d.power>0&&near(d.power,config.back.idlePower)&&near(d.length,1)));
+    record('急加速で背中の噴射が強く長くなり、左への横加速では右脚が強い',
+      boost[0].power>cruise[0].power&&boost[0].length>cruise[0].length&&calfAt(boost,-1)>calfAt(boost,1));
     record('横加速に向けてロールし、ヨーを保ったまま背中の噴射口も傾く',
       bank<0&&localUp.z<0&&Math.abs(body.rotation.y+Math.PI-yaw)<1e-7&&
       flame.parent===body&&flame.position.distanceTo(new THREE.Vector3().fromArray(nozzle.p))<1e-7&&
       tilted.distanceTo(nozzleDirection)<1e-7&&tilted.distanceTo(straight)>1e-7);
+    let sustained;
+    for(let i=1;i<=20;i++){
+      const dt=i/10;
+      sustained=frame(.22+dt,.30+1.8*dt+5*dt*(dt+.1));
+    }
+    record('強い加速が続いても背中は短い噴射で通常出力へ戻る',near(sustained[0].power,config.back.idlePower));
+    delete body.userData.wasThrust;
+    frame(3,0,-Math.PI+.05);
+    const right=frame(3.1,0,Math.PI-.15);
+    const left=frame(3.2,0,-Math.PI+.05);
+    record('ヨーで反対側の脚が強く噴く。±πをまたぐ旋回でも背中は通常出力',
+      calfAt(right,1)>calfAt(right,-1)&&calfAt(left,-1)>calfAt(left,1)&&
+      near(right[0].power,config.back.idlePower)&&near(left[0].power,config.back.idlePower));
+    delete body.userData.wasThrust;
+    frame(4,0,Math.PI);frame(4.1,.1,Math.PI);
+    const braking=frame(4.2,.16,Math.PI);
+    record('減速すると左右両方のふくらはぎが噴く',
+      calfAt(braking,1)>0&&near(calfAt(braking,1),calfAt(braking,-1)));
+    delete body.userData.wasThrust;
+    frame(5,0);track.bodies[0].boost=1;
+    const leap=frame(5.1,0);
+    record('跳躍やブースト横滑りの合図で背中が強く噴く',leap[0].power>config.back.idlePower);
+    const company=Array.from({length:16},()=>new THREE.Mesh(body.geometry));
+    groundFxPlumesUsed=draws.length=0;
+    for(const b of company)groundWasPlume(b,6,config);
+    for(const b of company)groundWasPlume(b,6,config,true,config.calf.transitionPower);
+    groundWasPlume(body,6,config);
+    record('16機分の背中と離着陸の両脚が最大64口に収まる',
+      draws.length===64&&groundFxPlumesUsed===64&&draws.slice(32).every(d=>calfAt([d],1)>0||calfAt([d],-1)>0));
     return rows;
   })()`);
 }

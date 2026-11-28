@@ -291,7 +291,7 @@ function wasMix(P={}){ const K=WAS_KIT, p=[], U=[], NZ=[], th=(a,b,r=.028)=>segG
       ...[at(box(.15,.08,.15),ank[0],.075,ank[2]-.01), at(loft([[-.19,.01,.013,-.03],[0,.038,.04]],SLAB),ank[0],.05,ank[2]-.07),
       ...[1,-1].flatMap(f=>[at(loft([[-.02,.042,.046],[.13,.038,.045,.028],[.24,.03,.034,.012]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0), tone(at(loft([[.24,.03,.034,.012],[.33,.022,.025,-.004],[.42,.005,.009,-.036]],SLAB),ank[0]+f*.046,.05,ank[2]+.04,0,f*.26,0),.45)])]
         .map(g=>{ if(ank[1]!==.13||pitch){ g.translate(-ank[0],-.13,-ank[2]); if(pitch) g.rotateX(pitch); g.translate(...ank); } return g; }));
-    NZ.push({p:new THREE.Vector3(0,.07,SL*.5-.23).applyMatrix4(S).toArray(), d:new THREE.Vector3(0,0,-1).transformDirection(S).toArray(), k:.7});
+    NZ.push({p:new THREE.Vector3(0,.07,SL*.5-.23).applyMatrix4(S).toArray(), d:new THREE.Vector3(0,0,-1).transformDirection(S).toArray(), k:.7, calfSide:sx});
     if(sx<0) p.push(K.dk(barG(add(mix(hip,knee,.14),[-.1,0,0]),add(mix(hip,knee,.78),[-.11,0,0]),.03,.06)), tone(barG(add(mix(hip,knee,.04),[-.1,0,0]),add(mix(hip,knee,.16),[-.1,0,0]),.025,.035),.6)); }
   /* the pelvis and the hip skirts (lower body, M0); then the upper body, upright: spine, shoulder beam, the body of two plates, the pilot's pod and its glass in a cage,
      the head, drums, thrusters, sub-arms; then per side the shoulder joint, its wing armour and guard plate, two truss struts */
@@ -1365,6 +1365,6 @@ function groundShapeGeo(key,mono=false){
   const parts=GROUND_SHAPES[key](),geo=groundJoin(parts,mono);
   if(parts.muzzle)geo.userData.muzzle=parts.muzzle;
   if(parts.guns)geo.userData.guns=parts.guns;
-  if(parts.nozzles)geo.userData.nozzles=parts.nozzles.slice(-2); // 背中の2基。脚の噴射口は見本用。
+  if(parts.nozzles)geo.userData.nozzles=parts.nozzles;
   return geo;
 }
