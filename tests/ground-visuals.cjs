@@ -20,11 +20,11 @@ async function checkGroundVisuals(page,check){
       fleets.push(t);groundInitUnit(t);
       f.pos.copy(groundPoint(9,27));f.heading.set(0,0,1);f.groundTrack=null;f.groundDeployed=true;
       f.dmg=.001;f.stance='engage';t.stance='evade';f.groundVisible=t.groundVisible=[true,true];
-      for(const b of f.bodies)b.shotT=b.aaT=100;
+      for(const b of f.bodies)b.shotT=b.aaT=b.parallelT=100;
       return {f,t};
     };
-    const single=(f,t,aa=false)=>{
-      f.bodies[0][aa?'aaT':'shotT']=0;
+    const single=(f,t,aa=false,parallel=false)=>{
+      f.bodies[0][aa?'aaT':parallel?'parallelT':'shotT']=0;
       groundBodyFire(f,t,0,aa);groundDraw();
     };
     const currentPose=f=>f.groundModel.userData.pose.stand[0].geometry;
@@ -41,7 +41,7 @@ async function checkGroundVisuals(page,check){
         return add(type,start,life,create,options);
       };
       try{
-        single(f,t,aa);
+        single(f,t,aa,!aa);
         if(!target)return false;
         const body=f.groundModel.userData.pose.stand[0],geo=body.geometry.userData;
         if(!geo.guns)return false;
@@ -52,11 +52,12 @@ async function checkGroundVisuals(page,check){
         hitPoint=groundVisualBodyPoint(t,target.j,target.pos);
         if(t.band==='ground')hitPoint.y+=t.groundBodySpec.body*.5;
         initial=entries.length;
-        for(let k=1;k<20;k++){gameSec=start+k*.05+.001;groundDraw();}
+        // 最後の着弾（0.84秒）を描き、射撃姿勢が切れる1.05秒より前に確認する。
+        for(let k=1;k<=18;k++){gameSec=start+k*.05+.001;groundDraw();}
       }finally{groundFxAdd=add;}
       const tracers=calls.shot.slice(before.shot),flashes=calls.muzzle.slice(before.muzzle),hits=calls.hit.slice(before.hit);
-      return initial===3&&entries.length===25&&entries.every(e=>e.type==='direct')&&guns.length===2&&guns[0].distanceTo(guns[1])>0&&
-        tracers.length===10&&flashes.length===10&&hits.length===5&&
+      return initial===3&&entries.length===40&&entries.every(e=>e.type==='direct')&&guns.length===2&&guns[0].distanceTo(guns[1])>0&&
+        tracers.length===16&&flashes.length===16&&hits.length===8&&
         tracers.every(({args:[path,duration,kind,size]},k)=>{
           const muzzle=path(0),offset=path(1).sub(hitPoint);
           return muzzle.distanceTo(guns[k%2])<1e-6&&muzzle.distanceTo(shoulder)>.1&&duration===.14&&kind==='tracer'&&size===.03&&
@@ -119,7 +120,7 @@ async function checkGroundVisuals(page,check){
       const special=f.groundModel.userData.special;
       record('W.A.S. の地上・飛行射撃の形に右腕の銃口が2つある',
         ['wasFire','wasFlyFire'].every(key=>special.get(key)?.userData.guns?.length===2));
-      record('W.A.S. の対歩兵射撃は右腕の2本から交互に10発、着弾は5回',gatlingBurst(f,t));
+      record('W.A.S. の対歩兵射撃は右腕の2本から交互に16発、着弾は8回',gatlingBurst(f,t));
       record('W.A.S. の地上射撃姿勢',pose(f,'wasFire'));
       advance(1.1);
       const climbs=groundWasToggle(f);groundDraw();
@@ -142,20 +143,21 @@ async function checkGroundVisuals(page,check){
       for(const band of ['cruise','low']){
         ({f,t}=scene('was','infantry'));
         f.band=band;f.pos.y=groundUnitHeight(f);
-        record('W.A.S. の飛行中の対地射撃も右腕から10発（'+band+'）',gatlingBurst(f,t)&&pose(f,'wasFlyFire'));
+        record('W.A.S. の飛行中の対地射撃も右腕から16発（'+band+'）',gatlingBurst(f,t)&&pose(f,'wasFlyFire'));
       }
       ({f,t}=scene('was','fighter','low'));
-      record('W.A.S. の地上からの対空射撃も右腕から10発',gatlingBurst(f,t,true)&&pose(f,'wasFire'));
+      record('W.A.S. の地上からの対空射撃も右腕から16発',gatlingBurst(f,t,true)&&pose(f,'wasFire'));
 
       ({f,t}=scene('was','vehicle'));
+      f.bodies[0].groundRocket={roundsLeft:0,readyAt:gameSec+5};
       const wasTracers=calls.shot.length;
       single(f,t);advance(.5);
       const wasBody=f.groundModel.userData.pose.stand[0];
       wasBody.updateWorldMatrix(true,false);
       const wasMuzzle=groundVisuals.worldToLocal(wasBody.localToWorld(new THREE.Vector3().fromArray(wasBody.geometry.userData.muzzle)));
       const wasShot=calls.shot.at(-1)?.args;
-      record('W.A.S. の対戦車射撃は従来どおり左肩から太さ .17 の1発',
-        calls.shot.length===wasTracers+1&&wasShot[3]===.17&&wasShot[0](0).distanceTo(wasMuzzle)<1e-6);
+      record('W.A.S. の対戦車射撃は左肩から太さ .09 の1発',
+        calls.shot.length===wasTracers+1&&wasShot[3]===.09&&wasShot[0](0).distanceTo(wasMuzzle)<1e-6);
 
       ({f,t}=scene('heavyInfantry','vehicle'));
       single(f,t);

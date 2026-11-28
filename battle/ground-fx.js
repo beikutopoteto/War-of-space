@@ -18,7 +18,16 @@ const GFX=(()=>{
       const v=x.createLinearGradient(0,0,0,h); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(.5,'rgba(0,0,0,1)'); v.addColorStop(1,'rgba(0,0,0,0)'); x.globalCompositeOperation='destination-in'; x.fillStyle=v; x.fillRect(0,0,w,h); }),
     haze:canvasTex(256,256,(x,w)=>{ x.translate(w/2,w/2); x.fillStyle=radial(x,[[0,'rgba(255,255,255,0)'],[.45,'rgba(255,255,255,.06)'],[.8,'rgba(255,255,255,.45)'],[.95,'rgba(255,255,255,.8)'],[1,'rgba(255,255,255,0)']],w/2); x.fillRect(-w/2,-w/2,w,w); }),
     wall:canvasTex(8,64,(x,w,h)=>{ const g=x.createLinearGradient(0,h,0,0); g.addColorStop(0,'rgba(255,255,255,.9)'); g.addColorStop(.35,'rgba(255,255,255,.45)'); g.addColorStop(1,'rgba(255,255,255,0)'); x.fillStyle=g; x.fillRect(0,0,w,h); }),
-    soft:canvasTex(128,128,(x,w)=>{ x.translate(w/2,w/2); x.fillStyle=radial(x,[[0,'rgba(255,255,255,1)'],[.55,'rgba(255,255,255,.8)'],[1,'rgba(255,255,255,0)']],w/2); x.fillRect(-w/2,-w/2,w,w); }) });
+    soft:canvasTex(128,128,(x,w)=>{ x.translate(w/2,w/2); x.fillStyle=radial(x,[[0,'rgba(255,255,255,1)'],[.55,'rgba(255,255,255,.8)'],[1,'rgba(255,255,255,0)']],w/2); x.fillRect(-w/2,-w/2,w,w); }),
+    /* ロケット等の柔らかい煙の粒。正円に見えないよう複数のぼかしをずらして重ねる（#525、2026-11-28） */
+    smoke:canvasTex(128,128,(x,w)=>{
+      const lobes=[[0,0,.36,.52],[-.13,-.07,.27,.38],[.14,-.05,.25,.36],[-.06,.13,.26,.34],[.1,.11,.24,.32],[.02,-.14,.22,.3]];
+      for(const [ox,oy,r,a] of lobes){
+        x.save(); x.translate(w*(.5+ox),w*(.5+oy));
+        x.fillStyle=radial(x,[[0,`rgba(255,255,255,${a})`],[.42,`rgba(255,255,255,${a*.55})`],[.78,`rgba(255,255,255,${a*.14})`],[1,'rgba(255,255,255,0)']],w*r);
+        x.fillRect(-w*r,-w*r,w*r*2,w*r*2); x.restore();
+      }
+    }) });
   /* cross: +Z へ長さ1、幅1の、十字に組んだ2枚の板（絵の横が長さ）。どの向きから見ても筋や炎に見える */
   const geo=()=>G||(G={ flat:new THREE.PlaneGeometry(2,2).rotateX(-Math.PI/2), tube:new THREE.CylinderGeometry(1,1,1,48,1,true).translate(0,.5,0),
     puff:new THREE.IcosahedronGeometry(1,0), puff2:new THREE.IcosahedronGeometry(1,1), bolt:new THREE.CylinderGeometry(.5,.5,1,5).rotateX(Math.PI/2),
@@ -102,31 +111,101 @@ const GFX=(()=>{
   }
   /* 飛ぶ弾。path(u): 0〜1 の位置（THREE.Vector3）、dur: 秒。
      kind: tracer（光る筋: 頭が明るく尾が薄れる）、shell（暗い弾と、弾底の小さな光）、rocket（噴射の炎と光、煙の尾）、bomb（落ちる爆弾）。s: 大きさ */
-  function shot(path,dur,kind='tracer',s=.1,{color=0xffc890}={}){
+  function shot(path,dur,kind='tracer',s=.1,{color=0xffc890,smoke=1,flame=1}={}){ // smoke: 煙の粒の大きさの倍率（W.A.S. の対艦ロケットは無誘導ロケットより細い）。flame: ロケットの推進の炎と光の倍率
     const group=new THREE.Group(), head=new THREE.Group(), X=tex(); group.add(head);
-    const streak=(c,w,len,o=1)=>{ const m=mesh(geo().cross,mat(c,o,true,X.streak),head); m.scale.set(w,w,len); m.position.z=-len*.95; return m; };
+    // 筋の尾は飛んだ距離まで。撃った直後に尾が銃口より後ろ（撃った機体の背中側）へ突き出ない（#525、2026-11-28）
+    const streaks=[], streak=(c,w,len,o=1)=>{ const m=mesh(geo().cross,mat(c,o,true,X.streak),head); m.scale.set(w,w,len); m.position.z=-len*.95; streaks.push({m,len}); return m; };
     if(kind==='tracer'){ streak(color,s*1.5,s*11,.8); streak(0xffffff,s*.6,s*6); glow(color,head).scale.setScalar(s*2.4); }
     else if(kind==='shell'){ mesh(geo().bolt,mat(0x2b2b2e,1),head).scale.set(s*.5,s*.5,s*1.6); streak(color,s*.9,s*6,.5); const g=glow(color,head); g.scale.setScalar(s*1.6); g.position.z=-s; }
     else if(kind==='bomb'){ mesh(geo().bolt,mat(0x34363a,1),head).scale.set(s*.6,s*.6,s*1.8); for(const r of [0,Math.PI/2]){ const f=mesh(geo().fin,mat(0x34363a,1),head); f.scale.setScalar(s*1.3); f.rotation.z=r; f.position.z=-s*.9; } }
-    else { mesh(geo().bolt,mat(0xd8dadc,1),head).scale.set(s*.4,s*.4,s*2.2); const f=mesh(geo().cross,mat(0xffffff,1,true,X.flame),head); f.scale.set(s*1.3,s*1.3,s*4.5); f.rotation.y=Math.PI; f.position.z=-s*1.1; const g=glow(0xffc070,head); g.scale.setScalar(s*3.4); g.position.z=-s*1.6; }
-    const trail=kind==='rocket'?[...Array(16)].map(()=>({m:mesh(geo().puff2,mat(0xd2d2d6,0),group),t0:-1,p:new THREE.Vector3()})):[]; let next=0,last=-1; const a=new THREE.Vector3(), b=new THREE.Vector3();
+    else { mesh(geo().bolt,mat(0xd8dadc,1),head).scale.set(s*.4,s*.4,s*2.2); const fs=s*flame, f=mesh(geo().cross,mat(0xffffff,1,true,X.flame),head); f.scale.set(fs*1.3,fs*1.3,fs*4.5); f.rotation.y=Math.PI; f.position.z=-s*1.1; const g=glow(0xffc070,head); g.scale.setScalar(fs*3.4); g.position.z=-s*1.1-fs*.5; }
+    // ロケットの煙の尾: ぼかしテクスチャのスプライト36個を使い回し、進んだ道に沿って重ねて出して一続きの帯にする（#525、2026-11-28）
+    const smokePalette=[0xdad8d2,0xcdd0d6,0xc0c4cc,0xd2d0ca];
+    const trail=kind==='rocket'?[...Array(36)].map(()=>{
+      const m=new THREE.Sprite(new THREE.SpriteMaterial({map:X.smoke,color:smokePalette[Math.floor(rnd()*smokePalette.length)],transparent:true,opacity:0,depthWrite:false,toneMapped:false}));
+      m.visible=false; group.add(m);
+      return {m,t0:-1,life:1.2,p:new THREE.Vector3(),vx:0,vy:0,vz:0,size0:1,grow:2.6,aspect:1,rot0:0,spin:0,alpha:.2};
+    }):[];
+    const stepT=trail.length&&dur>0?Math.min(dur/34,.042):0, minGapSq=(s*.42)*(s*.42);
+    let next=0,emitted=-stepT,hasLast=false; const a=new THREE.Vector3(), b=new THREE.Vector3(), lastSmoke=new THREE.Vector3();
+    const spawnSmoke=(atT)=>{
+      const su=Math.min(1,Math.max(0,atT/dur)), pt=path(su);
+      if(hasLast&&pt.distanceToSquared(lastSmoke)<minGapSq)return;
+      lastSmoke.copy(pt); hasLast=true;
+      const p=trail[next++%trail.length];
+      p.t0=atT;
+      p.p.copy(pt);
+      p.p.x+=(rnd()-.5)*s*.35; p.p.y+=(rnd()-.5)*s*.28; p.p.z+=(rnd()-.5)*s*.35;
+      p.vx=(rnd()-.5)*s*(.45+rnd()*.85); p.vy=s*(.9+rnd()*1.7); p.vz=(rnd()-.5)*s*(.45+rnd()*.85);
+      p.size0=s*smoke*(1.25+rnd()*.75); p.grow=(1.9+rnd()*1.8)*(.6+.4*smoke); p.aspect=.86+rnd()*.3;
+      p.rot0=rnd()*6.283; p.spin=(rnd()-.5)*1.5;
+      // 煙は少し残る（ユーザー 2026-11-28「煙は少し残るように」）: 3〜4.5秒かけて広がって薄れる（仮）。描く枠の長さは GFX.rocketSmokeSec
+      p.life=3+rnd()*1.5; p.alpha=.2+rnd()*.12;
+    };
     return {group,update(t){ const u=Math.min(1,t/dur), fly=t<dur; head.visible=fly;
       if(fly){ a.copy(path(u)); b.copy(path(Math.min(1,u+.01))); head.position.copy(a); if(b.distanceToSquared(a)>1e-10) head.lookAt(b);
-        if(trail.length&&t-last>dur/18){ last=t; const p=trail[next++%trail.length]; p.t0=t; p.p.copy(a); } }
-      let alive=fly; for(const p of trail){ const v=p.t0<0?2:(t-p.t0)/1.4; p.m.visible=v<1; if(v<1){ alive=true; p.m.position.copy(p.p); p.m.position.y+=v*s*2; p.m.scale.setScalar(s*(.6+v*2.4)); p.m.material.opacity=.5*(1-v); } }
+        if(streaks.length){ const flown=a.distanceTo(path(0)); for(const st of streaks){ const l=Math.max(1e-4,Math.min(st.len,flown)); st.m.scale.z=l; st.m.position.z=-l*.95; } } }
+      if(trail.length&&stepT>0&&emitted<dur){
+        const endT=Math.min(t,dur);
+        if(emitted<t-1.45)emitted=t-1.45;
+        while(emitted+stepT<=endT+1e-6){ emitted+=stepT; spawnSmoke(emitted); }
+      }
+      let alive=fly; for(const p of trail){ const v=p.t0<0?2:(t-p.t0)/p.life; p.m.visible=v>=0&&v<1; if(p.m.visible){ alive=true;
+        const e=ease(v), k=p.size0*(1+e*p.grow);
+        p.m.position.set(p.p.x+p.vx*e,p.p.y+p.vy*e,p.p.z+p.vz*e);
+        p.m.scale.set(k*p.aspect,k/p.aspect,1);
+        p.m.material.rotation=p.rot0+p.spin*v;
+        p.m.material.opacity=p.alpha*Math.min(1,v*12)*(1-v)*(1-v*.55); } }
       return alive; }};
   }
-  /* 噴射（W.A.S. の推進器）: 外の青い炎と中の白い芯。group を噴射口に置き、+Z を噴き出す向きに向ける。update(t,power)。power 0〜1.5 */
+  /* 噴射（W.A.S. の推進器）: 外の青い炎と中の白い芯。group を噴射口に置き、+Z を噴き出す向きに向ける。 */
   function plume(s){
     const group=new THREE.Group(), outer=mesh(geo().cone,mat(0x58a6ff,.5),group), mid=mesh(geo().cone,mat(0xa9d6ff,.8),group), core=mesh(geo().cone,mat(0xffffff,1),group), g=glow(0x9ccfff,group), ph=rnd()*9;
     for(const m of [outer,mid,core]) m.rotation.y=Math.PI;
-    return {group,update(t,power=1){ const f=1+.12*Math.sin(t*37+ph)+.07*Math.sin(t*61+ph*2), L=s*power*f; group.visible=power>.02;
-      outer.scale.set(s*.55,s*.55,L*1.7); mid.scale.set(s*.36,s*.36,L*1.1); core.scale.set(s*.2,s*.2,L*.55); g.scale.setScalar(s*(.9+power*.8)*f); g.material.opacity=.55; return true; }};
+    return {group,update(t,power=1,length=1){ const f=1+.12*Math.sin(t*37+ph)+.07*Math.sin(t*61+ph*2), L=s*power*f*length; group.visible=power>.02;
+      outer.scale.set(s*.55,s*.55,L*1.7); mid.scale.set(s*.36,s*.36,L*1.1); core.scale.set(s*.2,s*.2,L*.55); g.scale.setScalar(s*(.9+power*.8)*f); g.material.opacity=Math.min(.9,.55+(length-1)*.2); return true; }};
+  }
+  // 落下の軌道をたどる煙。粒の数は固定し、落ちた後も最後の煙だけ少し残す。
+  function wreckTrail(size,path,dur,{smokePuffs,smokeSec}){
+    const group=new THREE.Group(),X=tex();
+    const flame=mesh(geo().cross,mat(0xffaa52,1,true,X.flame),group);
+    const light=glow(0xff9a43,group),point=new THREE.Vector3(),tail=new THREE.Vector3();
+    const puffs=Array.from({length:smokePuffs},()=>({
+      sprite:new THREE.Sprite(new THREE.SpriteMaterial({map:X.smoke,color:0x3c3532,transparent:true,depthWrite:false,toneMapped:false})),
+      turn:rnd()*Math.PI*2
+    }));
+    for(const {sprite} of puffs)group.add(sprite);
+    const interval=smokeSec/smokePuffs;
+    return {group,update(t){
+      light.visible=flame.visible=t<dur;
+      if(flame.visible){
+        path(t,point);path(Math.max(0,t-.12),tail);
+        tail.y+=size*.5;
+        flame.position.copy(point);
+        flame.lookAt(group.localToWorld(tail));
+        flame.scale.set(size*.75,size*.75,size*(1.6+.35*Math.sin(t*67)));
+        light.position.copy(point);light.scale.setScalar(size*1.45);
+      }
+      const newest=Math.floor(Math.min(t,dur)/interval);
+      for(let i=0;i<puffs.length;i++){
+        const {sprite,turn}=puffs[i],at=(newest-i)*interval,age=(t-at)/smokeSec;
+        sprite.visible=at>=0&&age<1;
+        if(!sprite.visible)continue;
+        path(at,sprite.position);
+        sprite.position.x+=Math.cos(turn)*size*.6*age;
+        sprite.position.z+=Math.sin(turn)*size*.6*age;
+        sprite.position.y+=size*(.25+age);
+        sprite.scale.setScalar(size*(1+2*age));
+        sprite.material.opacity=.88*(1-age);
+        sprite.material.rotation=turn+age;
+      }
+      return t<dur+smokeSec;
+    }};
   }
   // 戦車の直射は見本と同じ値を使い、ゲーム側で車体の表示倍率を掛ける。
   const tank={muzzleSize:.45,muzzleOptions:{smokeK:1,side:true},tracerSize:.12,duration:.16,impactRadius:2,impactSmoke:.7};
-  // #504 の見本の値（仮）。射撃の間隔・損害は地上戦の規則が持つ。
-  const gatling={rounds:10,burst:.5,tracer:.03,fly:.14,flash:.09,flashLife:.06,flashMin:.8,flashMax:1.2,
+  // #504・#525 の見本の値（仮）。1回の連射0.8秒・16発（0.05秒間隔）で射撃間隔1秒に収める。損害は地上戦の規則が持つ。
+  const gatling={rounds:16,burst:.8,tracer:.03,fly:.14,flash:.09,flashLife:.06,flashMin:.8,flashMax:1.2,
     spread:.18,spreadHeightBias:.3,hit:.12,hitEvery:2,hitLife:.5};
-  return {smoke,blast,hit,airBurst,muzzle,shot,plume,tank,gatling,visualRandom:rnd};
+  return {smoke,blast,hit,airBurst,muzzle,shot,plume,wreckTrail,tank,gatling,rocketSmokeSec:4.6,visualRandom:rnd};
 })();

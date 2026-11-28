@@ -18,7 +18,11 @@ function groundAASolution(f,t){
   if(typeof groundDrillAATargetAvailable==='function'&&!groundDrillAATargetAvailable(t))return false;
   if(!f.pos||!t.pos||![f.pos.x,f.pos.y,f.pos.z,t.pos.x,t.pos.y,t.pos.z].every(Number.isFinite))return false;
   const range=groundAARange(f,t);
-  return range>0&&groundDistanceTo(f,t)<=range&&groundFireFactor(f,t,true)>0&&groundSeenBy(f.team,t)&&groundLineOfSight(f,t);
+  if(!(range>0&&groundFireFactor(f,t,true)>0&&groundSeenBy(f.team,t)))return false;
+  if(groundShotInRange(f,t,range))return true;
+  // 最寄りの飛行機体が遮蔽物の裏でも、別の機体に射線が通ることがある。
+  return f.groundKind==='mobileAA'&&!!f.bodies&&groundWasBodyFlight(t)&&groundWasWithinReach(f,t,range)&&
+    t.bodies.some((b,j)=>b.alive&&f.bodies.some((gun,i)=>gun.alive&&groundBodyShot(f,i,t,j,range)));
 }
 // damage側の専用入口。通常射撃の許可や残ったfireTargetからは迎撃を偽装できない。
 function groundAutoAAHit(f,t){return !!f&&f.groundAAResolving===t&&groundAASolution(f,t);}
@@ -27,6 +31,40 @@ function groundAutoAAReset(){
   for(const f of fleets)if(f){f.groundAATimer=0;f.groundAATarget=null;f.groundAAResolving=null;}
 }
 function groundAAPriority(f,a,b){return f.groundKind==='mobileAA'?Number(b.groundKind==='drone')-Number(a.groundKind==='drone'):0;}
+function groundAACompanyFire(f,candidates){
+  const aims=[];
+  for(const {t} of candidates){
+    if(!groundAASolution(f,t))continue;
+    const range=groundAARange(f,t),positions=groundBodyPositions(t).positions;
+    for(const [j,body] of (t.bodies||[null]).entries()){
+      if(body&&!body.alive)continue;
+      const p=positions[j]||positions[0];
+      const distance=Math.hypot(f.pos.x-p.x,f.pos.z-p.z);
+      const damage=body?.max>0?1-body.hp/body.max:0;
+      aims.push({t,j,body,range,distance,damage});
+    }
+  }
+  aims.sort((a,b)=>groundAAPriority(f,a.t,b.t)||b.damage-a.damage||a.distance-b.distance);
+  // 中隊で1機を共有。射線のない車両は待ち、撃墜すれば同じ更新内でも次の機体へ切り替える。
+  let aim=null;
+  for(const [i,gun] of f.bodies.entries()){
+    if(!gun.alive||gun.aaT>0)continue;
+    if(!aim||!aim.t.alive||aim.body&&!aim.body.alive){
+      aim=aims.find(candidate=>{
+        if(!candidate.t.alive||candidate.body&&!candidate.body.alive)return false;
+        candidate.hits??=f.bodies.map((b,k)=>b.alive?groundBodyShot(f,k,candidate.t,candidate.j,candidate.range):null);
+        return candidate.hits.some(Boolean);
+      });
+      if(!aim)break;
+    }
+    f.groundAATarget=aim.t;
+    const hit=aim.hits[i];if(!hit)continue;
+    const weapon=groundDirectWeapon(f,aim.t,true,gun,hit);
+    gun.aaT=groundWeaponInterval(weapon);
+    f.groundAAResolving=aim.t;
+    try{groundBodyDirectShot(f,i,aim.t,hit,true,weapon);}finally{f.groundAAResolving=null;}
+  }
+}
 function groundAutoAAStep(dt){
   if(typeof op==='undefined'||!op.ground||typeof fleets==='undefined'||!Array.isArray(fleets)||!Number.isFinite(dt)||dt<0)return;
   const air=fleets.filter(t=>t?.alive&&groundAATargetable(t));
@@ -36,30 +74,40 @@ function groundAutoAAStep(dt){
     const previous=f.groundAATarget;f.groundAATarget=null;
     if(f.bodies)for(const b of f.bodies)b.aaT=Math.max(0,b.aaT-dt);
     if(!groundAutoAAReady(f)||groundAARange(f)<=0){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
+    const reloading=f.bodies?f.bodies.every(b=>!b.alive||b.aaT>1e-8):f.groundAATimer>1e-8;
+    // 装填中は表示の目標を保持し、発射時に射線を確認する。
+    if(reloading){
+      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)){
+        const range=groundAARange(f,previous);
+        if(groundWasBodyFlight(f)||groundWasBodyFlight(previous)?groundWasWithinReach(f,previous,range):groundDistanceTo(f,previous)<=range)f.groundAATarget=previous;
+      }
+      continue;
+    }
+    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&!(groundWasCruising(t)&&f.fireTarget===t)&&groundSeenBy(f.team,t))
+      .map(t=>({t,d:groundDistanceTo(f,t)}))
+      .filter(({t,d})=>groundWasBodyFlight(f)||groundWasBodyFlight(t)||d<=groundAARange(f,t));
+    if(f.groundKind==='mobileAA'&&f.bodies){
+      groundAACompanyFire(f,candidates);
+      if(!f.groundAATarget)groundBodyIdleClock(f,'aaT');
+      continue;
+    }
+    candidates.sort((a,b)=>groundAAPriority(f,a.t,b.t)||a.d-b.d);
+    const target=candidates.find(({t})=>groundAASolution(f,t))?.t;
+    f.groundAATarget=target||null;
+    if(!target){if(f.bodies)groundBodyIdleClock(f,'aaT');continue;}
     if(f.bodies){
-      if(f.bodies.every(b=>!b.alive||b.aaT>1e-8)){if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f,previous))f.groundAATarget=previous;continue;}
-      const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).sort((a,b)=>groundAAPriority(f,a,b)||groundDistanceTo(f,a)-groundDistanceTo(f,b));
-      const target=candidates.find(t=>groundAASolution(f,t));f.groundAATarget=target||null;
-      if(target){f.groundAAResolving=target;try{groundBodyFire(f,target,0,true);}finally{f.groundAAResolving=null;}}else groundBodyIdleClock(f,'aaT');
+      f.groundAAResolving=target;
+      try{groundBodyFire(f,target,0,true);}finally{f.groundAAResolving=null;}
       continue;
     }
-    // 装填中は射線を全隊ぶん再探索しない。これは表示用の保持だけで、発射時は必ず実射線を確認する。
-    if(f.groundAATimer>1e-8){
-      if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)&&groundDistanceTo(f,previous)<=groundAARange(f,previous))f.groundAATarget=previous;
-      continue;
-    }
-    const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&groundSeenBy(f.team,t)).map(t=>({t,d:groundDistanceTo(f,t)})).filter(p=>p.d<=groundAARange(f,p.t)).sort((a,b)=>groundAAPriority(f,a.t,b.t)||a.d-b.d);
-    let target=null;
-    for(const candidate of candidates)if(groundAASolution(f,candidate.t)){target=candidate.t;break;}
-    f.groundAATarget=target;
-    if(!target)continue;
     // 対空の時計を先に進め、同期callbackでも同じ迎撃を重複発射しない。
-    f.groundAATimer=groundRules().fireEvery;
+    const hit=groundWasBodyFlight(target)?groundBodyTarget(f,0,target,groundAARange(f,target)):null;
+    const weapon=groundDirectWeapon(f,target,true,null,hit);
+    f.groundAATimer=groundWeaponInterval(weapon);
     f.groundAAResolving=target;
     try{
-      const weapon=groundDirectWeapon(f,target,true);
-      groundVisualDirect(f,0,target,0,f.pos,target.pos,true,weapon);
-      groundFireDirect(f,target,f.groundPlatoons||1,true,null,weapon);
+      groundVisualDirect(f,0,target,hit?.j??0,hit?.from??f.pos,hit?.pos??target.pos,true,weapon);
+      groundFireDirect(f,target,f.groundPlatoons||1,true,hit?.b??null,weapon);
       groundSupplyShot(f);
     }finally{f.groundAAResolving=null;}
   }

@@ -1153,7 +1153,7 @@ function groundDataInfo(id,state,side){
   const count=spec.offsets.length, people=DATA_GROUPS[0][3].includes(id)||id==='mechanicalAssault';
   const org=[['1小隊',count+(aircraft||id==='was'?'機':people?'人':'両')],['補給の重さ',rules.supplyWeight[id]],
     ['士気の最大',Math.round(rules.supply.max*(rules.supply.moraleMax[id]??1))]];
-  const weapons=t.weapons?.map(w=>[w.power,w.pen,`${w.air?'地上・空':'地上'}${w.top?'・上から':''}`])||[];
+  const weapons=t.weapons?.map(w=>[w.power,w.pen,`${w.airOnly?'対空':w.air?'地上・空':'地上'}${w.top?'・上から':''}`])||[];
   const strikeOnly=id==='guidedRocket'||id==='supportAircraft';
   if(strikeOnly) weapons.push([t.dmg*(rules.strike[id].dmgScale??1),'—','地点攻撃']);
   if(id==='fighter') weapons.push([t.dmg,'—','対空']);

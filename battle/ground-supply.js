@@ -151,14 +151,16 @@ function groundSupplySpeedFactor(f){
 function groundSupplySpend(f,amount){if(groundSupplyActive()&&Number.isFinite(f.groundSupply))f.groundSupply=Math.max(0,f.groundSupply-amount);}
 function groundSupplyShot(f,strike=false,share=1){
   f.groundSupplyCombatAt=gameSec;
-  groundSupplySpend(f,(groundSupplyAir(f)?(strike?groundSupplyRules().airStrike:groundSupplyRules().airShot):(strike?groundSupplyRules().strike:groundSupplyRules().shot))*Math.max(0,Number.isFinite(share)?share:1));
+  const r=groundSupplyRules(),base=groundSupplyAir(f)?(strike?r.airStrike:r.airShot):(strike?r.strike:r.shot);
+  const factor=f.groundKind==='was'?groundRuleSet().wasCombat.shotSupplyFactor??1:1;
+  groundSupplySpend(f,base*factor*Math.max(0,Number.isFinite(share)?share:1));
 }
 function groundSupplyMoved(f,a,b){
   if(!groundSupplyActive()||f.embarked||!Number.isFinite(f.groundSupply))return;
   if(!groundSupplyLand(f))return;f.groundMoved=true;
   const flying=groundWasFlying(f),km=Math.hypot(b.x-a.x,b.z-a.z)/GROUND_SCALE;
   const r=groundSupplyRules();
-  const factor=flying?groundRuleSet().wasFlight.moveSupplyFactor[groundWasCruising(f)?'cruise':'low']:1;
+  const factor=f.groundKind==='was'?groundRuleSet().wasFlight.moveSupplyFactor[groundWasCruising(f)?'cruise':flying?'low':'ground']:1;
   groundSupplySpend(f,km*r.move*factor);
   if(!Number.isFinite(f.groundMorale)||f.groundRout)return;
   if(flying){f.groundMorale=Math.max(0,f.groundMorale-km*r.terrainMove['平地']);return;}
@@ -245,7 +247,21 @@ function groundSupplyDemand(t,r){
   return t.groundSupplyDemand;
 }
 function groundSupplyNeeds(t,r,focus){
-  return (focus?t.groundSupply<groundSupplyUnitMax(t):groundSupplyDemand(t,r))||t.groundMorale<groundMoraleUnitMax(t)*r.moraleGiveMax;
+  return (focus?t.groundSupply<groundSupplyUnitMax(t):groundSupplyDemand(t,r))||t.groundMorale<groundMoraleUnitMax(t)*r.moraleGiveMax||
+    (t.groundKind==='was'&&t.bodies?.some(b=>b.alive&&b.groundWasArmorSpent));
+}
+function groundWasRestockArmor(f){
+  if(f.groundKind!=='was'||!f.bodies)return false;
+  const cost=groundRuleSet().wasCombat.reactiveArmor.refillCost;
+  let restored=false;
+  for(const body of f.bodies){
+    if(f.groundSupply<cost)break;
+    if(!body.alive||!body.groundWasArmorSpent)continue;
+    groundSupplySpend(f,cost);
+    body.groundWasArmorSpent=false;
+    restored=true;
+  }
+  return restored;
 }
 function groundSupplyBattalion(f){
   return f.team===0&&f.companyId&&groundOrg?.battalions.find(b=>b.companies.includes(f.companyId));
@@ -508,6 +524,7 @@ function groundSupplyGive(dt,netGains){
       f.groundStockGiving=true;received.add(t);
       if(op.groundDrill&&focus)groundDrillEvent('supplyFocusGain',f,{target:t,amount:extra});
     }
+    for(const t of targets)if((received.has(t)||f.groundSupply>0)&&groundWasRestockArmor(t))received.add(t);
     for(const t of targets){
       const morale=Math.min(share,groundMoraleUnitMax(t)*r.moraleGiveMax-t.groundMorale,f.groundSupply/r.moraleGiveCost);
       if(morale<=0)continue;
@@ -579,6 +596,7 @@ function groundSupplyAfter(dt){
     groundSupplyStartTrip(f);
     const at=groundSupplyAt(f);f.groundSupplyRate=at.rate;
     const before=f.groundSupplyWait;f.groundSupplyWait=at.rate?before+dt:0;
+    if(at.site&&at.rate>0&&f.groundSupplyWait>r.refillWait&&groundWasRestockArmor(f))f.groundSupplySource={site:at.site};
     const gain=Math.min(groundSupplyUnitMax(f)-f.groundSupply,r.refill*(at.site?r.siteRefill??1:1)*at.rate*Math.min(dt,Math.max(0,f.groundSupplyWait-r.refillWait)));
     f.groundSupply+=gain;netGains.set(f,gain);
     if(f.groundSupply>=groundSupplyUnitMax(f))f.groundSupplyDemand=false;

@@ -199,7 +199,7 @@ function groundManualTargetAllowed(f,t){
 function groundFireMode(f,t){
   if(!groundManualTargetAllowed(f,t)||!groundAirInFront(f,t))return null;
   const distance=groundDistanceTo(f,t),direct=groundTargetRange(f,t);
-  if(groundFireFactor(f,t)>0&&direct>0&&distance<=direct&&groundLineOfSight(f,t))return 'direct';
+  if(groundFireFactor(f,t)>0&&groundShotInRange(f,t,direct))return 'direct';
   const r=groundFireRanges(f).indirect;
   return groundIndirectTarget(f,t)&&r&&distance>=r.min&&distance<=r.max&&groundStrikeWeapon(f)&&groundAutoIndirect(f)&&groundStrikeInRange(f,t.pos)?'indirect':null;
 }
@@ -227,7 +227,7 @@ function groundUnitHeight(f){
 // 直接射撃の表（設計案3）。地点攻撃は ground-strike.js で別判定。
 function groundFireFactor(f,t,aa=false){
   const band=f.band||'ground', target=(groundWasCruising(t)||t.groundKind==='drone')?(aa||groundUsesAirRange(f,t)?'low':'ground'):t.band||'ground', weak=groundRules().weakFire;
-  // 自走対空砲は武器表に対地専用の威力を持つため、ここでは対地の減衰を掛けない。
+  // 自走対空砲は 35 mm 連装機関砲1つで空も地上も撃つため、ここでは減衰を掛けない。
   const row={heavyInfantry:{ground:1,low:1,high:1},infantry:{ground:1,low:weak},commando:{ground:1,low:weak},guidedRocket:{ground:1},mechanicalAssault:{ground:1,low:weak,high:weak},mobileAA:{ground:1,low:1,high:1},scout:{ground:1},artillery:{ground:1},vehicle:{ground:1,low:weak,high:weak},apc:{ground:1,low:weak,high:weak},engineer:{ground:1},
     sea:{low:1,high:1,sea:1},fighter:{low:1,high:1},attack:band==='low'?{ground:1,low:1,high:1,sea:1}:{low:1,high:1},
     was:{ground:1,low:1,high:1}}[f.groundKind];
@@ -281,6 +281,27 @@ function groundWasToggle(f){
   }
   return true;
 }
+function groundWasCombatCruise(f,target){
+  const active=f.groundWasAutoCruiseAt!=null;
+  if(f.stance!=='engage'){f.groundWasAutoCruiseAt=null;return;}
+  if(!active&&!f.groundWasNpcCruise&&!f.groundWasStayGround&&(f.band!=='ground'||f.bandTo))return;
+  const rules=groundRuleSet().wasCombat.autoCruise;
+  const direct=target&&groundAnyBodyCanFire(f,target);
+  if(direct){
+    if(f.groundWasForcedLanding||f.groundWasLanding||f.groundWasStayGround)return;
+    if(active||f.groundWasNpcCruise&&groundWasCruising(f)){
+      f.groundWasNpcCruise=false;
+      f.groundWasAutoCruiseAt=gameSec;
+    }else if(f.band==='ground'&&!f.bandTo&&
+      (!groundSupplyActive()||f.groundSupply>=groundSupplyRules().max*rules.supplyFraction)&&groundWasToggle(f)){
+      f.groundWasAutoCruiseAt=gameSec;
+    }
+    return;
+  }
+  f.groundWasStayGround=false;
+  if(active&&gameSec-f.groundWasAutoCruiseAt>=rules.quietSec-1e-8&&
+    (f.band==='ground'&&!f.bandTo||groundWasCanToggle(f)&&groundWasToggle(f)))f.groundWasAutoCruiseAt=null;
+}
 function groundRepathForMoveKind(f){
   const o=f.order;
   if(o?.type==='attack'){f.groundChaseT=0;o.path=null;}
@@ -308,6 +329,7 @@ function groundSetBand(list,band){
   if(!op.ground||!list.length||!list.every(f=>groundBandCommandAllowed(f,band))) return false;
   npcAutoPlayer(list);
   for(const f of list){
+    if(f.groundKind==='was'){f.groundWasAutoCruiseAt=null;f.groundWasNpcCruise=false;}
     if(f.bandTo===groundBandCommandTarget(f,band))continue; // 同じ命令の連打では時計を戻さない。
     groundBeginBand(f,groundBandCommandTarget(f,band));
     if(op.groundDrill)groundDrillEvent('band',f,band);
@@ -397,6 +419,7 @@ function groundBodyRandom(f,i){
 const GROUND_PLATOON_GAP=1.6;
 function groundPlatoonOffsets(spec,cols){
   const one=spec.platoon||spec.offsets,p=spec.platoons||1;if(p<=1)return one;
+  if(spec.form==='wasArrow')return GROUND_WAS_FORMS[p];
   const xs=one.map(o=>o[0]),zs=one.map(o=>o[1]),w=Math.max(...xs)-Math.min(...xs)+GROUND_PLATOON_GAP,d=Math.max(...zs)-Math.min(...zs)+GROUND_PLATOON_GAP,out=[];
   cols=Math.max(1,Math.min(p,cols));
   for(let k=0;k<p;k++){const r=Math.floor(k/cols),inRow=Math.min(cols,p-r*cols),c=k-r*cols;for(const [x,z] of one)out.push([x+(c-(inRow-1)/2)*w,z-r*d]);}
@@ -414,6 +437,7 @@ function groundLayouts(f,spec=f.groundBodySpec){
   return f.groundBodyLayouts=out;
 }
 function groundFormationLayout(f,spec,state){
+  if(spec.form==='wasArrow')return spec.offsets.map(([x,z])=>({x:x*spec.size,y:0,z:z*spec.size,yaw:0,bank:0}));
   const p=spec.platoons||1,width=f.groundLine?.width,cols=p<=1?1:state==='idle'||state==='chase'?Math.min(2,p):Number.isFinite(width)?Math.floor(width/groundPlatoonWidth(spec)):p;
   // 追撃の形: 小隊を 2×2 に並べた塊（1小隊なら布陣と同じ）。体は前を向き、動いているあいだは前後左右に少しゆらぐ（wa/ww/wp は横、wb/wv/wq は前後の幅・速さ・位相。仮）
   if(state==='chase'){
@@ -453,9 +477,9 @@ const GROUND_MARCH={
 const groundBodyDimsCache=new Map();
 function groundBodyDims(spec){
   const size=spec.body??spec.size;   // 描く体の大きさ（GROUND_BODY_SCALE を掛けたもの）
-  if(!spec.key)return {len:2*size,wid:size};
+  if(!spec.key)return {len:2*size,wid:size,ht:size};
   const k=spec.key+':'+size;if(groundBodyDimsCache.has(k))return groundBodyDimsCache.get(k);
-  const g=groundShapeGeo(spec.key);g.computeBoundingBox();const b=g.boundingBox,out={len:(b.max.z-b.min.z)*size,wid:(b.max.x-b.min.x)*size};g.dispose();
+  const g=groundShapeGeo(spec.key);g.computeBoundingBox();const b=g.boundingBox,out={len:(b.max.z-b.min.z)*size,wid:(b.max.x-b.min.x)*size,ht:(b.max.y-b.min.y)*size};g.dispose();
   groundBodyDimsCache.set(k,out);return out;
 }
 function groundMarchLayout(f,spec,vehicle){
@@ -497,7 +521,7 @@ function groundMarchLayout(f,spec,vehicle){
 /* 通った道（f.groundTrail、新しい順、0.2ごと）。動いているあいだだけ残し、止まったら消す（次に動くとき、前の道を逆向きにたどらない） */
 const GROUND_TRAIL_STEP=.2;
 function groundTrailMark(f){
-  if(!f.groundBodySpec||groundFormationState(f)!=='move'){f.groundTrail=null;return;}
+  if(!f.groundBodySpec||f.groundBodySpec.form==='wasArrow'||groundFormationState(f)!=='move'){f.groundTrail=null;return;}
   const t=f.groundTrail;
   if(!t){f.groundTrail=[{x:f.pos.x,z:f.pos.z}];return;}
   if(Math.hypot(f.pos.x-t[0].x,f.pos.z-t[0].z)<GROUND_TRAIL_STEP)return;
@@ -563,8 +587,8 @@ const GROUND_MOVE={
 };
 function groundDriveKind(spec){return GROUND_DRIVE[spec?.key]||'foot';}
 const groundWrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
-// 体の位置を1つにまとめて扱う隊（体が1つ、航空機、空の W.A.S.）
-function groundBodyCentered(f){return !f.bodies||f.bodies0===1||!f.groundBodySpec||['fighter','attack','supportAircraft','drone'].includes(f.groundKind)||groundWasFlying(f);}
+// 体の位置を1つにまとめて扱う隊。
+function groundBodyCentered(f){return !f.bodies||f.bodies0===1||!f.groundBodySpec||['fighter','attack','supportAircraft','drone'].includes(f.groundKind)||groundWasFlying(f)&&!groundWasBodyFlight(f);}
 // 体と位置の組み合わせ: 近い組から順に決める
 function groundAssign(cur,tg){
   const n=cur.length,pairs=[];
@@ -685,7 +709,7 @@ function groundBodyMove(f,T,tgt,dt){
    advance: 今の時刻まで進める（groundStep の中で、中隊が動いた直後に1回だけ）。進めるとき、体は世界の位置のまま中隊の動きを追う
    （体が中隊ごと平行に動いて横すべりしない）。進めないあいだに中隊が置き直されたら（台本・テスト・乗り降り・1ステップの中）、体は並びのまま一緒に動く */
 function groundBodyTrack(f,advance=false){
-  if(groundBodyCentered(f)){f.groundTrack=null;return null;}
+  if(groundBodyCentered(f)||groundWasBodyFlight(f)){f.groundTrack=null;return null;}
   const spec=f.groundBodySpec,L=groundLayouts(f,spec),n=spec.offsets.length,state=groundFormationState(f),width=f.groundLine?.width??Infinity;
   // 止まっているあいだに向きが変わったら（布陣の正面を変えたとき）、体と位置の組み合わせを近い順に決め直す
   const key=state+'|'+width+(state==='idle'||state==='defend'?'|'+Math.round(Math.atan2(f.heading.x,f.heading.z)/(Math.PI/6)):'');
@@ -698,7 +722,7 @@ function groundBodyTrack(f,advance=false){
   const dt=gameSec-T.t;
   if(!advance||!(dt>0))return T;
   groundTrackSync(f,T,dt);
-  const o=f.order,plain=state==='move'&&o?.type==='move'&&o.path?.points,tgt=new Array(n);
+  const o=f.order,plain=state==='move'&&L.move.march&&o?.type==='move'&&o.path?.points,tgt=new Array(n);
   if(T.arr&&o&&T.arr.order!==o){T.arr=null;T.mode.fill('f');T.key=null;}   // 新しい命令: 着く途中の並びをやめる
   const peel=i=>{const A=T.arr,bx=f.pos.x+T.off[i].x,bz=f.pos.z+T.off[i].z;let best=-1,bd=Infinity;
     A.slots.forEach((s,j)=>{if(A.used[j])return;const d=Math.hypot(s.x-bx,s.z-bz);if(d<bd){bd=d;best=j;}});
@@ -730,7 +754,7 @@ function groundBodyTrack(f,advance=false){
     if(T.arr){for(let i=0;i<n;i++)tgt[i]=slotTgt(i);}
     else{
       const tg=groundFormationTargets(f,L,state);
-      if(T.key!==key){T.slot=groundAssignBest(T.off,tg,T.slot);T.key=key;}
+      if(T.key!==key){if(spec.form!=='wasArrow')T.slot=groundAssignBest(T.off,tg,T.slot);T.key=key;}
       for(let i=0;i<n;i++)tgt[i]=tg[T.slot[i]];
     }
   }
@@ -750,69 +774,891 @@ function groundAircraftCombat(f){
   const target=f.order?.type==='attack'?f.order.target:null;
   return !!(f.fireTarget||target?.alive&&groundDistanceTo(f,target)<=groundTargetRange(f,target)*1.5);
 }
+// 採用図の組の順。小さい中隊も前から順に役割を割り当てる（内訳は仮）。
+const GROUND_WAS_ROLES=[null,[1,1],[1,2,1],[3,2,1],[3,3,2]];
+// 巡航で移動するとき、採用図の矢印を等比で縮める倍率は data/ground-rules.js の wasCombat.cruiseSpacing（採用 .36）。
+const groundWasCruiseSpacing=()=>groundRuleSet().wasCombat.cruiseSpacing??.36;
+// 僚機の技順（前衛は通過技の節 2,4,5 をそろえ、半周反転後の再合流と連続性を保つ）。
+const GROUND_WAS_FRONT_WING=[[3,0,5,1,2,4],[1,3,4,0,5,2],[3,0,4,1,5,2],[0,3,5,1,2,4]];
+const GROUND_WAS_MID_WING=[[2,4,0,1,5,3],[3,0,5,2,1,4],[4,2,1,5,3,0],[5,3,1,0,2,4]];
+const GROUND_WAS_REAR_WING=[[2,3,0,4,1],[3,4,1,0,2],[4,0,3,1,2],[1,4,2,0,3]];
+const GROUND_WAS_FRONT_NAMES=['jump','inner','overpass','dive','cut','firePass'];
+const GROUND_WAS_MID_NAMES=['orbit','jump','inner','climb','cut','firePass'];
+const GROUND_WAS_REAR_NAMES=['orbit','jump','inner','snipe','sprint'];
+function groundWasSwarmPair(f,t,targets,i,now,forward,rules){
+  const {swarmLayout:layout,swarmAttitude:att,swarmManeuvers:m}=rules,all=rules.swarmPattern==='all';
+  const [front,middle]=GROUND_WAS_ROLES[targets.length/4],pair=i/2,isFront=pair<front,rear=pair>=front+middle;
+  const smooth=THREE.MathUtils.smootherstep,lerp=THREE.MathUtils.lerp,clamp=THREE.MathUtils.clamp,degToRad=THREE.MathUtils.degToRad;
+  const pCfg=m.pair,unit01=(a,b,c)=>(1+hash(a,b,c))*.5;
+  // 組ごとの基準周期。僚機は開始位相と揺らぎをずらし、長機と半ば独立して技に入る。
+  const slot=m.slotSec+m.slotVariationSec*hash(f.id,pair,0);
+  const baseClock=now/slot+pair*m.pairPhase+unit01(f.id,0,1);
+  const frontOuter=Math.min(layout.frontRadiusKm*m.front.outerScale,layout.maxSpanKm/2);
+  const wingLag=pCfg.phaseLag+pCfg.phaseLagVar*unit01(f.id,pair,31);
+  const wingDrift=pCfg.phaseDrift*Math.sin(now*pCfg.phaseDriftRate+hash(f.id,pair,32)*Math.PI);
+  const spinDir=hash(f.id,pair,40)>=0?1:-1;
+  const spinRate=lerp(pCfg.orbitRate[0],pCfg.orbitRate[1],unit01(f.id,pair,41));
+  const wingTheta=now*spinRate*spinDir+hash(f.id,pair,42)*Math.PI;
+  const breatheRate=lerp(pCfg.breatheRate[0],pCfg.breatheRate[1],unit01(f.id,pair,43));
+  const wingSep=lerp(pCfg.minGapKm,pCfg.maxGapKm,.5+.5*Math.sin(now*breatheRate+hash(f.id,pair,44)*Math.PI));
+  const speedWaveRate=lerp(pCfg.speedWaveRate[0],pCfg.speedWaveRate[1],unit01(f.id,pair,45));
+  const speedWave=pCfg.speedWaveKm*Math.sin(now*speedWaveRate+hash(f.id,pair,46)*Math.PI);
+  const leadRate=lerp(pCfg.leadWanderRate[0],pCfg.leadWanderRate[1],unit01(f.id,pair,47));
+  const leadTheta=now*leadRate*(-spinDir)+hash(f.id,pair,48)*Math.PI;
+  const leadR=pCfg.leadWanderKm*(.5+.5*Math.sin(now*breatheRate*1.17+hash(f.id,pair,49)*Math.PI));
+  const sideSign=Math.sign(targets[i].x+targets[i+1].x)||1;
+  const pickIndex=(list,salt)=>Math.min(list.length-1,Math.floor(unit01(f.id,pair,salt)*list.length));
+
+  const memberState=member=>{
+    const isWing=member===1;
+    const clock=isWing?baseClock-wingLag+wingDrift:baseClock;
+    const beat=Math.floor(clock),u=clock-beat;
+    const pulse=smooth(u,.04,.25)*(1-smooth(u,.76,.98));
+    const hRate=lerp(pCfg.heightRate[0],pCfg.heightRate[1],unit01(f.id,pair,isWing?51:52));
+    const hWave=pCfg.heightWaveKm*(isWing?1:.55)*Math.sin(now*hRate+hash(f.id,pair,isWing?53:54)*Math.PI);
+    const dRad=isWing?wingSep*Math.cos(wingTheta):leadR*Math.cos(leadTheta);
+    const dTan=isWing?wingSep*Math.sin(wingTheta)+speedWave:leadR*Math.sin(leadTheta);
+    const dRadRate=isWing?-wingSep*spinRate*spinDir*Math.sin(wingTheta):-leadR*leadRate*(-spinDir)*Math.sin(leadTheta);
+    let angle,distance,lateral=0,height,bank,pitch,outer;
+    let passBlend=0,aim=0,jumpReady=0,boost=0,doJump=false,maneuver='orbit';
+
+    if(isFront){
+      const cfg=m.front,cycle=Math.floor(beat/6),step=((beat%6)+6)%6;
+      const move=isWing?GROUND_WAS_FRONT_WING[pickIndex(GROUND_WAS_FRONT_WING,cycle*13+60)][step]:step;
+      const pass=cfg.passes[move];
+      const turns=3*cycle+Number(step>2)+Number(step>4);
+      let over=0,a=-now*att.frontOrbitSpeed+pair*2*Math.PI/front+turns*Math.PI;
+      if(pass){
+        over=smooth(u,pass.start,pass.end);
+        passBlend=smooth(u,pass.enter,pass.start)*(1-smooth(u,pass.end,pass.exit));
+        // 中央を横切る間だけ周回を止め、進入時と離脱時に輪へつなぐ。
+        a+=(u-(pass.start+pass.end)/2)*slot*att.frontOrbitSpeed*passBlend;
+        if(isWing){
+          const dir=hash(f.id,pair,beat*7+70)>=0?1:-1;
+          a+=dir*degToRad(pCfg.passAngleDeg)*(.65+.35*Math.abs(hash(f.id,pair,beat*7+71)))*passBlend;
+        }
+      }
+      const attitudePhase=a+over*Math.PI+(isWing?.95:0);
+      angle=forward+a;
+      distance=layout.frontRadiusKm+dRad*(1-passBlend);
+      // 通過後の半周反転（over=1）で次の節の angle+π と横ずれの向きを一致させる。
+      lateral=dTan*(1-2*over)*(1-passBlend);
+      height=cfg.heightKm+cfg.swayKm*Math.cos(attitudePhase)+hWave*(1-.5*passBlend);
+      bank=-att.frontRoll-att.frontRollSway*Math.sin(attitudePhase)-dRadRate*1.1;
+      pitch=Math.min(att.frontAimPitch,Math.atan2(height,Math.max(.08,distance)))-att.frontClimbPitch*Math.sin(attitudePhase);
+      outer=frontOuter;
+      maneuver=GROUND_WAS_FRONT_NAMES[move];
+      if(move===0)doJump=true;
+      if(move===1){
+        const innerMul=isWing?lerp(cfg.innerScale,cfg.innerScale+.12,unit01(f.id,pair,beat+72)):cfg.innerScale;
+        distance=lerp(distance,layout.frontRadiusKm*innerMul+dRad*.35,pulse);
+        if(isWing)angle+=.22*(hash(f.id,pair,beat+73)>=0?1:-1)*pulse;
+      }
+      if(pass){
+        distance=lerp(distance,pass.radiusKm,passBlend)*(1-2*over);
+        height=lerp(height,pass.heightKm+(isWing?hash(f.id,pair,beat+74)*.022:0),passBlend);
+        bank*=1-passBlend;
+        let lane=0;
+        if(t.groundKind==='heavyInfantry')lane=(isWing?-1:1)*cfg.infantryClearanceKm;
+        else if(isWing)lane=(hash(f.id,pair,beat+75)>=0?1:-1)*pCfg.passLaneKm;
+        else if(pass.leadLaneKm)lane=pass.leadLaneKm;
+        lateral=lerp(lateral,lane,passBlend);
+        if(move===5)aim=passBlend;
+      }
+      if(move===3){
+        const down=smooth(u,.29,.61)*(1-smooth(u,.67,.93));
+        height=lerp(height,lerp(cfg.diveHighKm,cfg.diveLowKm,down),pulse);
+        distance*=lerp(1,cfg.diveRadiusScale,down);
+        const noseDown=smooth(u,.24,.37)*(1-smooth(u,.60,.72));
+        pitch=lerp(pitch,degToRad(cfg.divePitchDeg),noseDown);
+        pitch-=att.frontClimbPitch*smooth(u,.68,.79)*(1-smooth(u,.87,.98));
+      }
+    }else{
+      const cfg=rear?m.rear:m.middle,phase=now*(rear?att.rearSwaySpeed:att.middleSwaySpeed)+pair*1.7+(isWing?1.35:0);
+      const vel=Math.cos(phase),sway=Math.sin(phase),variation=hash(f.id,pair,beat*5+(isWing?83:2))*pulse;
+      height=cfg.heightKm+cfg.heightSwayKm*sway+hWave;
+      bank=-vel*(rear?att.rearRoll:att.middleRoll)-dRadRate*.9;
+      pitch=-vel*(rear?att.rearPitch:att.middlePitch);
+      if(all){
+        const row=rear?pair-front-middle:pair-front,count=rear?targets.length/2-front-middle:middle;
+        const baseRadius=rear?Math.min(layout.maxSpanKm/2,layout.allRearRadiusKm)-cfg.orbitInsetKm:Math.min(layout.maxSpanKm/2,layout.allMiddleRadiusKm);
+        outer=rear?Math.min(layout.maxSpanKm/2,layout.allRearRadiusKm):Math.min(layout.maxSpanKm/2,layout.allMiddleRadiusKm*(cfg.outerScale||1));
+        angle=forward+now*(rear?-att.rearOrbitSpeed:att.middleOrbitSpeed)+row*2*Math.PI/count;
+        distance=baseRadius+dRad;
+        lateral=dTan;
+        bank+=(rear?-1:1)*(rear?att.rearRoll:att.middleRoll)*.5;
+        if(rear){
+          const cycle=Math.floor(beat/5),step=((beat%5)+5)%5;
+          const move=isWing?GROUND_WAS_REAR_WING[pickIndex(GROUND_WAS_REAR_WING,cycle*13+90)][step]:(step+pair)%5;
+          maneuver=GROUND_WAS_REAR_NAMES[move];
+          if(move===1)doJump=true;
+          else if(move===2){
+            distance-=cfg.innerKm*pulse;
+            bank-=att.rearRoll*.45*pulse;
+          }else if(move===3){
+            height+=cfg.sniperRiseKm*pulse;
+            bank*=1-pulse;
+          }else if(move===4){
+            const dir=hash(f.id,pair,beat*5+91)>=0?1:-1;
+            angle+=dir*cfg.arcRad*pulse;
+            height=lerp(height,cfg.dipHeightKm,pulse);
+            bank+=dir*att.rearRoll*.5*pulse;
+          }
+        }else{
+          const cycle=Math.floor(beat/6),step=((beat%6)+6)%6;
+          const move=isWing?GROUND_WAS_MID_WING[pickIndex(GROUND_WAS_MID_WING,cycle*13+100)][step]:(step+pair)%6;
+          maneuver=GROUND_WAS_MID_NAMES[move];
+          if(move===1)doJump=true;
+          else if(move===2){
+            distance-=cfg.innerKm*pulse;
+            angle+=.16*(isWing?-1:1)*pulse;
+            bank+=att.middleRoll*.45*pulse;
+          }else if(move===3){
+            height+=cfg.climbKm*pulse;
+            distance+=.06*pulse;
+            bank*=1-.6*pulse;
+          }else if(move===4){
+            const dir=hash(f.id,pair,beat*5+101)>=0?1:-1;
+            angle+=dir*cfg.arcRad*pulse;
+            distance-=cfg.innerKm*.7*pulse;
+            height+=dir*.032*pulse;
+            bank+=dir*att.middleRoll*.5*pulse;
+          }else if(move===5){
+            const passP=smooth(u,.16,.34)*(1-smooth(u,.66,.86));
+            passBlend=passP;
+            distance-=cfg.passInnerKm*passP;
+            height=lerp(height,cfg.passHeightKm+(isWing?hash(f.id,pair,beat+102)*.018:0),passP);
+            angle+=.2*(isWing?-1:1)*passP;
+            bank*=1-.7*passP;
+            aim=smooth(u,.24,.38)*(1-smooth(u,.62,.76));
+          }
+        }
+      }else{
+        angle=forward+Math.PI;
+        outer=layout.maxSpanKm-frontOuter;
+        lateral=-sideSign*cfg.sideKm+cfg.swayKm*sway+dTan*.5;
+        distance=(rear?layout.rearKm:layout.middleKm)+cfg.depthSwayKm*vel+dRad*.5;
+        const step=((beat%3)+3)%3,move=isWing?(step+1+(hash(f.id,pair,beat+110)>=0?1:0))%3:step;
+        if(rear){
+          outer=Math.min(outer,layout.rearKm*cfg.outerScale);
+          lateral+=cfg.swayKm*(.5*Math.sin(phase*1.61)+variation);
+          distance+=cfg.depthSwayKm*variation;
+          height+=cfg.heightSwayKm*(Math.sin(phase*1.83)+variation);
+          if(move===0){height+=cfg.sniperRiseKm*pulse;bank*=1-pulse;maneuver='snipe';}
+          else if(move===1){doJump=true;maneuver='jump';}
+        }else if(move===0){distance-=cfg.coverKm*pulse;maneuver='inner';}
+        else if(move===1){lateral+=cfg.slideKm*(variation>=0?1:-1)*pulse;doJump=true;maneuver='jump';}
+        else{height+=cfg.climbKm*pulse;maneuver='climb';}
+      }
+      pitch+=Math.atan2(height,Math.max(.08,distance));
+    }
+    if(doJump){
+      const jump=m.jump,time=u*slot-jump.startSec,fallAt=jump.riseSec+jump.floatSec,end=fallAt+jump.fallSec;
+      const lift=smooth(time,0,jump.riseSec)*(1-smooth(time,fallAt,end));
+      jumpReady=smooth(time,-jump.prepSec,0)*(1-smooth(time,end,end+jump.prepSec));
+      boost=smooth(time,0,jump.thrustFadeSec)*(1-smooth(time,jump.riseSec-jump.thrustFadeSec,jump.riseSec));
+      const rise=jump.riseKm+jump.variationKm*hash(f.id,pair,beat*3+(isWing?119:11));
+      height=lerp(height,jump.launchKm,jumpReady)+rise*lift;
+      pitch=lerp(pitch,-degToRad(jump.pitchDeg),boost);
+    }
+    const x=Math.sin(angle)*distance+Math.cos(angle)*lateral,z=Math.cos(angle)*distance-Math.sin(angle)*lateral;
+    return {x,z,height:clamp(height,m.minHeightKm,m.maxHeightKm),bank,pitch,boost,aim,passBlend,jumpReady,outer,maneuver};
+  };
+
+  const leader=memberState(0),wing=memberState(1);
+  const clampOuter=b=>{const r=Math.hypot(b.x,b.z);if(r>b.outer){const k=b.outer/r;b.x*=k;b.z*=k;}};
+  clampOuter(leader);clampOuter(wing);
+  // 2機が近づきすぎたときは水平と高さを少しずらして衝突を避ける。
+  const dx=wing.x-leader.x,dz=wing.z-leader.z,dh=wing.height-leader.height;
+  const distH=Math.hypot(dx,dz),dist3=Math.hypot(dx,dz,dh);
+  if(dist3<pCfg.minGapKm){
+    const fallback=wingTheta;
+    const ux=distH>1e-4?dx/distH:Math.cos(fallback),uz=distH>1e-4?dz/distH:Math.sin(fallback);
+    const push=(pCfg.minGapKm-distH)*.55;
+    if(push>0){
+      leader.x-=ux*push;leader.z-=uz*push;
+      wing.x+=ux*push;wing.z+=uz*push;
+      clampOuter(leader);clampOuter(wing);
+      // 外周で片方が押し戻されたら、もう片方を内側へ逃がして最小間隔を保つ。
+      const rx=wing.x-leader.x,rz=wing.z-leader.z,rd=Math.hypot(rx,rz);
+      if(rd<pCfg.minGapKm){
+        const lack=pCfg.minGapKm-rd,lr=Math.hypot(leader.x,leader.z),wr=Math.hypot(wing.x,wing.z);
+        if(wr>=lr&&lr>1e-4){leader.x-=leader.x/lr*lack;leader.z-=leader.z/lr*lack;}
+        else if(wr>1e-4){wing.x-=wing.x/wr*lack;wing.z-=wing.z/wr*lack;}
+      }
+    }
+    if(Math.abs(dh)<pCfg.avoidHeightKm){
+      const sign=dh===0?(hash(f.id,pair,120)>=0?1:-1):Math.sign(dh);
+      const blend=smooth(pCfg.minGapKm-dist3,0,pCfg.minGapKm*.45);
+      const lift=(pCfg.avoidHeightKm-Math.abs(dh))*.5*blend;
+      leader.height=clamp(leader.height-sign*lift,m.minHeightKm,m.maxHeightKm);
+      wing.height=clamp(wing.height+sign*lift,m.minHeightKm,m.maxHeightKm);
+    }
+  }
+  for(const b of [leader,wing]){
+    b.x=t.pos.x-f.pos.x+b.x*GROUND_SCALE;
+    b.z=t.pos.z-f.pos.z+b.z*GROUND_SCALE;
+    b.height=clamp(b.height,m.minHeightKm,m.maxHeightKm)*GROUND_SCALE;
+    b.outer*=GROUND_SCALE;
+  }
+  return [leader,wing];
+}
+// 両隊が止まって互いに交戦しているときだけ、同じ中点を囲む。
+function groundWasSwarmTarget(f,rules){
+  const t=f.fireTarget;
+  return f.band==='cruise'&&!f.bandTo&&gameSec-f.groundMovedAt>=.4&&t?.alive&&!groundAbsent(t)&&!t.embarked&&
+    groundDistanceTo(f,t)<=groundTargetRange(f,t)+rules.swarmLayout.maxSpanKm*GROUND_SCALE/2?t:null;
+}
+function groundWasDuelDirect(f,t){
+  return groundWasCruising(f)&&groundWasCruising(t);
+}
+function groundWasDogfightPairs(f,t){
+  const [front,middle]=GROUND_WAS_ROLES[f.bodies.length/4];
+  const [enemyFront,enemyMiddle]=GROUND_WAS_ROLES[t.bodies.length/4];
+  const ends=[0,front,front+middle,f.bodies.length/2];
+  const enemyEnds=[0,enemyFront,enemyFront+enemyMiddle,t.bodies.length/2];
+  const roles=[[0,1,2],[1,0,2],[2,1,0]];
+  return Array.from({length:f.bodies.length/2},(_,i)=>{
+    const role=i<front?0:i<front+middle?1:2,row=i-ends[role];
+    const pairs=roles[role].flatMap(r=>{
+      const start=enemyEnds[r],count=enemyEnds[r+1]-start;
+      return Array.from({length:count},(_,j)=>start+(row+j)%count);
+    });
+    return {role,row,pairs};
+  });
+}
+function groundWasDogfightState(f,rules){
+  const target=groundWasSwarmTarget(f,rules);
+  if(!target||!groundWasBodyFlight(target)||groundWasSwarmTarget(target,rules)!==f)return null;
+  // このステップでどちらを先に動かしても、同じ時点の相手の位置と向きで追う。
+  const snapshot=t=>groundWasFlightTrack(t).bodies.map(b=>({pos:b.pos.clone(),yaw:b.yaw}));
+  return {target,x:(f.pos.x+target.pos.x)/2,z:(f.pos.z+target.pos.z)/2,
+    pairs:groundWasDogfightPairs(f,target),friends:snapshot(f),foes:snapshot(target)};
+}
+function groundWasDogfightAim(state,i){
+  const {target,pairs}=state,wing=i%2;
+  for(const pair of pairs[i>>1].pairs){
+    const j=2*pair+wing,k=2*pair+1-wing;
+    if(target.bodies[j].alive)return j;
+    if(target.bodies[k].alive)return k;
+  }
+  return -1;
+}
+function groundWasDogfightMove(f,state,b,i,now,forward,rules){
+  const {dogfight:d,swarmManeuvers:m,swarmAttitude:a,swarmLayout:layout}=rules;
+  const {clamp,lerp,smootherstep:smooth}=THREE.MathUtils;
+  const pair=i>>1,wing=i%2,lane=wing?1:-1,{role,row}=state.pairs[pair];
+  const period=d.periodSec[role]+d.periodVariationSec*hash(f.id,pair,0);
+  const clock=now/period+row*m.pairPhase+role/3;
+  const phase=clock*2*Math.PI,cycle=clock-wing*d.phaseLag/(2*Math.PI);
+  const lap=Math.floor(cycle),u=cycle-lap;
+  const bearing=forward+row*d.headingSpread+role*Math.PI/3;
+  const side=Math.sin(bearing),ahead=Math.cos(bearing);
+  const radius=d.radiusKm[role],own=state.friends[i].pos;
+  const targetIndex=groundWasDogfightAim(state,i),foe=state.foes[targetIndex];
+
+  // 同じ組は横に並ぶ区間を持ち、進入時に左右へ開いて各機が受け持つ相手に向かう。
+  const pass=d.pass,split=smooth(u,.13,pass.enter)*(1-smooth(u,pass.end,.96));
+  const tangentX=Math.cos(phase),tangentZ=role===2?-Math.sin(phase):2*d.crossWidth*Math.cos(2*phase);
+  const tangent=Math.hypot(tangentX,tangentZ)||1;
+  const gap=lane*(d.pairGapKm/2+d.splitKm*split);
+  const across=radius*Math.sin(phase)+gap*tangentZ/tangent+.012*Math.sin(phase*.73+i);
+  const along=radius*(role===2?Math.cos(phase):d.crossWidth*Math.sin(2*phase))-gap*tangentX/tangent;
+  let x=state.x+(across*ahead+along*side)*GROUND_SCALE,z=state.z+(along*ahead-across*side)*GROUND_SCALE;
+  let height=clamp(d.heightKm[role]+d.heightWaveKm*Math.sin(phase+wing+row),d.minHeightKm,d.lowMaxHeightKm);
+
+  // 前衛は相手の後ろを狙い、中衛は前衛を援護する。後衛はふだん外周に残る。
+  if(role===0&&foe){
+    const tail=d.pursuit*split;
+    x=lerp(x,foe.pos.x-Math.sin(foe.yaw)*d.tailKm*GROUND_SCALE,tail);
+    z=lerp(z,foe.pos.z-Math.cos(foe.yaw)*d.tailKm*GROUND_SCALE,tail);
+  }else if(role===1){
+    const [front]=GROUND_WAS_ROLES[f.bodies.length/4];
+    const first=2*(row%front);
+    const guard=f.bodies[first+wing].alive?state.friends[first+wing]:
+      f.bodies[first+1-wing].alive?state.friends[first+1-wing]:null;
+    if(guard){
+      const cover=d.pursuit*split;
+      x=lerp(x,guard.pos.x-Math.sin(guard.yaw)*d.coverKm*GROUND_SCALE,cover);
+      z=lerp(z,guard.pos.z-Math.cos(guard.yaw)*d.coverKm*GROUND_SCALE,cover);
+    }
+  }
+  const attack=foe?smooth(u,pass.start,pass.enter)*(1-smooth(u,pass.exit,pass.end)):0;
+  if(attack){
+    // 最短点を相手の横に置き、手前から奥まで走り抜ける。
+    const travel=lerp(-pass.alongKm,pass.alongKm,clamp((u-pass.start)/(pass.end-pass.start),0,1));
+    const clearance=lane*lerp(...pass.gapKm,(1+hash(f.id,i,44))/2);
+    x=lerp(x,foe.pos.x+(travel*side+clearance*ahead)*GROUND_SCALE,attack);
+    z=lerp(z,foe.pos.z+(travel*ahead-clearance*side)*GROUND_SCALE,attack);
+  }
+
+  // 組の開始をずらし、片方ずつ2周に1度、高く跳んで通過の半ばで低空に戻る。
+  const jump=d.jump,jumpTime=(u-jump.start)*period;
+  const jumping=(lap+i+row+role+f.team)%2===0;
+  const rise=jumping?smooth(jumpTime,0,jump.riseSec):0;
+  const dive=1-smooth(jumpTime,(pass.enter-jump.start)*period,(pass.enter-jump.start)*period+jump.diveSec);
+  const jumpReady=rise*dive;
+  const thrust=jumping?smooth(jumpTime,0,.12)*(1-smooth(jumpTime,jump.riseSec-.12,jump.riseSec)):0;
+  height+=jumpReady*lerp(...jump.riseKm,(1+hash(f.id,i,43))/2);
+
+  const slide=d.slide,slideTime=(u-slide.start)*period;
+  let slideBoost=0;
+  if(slideTime>=0&&slideTime<slide.durationSec+slide.rejoinSec){
+    if(!b.duelSlide){
+      const dx=(foe?.pos.x??state.x)-own.x,dz=(foe?.pos.z??state.z)-own.z;
+      const yaw=dx||dz?Math.atan2(dx,dz):b.yaw;
+      b.duelSlide={x:own.x,z:own.z,dx:lane*Math.cos(yaw),dz:-lane*Math.sin(yaw)};
+    }
+    const entry=b.duelSlide;
+    const rejoin=smooth(slideTime,slide.durationSec,slide.durationSec+slide.rejoinSec);
+    const distance=lerp(...slide.distanceKm,(1+hash(f.id,i,42))/2)*GROUND_SCALE;
+    const move=distance*smooth(slideTime,0,slide.durationSec);
+    x=lerp(entry.x+entry.dx*move,x,rejoin);
+    z=lerp(entry.z+entry.dz*move,z,rejoin);
+    slideBoost=smooth(slideTime,0,.1)*(1-smooth(slideTime,slide.durationSec-.15,slide.durationSec));
+  }else b.duelSlide=null;
+
+  // 相手との接近時も各機が小さくよける。中点からの外周は共通。
+  for(let k=0;k<state.foes.length;k++){
+    if(!state.target.bodies[k].alive)continue;
+    const p=state.foes[k].pos,dx=own.x-p.x,dz=own.z-p.z,dy=own.y-p.y;
+    const gap=m.pair.unitClearKm*GROUND_SCALE,dist=Math.hypot(dx,dy,dz);
+    if(dist>=gap)continue;
+    const angle=dx||dz?Math.atan2(dx,dz):bearing;
+    x+=Math.sin(angle)*(gap-dist);z+=Math.cos(angle)*(gap-dist);
+    height+=(dy===0?(f.team?1:-1):Math.sign(dy))*d.heightWaveKm*(1-dist/gap);
+  }
+  const outer=layout.maxSpanKm/2*GROUND_SCALE,offset=Math.hypot(x-state.x,z-state.z);
+  if(offset>outer){x=lerp(state.x,x,outer/offset);z=lerp(state.z,z,outer/offset);}
+  const passing=attack>.6&&own.distanceToSquared(foe.pos)<=(pass.fireKm*GROUND_SCALE)**2;
+  return {x:x-f.pos.x,z:z-f.pos.z,height:clamp(height,d.minHeightKm,jumpReady?d.maxHeightKm:d.lowMaxHeightKm)*GROUND_SCALE,outer,
+    bank:lerp([a.frontRoll,a.middleRoll,a.rearRoll][role]*Math.cos(phase),lane*a.frontRoll,slideBoost),
+    pitch:-THREE.MathUtils.degToRad(jump.pitchDeg)*thrust,boost:Math.max(thrust,slideBoost),slideBoost,jumpReady,
+    passBlend:Math.max(attack,slideTime>=0&&slideTime<slide.durationSec?1:0),
+    foe:foe?.pos,passTarget:passing?targetIndex:null};
+}
+// 反転時の役割: 先頭の小隊が前衛、最後列の小隊が後衛（1小隊のときは前2機・後2機）。
+function groundWasReverseRole(i,count){
+  if(count<=4)return i<2?'front':'rear';
+  const platoons=Math.ceil(count/4),p=Math.floor(i/4);
+  return p===0?'front':p===platoons-1?'rear':'middle';
+}
+// 小隊の位置の癖に、機体ごと・軸ごとの周期と旋回・反転の癖を重ねる。
+function groundWasCruiseTracks(f,spec,heading,drift,turn,rev){
+  const {lerp}=THREE.MathUtils,ground=f.groundTrack;
+  const sin=Math.sin(heading),cos=Math.cos(heading);
+  return spec.offsets.map(([sx,sz],i)=>{
+    const platoon=groundBodyRandom(f,15000+Math.floor(i/4)),unit=groundBodyRandom(f,16000+i);
+    const sample=([min,max])=>lerp(min,max,unit());
+    const wave=range=>({amplitude:sample(range),phase:unit()*2*Math.PI,rate:2*Math.PI/sample(drift.periodSec)});
+    const gap=Math.min(...spec.offsets.map(([x,z],j)=>j===i?Infinity:Math.hypot(x-sx,z-sz)))*spec.size;
+    const x=sx*spec.size,z=sz*spec.size,offset=ground?.off[i];
+    const role=groundWasReverseRole(i,spec.offsets.length);
+    const side=Math.sign(sx)||(i%2?-1:1);
+    const revDelay=role==='front'?sample(rev.frontDelaySec):role==='rear'?sample(rev.rearDelaySec):sample(rev.middleDelaySec);
+    const revDur=role==='front'?sample(rev.frontDurationSec):role==='rear'?sample(rev.rearDurationSec):sample(rev.middleDurationSec);
+    return {
+      pos:new THREE.Vector3(f.pos.x+(offset?.x??x*cos+z*sin),f.pos.y+GROUND_BODY_LIFT,f.pos.z+(offset?.z??z*cos-x*sin)),
+      vel:new THREE.Vector3(),course:heading,yaw:ground?.yaw[i]??heading,pitch:0,bank:0,boost:0,passFiring:false,reverseFire:false,gap,
+      dx:platoon()+unit()-1,dz:platoon()+unit()-1,
+      driftX:wave(drift.drift),driftZ:wave(drift.drift),driftY:wave(drift.height),
+      stagger:unit(),turnSpeed:sample(turn.speed),turnResponse:sample(turn.courseResponse),
+      arc:sample(turn.arc)*(unit()<.5?-1:1),breakup:0,
+      enterSec:sample(turn.enterSec),rejoinSec:sample(turn.rejoinSec),transfer:null,
+      role,revSide:side,revDelay,revDur,revArc:sample(rev.middleArcL),
+      revLane:(unit()*2-1),revHeight:(i%2?1:-1)*(.5+.5*unit()),
+      rearCoverSec:sample(rev.rearCoverSec),revStart:null
+    };
+  });
+}
+// 位置と速度が連続するよう、減衰する加速度で各軸の行き先へ近づく。
+function groundWasFollow(track,axis,goal,follow,velocity,slowDecay,fastDecay){
+  const error=track.pos[axis]-goal,slow=(track.vel[axis]+velocity*error)/(velocity-follow),fast=error-slow;
+  track.pos[axis]=goal+slow*slowDecay+fast*fastDecay;
+  track.vel[axis]=-follow*slow*slowDecay-velocity*fast*fastDecay;
+}
+// 機どうしが3Dで重ならないように位置を押し離し、水平半径と地表の余裕を守る。
+function groundWasSeparate(points,alive,centerX,centerZ,sepXZ,sepY,maxRadius,minY,passes=6,gain=.52,maxMove=Infinity){
+  const n=points.length;
+  for(let pass=0;pass<passes;pass++){
+    for(let i=0;i<n;i++){
+      if(!alive[i])continue;
+      const a=points[i];
+      for(let j=i+1;j<n;j++){
+        if(!alive[j])continue;
+        const b=points[j];
+        let dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
+        let nx=dx/sepXZ,ny=dy/sepY,nz=dz/sepXZ,q=Math.hypot(nx,ny,nz);
+        if(q>=1)continue;
+        if(q<1e-5){nx=i%2?1:-1;ny=(i-j)%2?.5:-.5;nz=0;q=Math.hypot(nx,ny,nz);}
+        const push=(1-q)*gain/q;
+        let px=nx*push*sepXZ,py=ny*push*sepY,pz=nz*push*sepXZ;
+        if(Number.isFinite(maxMove)){
+          const mag=Math.hypot(px,py,pz);
+          if(mag>maxMove){const k=maxMove/mag;px*=k;py*=k;pz*=k;}
+        }
+        a.x+=px;a.y+=py;a.z+=pz;
+        b.x-=px;b.y-=py;b.z-=pz;
+      }
+    }
+    for(let i=0;i<n;i++){
+      if(!alive[i])continue;
+      const g=points[i];
+      if(maxRadius>0){
+        const ox=g.x-centerX,oz=g.z-centerZ,r=Math.hypot(ox,oz);
+        if(r>maxRadius){const k=maxRadius/r;g.x=centerX+ox*k;g.z=centerZ+oz*k;}
+      }
+      if(g.y<minY[i])g.y=minY[i];
+    }
+  }
+}
+// 交戦周回中に機どうしが近づきすぎないよう押し離し、各機の輪の半径と高さの範囲を守る。
+function groundWasSwarmSeparate(points,alive,centerX,centerZ,outers,minYs,maxYs,pairGap,unitGap,sepXZ,sepY,avoidY,passes=4,gain=.55,maxMove=Infinity){
+  const n=points.length,{clamp}=THREE.MathUtils;
+  const pairXZ=Math.max(sepXZ,pairGap),unitXZ=Math.max(sepXZ,unitGap),needY=Math.max(sepY,avoidY);
+  for(let pass=0;pass<passes;pass++){
+    for(let i=0;i<n;i++){
+      if(!alive[i])continue;
+      const a=points[i];
+      for(let j=i+1;j<n;j++){
+        if(!alive[j])continue;
+        const b=points[j],samePair=(i>>1)===(j>>1),needXZ=samePair?pairXZ:unitXZ;
+        const dx=a.x-b.x,dy=a.y-b.y,dz=a.z-b.z;
+        const d3=Math.hypot(dx,dy,dz),q=Math.hypot(dx/needXZ,dy/needY,dz/needXZ);
+        const lack3=samePair?pairGap-d3:0,lackQ=1-q;
+        if(lack3<=0&&lackQ<=0)continue;
+        const dh=Math.hypot(dx,dz);
+        const ux=dh>1e-5?dx/dh:Math.cos(i*1.7+j),uz=dh>1e-5?dz/dh:Math.sin(i*1.7+j);
+        let px=0,py=0,pz=0;
+        if(lack3>0){
+          const push=lack3*gain;
+          px=ux*push;pz=uz*push;
+          if(Math.abs(dy)<avoidY)py=(dy===0?(i%2?1:-1):Math.sign(dy))*(avoidY-Math.abs(dy))*.35*gain;
+        }else{
+          const push=lackQ*gain/Math.max(q,1e-5);
+          px=dx*push;py=dy*push;pz=dz*push;
+        }
+        if(Number.isFinite(maxMove)){
+          const mag=Math.hypot(px,py,pz);
+          if(mag>maxMove){const k=maxMove/mag;px*=k;py*=k;pz*=k;}
+        }
+        a.x+=px;a.y+=py;a.z+=pz;
+        b.x-=px;b.y-=py;b.z-=pz;
+      }
+    }
+    for(let i=0;i<n;i++){
+      if(!alive[i])continue;
+      const g=points[i],ox=g.x-centerX,oz=g.z-centerZ,r=Math.hypot(ox,oz),lim=outers[i];
+      if(lim>0&&r>lim){const k=lim/r;g.x=centerX+ox*k;g.z=centerZ+oz*k;}
+      g.y=clamp(g.y,minYs[i],maxYs[i]);
+    }
+  }
+}
+function groundWasBodyFlight(f){return !!f.bodies&&f.groundBodySpec?.form==='wasArrow'&&groundWasFlying(f);}
+function groundWasFlightTrack(f){
+  if(f.groundWasFlight?.spec===f.groundBodySpec)return f.groundWasFlight;
+  const spec=f.groundBodySpec,heading=Math.atan2(f.heading.x,f.heading.z),rules=groundRuleSet().wasCombat;
+  return {spec,last:f.pos.clone(),heading,course:heading,turnAt:-Infinity,steeredAt:-Infinity,
+    turnOriginHeading:heading,swarm:null,swarmAt:gameSec,reverse:null,
+    bodies:groundWasCruiseTracks(f,spec,heading,rules.cruiseDrift,rules.cruiseTurn,rules.cruiseReverse)};
+}
+// 巡航の位置・姿勢をゲーム時計で進める。描画はこの状態を読むだけ。
+function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null){
+  const prev=track.last,priorHeading=track.heading;
+  const {wasCombat:rules,wasFlight}=groundRuleSet(),M=rules.cruiseMotion,D=rules.cruiseDrift,T=rules.cruiseTurn,R=rules.cruiseReverse;
+  const {clamp,lerp,degToRad,smoothstep,smootherstep}=THREE.MathUtils;
+  const moved=now-f.groundMovedAt<.4;
+  // 周回が中隊の命令位置を離れて逃げる目標を追い続けないよう、武器と陣形の届く範囲で回る。
+  const swarm=groundWasSwarmTarget(f,rules);
+  const swarmCenter=dogfight??swarm?.pos;
+  const centerY=f.pos.y+GROUND_BODY_LIFT;
+  const mx=f.pos.x-prev.x,mz=f.pos.z-prev.z,distance=Math.hypot(mx,mz),speed=wasFlight.speed.cruise;
+  const shift=distance>Math.max(3,speed*dt*4)?f.pos.clone().sub(prev):null;
+  // 直進中の隊に遅れ続けないよう、実際に進んだ量から少し先の並びを狙う。
+  const lead=dt>0&&!shift?M.leadSec/Math.max(dt,distance/speed):0;
+  const centerX=f.pos.x+mx*lead,centerZ=f.pos.z+mz*lead;
+  const priorCenterY=prev.y+GROUND_BODY_LIFT;
+  if(shift){
+    track.reverse=null;
+    for(const b of track.bodies){b.pos.add(shift);b.vel.set(0,0,0);b.revStart=null;}
+  }
+  if(track.swarm!==swarm||!!track.dogfight!==!!dogfight){
+    track.swarm=swarm;track.swarmAt=now;track.reverse=null;
+    // 周回への出入りは、そのとき飛んでいる位置・速度から機体ごとの時間でつなぐ。
+    for(const b of track.bodies){b.transfer={x:b.pos.x-prev.x,y:b.pos.y-priorCenterY,z:b.pos.z-prev.z};b.revStart=null;b.duelSlide=null;}
+  }
+  track.dogfight=dogfight&&{target:dogfight.target,x:dogfight.x,z:dogfight.z,pairs:dogfight.pairs};
+  const landing=f.bandTo==='ground';
+  if(landing)track.reverse=null;
+  // 等価な角度へ折り返さずに積み上げ、180度の折り返しでも各機が同じ側から旋回する。
+  const turn=groundWrap(heading-track.heading);
+  const reverseAngle=degToRad(R.minAngleDeg);
+  if(Math.abs(turn)>1e-6){
+    if(now-track.steeredAt>Math.max(T.staggerSec,R.turnWindowSec)){
+      track.turnAt=now-dt;
+      track.turnOriginHeading=track.heading;
+    }
+    track.steeredAt=now;
+  }
+  const totalTurn=Math.abs(groundWrap(heading-track.turnOriginHeading));
+  const shouldReverse=!landing&&!swarm&&!shift&&Math.abs(turn)>1e-6&&
+    (Math.abs(turn)>=reverseAngle||totalTurn>=reverseAngle&&(!track.reverse||now-track.reverse.at>R.turnWindowSec));
+  track.heading=heading;track.course+=turn;
+  const c=Math.cos(heading),s=Math.sin(heading);
+  if(shouldReverse){
+    const oldHeading=Math.abs(turn)>=reverseAngle?priorHeading:track.turnOriginHeading;
+    const revCenterX=f.pos.x,revCenterZ=f.pos.z,revCenterY=centerY;
+    track.reverse={at:now-dt,oldHeading,hadTarget:!!f.fireTarget?.alive};
+    track.turnOriginHeading=heading;
+    for(const b of track.bodies){
+      const rx=b.pos.x-revCenterX,rz=b.pos.z-revCenterZ;
+      b.revStart={x:rx*c-rz*s,y:b.pos.y-revCenterY,z:rx*s+rz*c};
+      b.course=track.course;b.breakup=0;
+    }
+  }
+  const dims=groundBodyDims(track.spec);
+  const baseSpacing=window.WOS_GROUND_RULES.wasCombat.cruiseSpacing;
+  const spacing=landing?1:groundWasCruiseSpacing();
+  const spacingScale=landing?1:spacing/baseSpacing;
+  // 漂い幅と反転弧の広がりは基準間隔 0.12（旧既定）比で算出し、採用した 0.36（3倍）で見本と同じ動きを保つ。
+  const motionScale=landing?1:spacing/.12;
+  const driftScale=1+D.spacingGain*Math.max(0,motionScale-1);
+  const driftFactor=landing?0:moved?1:D.idleFactor;
+  const maxRadius=landing?0:T.maxRadiusKm*GROUND_SCALE*spacingScale;
+  const steer=T.maxYawSpeed*dt,steerK=1-Math.exp(-T.yawResponse*dt);
+  const settle=1-Math.exp(-T.settleResponse*dt);
+  const wave=({rate,phase})=>Math.sin(now*rate+phase);
+  const dx=swarm?swarm.pos.x-f.pos.x:0,dz=swarm?swarm.pos.z-f.pos.z:0,forward=dx||dz?Math.atan2(dx,dz):heading;
+  const velocity=Math.max(M.velocityResponse,M.follow+1,rules.swarmAttitude.maneuverResponse+1),fastDecay=Math.exp(-velocity*dt);
+  const aimBlend=swarm?smoothstep(now-track.swarmAt,0,M.swarmAimSec):0;
+  const rev=track.reverse;
+  if(rev&&f.fireTarget?.alive)rev.hadTarget=true;
+  const minClearance=D.minClearanceKm*GROUND_SCALE;
+  const alive=track.bodies.map((_,i)=>!!f.bodies[i]?.alive);
+  const goals=[],minYs=[],meta=[],swarmOuters=[],swarmMaxYs=[];
+  let pair,anyReversing=false;
+  track.bodies.forEach((b,i)=>{
+    b.boost=0;b.slideBoost=0;b.passFiring=false;b.passTarget=null;
+    const slot=targets[i];
+    const delay=b.stagger*T.staggerSec;
+    const gap=b.gap*spacing,scatter=landing?0:D.scatter*Math.min(dims.len,gap*1.6+dims.len*.35);
+    const swayX=wave(b.driftX),swayZ=wave(b.driftZ),swayY=wave(b.driftY);
+    const driftAmpXZ=dims.len*driftScale*driftFactor;
+    const driftAmpY=dims.ht*driftScale*driftFactor;
+    // 上下の揺れで足先が地表に沈まないよう、揺れの中心を少し上へ寄せる。
+    const liftBias=Math.max(0,b.driftY.amplitude*driftAmpY-.10);
+    const baseLocalX=slot.x*spacing+b.dx*scatter+swayX*b.driftX.amplitude*driftAmpXZ;
+    const baseLocalZ=slot.z*spacing+b.dz*scatter+swayZ*b.driftZ.amplitude*driftAmpXZ;
+    const baseGoalY=centerY+liftBias+swayY*b.driftY.amplitude*driftAmpY;
+    let goalX,goalY=baseGoalY,goalZ;
+    let yaw,pitch=0,bank=0,response=M.follow,aim=0,heightResponse=response,reverseFire=false,forceTurnSign=0,foe=null;
+    const transfer=b.transfer?smootherstep(now-track.swarmAt-delay,0,swarm?b.enterSec:b.rejoinSec):1;
+    if(rev&&!swarm&&!landing){
+      const elapsed=now-rev.at;
+      const moveU=smootherstep(elapsed-b.revDelay,0,b.revDur);
+      const startRel=b.revStart||{x:baseLocalX,y:0,z:baseLocalZ};
+      // 新しい向きの座標で、前衛は中を速く抜け、中の小隊は弧を描き、最後列は外へ開いてゆっくり引く。
+      let ctrlX=(startRel.x+baseLocalX)*.5,ctrlY=(startRel.y+liftBias)*.5,ctrlZ=(startRel.z+baseLocalZ)*.5;
+      if(b.role==='front'){
+        ctrlX=lerp(ctrlX,b.revLane*R.frontLaneL*dims.len*Math.min(2,motionScale),.75);
+        ctrlZ=lerp(startRel.z,baseLocalZ,.58);
+        ctrlY+=R.frontHeightH*dims.ht*(.4+.6*Math.abs(b.revHeight));
+      }else if(b.role==='rear'){
+        const spread=R.rearSpreadL*dims.len*Math.min(2.2,motionScale);
+        ctrlX+=b.revSide*spread;
+        ctrlZ=lerp(startRel.z,baseLocalZ,.32);
+        ctrlY-=R.rearHeightH*dims.ht*.35;
+      }else{
+        const arcW=b.revArc*dims.len*Math.min(2.2,motionScale);
+        ctrlX+=b.revSide*arcW;
+        ctrlY+=b.revHeight*dims.ht*.35;
+      }
+      const inv=1-moveU;
+      const lx=inv*inv*startRel.x+2*inv*moveU*ctrlX+moveU*moveU*baseLocalX;
+      const ly=inv*inv*startRel.y+2*inv*moveU*ctrlY+moveU*moveU*(liftBias+swayY*b.driftY.amplitude*driftAmpY);
+      const lz=inv*inv*startRel.z+2*inv*moveU*ctrlZ+moveU*moveU*baseLocalZ;
+      goalX=centerX+(lx*c+lz*s);
+      goalZ=centerZ+(-lx*s+lz*c);
+      goalY=centerY+ly;
+      // 接線の向き（新しい向き基準）で弧に沿った機首と傾きを決める。
+      const tx=2*inv*(ctrlX-startRel.x)+2*moveU*(baseLocalX-ctrlX);
+      const tz=2*inv*(ctrlZ-startRel.z)+2*moveU*(baseLocalZ-ctrlZ);
+      const tangentYaw=Math.hypot(tx,tz)>1e-4?heading+Math.atan2(tx,tz):heading;
+      const pulse=4*moveU*inv;
+      b.course=track.course;b.breakup=0;
+      if(b.role==='rear'){
+        const hasTarget=!!f.fireTarget?.alive;
+        const holdRear=hasTarget?elapsed<R.rearMaxCoverSec:rev.hadTarget?elapsed<R.rearMinCoverSec:elapsed<b.rearCoverSec;
+        if(holdRear){
+          reverseFire=true;
+          if(hasTarget){
+            const aimX=f.fireTarget.pos.x-b.pos.x,aimZ=f.fireTarget.pos.z-b.pos.z;
+            yaw=aimX||aimZ?Math.atan2(aimX,aimZ):rev.oldHeading;
+          }else yaw=rev.oldHeading;
+          pitch=R.rearPitch;
+          bank=clamp(-tx/Math.max(.5,b.revDur)*R.bankPerTurn,-.35,.35);
+        }else{
+          yaw=heading+D.yawSway*swayX*driftFactor;
+          forceTurnSign=b.revSide;
+        }
+        if(moveU<1||holdRear)anyReversing=true;
+      }else{
+        yaw=moveU<.88?lerp(tangentYaw,heading,smoothstep(moveU,.55,.88)):heading+D.yawSway*swayX*driftFactor;
+        forceTurnSign=b.revSide;
+        if(b.role==='front')pitch=R.frontPitch*pulse;
+        bank=clamp(-tx/Math.max(.5,b.revDur)*R.bankPerTurn*pulse,-.42,.42);
+        if(moveU<1)anyReversing=true;
+      }
+    }else{
+      const turnDt=clamp(now-track.turnAt-delay,0,dt),angleLeft=track.course-b.course;
+      const demand=angleLeft*(1-Math.exp(-b.turnResponse*turnDt)),step=clamp(demand,-b.turnSpeed*turnDt,b.turnSpeed*turnDt);
+      b.course+=step;
+      b.breakup+=(Math.min(1,Math.abs(angleLeft)/(Math.PI/2))-b.breakup)*settle;
+      // 弧の半径と進み具合を機ごとに変え、向きがそろった後もずれが残ってから収まる。
+      const arc=landing?0:b.arc*b.breakup*Math.max(gap,dims.len*.45);
+      const radius=Math.hypot(slot.x,slot.z)||1;
+      const x=baseLocalX+slot.x/radius*arc;
+      const z=baseLocalZ+slot.z/radius*arc;
+      const offset=Math.hypot(x,z);
+      const fit=!landing&&maxRadius>0&&offset>maxRadius?maxRadius/offset:1;
+      const sin=Math.sin(b.course),cos=Math.cos(b.course);
+      goalX=centerX+(x*cos+z*sin)*fit;
+      goalZ=centerZ+(-x*sin+z*cos)*fit;
+      yaw=b.course+D.yawSway*swayX*driftFactor;
+      bank=dt?-step/dt*T.bankPerTurn:0;
+    }
+    if(swarm){
+      if(!dogfight&&i%2===0)pair=groundWasSwarmPair(f,swarm,targets,i,now,forward,rules);
+      const target=dogfight?groundWasDogfightMove(f,dogfight,b,i,now,forward,rules):pair[i%2];
+      goalX=f.pos.x+target.x;goalZ=f.pos.z+target.z;
+      // 高度の行き先は各機の地表から取り、巡航との切替でも速度を引き継ぐ。
+      goalY=groundSurfaceHeight(b.pos.x,b.pos.z)+target.height;
+      response=lerp(4,rules.swarmAttitude.maneuverResponse,target.passBlend);
+      heightResponse=lerp(response,rules.swarmAttitude.maneuverResponse,target.jumpReady);
+      pitch=target.pitch;bank=target.bank;aim=dogfight?0:target.aim*aimBlend*transfer;
+      foe=target.foe??null;
+      b.boost=target.boost*transfer;
+      b.slideBoost=(target.slideBoost??0)*transfer;
+      b.passTarget=target.passTarget??null;
+      b.passFiring=aim===1||b.passTarget!==null;
+      swarmOuters[i]=target.outer;
+      swarmMaxYs[i]=groundSurfaceHeight(goalX,goalZ)+(dogfight?rules.dogfight.maxHeightKm:rules.swarmManeuvers.maxHeightKm)*GROUND_SCALE;
+    }
+    if(b.transfer&&!landing){
+      goalX=lerp(centerX+b.transfer.x,goalX,transfer);
+      goalY=lerp(centerY+b.transfer.y,goalY,transfer);
+      goalZ=lerp(centerZ+b.transfer.z,goalZ,transfer);
+      if(transfer===1)b.transfer=null;
+    }
+    const clearance=dogfight?rules.dogfight.minHeightKm*GROUND_SCALE:GROUND_BODY_LIFT+minClearance;
+    const minY=landing?-Infinity:groundSurfaceHeight(goalX,goalZ)+clearance;
+    if(goalY<minY)goalY=minY;
+    goals.push({x:goalX,y:goalY,z:goalZ});
+    minYs.push(minY);
+    meta.push({yaw,pitch,bank,response,heightResponse,aim,reverseFire,forceTurnSign,foe});
+  });
+  if(rev&&!anyReversing){
+    track.reverse=null;
+    for(const b of track.bodies)b.revStart=null;
+  }
+  // 巡航中（着陸・交戦周回を除く）は、機どうしが3Dで重ならないように目標位置をよける。
+  const sepXZ=dims.wid*D.sepWidth,sepY=dims.ht*D.sepHeight;
+  const transferring=track.bodies.some(b=>b.transfer);
+  const clampRadius=transferring?0:maxRadius;
+  if(!landing&&!swarm){
+    // 現在の実位置が近すぎる組にも押し戻しを足し、すれ違い時の重なりを防ぐ。
+    for(let i=0;i<goals.length;i++){
+      if(!alive[i])continue;
+      const bi=track.bodies[i].pos;
+      for(let j=i+1;j<goals.length;j++){
+        if(!alive[j])continue;
+        const bj=track.bodies[j].pos;
+        const dx=bi.x-bj.x,dy=bi.y-bj.y,dz=bi.z-bj.z;
+        const nx=dx/sepXZ,ny=dy/sepY,nz=dz/sepXZ,q=Math.hypot(nx,ny,nz);
+        if(q>=1.15||q<1e-5)continue;
+        const push=(1.15-q)*.65/q;
+        goals[i].x+=nx*push*sepXZ;goals[i].y+=ny*push*sepY;goals[i].z+=nz*push*sepXZ;
+        goals[j].x-=nx*push*sepXZ;goals[j].y-=ny*push*sepY;goals[j].z-=nz*push*sepXZ;
+      }
+    }
+    groundWasSeparate(goals,alive,centerX,centerZ,sepXZ,sepY,clampRadius,minYs,8,.52);
+  }else if(!landing&&swarm&&!transferring){
+    // 交戦周回中も、同組の2機や他組との接近時に実位置と目標位置の両方から少しよける（各機の輪と高さは保つ）。
+    const pCfg=rules.swarmManeuvers.pair,pairGap=pCfg.minGapKm*GROUND_SCALE,unitGap=pCfg.unitClearKm*GROUND_SCALE;
+    const avoidY=pCfg.avoidHeightKm*GROUND_SCALE;
+    for(let i=0;i<goals.length;i++){
+      if(!alive[i])continue;
+      const bi=track.bodies[i].pos;
+      for(let j=i+1;j<goals.length;j++){
+        if(!alive[j])continue;
+        const bj=track.bodies[j].pos,need=((i>>1)===(j>>1)?Math.max(sepXZ,pairGap):Math.max(sepXZ,unitGap))*1.35;
+        const dx=bi.x-bj.x,dy=bi.y-bj.y,dz=bi.z-bj.z,d3=Math.hypot(dx,dy,dz);
+        if(d3>=need)continue;
+        const dh=Math.hypot(dx,dz);
+        const ux=dh>1e-5?dx/dh:Math.cos(i*1.7+j),uz=dh>1e-5?dz/dh:Math.sin(i*1.7+j);
+        const push=(need-d3)*.85;
+        goals[i].x+=ux*push;goals[i].z+=uz*push;goals[j].x-=ux*push;goals[j].z-=uz*push;
+        if(Math.abs(dy)<avoidY){
+          const sgn=dy===0?(i%2?1:-1):Math.sign(dy),py=(avoidY-Math.abs(dy))*.45;
+          goals[i].y+=sgn*py;goals[j].y-=sgn*py;
+        }
+      }
+    }
+    groundWasSwarmSeparate(goals,alive,swarmCenter.x,swarmCenter.z,swarmOuters,minYs,swarmMaxYs,pairGap,unitGap,sepXZ,sepY,avoidY,6,.55);
+  }
+  track.bodies.forEach((b,i)=>{
+    const g=goals[i],m=meta[i];
+    b.reverseFire=m.reverseFire;
+    if(dt>0){
+      const slowDecay=Math.exp(-m.response*dt);
+      groundWasFollow(b,'x',g.x,m.response,velocity,slowDecay,fastDecay);
+      groundWasFollow(b,'z',g.z,m.response,velocity,slowDecay,fastDecay);
+      groundWasFollow(b,'y',g.y,m.heightResponse,velocity,Math.exp(-m.heightResponse*dt),fastDecay);
+      let yaw=m.yaw,pitch=m.pitch,bank=m.bank,limit=steer,gain=steerK;
+      if(swarm){
+        const aimPoint=m.foe??swarm.pos;
+        const aimX=aimPoint.x-b.pos.x,aimZ=aimPoint.z-b.pos.z;
+        yaw=aimX||aimZ?Math.atan2(aimX,aimZ):b.yaw;
+        limit=rules.swarmAttitude.maxYawSpeed*dt;gain=1;
+        if(dogfight){
+          const limit=rules.dogfight.pitchLimit;
+          const aimPitch=clamp(Math.atan2(b.pos.y-aimPoint.y,Math.hypot(aimX,aimZ)),-limit,limit);
+          pitch=lerp(pitch,aimPitch,aimBlend);
+        }else if(m.aim){
+          const [low,high]=rules.swarmManeuvers.front.firePass.pitchDeg;
+          const swarmY=swarm.pos.y+(swarm.band==='ground'?GROUND_BODY_LIFT:0);
+          pitch=lerp(pitch,clamp(Math.atan2(b.pos.y-swarmY,Math.hypot(aimX,aimZ)),degToRad(low),degToRad(high)),m.aim);
+        }
+      }
+      let turnLeft=groundWrap(yaw-b.yaw);
+      if(m.forceTurnSign&&Math.abs(turnLeft)>2.8)turnLeft=Math.abs(turnLeft)*m.forceTurnSign;
+      b.yaw+=lerp(clamp(turnLeft*gain,-limit,limit),turnLeft,m.aim);
+      b.pitch+=(pitch-b.pitch)*lerp(1-Math.exp(-m.heightResponse*dt),1,m.aim);
+      b.bank+=(bank-b.bank)*(1-slowDecay);
+    }
+  });
+  // 実位置でもすれ違い時の重なりを滑らかに押し戻す（dt=0 の瞬間は動かさない）。
+  if(dt>0&&!landing&&!swarm){
+    const alpha=.5*(1-Math.exp(-(D.sepRate??26)*dt));
+    groundWasSeparate(track.bodies.map(b=>b.pos),alive,f.pos.x,f.pos.z,sepXZ,sepY,clampRadius,minYs,4,alpha,speed*dt*.55);
+  }else if(dt>0&&!landing&&swarm&&!transferring){
+    const pCfg=rules.swarmManeuvers.pair,alpha=.5*(1-Math.exp(-42*dt));
+    groundWasSwarmSeparate(track.bodies.map(b=>b.pos),alive,swarmCenter.x,swarmCenter.z,swarmOuters,minYs,swarmMaxYs,
+      pCfg.minGapKm*GROUND_SCALE,pCfg.unitClearKm*GROUND_SCALE,sepXZ,sepY,pCfg.avoidHeightKm*GROUND_SCALE,6,alpha,speed*dt*.95);
+  }
+  if(dogfight&&dt>0)for(const b of track.bodies){
+    const surface=groundSurfaceHeight(b.pos.x,b.pos.z);
+    b.pos.y=clamp(b.pos.y,surface+rules.dogfight.minHeightKm*GROUND_SCALE,surface+rules.dogfight.maxHeightKm*GROUND_SCALE);
+  }
+}
+function groundWasFlightStep(f,dt,dogfight=null){
+  if(!groundWasBodyFlight(f)){f.groundWasFlight=null;return;}
+  const track=f.groundWasFlight=groundWasFlightTrack(f),heading=Math.atan2(f.heading.x,f.heading.z);
+  const targets=groundLayouts(f)[groundFormationState(f)];
+  if(f.band==='cruise'||f.bandTo==='cruise'){
+    groundWasCruiseStep(f,track,targets,gameSec,dt,heading,dogfight);
+  }else{
+    // 低空・高空は従来の陣形へ指数補間する。高度は中隊と一緒に上下する。
+    const c=Math.cos(heading),s=Math.sin(heading),k=1-Math.exp(-4*dt);
+    const dx=f.pos.x-track.last.x,dy=f.pos.y-track.last.y,dz=f.pos.z-track.last.z;
+    track.bodies.forEach((b,i)=>{
+      const slot=targets[i];
+      b.pos.x+=dx+(f.pos.x+slot.x*c+slot.z*s-b.pos.x-dx)*k;
+      b.pos.y+=dy+(f.pos.y+GROUND_BODY_LIFT+slot.y-b.pos.y-dy)*k;
+      b.pos.z+=dz+(f.pos.z+slot.z*c-slot.x*s-b.pos.z-dz)*k;
+      b.yaw+=groundWrap(heading+slot.yaw-b.yaw)*k;b.pitch*=1-k;b.bank*=1-k;
+      b.vel.set(0,0,0);b.transfer=null;b.revStart=null;b.course=heading;b.breakup=0;
+      b.passFiring=false;b.reverseFire=false;b.boost=0;
+    });
+    track.heading=track.course=track.turnOriginHeading=heading;
+    track.swarm=null;track.dogfight=null;track.reverse=null;
+  }
+  track.last.copy(f.pos);
+  f.groundBodyGeometry=null;
+}
 function groundFormationDraw(f,now){
   const model=f.groundModel,data=model.userData,form=data.formation;
   // Legacy drawing/capture helpers can build a model without groundInitUnit.
   if(!data.last){data.last=f.pos.clone();data.movedAt=-Infinity;data.drawnAt=now;}
   const dt=Math.max(0,now-data.drawnAt);data.drawnAt=now;
   if(data.last.distanceToSquared(f.pos)>1e-10)data.movedAt=now;
-  data.last.copy(f.pos);
-  if(!form||f.groundDrone)return;
-  const state=groundFormationState(f,now),air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
-  // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
-  if(!air&&!groundBodyCentered(f)){
-    const g=groundBodyPositions(f),a1=Math.atan2(f.heading.x,f.heading.z),c1=Math.cos(a1),s1=Math.sin(a1);data.drawYaw=a1;
+  if(!form||f.groundDrone){data.last.copy(f.pos);return;}
+  const a1=Math.atan2(f.heading.x,f.heading.z),c1=Math.cos(a1),s1=Math.sin(a1);
+  const a0=data.drawYaw??a1;
+  data.drawYaw=a1;data.last.copy(f.pos);
+  if(groundWasBodyFlight(f)){
+    const g=groundBodyPositions(f),track=g.flight;
+    data.wasSwarming=!!track.swarm;
     form.bodies.forEach((body,i)=>{
-      const p=g.positions[i]||g.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;
-      body.position.x=wx*c1-wz*s1;body.position.z=wx*s1+wz*c1;body.position.y=0;
-      body.rotation.y=(g.yaws?.[i]??a1)-a1;body.rotation.z=0;
+      const b=track.bodies[i],p=g.positions[i],x=p.x-f.pos.x,z=p.z-f.pos.z;
+      body.position.set(x*c1-z*s1,p.y-f.pos.y-GROUND_BODY_LIFT,x*s1+z*c1);
+      body.rotation.set(b.pitch,b.yaw-a1,b.bank,'YXZ');
+      body.userData.wasSwarmBoost=b.boost;
+      body.userData.wasSlideBoost=b.slideBoost;
+      body.userData.wasPassFiring=b.passFiring;
+      body.userData.wasPassTarget=b.passTarget;
+      body.userData.wasReverseFire=b.reverseFire;
       for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
     });
     return;
   }
-  const combat=air&&groundAircraftCombat(f),targets=groundLayouts(f,form.spec)[air?'defend':state],k=1-Math.exp(-4*dt);
-  /* 地上の体は世界の向きでならす: 隊の向きが経路の角で急に変わっても、体がいっせいに振られない（2026-11-18）。
-     a0 は前の描画のモデルの向き、a1 は今の向き。動くときの列は道筋の上の位置（groundBodyPositions）へ寄せる */
-  const a1=Math.atan2(f.heading.x,f.heading.z),c1=Math.cos(a1),s1=Math.sin(a1),a0=data.drawYaw??a1,da=a1-a0,cd=Math.cos(da),sd=Math.sin(da);data.drawYaw=a1;
-  // 飛行中の W.A.S. の当たり判定は隊の中心。表示は飛行中も体ごとの並びを使う。
-  const march=targets.march&&!air,wasMarch=march&&groundWasFlying(f);
-  const waypoints=wasMarch?groundMarchPositions(f,targets,now):null;
-  const marchBodies=march&&!wasMarch?groundBodyPositions(f):null;
+  data.wasSwarming=false;
+  for(const body of form.bodies)body.userData.wasReverseFire=false;
+  // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
+  const air=['fighter','attack'].includes(f.groundKind)&&form.spec.form==='flight4';
+  if(!air&&!groundBodyCentered(f)){
+    const g=groundBodyPositions(f);
+    form.bodies.forEach((body,i)=>{
+      const p=g.positions[i]||g.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;
+      body.position.x=wx*c1-wz*s1;body.position.z=wx*s1+wz*c1;body.position.y=0;
+      body.rotation.y=(g.yaws?.[i]??a1)-a1;body.rotation.x=0;body.rotation.z=0;
+      for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
+    });
+    return;
+  }
+  const targets=groundLayouts(f,form.spec)[air?'defend':groundFormationState(f,now)];
+  const combat=air&&groundAircraftCombat(f),k=1-Math.exp(-4*dt);
+  const da=a1-a0,cd=Math.cos(da),sd=Math.sin(da);
+  const march=targets.march&&!air,marchBodies=march?groundBodyPositions(f):null;
   form.bodies.forEach((body,i)=>{
     let target=targets[i];
     if(combat){
       const flight=form.flights[i],a=flight.phase+now*flight.omega;
       target={x:Math.cos(a)*flight.radius,z:Math.sin(a)*flight.radius,y:.5*Math.sin(now*flight.sway+flight.phase),yaw:Math.atan2(-Math.sin(a)*flight.omega,Math.cos(a)*flight.omega),bank:Math.sign(flight.omega)*.28};
     }
-    if(air){
-      body.position.x+=(target.x-body.position.x)*k;body.position.y+=(target.y-body.position.y)*k;body.position.z+=(target.z-body.position.z)*k;
-      body.rotation.y+=Math.atan2(Math.sin(target.yaw-body.rotation.y),Math.cos(target.yaw-body.rotation.y))*k;
-      body.rotation.z+=(target.bank-body.rotation.z)*k;
-    }else{
-      // 隊の向きが変わった分だけ体を逆に回し、世界では元の所に残す（向きが同じなら何もしない）
+    if(!air){
+      if(body.rotation.order!=='XYZ')body.rotation.reorder('XYZ');
+      // 隊の向きが変わった分だけ体を逆に回し、世界では元の所に残す。
       if(da){const x=body.position.x,z=body.position.z;body.position.x=x*cd-z*sd;body.position.z=x*sd+z*cd;body.rotation.y-=da;}
-      let tx=target.x,tz=target.z,ty=target.yaw;
       if(march){
-        const p=waypoints?.[i]||marchBodies?.positions[i]||marchBodies?.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;
-        tx=wx*c1-wz*s1;tz=wx*s1+wz*c1;ty=(p.yaw??marchBodies?.yaws?.[i]??a1)-a1;
+        const p=marchBodies.positions[i]||marchBodies.positions[0],wx=p.x-f.pos.x,wz=p.z-f.pos.z;
+        target={...target,x:wx*c1-wz*s1,z:wx*s1+wz*c1,yaw:(p.yaw??marchBodies?.yaws?.[i]??a1)-a1};
       }
-      body.position.x+=(tx-body.position.x)*k;body.position.y+=((target.y||0)-body.position.y)*k;body.position.z+=(tz-body.position.z)*k;
-      body.rotation.y+=Math.atan2(Math.sin(ty-body.rotation.y),Math.cos(ty-body.rotation.y))*k;
-      body.rotation.z+=((target.bank||0)-body.rotation.z)*k;
+      body.rotation.x*=1-k;
     }
+    body.position.x+=(target.x-body.position.x)*k;body.position.y+=((target.y||0)-body.position.y)*k;body.position.z+=(target.z-body.position.z)*k;
+    body.rotation.y+=groundWrap(target.yaw-body.rotation.y)*k;
+    body.rotation.z+=((target.bank||0)-body.rotation.z)*k;
     for(const moving of data.pose?.move[i]||[]){moving.position.copy(body.position);moving.rotation.copy(body.rotation);}
   });
 }
 function groundAliveBodies(f){return f.bodies?f.bodies.reduce((n,b)=>n+(b.alive?1:0),0):f.ships.length;}
 // Cache only geometry. HP and living-body choices are read afresh after every hit.
-// 体の位置と向きは体ごとの動き（groundBodyTrack）から。同じ時刻・同じ位置なら作り直さない
+// 地上・飛行それぞれの動きから得た位置と向きを、同じ時刻・同じ位置なら再利用する。
 function groundBodyPositions(f){
   const spec=f.groundBodySpec,c=f.groundBodyGeometry,centered=groundBodyCentered(f);
-  if(c&&c.t===gameSec&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.band===f.band&&c.spec===spec&&c.centered===centered&&(centered||c.track===f.groundTrack&&c.ht===f.groundTrack?.t))return c;
-  let positions,yaws=null;const T=centered?null:groundBodyTrack(f);
-  if(!T)positions=[f.pos.clone()];
+  const flying=groundWasBodyFlight(f),flightState=f.groundWasFlight;
+  if(c&&c.t===gameSec&&c.x===f.pos.x&&c.y===f.pos.y&&c.z===f.pos.z&&c.band===f.band&&c.spec===spec&&
+    c.centered===centered&&c.flying===flying&&c.flightState===flightState&&(centered||flying||c.track===f.groundTrack&&c.ht===f.groundTrack?.t))return c;
+  const flight=flying?groundWasFlightTrack(f):null,T=centered||flying?null:groundBodyTrack(f);
+  let positions,yaws=null;
+  if(flight){
+    const dx=f.pos.x-flight.last.x,dy=f.pos.y-flight.last.y,dz=f.pos.z-flight.last.z;
+    positions=flight.bodies.map(b=>new THREE.Vector3(b.pos.x+dx,b.pos.y+dy,b.pos.z+dz));
+    yaws=flight.bodies.map(b=>b.yaw);
+  }else if(!T)positions=[f.pos.clone()];
   else{positions=T.off.map(o=>new THREE.Vector3(f.pos.x+o.x,f.pos.y,f.pos.z+o.z));yaws=T.yaw.slice();}
-  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,band:f.band,t:gameSec,spec,centered,track:T,ht:T?.t,positions,yaws};
+  return f.groundBodyGeometry={x:f.pos.x,y:f.pos.y,z:f.pos.z,band:f.band,t:gameSec,spec,centered,flying,flightState,flight,track:T,ht:T?.t,positions,yaws};
 }
 function groundBodyPosition(f,i){const positions=groundBodyPositions(f).positions;return (positions[i]||positions[0]).clone();}
 function groundBodySync(f){f.hpPool=f.bodies.reduce((n,b)=>n+(b.alive?b.hp:0),0);}
@@ -821,7 +1667,10 @@ function groundBodyHit(f,body,amt,showLoss=true){
   body.hp=Math.max(0,body.hp-amt);
   if(body.hp===0){
     body.alive=false;
-    if(showLoss){const i=f.bodies.indexOf(body);groundVisualLoss(f,groundVisualBodyPoint(f,i,groundBodyPosition(f,i)));}
+    if(showLoss||f.groundKind==='was'&&f.band==='cruise'){
+      const i=f.bodies.indexOf(body),at=groundVisualBodyPoint(f,i,groundBodyPosition(f,i));
+      groundVisualLoss(f,at,i);
+    }
   }
   groundBodySync(f);
   if(!body.alive)groundMoraleBodyLoss(f);
@@ -830,47 +1679,127 @@ function groundBodiesSpread(f,amt){
   if(!f.bodies){f.hpPool=Math.max(0,f.hpPool-amt);return;}
   const live=groundAliveBodies(f);if(live)for(const b of f.bodies)if(b.alive)groundBodyHit(f,b,amt/live);groundBodySync(f);
 }
+function groundBodyShot(f,i,t,j,range,fromGeometry=groundBodyPositions(f),toGeometry=groundBodyPositions(t)){
+  const from=fromGeometry.positions[i]||fromGeometry.positions[0],pos=toGeometry.positions[j]||toGeometry.positions[0];
+  const dx=from.x-pos.x,dz=from.z-pos.z;
+  if(!(range>=0&&dx*dx+dz*dz<=range*range))return null;
+  const eyeHeight=groundSightRules().eyeHeight;
+  const eye=(unit,p,g)=>g.flight?p:unit.groundKind==='drone'?groundEye(unit):({x:p.x,z:p.z,y:groundHeight(p.x,p.z)+groundBandHeight(unit.band)+eyeHeight});
+  if(!groundClearLine(eye(f,from,fromGeometry),eye(t,pos,toGeometry)))return null;
+  return {from,pos,b:t.bodies?.[j]??null,j,flight:!!(fromGeometry.flight||toGeometry.flight),targetYaw:toGeometry.yaws?.[j]};
+}
 function groundBodyTarget(f,i,t,range){
-  const fromGeometry=groundBodyPositions(f),toGeometry=groundBodyPositions(t),from=fromGeometry.positions[i]||fromGeometry.positions[0];
+  const fromGeometry=groundBodyPositions(f),toGeometry=groundBodyPositions(t);
   const mask=t.bodies?t.bodies.reduce((n,b,j)=>n+(b.alive?2**j:0),0):1;
   // Reuse a ray only within this simulation instant and with identical geometry/live slots.
   // A moving squad, a formation change, or a newly destroyed target invalidates it immediately.
-  const cache=f.groundBodyTargets||(f.groundBodyTargets=new Map()),rows=cache.get(t)||[];cache.set(t,rows);
-  const old=rows[i];if(old&&old.time===gameSec&&old.from===fromGeometry&&old.to===toGeometry&&old.mask===mask&&old.range===range&&old.buildings===groundBuildings)return old.hit;
-  let best=-1,dist=Infinity;
-  const count=t.bodies?t.bodies.length:1;
-  for(let j=0;j<count;j++){
-    if(t.bodies&&!t.bodies[j].alive)continue;
-    const p=toGeometry.positions[j]||toGeometry.positions[0],d=Math.hypot(from.x-p.x,from.z-p.z);
-    if(d<dist){best=j;dist=d;}
+  const cache=f.groundBodyTargets||(f.groundBodyTargets=new Map());
+  let entry=cache.get(t);
+  if(!entry||entry.fromFlight!==fromGeometry.flight||entry.toFlight!==toGeometry.flight){
+    entry={fromFlight:fromGeometry.flight,toFlight:toGeometry.flight,rows:[],pairTargets:[]};
+    cache.set(t,entry);
   }
-  let hit=null;
-  if(best>=0&&dist<=range){
-    const pos=toGeometry.positions[best]||toGeometry.positions[0],eyeHeight=groundSightRules().eyeHeight;
-    const eye=(unit,p)=>unit.groundKind==='drone'?groundEye(unit):({x:p.x,z:p.z,y:groundHeight(p.x,p.z)+groundBandHeight(unit.band)+eyeHeight});
-    if(groundClearLine(eye(f,from),eye(t,pos)))hit={from,pos,b:t.bodies?t.bodies[best]:null,j:best};
+  const {rows,pairTargets}=entry;
+  const duel=!!(fromGeometry.flight&&toGeometry.flight),pair=i>>1;
+  const leader=2*pair,aimFrom=duel?(f.bodies[leader].alive?leader:leader+1):i;
+  const locked=duel?pairTargets[pair]:undefined;
+  const old=rows[i];if(old&&old.time===gameSec&&old.from===fromGeometry&&old.to===toGeometry&&old.mask===mask&&old.range===range&&
+    old.aimFrom===aimFrom&&old.buildings===groundBuildings)return old.hit;
+  const flight=!!(fromGeometry.flight||toGeometry.flight);
+  let best=locked!==undefined&&t.bodies[locked]?.alive?locked:-1;
+  if(best<0){
+    const from=fromGeometry.positions[aimFrom]||fromGeometry.positions[0];
+    let dist2=Infinity;
+    const count=t.bodies?t.bodies.length:1;
+    for(let j=0;j<count;j++){
+      if(t.bodies&&!t.bodies[j].alive)continue;
+      const p=toGeometry.positions[j]||toGeometry.positions[0];
+      const dx=from.x-p.x,dz=from.z-p.z,dy=flight?from.y-p.y:0,d=dx*dx+dz*dz+dy*dy;
+      if(d<dist2){best=j;dist2=d;}
+    }
   }
-  rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,buildings:groundBuildings,hit};return hit;
+  const hit=best<0?null:groundBodyShot(f,i,t,best,range,fromGeometry,toGeometry);
+  // 組で1機を狙い、撃墜まで維持する。射程・射線は撃つ機体ごとに確かめる。
+  if(duel&&hit)pairTargets[pair]=best;
+  rows[i]={time:gameSec,from:fromGeometry,to:toGeometry,mask,range,aimFrom,buildings:groundBuildings,hit};return hit;
+}
+function groundBodyInRange(f,t,range){
+  return f.bodies?f.bodies.some((b,i)=>b.alive&&groundBodyTarget(f,i,t,range)):!!groundBodyTarget(f,0,t,range);
+}
+function groundBodyReach(g){
+  if(g.reach!==undefined)return g.reach;
+  let r2=0;
+  for(const p of g.positions){const dx=p.x-g.x,dz=p.z-g.z;r2=Math.max(r2,dx*dx+dz*dz);}
+  return g.reach=Math.sqrt(r2);
+}
+function groundWasWithinReach(f,t,range){
+  return groundDistanceTo(f,t)<=range+groundBodyReach(groundBodyPositions(f))+groundBodyReach(groundBodyPositions(t));
+}
+function groundShotInRange(f,t,range){
+  if(!(range>0))return false;
+  if(!groundWasBodyFlight(f)&&!groundWasBodyFlight(t))return groundDistanceTo(f,t)<=range&&groundLineOfSight(f,t);
+  // 離れた候補は各体の組み合わせや射線を調べる前に、陣形全体の広がりで除く。
+  return groundWasWithinReach(f,t,range)&&groundBodyInRange(f,t,range);
 }
 function groundAnyBodyCanFire(f,t){
   if(!f.bodies)return true;
-  const mode=groundFireMode(f,t);if(mode!=='direct')return mode==='indirect';
-  const range=groundTargetRange(f,t);return f.bodies.some((b,i)=>b.alive&&groundBodyTarget(f,i,t,range));
+  const mode=groundFireMode(f,t);
+  if(mode!=='direct')return mode==='indirect';
+  return groundWasBodyFlight(f)||groundWasBodyFlight(t)||groundBodyInRange(f,t,groundTargetRange(f,t));
+}
+function groundWeaponInterval(weapon){
+  return groundRules().fireEvery*(weapon?.fireFactor??1);
 }
 function groundBodyIdleClock(f,timer){
   // Keep the seeded phases while there is no target, rather than making every clock wait at zero.
   for(const b of f.bodies)if(b.alive&&b[timer]<=0)b[timer]=groundRules().fireEvery;
 }
+function groundBodyDirectShot(f,i,t,hit,aa,weapon){
+  groundVisualDirect(f,i,t,hit.j,hit.from,hit.pos,aa,weapon);
+  groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b,weapon);
+  groundSupplyShot(f,false,1/f.bodies0);
+}
 function groundBodyFire(f,t,dt,aa=false){
-  const timer=aa?'aaT':'shotT',range=aa?groundAARange(f,t):groundTargetRange(f,t);
+  const duel=!aa&&groundWasDuelDirect(f,t);
+  // バルカンと88 mm砲は、対地戦から切り替わってもそれぞれの射撃間隔を引き継ぐ。
+  const timer=aa?'aaT':duel?'parallelT':'shotT',extraTimer=duel?'shotT':'parallelT';
+  const range=aa?groundAARange(f,t):groundTargetRange(f,t);
+  const flight=groundWasBodyFlight(f)||groundWasBodyFlight(t);
+  const parallel=!aa&&!flight?groundParallelWeapons(f,t):[];
+  const hasParallel=flight?!aa&&(f.weapons??groundRuleSet().unitTypes[f.groundKind]?.weapons)?.some(w=>w.parallel):parallel.length>0;
   for(const [i,b] of f.bodies.entries()){
-    b[timer]=Math.max(0,b[timer]-dt);if(!b.alive||b[timer]>0||!t.alive)continue;
+    b[timer]=Math.max(0,(b[timer]??0)-dt);
+    if(!aa&&b[extraTimer]!==undefined)b[extraTimer]=Math.max(0,b[extraTimer]-dt);
+    if(!b.alive||!t.alive)continue;
+    const rocket=!aa&&!duel&&b.groundRocket;
+    // ロケットの発射間隔と再装填は、通常武器の射撃間隔とは別にゲーム時刻で進む。
+    const mainDue=b[timer]<=0||!!(rocket&&rocket.readyAt<=gameSec+1e-8);
+    const parallelDue=hasParallel&&(b[extraTimer]??0)<=0;
+    if(!aa&&!hasParallel&&(b[extraTimer]??1)<=0)b[extraTimer]=groundRules().fireEvery;
+    if(!mainDue&&!parallelDue)continue;
     const hit=groundBodyTarget(f,i,t,range);if(!hit)continue;
-    b[timer]=groundRules().fireEvery;
-    const weapon=groundDirectWeapon(f,t,aa);
-    groundVisualDirect(f,i,t,hit.j,hit.from,hit.pos,aa,weapon);
-    groundFireDirect(f,t,1/groundBodiesPerPlatoon(f),aa,hit.b,weapon);
-    groundSupplyShot(f,false,1/f.bodies0);
+    if(mainDue){
+      const weapon=groundDirectWeapon(f,t,aa,b,hit);
+      if(b[timer]<=0||weapon.rounds){
+        b[timer]=groundWeaponInterval(weapon);
+        if(weapon.rounds){
+          const roundsLeft=(rocket?.roundsLeft||weapon.rounds)-1;
+          b.groundRocket={roundsLeft,readyAt:gameSec+(roundsLeft?weapon.roundInterval:weapon.reloadSec)};
+        }
+        groundBodyDirectShot(f,i,t,hit,aa,weapon);
+      }
+    }
+    if(parallelDue&&t.alive){
+      const shot=hit.b&&!hit.b.alive?groundBodyTarget(f,i,t,range):hit;
+      if(!shot)continue;
+      const weapons=flight?groundParallelWeapons(f,t,false,shot):parallel;
+      if(!weapons.length)b[extraTimer]=groundRules().fireEvery;
+      for(const weapon of weapons){
+        if(!t.alive||shot.b&&!shot.b.alive)break;
+        b[extraTimer]=groundWeaponInterval(weapon);
+        groundBodyDirectShot(f,i,t,shot,false,weapon);
+      }
+    }
   }
 }
 /* 小隊の数（docs/spec.md「地上の部隊編成」、2026-11-18）: 1小隊は今の駒1つぶん。中隊の体の数・耐久・火力を小隊の数の倍にする。
@@ -882,9 +1811,13 @@ function groundInitUnit(f){
   f.groundMaxHp=f.hpPool;
   const one=groundModelFor(f.groundKind==='sea'?'sea:'+(groundNavalModel(f)||f.type):f.groundKind,f.side||(f.team===1?'mars':'earth'));
   const bodySpec=one&&f.groundPlatoons>1?{...one,platoon:one.offsets,platoons:f.groundPlatoons,offsets:groundPlatoonOffsets({...one,platoon:one.offsets,platoons:f.groundPlatoons},f.groundPlatoons)}:one;
-  f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;f.groundTrack=null;f.groundWasGuarded=null;
+  f.groundBodyGeometry=null;f.groundBodyLayouts=null;f.groundBodyTargets=null;f.groundTrack=null;f.groundWasFlight=null;f.groundWasGuarded=null;
+  f.groundWasAutoCruiseAt=null;f.groundWasStayGround=false;
   f.groundBodySpec=bodySpec;f.bodies0=f.groundKind==='sea'?1:(bodySpec?.offsets.length||1);
-  f.bodies=Array.from({length:f.bodies0},(_,i)=>({hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:groundBodyRandom(f,i)()*groundRules().fireEvery,aaT:groundBodyRandom(f,i)()*groundRules().fireEvery}));
+  f.bodies=Array.from({length:f.bodies0},(_,i)=>{
+    const random=groundBodyRandom(f,i),phase=random()*groundRules().fireEvery;
+    return {hp:f.groundMaxHp/f.bodies0,max:f.groundMaxHp/f.bodies0,alive:true,shotT:phase,aaT:phase,parallelT:random()*groundRules().fireEvery};
+  });
   groundBodySync(f);f.groundMovedAt=-Infinity;f.groundSpawnAt=gameSec;
   // 古い地上作戦が指定する高高度は、W.A.S. が使える低高度へ収める。
   if(f.groundKind==='was'&&f.band==='high')f.band='low';
@@ -921,6 +1854,7 @@ function groundInitUnit(f){
     if(spec.move.length||special.length)model.userData.pose={stand:[],move:[],clocks:[],last:f.pos.clone(),movedAt:-Infinity,slidAt:-Infinity};
     for(const [i,[x,z]] of spec.offsets.entries()){
       const body=new THREE.Mesh(geo,mat);
+      if(spec.form==='wasArrow')body.rotation.order='YXZ';
       if(rig)body.userData.aimParts={rig};
       body.scale.setScalar(spec.body??size); body.position.set(x*size,0,z*size); model.add(body);
       form.bodies.push(body);
@@ -1002,7 +1936,7 @@ function groundSelectionDraw(f,picked,target=false){
 }
 function groundDraw(){
   if(!groundVisuals) return;
-  const picked=orderTargets(),now=gameSec;
+  const picked=orderTargets(),now=gameSec,plumes=[];
   groundFxPlumesUsed=0;
   groundRangesDraw(picked);
   if(groundBridgeNoGo){groundBridgeNoGo.visible=groundBridgeNoGo.visible&&!over;groundBridgeNoGo.children.forEach(m=>m.material.opacity=.45+.15*Math.sin(performance.now()/1600*Math.PI*2));}
@@ -1024,18 +1958,32 @@ function groundDraw(){
       // 歩く形は体ごと（体ごとの動きで動いている体・その場で回っている体だけ歩く）。体ごとの動きのない隊は隊が動いているかで決める。
       const T=f.groundTrack,unit=now-(f.bodies?f.groundMovedAt:pose.movedAt)<.4,was=special?.has('wasFire');
       const cyc=formation.spec.cycle||0,guard=was&&groundWasGuard(f),base=guard?cyc:0;
+      const swarm=model.userData.wasSwarming;
+      const duel=f.groundWasFlight?.dogfight;
+      const combat=swarm?groundRuleSet().wasCombat:null;
+      const flashEvery=duel?combat.dogfight.pass.flashEverySec:combat?.swarmManeuvers.front.firePass.flashEverySec;
       pose.move.forEach((moves,i)=>{
-        const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now);
-        const key=was?groundWasVisualPose(f,aim,now-pose.slidAt<.4,guard):aim?.missile&&special?.has('hinfMsl')?'hinfMsl':null;
-        const moving=!key&&moves.length>0&&(T?!!T.moving[i]:unit),clock=pose.clocks[i],body=pose.stand[i];
+        const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now),body=pose.stand[i];
+        const passFiring=swarm&&body.userData.wasPassFiring;
+        const reverseFiring=!swarm&&!!body.userData.wasReverseFire;
+        const key=was?groundWasVisualPose(f,aim||passFiring||reverseFiring,now-pose.slidAt<.4,guard):aim?.missile&&special?.has('hinfMsl')?'hinfMsl':null;
+        const moving=!key&&moves.length>0&&(T?!!T.moving[i]:unit),clock=pose.clocks[i];
         const at=moving?base+(clock.start+Math.floor(now/clock.stepSec+clock.phase))%(cyc||moves.length):-1;
         body.visible=!moving&&alive;
         if(special?.size)body.geometry=special.get(key)||pose.rest;
-        if(alive&&key&&aim&&(key==='wasFire'||key==='wasFlyFire'||key==='hinfMsl')){
+        if(alive&&key&&aim&&(key==='wasFire'||key==='wasFlyFire'&&!groundWasBodyFlight(f)||key==='hinfMsl')){
           body.userData.baseYaw=body.rotation.y;
           body.rotation.y=aim.yaw-heading;
         }
-        if(alive&&was&&groundWasPower[key]&&model.visible)groundWasPlume(body,key,now);
+        if(alive&&was&&groundWasPower[key]&&model.visible){
+          const boost=swarm?body.userData.wasSwarmBoost:0,slide=duel?body.userData.wasSlideBoost:0;
+          const length=slide?THREE.MathUtils.lerp(1,combat.dogfight.slide.plumeLength,slide):1;
+          plumes.push({body,key,boost,length});
+        }
+        if(alive&&model.visible&&f.fireTarget?.alive&&passFiring&&now-(body.userData.wasPassShotAt??-Infinity)>=flashEvery){
+          body.userData.wasPassShotAt=now;
+          groundWasPassFlash(body,f,f.fireTarget,heading,now);
+        }
         moves.forEach((body,j)=>body.visible=moving&&j===at&&alive);
       });
     }
@@ -1052,6 +2000,9 @@ function groundDraw(){
   }
   for(const f of fleets)if(f.groundDrone)groundDroneDraw(f,picked);
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
+  // 噴射の表示枠は増やさず、横滑り中の機体を先に描く。
+  plumes.sort((a,b)=>b.length-a.length);
+  for(const {body,key,boost,length} of plumes)groundWasPlume(body,key,now,boost,length);
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundFxDraw(now); groundTransportDraw(); groundSupplyDraw(); groundScriptDraw();
   if(typeof groundPlanDraw==='function')groundPlanDraw();
@@ -1105,7 +2056,15 @@ function groundStep(dt){
   for(const f of fleets)if(f.groundLastPos&&f.groundLastPos.distanceToSquared(f.pos)>1e-10){f.groundMovedAt=gameSec;f.groundLastPos.copy(f.pos);}
   for(const f of fleets)if(f.alive&&f.bodies)groundTrailMark(f);
   // 体ごとの動きを、中隊が動いたあとの位置で進める（このあとの視界・射撃は進めた体の位置を使う）
-  for(const f of fleets)if(f.alive&&f.bodies)groundBodyTrack(f,true);
+  const dogfights=new Map(),wasRules=groundRuleSet().wasCombat;
+  for(const f of fleets)if(f.alive&&!f.embarked&&!groundAbsent(f)&&groundWasBodyFlight(f)){
+    const state=groundWasDogfightState(f,wasRules);
+    if(state)dogfights.set(f,state);
+  }
+  for(const f of fleets)if(f.alive&&f.bodies){
+    if(f.groundKind==='was'&&!f.embarked&&!groundAbsent(f))groundWasFlightStep(f,dt,dogfights.get(f));
+    groundBodyTrack(f,true);
+  }
   groundTransportSync();
   if(typeof groundDroneStep==='function')groundDroneStep(dt);
   groundBombStep();
@@ -1113,23 +2072,35 @@ function groundStep(dt){
   groundUpdateSight();
   for(const f of fleets){
     if(!f.alive||f.groundDrone||f.embarked||groundAbsent(f)||groundScriptDescending(f)) continue;
-    if(f.bodies)for(const b of f.bodies)b.shotT=Math.max(0,b.shotT-dt);
+    if(f.bodies)for(const b of f.bodies){b.shotT=Math.max(0,b.shotT-dt);if(b.parallelT!==undefined)b.parallelT=Math.max(0,b.parallelT-dt);}
     const dronePriority=f.groundKind==='mobileAA'&&fleets.some(t=>t.groundDrone&&groundAASolution(f,t));
-    if(dronePriority||f.groundAreaSalvo||f.groundVolley||f.groundBombRun){f.fireTarget=null;if(f.bodies)groundBodyIdleClock(f,'shotT');continue;}
+    if(dronePriority||f.groundAreaSalvo||f.groundVolley||f.groundBombRun){
+      f.fireTarget=null;
+      if(f.groundKind==='was')groundWasCombatCruise(f,null);
+      if(f.bodies){groundBodyIdleClock(f,'shotT');groundBodyIdleClock(f,'parallelT');}
+      continue;
+    }
     const target=f.order&&f.order.type==='attack'?f.order.target:null;
     // 毎回、現在の段から選び直す。予約・自動交戦・残った目標も同じ表を通す。
-    f.fireTarget=target&&groundCanFire(f,target)?target:f.stance==='evade'||groundStaticTarget(f)?null:groundSelectEnemy(f,t=>groundCanFire(f,t));
+    // 巡航 W.A.S. へ対空武器（air:true）を持つ隊の自動対空が届くときは二重発射せず対空武器へ任せる（ユーザー決定 2026-11-28）。
+    // 戦車など air:true を持たない兵科は直射の主砲で撃ち、groundAutoAAStep 側で同じ相手への重複発射を抑える。
+    const directCanFire=t=>groundCanFire(f,t)&&(groundWasDuelDirect(f,t)||
+      !(groundWasCruising(t)&&groundHasAirWeapon(f)&&groundAASolution(f,t)));
+    f.fireTarget=target&&directCanFire(target)?target:f.stance==='evade'||groundStaticTarget(f)?null:groundSelectEnemy(f,directCanFire);
+    if(f.groundKind==='was')groundWasCombatCruise(f,f.fireTarget);
     f.groundShotT=Math.max(0,(f.groundShotT||0)-dt);
     // 敵の自動の地点攻撃。W.A.S. は自分からは撃たない（groundAutoIndirect。ユーザー決定 2026-11-19）
     if(f.team===1&&(!op.npc||!npcGroundFires(f))&&!f.groundRout&&!f.groundRecover&&['artillery','guidedRocket','sea'].includes(f.groundKind)&&f.stance!=='evade') groundStrikeAI(f);
-    if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');}
+    if(f.bodies){if(f.fireTarget&&groundFireMode(f,f.fireTarget)==='direct'){groundBodyFire(f,f.fireTarget,0);continue;}groundBodyIdleClock(f,'shotT');groundBodyIdleClock(f,'parallelT');}
     if(f.fireTarget&&f.groundShotT===0){
       if(groundFireMode(f,f.fireTarget)==='indirect'){if(!op.npc||!npcGroundFires(f))groundVolleyStart(f,{point:f.fireTarget.pos,target:f.fireTarget});continue;}
-      const weapon=groundDirectWeapon(f,f.fireTarget);
-      groundVisualDirect(f,0,f.fireTarget,0,f.pos,f.fireTarget.pos,false,weapon);
-      groundFireDirect(f,f.fireTarget,f.groundPlatoons||1,false,null,weapon);
+      const target=f.fireTarget;
+      const hit=groundWasBodyFlight(f)||groundWasBodyFlight(target)?groundBodyTarget(f,0,target,groundTargetRange(f,target)):null;
+      const weapon=groundDirectWeapon(f,target,false,null,hit);
+      groundVisualDirect(f,0,target,hit?.j??0,hit?.from??f.pos,hit?.pos??target.pos,false,weapon);
+      groundFireDirect(f,target,f.groundPlatoons||1,false,hit?.b??null,weapon);
       groundSupplyShot(f);
-      f.groundShotT=groundRules().fireEvery;
+      f.groundShotT=groundWeaponInterval(weapon);
     }
   }
   groundAutoAAStep(dt);
@@ -1183,25 +2154,62 @@ function groundArmorFactor(armor,pen,rules){
   const p=1/(1+(armor/pen)**rules.exponent);
   return p+(1-p)*rules.floor;
 }
-function groundDirectWeapon(f,t,aa=false){
-  const rules=groundRuleSet(),air=aa||groundUsesAirRange(f,t);
-  const weapons=f.weapons??rules.unitTypes[f.groundKind]?.weapons;
-  // 地上用の表に対空武器がない場合は既存の対空火力を使う。
-  const fallback={power:f.dmg*(f.groundKind==='mobileAA'&&air?rules.combat.mobileAAAir:1),armorFactor:1,morale:1};
-  if(!weapons)return fallback;
+function groundWeaponContext(f,t,aa=false,hit=null){
+  const rules=groundRuleSet(),flyingWas=t.groundKind==='was'&&groundWasFlying(t);
+  const wasVsFlying=f.groundKind==='was'&&flyingWas,air=aa||groundUsesAirRange(f,t)||wasVsFlying;
   const armor=rules.unitTypes[t.groundKind]?.armor,penetration=rules.combat.penetration;
-  const dx=f.pos.x-t.pos.x,dz=f.pos.z-t.pos.z;
-  const front=armor?.front&&t.heading&&dx*t.heading.x+dz*t.heading.z>=Math.hypot(dx,dz)*penetration.frontCos;
+  const shot=hit?.flight?hit:null,from=shot?.from??f.pos,to=shot?.pos??t.pos;
+  const dx=from.x-to.x,dz=from.z-to.z,distance=Math.hypot(dx,dz);
+  const yaw=shot?.targetYaw;
+  const hx=yaw==null?t.heading?.x:Math.sin(yaw),hz=yaw==null?t.heading?.z:Math.cos(yaw);
+  const front=armor?.front&&!(air&&flyingWas&&!wasVsFlying)&&dx*hx+dz*hz>=distance*penetration.frontCos;
+  const fromAbove=armor?.top!=null&&groundWasCruising(f)&&distance<=rules.wasCombat.topAttackKm*GROUND_SCALE&&
+    (!shot||from.y>to.y+(t.band==='ground'&&!groundWasBodyFlight(t)?GROUND_BODY_LIFT:0));
   const ambush=armor?.side&&f.band==='ground'&&['infantry','heavyInfantry','commando','mechanicalAssault'].includes(f.groundKind)&&groundTerrainCover(f);
   const soft=['infantry','commando','mechanicalAssault'].includes(t.groundKind);
+  return {rules,air,armor,penetration,front,fromAbove,ambush,soft};
+}
+function groundWeaponEvaluate(w,ctx){
+  const plate=typeof ctx.armor==='number'?ctx.armor:w.top||ctx.fromAbove?ctx.armor?.top:ctx.front&&!ctx.ambush?(w.shaped?ctx.armor.shapedFront??ctx.armor.front:ctx.armor.front):ctx.armor?.side;
+  const armorFactor=groundArmorFactor(plate??0,w.pen,ctx.penetration),power=w.power*(ctx.soft?w.soft??1:1);
+  return {...w,power,armorFactor,plate};
+}
+function groundHasAirWeapon(f){
+  const weapons=f?.weapons??groundRuleSet().unitTypes[f?.groundKind]?.weapons;
+  return !!weapons?.some(w=>w.air);
+}
+function groundDirectWeapon(f,t,aa=false,shooter=null,hit=null){
+  const ctx=groundWeaponContext(f,t,aa,hit);
+  const weapons=f.weapons??ctx.rules.unitTypes[f.groundKind]?.weapons;
+  // 地上用の表に対空武器がない場合は既存の対空火力を使う。
+  const fallback={power:f.dmg*(f.groundKind==='mobileAA'&&ctx.air?ctx.rules.combat.mobileAAAir:1),armorFactor:1,morale:1};
+  if(!weapons)return fallback;
   let best=null;
   for(const w of weapons){
-    if(air&&!w.air||t.groundDrone&&!air&&w.air)continue;
-    const plate=typeof armor==='number'?armor:w.top?armor?.top:front&&!ambush?(w.shaped?armor.shapedFront??armor.front:armor.front):armor?.side;
-    const armorFactor=groundArmorFactor(plate??0,w.pen,penetration),power=w.power*(soft?w.soft??1:1);
-    if(!best||power*armorFactor>best.power*best.armorFactor)best={power,armorFactor,morale:w.morale,fx:w.fx,...(w.air?{air:true}:{})};
+    if(ctx.air&&!w.air||!ctx.air&&w.airOnly||t.groundDrone&&!ctx.air&&w.air)continue;
+    if(!ctx.air&&w.parallel)continue;
+    if(w.rounds&&shooter?.groundRocket?.readyAt>gameSec+1e-8)continue;
+    const candidate=groundWeaponEvaluate(w,ctx);
+    if(!best||candidate.power*candidate.armorFactor>best.power*best.armorFactor)best=candidate;
   }
   return best??fallback;
+}
+function groundParallelWeapons(f,t,aa=false,hit=null){
+  const ctx=groundWeaponContext(f,t,aa,hit);
+  const weapons=f.weapons??ctx.rules.unitTypes[f.groundKind]?.weapons;
+  if(!weapons)return [];
+  if(ctx.air){
+    const cannon=!aa&&groundWasDuelDirect(f,t)&&weapons.find(w=>w.wasCannon);
+    return cannon?[groundWeaponEvaluate(cannon,ctx)]:[];
+  }
+  const list=[];
+  for(const w of weapons){
+    if(!w.parallel||t.groundDrone&&w.air)continue;
+    // 抜ける相手だけ撃つ: 戦車は巡航の上面攻撃だけ、戦車以外はどの向きからでも（ユーザー決定 2026-11-28）。
+    if(t.groundKind==='vehicle'&&!ctx.fromAbove)continue;
+    list.push(groundWeaponEvaluate(w,ctx));
+  }
+  return list;
 }
 function groundFireDirect(f,t,share,aa=false,body=null,weapon=groundDirectWeapon(f,t,aa)){
   const raw=weapon.power*groundFireFactor(f,t,aa)*groundSupplyAttackFactor(f)*share;
@@ -1223,12 +2231,31 @@ function groundDamageFactor(t,blast=false){
   const power=t.groundKind==='commando'?commandoCoverPower:1;
   return {h:descent*((terrain?.h??1)*(dug?.h??1))**power,m:((terrain?.m??1)*(dug?.m??1))**power};
 }
-function groundDamageAmount(t,raw,src,impact,weapon){
+function groundWasReactiveArmor(body,weapon){
+  if(!body?.alive||body.groundWasArmorSpent||!weapon)return 1;
+  const {penetrationRatio}=groundRuleSet().wasCombat.reactiveArmor;
+  if(!(weapon.pen>=weapon.plate*penetrationRatio))return 1;
+  body.groundWasArmorSpent=true;
+  return weapon.shaped||weapon.top?0:.5;
+}
+function groundDamageAmount(t,raw,src,impact,weapon,body=null){
   const rules=groundRuleSet(),cover=groundDamageFactor(t,!!impact);
-  const amount=raw*rules.combat.damageScale*(weapon?.armorFactor??1);
-  const evasion=t.groundKind==='was'?(groundWasFlying(t)?rules.wasFlight.evasion:rules.unitTypes.was.evasion):t.eva??0;
-  const hit=amount*(impact?groundStrikeDamageFactor(t.groundKind):1)*(1-evasion);
-  const morale=impact?groundStrikeMoraleFactor(impact,t,src):weapon?.morale??1;
+  const duel=!impact&&src&&groundWasFlying(src)&&groundWasFlying(t);
+  const amount=raw*rules.combat.damageScale*(duel?rules.wasCombat.dogfight.damageScale:1)*(weapon?.armorFactor??1);
+  let evasion=t.eva??0,armor=1;
+  if(t.groundKind==='was'){
+    evasion=groundWasFlying(t)?rules.wasFlight.evasion:rules.unitTypes.was.evasion;
+    // 飛んでいる W.A.S. どうしは回避なし（ユーザー決定 2026-11-28「was同士は回避がない」）
+    if(duel&&rules.wasCombat.dogfight.noEvasion)evasion=0;
+    else if(groundWasFlying(t)&&weapon?.wasCannon){
+      const {cannonEvasionFactor,cannonMaxEvasion}=rules.wasCombat.dogfight;
+      evasion=Math.min(evasion*cannonEvasionFactor,cannonMaxEvasion);
+    }
+    if(!impact&&amount>0)armor=groundWasReactiveArmor(body,weapon);
+  }
+  if(weapon?.evasionFactor!=null)evasion*=weapon.evasionFactor;
+  const hit=amount*(impact?groundStrikeDamageFactor(t.groundKind):1)*(1-evasion)*armor;
+  const morale=impact?groundStrikeMoraleFactor(impact,t,src):(weapon?.morale??1)*(rules.unitTypes[t.groundKind]?.directMorale??1);
   return groundMoraleHit(t,hit,cover,morale,!!impact);
 }
 function groundMechanicalWear(f,dt){
@@ -1489,7 +2516,11 @@ function groundWasPlayerToggle(){
   const units=orderTargets().filter(f=>f.groundKind==='was'&&!f.embarked);
   if(over||!units.length||!units.every(f=>groundWasCanToggle(f)&&groundWasFlying(f)===groundWasFlying(units[0])))return;
   npcAutoPlayer(units);
-  for(const f of units)groundWasToggle(f);
+  for(const f of units)if(groundWasToggle(f)){
+    f.groundWasAutoCruiseAt=null;
+    f.groundWasNpcCruise=false;
+    f.groundWasStayGround=!!f.groundWasLanding;
+  }
   groundClearAiming();groundHud();
 }
 document.getElementById('groundMove').addEventListener('click',()=>{
