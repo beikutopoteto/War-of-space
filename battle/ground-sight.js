@@ -1,4 +1,4 @@
-/* 地上専用の視線と共有視界。レーダーもこの判定を通す。宇宙の canSee は変えない。 */
+/* 地上専用の視線と共有視界。宇宙の canSee は変えない。 */
 let groundTerritorySight=null;
 let groundSightHeightSource=null;
 let groundSightHeights=null, groundFog=null, groundSightBuildingSource=null, groundSightBuildingBins=new Map();
@@ -150,7 +150,8 @@ function groundAirSightPoints(f){
 function groundCanSee(f,t){
   if(groundAbsent(f)||groundAbsent(t))return false;
   if(!f.alive||!t.alive||f.embarked||t.embarked||f.team===t.team)return false;
-  const range=groundSightRange(f)*groundConcealment(t);
+  const largeHighTarget=groundFlyingAircraft(f)&&t.groundKind==='supportAircraft'&&t.band==='high';
+  const range=Math.max(groundSightRange(f),largeHighTarget?groundSightRules().highSupportTarget:0)*groundConcealment(t);
   if(!groundAirSquad(f)&&!groundAirSquad(t))return groundDistanceTo(f,t)<=range&&groundLineOfSight(f,t);
   if(!groundBodiesWithinReach(f,t,range))return false;
   const targets=groundAirSightPoints(t);
@@ -209,7 +210,9 @@ function groundUpdateSight(){
     for(const team of [0,1]){
       const visible=t.alive&&!t.embarked&&!groundAbsent(t)&&(t.team===team||live.some(f=>f.team===team&&groundCanSee(f,t))||groundSiteSees(sites[team],t));
       t.groundVisible[team]=visible;
-      if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec,...(op.npc&&!op.groundDrill?{power:npcGroundPower(t),role:window.WOS_DATA.npc.roles.ground[t.groundKind]||'line',kind:t.groundKind}:{})};
+      if(visible)t.groundContacts[team]={pos:t.pos.clone(),at:gameSec,
+        yaw:groundAirTarget(t)&&t.heading?Math.atan2(t.heading.x,t.heading.z):undefined,
+        ...(op.npc&&!op.groundDrill?{power:npcGroundPower(t),role:window.WOS_DATA.npc.roles.ground[t.groundKind]||'line',kind:t.groundKind}:{})};
     }
     // seen は宇宙と同じ「相手に発見されている」。表示は青から見た赤だけを隠す。
     t.seen=t.groundVisible[1-t.team];

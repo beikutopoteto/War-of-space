@@ -10,10 +10,13 @@ window.WOS_GROUND_RULES = {
     pitchSpeedFactor:.65, speedResponse:3, stepSec:.05, boundaryMarginKm:1,
     pairDelaySec:.55, wingDelaySec:.14, pairAngleDeg:23, wingAngleDeg:2.5, reentryAngleDeg:110,
     ground:{entryKm:11,pullKm:8,diveKm:4,exitKm:4.5,lowKm:.24,diveDeg:18},
-    // 仮。低い相手への掃射と、狙われた W.A.S. の組が反応する範囲。
-    strafe:{lowKm:.32,climbKm:2.2,threatHeightKm:3.5,threatWidthKm:.9,threatLeadSec:.55,wingDelaySec:.1},
+    // 仮。巡航・低高度の W.A.S. への射撃通過と、その後の上昇。
+    strafe:{lowKm:.32,climbKm:2.2},
+    wasPass:{climbAboveKm:1.8},
     // 仮。支援機は従来の巡航速度（1.25 km/ゲーム秒）で、上限1.5〜2 Gの内側に広い旋回を取る。
     support:{entryKm:2,exitKm:2,turnRadiusKm:.75},
+    // 仮。広域支援機への迎撃と、投下進入外での回避。
+    intercept:{heightBandKm:1.5,belowKm:.45,rearKm:3,sideKm:.65,evadeAngleDeg:30,evadeLegKm:7},
     air:{minHeightKm:1.5,maxHeightKm:6,heightAdvantageKm:1.3,diveSec:.48,exitKm:6,tailSec:.75,tailAngleDeg:24,peelDeg:45,leadSec:1.2,
       attack:{maxHeightKm:3},
       fighter:{maxPitchDeg:42,pitchRateDeg:145,diveSec:.62,exitKm:3.5,climbLookAheadSec:.2,divePitchBiasDeg:12,passDiveSec:.22}} // 戦闘機の一撃離脱は仮。
@@ -29,6 +32,15 @@ window.WOS_GROUND_RULES = {
     topAttackKm:1,
     shotSupplyFactor:1.3, // ユーザー決定 2026-11-28。射撃・対艦ロケットなど撃つときの補給消費倍率（wasFlight の移動・停止消費は変えない）。
     autoCruise:{supplyFraction:.3,quietSec:10},
+    // 航空機との交戦機動（仮）。距離・高さは km、時間はゲーム秒。
+    aircraft:{
+      threatWidthKm:.9,threatLeadSec:.55,wingDelaySec:.10,pairDelaySec:.32,lingerSec:4,
+      cruise:{minHeightKm:.02,maxHeightKm:.25,noticeHeightKm:3.5,periodSec:[2.0,2.7],swayKm:.095,
+        jump:{riseSec:.44,riseKm:[.16,.23],fallSec:.88,pitchDeg:16},
+        slide:{distanceKm:[.12,.19],durationSec:.32,rejoinSec:.70}},
+      low:{noticeHeightKm:2.5,standOffKm:.32,swayKm:.14,heightKm:.12,periodSec:[3.1,4.3],
+        slide:{distanceKm:[.56,.70],durationSec:.34,rejoinSec:.85}}
+    },
     // 巡航で移動するとき、採用図の矢印（歩くときの間隔）を縮める倍率（ユーザー決定 2026-11-28「移動は3倍」、採用）。.36 で4小隊16機の最大間隔は約0.87 km。
     cruiseSpacing:.36,
     // 各機の描画の仮値。時間はゲーム秒、角度はラジアン。drift・scatter は模型の長さ、height は模型の高さに対する倍率。
@@ -99,8 +111,8 @@ window.WOS_GROUND_RULES = {
         sniperRiseKm:.072,innerKm:.21,arcRad:.22,dipHeightKm:.032,orbitInsetKm:.06,outerScale:1.12}
     }
   },
-  // 索敵の距離・高さは戦闘単位。レーダーも同じ視界に含める。全て試作の仮値。
-  sight: { site:30, basic:30, scout:40, concealment:{scout:.5,drone:.5}, supportAircraft:100, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
+  // 索敵の距離・高さは戦闘単位。高高度の大型支援機は航空機の目視で20 km（80戦闘単位）。全て仮値。
+  sight: { site:30, basic:30, scout:40, concealment:{scout:.5,drone:.5}, supportAircraft:100, highSupportTarget:80, forest:.6, eyeHeight:.35, heightGain:.3, heightForMax:1.2, rayStep:.5, fogStep:2, fogEvery:.5, fogAlpha:110 },
   // 地点攻撃の試作値。距離は戦闘単位。散布は着弾中心の最大ずれ、威力は unitTypes の dmg。
   // 2026-11-17決定の最大値で遊ぶ。initialは将来の研究用データだけで、現在は参照しない。
   // dmgScale は地点攻撃の弾だけに掛ける威力の倍率（対地の直射は unitTypes の weapons を参照）。間接の砲撃は2倍（ユーザー決定 2026-11-17）。

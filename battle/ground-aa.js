@@ -8,9 +8,11 @@ function groundAARange(f,t){
   if(!Number.isFinite(range)||range<=0)return 0;
   return f.groundKind==='sea'&&t?.groundKind==='drone'?Math.min(range,groundRuleSet().combat.drone.seaAAKm*GROUND_SCALE):range;
 }
-function groundAAHeightAllows(f,pos){
+function groundAAHeightAllows(f,pos,target=null,from=f.pos){
   const limits=groundRuleSet().combat.aaMaxHeightKm;
-  return pos.y-groundSightHeight(pos.x,pos.z)<=(limits[f.groundKind]??limits.default)*GROUND_SCALE+1e-8;
+  const airborneDuel=f.groundKind==='was'&&f.band==='low'&&['fighter','attack'].includes(target?.groundKind);
+  const height=airborneDuel?Math.abs(groundAirPhysicalY(pos)-groundAirPhysicalY(from)):pos.y-groundSightHeight(pos.x,pos.z);
+  return height<=(limits[f.groundKind]??limits.default)*GROUND_SCALE+1e-8;
 }
 function groundAutoAAReady(f){
   return typeof op!=='undefined'&&!!op.ground&&groundAutoAASource(f)&&f.alive&&!f.embarked&&!groundAbsent(f)&&
@@ -43,7 +45,7 @@ function groundAACompanyFire(f,candidates){
     for(const [j,body] of (t.bodies||[null]).entries()){
       if(body&&!body.alive)continue;
       const p=positions[j]||positions[0];
-      if(!groundAAHeightAllows(f,p))continue;
+      if(!groundAAHeightAllows(f,p,t))continue;
       const distance=Math.hypot(f.pos.x-p.x,f.pos.z-p.z);
       const damage=body?.max>0?1-body.hp/body.max:0;
       aims.push({t,j,body,range,distance,damage});
@@ -85,7 +87,7 @@ function groundAutoAAStep(dt){
       if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)){
         const range=groundAARange(f,previous);
         if(groundUsesFlightBodies(f,previous)?groundBodiesWithinReach(f,previous,range):
-          groundDistanceTo(f,previous)<=range&&groundAAHeightAllows(f,previous.pos))f.groundAATarget=previous;
+          groundDistanceTo(f,previous)<=range&&groundAAHeightAllows(f,previous.pos,previous))f.groundAATarget=previous;
       }
       continue;
     }

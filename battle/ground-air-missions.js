@@ -135,15 +135,40 @@ function groundSupportPatrol(b,space,returnPoint,cruise,rules){
  }
  return null;
 }
+function groundSupportThreat(f){
+ let nearest=null,distance=Infinity;
+ for(const fighter of fleets){
+  if(fighter.team===f.team||fighter.groundKind!=='fighter'||!fighter.alive||fighter.embarked||
+     fighter.locked||groundAbsent(fighter)||groundTrainingEnemy(fighter)||groundStaticTarget(fighter)||
+     groundAirSquadTarget(fighter,fighter.groundAirSquad?.target)!==f||!groundSeenBy(fighter.team,f))continue;
+  const d=groundDistanceTo(f,fighter);
+  if(d<distance){nearest=fighter;distance=d;}
+ }
+ return nearest;
+}
+function groundSupportEvade(b,space,threat,cruise,rules){
+ const r=rules.intercept,angle=THREE.MathUtils.degToRad(r.evadeAngleDeg);
+ const points=[-angle,angle].map(offset=>b.pos.clone().addScaledVector(groundAirDirection(b.yaw+offset),r.evadeLegKm*GROUND_SCALE));
+ const clearance=groundAirRouteRadius(b,cruise,rules)+rules.boundaryMarginKm*GROUND_SCALE;
+ const point=points.filter(p=>groundAirClearanceToEdge(p,space)>=clearance)
+  .sort((a,c)=>c.distanceToSquared(threat.pos)-a.distanceToSquared(threat.pos))[0];
+ return groundSupportPatrol(b,space,point,cruise,rules);
+}
 function groundSupportStep(f,dt){
  if(!(Number.isFinite(dt)&&dt>0))return true;
  const rules=groundRuleSet().airCombat,cruise=rules.cruiseKmSec.supportAircraft*GROUND_SCALE,track=groundAirSquadTrack(f),b=track.bodies[0];
  if(!f.bodies[0].alive)return true;
  const order=f.order,path=order?.type==='move'?order.path:null,point=path?.points[path.atIndex];
- if(!f.groundAirState&&!f.groundBombRun&&order?.type==='attack'&&groundSeenBy(f.team,order.target)&&
+ if(!f.groundAirState&&!f.groundBombRun&&order?.type==='attack'&&groundManualTargetAllowed(f,order.target)&&groundSeenBy(f.team,order.target)&&
     (f.groundStrikeCooldown||0)<=1e-8)groundBombPrepare(f,{point:groundStrikeTargetPoint(f,0,order.target)});
  const run=f.groundBombRun,before=f.pos.clone();
- if(path){
+ const threat=!run&&!f.groundVolley&&!f.groundAirState?groundSupportThreat(f):null;
+ if(track.supportThreat!==threat){
+  track.supportThreat=threat;track.supportPatrol=null;b.nav=null;b.navKey=null;b.turnInward=false;
+  if(threat){track.supportPass=null;track.supportSpace=groundAirEngagementSpace(b.pos,rules.sectorKm);}
+ }
+ const navigating=path&&!threat;
+ if(navigating){
   track.supportSpace=null;track.supportPass=null;track.supportPatrol=null;b.engagementSpace=null;
  }else if(run&&track.supportPass!==run){
   track.supportPass=run;track.supportSpace=run.plan?.space;track.supportPatrol=null;
@@ -159,7 +184,7 @@ function groundSupportStep(f,dt){
  const heights=height===null?null:{min:height,max:height};
  for(let left=dt;left>1e-8;){
   const step=Math.min(left,rules.stepSec,GROUND_BOMB_APPROACH.tolerance/cruise);left-=step;track.elapsed+=step;
-  if(path)groundAirNavigate(f,b,point,point,0,step,cruise,rules,heights);
+  if(navigating)groundAirNavigate(f,b,point,point,0,step,cruise,rules,heights);
   else{
    if(run&&!run.ledger.issued&&!run.route?.segments.length&&!track.supportPatrol?.segments.length){
     // 帰投・Undo・通り過ぎたときも、台帳の同じ狙点へ進入し直す。
@@ -172,7 +197,7 @@ function groundSupportStep(f,dt){
    let route=pass?.route?.segments.length?pass.route:null;
    if(!route){
     if(!track.supportPatrol?.segments.length){
-     track.supportPatrol=groundSupportPatrol(b,space,pass?.plan?.gate,cruise,rules);
+     track.supportPatrol=threat?groundSupportEvade(b,space,threat,cruise,rules):groundSupportPatrol(b,space,pass?.plan?.gate,cruise,rules);
      if(!run||run.ledger.issued)track.supportPass=null;
     }
     route=track.supportPatrol;
@@ -187,7 +212,7 @@ function groundSupportStep(f,dt){
   }
  }
  groundSupplyMoved(f,before,f.pos);
- if(path){
+ if(navigating){
   path.s=Math.min(path.L||Infinity,(path.s||0)+Math.hypot(f.pos.x-before.x,f.pos.z-before.z));
   if(point&&b.nav?.segments.length===0)path.atIndex++;
   if(!point||path.atIndex>=path.points.length){
