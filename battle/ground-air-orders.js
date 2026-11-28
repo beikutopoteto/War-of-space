@@ -155,7 +155,7 @@ function groundAirSquadTrack(f){
  if(!existing.last.equals(f.pos)||!existing.elapsed&&existing.yaw!==yaw){
   const shift=f.pos.clone().sub(existing.last);
   for(const b of existing.bodies){
-   b.pos.add(shift);b.route=null;b.phase=null;b.navKey=null;b.turnInward=false;
+   b.pos.add(shift);b.route=null;b.phase=null;b.navKey=null;b.turnInward=false;b.legYaw=null;
    if(!existing.elapsed)b.yaw=yaw;
   }
   if(support){
@@ -344,12 +344,27 @@ function groundAirAirTarget(t,b,pair){
  }
  return closest;
 }
+// 直線区間は機ごとに保持し、境界で内側へ向けたら新しい向きのまま抜ける。
+function groundAirStraightYaw(b){
+ if(b.turnInward)b.legYaw=groundAirInwardYaw(b);
+ return b.legYaw??=b.yaw;
+}
+function groundAttackFighterPass(b,dt,cruise,rules,heights){
+ const escapeHeight=rules.air.attack.escapeHeightKm*GROUND_SCALE;
+ const surface=groundAirPhysicalY(new THREE.Vector3(b.pos.x,groundSurfaceHeight(b.pos.x,b.pos.z),b.pos.z));
+ // 低く抜けながら、進路の前に相手が来たときだけ既存の対空射撃を許す。
+ const yaw=groundAirStraightYaw(b),turning=b.turnInward;
+ groundAirFly(b,dt,cruise,rules,yaw,groundAirPitchTo(b,surface+escapeHeight),null,heights);
+ b.phase=turning||b.turnInward?'exit':'dive';
+}
 function groundAirAirPass(f,b,t,i,pair,dt,cruise,rules,heights){
  const enemy=groundAirAirTarget(t,b,pair);
  if(!enemy)return;
  const r=rules.air,fighter=f.groundKind==='fighter'?r.fighter:null;
- const {diveSec,exitKm}=fighter||r;
+ const mixed=fighter&&t.groundKind==='attack'?r.attack:null;
+ const {diveSec}=fighter||r,exitKm=mixed?.fighterExitKm??(fighter||r).exitKm;
  const delta=enemy.pos.clone().sub(b.pos),distance=Math.hypot(delta.x,delta.z);
+ const forward=delta.dot(groundAirDirection(b.yaw));
  const direction=groundAirDirection(enemy.yaw),velocity=enemy.velocity,enemyHeight=groundAirPhysicalY(enemy.pos);
  const moving=Math.hypot(velocity.x,velocity.z)>GROUND_SCALE||
    t.order?.type==='move'||t.order?.type==='attack'&&t.order.target===f;
@@ -360,27 +375,36 @@ function groundAirAirPass(f,b,t,i,pair,dt,cruise,rules,heights){
  // 上を取る高さには上限（互いに上を取り合って昇り続けない。仮 airCombat.air.maxHeightKm）
  const ceiling=heights.max,high=Math.min(enemyHeight+r.heightAdvantageKm*GROUND_SCALE,ceiling);
  if(!b.phase)b.phase='approach';
- if(b.phase==='exit'&&b.phaseDistance>=exitKm*GROUND_SCALE)b.phase='approach';
+ if(b.phase==='exit'&&b.phaseDistance>=exitKm*GROUND_SCALE&&(!mixed||!b.turnInward)){
+  b.phase='approach';b.legYaw=null;
+ }
  if(b.phase==='approach'&&distance<=entryDistance){
   const tail=fromBehind&&sameCourse&&distance<=range;
-  const aligned=delta.dot(groundAirDirection(b.yaw))>=distance*.7;
+  const aligned=forward>=distance*.7;
   // 向かってくる相手には、すれ違う前に射撃姿勢を取る。
   if(tail||aligned&&(closing||groundAirPhysicalY(b.pos)>=Math.min(enemyHeight+r.heightAdvantageKm*GROUND_SCALE*.45,ceiling*.95))){
    b.phase=tail?'tail':'dive';b.phaseTime=0;b.phaseDistance=0;
+   if(mixed)b.passYaw=b.yaw;
   }
  }
- const passed=delta.dot(groundAirDirection(b.yaw))<-GROUND_SCALE*.3;
+ const passed=forward<-GROUND_SCALE*.3;
+ const missed=mixed&&b.phase==='approach'&&forward<distance*.35&&distance<mixed.breakAwayKm*GROUND_SCALE;
  if(b.phase==='tail'&&(!fromBehind||b.phaseTime>=r.tailSec)||
-    b.phase==='dive'&&(passed&&b.phaseTime>=(fighter?.passDiveSec||0)||b.phaseDistance>entryDistance*2)){
+    b.phase==='dive'&&(passed&&b.phaseTime>=(fighter?.passDiveSec||0)||b.phaseDistance>entryDistance*2)||missed){
   const peel=b.phase==='tail'?THREE.MathUtils.degToRad(r.peelDeg)*(i>>1?1:-1):0;
-  const course=b.yaw+peel,inward=groundAirInwardYaw(b),radius=groundAirRouteRadius(b,cruise,rules);
-  const exit=b.pos.clone().addScaledVector(groundAirDirection(course),exitKm*GROUND_SCALE);
   b.phase='exit';b.phaseDistance=0;
-  b.exitYaw=groundAirClearanceToEdge(exit,b.engagementSpace)<radius+rules.boundaryMarginKm*GROUND_SCALE?inward:course;
+  const course=b.yaw+peel;
+  if(mixed)b.legYaw=course;
+  else{
+   const exit=b.pos.clone().addScaledVector(groundAirDirection(course),exitKm*GROUND_SCALE);
+   const clearance=groundAirRouteRadius(b,cruise,rules)+rules.boundaryMarginKm*GROUND_SCALE;
+   b.exitYaw=groundAirClearanceToEdge(exit,b.engagementSpace)<clearance?groundAirInwardYaw(b):course;
+  }
  }
  let yaw=b.yaw,pitch=groundAirPitchTo(b,high,fighter?.climbLookAheadSec);
  if(b.phase==='exit'){
-  yaw=b.exitYaw;pitch=groundAirPitchTo(b,Math.min(high+GROUND_SCALE,ceiling),fighter?.climbLookAheadSec);
+  yaw=mixed?groundAirStraightYaw(b):b.exitYaw;
+  pitch=groundAirPitchTo(b,Math.min(high+GROUND_SCALE,ceiling),fighter?.climbLookAheadSec);
  }else{
   // 正面から来る敵を先読みすると狙点が手前に寄り、横ずらしで旋回を誘う。
   const lead=b.phase==='approach'&&!closing?Math.min(r.leadSec,distance/cruise):0;
@@ -397,9 +421,14 @@ function groundAirAirPass(f,b,t,i,pair,dt,cruise,rules,heights){
    }
   }
   if(b.phase!=='dive'||!passed)yaw=groundAirBearing(b.pos,groundAirInside(point)?point:enemy.pos);
+  if(mixed&&(b.phase==='dive'||b.phase==='tail')){
+   const angle=THREE.MathUtils.degToRad(mixed.passTurnDeg);
+   yaw=b.passYaw+THREE.MathUtils.clamp(groundAirAngleDelta(b.passYaw,yaw),-angle,angle);
+  }
  }
  groundAirFly(b,dt,cruise,rules,yaw,pitch,null,heights,fighter||rules);
- b.phaseTime=(b.phaseTime||0)+dt;b.phaseDistance=(b.phaseDistance||0)+b.speed*dt;
+ b.phaseTime=(b.phaseTime||0)+dt;
+ b.phaseDistance=(b.phaseDistance||0)+(mixed?Math.hypot(b.velocity.x,b.velocity.z):b.speed)*dt;
 }
 function groundAirInterceptPass(f,b,t,i,pair,dt,cruise,rules){
  const enemy=groundAirAirTarget(t,b,pair);
@@ -515,13 +544,14 @@ function groundAirSquadStep(f,dt){
  const airRange=!!target&&groundUsesAirRange(f,target),low=!!target&&groundAirLowTarget(target,rules);
  const wasPass=airRange&&!low&&target.groundKind==='was'&&target.band==='low';
  const air=airRange&&!low,strafe=low&&airRange||!!target&&fighter&&!airRange;
+ const escape=air&&f.groundKind==='attack'&&target.groundKind==='fighter';
  const pass=wasPass?{lowKm:groundBandHeight('low')/GROUND_SCALE,
   climbKm:groundBandHeight('low')/GROUND_SCALE+rules.wasPass.climbAboveKm,levelPass:true}:strafe?rules.strafe:null;
  const intercept=air&&fighter&&target.groundKind==='supportAircraft'&&target.band==='high';
  if(track.target!==target||track.airTarget!==air||track.strafing!==strafe||track.wasPass!==wasPass||track.intercept!==intercept){
   track.target=target;track.airTarget=air;track.strafing=strafe;track.wasPass=wasPass;track.intercept=intercept;track.aim=null;track.searchContact=null;track.engagementSpace=null;track.elapsed=0;track.pairs=[{pass:0},{pass:0}];
   for(const b of track.bodies){
-   b.phase=null;b.route=null;b.entryYaw=null;b.pass=0;b.strafeBody=null;b.engagementSpace=null;b.nav=null;b.navKey=null;b.turnInward=false;b.interceptFired=false;
+   b.phase=null;b.route=null;b.entryYaw=null;b.entryDir=null;b.entryAim=null;b.pass=0;b.strafeBody=null;b.engagementSpace=null;b.nav=null;b.navKey=null;b.turnInward=false;b.legYaw=null;b.interceptFired=false;
   }
  }
  const contact=target?.groundContacts?.[f.team];
@@ -553,6 +583,7 @@ function groundAirSquadStep(f,dt){
    if(!f.bodies[i].alive)continue;
    const delay=(i>>1)*rules.pairDelaySec+(i%2)*rules.wingDelaySec;
    if(track.aim&&track.elapsed>=delay){
+    if(escape){groundAttackFighterPass(b,step,cruise,rules,heights);continue;}
     if(air&&!visible){groundAirNavigate(f,b,track.aim,searchContact||target,i,step,cruise,rules,heights,searchContact?.yaw);continue;}
     b.nav=null;b.navKey=null;
     const pair=track.pairs[i>>1];

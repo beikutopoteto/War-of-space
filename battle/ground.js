@@ -1050,7 +1050,8 @@ function groundWasBoostJump(time,jump,fallAt,fallSec){
 }
 function groundWasBoostSlide(time,slide){
   const {smootherstep:smooth}=THREE.MathUtils;
-  const rejoin=smooth(time,slide.durationSec,slide.durationSec+slide.rejoinSec);
+  const holdUntil=slide.durationSec+(slide.holdSec??0);
+  const rejoin=smooth(time,holdUntil,holdUntil+slide.rejoinSec);
   const move=smooth(time,0,slide.durationSec);
   const boost=smooth(time,0,.1)*(1-smooth(time,slide.durationSec-.15,slide.durationSec));
   return {rejoin,move,boost};
@@ -1058,12 +1059,13 @@ function groundWasBoostSlide(time,slide){
 function groundWasAirEvasion(f,track,now){
   if(f.bandTo||f.band!=='cruise'&&f.band!=='low'){track.airEvasion=null;return null;}
   const cfg=groundRuleSet().wasCombat.aircraft,mode=cfg[f.band],ownHeight=groundAirPhysicalY(f.pos);
+  const prior=track.airEvasion,settling=prior?.band===f.band&&prior.spreadUntil>now;
   let target=null,contacts=[],nearest=Infinity;
   for(const enemy of fleets){
     const air=enemy.groundAirSquad;
     if(enemy.team===f.team||!enemy.alive||enemy.embarked||groundAbsent(enemy)||!air||
        !['fighter','attack'].includes(enemy.groundKind)||!groundSeenBy(f.team,enemy))continue;
-    const range=groundAARange(f,enemy);
+    const range=mode.noticeKm===undefined?groundAARange(f,enemy):mode.noticeKm*GROUND_SCALE;
     const nearby=air.bodies.filter((b,i)=>enemy.bodies[i].alive&&
       Math.hypot(b.pos.x-f.pos.x,b.pos.z-f.pos.z)<=range&&
       Math.abs(groundAirPhysicalY(b.pos)-ownHeight)<=mode.noticeHeightKm*GROUND_SCALE);
@@ -1071,49 +1073,77 @@ function groundWasAirEvasion(f,track,now){
     if(distance<nearest){nearest=distance;target=enemy;contacts=nearby;}
   }
   if(!target){
-    const prior=track.airEvasion;
-    if(prior?.band===f.band&&prior.target.alive&&!prior.target.embarked&&!groundAbsent(prior.target)&&now-prior.seenAt<=cfg.lingerSec){
-      for(const pair of prior.pairs)pair.incoming=null;
+    const canAim=prior?.band===f.band&&prior.target.alive&&!prior.target.embarked&&!groundAbsent(prior.target)&&now-prior.seenAt<=cfg.lingerSec;
+    if(settling||canAim){
+      for(const pair of prior.pairs){pair.incoming=null;if(!canAim)pair.aim=null;}
       return prior;
     }
     track.airEvasion=null;return null;
   }
-  if(track.airEvasion?.target!==target||track.airEvasion.band!==f.band){
+  if(settling)prior.target=target;
+  else if(prior?.target!==target||prior.band!==f.band){
     track.airEvasion={target,band:f.band,at:now,pairs:[]};
   }
   const state=track.airEvasion,positions=groundBodyPositions(f).positions;
   state.seenAt=now;
-  for(let pair=0;pair<positions.length/2;pair++){
+  const centers=Array.from({length:positions.length/2},(_,pair)=>{
     const lead=2*pair,wing=lead+1;
-    const own=f.bodies[lead].alive&&f.bodies[wing].alive?positions[lead].clone().lerp(positions[wing],.5):
+    return f.bodies[lead].alive&&f.bodies[wing].alive?positions[lead].clone().lerp(positions[wing],.5):
       positions[f.bodies[lead].alive?lead:wing];
+  });
+  for(const [pair,own] of centers.entries()){
     const p=state.pairs[pair]??={};
     p.aim=contacts.reduce((a,b)=>own.distanceToSquared(a.pos)<=own.distanceToSquared(b.pos)?a:b).pos.clone();
-    p.incoming=null;
-    let soonest=Infinity;
-    for(const b of contacts){
-      if(!b.entryDir||!['approach','pull','dive'].includes(b.phase))continue;
-      const dir=b.entryDir,dx=own.x-b.pos.x,dz=own.z-b.pos.z;
-      const ahead=dx*dir.x+dz*dir.z,cross=dx*dir.z-dz*dir.x;
-      const time=ahead/Math.max(1,b.speed*Math.cos(b.pitch));
-      if(time<=0||time>=soonest||Math.abs(cross)>cfg.threatWidthKm*GROUND_SCALE)continue;
-      soonest=time;
-      p.incoming={b,dir,lane:Math.abs(cross)<1e-6?(pair%2?1:-1):Math.sign(cross)};
+    if(f.band==='low'){
+      const incoming=p.incoming=groundWasAirIncoming(own,contacts,cfg);
+      if(incoming)incoming.lane=Math.abs(incoming.cross)<1e-6?(pair%2?1:-1):Math.sign(incoming.cross);
+      if(incoming&&incoming.time<=cfg.threatLeadSec&&p.evade?.entry!==incoming.b.entryAim&&!(p.evade?.end>now)){
+        const {durationSec,rejoinSec}=mode.slide;
+        p.evade={entry:incoming.b.entryAim,at:now,end:now+durationSec+rejoinSec+cfg.wingDelaySec,
+          dir:incoming.dir,lane:incoming.lane};
+      }
     }
-    const incoming=p.incoming;
-    if(incoming&&soonest<=cfg.threatLeadSec&&p.evade?.entry!==incoming.b.entryAim&&!(p.evade?.end>now)){
-      const {durationSec,rejoinSec}=mode.slide;
-      p.evade={entry:incoming.b.entryAim,at:now,end:now+durationSec+rejoinSec+cfg.wingDelaySec,
-        dir:incoming.dir,lane:incoming.lane};
+  }
+  if(f.band==='cruise'&&!(state.spreadUntil>now)){
+    const incoming=groundWasAirIncoming(f.pos,contacts,cfg);
+    if(incoming&&incoming.time<=cfg.threatLeadSec&&state.spreadEntry!==incoming.b.entryAim){
+      groundWasAirSpread(f,state,centers,incoming,now,cfg,mode.slide);
     }
   }
   return state;
+}
+function groundWasAirIncoming(own,contacts,cfg){
+  let incoming=null;
+  for(const b of contacts){
+    if(!b.entryDir||!['approach','pull','dive'].includes(b.phase))continue;
+    const dir=b.entryDir,dx=own.x-b.pos.x,dz=own.z-b.pos.z;
+    const ahead=dx*dir.x+dz*dir.z,cross=dx*dir.z-dz*dir.x;
+    const time=ahead/Math.max(1,b.speed*Math.cos(b.pitch));
+    if(time<=0||time>=(incoming?.time??Infinity)||Math.abs(cross)>cfg.threatWidthKm*GROUND_SCALE)continue;
+    incoming={b,dir,cross,time};
+  }
+  return incoming;
+}
+function groundWasAirSpread(f,state,centers,incoming,now,cfg,slide){
+  const {dir,b}=incoming,{lerp,degToRad}=THREE.MathUtils;
+  // 進入線に直角な並びの外側へ散らし、組どうしが横切らないようにする。
+  const order=centers.map((p,i)=>({i,cross:p.x*dir.z-p.z*dir.x})).sort((a,b)=>a.cross-b.cross);
+  state.spreadEntry=b.entryAim;state.spreadUntil=now;
+  for(const [rank,{i}] of order.entries()){
+    const side=(rank+.5)/order.length*2-1;
+    const delay=(1+hash(f.id,i,43))/2*slide.staggerSec;
+    const at=now+delay,end=at+slide.durationSec+slide.holdSec+slide.rejoinSec+cfg.wingDelaySec;
+    const yaw=Math.atan2(dir.x,dir.z)+degToRad(slide.spreadDeg)*hash(f.id,i,45);
+    state.pairs[i].evade={at,end,dir:groundAirDirection(yaw),lane:Math.sign(side),
+      distanceKm:lerp(...slide.distanceKm,Math.abs(side))};
+    state.spreadUntil=Math.max(state.spreadUntil,end);
+  }
 }
 function groundWasAirSlide(f,pair,i,now,cfg,mode){
   const evade=pair.evade;
   if(!(evade?.end>now))return {offset:0,boost:0};
   const slide=groundWasBoostSlide(now-evade.at-(i%2)*cfg.wingDelaySec,mode.slide);
-  const distance=THREE.MathUtils.lerp(...mode.slide.distanceKm,(1+hash(f.id,i,42))/2)*GROUND_SCALE;
+  const distance=(evade.distanceKm??THREE.MathUtils.lerp(...mode.slide.distanceKm,(1+hash(f.id,i,42))/2))*GROUND_SCALE;
   return {offset:evade.lane*slide.move*(1-slide.rejoin)*distance,boost:slide.boost,dir:evade.dir,lane:evade.lane};
 }
 function groundWasDogfightMove(f,state,b,i,now,forward,rules){
@@ -1523,14 +1553,15 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
     }
     if(airFight&&alive[i]){
       const pair=airFight.pairs[i>>1],cfg=rules.aircraft;
-      const period=lerp(...airMode.periodSec,(1+hash(f.id,i>>1,43))/2);
-      const time=Math.max(0,now-airFight.at-(i>>1)*cfg.pairDelaySec-(i%2)*cfg.wingDelaySec)%period;
-      const jump=airMode.jump,leap=groundWasBoostJump(time,jump,jump.riseSec,jump.fallSec);
-      const rise=lerp(...jump.riseKm,(1+hash(f.id,i,44))/2)*leap.lift;
-      const sway=Math.sin(time/period*Math.PI*2)*airMode.swayKm*GROUND_SCALE;
-      const slide=groundWasAirSlide(f,pair,i,now,cfg,airMode),dir=slide.dir??groundAirDirection(b.course);
-      const offset=sway+slide.offset,x=goalX+dir.z*offset,z=goalZ-dir.x*offset;
-      if(groundPass(groundMapX(x),groundMapY(z),'air')){goalX=x;goalZ=z;}
+      const jump=airMode.jump,delay=lerp(...jump.delaySec,(1+hash(f.id,i,44))/2);
+      const time=now-(pair.evade?.at??Infinity)-delay;
+      const leap=groundWasBoostJump(time,jump,jump.riseSec,jump.fallSec);
+      const rise=lerp(...jump.riseKm,(1+hash(f.id,i,46))/2)*leap.lift;
+      const slide=groundWasAirSlide(f,pair,i,now,cfg,airMode);
+      if(slide.dir){
+        const x=goalX+slide.dir.z*slide.offset,z=goalZ-slide.dir.x*slide.offset;
+        if(groundPass(groundMapX(x),groundMapY(z),'air')){goalX=x;goalZ=z;}
+      }
       goalY=groundSurfaceHeight(goalX,goalZ)+(airMode.minHeightKm+rise)*GROUND_SCALE;
       foe=pair.aim;pitch=leap.pitch;
       bank=rules.swarmAttitude.frontRoll*(slide.lane??0)*slide.boost;
@@ -1552,7 +1583,7 @@ function groundWasCruiseStep(f,track,targets,now,dt,heading,dogfight=null,airFig
   // 巡航中（着陸・交戦周回を除く）は、機どうしが3Dで重ならないように目標位置をよける。
   const sepXZ=dims.wid*D.sepWidth,sepY=dims.ht*D.sepHeight;
   const transferring=track.bodies.some(b=>b.transfer);
-  const clampRadius=transferring?0:maxRadius;
+  const clampRadius=transferring?0:maxRadius+(airFight?airMode.slide.distanceKm[1]*GROUND_SCALE:0);
   if(!landing&&!swarm){
     // 現在の実位置が近すぎる組にも押し戻しを足し、すれ違い時の重なりを防ぐ。
     for(let i=0;i<goals.length;i++){

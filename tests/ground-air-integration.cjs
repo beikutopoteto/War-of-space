@@ -7,10 +7,11 @@ function nodeChecks(){
  Object.assign(ctx,{chase:null,groundDrillTick:()=>{}});
  run(require('fs').readFileSync(require('path').join(__dirname,'../data/ground-org.js'),'utf8'));
  run(`
- const realAirVisualDirect=groundVisualDirect,realGroundHeight=groundHeight,realGroundSightHeight=groundSightHeight;
+ const realAirVisualDirect=groundVisualDirect,realGroundFireDirect=groundFireDirect,
+  realGroundHeight=groundHeight,realGroundSightHeight=groundSightHeight;
  function airSetup(){
   op={id:'groundExercise2',ground:'exercise2',groundHQ:null,groundStaticEnemies:true};fleets=[];groundSites=[];groundTerritory=null;groundSupplyNet=null;over=false;undoStack=[];
-  gameSec=0;revealMode=false;groundVisuals=new THREE.Group();groundVisualDirect=realAirVisualDirect;
+  gameSec=0;revealMode=false;groundVisuals=new THREE.Group();groundVisualDirect=realAirVisualDirect;groundFireDirect=realGroundFireDirect;
   groundHeight=groundSightHeight=()=>0;groundHeightCacheReset();groundForests=[];groundBuildings=[];groundStrikes=[];groundImpacts=[];groundBallisticReset();groundVolleyReset();
  }
  function airUnit(kind='supportAircraft',x=-50,team=0,n=1){
@@ -25,8 +26,8 @@ function nodeChecks(){
   op={...WOS_DATA.operations.find(o=>o.id==='groundExercise2'),groundStaticEnemies:false,npc:null};
   revealMode=true;groundHeight=realGroundHeight;groundSightHeight=realGroundSightHeight;
  }
- function airExerciseSpawn(team,kind,at){
-  const f=makeFleet(team,groundUnitSpec({kind,name:kind,at,band:'high',platoons:1,stance:'engage'}));
+ function airExerciseSpawn(team,kind,at,band='high'){
+  const f=makeFleet(team,groundUnitSpec({kind,name:kind,at,band,platoons:1,stance:'engage'}));
   fleets.push(f);groundInitUnit(f);return f;
  }
  function airTick(dt=.05){gameSec+=dt;groundStep(dt);}
@@ -281,31 +282,42 @@ function nodeChecks(){
   }
   return true;
  `);
- check('巡航W.A.S.は組と機体ごとにずれて跳び、20〜250 mの範囲で上下しながらバルカンを撃つ',`
+ check('巡航W.A.S.は航空機が接近すると組の間隔を広げ、通過後に戻りながらバルカンを撃つ',`
   op.groundStaticEnemies=false;
-  const f=airSquad('fighter',-26,0,'high'),w=airSquad('was',0,1,'cruise'),shots=[];
+  const f=airSquad('fighter',-26,0,'high'),w=airSquad('was',0,1,'ground'),shots=[];
+  w.band='cruise';
   groundVisualDirect=(src,i,target,j,from,to,aa,weapon)=>{
    if(src===w&&target===f)shots.push(aa&&weapon.fx==='gatling'&&groundAAHeightAllows(w,to,f,from)&&
      from.equals(groundBodyPosition(w,i))&&to.equals(groundBodyPosition(f,j)));
   };
   order(f,{type:'attack',target:w});
-  const hops=w.bodies.map(()=>({rises:0,down:true}));
-  let staggered=false,slide=false;
+  const pairGap=bodies=>{
+   const [a,b,c,d]=bodies.map(body=>body.pos);
+   return Math.hypot((a.x+b.x-c.x-d.x)/2,(a.z+b.z-c.z-d.z)/2)/GROUND_SCALE;
+  };
+  let start=0,peak=0,returned=false,staggered=false,slide=false,heightSpread=false;
   for(let step=0;step<260&&f.alive;step++){
    airTick();
    const flight=w.groundWasFlight;
    if(!flight?.airEvasion)continue;
+   const heights=flight.bodies.map(({pos})=>(pos.y-groundSurfaceHeight(pos.x,pos.z))/GROUND_SCALE);
+   if(heights.some(h=>h<.02-1e-8||h>.25+1e-8))return false;
+   heightSpread||=Math.max(...heights)-Math.min(...heights)>.06;
    for(const [i,b] of flight.bodies.entries()){
-    const h=(b.pos.y-groundSurfaceHeight(b.pos.x,b.pos.z))/GROUND_SCALE,hop=hops[i];
-    if(h<.02-1e-8||h>.25+1e-8||Math.hypot(b.pos.x-w.pos.x,b.pos.z-w.pos.z)>.6*GROUND_SCALE+1e-8)return false;
-    if(h<.065)hop.down=true;
-    if(h>.13&&hop.down){hop.rises++;hop.down=false;}
     if(i%2===0&&b.boost>0&&flight.bodies[i+1].boost===0)staggered=true;
     slide||=b.slideBoost>0;
    }
+   if(!returned){
+    const gap=pairGap(flight.bodies),until=flight.airEvasion.spreadUntil;
+    if(!until)start=gap;
+    else{
+     peak=Math.max(peak,gap);
+     if(gameSec>=until) returned=peak-start>.3&&gap<peak-.25;
+    }
+   }
   }
-  if(!(shots.length&&shots.every(Boolean)&&staggered&&slide&&hops.every(h=>h.rises>=2)))
-   throw Error(JSON.stringify({shots,staggered,slide,hops}));
+  if(!(shots.length&&shots.every(Boolean)&&staggered&&slide&&heightSpread&&returned))
+   throw Error(JSON.stringify({shots,staggered,slide,heightSpread,start,peak,returned}));
   return true;
  `);
  check('低高度W.A.S.は戦闘機・攻撃機の直線進入を横へ外し、すれ違いからバルカンを撃つ',`
@@ -561,6 +573,45 @@ function nodeChecks(){
    if(track.supportThreat||f.groundBombRun!==run)return false;
   }
   return run.ledger.issued&&groundStrikes.length>0;
+ `);
+ check('6 km離した攻撃機と戦闘機は、全機が低空で離脱を交えながら空戦し続ける',`
+  const rules=groundRuleSet().airCombat,scale=GROUND_SCALE,shots=new Set();
+  for(const [attackAt,fighterAt] of [[[24,14],[24,20]],[[18,18],[24,18]],[[24,20],[24,14]]]){
+   airSetup();airExercise();revealMode=false;
+   const a=airExerciseSpawn(0,'attack',attackAt,'low'),f=airExerciseSpawn(1,'fighter',fighterAt);
+   // 機動の確認中は撃墜で打ち切らず、8機すべての飛び方を追う。
+   groundFireDirect=()=>{};
+   groundUpdateSight();
+   order(a,{type:'attack',target:f});order(f,{type:'attack',target:a});
+   if(a.order?.target!==f||f.order?.target!==a||groundTargetRange(a,f)!==15*scale)return false;
+   const tracks=[a,f].map(s=>({s,track:groundAirSquadTrack(s),motion:[]}));
+   groundVisualDirect=(src,i,target)=>{if(src===a&&target===f||src===f&&target===a)shots.add(src.groundKind);};
+   for(let n=0;n<400;n++){
+    for(const {track,motion} of tracks)for(const [i,b] of track.bodies.entries()){
+     if(n%200===0)motion[i]={origin:b.pos.clone(),turn:0,span:0,exit:0,low:Infinity,straight:0,longest:0};
+     motion[i].yaw=b.yaw;
+    }
+    airTick();
+    for(const {s,track,motion} of tracks){
+     if(!track.airTarget||track.strafing||s.band!=='low')return false;
+     for(const [i,b] of track.bodies.entries()){
+      const m=motion[i],turn=Math.abs(groundAirAngleDelta(m.yaw,b.yaw)),height=groundAirPhysicalY(b.pos);
+      const minSpeed=rules.cruiseKmSec[s.groundKind]*scale*rules.minSpeedFactor;
+      if(groundAirClearanceToEdge(b.pos,track.engagementSpace)<0||b.speed<minSpeed-1e-8||
+         turn>groundAirTurnLimit(b.speed*Math.cos(b.pitch),b.turnLoadG,rules)*.05+1e-8||
+         1/Math.cos(b.bank)>b.turnLoadG+1e-8||
+         s===f&&(height<1.5*scale-1e-8||height>6*scale+1e-8))return false;
+      m.turn+=turn;m.span=Math.max(m.span,Math.hypot(b.pos.x-m.origin.x,b.pos.z-m.origin.z)/scale);
+      m.exit+=Number(b.phase==='exit');m.low=Math.min(m.low,(b.pos.y-groundSightHeight(b.pos.x,b.pos.z))/scale);
+      m.straight=turn<.03?m.straight+.05:0;m.longest=Math.max(m.longest,m.straight);
+     }
+    }
+    if(n%200===199&&(tracks.some(({motion})=>motion.some(m=>!m.exit||m.turn>=4*Math.PI&&(m.span<12||m.longest<.7)))||
+       tracks[0].motion.some(m=>m.low>1.3||m.longest<1)))
+     throw Error(JSON.stringify({attackAt,fighterAt,second:gameSec,motion:tracks.map(t=>t.motion)}));
+   }
+  }
+  return shots.has('attack')&&shots.has('fighter');
  `);
  return rows;
 }

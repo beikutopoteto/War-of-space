@@ -18,7 +18,8 @@ window.WOS_GROUND_RULES = {
     // 仮。広域支援機への迎撃と、投下進入外での回避。
     intercept:{heightBandKm:1.5,belowKm:.45,rearKm:3,sideKm:.65,evadeAngleDeg:30,evadeLegKm:7},
     air:{minHeightKm:1.5,maxHeightKm:6,heightAdvantageKm:1.3,diveSec:.48,exitKm:6,tailSec:.75,tailAngleDeg:24,peelDeg:45,leadSec:1.2,
-      attack:{maxHeightKm:3},
+      // 戦闘機との交戦では攻撃機が低く直進し、戦闘機も通過後に間隔を開ける（仮）。
+      attack:{maxHeightKm:3,escapeHeightKm:1.1,fighterExitKm:14,breakAwayKm:3,passTurnDeg:30},
       fighter:{maxPitchDeg:42,pitchRateDeg:145,diveSec:.62,exitKm:3.5,climbLookAheadSec:.2,divePitchBiasDeg:12,passDiveSec:.22}} // 戦闘機の一撃離脱は仮。
   },
   // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
@@ -35,9 +36,9 @@ window.WOS_GROUND_RULES = {
     // 航空機との交戦機動（仮）。距離・高さは km、時間はゲーム秒。
     aircraft:{
       threatWidthKm:.9,threatLeadSec:.55,wingDelaySec:.10,pairDelaySec:.32,lingerSec:4,
-      cruise:{minHeightKm:.02,maxHeightKm:.25,noticeHeightKm:3.5,periodSec:[2.0,2.7],swayKm:.095,
-        jump:{riseSec:.44,riseKm:[.16,.23],fallSec:.88,pitchDeg:16},
-        slide:{distanceKm:[.12,.19],durationSec:.32,rejoinSec:.70}},
+      cruise:{minHeightKm:.02,maxHeightKm:.25,noticeHeightKm:3.5,noticeKm:8,
+        jump:{delaySec:[.04,.52],riseSec:.36,riseKm:[.07,.19],fallSec:.62,pitchDeg:9},
+        slide:{distanceKm:[.30,.60],durationSec:.44,holdSec:.24,rejoinSec:1.7,staggerSec:.14,spreadDeg:18}},
       low:{noticeHeightKm:2.5,standOffKm:.32,swayKm:.14,heightKm:.12,periodSec:[3.1,4.3],
         slide:{distanceKm:[.56,.70],durationSec:.34,rejoinSec:.85}}
     },
