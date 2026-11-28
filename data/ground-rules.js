@@ -2,6 +2,14 @@
 window.WOS_GROUND_RULES = {
   clock: { minutesPerSecond:1 }, // 地上戦はゲームの1秒で作戦の時計が1分進む（#509）
   bands: { heights: { ground:0, low:12.288, high:40 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 戦闘単位。高高度10 kmはユーザー決定 2026-11-28。
+  // 撃破後の描画専用（ユーザー 2026-11-28）。秒数・個数・確率は仮。
+  wreckVisuals:{
+    limit:10,detailPixels:5,farSmokePuffs:4,
+    walkingWas:{lifeSec:5,collapseSec:1,fadeSec:1.5},
+    vehicle:{lifeSec:14,fadeSec:3,turretChance:.3,turretFlightSec:1},
+    aircraft:{durationSec:[1.8,3],smokePuffs:16,smokeSec:2.4,impactSize:.74,fragments:[2,3]},
+    support:{durationSec:[5,7],smokePuffs:22,smokeSec:4.4,impactSize:1.65,fragments:[1,2]}
+  },
   // 距離は km、時間はゲーム秒。重力は 9.8 m/s² を 1ゲーム秒＝60秒で換算。
   airCombat: {
     cruiseKmSec:{fighter:10.5,attack:7.5,supportAircraft:1.25}, minSpeedFactor:.6, maxSpeedFactor:1.22, speedVariation:.045,

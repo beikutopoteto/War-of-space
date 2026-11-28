@@ -87,11 +87,11 @@ const GFX=(()=>{
       if(spark) spark(t); return t<.9; }};
   }
   /* 空中の破裂（対空砲）: 光、火花、黒い煙のかたまり */
-  function airBurst(s){
-    const group=new THREE.Group(), fl=glow(0xfff0c8,group), balls=[...Array(5)].map((_,i)=>({m:mesh(geo().puff2,mat(0x2c2c30,.8),group),d:new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(i?.55:0),k:i?.5+rnd()*.3:.8})), spark=sparks(group,6,s*4,s*1.5,s*5,s*.7);
-    return {group,update(t){ fl.visible=t<.1; fl.scale.setScalar(s*(3+t*14)); fl.material.opacity=Math.max(0,1-t/.1);
-      for(const b of balls){ const e=ease(t/.45); b.m.position.copy(b.d).multiplyScalar(s*e); b.m.scale.setScalar(s*b.k*(.4+e*.8)); b.m.rotation.y=t; b.m.material.opacity=.8*Math.max(0,1-t/1.5); }
-      spark(t); return t<1.5; }};
+  function airBurst(s,{detail=true,fireballSec=.1}={}){
+    const group=new THREE.Group(), fl=glow(0xfff0c8,group), balls=[...Array(detail?5:2)].map((_,i)=>({m:mesh(geo().puff2,mat(0x2c2c30,.8),group),d:new THREE.Vector3(rnd()-.5,rnd()-.5,rnd()-.5).normalize().multiplyScalar(i?.55:0),k:i?.5+rnd()*.3:.8})), spark=detail?sparks(group,6,s*4,s*1.5,s*5,s*.7):null;
+    return {group,update(t){ fl.visible=t<fireballSec; fl.scale.setScalar(s*(3+t*14)); fl.material.opacity=Math.max(0,1-t/fireballSec);
+      for(const b of balls){ const e=ease(t/.45); b.m.visible=t<1.5; b.m.position.copy(b.d).multiplyScalar(s*e); b.m.scale.setScalar(s*b.k*(.4+e*.8)); b.m.rotation.y=t; b.m.material.opacity=.8*Math.max(0,1-t/1.5); }
+      spark?.(t); return t<1.5; }};
   }
   /* 砲口の光: 前へ伸びる炎（外と芯）、横へ吹く短い炎（side: 砲口制退器のある大きな砲）、丸い光、前へ飛ぶ火花、あとに砲煙。
      s: 大きさ。group を砲口に置き、+Z を撃つ向きに向ける。smokeK: 砲煙の量 */
@@ -168,21 +168,41 @@ const GFX=(()=>{
       g.scale.setScalar(s*(.9+power*.8)*f); g.material.opacity=Math.min(.9,.55+(length-1)*.2); return true; }};
   }
   // 落下の軌道をたどる煙。粒の数は固定し、落ちた後も最後の煙だけ少し残す。
-  function wreckTrail(size,path,dur,{smokePuffs,smokeSec}){
+  function wreckBurn(size,detail){
+    const group=new THREE.Group(),fire=glow(0xff8240,group);
+    const flame=detail?mesh(geo().cross,mat(0xffa248,.85,true,tex().flame),group):null;
+    const sm=smoke(size*.52,{n:detail?4:1,life:3,rise:4,color:0x343336,loop:true,drift:[.25,.1]});
+    if(flame){flame.rotation.x=-Math.PI/2;flame.position.y=size*.15;}
+    group.add(sm.group);
+    return {group,update(t,opacity){
+      fire.position.y=size*.35;
+      fire.scale.setScalar(size*(.75+.15*Math.sin(t*15)));
+      fire.material.opacity=opacity*(.68+.12*Math.sin(t*37));
+      if(flame){
+        flame.scale.set(size*.48,size*.48,size*(.9+.18*Math.sin(t*15)));
+        flame.material.opacity=opacity*.85;
+      }
+      sm.update(t);
+      for(const puff of sm.group.children)puff.material.opacity*=opacity;
+    }};
+  }
+  function wreckTrail(size,path,dur,{smokePuffs,smokeSec,smokeSize=size}){
     const group=new THREE.Group(),X=tex();
     const flame=mesh(geo().cross,mat(0xffaa52,1,true,X.flame),group);
     const light=glow(0xff9a43,group),point=new THREE.Vector3(),tail=new THREE.Vector3();
     const puffs=Array.from({length:smokePuffs},()=>({
       sprite:new THREE.Sprite(new THREE.SpriteMaterial({map:X.smoke,color:0x3c3532,transparent:true,depthWrite:false,toneMapped:false})),
-      turn:rnd()*Math.PI*2
+      turn:rnd()*Math.PI*2,origin:new THREE.Vector3(),emitted:-1
     }));
     for(const {sprite} of puffs)group.add(sprite);
     const interval=smokeSec/smokePuffs;
     return {group,update(t){
       light.visible=flame.visible=t<dur;
       if(flame.visible){
-        path(t,point);path(Math.max(0,t-.12),tail);
-        tail.y+=size*.5;
+        path(t,point);
+        if(t>=.02)path(Math.max(0,t-.12),tail);
+        else path(Math.min(dur,t+.02),tail).sub(point).negate().add(point);
+        if(point.distanceToSquared(tail)<1e-8)tail.y+=size*.5;
         flame.position.copy(point);
         flame.lookAt(group.localToWorld(tail));
         flame.scale.set(size*.75,size*.75,size*(1.6+.35*Math.sin(t*67)));
@@ -190,14 +210,15 @@ const GFX=(()=>{
       }
       const newest=Math.floor(Math.min(t,dur)/interval);
       for(let i=0;i<puffs.length;i++){
-        const {sprite,turn}=puffs[i],at=(newest-i)*interval,age=(t-at)/smokeSec;
+        const puff=puffs[i],{sprite,turn,origin}=puff,at=(newest-i)*interval,age=(t-at)/smokeSec;
         sprite.visible=at>=0&&age<1;
         if(!sprite.visible)continue;
-        path(at,sprite.position);
+        if(at!==puff.emitted){path(at,origin);puff.emitted=at;}
+        sprite.position.copy(origin);
         sprite.position.x+=Math.cos(turn)*size*.6*age;
         sprite.position.z+=Math.sin(turn)*size*.6*age;
         sprite.position.y+=size*(.25+age);
-        sprite.scale.setScalar(size*(1+2*age));
+        sprite.scale.setScalar(smokeSize*(1+2*age));
         sprite.material.opacity=.88*(1-age);
         sprite.material.rotation=turn+age;
       }
@@ -209,5 +230,5 @@ const GFX=(()=>{
   // #504・#525 の見本の値（仮）。1回の連射0.8秒・16発（0.05秒間隔）で射撃間隔1秒に収める。損害は地上戦の規則が持つ。
   const gatling={rounds:16,burst:.8,tracer:.03,fly:.14,flash:.09,flashLife:.06,flashMin:.8,flashMax:1.2,
     spread:.18,spreadHeightBias:.3,hit:.12,hitEvery:2,hitLife:.5};
-  return {smoke,blast,hit,airBurst,muzzle,shot,plume,wreckTrail,tank,gatling,rocketSmokeSec:4.6,visualRandom:rnd};
+  return {smoke,blast,hit,airBurst,muzzle,shot,plume,wreckBurn,wreckTrail,tank,gatling,rocketSmokeSec:4.6,visualRandom:rnd};
 })();

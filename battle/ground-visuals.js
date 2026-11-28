@@ -1,18 +1,22 @@
 /* Ground-battle presentation. Positions here are in groundVisuals coordinates.
    A shot records only drawing state. The simulation still owns firing, flight, hits and movement. */
-const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,rocket:24,stray:8,wreck:6,plumes:64}; // 同時表示数は仮。噴射口は1個中隊16機×最大4。
+const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,rocket:24,stray:8,plumes:64}; // 同時表示数は仮。噴射口は1個中隊16機×最大4。
 const GROUND_BODY_LIFT=.15; // 地上の体と空中の W.A.S. を描くときの持ち上げ幅
 const groundFxQueues={direct:[],flight:[],blast:[],rocket:[],stray:[],wreck:[]},groundFxPlumes=[],groundGatlingBursts=[];
 const groundFxUp=new THREE.Vector3(0,1,0),groundFxForward=new THREE.Vector3(0,0,1);
 const groundWasDrawVelocity=new THREE.Vector3(),groundWasDrawAccel=new THREE.Vector3();
 const groundWasPlumePoint=new THREE.Vector3(),groundWasPlumeDirection=new THREE.Vector3();
+const groundWreckVehicles=new Set(['vehicle','artillery','guidedRocket','mobileAA','apc','scout','engineer','supply']);
+let groundWreckKneel=null,groundWreckShard=null;
 let groundFxPlumesUsed=0;
 
 function groundFxRelease(fx){
   if(!fx)return;
   fx.group.parent?.remove(fx.group);
   // GFX owns and shares the textures and geometry. Each effect owns its materials.
-  fx.group.traverse(o=>o.material?.dispose());
+  const materials=new Set();
+  fx.group.traverse(o=>{if(o.material)materials.add(o.material);});
+  for(const material of materials)material.dispose();
 }
 function groundFxReset(){
   for(const queue of Object.values(groundFxQueues)){for(const e of queue)groundFxRelease(e.fx);queue.length=0;}
@@ -20,11 +24,15 @@ function groundFxReset(){
   groundFxPlumes.length=0;
   groundGatlingBursts.length=0;
   groundFxPlumesUsed=0;
+  groundWreckKneel?.dispose();groundWreckKneel=null;
+  groundWreckShard?.dispose();groundWreckShard=null;
 }
+function groundFxLimit(type){return type==='wreck'?groundRuleSet().wreckVisuals.limit:GROUND_FX_LIMIT[type];}
 function groundFxAdd(type,start,life,create,options={}){
   if(!groundVisuals)return;
-  const queue=groundFxQueues[type];
-  if(queue.length===GROUND_FX_LIMIT[type])groundFxRelease(queue.shift().fx);
+  const queue=groundFxQueues[type],limit=groundFxLimit(type);
+  if(limit<=0)return;
+  while(queue.length>=limit)groundFxRelease(queue.shift().fx);
   queue.push({start,life,create,fx:null,...options});
 }
 function groundFxDraw(now){
@@ -433,53 +441,251 @@ function groundVisualBlast(s){
   if(!groundVisuals||s.team!==0&&!groundPointSeenBy(0,s.impact))return;
   groundVisualDust(s.impact,s.radius,gameSec,s.kind==='vehicle'?GFX.tank.impactSmoke:1);
 }
-function groundVisualLoss(f,at,i){
+function groundVisualLoss(f,at,i,showLoss=true){
   if(!groundVisuals||!groundFxSeen(f))return;
-  const data=f.groundModel?.userData,body=data?.formation?.bodies[i],flight=f.groundWasFlight?.bodies[i];
-  if(f.groundKind==='was'&&['cruise','low'].includes(f.band)&&body&&flight){
+  const data=f.groundModel?.userData,body=data?.formation?.bodies[i];
+  const was=body&&f.groundKind==='was',aircraft=body&&groundAirSquad(f);
+  const vehicle=body&&groundWreckVehicles.has(f.groundKind);
+  if(!was&&!aircraft&&!vehicle&&!showLoss)return;
+  const positions=i===undefined?null:groundBodyPositions(f);
+  at??=groundVisualBodyPoint(f,i,positions.positions[i]||positions.positions[0]);
+  const yaw=positions?.yaws?.[i]??Math.atan2(f.heading?.x??0,f.heading?.z??1);
+  // 飛んでいる W.A.S. の各機の飛行の記録がないとき（テストの置き方など）は、地上の崩れ落ちる演出にする
+  if(was&&positions?.flight?.bodies?.[i]){
     const {wreck,low}=groundRuleSet().wasCombat.dogfight;
-    const config=f.band==='low'?{...wreck,...low.wreck}:wreck;
-    groundVisualWasWreck(at,data.special?.get('wasFly')||body.geometry,body.material,body.scale,flight,config,body.userData.wasThrust);
+    const config=['low','high'].includes(f.band)?{...wreck,...low.wreck}:wreck;
+    groundVisualWasWreck(at,body,data.special?.get('wasFly'),positions.flight.bodies[i],config);
+    return;
+  }
+  if(aircraft&&positions?.air?.bodies?.[i]){
+    groundVisualAircraftWreck(at,body,positions.air.bodies[i],f.groundKind==='supportAircraft');
+    return;
+  }
+  if(was||vehicle){
+    const movingPose=data.pose?.move[i]?.find(pose=>pose.visible);
+    groundVisualLandWreck(at,movingPose||body,yaw,!!was);
     return;
   }
   const inAir=['low','high'].includes(f.band);
   groundFxAdd('direct',gameSec,inAir?1.5:.9,()=>groundFxPlace(inAir?GFX.airBurst(.55):GFX.hit(.28),at));
 }
-function groundVisualWasWreck(at,geometry,material,scale,flight,config,thrust){
+
+function groundWreckQueue(life,create){
+  const start=gameSec;
+  let endedAt,ageAtEnd;
+  groundFxAdd('wreck',start,life,create,{elapsed:()=>{
+    // 作戦が終わって時計が止まっても、落下と残骸の消失は最後まで描く。
+    if(!over)return gameSec-start;
+    if(endedAt===undefined){endedAt=performance.now();ageAtEnd=gameSec-start;}
+    return ageAtEnd+(performance.now()-endedAt)/1000;
+  }});
+}
+function groundWreckDetail(at,size){
+  return groundFxDetail(at,size,groundRuleSet().wreckVisuals.detailPixels);
+}
+function groundWreckMaterial(source){
+  const material=source.clone();
+  material.color.setHex(0x393534);
+  material.emissive.setHex(0x000000);
+  material.opacity=1;
+  material.transparent=true;
+  return material;
+}
+function groundVisualLandWreck(at,body,yaw,was){
+  const rules=groundRuleSet().wreckVisuals,config=was?rules.walkingWas:rules.vehicle,rnd=GFX.visualRandom;
+  const {geometry,material:source}=body,scale=body.scale.clone(),size=scale.x;
+  const aim=body.userData.aimParts,rig=aim?.rig;
+  const aimYaw=aim?.parts?.parent?aim.yaw:0,aimEl=aim?.parts?.parent?aim.el:0;
+  const heading=yaw+(!rig?.hasTurret?(aim?.parts?.rotation.y??0):0);
+  const launch=rig?.hasTurret&&rnd()<config.turretChance;
+  const side=rnd()<.5?-1:1,forward=rnd()<.5;
+  const floor=groundSurfaceHeight(at.x,at.z)+.025;
+  groundWreckQueue(config.lifeSec,()=>{
+    const detail=groundWreckDetail(at,size*1.6);
+    const detach=launch&&detail;
+    const material=groundWreckMaterial(source),group=new THREE.Group();
+    const wreck=new THREE.Mesh(geometry,material);
+    wreck.position.copy(at);
+    wreck.rotation.set(0,heading,0,'YXZ');
+    wreck.scale.copy(scale);group.add(wreck);
+    let turret,turretAt,turretLand,kneel,kneeBounds;
+    if(was){
+      kneel=groundWreckKneel??=groundShapeGeo('wasKneel');
+      if(!kneel.boundingBox)kneel.computeBoundingBox();
+      kneeBounds=kneel.boundingBox;
+    }else if(rig&&(detach||aimYaw||aimEl)){
+      // 現在の向き・仰角のまま車体を残し、吹き飛ぶときだけ砲塔を外す。
+      const parts=groundVisualRigParts(wreck,rig);
+      wreck.geometry=rig.hull;
+      turret=parts.turret;turretAt=turret.position.clone();
+      turret.rotation.y=rig.hasTurret?aimYaw:0;
+      parts.gun.rotation.x=-aimEl;
+      wreck.add(turret);
+      if(detach){
+        turretLand=turretAt.clone().add(new THREE.Vector3(side*1.7,0,-.55));
+        turret.position.copy(turretLand);
+        turret.rotation.set(0,aimYaw+side*2.2,side*.65);
+        wreck.updateWorldMatrix(true,false);
+        const foot=new THREE.Box3().setFromObject(turret).min.y;
+        const world=wreck.localToWorld(turretLand.clone());
+        turretLand.y+=(groundSurfaceHeight(world.x,world.z)+.03-foot)/scale.y;
+      }
+    }
+    const flash=groundFxPlace(was?GFX.hit(size*.72,{detail}):GFX.airBurst(size*1.65,{detail,fireballSec:.24}),at);
+    const burn=groundFxPlace(GFX.wreckBurn(size*(was?.8:1.2),detail),at);
+    group.add(flash.group,burn.group);
+    return {group,update(t){
+      const opacity=THREE.MathUtils.clamp((config.lifeSec-t)/config.fadeSec,0,1);
+      material.opacity=opacity;
+      if(was){
+        const u=Math.min(1,t/config.collapseSec);
+        const drop=THREE.MathUtils.smoothstep(u,0,.45);
+        const tilt=THREE.MathUtils.smoothstep(u,.26,1)*(forward?1.36:1.46);
+        wreck.geometry=drop>.56?kneel:geometry;
+        if(forward)wreck.rotation.x=tilt;
+        else wreck.rotation.z=side*tilt;
+        const edge=forward?kneeBounds.max.z:side>0?-kneeBounds.min.x:kneeBounds.max.x;
+        const contact=floor+size*(edge*Math.sin(tilt)-kneeBounds.min.y*Math.cos(tilt));
+        wreck.position.y=THREE.MathUtils.lerp(at.y,contact,drop);
+        burn.group.position.y=wreck.position.y+size*.36*Math.cos(tilt);
+      }else if(detach){
+        const u=Math.min(1,t/config.turretFlightSec);
+        turret.position.copy(turretAt).lerp(turretLand,u);
+        turret.position.y+=4.8*u*(1-u);
+        turret.rotation.set(Math.sin(Math.PI*u)*1.45,aimYaw+side*u*2.2,side*(.65*u+Math.sin(Math.PI*u)));
+      }
+      flash.group.visible=t<(was?.9:1.5);
+      if(flash.group.visible)flash.update(t);
+      burn.update(t,opacity);
+      return true;
+    }};
+  });
+}
+function groundVisualWasWreck(at,body,geometry,flight,config){
   const rnd=GFX.visualRandom;
   const {lerp,clamp}=THREE.MathUtils,duration=lerp(...config.durationSec,rnd());
+  const thrust=body.userData.wasThrust;
   const spin=(rnd()<.5?-1:1),initial={yaw:flight.yaw,pitch:thrust?.pitch??0,bank:thrust?.bank??0};
   const drift=flight.vel.clone().setY(0).multiplyScalar(duration*.55);
   drift.clampLength(.045*GROUND_SCALE,config.driftKm*GROUND_SCALE);
   if(!drift.lengthSq())drift.set(Math.sin(initial.yaw),0,Math.cos(initial.yaw)).multiplyScalar(.045*GROUND_SCALE);
-  const height=at.y-groundSurfaceHeight(at.x,at.z);
+  const height=Math.max(0,at.y-groundSurfaceHeight(at.x,at.z));
   const path=(t,out)=>{
     const u=clamp(t/duration,0,1);
     out.copy(at).addScaledVector(drift,u*(2-u));
     out.y=groundSurfaceHeight(out.x,out.z)+height*(1-u**1.8);
     return out;
   };
-  const size=scale.clone(),start=gameSec;
-  let finishedAt;
-  groundFxAdd('wreck',start,duration+config.smokeSec,()=>{
-    const group=new THREE.Group(),wreck=new THREE.Mesh(geometry,material.clone());
-    wreck.scale.copy(size);
-    const trail=GFX.wreckTrail(Math.max(.36,size.x*1.15),path,duration,config);
-    const impact=groundFxPlace(GFX.hit(config.impactSize),path(duration,new THREE.Vector3()).add(new THREE.Vector3(0,.035,0)));
+  const pose=(t,out)=>{
+    const u=t/duration;
+    return out.set(initial.pitch+u*1.25,initial.yaw+spin*u*.9,initial.bank+spin*u*2.6,'YXZ');
+  };
+  groundVisualAirWreck(body,geometry||body.geometry,config,{path,duration,pose});
+}
+function groundVisualAircraftWreck(at,body,flight,support){
+  const rules=groundRuleSet().wreckVisuals,config=support?rules.support:rules.aircraft,rnd=GFX.visualRandom;
+  const nominal=THREE.MathUtils.lerp(...config.durationSec,rnd()),spin=rnd()<.5?-1:1;
+  const roll=support?1.05:rnd()<.5?4.4:.75;
+  const velocity=flight.velocity.clone();
+  if(!velocity.lengthSq()){
+    const speed=flight.speed*Math.cos(flight.pitch);
+    velocity.set(Math.sin(flight.yaw)*speed,flight.speed*Math.sin(flight.pitch),Math.cos(flight.yaw)*speed);
+  }
+  // Derive a visual fall from the impact-time velocity, then find its first contact with the terrain.
+  const height=Math.max(.05,at.y-groundSurfaceHeight(at.x,at.z));
+  const gravity=2*(height+Math.max(0,velocity.y)*nominal)/nominal**2;
+  const {halfWidthWorld,halfHeightWorld}=groundDimensions();
+  const edgeTime=Math.max(.025,Math.min(
+    velocity.x?(halfWidthWorld-Math.sign(velocity.x)*at.x)/Math.abs(velocity.x):Infinity,
+    velocity.z?(halfHeightWorld-Math.sign(velocity.z)*at.z)/Math.abs(velocity.z):Infinity));
+  const path=(t,out)=>{
+    // Preserve the initial speed and slow the wreck near a map edge so it can land on the map.
+    const driftTime=edgeTime<nominal*2?edgeTime*Math.tanh(t/edgeTime):t;
+    out.set(at.x+velocity.x*driftTime,at.y+velocity.y*t-gravity*t*t*.5,at.z+velocity.z*driftTime);
+    return out;
+  };
+  const point=new THREE.Vector3(),clearance=t=>{
+    path(t,point);
+    return point.y-groundSurfaceHeight(point.x,point.z);
+  };
+  const max=nominal*1.5,checks=30;
+  let before=0,duration=max;
+  for(let i=1;i<=checks;i++){
+    const t=max*i/checks;
+    if(clearance(t)>0){before=t;continue;}
+    duration=t;
+    for(let j=0;j<6;j++){
+      const middle=(before+duration)/2;
+      if(clearance(middle)>0)before=middle;
+      else duration=middle;
+    }
+    break;
+  }
+  const {pitch,yaw,bank}=flight;
+  const pose=(t,out)=>{
+    const u=t/duration;
+    return out.set(-pitch+(support?.48:1.07)*u,yaw,bank+spin*roll*u,'YXZ');
+  };
+  const geometry=body.geometry;
+  let wing;
+  if(support){
+    if(!geometry.boundingBox)geometry.computeBoundingBox();
+    const bounds=geometry.boundingBox;
+    wing=new THREE.Vector3(spin*(bounds.max.x-bounds.min.x)*.3,0,0).multiply(body.scale);
+  }
+  const smokeSize=Math.max(body.scale.x,velocity.length()*config.smokeSec/config.smokePuffs*.5);
+  groundVisualAirWreck(body,geometry,{...config,smokeSize},{path,duration,pose,wing});
+}
+function groundVisualAirWreck(body,geometry,config,{path,duration,pose,wing}){
+  const {material:source}=body,scale=body.scale.clone(),point=new THREE.Vector3(),angle=new THREE.Euler();
+  const at=path(0,new THREE.Vector3()),landing=path(duration,new THREE.Vector3());
+  landing.y=groundSurfaceHeight(landing.x,landing.z)+.035;
+  const trailPath=wing?(t,out)=>path(t,out).add(point.copy(wing).applyEuler(pose(t,angle))):path;
+  groundWreckQueue(duration+config.smokeSec,()=>{
+    const size=Math.max(.36,scale.x*1.15),detail=groundWreckDetail(at,wing?wing.length():size);
+    const smokePuffs=detail?config.smokePuffs:groundRuleSet().wreckVisuals.farSmokePuffs;
+    const group=new THREE.Group(),wreck=new THREE.Mesh(geometry,source.clone());
+    wreck.scale.copy(scale);
+    const trail=GFX.wreckTrail(size,trailPath,duration,{...config,smokePuffs});
+    const impact=groundFxPlace(config.fragments?GFX.airBurst(config.impactSize,{detail,fireballSec:.22}):
+      GFX.hit(config.impactSize,{detail}),landing);
     group.add(wreck,trail.group,impact.group);
+    const fragments=detail&&config.fragments?groundWreckFragments(group,config.fragments,scale.x,duration,landing,trailPath,!!wing):null;
     return {group,update(t){
-      const u=Math.min(1,t/duration);
       wreck.visible=t<duration;impact.group.visible=!wreck.visible;
       if(wreck.visible){
         path(t,wreck.position);
-        wreck.rotation.set(initial.pitch+u*1.25,initial.yaw+spin*u*.9,initial.bank+spin*u*2.6,'YXZ');
-      }else impact.update(t-duration);
+        pose(t,wreck.rotation);
+      }else impact.group.visible=impact.update(t-duration);
       trail.update(t);
+      fragments?.(t);
       return true;
     }};
-  },{elapsed:()=>{
-    // 最後の機体でも、戦闘終了で作戦時計が止まった後に地面まで落ちる。
-    if(over&&finishedAt===undefined)finishedAt=performance.now();
-    return gameSec-start+(finishedAt===undefined?0:(performance.now()-finishedAt)/1000);
-  }});
+  });
+}
+function groundWreckFragments(group,count,size,duration,landing,path,inFlight){
+  const rnd=GFX.visualRandom,geometry=groundWreckShard??=new THREE.TetrahedronGeometry(1);
+  const n=count[0]+Math.floor(rnd()*(count[1]-count[0]+1)),fragments=[];
+  const material=new THREE.MeshStandardMaterial({color:0x393535,roughness:.85});
+  for(let i=0;i<n;i++){
+    const start=inFlight?duration*(.3+.28*i):duration;
+    const origin=inFlight?path(start,new THREE.Vector3()):landing;
+    const a=rnd()*Math.PI*2,velocity=new THREE.Vector3(Math.cos(a),0,Math.sin(a)).multiplyScalar(size*3);
+    if(inFlight)velocity.add(path(start+.05,new THREE.Vector3()).sub(origin).multiplyScalar(14));
+    else velocity.y=size*(1.8+rnd());
+    const shard=new THREE.Mesh(geometry,material);
+    shard.scale.set(size*.24,size*.08,size*.16);group.add(shard);
+    fragments.push({shard,origin,start,velocity});
+  }
+  return t=>{
+    for(const {shard,origin,start,velocity} of fragments){
+      const age=t-start;
+      shard.visible=age>=0&&age<(inFlight?2.3:1.2);
+      if(!shard.visible)continue;
+      shard.position.copy(origin).addScaledVector(velocity,age);
+      shard.position.y-=size*4*age*age;
+      shard.visible=shard.position.y>=groundSurfaceHeight(shard.position.x,shard.position.z);
+      shard.rotation.set(age*4,age*3,age*5);
+    }
+  };
 }

@@ -2065,10 +2065,7 @@ function groundBodyHit(f,body,amt,showLoss=true){
   body.hp=Math.max(0,body.hp-amt);
   if(body.hp===0){
     body.alive=false;
-    if(showLoss||f.groundKind==='was'&&['cruise','low'].includes(f.band)){
-      const i=f.bodies.indexOf(body),at=groundVisualBodyPoint(f,i,groundBodyPosition(f,i));
-      groundVisualLoss(f,at,i);
-    }
+    groundVisualLoss(f,null,f.bodies.indexOf(body),showLoss);
   }
   groundBodySync(f);
   if(!body.alive)groundMoraleBodyLoss(f);

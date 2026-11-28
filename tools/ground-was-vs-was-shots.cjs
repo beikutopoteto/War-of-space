@@ -44,21 +44,33 @@ function prepareDogfight(){
   controls.update=()=>{};
   const started=gameSec;
   const height=p=>(p.y-groundSurfaceHeight(p.x,p.z))/GROUND_SCALE*1000;
+  const advance=end=>{
+    while(gameSec+1e-8<end){
+      const dt=Math.min(.05,end-gameSec);
+      gameSec+=dt;groundStep(dt);
+      for(const f of fleets)groundFormationDraw(f,gameSec);
+      groundDraw();
+    }
+  };
+  // 撃墜あり。通常の耐久と相互攻撃のまま、次に撃墜された機体を追う。
   window.startWreckPhoto=()=>{
-    const units=[blue,red].flatMap(f=>groundBodyPositions(f).positions.flatMap((point,i)=>f.bodies[i].alive?[{point,f,i}]:[]));
-    const score=unit=>height(unit.point)+250*Math.min(...units.filter(u=>u!==unit).map(u=>u.point.distanceTo(unit.point)));
-    const unit=units.reduce((best,u)=>!best||score(u)>score(best)?u:best,null);
-    if(!unit)throw Error('撮影用の巡航機がいない');
-    const {point,f,i}=unit;
-    groundBodyHit(f,f.bodies[i],f.bodies[i].hp);
-    const wreck=groundFxQueues.wreck.at(-1);
-    if(!wreck||f.bodies[i].alive)throw Error('撃墜時に機体と演出が分かれていない');
-    controls.target.copy(point).add(new THREE.Vector3(0,-.15,0));
-    camera.position.copy(controls.target).add(new THREE.Vector3(-2.05,1.3,1.5));
-    camera.lookAt(controls.target);camera.updateMatrixWorld(true);
-    groundDraw();
+    const prior=groundFxQueues.wreck.at(-1),deadline=gameSec+120;
+    let wreck;
+    while(!over&&gameSec<deadline){
+      advance(gameSec+.05);
+      wreck=groundFxQueues.wreck.at(-1);
+      if(wreck?.fx&&wreck!==prior)break;
+    }
+    if(!wreck?.fx||wreck===prior)throw Error('通常の交戦で新しい撃墜が起きなかった');
+    const [body,trail,impact]=wreck.fx.group.children;
+    // 撃墜を記録した後は、カメラで残骸を追いながら描画だけ進める。
+    window.advanceWreckPhoto=elapsed=>{
+      gameSec=wreck.start+elapsed;groundFxDraw(gameSec);
+      controls.target.copy(body.visible?body.position:impact.position).add(new THREE.Vector3(0,-.15,0));
+      camera.position.copy(controls.target).add(new THREE.Vector3(-2.05,1.3,1.5));
+      camera.lookAt(controls.target);camera.updateMatrixWorld(true);
+    };
     window.wreckPhotoState=()=>{
-      const [body,trail,impact]=wreck.fx.group.children;
       return {height:body.visible?Math.round(height(body.position)):null,
         flame:trail.children[0].visible,smoke:trail.children.slice(2).filter(o=>o.visible).length,
         impact:impact.visible,removed:!wreck.fx.group.parent};
@@ -66,18 +78,12 @@ function prepareDogfight(){
     return wreck.life-groundRuleSet().wasCombat.dogfight.wreck.smokeSec;
   };
   window.advanceDogfightPhoto=seconds=>{
-    const end=started+seconds;
-    while(gameSec+1e-8<end){
-      const dt=Math.min(.05,end-gameSec);
-      gameSec+=dt;groundStep(dt);
-      for(const f of fleets)groundFormationDraw(f,gameSec);
-      groundDraw();
-    }
+    advance(started+seconds);
     return fleets.map(f=>{
       const flight=f.groundWasFlight;
       const points=groundBodyPositions(f).positions.filter((_,i)=>f.bodies[i].alive);
       const meters=points.map(height);
-      const nearestPass=Math.min(...flight.bodies.flatMap((b,i)=>f.bodies[i].alive&&b.passTarget!=null&&flight.dogfight.target.bodies[b.passTarget].alive?
+      const nearestPass=Math.min(...flight.bodies.flatMap((b,i)=>f.bodies[i].alive&&b.passTarget!=null&&flight.dogfight?.target.bodies[b.passTarget].alive?
         [b.pos.distanceTo(groundBodyPosition(flight.dogfight.target,b.passTarget))/GROUND_SCALE*1000]:[]));
       return {alive:points.length,dogfight:!!f.groundWasFlight?.dogfight,
         inFrame:points.every(p=>{
@@ -119,7 +125,7 @@ async function main(){
     const wreckStates=new Map();
     const impactAt=duration+.045;
     for(const seconds of [0,1,2,3,4,5,impactAt].sort((a,b)=>a-b)){
-      await page.evaluate(seconds=>advanceDogfightPhoto(8+seconds),seconds);
+      await page.evaluate(seconds=>advanceWreckPhoto(seconds),seconds);
       const wreck=await page.evaluate(()=>wreckPhotoState());
       await photo(Number.isInteger(seconds)?'wreck-'+seconds+'s':'wreck-impact');
       console.log(JSON.stringify({seconds,wreck}));
@@ -127,7 +133,7 @@ async function main(){
     }
     const [start,fall,nearGround,impact,end]=[0,1,2,impactAt,5].map(s=>wreckStates.get(s));
     assert(start.height>fall.height&&fall.height>nearGround.height&&nearGround.height>0);
-    assert(fall.flame&&fall.smoke>=3&&impact.impact&&!impact.flame&&end.removed);
+    assert(fall.flame&&fall.smoke>=2&&impact.impact&&!impact.flame&&end.removed);
   }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

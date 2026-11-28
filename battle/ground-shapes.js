@@ -356,6 +356,7 @@ const WAS_POSE=(()=>{
     wasMarch1:march([.22,.13,.24],[-.22,.17,-.2],-.03,1), wasMarch2:march([.22,.13,.03],[-.21,.27,.02],0,.3),
     wasMarch3:march([.22,.17,-.2],[-.22,.13,.24],-.03,-1), wasMarch4:march([.21,.27,.02],[-.22,.13,.03],0,-.3),
     wasFire:{hy:-.13,lean:.36,ank:[[.28,.13,.22],[-.28,.13,-.26]],foot:[0,.12], ...G, ...REST},
+    wasKneel:{hy:-.37,lean:.54,ank:[[.23,.13,.28],[-.21,.14,-.32]],foot:[0,.8],wrL:[.06,-.29,.23]},
     wasFly:{lean:.22,lean0:.05,ank:[[.2,.1,-.14],[-.2,.1,-.14]],foot:[.75,.75], wrL:[.03,-.24,.22]},
     wasFlyFire:{lean:.3,lean0:.08,ank:[[.4,.26,-.04],[-.4,.26,-.04]],foot:[.45,.45],thr:-.8, ...G, ...REST},
     wasFlyMove:{...flyMove, ...G}, wasFlyMarch:flyMove,

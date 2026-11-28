@@ -110,7 +110,7 @@ async function checkGroundVisuals(page,check){
       for(const [type,queue] of Object.entries(groundFxQueues)){
         const make=()=>({group:new THREE.Group(),update:()=>true});
         groundFxAdd(type,gameSec,10,make);groundFxDraw(gameSec);
-        const oldest=queue.at(-1).fx.group,limit=GROUND_FX_LIMIT[type];
+        const oldest=queue.at(-1).fx.group,limit=groundFxLimit(type);
         for(let i=0;i<limit+3;i++)groundFxAdd(type,gameSec,10,make);
         record(type+' の上限で古い効果を取り外す',queue.length===limit&&!oldest.parent);
       }
@@ -189,7 +189,12 @@ async function checkGroundVisuals(page,check){
 }
 function nodeChecks(){
   const {createGroundContext}=require('./ground-landing.cjs');
-  const {run}=createGroundContext();
+  const {ctx,run}=createGroundContext();
+  const createElement=ctx.document.createElement;
+  const gradient=()=>({addColorStop(){}});
+  ctx.document.createElement=tag=>tag==='canvas'?{getContext:()=>({
+    translate(){},scale(){},fillRect(){},save(){},restore(){},createRadialGradient:gradient,createLinearGradient:gradient
+  })}:createElement(tag);
   return run(`(() => {
     const rows=[],record=(name,ok)=>rows.push({name,ok:!!ok});
     groundVisuals=new THREE.Group();
@@ -264,6 +269,104 @@ function nodeChecks(){
     groundWasPlume(body,6,config);
     record('16機分の背中と離着陸の両脚が最大64口に収まる',
       draws.length===64&&groundFxPlumesUsed===64&&draws.slice(32).every(d=>calfAt([d],1)>0||calfAt([d],-1)>0));
+
+    groundHeight=groundSightHeight=()=>0;
+    const spawn=(kind,band='ground')=>{
+      const unit=makeFleet(0,groundUnitSpec({kind,name:kind,at:[14,26],band,platoons:1}));
+      groundInitUnit(unit);
+      return unit;
+    };
+    const lose=(unit,showLoss=false)=>groundBodyHit(unit,unit.bodies[0],unit.bodies[0].hp,showLoss);
+    const resetWrecks=()=>{groundFxReset();gameSec=0;};
+    const drawWrecks=age=>{gameSec=age;groundFxDraw(age);};
+    const queue=groundFxQueues.wreck,rules=groundRuleSet().wreckVisuals;
+    const kinds=['was','vehicle','artillery','mobileAA','apc','guidedRocket','scout','engineer','supply','fighter','attack','supportAircraft'];
+    record('通常の個体撃破で兵科別の残骸が出る。着弾演出のある撃破でも出る',kinds.every(kind=>{
+      resetWrecks();
+      const unit=spawn(kind,kind==='fighter'||kind==='supportAircraft'?'high':kind==='attack'?'low':'ground');
+      const otherHp=unit.bodies.slice(1).map(b=>b.hp);
+      lose(unit);drawWrecks(0);
+      return queue.length===1&&queue[0].fx.group.parent===groundVisuals&&!unit.bodies[0].alive&&
+        unit.bodies.slice(1).every((b,i)=>b.alive&&b.hp===otherHp[i])&&!groundFxQueues.direct.length;
+    }));
+    record('歩兵系は従来の光だけを出し、着弾済みの場合は光を重ねない',
+      ['infantry','heavyInfantry','commando','mechanicalAssault'].every(kind=>{
+        resetWrecks();lose(spawn(kind));if(groundFxQueues.direct.length||queue.length)return false;
+        lose(spawn(kind),true);return groundFxQueues.direct.length===1&&!queue.length;
+      }));
+    resetWrecks();
+    const walking=spawn('was'),source=walking.groundModel.userData.formation.bodies[0];
+    lose(walking);drawWrecks(0);
+    const walkingWreck=queue[0],fallen=walkingWreck.fx.group.children[0];
+    const startsStanding=fallen.geometry===source.geometry&&fallen.material!==source.material;
+    drawWrecks(rules.walkingWas.collapseSec);
+    const collapsed=fallen.geometry===groundWreckKneel&&Math.hypot(fallen.rotation.x,fallen.rotation.z)>1;
+    drawWrecks(rules.walkingWas.lifeSec-rules.walkingWas.fadeSec/2);
+    const faded=near(fallen.material.opacity,.5);
+    drawWrecks(rules.walkingWas.lifeSec);
+    record('歩行中の W.A.S. は膝をついて倒れ、残骸が薄れて消える',
+      startsStanding&&collapsed&&faded&&!walkingWreck.fx.group.parent);
+    record('W.A.S. は離陸中も着地前も飛行中と同じ残骸枠で落ちる',
+      [['ground','cruise'],['cruise','ground'],['low','ground']].every(([band,to])=>{
+        resetWrecks();const unit=spawn('was',band);
+        unit.bandTo=to;unit.bandLeft=groundBandSeconds(unit,to)/2;unit.pos.y=groundUnitHeight(unit);
+        lose(unit);drawWrecks(0);
+        const [,trail]=queue[0]?.fx.group.children??[];
+        return trail?.children[0].visible;
+      }));
+    resetWrecks();
+    const random=GFX.visualRandom;
+    GFX.visualRandom=()=>.2;
+    lose(spawn('vehicle'));drawWrecks(0);
+    const tank=queue[0],hull=tank.fx.group.children[0],turret=hull.children[0];
+    const resting=turret.position.y;
+    drawWrecks(rules.vehicle.turretFlightSec/2);
+    const launched=turret.position.y>resting+.5;
+    drawWrecks(rules.vehicle.turretFlightSec);
+    const landed=new THREE.Box3().setFromObject(hull).min.y;
+    const turretFloor=new THREE.Box3().setFromObject(turret).min.y;
+    drawWrecks(rules.vehicle.lifeSec-rules.vehicle.fadeSec/2);
+    GFX.visualRandom=random;
+    record('戦車の砲塔が吹き上がって地面に落ち、黒い車体と一緒に薄れる',
+      launched&&near(turretFloor,.03)&&landed<=turretFloor+1e-7&&near(hull.material.opacity,.5)&&hull.material.color.getHex()===0x393534);
+    record('戦闘機・攻撃機は撃破時の向きと速度で墜落を始め、地上で爆発する',
+      ['fighter','attack'].every(kind=>{
+        resetWrecks();
+        const unit=spawn(kind,kind==='fighter'?'high':'low'),flight=groundAirSquadTrack(unit).bodies[0];
+        const dt=.001;flight.yaw=.8;flight.pitch=-.12;flight.bank=.24;flight.velocity.set(12,-1,10);
+        const hit=flight.pos.clone();
+        lose(unit,true);drawWrecks(0);
+        const entry=queue[0],[wreck,trail,impact,...fragments]=entry.fx.group.children;
+        const initial=wreck.position.equals(hit)&&near(wreck.rotation.y,.8)&&near(wreck.rotation.z,.24)&&!impact.visible;
+        drawWrecks(dt);
+        const inertia=wreck.position.clone().sub(hit).divideScalar(dt).distanceTo(flight.velocity)<.06;
+        drawWrecks(entry.life-rules.aircraft.smokeSec+.05);
+        return initial&&inertia&&impact.visible&&!wreck.visible&&!trail.children[0].visible&&
+          near(impact.position.y,.035)&&fragments.length>=2&&fragments.length<=3;
+      }));
+    resetWrecks();
+    const support=spawn('supportAircraft','high'),supportFlight=groundAirSquadTrack(support).bodies[0];
+    supportFlight.velocity.set(4,0,0);supportFlight.yaw=Math.PI/2;
+    lose(support);drawWrecks(0);
+    const heavy=queue[0],[airframe,trail,impact,...parts]=heavy.fx.group.children;
+    const wingFire=trail.children[0].position.distanceTo(airframe.position)>airframe.scale.x*.5;
+    const duration=heavy.life-rules.support.smokeSec;
+    drawWrecks(duration*.4);
+    record('広域戦略支援航空機は片翼が燃え、ゆっくり傾いて空中で破片が離れる',
+      duration>=4.9&&wingFire&&Math.abs(airframe.rotation.z)<.6&&
+      parts.length>=1&&parts.length<=2&&parts.some(p=>p.visible)&&!impact.visible);
+    resetWrecks();
+    globalThis.H=900;globalThis.camera=new THREE.PerspectiveCamera(45);
+    camera.position.set(1000,1000,1000);
+    lose(spawn('supportAircraft','high'));drawWrecks(0);
+    record('遠景の墜落は煙を減らし、破片を作らない',
+      queue[0].fx.group.children.length===3&&queue[0].fx.group.children[1].children.length===rules.farSmokePuffs+2);
+    const oldest=queue[0],next=spawn('vehicle');
+    lose(next);drawWrecks(0);const second=queue[1];
+    for(let i=0;i<rules.limit-1;i++)lose(spawn('was'));
+    record('残骸の上限を超えると兵科に関係なく古いものから取り外す',
+      queue.length===rules.limit&&queue[0]===second&&!oldest.fx.group.parent&&second.fx.group.parent===groundVisuals);
+    groundFxReset();
     return rows;
   })()`);
 }
