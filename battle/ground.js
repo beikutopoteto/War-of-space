@@ -1855,13 +1855,13 @@ function groundFormationDraw(f,now){
   }
   if(groundWasBodyFlight(f)){
     const g=groundBodyPositions(f),track=g.flight;
+    const config=groundRuleSet().wasCombat.thrust;
     data.wasSwarming=!!track.swarm;
     form.bodies.forEach((body,i)=>{
       const b=track.bodies[i],p=g.positions[i],x=p.x-f.pos.x,z=p.z-f.pos.z;
       body.position.set(x*c1-z*s1,p.y-f.pos.y-GROUND_BODY_LIFT,x*s1+z*c1);
-      body.rotation.set(b.pitch,b.yaw-a1,b.bank,'YXZ');
-      body.userData.wasSwarmBoost=b.boost;
-      body.userData.wasSlideBoost=b.slideBoost;
+      const {pitch,bank}=groundWasDrawThrust(body,p,b.yaw,now,config);
+      body.rotation.set(pitch,b.yaw-a1,bank,'YXZ');
       body.userData.wasPassFiring=b.passFiring;
       body.userData.wasPassTarget=b.passTarget;
       body.userData.wasReverseFire=b.reverseFire;
@@ -1870,7 +1870,10 @@ function groundFormationDraw(f,now){
     return;
   }
   data.wasSwarming=false;
-  for(const body of form.bodies)body.userData.wasReverseFire=false;
+  for(const body of form.bodies){
+    body.userData.wasReverseFire=false;
+    delete body.userData.wasThrust;
+  }
   // 地上の体: 体ごとの動き（groundBodyTrack）の位置と向きへそのまま置く（ならしは動きの側で済んでいる）
   if(!groundBodyCentered(f)){
     const g=groundBodyPositions(f);
@@ -2253,7 +2256,6 @@ function groundDraw(){
       const duel=f.groundWasFlight?.dogfight;
       const combat=was?groundRuleSet().wasCombat:null;
       const flashEvery=duel?combat.dogfight.pass.flashEverySec:combat?.swarmManeuvers.front.firePass.flashEverySec;
-      const slidePlume=duel?.low?combat.dogfight.low.slide.plumeLength:combat?.dogfight.slide.plumeLength;
       pose.move.forEach((moves,i)=>{
         const b=f.bodies?.[i],alive=!f.bodies||!!b?.alive,aim=groundVisualKeepAim(f,b,now),body=pose.stand[i];
         const passFiring=swarm&&body.userData.wasPassFiring;
@@ -2267,10 +2269,8 @@ function groundDraw(){
           body.userData.baseYaw=body.rotation.y;
           body.rotation.y=aim.yaw-heading;
         }
-        if(alive&&was&&groundWasPower[key]&&model.visible){
-          const boost=body.userData.wasSwarmBoost||0,slide=body.userData.wasSlideBoost||0;
-          const length=slide?THREE.MathUtils.lerp(1,slidePlume,slide):1;
-          plumes.push({body,key,boost,length});
+        if(alive&&combat?.thrust.posePower[key]&&model.visible){
+          plumes.push({body,key,boost:body.userData.wasThrust?.boost??0,config:combat.thrust});
         }
         if(alive&&model.visible&&f.fireTarget?.alive&&passFiring&&now-(body.userData.wasPassShotAt??-Infinity)>=flashEvery){
           body.userData.wasPassShotAt=now;
@@ -2292,9 +2292,9 @@ function groundDraw(){
   }
   for(const f of fleets)if(f.groundDrone)groundDroneDraw(f,picked);
   for(const [band,grid] of Object.entries(groundGrids)) grid.material.opacity=groundView===band?.32:groundView==='all'?.08:.025;
-  // 噴射の表示枠は増やさず、横滑り中の機体を先に描く。
-  plumes.sort((a,b)=>b.length-a.length);
-  for(const {body,key,boost,length} of plumes)groundWasPlume(body,key,now,boost,length);
+  // 噴射の表示枠は増やさず、加速で強く噴射する機体を先に描く。
+  plumes.sort((a,b)=>b.boost-a.boost);
+  for(const {body,key,boost,config} of plumes)groundWasPlume(body,key,now,boost,config);
   groundFogDraw(); groundCaptureDraw(); groundHud();
   groundStrikeDraw(); groundFxDraw(now); groundTransportDraw(); groundSupplyDraw(); groundScriptDraw();
   if(typeof groundPlanDraw==='function')groundPlanDraw();

@@ -187,4 +187,55 @@ async function checkGroundVisuals(page,check){
   });
   for(const {name,ok} of rows)check(ok,'地上の見た目: '+name);
 }
-module.exports={checkGroundVisuals};
+function nodeChecks(){
+  const {createGroundContext}=require('./ground-landing.cjs');
+  const {run}=createGroundContext();
+  return run(`(() => {
+    const rows=[],record=(name,ok)=>rows.push({name,ok:!!ok});
+    groundVisuals=new THREE.Group();
+    const f=makeFleet(0,{groundKind:'was',name:'W.A.S.',type:'cv',n:1,scale:.3,pos:[0,0],groundPlatoons:1});
+    groundInitUnit(f);
+    f.band='low';f.pos.y=groundUnitHeight(f);f.heading.set(0,0,-1);
+    const track=f.groundWasFlight=groundWasFlightTrack(f);
+    const model=f.groundModel,body=model.userData.formation.bodies[0],yaw=Math.PI/2;
+    const config=groundRuleSet().wasCombat.thrust,point=track.bodies[0].pos.clone(),key='wasFlyMarch';
+    model.position.copy(f.pos);model.position.y+=GROUND_BODY_LIFT;
+    model.rotation.y=Math.PI;
+    body.geometry=model.userData.special.get(key);
+    const draws=[];
+    GFX.plume=()=>({group:new THREE.Group(),update:(now,power,length)=>draws.push({power,length})});
+    const frame=(time,sideKm)=>{
+      gameSec=time;track.bodies[0].pos.copy(point).addScaledVector(new THREE.Vector3(0,0,-1),sideKm*GROUND_SCALE);
+      track.bodies[0].yaw=yaw;
+      groundFormationDraw(f,time);
+      groundFxPlumesUsed=0;
+      groundWasPlume(body,key,time,body.userData.wasThrust.boost,config);
+      return draws.at(-1);
+    };
+    frame(0,0);frame(.05,.05);
+    const cruise=frame(.12,.12);
+    const nozzle=body.geometry.userData.nozzles[0],flame=groundFxPlumes[0].group;
+    const direction=()=>new THREE.Vector3(0,0,1).applyQuaternion(flame.getWorldQuaternion(new THREE.Quaternion()));
+    const straight=direction();
+    const boost=frame(.22,.37);
+    const bank=body.rotation.z,tilted=direction();
+    const localUp=new THREE.Vector3(0,1,0).applyQuaternion(body.getWorldQuaternion(new THREE.Quaternion()));
+    const nozzleDirection=new THREE.Vector3().fromArray(nozzle.d)
+      .applyQuaternion(body.getWorldQuaternion(new THREE.Quaternion()));
+    record('一定速度では姿勢の下限、加速では背中の噴射がより強く長い',
+      Math.abs(cruise.power-config.posePower[key]*config.floorFactor)<1e-7&&Math.abs(cruise.length-1)<1e-7&&
+      boost.power>cruise.power&&boost.length>cruise.length);
+    record('横加速に向けてロールし、ヨーを保ったまま背中の噴射口も傾く',
+      bank<0&&localUp.z<0&&Math.abs(body.rotation.y+Math.PI-yaw)<1e-7&&
+      flame.parent===body&&flame.position.distanceTo(new THREE.Vector3().fromArray(nozzle.p))<1e-7&&
+      tilted.distanceTo(nozzleDirection)<1e-7&&tilted.distanceTo(straight)>1e-7);
+    return rows;
+  })()`);
+}
+
+module.exports={checkGroundVisuals,nodeChecks};
+if(require.main===module){
+  const rows=nodeChecks();
+  for(const row of rows)console.log((row.ok?'✓ ':'✗ ')+row.name);
+  process.exitCode=Number(rows.some(row=>!row.ok));
+}

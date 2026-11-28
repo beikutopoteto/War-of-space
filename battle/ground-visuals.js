@@ -4,7 +4,7 @@ const GROUND_FX_LIMIT={direct:48,flight:48,blast:8,rocket:24,stray:8,wreck:6,plu
 const GROUND_BODY_LIFT=.15; // 地上の体と空中の W.A.S. を描くときの持ち上げ幅
 const groundFxQueues={direct:[],flight:[],blast:[],rocket:[],stray:[],wreck:[]},groundFxPlumes=[],groundGatlingBursts=[];
 const groundFxUp=new THREE.Vector3(0,1,0),groundFxForward=new THREE.Vector3(0,0,1);
-const groundWasPower={wasFly:.6,wasFlyFire:.6,wasFlyMove:1.25,wasFlyMarch:1.25,wasFlyUp:1.5,wasFlyDown:.45};
+const groundWasDrawVelocity=new THREE.Vector3(),groundWasDrawAccel=new THREE.Vector3();
 let groundFxPlumesUsed=0;
 
 function groundFxRelease(fx){
@@ -60,7 +60,7 @@ function groundFxDetail(at,radius,minPixels){
 }
 
 function groundVisualSpecialKeys(key){
-  if(key==='was4')return ['wasFire',...Object.keys(groundWasPower)];
+  if(key==='was4')return ['wasFire',...Object.keys(groundRuleSet().wasCombat.thrust.posePower)];
   return key==='hinf'?['hinfMsl']:[];
 }
 function groundVisualRigParts(body,rig){
@@ -111,10 +111,40 @@ function groundWasVisualPose(f,shot,moving,guard){
   if(shot)return 'wasFlyFire';
   return moving?(guard?'wasFlyMove':'wasFlyMarch'):'wasFly';
 }
-function groundWasPlume(body,key,now,boost=0,length=1){
+function groundWasDrawThrust(body,position,yaw,now,config){
+  let state=body.userData.wasThrust;
+  if(!state||now<state.at){
+    state=body.userData.wasThrust={at:now,position:position.clone(),velocity:new THREE.Vector3(),
+      accel:new THREE.Vector3(),step:0,boost:0,pitch:0,bank:0};
+  }else if(now>state.at){
+    const dt=now-state.at;
+    const velocity=groundWasDrawVelocity.subVectors(position,state.position).divideScalar(dt);
+    if(state.step>0){
+      // 速度は各区間の中点の値として扱う。描画間隔が変わってもその中点間の時間で割る。
+      const accel=groundWasDrawAccel.subVectors(velocity,state.velocity)
+        .divideScalar((dt+state.step)/2*GROUND_SCALE*config.fullAccelKmSec2);
+      const boost=Math.min(1,accel.length());
+      accel.clampLength(0,1);
+      const rise=-Math.expm1(Math.log(.1)*dt/config.riseSec);
+      const response=boost>state.boost?rise:-Math.expm1(Math.log(.1)*dt/config.fallSec);
+      state.boost+=(boost-state.boost)*response;
+      state.accel.lerp(accel,rise);
+    }
+    state.position.copy(position);state.velocity.copy(velocity);state.step=dt;state.at=now;
+  }
+  // 機体のヨーを基準に前後・左右へ分ける。機体の正面は +Z。
+  const {x,y,z}=state.accel,c=Math.cos(yaw),s=Math.sin(yaw);
+  const {clamp,degToRad}=THREE.MathUtils;
+  state.pitch=degToRad(clamp((x*s+z*c)*config.pitchDeg-y*config.verticalPitchDeg,-config.pitchDeg,config.pitchDeg));
+  state.bank=degToRad(-(x*c-z*s)*config.rollDeg);
+  return state;
+}
+function groundWasPlume(body,key,now,boost,config){
   const nozzles=body.geometry.userData.nozzles;
   if(!nozzles||groundFxPlumesUsed+nozzles.length>GROUND_FX_LIMIT.plumes)return;
-  const power=THREE.MathUtils.lerp(groundWasPower[key],groundWasPower.wasFlyUp,boost);
+  const {lerp}=THREE.MathUtils;
+  const power=lerp(config.posePower[key]*config.floorFactor,config.maxPower,boost);
+  const length=lerp(1,config.maxLength,boost);
   for(const n of nozzles){
     const i=groundFxPlumesUsed++,fx=groundFxPlumes[i]||(groundFxPlumes[i]=GFX.plume(.52));
     if(fx.group.parent!==body)body.add(fx.group);
@@ -180,7 +210,9 @@ function groundVisualAim(f,i,from,to,{missile=false,indirect=false,gatling=false
     const local=rocket?shape?.userData.guns?.[0]:shape?.userData.muzzle;
     const muzzleYaw=pose&&(key==='hinfMsl'||key==='wasFire'||key==='wasFlyFire')?yaw:bodyYaw;
     const flight=geometry.flight?.bodies[i],air=geometry.air?.bodies[i],bodyFlight=air||flight;
-    const attitude=bodyFlight&&new THREE.Quaternion().setFromEuler(new THREE.Euler(air?-air.pitch:flight.pitch,bodyFlight.yaw,bodyFlight.bank,'YXZ'));
+    const thrust=body?.userData.wasThrust;
+    const attitude=bodyFlight&&new THREE.Quaternion().setFromEuler(new THREE.Euler(
+      air?-air.pitch:thrust?.pitch??0,bodyFlight.yaw,air?air.bank:thrust?.bank??0,'YXZ'));
     const worldPoint=(point,lift)=>{
       const p=new THREE.Vector3().fromArray(point).multiplyScalar(size);
       if(attitude)p.applyQuaternion(attitude);
@@ -376,16 +408,16 @@ function groundVisualLoss(f,at,i){
   if(f.groundKind==='was'&&['cruise','low'].includes(f.band)&&body&&flight){
     const {wreck,low}=groundRuleSet().wasCombat.dogfight;
     const config=f.band==='low'?{...wreck,...low.wreck}:wreck;
-    groundVisualWasWreck(at,data.special?.get('wasFly')||body.geometry,body.material,body.scale,flight,config);
+    groundVisualWasWreck(at,data.special?.get('wasFly')||body.geometry,body.material,body.scale,flight,config,body.userData.wasThrust);
     return;
   }
   const inAir=['low','high'].includes(f.band);
   groundFxAdd('direct',gameSec,inAir?1.5:.9,()=>groundFxPlace(inAir?GFX.airBurst(.55):GFX.hit(.28),at));
 }
-function groundVisualWasWreck(at,geometry,material,scale,flight,config){
+function groundVisualWasWreck(at,geometry,material,scale,flight,config,thrust){
   const rnd=GFX.visualRandom;
   const {lerp,clamp}=THREE.MathUtils,duration=lerp(...config.durationSec,rnd());
-  const spin=(rnd()<.5?-1:1),initial={yaw:flight.yaw,pitch:flight.pitch,bank:flight.bank};
+  const spin=(rnd()<.5?-1:1),initial={yaw:flight.yaw,pitch:thrust?.pitch??0,bank:thrust?.bank??0};
   const drift=flight.vel.clone().setY(0).multiplyScalar(duration*.55);
   drift.clampLength(.045*GROUND_SCALE,config.driftKm*GROUND_SCALE);
   if(!drift.lengthSq())drift.set(Math.sin(initial.yaw),0,Math.cos(initial.yaw)).multiplyScalar(.045*GROUND_SCALE);

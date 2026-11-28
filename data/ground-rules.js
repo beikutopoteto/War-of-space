@@ -29,6 +29,10 @@ window.WOS_GROUND_RULES = {
     evasion:.6, // ユーザー決定 2026-11-28（仮）。
     npcMinKm:6 }, // 仮。
   wasCombat: { // #525 の仮値。距離は km。
+    // 飛行中の描画専用（仮）。riseSec・fallSec は目標との差が1割になるゲーム秒。
+    thrust:{fullAccelKmSec2:3,riseSec:.1,fallSec:.4,pitchDeg:35,verticalPitchDeg:15,rollDeg:40,
+      floorFactor:.2,maxPower:1.5,maxLength:2.75,
+      posePower:{wasFly:.6,wasFlyFire:.6,wasFlyMove:1.25,wasFlyMarch:1.25,wasFlyUp:1.5,wasFlyDown:.45}},
     reactiveArmor:{penetrationRatio:2,refillCost:2},
     topAttackKm:1,
     shotSupplyFactor:1.3, // ユーザー決定 2026-11-28。射撃・対艦ロケットなど撃つときの補給消費倍率（wasFlight の移動・停止消費は変えない）。
@@ -73,7 +77,7 @@ window.WOS_GROUND_RULES = {
       minHeightKm:.03,lowMaxHeightKm:.08,maxHeightKm:.2,heightWaveKm:.013,
       pairGapKm:.076,splitKm:.14,tailKm:.14,coverKm:.14,pursuit:.32,pitchLimit:.85,
       jump:{start:.15,riseSec:.7,riseKm:[.08,.12],diveSec:1.05,pitchDeg:16},
-      slide:{start:.72,durationSec:.82,rejoinSec:.72,distanceKm:[.12,.19],plumeLength:2.6},
+      slide:{start:.72,durationSec:.82,rejoinSec:.72,distanceKm:[.12,.19]},
       pass:{start:.28,enter:.41,exit:.54,end:.68,alongKm:.27,gapKm:[.055,.09],fireKm:.135,flashEverySec:.19},
       stray:{chance:.28,reachKm:[.065,.12],size:.075},
       wreck:{durationSec:[2,3],driftKm:.18,smokePuffs:9,smokeSec:1.15,impactSize:.27},
@@ -84,7 +88,7 @@ window.WOS_GROUND_RULES = {
         turnWidthKm:.32,turnClimbKm:.28,turnPitchDeg:78,turnBank:.65,
         response:6,passResponse:14,
         pass:{start:.12,enter:.26,exit:.46,end:.59,turn:.72,returnAt:.98,alongKm:1.12,fireKm:.65},
-        slide:{start:.55,durationSec:.42,rejoinSec:.48,distanceKm:[.3,.6],plumeLength:4.1},
+        slide:{start:.55,durationSec:.42,rejoinSec:.48,distanceKm:[.3,.6]},
         wreck:{durationSec:[5,7],driftKm:.42,smokePuffs:24,smokeSec:2.3}
       }
     },
