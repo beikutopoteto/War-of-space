@@ -838,7 +838,7 @@ function renderGroundOrg(){
   if(!items.some(x=>x.id===selGround)) selGround=items[0]?.id||null;
   const list=document.getElementById('orgList'), det=document.getElementById('orgDetail'), total=GROUND.sortie(org).load;
   document.getElementById('tabNote').textContent=level==='battalions'?'中隊の行を足し、マスを押して小隊の数を変えます。中隊は戦闘で動かす最小の単位です。大隊を解散すると中の中隊も消えます。':'大隊を4つまで入れます。旅団を解散しても大隊は残ります。';
-  document.getElementById('orgCap').innerHTML=`<b>地上軍</b><span>大隊は中隊${GROUND.MAX_COMPANIES}つ・中隊は小隊${GROUND.MAX_PLATOONS}つ・旅団は大隊${GROUND.MAX_BATTALIONS}つまで</span><span>出撃：全${total.companies.length}個中隊・${total.platoons}小隊・補給値 ${total.supplyUsed}${org.companies.length?'':'（初期部隊）'}</span>`;
+  document.getElementById('orgCap').innerHTML=`<b>地上軍</b><span>大隊は中隊${GROUND.MAX_COMPANIES}つ・中隊は小隊${GROUND.MAX_PLATOONS}つ（戦闘機・攻撃機は1つ）・旅団は大隊${GROUND.MAX_BATTALIONS}つまで</span><span>出撃：全${total.companies.length}個中隊・${total.platoons}小隊・補給値 ${total.supplyUsed}${org.companies.length?'':'（初期部隊）'}</span>`;
   list.innerHTML=listHtml(items.map(x=>{ const cs=GROUND.companiesOf(org,level,x.id);
     return {id:x.id,name:x.name,meta:level==='battalions'?`${x.companies.length}個中隊・${GROUND.platoonsOf(cs)}小隊・${esc(groundOwner(org,x.id)?.name||'未所属')}`:`${x.battalions.length}個大隊・${cs.length}個中隊・${GROUND.platoonsOf(cs)}小隊`}; }),selGround,`＋ ${label}を作る`,'data-ground-unit');
   list.querySelector('[data-new]').onclick=()=>{
@@ -854,7 +854,8 @@ function renderGroundOrg(){
     const options=k=>Object.entries(GROUND.types()).map(([id,u])=>`<option value="${id}" ${id===k?'selected':''}>${esc(u.name)}</option>`).join('');
     const rows=Array.from({length:GROUND.MAX_COMPANIES},(_,i)=>{ const c=cs[i];
       if(!c) return `<div class="tr empty"><div class="th">${i===cs.length?`<select id="groundAddCompany" aria-label="中隊を加える"><option value="">＋ 中隊を加える</option>${options(null)}</select>`:'空き'}</div></div>`;
-      return `<div class="tr"><div class="th"><span class="no">${esc(c.name)}</span><select data-ground-kind="${esc(c.id)}" aria-label="兵科">${options(c.kind)}</select><button class="x" data-ground-rm="${esc(c.id)}" aria-label="この中隊を消す">×</button></div><div class="cells g">${Array.from({length:GROUND.MAX_PLATOONS},(_,k)=>`<button class="sc ${k<c.platoons?'on':''}" data-ground-platoons="${esc(c.id)}" data-n="${k+1}" aria-label="${k+1}小隊にする">${k<c.platoons?groundMark(c.kind):'＋'}</button>`).join('')}</div><span class="ct">${c.platoons}<small>/${GROUND.MAX_PLATOONS}</small></span></div>`; }).join('');
+      const max=GROUND.maxPlatoons(c.kind);
+      return `<div class="tr"><div class="th"><span class="no">${esc(c.name)}</span><select data-ground-kind="${esc(c.id)}" aria-label="兵科">${options(c.kind)}</select><button class="x" data-ground-rm="${esc(c.id)}" aria-label="この中隊を消す">×</button></div><div class="cells g">${Array.from({length:max},(_,k)=>`<button class="sc ${k<c.platoons?'on':''}" data-ground-platoons="${esc(c.id)}" data-n="${k+1}" aria-label="${k+1}小隊にする">${k<c.platoons?groundMark(c.kind):'＋'}</button>`).join('')}</div><span class="ct">${c.platoons}<small>/${max}</small></span></div>`; }).join('');
     det.innerHTML=head+`<div class="dzb"><div><h4>中隊　<span class="dim">マスを押して小隊の数を変える</span></h4>${rows}</div><div class="dpanel"><h4>大隊の中身</h4><p>中隊 ${cs.length}/${GROUND.MAX_COMPANIES}　小隊 ${load.platoons}/${GROUND.MAX_COMPANIES*GROUND.MAX_PLATOONS}</p><p>補給値 ${load.supplyUsed}</p><p>所属 ${esc(groundOwner(org,x.id)?.name||'未所属')}</p><h4>兵科</h4><div class="garms">${groundArms(cs)}</div><p class="dim small">1小隊は今の地図の駒1つぶん。小隊の数は、まだ戦闘の強さに効きません（編成の作り直しの途中）。</p></div></div>`;
     const add=det.querySelector('#groundAddCompany'); if(add) add.onchange=()=>{ if(add.value&&GROUND.addCompany(org,x.id,add.value)){persist();renderOrg();} };
     det.querySelectorAll('[data-ground-kind]').forEach(s=>s.onchange=()=>{GROUND.setKind(org,s.dataset.groundKind,s.value);persist();renderOrg();});
@@ -1113,7 +1114,8 @@ for(const t of groundTypes){
     for(const [code,,value=0] of dataRanges(r)) dataDistanceMax[code]=Math.max(value,dataDistanceMax[code]||0);
   }
 }
-const dataGroundSpeedMax=Math.max(...groundTypes.map(t=>t.speed),...Object.values(DATA_GROUND.wasFlight.speed));
+const dataGroundSpeedMax=Math.max(...groundTypes.map(t=>t.speed),...Object.values(DATA_GROUND.wasFlight.speed),
+  ...Object.values(DATA_GROUND.airCombat.cruiseKmSec).map(v=>v*GROUND_SCALE));
 const dataGroundHpMax=Math.max(...groundTypes.map(t=>t.hp));
 const dataGroundSight=k=>(DATA_GROUND.sight[k]??DATA_GROUND.sight.basic)/GROUND_SCALE;
 const dataGroundSightMax=Math.max(...Object.keys(DATA_GROUND.unitTypes).map(dataGroundSight));
@@ -1124,7 +1126,8 @@ function groundDataInfo(id,state,side){
   const t=DATA_GROUND.unitTypes[id], rules=DATA_GROUND;
   const wasAir=id==='was'&&state.height!=='walk', lowWas=wasAir&&state.height==='low';
   const aircraft=DATA_GROUPS.at(-1)[3].includes(id);
-  const speed=wasAir?rules.wasFlight.speed[state.height]:t.speed;
+  const cruise=rules.airCombat.cruiseKmSec[id];
+  const speed=wasAir?rules.wasFlight.speed[state.height]:cruise?cruise*GROUND_SCALE:t.speed;
   // docs/ground-tempo.md。地形・補給・道路の補正が入る前の速さ。
   const ratedSpeed=dataStat('SPD','速さ',speed,dataGroundSpeedMax,'km/h',String(Math.round(speed*15)));
   const move=[ratedSpeed,dataStat('HP','耐久',t.hp,dataGroundHpMax)];

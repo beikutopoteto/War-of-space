@@ -186,7 +186,7 @@ function check(ok, label, detail = '') {
         const n=hits.length;for(let i=0;i<25;i++)tick(.05);
         arrived=attack.band==='high'&&!attack.bandTo&&hits.length===n&&attack.fireTarget===null;
         // W.A.S. は攻撃命令を維持し、巡航中も低高度へ上昇中も独立して自動迎撃する。
-        attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.band='high';
+        attack.order=null; fighter.team=1; fighter.pos.copy(at); fighter.pos.y+=GROUND_SCALE; fighter.band='low'; fighter.locked=true;
         // 検証用の仮耐久を置き、高度切替まで対空目標を維持する。
         for(const b of fighter.bodies)b.hp=b.max=1000;
         groundBodySync(fighter);fighter.groundMaxHp=fighter.hpPool;
@@ -196,12 +196,12 @@ function check(ok, label, detail = '') {
         const lowAllowed=!groundSetBand([was],'high')&&groundSetBand([was],'low');
         hits.length=0;
         for(let i=0;i<80;i++)tick(.05);
-        groundToAir=lowAllowed&&was.band==='cruise'&&hits.some(h=>h.target==='ground')&&hits.some(h=>h.target==='high')&&hits.every(h=>h.kind==='was'&&h.band==='cruise')&&was.groundAATarget===fighter&&was.order?.target===target;
+        groundToAir=lowAllowed&&was.band==='cruise'&&hits.some(h=>h.target==='ground')&&hits.some(h=>h.target==='low')&&hits.every(h=>h.kind==='was'&&h.band==='cruise')&&was.groundAATarget===fighter&&was.order?.target===target;
         for(let i=0;i<20;i++)tick(.05);
         was.groundShotT=was.groundAATimer=0;for(const b of was.bodies){b.shotT=0;b.aaT=0;}hits.length=0;tick(.05);
-        lowWas=was.band==='low'&&hits.some(h=>h.kind==='was'&&h.band==='low'&&h.target==='high')&&was.groundAATarget===fighter&&was.fireTarget===target&&was.order?.target===target;
+        lowWas=was.band==='low'&&hits.some(h=>h.kind==='was'&&h.band==='low'&&h.target==='low')&&was.groundAATarget===fighter&&was.fireTarget===target&&was.order?.target===target;
       }finally{damage=originalDamage;}
-      reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null};
+      reset({op:'groundExercise2'});setSpeed(0);op={...op,groundHQ:null,groundRuleOverrides:{combat:{aaMaxHeightKm:{default:10,mobileAA:10}}}};
       const f=fleets.find(f=>f.team===0),t=fleets.find(f=>f.team===1),saved=fleets;
       const rows=[['heavyInfantry','ground',[1,1,1]],['infantry','ground',[1,.5,0]],['scout','ground',[1,0,0]],['vehicle','ground',[1,.5,.5]],['apc','ground',[1,.5,.5]],['mechanicalAssault','ground',[1,.5,.5]],['fighter','low',[0,1,1]],['fighter','high',[0,1,1]],['attack','low',[1,1,1]],['attack','high',[0,1,1]],['was','ground',[1,1,1]],['was','cruise',[1,1,1]],['was','low',[1,1,1]]];
       let cases=0,bad=0,blockedDamage=0,allowedDamage=0;
@@ -245,7 +245,7 @@ function check(ok, label, detail = '') {
       return {composition,initial,groundButtons,airButtons,wasButtons,wasHidden,mixedButtons,sharedButtons,rejected,delayed,arrived,repeat,groundToAir,lowWas,cases,bad,blockedDamage,allowedDamage,flight:flight&&continued,noSeaLanding,rendered,formSize,viewLow,viewHigh,viewGround,viewAll,fold,space};
     });
     check(bands.composition.join(',')==='11,7'&&bands.initial&&bands.rendered===bands.formSize&&bands.flight&&bands.noSeaLanding, '地上航空: 両軍の戦闘機・攻撃機、試作W.A.S.、編隊（採用の形は4機、従来は3機）と海上移動', JSON.stringify({composition:bands.composition,rendered:bands.rendered,formSize:bands.formSize,flight:bands.flight,noSeaLanding:bands.noSeaLanding}));
-    check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.join(',')==='true,false,false'&&bands.wasHidden&&bands.wasButtons.every(Boolean)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.every(Boolean)&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.lowWas, '地上高度: 共通段だけ命令・5秒・到着まで元の段で射撃', JSON.stringify(bands));
+    check(bands.groundButtons.join(',')==='false,true,true'&&bands.airButtons.every(Boolean)&&bands.wasHidden&&bands.wasButtons.every(Boolean)&&bands.mixedButtons.every(Boolean)&&bands.sharedButtons.every(Boolean)&&bands.rejected&&bands.delayed&&bands.arrived&&bands.repeat&&bands.groundToAir&&bands.lowWas, '地上高度: 戦闘機は自動・共通段だけ命令・到着まで元の段で射撃', JSON.stringify(bands));
     check(bands.cases===39&&bands.bad===0&&bands.blockedDamage===0&&bands.allowedDamage>0, '地上射撃: 表39通りの打撃・無効な段は0・水平射程', JSON.stringify({cases:bands.cases,bad:bands.bad,blockedDamage:bands.blockedDamage,allowedDamage:bands.allowedDamage}));
     check(bands.viewLow&&bands.viewHigh&&bands.viewGround&&bands.viewAll&&bands.fold&&bands.space, '地上表示: 全部・地上・低・高の濃淡と格子・折り畳み・宇宙へ復帰', JSON.stringify({low:bands.viewLow,high:bands.viewHigh,ground:bands.viewGround,all:bands.viewAll,fold:bands.fold,space:bands.space}));
     await checkWasFlight(page,check);

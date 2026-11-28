@@ -87,15 +87,14 @@ function formationCases(){
  check('描画で位置・耐久・速さ・射程不変',JSON.stringify(before)===JSON.stringify(units.map(f=>[...f.pos.toArray(),f.hpPool,f.speed,f.range])));
  for(const kind of ['fighter','attack']){
   const f=makeFleet(0,groundUnitSpec({name:kind,kind,at:[12,27]}));fleets.push(f);groundInitUnit(f);
-  const t=makeFleet(1,groundUnitSpec({name:'航空標的',kind:'fighter',at:[12,27],band:'low'}));fleets.push(t);groundInitUnit(t);
-  const base=f.groundModel.userData.formation.layouts.defend,snapshot=f.pos.clone();order(f,{type:'attack',target:t});
-  t.pos.copy(f.pos).add(new THREE.Vector3(groundTargetRange(f,t)*1.4,0,0));
-  check(kind+'は射程1.5倍以内の攻撃目標で戦闘',groundAircraftCombat(f));
-  t.pos.x=f.pos.x+groundTargetRange(f,t)*1.6;check(kind+'は遠い攻撃目標で編隊',!groundAircraftCombat(f));
-  f.fireTarget=t;formationTick(2);const body=f.groundModel.userData.formation.bodies[0],p=body.position.clone();formationTick(.7);
-  check(kind+'は戦闘中に体が周回',p.distanceTo(body.position)>.1&&Math.abs(body.rotation.z)>.1&&f.pos.equals(snapshot));
-  f.fireTarget=null;t.alive=false;formationTick(3);
-  check(kind+'は敵消滅後に編隊へ戻る',f.groundModel.userData.formation.bodies.every((b,i)=>b.position.distanceTo(new THREE.Vector3(base[i].x,0,base[i].z))<.001&&Math.abs(b.rotation.z)<.001)&&f.pos.equals(snapshot));
+  const t=makeFleet(1,groundUnitSpec({name:'航空標的',kind:'fighter',at:[14,27],band:'low'}));fleets.push(t);groundInitUnit(t);
+  t.locked=true;groundUpdateSight();order(f,{type:'attack',target:t});formationTick(.9,true);
+  const model=f.groundModel,form=model.userData.formation,track=groundAirSquadTrack(f),snapshot=track.bodies.map(b=>b.pos.clone());
+  const matches=()=>form.bodies.every((body,i)=>body.position.clone().applyQuaternion(model.quaternion).add(model.position).distanceTo(track.bodies[i].pos)<1e-7);
+  check(kind+'は各機を射撃判定と同じ座標へ描く',matches()&&new Set(track.bodies.map(b=>b.yaw)).size>1);
+  formationTick(.25);check(kind+'は描画だけでは飛行を進めない',matches()&&track.bodies.every((b,i)=>b.pos.equals(snapshot[i])));
+  t.alive=false;formationTick(.25,true);
+  check(kind+'は敵消滅後も各機が飛び続ける',matches()&&track.bodies.every((b,i)=>b.pos.distanceTo(snapshot[i])>.1));
  }
  return rows;
 }

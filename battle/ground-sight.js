@@ -143,9 +143,18 @@ function groundClearLine(a,b){
   return true;
 }
 function groundLineOfSight(f,t){ return groundClearLine(groundEye(f),groundEye(t)); }
+function groundAirSightPoints(f){
+  if(!groundAirSquad(f))return [groundEye(f)];
+  return groundBodyPositions(f).positions.filter((p,i)=>f.bodies[i].alive);
+}
 function groundCanSee(f,t){
   if(groundAbsent(f)||groundAbsent(t))return false;
-  return f.alive&&t.alive&&!f.embarked&&!t.embarked&&f.team!==t.team&&groundDistanceTo(f,t)<=groundSightRange(f)*groundConcealment(t)&&groundLineOfSight(f,t);
+  if(!f.alive||!t.alive||f.embarked||t.embarked||f.team===t.team)return false;
+  const range=groundSightRange(f)*groundConcealment(t);
+  if(!groundAirSquad(f)&&!groundAirSquad(t))return groundDistanceTo(f,t)<=range&&groundLineOfSight(f,t);
+  if(!groundBodiesWithinReach(f,t,range))return false;
+  const targets=groundAirSightPoints(t);
+  return groundAirSightPoints(f).some(a=>targets.some(b=>Math.hypot(a.x-b.x,a.z-b.z)<=range&&groundClearLine(a,b)));
 }
 // 占領した拠点も、その周り（site、仮に5km）を見る（ユーザー決定 2026-11-15）。中立の拠点は誰の目にもならない。
 // 拠点の目は町の屋上（いちばん高い建物の上）に置く。地面の高さだと、まわりの建物にすべての向きを遮られる（2026-11-16）
@@ -162,8 +171,8 @@ function groundSiteObservers(team){
 }
 function groundSiteSees(observers,t){
   if(!observers.length||groundAbsent(t)||!t.alive||t.embarked)return false;
-  const eye=groundEye(t),range=groundConcealment(t);
-  return observers.some(o=>Math.hypot(eye.x-o.eye.x,eye.z-o.eye.z)<=o.range*range&&groundClearLine(o.eye,eye));
+  const eyes=groundAirSightPoints(t),range=groundConcealment(t);
+  return observers.some(o=>eyes.some(eye=>Math.hypot(eye.x-o.eye.x,eye.z-o.eye.z)<=o.range*range&&groundClearLine(o.eye,eye)));
 }
 function groundSeenBy(team,t){ return !!(t.groundVisible&&t.groundVisible[team]); }
 // 地点の観測も⑤の距離・地形遮蔽を共有する。敵部隊の有無や射手の直線遮蔽とは独立。

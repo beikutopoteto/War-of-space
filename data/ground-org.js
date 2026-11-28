@@ -6,14 +6,15 @@ window.WOS_GROUND_ORG=(()=>{
   // 小隊の数を持たない中隊（前の保存・既定の部隊）と新しく加えた中隊は、満員の4小隊（仮、2026-11-18）。
   const NEW_PLATOONS=4;
   const types=()=>window.WOS_GROUND_RULES.unitTypes;
-  const platoonCount=n=>n!==null&&n!==undefined&&n!==''&&Number.isFinite(+n)?Math.min(MAX_PLATOONS,Math.max(1,Math.round(+n))):NEW_PLATOONS;
+  const maxPlatoons=kind=>types()[kind]?.maxPlatoons??MAX_PLATOONS;
+  const platoonCount=(kind,n)=>Math.min(maxPlatoons(kind),n!==null&&n!==undefined&&n!==''&&Number.isFinite(+n)?Math.max(1,Math.round(+n)):NEW_PLATOONS);
   const number=name=>{const m=/^第(\d+)/.exec(name||'');return m?+m[1]:null;};
   const freeNumber=list=>{const used=new Set(list.map(x=>number(x.name)));let n=1;while(used.has(n))n++;return n;};
   const freeId=(list,prefix)=>{const used=new Set(list.map(x=>x.id));let n=list.length+1;while(used.has(prefix+n))n++;return prefix+n;};
   // 自動の名前: 第N ＋兵科の名前＋中隊（N は全中隊で空いている番号）。名前を変えていない中隊（auto）は兵科を変えると名前も変わる。
   const companyName=(org,kind,self)=>`第${freeNumber(org.companies.filter(c=>c!==self))} ${types()[kind]?.name||'地上'}中隊`;
   function defaults(){
-    const companies=window.WOS_GROUND_DEFAULT_COMPANIES.map((f,i)=>({id:'gc'+(i+1),name:f.name,kind:f.groundKind,platoons:NEW_PLATOONS}));
+    const companies=window.WOS_GROUND_DEFAULT_COMPANIES.map((f,i)=>({id:'gc'+(i+1),name:f.name,kind:f.groundKind,platoons:platoonCount(f.groundKind)}));
     return {companies,battalions:[{id:'gb1',name:'第1 大隊',companies:companies.slice(0,3).map(c=>c.id)},
       {id:'gb2',name:'第2 大隊',companies:companies.slice(3).map(c=>c.id)}],brigades:[{id:'gr1',name:'第1 旅団',battalions:['gb1','gb2']}]};
   }
@@ -21,7 +22,7 @@ window.WOS_GROUND_ORG=(()=>{
     if(!value||!Array.isArray(value.companies)) return defaults();
     const unique=(items,make)=>{ const seen=new Set(); return (Array.isArray(items)?items:[]).flatMap(x=>{
       if(!x||typeof x.id!=='string'||seen.has(x.id)) return []; seen.add(x.id); return [make(x)]; }); };
-    const companies=unique(value.companies,c=>({id:c.id,name:String(c.name||'中隊'),kind:types()[c.kind]?c.kind:'infantry',platoons:platoonCount(c.platoons),...(c.auto?{auto:true}:{})}));
+    const companies=unique(value.companies,c=>({id:c.id,name:String(c.name||'中隊'),kind:types()[c.kind]?c.kind:'infantry',platoons:platoonCount(c.kind,c.platoons),...(c.auto?{auto:true}:{})}));
     const usedC=new Set(), usedB=new Set();
     const take=(ids,all,used,max)=>{
       const out=[];for(const id of Array.isArray(ids)?ids:[]){
@@ -49,14 +50,14 @@ window.WOS_GROUND_ORG=(()=>{
   // 大隊の行に中隊を加える（満員・兵科が無いなら null）。
   function addCompany(org,battalionId,kind,platoons=NEW_PLATOONS){
     const b=org.battalions.find(x=>x.id===battalionId); if(!b||b.companies.length>=MAX_COMPANIES||!types()[kind]) return null;
-    const c={id:freeId(org.companies,'gc'),name:companyName(org,kind),kind,platoons:platoonCount(platoons),auto:true};
+    const c={id:freeId(org.companies,'gc'),name:companyName(org,kind),kind,platoons:platoonCount(kind,platoons),auto:true};
     org.companies.push(c); b.companies.push(c.id); return c;
   }
   function setKind(org,id,kind){
     const c=org.companies.find(x=>x.id===id); if(!c||!types()[kind]) return false;
-    c.kind=kind; if(c.auto) c.name=companyName(org,kind,c); return true;
+    c.kind=kind; c.platoons=platoonCount(kind,c.platoons); if(c.auto) c.name=companyName(org,kind,c); return true;
   }
-  function setPlatoons(org,id,n){ const c=org.companies.find(x=>x.id===id); if(!c) return false; c.platoons=platoonCount(n); return true; }
+  function setPlatoons(org,id,n){ const c=org.companies.find(x=>x.id===id); if(!c) return false; c.platoons=platoonCount(c.kind,n); return true; }
   // 大隊を消すと中の中隊も消える（宇宙の打撃群と同じ）。旅団を解散しても大隊は残る。
   function remove(org,level,id){
     if(level==='battalions'){ const b=org.battalions.find(x=>x.id===id); if(b) org.companies=org.companies.filter(c=>!b.companies.includes(c.id)); }
@@ -129,5 +130,5 @@ window.WOS_GROUND_ORG=(()=>{
       band:['fighter','supportAircraft'].includes(c.kind)?'high':c.kind==='attack'?'low':'ground'}));
     return {org,fleets,load};
   }
-  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortieOrg,sortie,QUICK_GROUPS,quickOrg};
+  return {MAX_COMPANIES,MAX_BATTALIONS,MAX_PLATOONS,NEW_PLATOONS,maxPlatoons,types,defaults,normalize,assign,addCompany,setKind,setPlatoons,remove,companiesOf,platoonsOf,sortieLoad,sortieOrg,sortie,QUICK_GROUPS,quickOrg};
 })();

@@ -35,7 +35,7 @@ function groundWorldZ(mapY){ return (groundDimensions().halfHeightKm-mapY)*GROUN
 // 作戦のkm表記を、既存の艦隊生成が読む形へ直す唯一の入口。旧表記はそのまま使える。
 // 小隊の数（docs/spec.md「地上の部隊編成」）: 作戦のデータ・台本の部隊（km表記）で指定（platoons）がなければ4（満員の中隊。ユーザー決定 2026-11-18）。編成から出撃する中隊は編成の数。
 // 旧表記（km表記でない）はそのまま返し、小隊の数がなければ groundInitUnit で1になる
-const groundSpecPlatoons=u=>({groundPlatoons:u.groundPlatoons??u.platoons??4});
+const groundSpecPlatoons=u=>({groundPlatoons:window.WOS_GROUND_RULES.unitTypes[u.kind]?.maxPlatoons===1?1:u.groundPlatoons??u.platoons??4});
 function groundUnitSpec(u){
   if(!u.at)return u;
   const {kind,at,...rest}=u;

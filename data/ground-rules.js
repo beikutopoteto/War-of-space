@@ -1,7 +1,19 @@
 /* 地上・海上専用の基本規則。地形とは独立し、宇宙の性能表には適用しない。 */
 window.WOS_GROUND_RULES = {
   clock: { minutesPerSecond:1 }, // 地上戦はゲームの1秒で作戦の時計が1分進む（#509）
-  bands: { heights: { ground:0, low:12.288, high:19.2 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 段の見た目の高さは見本と同じ比率（戦闘単位）。全て仮。
+  bands: { heights: { ground:0, low:12.288, high:40 }, transitionSec:5, weakFire:.5, fireEvery:1, initial:{fireEvery:1.5}, dimOpacity:.15, gridStep:8 }, // 戦闘単位。高高度10 kmはユーザー決定 2026-11-28。
+  // 距離は km、時間はゲーム秒。重力は 9.8 m/s² を 1ゲーム秒＝60秒で換算。
+  airCombat: {
+    cruiseKmSec:{fighter:10.5,attack:7.5}, minSpeedFactor:.6, maxSpeedFactor:1.22, speedVariation:.045,
+    turnGravityKmSec2:9.8*60**2/1000, turnLoadG:{fighter:[5,7],attack:[3,4]}, maxPitchDeg:28, pitchRateDeg:85,
+    sectorKm:12, // 仮。航空巡回（#521）と同じ左下 A1 の格子。
+    pitchSpeedFactor:.65, speedResponse:3, stepSec:.05, boundaryMarginKm:1,
+    pairDelaySec:.55, wingDelaySec:.14, pairAngleDeg:23, wingAngleDeg:2.5, reentryAngleDeg:110,
+    ground:{entryKm:11,pullKm:8,diveKm:4,exitKm:4.5,lowKm:.24,diveDeg:18},
+    air:{minHeightKm:1.5,maxHeightKm:6,heightAdvantageKm:1.3,diveSec:.48,exitKm:6,tailSec:.75,tailAngleDeg:24,peelDeg:45,leadSec:1.2,
+      attack:{maxHeightKm:3},
+      fighter:{maxPitchDeg:42,pitchRateDeg:145,diveSec:.62,exitKm:3.5,climbLookAheadSec:.2,divePitchBiasDeg:12,passDiveSec:.22}} // 戦闘機の一撃離脱は仮。
+  },
   // 飛ぶ速さ（ユーザー 2026-11-25）: 巡航は山や木をよけるので低空より遅く約180 km/h、低空は設定の300〜400 km/h に戦闘中の0.7倍で245 km/h。
   // 時速 = 速さの値 × 15 km（ゲームの1秒 = 1分の目安、docs/ground-tempo.md）。値は仮。
   wasFlight: { heightKm:.03, transitionSec:2, speed:{ cruise:12, low:16.3 },
@@ -164,8 +176,8 @@ window.WOS_GROUND_RULES = {
     engineer:{name:'工兵',speed:2,range:7,hp:100,dmg:1,armor:{front:200,side:60,top:40},blastMorale:.7,weapons:[{power:1,pen:20,morale:1}],fireRangesKm:{direct:0.6}},
     supply:{name:'補給部隊',speed:3,range:0,hp:100,dmg:0,armor:5,blastMorale:1,fireRangesKm:{direct:0}},
     artillery:{name:'自走砲',speed:2.5,range:45,hp:100,dmg:12,armor:{front:300,side:50,top:40},blastMorale:.7,weapons:[{power:6,pen:150,morale:2}],fireRangesKm:{direct:2,indirect:{min:2,max:30}}},
-    fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2,fireRangesKm:{ground:0,air:2}},
-    attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2,weapons:[{power:2,pen:60,soft:2,morale:1.5},{power:6,pen:1500,soft:.2,morale:1.5,top:true}],fireRangesKm:{ground:10,air:15}},
+    fighter:{name:'戦闘機',speed:8,range:20,hp:40,dmg:2,maxPlatoons:1,fireRangesKm:{ground:0,air:2}},
+    attack:{name:'攻撃機',speed:6,range:15,hp:40,dmg:2,maxPlatoons:1,weapons:[{power:2,pen:60,soft:2,morale:1.5},{power:6,pen:1500,soft:.2,morale:1.5,top:true}],fireRangesKm:{ground:10,air:15}},
     supportAircraft:{name:'広域戦略支援航空機',speed:5,range:20,hp:20,dmg:16,fireRangesKm:{ground:0,air:0}}, // 固定射程なし。段階7の実高度・速度から投下進入を計画（索敵はsightで独立）
     // directFirst: 直接射撃を主とする。間接射撃は地点攻撃の命令のときだけ撃ち（自動交戦・攻撃の命令・敵の自動の地点攻撃では撃たない）、
     // 攻撃の命令と NPC の助攻では直接射撃の距離まで近づく（ユーザー決定 2026-11-19）
@@ -193,6 +205,7 @@ window.WOS_GROUND_RULES = {
   },
   // ユーザー決定 2026-11-12: damageScale、neutralSeconds、roadSegmentKm、timeScale、roadFactorは全て仮。
   combat: {
+    aaMaxHeightKm:{mobileAA:4,default:1.5}, // 自動対空が届く対地高度（仮、ユーザー決定 2026-11-28）。
     // #511。時刻はゲーム秒。機体数と射程・電池はユーザー決定、ほかの性能は仮。
     drone: {
       name:'ドローン',airframes:3,rangeKm:15,researchRangeKm:50,batterySec:60,

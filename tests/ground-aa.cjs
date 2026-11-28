@@ -13,7 +13,7 @@ function createContext(){
     groundSupplyShot=(f,...args)=>{supplyShots++;aaActualSupplyShot(f,...args);};
     groundVisualDirect=(f,i,t,j,from,to,aa)=>shots.push({from:from.clone(),to:to.clone(),aa});
     function resetAA(){op={ground:'exercise2',groundHQ:{0:'A',1:'B'},wipeLose:false};fleets=[];groundHeight=groundSightHeight=()=>0;groundForests=[];groundBuildings=[];groundSites=[];hits=[];shots=[];supplyShots=0;rejected=0;damage=aaDamageCallback;engaged.clear();over=false;}
-    function unit(kind='mobileAA',team=0,x=0,band){const p=new THREE.Vector3(x,0,0),f=makeFleet(team,{name:kind,type:kind==='sea'?'cl':'cv',groundKind:kind,n:1,scale:.3,pos:[p.x,p.z],stance:'evade'});f.band=band||(['fighter','attack','supportAircraft'].includes(kind)?'high':'ground');f.pos.y=groundRules().heights[f.band]||0;f.groundVisible=[true,true];f.hpPool=f.max=1000;f.eva=0;return f;}
+    function unit(kind='mobileAA',team=0,x=0,band){const p=new THREE.Vector3(x,0,0),f=makeFleet(team,{name:kind,type:kind==='sea'?'cl':'cv',groundKind:kind,n:1,scale:.3,pos:[p.x,p.z],stance:'evade'});f.band=band||(['fighter','attack','supportAircraft'].includes(kind)?'low':'ground');f.pos.y=band?groundBandHeight(band):f.band==='low'?1.5*GROUND_SCALE:0;f.groundVisible=[true,true];f.hpPool=f.max=1000;f.eva=0;return f;}
     function scene(kind='mobileAA',distance=4){const f=unit(kind),t=unit('fighter',1,distance);fleets=[f,t];return {f,t};}
     function close(a,b){return Math.abs(a-b)<1e-7;}
   `);
@@ -36,12 +36,54 @@ function nodeChecks(){
   check('友軍の観測した航空は自身の視界外でも迎撃できる',`(()=>{const {f,t}=scene('sea',80),scout=unit('scout',0,75);t.groundVisible[0]=groundCanSee(scout,t);fleets.push(scout);groundAutoAAStep(.05);return !groundCanSee(f,t)&&groundCanSee(scout,t)&&hits.length===1&&hits[0].source===f;})()`);
   check('建物に射線を遮られた航空には撃たない',`(()=>{const {f,t}=scene();groundBuildings=[{minX:1,maxX:2,minZ:-1,maxZ:1,bottom:0,top:100}];groundAutoAAStep(.05);return !groundLineOfSight(f,t)&&hits.length===0&&f.groundAATarget===null;})()`);
   check('水平射程の境界内だけ許可し航空高度で距離を水増ししない',`(()=>{const {f,t}=scene('mobileAA',6*GROUND_SCALE);if(!groundAASolution(f,t))return false;t.pos.x+=.001;return !groundAASolution(f,t);})()`);
+  check('自走対空砲は対地高度4 km以下を撃ち、境界超過と高高度10 kmは撃たない',`(()=>{
+    const {f,t}=scene(),surface=8;
+    groundHeight=groundSightHeight=()=>surface;f.pos.y=surface;
+    for(const height of [10,4.001,4,3.99]){
+      t.band=height===10?'high':'low';t.pos.y=surface+height*GROUND_SCALE;
+      const count=hits.length,allowed=height<=4;
+      if(groundAASolution(f,t)!==allowed)return false;
+      groundAutoAAStep(1);
+      if(hits.length!==count+Number(allowed))return false;
+    }
+    return true;
+  })()`);
+  check('WAS・戦車・輸送車・艦の自動対空は1.5 kmまで',`(()=>{
+    for(const kind of ['was','vehicle','apc','sea']){
+      const {f,t}=scene(kind),count=hits.length;
+      t.pos.y=1.501*GROUND_SCALE;groundAutoAAStep(.05);
+      if(groundAASolution(f,t)||hits.length!==count)return false;
+      t.pos.y=1.5*GROUND_SCALE;groundAutoAAStep(.05);
+      if(!groundAASolution(f,t)||hits.length!==count+1)return false;
+    }
+    return true;
+  })()`);
+  check('中隊の中心が射程外でも実機を照準し、射線の通る1機にだけ損害を与える',`(()=>{
+    const {f,t}=scene('mobileAA',50);groundVisuals=new THREE.Group();groundInitUnit(t);
+    const track=groundAirSquadTrack(t),h=4*GROUND_SCALE;
+    track.bodies[0].pos.set(3,h,0);track.bodies[1].pos.set(4,h+.01,0);track.bodies[2].pos.set(5,h,7);track.bodies[3].pos.set(55,h,0);
+    groundBuildings=[{minX:1,maxX:2,minZ:-.6,maxZ:.6,bottom:0,top:100}];
+    const hp=t.bodies.map(b=>b.hp);
+    if(!groundAASolution(f,t))return false;
+    groundAutoAAStep(.05);
+    return hits.length===1&&shots[0].to.equals(track.bodies[2].pos)&&t.bodies[2].hp<hp[2]&&
+      t.bodies.every((b,i)=>i===2||b.hp===hp[i]);
+  })()`);
+  check('自走対空砲中隊は上限を超えた損傷機を飛ばし、範囲内の機に集中する',`(()=>{
+    const {f,t}=scene();groundVisuals=new THREE.Group();groundInitUnit(f);groundInitUnit(t);
+    const bodies=groundAirSquadTrack(t).bodies;
+    bodies[0].pos.set(2,16.01,0);bodies[1].pos.set(3,16,0);
+    t.bodies[0].hp*=.5;groundBodySync(t);
+    for(const gun of f.bodies)gun.aaT=0;
+    groundAutoAAStep(.05);
+    return shots.length>0&&shots.every(s=>s.to.equals(bodies[1].pos))&&t.bodies[0].hp===t.bodies[0].max*.5;
+  })()`);
   check('射手の死亡・搭載・不在・工事・敗走・士気0・帰投・固定を拒否',`(()=>{for(const flags of [{alive:false},{embarked:{}},{groundAirState:'base'},{groundBuilding:true},{groundRout:'routing'},{groundRout:'regroup'},{groundMorale:0},{groundAirState:'return'},{locked:true}]){const {f,t}=scene();Object.assign(f,flags);if(groundAASolution(f,t))return false;groundAutoAAStep(.05);if(hits.length)return false;}return true;})()`);
   check('silent・設定の射撃禁止・対空無効を尊重',`(()=>{for(const flags of [{silent:true},{groundHoldFire:true},{groundAAEnabled:false}]){const {f,t}=scene();Object.assign(f,flags);groundAutoAAStep(.05);if(groundAASolution(f,t)||hits.length)return false;}return true;})()`);
   check('命令優先・自動交戦・停止防御のいずれでも迎撃',`(()=>{for(const stance of ['engage','evade']){const {f}=scene();f.stance=stance;f.order={type:'hold'};groundAutoAAStep(.05);if(hits[hits.length-1]?.source!==f||f.stance!==stance||f.order.type!=='hold')return false;}return hits.length===2;})()`);
   check('対空装備のない兵科へ能力を足さない',`(()=>{for(const kind of ['artillery','guidedRocket','scout','engineer','supply']){const {f,t}=scene(kind,1);if(groundAARange(f)!==0||groundAASolution(f,t))return false;groundAutoAAStep(.05);if(hits.length)return false;}return true;})()`);
   check('航空機は通常戦闘に残し自動対空へ入れない',`(()=>{for(const kind of ['fighter','attack','supportAircraft']){const {f,t}=scene(kind,1);groundAutoAAStep(.05);if(groundAASolution(f,t)||groundAARange(f)||hits.length)return false;}return true;})()`);
-  check('歩兵の低空0.5倍を維持し高空対象を追加しない',`(()=>{const {f,t}=scene('infantry',1);t.band='low';t.pos.y=groundRules().heights.low;groundAutoAAStep(.05);if(hits.length!==1||!close(hits[0].amount,f.dmg*.5))return false;t.band='high';return !groundAASolution(f,t);})()`);
+  check('歩兵の低空0.5倍を維持し高空対象を追加しない',`(()=>{const {f,t}=scene('infantry',1);groundAutoAAStep(.05);if(hits.length!==1||!close(hits[0].amount,f.dmg*.5))return false;t.band='high';return !groundAASolution(f,t);})()`);
   check('WASは空中で15kmの自動対空へ切り替わる',`(()=>{const {f,t}=scene('was',40);if(groundAASolution(f,t))return false;f.band='high';f.pos.y=groundRules().heights.high;groundAutoAAStep(.05);return hits.length===1&&groundAASolution(f,t)&&f.groundAATarget===t;})()`);
   check('訓練敵は対空でも味方へ打撃しない',`(()=>{const f=unit('mobileAA',1),t=unit('fighter',0,4);fleets=[f,t];op.groundDrill=true;const hp=t.hpPool;groundAutoAAStep(.05);return !groundAASolution(f,t)&&hits.length===0&&t.hpPool===hp&&supplyShots===0;})()`);
   check('デバッグ敵固定では自発対空も停止',`(()=>{const f=unit('mobileAA',1),t=unit('fighter',0,4);fleets=[f,t];op.groundStaticEnemies=true;groundAutoAAStep(.05);return !groundAASolution(f,t)&&hits.length===0;})()`);

@@ -8,6 +8,10 @@ function groundAARange(f,t){
   if(!Number.isFinite(range)||range<=0)return 0;
   return f.groundKind==='sea'&&t?.groundKind==='drone'?Math.min(range,groundRuleSet().combat.drone.seaAAKm*GROUND_SCALE):range;
 }
+function groundAAHeightAllows(f,pos){
+  const limits=groundRuleSet().combat.aaMaxHeightKm;
+  return pos.y-groundSightHeight(pos.x,pos.z)<=(limits[f.groundKind]??limits.default)*GROUND_SCALE+1e-8;
+}
 function groundAutoAAReady(f){
   return typeof op!=='undefined'&&!!op.ground&&groundAutoAASource(f)&&f.alive&&!f.embarked&&!groundAbsent(f)&&
     !(typeof groundScriptDescending==='function'&&groundScriptDescending(f))&&!f.groundBuilding&&!f.groundRout&&f.groundMorale!==0&&!f.groundAirState&&!f.locked&&
@@ -19,10 +23,10 @@ function groundAASolution(f,t){
   if(!f.pos||!t.pos||![f.pos.x,f.pos.y,f.pos.z,t.pos.x,t.pos.y,t.pos.z].every(Number.isFinite))return false;
   const range=groundAARange(f,t);
   if(!(range>0&&groundFireFactor(f,t,true)>0&&groundSeenBy(f.team,t)))return false;
-  if(groundShotInRange(f,t,range))return true;
+  if(groundShotInRange(f,t,range,true))return true;
   // 最寄りの飛行機体が遮蔽物の裏でも、別の機体に射線が通ることがある。
-  return f.groundKind==='mobileAA'&&!!f.bodies&&groundWasBodyFlight(t)&&groundWasWithinReach(f,t,range)&&
-    t.bodies.some((b,j)=>b.alive&&f.bodies.some((gun,i)=>gun.alive&&groundBodyShot(f,i,t,j,range)));
+  return f.groundKind==='mobileAA'&&!!f.bodies&&groundWasBodyFlight(t)&&groundBodiesWithinReach(f,t,range)&&
+    t.bodies.some((b,j)=>b.alive&&f.bodies.some((gun,i)=>gun.alive&&groundBodyShot(f,i,t,j,range,undefined,undefined,true)));
 }
 // damage側の専用入口。通常射撃の許可や残ったfireTargetからは迎撃を偽装できない。
 function groundAutoAAHit(f,t){return !!f&&f.groundAAResolving===t&&groundAASolution(f,t);}
@@ -39,6 +43,7 @@ function groundAACompanyFire(f,candidates){
     for(const [j,body] of (t.bodies||[null]).entries()){
       if(body&&!body.alive)continue;
       const p=positions[j]||positions[0];
+      if(!groundAAHeightAllows(f,p))continue;
       const distance=Math.hypot(f.pos.x-p.x,f.pos.z-p.z);
       const damage=body?.max>0?1-body.hp/body.max:0;
       aims.push({t,j,body,range,distance,damage});
@@ -52,7 +57,7 @@ function groundAACompanyFire(f,candidates){
     if(!aim||!aim.t.alive||aim.body&&!aim.body.alive){
       aim=aims.find(candidate=>{
         if(!candidate.t.alive||candidate.body&&!candidate.body.alive)return false;
-        candidate.hits??=f.bodies.map((b,k)=>b.alive?groundBodyShot(f,k,candidate.t,candidate.j,candidate.range):null);
+        candidate.hits??=f.bodies.map((b,k)=>b.alive?groundBodyShot(f,k,candidate.t,candidate.j,candidate.range,undefined,undefined,true):null);
         return candidate.hits.some(Boolean);
       });
       if(!aim)break;
@@ -79,13 +84,14 @@ function groundAutoAAStep(dt){
     if(reloading){
       if(previous?.alive&&previous.team!==f.team&&!previous.embarked&&!groundAbsent(previous)&&groundAATargetable(previous)&&groundSeenBy(f.team,previous)){
         const range=groundAARange(f,previous);
-        if(groundWasBodyFlight(f)||groundWasBodyFlight(previous)?groundWasWithinReach(f,previous,range):groundDistanceTo(f,previous)<=range)f.groundAATarget=previous;
+        if(groundUsesFlightBodies(f,previous)?groundBodiesWithinReach(f,previous,range):
+          groundDistanceTo(f,previous)<=range&&groundAAHeightAllows(f,previous.pos))f.groundAATarget=previous;
       }
       continue;
     }
     const candidates=air.filter(t=>t.team!==f.team&&!t.embarked&&!groundAbsent(t)&&!(groundWasCruising(t)&&f.fireTarget===t)&&groundSeenBy(f.team,t))
       .map(t=>({t,d:groundDistanceTo(f,t)}))
-      .filter(({t,d})=>groundWasBodyFlight(f)||groundWasBodyFlight(t)||d<=groundAARange(f,t));
+      .filter(({t,d})=>groundUsesFlightBodies(f,t)||d<=groundAARange(f,t));
     if(f.groundKind==='mobileAA'&&f.bodies){
       groundAACompanyFire(f,candidates);
       if(!f.groundAATarget)groundBodyIdleClock(f,'aaT');
@@ -101,7 +107,7 @@ function groundAutoAAStep(dt){
       continue;
     }
     // 対空の時計を先に進め、同期callbackでも同じ迎撃を重複発射しない。
-    const hit=groundWasBodyFlight(target)?groundBodyTarget(f,0,target,groundAARange(f,target)):null;
+    const hit=groundUsesFlightBodies(f,target)?groundBodyTarget(f,0,target,groundAARange(f,target),true):null;
     const weapon=groundDirectWeapon(f,target,true,null,hit);
     f.groundAATimer=groundWeaponInterval(weapon);
     f.groundAAResolving=target;

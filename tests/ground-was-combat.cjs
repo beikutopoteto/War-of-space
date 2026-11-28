@@ -441,8 +441,9 @@ function nodeChecks(){
     flying.band='cruise';flying.pos.y=groundUnitHeight(flying);
     const other=unit('fighter',1,0,3);
     other.band='low';
-    check('航空機の射撃・被弾の位置は中隊の中心を維持する',
-      other.bodies.every((_,i)=>groundBodyPosition(other,i).equals(other.pos)));
+    check('戦闘機の射撃・被弾は各機の飛行位置を使う',
+      new Set(other.bodies.map((_,i)=>groundBodyPosition(other,i).toArray().join(','))).size===4&&
+      other.bodies.every((_,i)=>groundBodyPosition(other,i).equals(groundAirSquadTrack(other).bodies[i].pos)));
     groundWasFlightStep(flying,0);
     const from=flying.groundWasFlight.bodies[0].pos;
     const ground=groundBodyPosition(armored,0);

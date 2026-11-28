@@ -25,7 +25,8 @@ async function main(){
   async function shot(p,name){
    await p.evaluate(()=>{if(menuOpen||!document.getElementById('menu').hidden)throw Error('メニューが開いたまま');shotFrame();frame(performance.now());});
    await p.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
-   const file=path.join(ROOT,'test-results','formations-'+name+'.png');await p.screenshot({path:file,timeout:120000});console.log(file);
+   const file=path.join(ROOT,name.startsWith('air-')?'.shots':'test-results','formations-'+name+'.png');
+   fs.mkdirSync(path.dirname(file),{recursive:true});await p.screenshot({path:file,timeout:120000});console.log(file);
    assert.deepEqual(errors,[],'ページ例外');
   }
   if(!mobileOnly){
@@ -42,15 +43,19 @@ async function main(){
   await page.evaluate(()=>{
    formationScene();for(const f of fleets)f.alive=false;
    for(const [i,kind] of ['fighter','attack'].entries()){
-    const f=makeFleet(0,groundUnitSpec({name:kind==='fighter'?'戦闘機':'攻撃機',kind,at:[9+i*4,27]}));fleets.push(f);groundInitUnit(f);f.heading.set(0,0,1);
+    const f=makeFleet(0,groundUnitSpec({name:kind==='fighter'?'戦闘機':'攻撃機',kind,at:[9+i*6,27],band:i?'low':'high',platoons:1,stance:'evade'}));
+    fleets.push(f);f.heading.set(1,0,0);groundInitUnit(f);
    }
    setSel(fleets.filter(f=>f.alive));formationTick(2);
   });await shot(page,'air-formation');
   await page.evaluate(()=>{
-   const t=makeFleet(1,groundUnitSpec({name:'航空標的',kind:'fighter',at:[12,27]}));fleets.push(t);groundInitUnit(t);
-   for(const f of fleets.filter(f=>f.alive&&f.team===0))order(f,{type:'attack',target:t});
+   for(const f of fleets.filter(f=>f.alive&&f.team===0)){
+    const air=f.groundKind==='fighter';
+    const target=makeFleet(1,groundUnitSpec({name:air?'航空標的':'地上標的',kind:air?'fighter':'vehicle',at:[air?14:21,27],band:air?'low':'ground',platoons:1,stance:'evade'}));
+    fleets.push(target);groundInitUnit(target);order(f,{type:'attack',target});
+   }
   });
-  for(let i=1;i<=3;i++){await page.evaluate(()=>formationTick(1));await shot(page,'air-combat-'+i);}
+  for(let i=1;i<=3;i++){await page.evaluate(()=>formationTick(1,true));await shot(page,'air-combat-'+i);}
   }
   await page.close();
   const mobile=await browser.newPage({viewport:{width:390,height:780},deviceScaleFactor:3,isMobile:true});

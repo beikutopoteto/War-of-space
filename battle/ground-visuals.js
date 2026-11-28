@@ -179,8 +179,8 @@ function groundVisualAim(f,i,from,to,{missile=false,indirect=false,gatling=false
     const shape=pose||move?.geometry||data?.pose?.rest||body?.geometry;
     const local=rocket?shape?.userData.guns?.[0]:shape?.userData.muzzle;
     const muzzleYaw=pose&&(key==='hinfMsl'||key==='wasFire'||key==='wasFlyFire')?yaw:bodyYaw;
-    const flight=geometry.flight?.bodies[i];
-    const attitude=flight&&new THREE.Quaternion().setFromEuler(new THREE.Euler(flight.pitch,flight.yaw,flight.bank,'YXZ'));
+    const flight=geometry.flight?.bodies[i],air=geometry.air?.bodies[i],bodyFlight=air||flight;
+    const attitude=bodyFlight&&new THREE.Quaternion().setFromEuler(new THREE.Euler(air?-air.pitch:flight.pitch,bodyFlight.yaw,bodyFlight.bank,'YXZ'));
     const worldPoint=(point,lift)=>{
       const p=new THREE.Vector3().fromArray(point).multiplyScalar(size);
       if(attitude)p.applyQuaternion(attitude);
@@ -190,7 +190,7 @@ function groundVisualAim(f,i,from,to,{missile=false,indirect=false,gatling=false
       return p.add(base);
     };
     if(gatling&&pose?.userData.guns)guns=pose.userData.guns.map(point=>worldPoint(point,true));
-    muzzle=local?worldPoint(local,rocket):
+    muzzle=local?worldPoint(local,rocket):air?worldPoint([0,0,.5],false):
       base.add(new THREE.Vector3(Math.sin(bodyYaw)*size*.5,f.band==='ground'?size*.4:0,Math.cos(bodyYaw)*size*.5));
     direction=to.clone().sub(muzzle).normalize();
   }
